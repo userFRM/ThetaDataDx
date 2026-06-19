@@ -99,26 +99,12 @@ impl AuthSource {
     fn resolve(self) -> Result<Credentials, Error> {
         match self {
             AuthSource::ApiKey { key } => Ok(Credentials::api_key(key.as_str())),
-            AuthSource::ApiKeyFromEnv => {
-                // `THETADATA_API_KEY` is the canonical key variable; an
-                // unset or whitespace-only value is a configuration
-                // error rather than a silent fallback, because the
-                // caller explicitly asked for the env source.
-                let raw = Zeroizing::new(std::env::var("THETADATA_API_KEY").map_err(|_| {
-                    Error::config_invalid(
-                        "api_key_from_env",
-                        "THETADATA_API_KEY is not set in the environment",
-                    )
-                })?);
-                let trimmed = raw.trim();
-                if trimmed.is_empty() {
-                    return Err(Error::config_invalid(
-                        "api_key_from_env",
-                        "THETADATA_API_KEY is set but empty",
-                    ));
-                }
-                Ok(Credentials::api_key(trimmed))
-            }
+            // `THETADATA_API_KEY` is the canonical key variable; an unset
+            // or whitespace-only value is a configuration error rather than
+            // a silent fallback, because the caller explicitly asked for
+            // the env source. `Credentials::from_env` is the strict,
+            // no-file-fallback resolver shared with the other bindings.
+            AuthSource::ApiKeyFromEnv => Credentials::from_env(),
             AuthSource::DotenvFile { path } => Credentials::from_dotenv(path),
             AuthSource::EmailPassword { email, password } => {
                 Ok(Credentials::new(email, password.as_str()))
@@ -142,10 +128,10 @@ enum EnvSource {
     Default,
     /// Select a [`DirectConfig`] preset for the given [`Environment`].
     Environment { environment: Environment },
-    /// Use a caller-supplied [`DirectConfig`] verbatim. Its environment
-    /// and host selection win over any `.environment()` / `.stage()`
-    /// call (last writer wins, and a full config is the strongest
-    /// statement of intent).
+    /// Use a caller-supplied [`DirectConfig`] verbatim. The config and
+    /// environment setters resolve in call order, last one wins: a later
+    /// `.environment()` / `.stage()` / `.production()` replaces this
+    /// config, and this config replaces an earlier environment selection.
     Config { config: Box<DirectConfig> },
     /// Source the environment from a `.env`-format file at connect time,
     /// via [`DirectConfig::from_dotenv`].
@@ -290,9 +276,10 @@ impl ClientBuilder {
 
     /// Use a fully built [`DirectConfig`] verbatim.
     ///
-    /// The config's own environment and host selection win over any
-    /// [`Self::environment`] / [`Self::stage`] call, since a complete
-    /// config is the strongest statement of routing intent.
+    /// The config and the environment setters resolve in call order, last
+    /// one wins: this config replaces an earlier
+    /// [`Self::environment`] / [`Self::stage`] selection, and a later
+    /// `environment` / `stage` / `production` call replaces this config.
     pub fn config(mut self, config: DirectConfig) -> Self {
         self.env = EnvSource::Config {
             config: Box::new(config),

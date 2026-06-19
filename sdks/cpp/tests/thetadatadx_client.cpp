@@ -71,6 +71,32 @@ TEST_CASE("ClientBuilder validates auth before connecting",
     builder.api_key("td1_example").stage();
 }
 
+TEST_CASE("api_key_from_env is strict — unset env throws ConfigError",
+          "[unified][offline]") {
+    // Mirror the Rust `ClientBuilder::api_key_from_env`: an unset or
+    // whitespace-only `THETADATA_API_KEY` is a ConfigError before any
+    // network round-trip, with NO `creds.txt` file fallback. This path
+    // never touches the server, so it runs offline.
+    const std::string saved = env_or_empty("THETADATA_API_KEY");
+    ::unsetenv("THETADATA_API_KEY");
+
+    REQUIRE_THROWS_AS(thetadatadx::Client::builder().api_key_from_env().connect(),
+                      thetadatadx::ConfigError);
+
+    // A whitespace-only value is likewise rejected (not trimmed to a
+    // valid key, not fallen back to a file).
+    ::setenv("THETADATA_API_KEY", "   ", 1);
+    REQUIRE_THROWS_AS(thetadatadx::Client::builder().api_key_from_env().connect(),
+                      thetadatadx::ConfigError);
+
+    // Restore the caller's environment so sibling tests are unaffected.
+    if (saved.empty()) {
+        ::unsetenv("THETADATA_API_KEY");
+    } else {
+        ::setenv("THETADATA_API_KEY", saved.c_str(), 1);
+    }
+}
+
 TEST_CASE("Stream binds the full FPSS surface",
           "[unified][offline]") {
     // The unified client's streaming surface lives on the

@@ -205,8 +205,11 @@ fn config_option_err(message: impl AsRef<str>) -> napi::Error {
 pub struct ClientConnectOptions {
     /// Inline API key — the primary, directly-passed auth field.
     pub api_key: Option<String>,
-    /// Source the API key from the `THETADATA_API_KEY` environment
-    /// variable (set to `true` to select this source).
+    /// Source the API key strictly from the `THETADATA_API_KEY`
+    /// environment variable (set to `true` to select this source). Strict,
+    /// with no file fallback: an unset or whitespace-only value is a
+    /// configuration error. For the env-or-file convenience use
+    /// `apiKeyFromDotenv`.
     pub api_key_from_env: Option<bool>,
     /// Source the credential from a `.env`-format file at this path.
     pub api_key_from_dotenv: Option<String>,
@@ -266,7 +269,11 @@ impl ClientConnectOptions {
         let creds = if let Some(key) = api_key {
             auth::Credentials::api_key(key)
         } else if has_env {
-            auth::Credentials::from_env_or_file("creds.txt").map_err(to_napi_err)?
+            // Strict, no file fallback: an unset or whitespace-only
+            // `THETADATA_API_KEY` is a configuration error, mirroring the
+            // Rust `ClientBuilder::api_key_from_env` and the C++ / Python
+            // bindings so the same-named capability agrees everywhere.
+            auth::Credentials::from_env().map_err(to_napi_err)?
         } else if let Some(path) = api_key_from_dotenv {
             auth::Credentials::from_dotenv(&path).map_err(to_napi_err)?
         } else if has_email_pw {

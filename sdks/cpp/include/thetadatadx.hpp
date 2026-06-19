@@ -16,6 +16,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <functional>
 #include <future>
 #include <memory>
@@ -2491,7 +2492,9 @@ public:
     }
 
     /// Source the API key from the `THETADATA_API_KEY` environment
-    /// variable, read at `connect()` time.
+    /// variable, read at `connect()` time. Strict: an unset or
+    /// whitespace-only value throws `ConfigError` from `connect()`; there
+    /// is no `creds.txt` file fallback.
     ClientBuilder& api_key_from_env() {
         return set_auth(AuthKind::ApiKeyFromEnv, std::string(), std::string(),
                         "api_key_from_env");
@@ -2537,8 +2540,10 @@ public:
         return *this;
     }
 
-    /// Use a fully built `Config` verbatim. Its environment and hosts win
-    /// over any `environment()` / `stage()` call.
+    /// Use a fully built `Config` verbatim. The config and the environment
+    /// setters resolve in call order, last one wins: this config replaces
+    /// an earlier `stage()` / `production()` selection, and a later
+    /// `stage()` / `production()` call replaces this config.
     ClientBuilder& config(Config cfg) {
         env_kind_ = EnvKind::Config;
         config_ = std::make_shared<Config>(std::move(cfg));
@@ -2621,7 +2626,7 @@ private:
             case AuthKind::ApiKey:
                 return Credentials::from_api_key(auth_a_);
             case AuthKind::ApiKeyFromEnv:
-                return Credentials::from_env_or_file("creds.txt");
+                return resolve_api_key_from_env();
             case AuthKind::Dotenv:
                 return Credentials::from_dotenv(auth_a_);
             case AuthKind::EmailPassword:
@@ -2637,6 +2642,26 @@ private:
                 // throw_config_error never returns; satisfy the compiler.
                 return Credentials::from_api_key("");
         }
+    }
+
+    /// Strict `THETADATA_API_KEY` env resolver, mirroring the Rust
+    /// `ClientBuilder::api_key_from_env`. An unset or whitespace-only value
+    /// is a configuration error rather than a silent fallback, because the
+    /// caller explicitly asked for the environment source. No `creds.txt`
+    /// file fallback.
+    static Credentials resolve_api_key_from_env() {
+        const char* raw = std::getenv("THETADATA_API_KEY");
+        if (raw == nullptr) {
+            detail::throw_config_error(
+                "THETADATA_API_KEY is not set in the environment");
+        }
+        std::string value(raw);
+        const auto first = value.find_first_not_of(" \t\r\n");
+        if (first == std::string::npos) {
+            detail::throw_config_error("THETADATA_API_KEY is set but empty");
+        }
+        const auto last = value.find_last_not_of(" \t\r\n");
+        return Credentials::from_api_key(value.substr(first, last - first + 1));
     }
 
     Config resolve_config() const {

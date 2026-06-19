@@ -5271,19 +5271,127 @@ class Client:
     :meth:`start_streaming`. This is the recommended entry point.
     """
 
-    def __init__(self, creds: Credentials, config: Config) -> None:
-        """Connect to ThetaData with ``creds`` and ``config``.
+    # pyo3 routes the constructor through `__new__`; this stub mirrors the
+    # exact runtime `#[pyo3(signature = ...)]` so stubtest validates the
+    # parameter list against the compiled extension (the `Client.__new__`
+    # allowlist entry is intentionally dropped, so a renamed / removed
+    # constructor kwarg is caught). The documented `__init__` twin below is
+    # what `help()` / IDEs / the rendered docs surface; stubtest flags the
+    # documented-`__init__`-vs-real-`__new__` swap, which the
+    # `Client.__init__` allowlist entry covers.
+    def __new__(
+        cls,
+        credentials: Optional[Credentials] = None,
+        config: Optional[Config] = None,
+        *,
+        api_key: Optional[str] = None,
+        email: Optional[str] = None,
+        password: Optional[str] = None,
+        mdds_type: Optional[str] = None,
+    ) -> Client: ...
 
-        Authenticates and opens the historical channel; streaming is not
-        started. The call is interruptible with ``Ctrl+C`` if the
+    def __init__(
+        self,
+        credentials: Optional[Credentials] = None,
+        config: Optional[Config] = None,
+        *,
+        api_key: Optional[str] = None,
+        email: Optional[str] = None,
+        password: Optional[str] = None,
+        mdds_type: Optional[str] = None,
+    ) -> None:
+        """Connect to ThetaData and open the historical channel.
+
+        The API key is first-class and directly passed:
+        ``Client(api_key="td1_...")`` (optionally with
+        ``mdds_type="STAGE"``). Email + password is the parallel inline
+        form: ``Client(email="user@example.com", password="secret")``. The
+        lower-level typed path stays a superset:
+        ``Client(credentials=creds, config=cfg)`` (and the positional
+        ``Client(creds, config)``) still work.
+
+        Exactly one authentication argument must be supplied — ``api_key``,
+        the ``email`` + ``password`` pair, or ``credentials``. Passing
+        none, or two different ones, raises ``ConfigError`` before any
+        network round-trip. ``mdds_type`` (``"PROD"`` / ``"STAGE"``,
+        case-insensitive) selects the environment; ``config`` supplies a
+        full :class:`Config` whose environment and hosts win. Streaming is
+        not started. The call is interruptible with ``Ctrl+C`` if the
         handshake stalls.
 
         Args:
-            creds: Account credentials.
+            credentials: Pre-built account credentials.
             config: Connection configuration (e.g. ``Config.production()``).
+            api_key: Inline API key.
+            email: Inline account email, paired with ``password``.
+            password: Inline account password, paired with ``email``.
+            mdds_type: Environment selector (``"PROD"`` / ``"STAGE"``).
 
         Raises:
+            ConfigError: If no authentication argument is given, two
+                different ones are given, or ``mdds_type`` is invalid.
             ThetaDataError: If authentication or the connection fails.
+        """
+        ...
+
+    @staticmethod
+    def from_env(
+        config: Optional[Config] = None,
+        *,
+        mdds_type: Optional[str] = None,
+    ) -> Client:
+        """Connect with the API key sourced strictly from the environment.
+
+        Reads ``THETADATA_API_KEY`` and connects. Strict, with no file
+        fallback: an unset or whitespace-only ``THETADATA_API_KEY`` raises
+        ``ConfigError`` before any network round-trip. For the env-or-file
+        convenience read a ``.env`` file with :meth:`from_dotenv` instead.
+
+        Args:
+            config: Connection configuration; defaults to
+                ``Config.production()`` when omitted.
+            mdds_type: Environment selector (``"PROD"`` / ``"STAGE"``).
+
+        Returns:
+            A connected :class:`Client`.
+
+        Raises:
+            ConfigError: If ``THETADATA_API_KEY`` is unset or empty, or
+                ``mdds_type`` is invalid.
+            ThetaDataError: If the connection fails.
+        """
+        ...
+
+    @staticmethod
+    def from_dotenv(
+        path: str,
+        config: Optional[Config] = None,
+        *,
+        mdds_type: Optional[str] = None,
+    ) -> Client:
+        """Connect with the credential (and optionally the environment)
+        sourced from a ``.env``-format file.
+
+        ``THETADATA_API_KEY`` selects an API key; otherwise
+        ``THETADATA_EMAIL`` + ``THETADATA_PASSWORD`` build email +
+        password credentials. When ``config`` is omitted the same file is
+        also read for ``THETADATA_MDDS_TYPE``, so one ``.env`` can carry
+        both the credential and the environment. An explicit ``config`` or
+        ``mdds_type`` overrides the file's environment selection.
+
+        Args:
+            path: Path to the ``.env`` file to read.
+            config: Connection configuration overriding the file's
+                environment selection.
+            mdds_type: Environment selector (``"PROD"`` / ``"STAGE"``)
+                overriding the file's selection.
+
+        Returns:
+            A connected :class:`Client`.
+
+        Raises:
+            ThetaDataError: If the file cannot be read or defines none of
+                the recognized keys, or the connection fails.
         """
         ...
 

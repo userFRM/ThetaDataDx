@@ -3124,8 +3124,11 @@ export interface ClientConnectOptions {
   /** Inline API key — the primary, directly-passed auth field. */
   apiKey?: string
   /**
-   * Source the API key from the `THETADATA_API_KEY` environment
-   * variable (set to `true` to select this source).
+   * Source the API key strictly from the `THETADATA_API_KEY`
+   * environment variable (set to `true` to select this source). Strict,
+   * with no file fallback: an unset or whitespace-only value is a
+   * configuration error. For the env-or-file convenience use
+   * `apiKeyFromDotenv`.
    */
   apiKeyFromEnv?: boolean
   /** Source the credential from a `.env`-format file at this path. */

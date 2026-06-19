@@ -1412,11 +1412,6 @@ include!("_generated/utility_functions.rs");
 // dispatch under the free-threaded interpreter. A future `&mut self`
 // regression surfaces as a `cargo check` failure rather than slipping
 // silently through.
-/// Default `creds.txt` filename used when a credential is sourced from
-/// the environment with a file fallback (`Client.from_env`). Matches the
-/// two-line `creds.txt` format read by [`auth::Credentials::from_file`].
-const DEFAULT_CREDS_FILE: &str = "creds.txt";
-
 /// Resolve the inline authentication kwargs into a single
 /// [`auth::Credentials`], enforcing that exactly one source was given.
 ///
@@ -1650,8 +1645,16 @@ impl Client {
         Self::connect_blocking(py, creds, direct_config)
     }
 
-    /// Connect with the API key sourced from the environment
+    /// Connect with the API key sourced strictly from the environment
     /// (``THETADATA_API_KEY``).
+    ///
+    /// Strict, with no file fallback: an unset or whitespace-only
+    /// ``THETADATA_API_KEY`` raises ``ConfigError`` before any network
+    /// round-trip, mirroring the Rust ``ClientBuilder::api_key_from_env``
+    /// and the C++ ``ClientBuilder::api_key_from_env`` so the same-named
+    /// capability behaves identically across bindings. For the
+    /// env-or-file convenience read a ``.env`` file with
+    /// :meth:`from_dotenv` instead.
     ///
     /// ``mdds_type`` selects the environment (``"PROD"`` / ``"STAGE"``);
     /// ``config`` supplies a full :class:`Config` whose environment and
@@ -1664,7 +1667,7 @@ impl Client {
         config: Option<&Config>,
         mdds_type: Option<&str>,
     ) -> PyResult<Self> {
-        let creds = auth::Credentials::from_env_or_file(DEFAULT_CREDS_FILE).map_err(to_py_err)?;
+        let creds = auth::Credentials::from_env().map_err(to_py_err)?;
         let direct_config = resolve_direct_config(config, mdds_type)?;
         Self::connect_blocking(py, creds, direct_config)
     }

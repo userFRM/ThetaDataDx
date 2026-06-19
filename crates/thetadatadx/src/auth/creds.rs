@@ -279,6 +279,41 @@ impl Credentials {
         }
     }
 
+    /// Source an API key strictly from the `THETADATA_API_KEY`
+    /// environment variable.
+    ///
+    /// Strict, with no file fallback: an unset or whitespace-only value is
+    /// a configuration error rather than a silent fallback, because the
+    /// caller explicitly asked for the environment source. Use
+    /// [`Credentials::from_env_or_file`] for the env-or-file convenience.
+    ///
+    /// # Zeroization pipeline
+    ///
+    /// The environment buffer is wrapped in [`Zeroizing`] so the key bytes
+    /// are wiped on drop; [`Credentials::api_key`] keeps its own zeroized
+    /// copy of the trimmed key.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Config`] when `THETADATA_API_KEY` is unset or
+    /// resolves to a whitespace-only value.
+    pub fn from_env() -> Result<Self, Error> {
+        let key = Zeroizing::new(std::env::var(API_KEY_ENV).map_err(|_| {
+            Error::config_invalid(
+                "api_key_from_env",
+                "THETADATA_API_KEY is not set in the environment",
+            )
+        })?);
+        let trimmed = key.trim();
+        if trimmed.is_empty() {
+            return Err(Error::config_invalid(
+                "api_key_from_env",
+                "THETADATA_API_KEY is set but empty",
+            ));
+        }
+        Ok(Self::api_key(trimmed))
+    }
+
     /// Source credentials from the environment, falling back to a
     /// `creds.txt` file.
     ///
@@ -558,6 +593,34 @@ mod tests {
                 res.is_err(),
                 "whitespace-only env var must fall through to the file path"
             );
+        });
+    }
+
+    #[test]
+    fn from_env_sources_and_trims_api_key() {
+        temp_env_var(API_KEY_ENV, Some("  env-strict-key  "), || {
+            let creds = Credentials::from_env().expect("env api key must source strictly");
+            assert!(creds.is_api_key());
+            assert_eq!(creds.api_key_secret(), Some("env-strict-key"));
+        });
+    }
+
+    #[test]
+    fn from_env_errors_when_unset_no_file_fallback() {
+        temp_env_var(API_KEY_ENV, None, || {
+            // Strict: no `creds.txt` fallback — an unset env var is a
+            // configuration error, even though a `creds.txt` may exist in
+            // the working directory.
+            let err = Credentials::from_env().expect_err("unset env var must error");
+            assert!(err.to_string().to_lowercase().contains("not set"));
+        });
+    }
+
+    #[test]
+    fn from_env_errors_when_empty() {
+        temp_env_var(API_KEY_ENV, Some("   "), || {
+            let err = Credentials::from_env().expect_err("whitespace-only env var must error");
+            assert!(err.to_string().to_lowercase().contains("empty"));
         });
     }
 

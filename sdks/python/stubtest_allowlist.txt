@@ -42,8 +42,12 @@
 # constructor.
 thetadatadx\.Credentials\.__init__
 thetadatadx\.Credentials\.__new__
+# `Client.__new__` is intentionally NOT allowlisted — the .pyi carries a
+# precise `__new__` stub mirroring the runtime `#[pyo3(signature = ...)]`,
+# so stubtest validates the constructor parameter list and a renamed /
+# removed `api_key` / `email` / `password` / `mdds_type` kwarg is caught.
+# Only the documented-`__init__`-vs-real-`__new__` swap is suppressed.
 thetadatadx\.Client\.__init__
-thetadatadx\.Client\.__new__
 thetadatadx\.AsyncClient\.__init__
 thetadatadx\.AsyncClient\.__new__
 thetadatadx\.AsyncClient\.__getattr__
