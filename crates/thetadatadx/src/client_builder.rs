@@ -156,8 +156,8 @@ impl EnvSource {
 ///
 /// Construct one with [`Client::builder`], set exactly one authentication
 /// source plus an optional environment, then call
-/// [`connect`](Self::connect). See the [module docs](self) for the full
-/// surface and the validation rules.
+/// [`connect`](Self::connect). The module-level documentation describes the
+/// full surface and the validation rules.
 ///
 /// The builder deliberately does not derive [`Debug`]; its hand-written
 /// impl redacts every secret so a `{:?}` of an in-flight builder cannot

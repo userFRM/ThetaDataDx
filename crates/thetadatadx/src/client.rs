@@ -196,7 +196,7 @@ pub struct Client {
 }
 
 impl Client {
-    /// Start a fluent [`ClientBuilder`] — the headline ergonomic for
+    /// Start a fluent [`ClientBuilder`](crate::ClientBuilder), the headline ergonomic for
     /// constructing a client with the API key (or email + password) and
     /// the target environment selected inline.
     ///
