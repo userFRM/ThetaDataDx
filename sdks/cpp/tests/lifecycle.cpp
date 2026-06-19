@@ -91,6 +91,36 @@ TEST_CASE("Credentials::from_dotenv throws when the file defines no recognized k
     std::remove(path.c_str());
 }
 
+TEST_CASE("Config::from_dotenv selects the staging environment from a .env file",
+          "[lifecycle][offline]") {
+    const std::string path = unique_dotenv_path();
+    {
+        std::ofstream out(path);
+        out << "# select staging\nTHETADATA_MDDS_TYPE=STAGE\n";
+    }
+    auto config = thetadatadx::Config::from_dotenv(path);
+    REQUIRE(config.get() != nullptr);
+    // A staging `.env` resolves to the staging historical host, distinct
+    // from the production host a prod `.env` (or no selector) yields.
+    REQUIRE(config.get_historical_host() == "mdds-stage.thetadata.us");
+    std::remove(path.c_str());
+}
+
+TEST_CASE("Config::from_dotenv with only an API key yields the production environment",
+          "[lifecycle][offline]") {
+    const std::string path = unique_dotenv_path();
+    {
+        std::ofstream out(path);
+        out << "THETADATA_API_KEY=td_example_key\n";
+    }
+    auto config = thetadatadx::Config::from_dotenv(path);
+    REQUIRE(config.get() != nullptr);
+    // No cluster selector in the file: the prod default stays in force and
+    // differs from the staging host a `STAGE` selector would produce.
+    REQUIRE(config.get_historical_host() == "mdds-01.thetadata.us");
+    std::remove(path.c_str());
+}
+
 TEST_CASE("Config setters do not throw on a fresh config handle", "[lifecycle][offline]") {
     auto config = thetadatadx::Config::production();
     REQUIRE_NOTHROW(config.set_reconnect_policy(0));

@@ -129,3 +129,51 @@ pub(super) fn apply_env_overrides(cfg: &mut DirectConfig) {
         }
     }
 }
+
+/// Apply the environment-selector and host overrides carried by a parsed
+/// `.env` file on top of the receiver.
+///
+/// This is the `.env`-file analogue of [`apply_env_overrides`]: it reads the
+/// same keys with the same precedence (`THETADATA_MDDS_TYPE` first to set the
+/// cluster default, then an explicit `THETADATA_HISTORICAL_HOST` /
+/// `THETADATA_STREAMING_HOST` wins over that default) but sources the values
+/// from the `(key, value)` pairs a `.env` file parsed to, rather than from the
+/// process environment. Only the documented configuration keys are read here;
+/// the credential keys in the same file are handled by
+/// [`crate::auth::Credentials::from_dotenv`].
+///
+/// Unknown / empty values are skipped leniently, matching the process-env
+/// path, so a typo in the `.env` never silently flips the cluster to the wrong
+/// endpoint.
+pub(super) fn apply_dotenv_overrides(cfg: &mut DirectConfig, pairs: &[(String, &str)]) {
+    use crate::auth::dotenv::lookup;
+
+    // Environment selector first, so it sets the cluster default before the
+    // explicit host override below — an explicit host always wins over the
+    // environment default. An empty value reads as unset; an unrecognized
+    // value is logged and skipped (lenient, matching the process-env path).
+    if let Some(mdds_type) = lookup(pairs, ENV_MDDS_TYPE) {
+        match Environment::parse(mdds_type) {
+            Some(env) => cfg.apply_environment(env),
+            None => tracing::warn!(
+                env = ENV_MDDS_TYPE,
+                value = %mdds_type,
+                "ignoring unrecognized .env value (expected PROD or STAGE); keeping current environment"
+            ),
+        }
+    }
+    if let Some(host) = lookup(pairs, ENV_HISTORICAL_HOST) {
+        cfg.historical.host = host.to_string();
+    }
+    if let Some(host) = lookup(pairs, ENV_STREAMING_HOST) {
+        if cfg.streaming.hosts.is_empty() {
+            tracing::warn!(
+                "ignoring THETADATA_STREAMING_HOST from .env; \
+                 DirectConfig has no streaming hosts to override"
+            );
+        } else {
+            let port = cfg.streaming.hosts[0].1;
+            cfg.streaming.hosts[0] = (host.to_string(), port);
+        }
+    }
+}

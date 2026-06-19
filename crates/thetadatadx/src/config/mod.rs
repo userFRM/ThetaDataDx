@@ -232,6 +232,77 @@ impl DirectConfig {
             .expect("environment switch leaves tuning knobs unchanged")
     }
 
+    /// Source the target environment from a `.env`-format file.
+    ///
+    /// Starts from [`Self::production`] and applies the cluster keys carried
+    /// by the file:
+    ///
+    /// - `THETADATA_MDDS_TYPE` (`PROD` / `STAGE`, case-insensitive) selects
+    ///   the environment via [`Environment::parse`], pointing every
+    ///   cluster-bound channel at the chosen cluster — the file-sourced
+    ///   equivalent of the [`THETADATA_MDDS_TYPE`](Self::production) env var
+    ///   and of [`Self::with_environment`].
+    /// - `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST`, when
+    ///   present, override the historical and primary streaming hosts. They
+    ///   are layered on top of the environment selection, so an explicit host
+    ///   wins over the environment default — the same precedence as the
+    ///   process-env path.
+    ///
+    /// The file uses the common `.env` grammar (one `KEY=VALUE` per line, with
+    /// an optional `export ` prefix, `#` comment lines, blank lines, and
+    /// optional matching quotes). It is the **same** file format and the same
+    /// keys that [`crate::auth::Credentials::from_dotenv`] reads for the
+    /// credential, so a single `.env` can carry both `THETADATA_API_KEY` and
+    /// `THETADATA_MDDS_TYPE`: the credential reader picks up the secret keys
+    /// and this reader picks up the cluster keys.
+    ///
+    /// Lenient sourcing matches the env-var path: an unrecognized or empty
+    /// `THETADATA_MDDS_TYPE` is logged and skipped (the production default is
+    /// kept), and a file that carries only a credential key (for example just
+    /// `THETADATA_API_KEY`) yields the production configuration without error.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Config`] if the file cannot be read. Returns whatever
+    /// [`Self::validate`] returns for the resulting configuration.
+    pub fn from_dotenv(path: impl AsRef<std::path::Path>) -> Result<Self, Error> {
+        Self::production().with_dotenv(path)
+    }
+
+    /// Apply a `.env` file's environment selection and host overrides onto an
+    /// existing configuration, returning the updated config.
+    ///
+    /// This is the builder companion to [`Self::from_dotenv`]: where
+    /// `from_dotenv` starts from [`Self::production`], `with_dotenv` layers the
+    /// same `.env`-sourced cluster overrides on top of the receiver, leaving
+    /// every tuning knob the caller already set in place. The keys, precedence,
+    /// and lenient handling are identical to [`Self::from_dotenv`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Config`] if the file cannot be read, or whatever
+    /// [`Self::validate`] returns for the resulting configuration.
+    pub fn with_dotenv(mut self, path: impl AsRef<std::path::Path>) -> Result<Self, Error> {
+        let path = path.as_ref();
+        // Wrap the buffer in `Zeroizing`: the same `.env` may carry
+        // `THETADATA_API_KEY` (read by `Credentials::from_dotenv`), so the
+        // on-disk secret bytes are wiped on drop even though this reader only
+        // consumes the non-secret cluster keys.
+        let contents =
+            zeroize::Zeroizing::new(std::fs::read_to_string(path).map_err(|e| Error::Config {
+                kind: crate::error::ConfigErrorKind::Io(format!(
+                    "failed to read .env file {}: {}",
+                    path.display(),
+                    e
+                )),
+                message: ".env file unreadable".to_string(),
+                source: Some(Box::new(e)),
+            })?);
+        let pairs = crate::auth::dotenv::parse(&contents);
+        env::apply_dotenv_overrides(&mut self, &pairs);
+        self.validate()
+    }
+
     /// Dev streaming configuration.
     ///
     /// Connects to `ThetaData`'s dev streaming servers (port 20200) which replay
@@ -2238,6 +2309,117 @@ mod tests {
         assert_eq!(config.historical.port, defaults.historical.port);
         assert_eq!(config.streaming.hosts[0].1, defaults.streaming.hosts[0].1);
         clear_env_matrix();
+    }
+
+    /// Write `body` to a uniquely-named temp `.env` file and return its path.
+    /// The unique suffix keeps parallel test threads from colliding.
+    fn write_temp_dotenv(suffix: &str, body: &str) -> std::path::PathBuf {
+        use std::io::Write as _;
+        let path = std::env::temp_dir().join(format!(
+            "thetadatadx-config-dotenv-{}-{suffix}",
+            std::process::id()
+        ));
+        let mut f = std::fs::File::create(&path).expect("create tmp .env file");
+        f.write_all(body.as_bytes()).expect("write tmp .env file");
+        path
+    }
+
+    #[test]
+    fn from_dotenv_mdds_type_stage_selects_stage_cluster() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        let path = write_temp_dotenv("stage.env", "# select staging\nTHETADATA_MDDS_TYPE=STAGE\n");
+        let config = DirectConfig::from_dotenv(&path).expect(".env mdds-type must source");
+        let staged = DirectConfig::stage();
+        assert_eq!(config.environment, Environment::Stage);
+        assert_eq!(config.historical.host, staged.historical.host);
+        assert_eq!(config.streaming.hosts, staged.streaming.hosts);
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_mdds_type_is_case_insensitive_and_quoted() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        let path = write_temp_dotenv("ci.env", "export THETADATA_MDDS_TYPE=\"stage\"\n");
+        let config = DirectConfig::from_dotenv(&path).expect(".env mdds-type must source");
+        assert_eq!(config.environment, Environment::Stage);
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_explicit_historical_host_wins_over_mdds_type() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        let path = write_temp_dotenv(
+            "hostwins.env",
+            "THETADATA_MDDS_TYPE=STAGE\nTHETADATA_HISTORICAL_HOST=custom.example.com\n",
+        );
+        let config = DirectConfig::from_dotenv(&path).expect(".env must source");
+        // The environment marker still flips to Stage, but an explicit host
+        // override wins over the environment's default cluster host.
+        assert_eq!(config.environment, Environment::Stage);
+        assert_eq!(config.historical.host, "custom.example.com");
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_with_only_api_key_yields_production() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // A `.env` carrying only a credential key is valid for the config
+        // reader: it picks up no cluster keys and returns the prod default.
+        let path = write_temp_dotenv("apikeyonly.env", "THETADATA_API_KEY=td_example_key\n");
+        let config = DirectConfig::from_dotenv(&path).expect("api-key-only .env must source");
+        assert_eq!(config.environment, Environment::Prod);
+        assert_eq!(config.historical.host, "mdds-01.thetadata.us");
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_malformed_mdds_type_keeps_production() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // Lenient: an unrecognized mdds-type is logged and skipped, leaving
+        // the production default in force.
+        let path = write_temp_dotenv("bogus.env", "THETADATA_MDDS_TYPE=bogus\n");
+        let config = DirectConfig::from_dotenv(&path).expect("malformed value must not error");
+        assert_eq!(config.environment, Environment::Prod);
+        assert_eq!(config.historical.host, "mdds-01.thetadata.us");
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_streaming_host_overrides_primary_slot() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        let path = write_temp_dotenv(
+            "streamhost.env",
+            "THETADATA_MDDS_TYPE=STAGE\nTHETADATA_STREAMING_HOST=stream.example.com\n",
+        );
+        let config = DirectConfig::from_dotenv(&path).expect(".env must source");
+        assert_eq!(config.streaming.hosts[0].0, "stream.example.com");
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_errors_on_missing_file() {
+        let err = DirectConfig::from_dotenv("/nonexistent/dir/.env").unwrap_err();
+        assert!(err.to_string().contains(".env file unreadable"));
+    }
+
+    #[test]
+    fn with_dotenv_layers_onto_existing_config() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // `with_dotenv` keeps tuning knobs the caller already set and only
+        // layers the `.env`'s cluster overrides on top.
+        let path = write_temp_dotenv("layer.env", "THETADATA_MDDS_TYPE=STAGE\n");
+        let base = DirectConfig::production().with_metrics_port(9100);
+        let config = base.with_dotenv(&path).expect(".env must layer cleanly");
+        assert_eq!(config.environment, Environment::Stage);
+        assert_eq!(config.metrics.port, Some(9100));
+        std::fs::remove_file(&path).ok();
     }
 
     #[test]

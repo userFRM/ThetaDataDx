@@ -292,6 +292,24 @@ impl Config {
         Self::from_direct(config::DirectConfig::stage())
     }
 
+    /// Source the target environment from a ``.env``-format file.
+    ///
+    /// Starts from the production configuration and applies the cluster
+    /// keys carried by the file: ``THETADATA_MDDS_TYPE`` (``PROD`` /
+    /// ``STAGE``, case-insensitive) selects the environment, and the
+    /// optional ``THETADATA_HISTORICAL_HOST`` / ``THETADATA_STREAMING_HOST``
+    /// keys override the hosts (an explicit host wins over the environment
+    /// default).
+    ///
+    /// This reads the same file format and keys as
+    /// :meth:`Credentials.from_dotenv`, so a single ``.env`` file can carry
+    /// both ``THETADATA_API_KEY`` and ``THETADATA_MDDS_TYPE``.
+    #[staticmethod]
+    fn from_dotenv(path: &str) -> PyResult<Self> {
+        let inner = config::DirectConfig::from_dotenv(path).map_err(to_py_err)?;
+        Ok(Self::from_direct(inner))
+    }
+
     /// Set the streaming reconnect policy.
     ///
     /// - "auto" (default): auto-reconnect with split per-class attempt

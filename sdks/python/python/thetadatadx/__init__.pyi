@@ -170,6 +170,18 @@ class Config:
         """Return the stage configuration (port 20100, testing, unstable)."""
         ...
 
+    @staticmethod
+    def from_dotenv(path: str) -> Config:
+        """Source the target environment from a ``.env``-format file.
+
+        ``THETADATA_MDDS_TYPE`` (``PROD`` / ``STAGE``) selects the
+        environment; ``THETADATA_HISTORICAL_HOST`` /
+        ``THETADATA_STREAMING_HOST`` override the hosts. Reads the same
+        file and keys as :meth:`Credentials.from_dotenv`, so one ``.env``
+        can carry both ``THETADATA_API_KEY`` and ``THETADATA_MDDS_TYPE``.
+        """
+        ...
+
     historical_host: str
     """Hostname of the historical-data server."""
     historical_port: int

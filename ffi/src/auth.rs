@@ -261,6 +261,45 @@ pub extern "C" fn thetadatadx_config_stage() -> *mut ThetaDataDxConfig {
     })
 }
 
+/// Source a config handle from a `.env`-format file.
+///
+/// Starts from the production configuration and applies the cluster keys
+/// carried by the file: `THETADATA_MDDS_TYPE` (`PROD` / `STAGE`,
+/// case-insensitive) selects the environment, and the optional
+/// `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` keys override the
+/// hosts (an explicit host wins over the environment default). This is the
+/// same file format and the same keys `thetadatadx_credentials_from_dotenv`
+/// reads, so one `.env` can carry both `THETADATA_API_KEY` and
+/// `THETADATA_MDDS_TYPE`.
+///
+/// Returns null on error (check `thetadatadx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_from_dotenv(
+    path: *const c_char,
+) -> *mut ThetaDataDxConfig {
+    ffi_boundary!(ptr::null_mut(), {
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
+        let path = match unsafe { cstr_to_str(path) } {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                set_error("path is null");
+                return ptr::null_mut();
+            }
+            Err(e) => {
+                set_error(&format!("path is not valid UTF-8: {e}"));
+                return ptr::null_mut();
+            }
+        };
+        match thetadatadx::DirectConfig::from_dotenv(path) {
+            Ok(config) => Box::into_raw(Box::new(ThetaDataDxConfig { inner: config })),
+            Err(e) => {
+                set_error_from(&e);
+                ptr::null_mut()
+            }
+        }
+    })
+}
+
 /// Free a config handle.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_config_free(config: *mut ThetaDataDxConfig) {

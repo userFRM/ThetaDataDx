@@ -670,6 +670,20 @@ public:
      *  @return An owning `Config` holder seeded with stage defaults. */
     static Config stage();
 
+    /** Source a configuration from a `.env`-format file.
+     *  Starts from the production configuration and applies the cluster
+     *  keys carried by the file: `THETADATA_MDDS_TYPE` (`PROD` / `STAGE`,
+     *  case-insensitive) selects the environment, and the optional
+     *  `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` keys
+     *  override the hosts (an explicit host wins over the environment
+     *  default). This reads the same file format and keys as
+     *  `Credentials::from_dotenv`, so one `.env` can carry both
+     *  `THETADATA_API_KEY` and `THETADATA_MDDS_TYPE`.
+     *  @param path Path to the `.env` file.
+     *  @return An owning `Config` holder.
+     *  @throws thetadatadx::ThetaDataError if the file is unreadable. */
+    static Config from_dotenv(const std::string& path);
+
     /** Set streaming reconnect policy. 0=Auto (default), 1=Manual. Throws
      *  @c thetadatadx::InvalidParameterError when @p policy is outside the
      *  documented `{0, 1}` set, matching the Python `ValueError` /

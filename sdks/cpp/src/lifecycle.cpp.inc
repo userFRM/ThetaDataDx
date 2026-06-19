@@ -42,6 +42,12 @@ Config Config::dev() { return Config(thetadatadx_config_dev()); }
 
 Config Config::stage() { return Config(thetadatadx_config_stage()); }
 
+Config Config::from_dotenv(const std::string& path) {
+    auto h = thetadatadx_config_from_dotenv(path.c_str());
+    if (!h) detail::throw_last_ffi_error();
+    return Config(h);
+}
+
 HistoricalClient HistoricalClient::connect(const Credentials& creds, const Config& config) {
     auto h = thetadatadx_historical_connect(creds.get(), config.get());
     if (!h) detail::throw_last_ffi_error();

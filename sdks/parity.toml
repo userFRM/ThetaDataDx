@@ -1553,6 +1553,22 @@ python = true
 typescript = true
 cpp = true
 
+# Dotenv sourcing for the configuration: read the cluster selector
+# (`THETADATA_MDDS_TYPE`) and the documented host overrides from a
+# `.env`-format file. The mirror of `Credentials.fromDotenv` on the Config
+# class, so a single `.env` file serves both the credential and the
+# environment selection. Every binding exposes it: Python (`from_dotenv`
+# staticmethod), TypeScript (`fromDotenv` napi factory), and C++
+# (`from_dotenv` static member over the `thetadatadx_config_from_dotenv`
+# C ABI symbol).
+
+[[method]]
+class = "Config"
+name = "fromDotenv"
+python = true
+typescript = true   # `Config.fromDotenv(path)` napi factory
+cpp = true
+
 [[method]]
 class = "Config"
 name = "setFlushMode"

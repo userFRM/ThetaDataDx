@@ -21,6 +21,7 @@
 //! ```
 
 pub(crate) mod creds;
+pub(crate) mod dotenv;
 pub(crate) mod nexus;
 pub(crate) mod session;
 

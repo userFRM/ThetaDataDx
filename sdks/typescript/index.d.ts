@@ -87,6 +87,16 @@ export declare class Config {
   /** Stage streaming config (port 20100, unstable testing servers). */
   static stage(): Config
   /**
+   * Source the target environment from a `.env`-format file.
+   *
+   * `THETADATA_MDDS_TYPE` (`PROD` / `STAGE`) selects the environment;
+   * `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` override the
+   * hosts. Reads the same file and keys as `Credentials.fromDotenv`, so a
+   * single `.env` file can carry both `THETADATA_API_KEY` and
+   * `THETADATA_MDDS_TYPE`.
+   */
+  static fromDotenv(path: string): Config
+  /**
    * Set the warning threshold (in bytes) for buffered (non-streaming)
    * historical responses. Endpoints whose decoded total exceeds this
    * value log a warning pointing the caller at the

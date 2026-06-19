@@ -37,69 +37,6 @@ const EMAIL_ENV: &str = "THETADATA_EMAIL";
 /// [`EMAIL_ENV`].
 const PASSWORD_ENV: &str = "THETADATA_PASSWORD";
 
-/// Look up `key` in the parsed `.env` assignments, returning the trimmed
-/// value when present and non-empty.
-///
-/// The returned slice borrows the [`Zeroizing`] buffer that owns the
-/// file contents, so the matched value is never copied into a separate
-/// plain `String` before it reaches the secret-wrapping constructor.
-fn dotenv_lookup<'a>(pairs: &'a [(String, &'a str)], key: &str) -> Option<&'a str> {
-    pairs
-        .iter()
-        .find(|(name, _)| name == key)
-        .map(|(_, value)| *value)
-        .filter(|value| !value.is_empty())
-}
-
-/// Parse `.env`-format text into `(key, value)` pairs.
-///
-/// The grammar is the common `.env` subset: one `KEY=VALUE` assignment
-/// per line, with optional `export ` prefix, `#` comment lines, blank
-/// lines, and optional matching single or double quotes around the
-/// value. Whitespace around the key and the (unquoted) value is trimmed.
-/// A later assignment to the same key wins, matching shell `source`
-/// semantics.
-///
-/// The value slices borrow `contents`; the caller owns that buffer
-/// (wrapped in [`Zeroizing`] on the secret path) so no secret value is
-/// copied into an unmanaged allocation here.
-fn parse_dotenv(contents: &str) -> Vec<(String, &str)> {
-    let mut pairs: Vec<(String, &str)> = Vec::new();
-    for raw in contents.lines() {
-        let line = raw.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        let line = line.strip_prefix("export ").map_or(line, str::trim_start);
-        let Some((key, value)) = line.split_once('=') else {
-            continue;
-        };
-        let key = key.trim().to_string();
-        if key.is_empty() {
-            continue;
-        }
-        let value = value.trim();
-        // Strip one layer of matching surrounding quotes; leave the
-        // inner bytes verbatim (no escape processing — secrets are
-        // opaque).
-        let value = if value.len() >= 2
-            && ((value.starts_with('"') && value.ends_with('"'))
-                || (value.starts_with('\'') && value.ends_with('\'')))
-        {
-            &value[1..value.len() - 1]
-        } else {
-            value
-        };
-        // Last assignment wins.
-        if let Some(slot) = pairs.iter_mut().find(|(name, _)| name == &key) {
-            slot.1 = value;
-        } else {
-            pairs.push((key, value));
-        }
-    }
-    pairs
-}
-
 /// The authentication method backing a [`Credentials`] value.
 ///
 /// Exactly one method is present. The two variants are mutually
@@ -417,15 +354,15 @@ impl Credentials {
                 source: Some(Box::new(e)),
             })?);
 
-        let pairs = parse_dotenv(&contents);
+        let pairs = super::dotenv::parse(&contents);
 
-        if let Some(key) = dotenv_lookup(&pairs, API_KEY_ENV) {
+        if let Some(key) = super::dotenv::lookup(&pairs, API_KEY_ENV) {
             return Ok(Self::api_key(key));
         }
 
         match (
-            dotenv_lookup(&pairs, EMAIL_ENV),
-            dotenv_lookup(&pairs, PASSWORD_ENV),
+            super::dotenv::lookup(&pairs, EMAIL_ENV),
+            super::dotenv::lookup(&pairs, PASSWORD_ENV),
         ) {
             (Some(email), Some(password)) => Ok(Self::new(email, password)),
             _ => Err(Error::Auth {
@@ -708,18 +645,6 @@ mod tests {
         );
         assert!(rendered.contains("<redacted>"));
         std::fs::remove_file(&path).ok();
-    }
-
-    /// The `.env` parser handles comments, blanks, quotes, `export`, and
-    /// last-assignment-wins without touching the filesystem.
-    #[test]
-    fn parse_dotenv_grammar() {
-        let pairs = parse_dotenv(
-            "# comment\n\n  export A = \"one\" \nB='two'\nA=three\nbad-line-no-eq\n=novalue\n",
-        );
-        assert_eq!(dotenv_lookup(&pairs, "A"), Some("three"));
-        assert_eq!(dotenv_lookup(&pairs, "B"), Some("two"));
-        assert_eq!(dotenv_lookup(&pairs, "MISSING"), None);
     }
 
     /// Serializes env-mutating tests so parallel test threads never
