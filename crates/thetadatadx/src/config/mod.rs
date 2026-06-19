@@ -51,8 +51,8 @@ use crate::error::Error;
 
 pub use auth::{AuthConfig, DEFAULT_CLIENT_TYPE, DEFAULT_NEXUS_URL};
 pub use env::{
-    ENV_CLIENT_TYPE, ENV_HISTORICAL_HOST, ENV_HISTORICAL_PORT, ENV_NEXUS_URL, ENV_STREAMING_HOST,
-    ENV_STREAMING_PORT,
+    ENV_CLIENT_TYPE, ENV_HISTORICAL_HOST, ENV_HISTORICAL_PORT, ENV_MDDS_TYPE, ENV_NEXUS_URL,
+    ENV_STREAMING_HOST, ENV_STREAMING_PORT,
 };
 pub use environment::Environment;
 pub use flatfiles::{bounds as flatfiles_bounds, FlatFilesConfig};
@@ -92,6 +92,7 @@ pub use crate::backoff::JitterMode;
 ///
 /// | Variable | Type | Effect |
 /// |---|---|---|
+/// | `THETADATA_MDDS_TYPE` | `PROD`/`STAGE` | selects the target environment (cluster). Case-insensitive. |
 /// | `THETADATA_HISTORICAL_HOST` | host | overrides `historical.host` |
 /// | `THETADATA_HISTORICAL_PORT` | u16  | overrides `historical.port` |
 /// | `THETADATA_NEXUS_URL` | url  | overrides the Nexus auth URL |
@@ -101,8 +102,17 @@ pub use crate::backoff::JitterMode;
 /// | `THETADATA_EMAIL`       | str | credential helper ([`crate::auth`]) |
 /// | `THETADATA_PASSWORD`    | str | credential helper ([`crate::auth`]) |
 ///
-/// Malformed values (e.g. a non-integer `THETADATA_HISTORICAL_PORT`) are ignored
-/// with a `tracing::warn!` — the hardcoded default is retained so a typo
+/// `THETADATA_MDDS_TYPE` is applied first and sets the cluster default
+/// (historical host + streaming hosts) for the selected environment; the
+/// explicit `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST`
+/// overrides are layered on top, so an explicit host still wins over the
+/// environment default. It is independent of the credential — it works the
+/// same with either an api-key or an email/password login. The typed
+/// [`DirectConfig::with_environment`] is the programmatic equivalent.
+///
+/// Malformed values (e.g. a non-integer `THETADATA_HISTORICAL_PORT`, or a
+/// `THETADATA_MDDS_TYPE` that is neither `PROD` nor `STAGE`) are ignored
+/// with a `tracing::warn!` — the current value is retained so a typo
 /// in the environment never silently breaks production.
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
@@ -178,6 +188,50 @@ impl DirectConfig {
         }
     }
 
+    /// Route every cluster-bound channel at `env`.
+    ///
+    /// Sets [`Self::environment`] and overwrites the historical host and
+    /// streaming hosts with that environment's cluster. This is the
+    /// single place that maps an [`Environment`] to its hosts, so
+    /// [`Self::production`], [`Self::stage`], and [`Self::with_environment`]
+    /// all stay in agreement without duplicating host literals.
+    ///
+    /// Only the cluster routing changes; every tuning knob (timeouts,
+    /// ring size, retry policy, ...) is left as-is.
+    fn apply_environment(&mut self, env: Environment) {
+        self.environment = env;
+        // Historical (gRPC) targets the cluster host on the same TLS port;
+        // only the host differs between environments.
+        self.historical.host = env.historical_host().to_string();
+        self.streaming.hosts = env.streaming_hosts();
+    }
+
+    /// Select the target server environment, returning the updated config.
+    ///
+    /// This is the programmatic equivalent of the `mdds_type` selector and
+    /// of the [`THETADATA_MDDS_TYPE`](Self::production) env var: it points
+    /// every cluster-bound channel (auth marker, historical host, streaming
+    /// hosts) at the chosen environment.
+    ///
+    /// `DirectConfig::production().with_environment(Environment::Stage)` is
+    /// equivalent to [`DirectConfig::stage`]; passing [`Environment::Prod`]
+    /// restores the production cluster.
+    ///
+    /// Works the same with either credential form (api-key or
+    /// email/password) — the environment is independent of the credential.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the resulting configuration fails [`Self::validate`].
+    /// Only the cluster routing changes, so this fires only when a tuning
+    /// knob was already out of range before the call.
+    #[must_use]
+    pub fn with_environment(mut self, env: Environment) -> Self {
+        self.apply_environment(env);
+        self.validate()
+            .expect("environment switch leaves tuning knobs unchanged")
+    }
+
     /// Dev streaming configuration.
     ///
     /// Connects to `ThetaData`'s dev streaming servers (port 20200) which replay
@@ -237,16 +291,9 @@ impl DirectConfig {
     #[must_use]
     pub fn stage() -> Self {
         let mut config = Self::production();
-        config.environment = Environment::Stage;
-        // Historical (gRPC) targets the staging cluster on the same TLS
-        // port; only the host differs from production.
-        config.historical.host = "mdds-stage.thetadata.us".to_string();
-        // Source: config.toml fpss_stage_hosts
-        config.streaming.hosts = vec![
-            ("nj-a.thetadata.us".to_string(), 20100),
-            ("test-server.thetadata.us".to_string(), 20100),
-            ("test-server.thetadata.us".to_string(), 20101),
-        ];
+        // Route every cluster-bound channel at staging in one place
+        // (environment marker + historical host + streaming hosts).
+        config.apply_environment(Environment::Stage);
         config
             .validate()
             .expect("stage preset is within validated bounds")
@@ -2026,6 +2073,7 @@ mod tests {
         // thread reads or writes the environment concurrently — the
         // mutex provides exactly that.
         unsafe {
+            std::env::remove_var(ENV_MDDS_TYPE);
             std::env::remove_var(ENV_HISTORICAL_HOST);
             std::env::remove_var(ENV_HISTORICAL_PORT);
             std::env::remove_var(ENV_NEXUS_URL);
@@ -2033,6 +2081,97 @@ mod tests {
             std::env::remove_var(ENV_STREAMING_PORT);
             std::env::remove_var(ENV_CLIENT_TYPE);
         }
+    }
+
+    #[test]
+    fn mdds_type_env_stage_selects_stage_cluster() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // SAFETY: `_guard` holds the process-global env-var mutex for the
+        // body of this test, so no other thread observes or mutates the
+        // environment while this write lands.
+        unsafe {
+            std::env::set_var(ENV_MDDS_TYPE, "STAGE");
+        }
+        let config = DirectConfig::production();
+        // THETADATA_MDDS_TYPE=STAGE yields the stage cluster + Stage marker,
+        // identical to the `stage()` preset.
+        let staged = DirectConfig::stage();
+        assert_eq!(config.environment, Environment::Stage);
+        assert_eq!(config.historical.host, staged.historical.host);
+        assert_eq!(config.streaming.hosts, staged.streaming.hosts);
+        clear_env_matrix();
+    }
+
+    #[test]
+    fn mdds_type_env_is_case_insensitive() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        unsafe {
+            std::env::set_var(ENV_MDDS_TYPE, "  stage  ");
+        }
+        let config = DirectConfig::production();
+        assert_eq!(config.environment, Environment::Stage);
+        clear_env_matrix();
+    }
+
+    #[test]
+    fn mdds_type_env_unrecognized_keeps_production() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        unsafe {
+            std::env::set_var(ENV_MDDS_TYPE, "bogus");
+        }
+        // Lenient: an unrecognized value is logged and skipped, leaving the
+        // production default in force.
+        let config = DirectConfig::production();
+        assert_eq!(config.environment, Environment::Prod);
+        assert_eq!(config.historical.host, "mdds-01.thetadata.us");
+        clear_env_matrix();
+    }
+
+    #[test]
+    fn explicit_historical_host_wins_over_mdds_type_default() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        unsafe {
+            std::env::set_var(ENV_MDDS_TYPE, "STAGE");
+            std::env::set_var(ENV_HISTORICAL_HOST, "custom.example.com");
+        }
+        let config = DirectConfig::production();
+        // The environment marker still flips to Stage, but an explicit host
+        // override wins over the environment's default cluster host.
+        assert_eq!(config.environment, Environment::Stage);
+        assert_eq!(config.historical.host, "custom.example.com");
+        clear_env_matrix();
+    }
+
+    #[test]
+    fn with_environment_stage_equals_stage_preset() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        let via_builder = DirectConfig::production().with_environment(Environment::Stage);
+        let via_preset = DirectConfig::stage();
+        assert_eq!(via_builder.environment, via_preset.environment);
+        assert_eq!(via_builder.historical.host, via_preset.historical.host);
+        assert_eq!(via_builder.streaming.hosts, via_preset.streaming.hosts);
+    }
+
+    #[test]
+    fn with_environment_round_trips_prod_and_stage() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        let staged = DirectConfig::production().with_environment(Environment::Stage);
+        assert_eq!(staged.environment, Environment::Stage);
+        assert_eq!(staged.historical.host, "mdds-stage.thetadata.us");
+        // Switching back to Prod restores the production cluster.
+        let back = staged.with_environment(Environment::Prod);
+        assert_eq!(back.environment, Environment::Prod);
+        assert_eq!(back.historical.host, "mdds-01.thetadata.us");
+        assert_eq!(back.streaming.hosts.len(), 4);
     }
 
     #[test]

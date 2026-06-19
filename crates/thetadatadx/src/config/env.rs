@@ -14,7 +14,15 @@
 //! Precedence is documented on `DirectConfig`: explicit builder setter >
 //! env var > hardcoded default.
 
-use super::DirectConfig;
+use super::{DirectConfig, Environment};
+
+/// Target server environment selector (`PROD` / `STAGE`, case-insensitive).
+/// Equivalent to ThetaData's `mdds_type` option. `STAGE` points every
+/// cluster-bound channel at the staging environment; `PROD` (or unset)
+/// keeps production. Applied before the explicit host overrides below, so
+/// an explicit `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST`
+/// still wins over the environment default.
+pub const ENV_MDDS_TYPE: &str = "THETADATA_MDDS_TYPE";
 
 /// Historical host.
 pub const ENV_HISTORICAL_HOST: &str = "THETADATA_HISTORICAL_HOST";
@@ -35,6 +43,25 @@ pub const ENV_CLIENT_TYPE: &str = "THETADATA_CLIENT_TYPE";
 /// receiver. Unknown / malformed values are logged and skipped so a
 /// typo never silently flips production to the wrong endpoint.
 pub(super) fn apply_env_overrides(cfg: &mut DirectConfig) {
+    // Environment selector first, so it sets the cluster default before
+    // the explicit host overrides below — an explicit host:port always
+    // wins over the environment default. An empty value is treated as
+    // unset; an unrecognized value is logged and skipped (lenient, matching
+    // the malformed-port handling) so a typo never silently flips the
+    // cluster to the wrong endpoint.
+    if let Ok(mdds_type) = std::env::var(ENV_MDDS_TYPE) {
+        let trimmed = mdds_type.trim();
+        if !trimmed.is_empty() {
+            match Environment::parse(trimmed) {
+                Some(env) => cfg.apply_environment(env),
+                None => tracing::warn!(
+                    env = ENV_MDDS_TYPE,
+                    value = %mdds_type,
+                    "ignoring unrecognized env var (expected PROD or STAGE); keeping current environment"
+                ),
+            }
+        }
+    }
     if let Ok(host) = std::env::var(ENV_HISTORICAL_HOST) {
         let trimmed = host.trim();
         if !trimmed.is_empty() {

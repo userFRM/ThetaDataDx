@@ -24,7 +24,11 @@ cfg.flush_mode = "immediate"
 client = Client(creds, cfg)
 ```
 
-To target the staging cluster, build the config from the staging preset instead. It selects the staging environment across every channel — authentication, historical, and streaming — in one call:
+### Selecting the staging environment
+
+There are three equivalent ways to point the SDK at the staging cluster. All three select the staging environment across every channel (authentication, historical, and streaming) in one step, and all three work the same whether you authenticate with an api-key or with email and password. The environment is independent of the credential.
+
+1. The `stage()` preset, the most direct option:
 
 ```python
 from thetadatadx import Config
@@ -34,6 +38,31 @@ client = Client(creds, cfg)
 ```
 
 The same preset is available on every binding: `DirectConfig::stage()` in Rust, `Config.stage()` in TypeScript, and `thetadatadx::Config::stage()` in C++.
+
+2. The `THETADATA_MDDS_TYPE` environment variable. Set it to `STAGE` to select the staging environment, or `PROD` (the default, also used when the variable is unset) for production. The value is case-insensitive. This steers an existing deployment at staging without a code change, and it works with every binding because each one reads it when it builds the config from a preset:
+
+```bash
+export THETADATA_MDDS_TYPE=STAGE
+```
+
+```python
+from thetadatadx import Config
+
+cfg = Config.production()  # reads THETADATA_MDDS_TYPE; STAGE selects staging
+client = Client(creds, cfg)
+```
+
+3. The programmatic selector in Rust, the typed equivalent of `THETADATA_MDDS_TYPE`:
+
+```rust
+use thetadatadx::config::{DirectConfig, Environment};
+
+let cfg = DirectConfig::production().with_environment(Environment::Stage);
+```
+
+`DirectConfig::production().with_environment(Environment::Stage)` is equivalent to `DirectConfig::stage()`; passing `Environment::Prod` restores production.
+
+If you also set an explicit streaming or historical host (through `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` or the config file), that explicit host wins over the environment's default for that channel.
 
 In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry.max_attempts`, `config.streaming.flush_mode`); TypeScript uses `Config` setters (`cfg.setRetryMaxAttempts(5)`); C++ uses `thetadatadx::Config::set_retry_max_attempts(5)`.
 
