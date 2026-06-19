@@ -80,6 +80,9 @@ CPP_HPP = REPO_ROOT / "sdks" / "cpp" / "include" / "thetadatadx.hpp"
 CPP_H = REPO_ROOT / "sdks" / "cpp" / "include" / "thetadatadx.h"
 FFI_SRC = REPO_ROOT / "ffi" / "src"
 CONFIG_DIR = REPO_ROOT / "crates" / "thetadatadx" / "src" / "config"
+RUST_CLIENT_BUILDER_RS = (
+    REPO_ROOT / "crates" / "thetadatadx" / "src" / "client_builder.rs"
+)
 # Core Rust streaming surfaces whose public observability accessors must
 # each carry a parity row. The unified surface lives on the
 # `StreamSurface` view returned by `Client::stream()`; the standalone
@@ -822,6 +825,179 @@ def _check_getter_set_parity(
         "getter",
         "GETTER_PARITY_EXEMPT",
     )
+
+
+# ─── ClientBuilder fluent-setter parity (Rust vs C++) ──────────────
+
+
+# Fluent `ClientBuilder` setters that intentionally exist on only one of
+# the two builder surfaces. Empty today: every public Rust builder setter
+# is expected to exist on the C++ builder, and vice versa.
+CLIENT_BUILDER_SETTER_PARITY_EXEMPT: dict[str, str] = {}
+
+
+def _collect_rust_client_builder_setters(client_builder_rs: pathlib.Path) -> set[str]:
+    """Public Rust `ClientBuilder` fluent setters returning `Self`.
+
+    Scoped to `impl ClientBuilder { ... }` and to the `-> Self` return
+    shape so helper methods (`new`, `set_auth`) and the terminal
+    `connect()` are excluded. The collected names are the canonical
+    snake_case setter identifiers the Rust docs surface.
+    """
+    setters: set[str] = set()
+    if not client_builder_rs.is_file():
+        return setters
+    text = client_builder_rs.read_text(encoding="utf-8")
+    for header in re.finditer(r"impl\s+ClientBuilder\s*\{", text):
+        body = _balanced_body(text, header.end())
+        for m in re.finditer(
+            r"\bpub\s+fn\s+([a-z_][a-z0-9_]*)\s*\([^)]*\)\s*->\s*Self\b",
+            body,
+            re.DOTALL,
+        ):
+            setters.add(m.group(1))
+    return setters
+
+
+def _collect_cpp_client_builder_setters(cpp_hpp: pathlib.Path) -> set[str]:
+    """Public C++ `ClientBuilder` fluent setters returning
+    `ClientBuilder&` / `ClientBuilder&&`.
+
+    Scoped to the `class ClientBuilder { ... }` body and to the fluent
+    return-type shape, so lifecycle members, helper methods, and the
+    terminal `connect()` are excluded. The returned names are the public
+    snake_case setter identifiers on the C++ builder surface.
+    """
+    setters: set[str] = set()
+    if not cpp_hpp.is_file():
+        return setters
+    text = _expand_cpp_includes(cpp_hpp.read_text(encoding="utf-8"), cpp_hpp.parent)
+    m = re.search(r"^class\s+ClientBuilder\s*(?::[^{]*)?\{", text, re.MULTILINE)
+    if not m:
+        return setters
+    body = _balanced_body(text, m.end())
+    for fm in re.finditer(r"\bClientBuilder(?:&&|&)\s+([a-z_][a-z0-9_]*)\s*\(", body):
+        setters.add(fm.group(1))
+    return setters
+
+
+def _check_client_builder_setter_parity(
+    rust_setters: set[str],
+    cpp_setters: set[str],
+    exempt: dict[str, str] | None = None,
+) -> list[str]:
+    """Assert the Rust and C++ `ClientBuilder` fluent-setter NAME-SETS
+    are equal.
+
+    This is the inline client-construction parity guard: a setter that
+    exists on only one builder cannot hide as an unenrolled
+    binding-specific capability. Anything intentionally asymmetric must be
+    listed in `CLIENT_BUILDER_SETTER_PARITY_EXEMPT` with a documented
+    reason; stale exemptions are themselves flagged so the carve-out list
+    does not rot.
+    """
+    if exempt is None:
+        exempt = CLIENT_BUILDER_SETTER_PARITY_EXEMPT
+    bindings = {"rust": rust_setters, "cpp": cpp_setters}
+    universe: set[str] = set().union(*bindings.values()) if bindings else set()
+    errors: list[str] = []
+    for setter in sorted(universe - set(exempt)):
+        present_on = [lang for lang, names in bindings.items() if setter in names]
+        if len(present_on) != len(bindings):
+            missing = [lang for lang in bindings if lang not in present_on]
+            errors.append(
+                f"  ClientBuilder setter `{setter}`: present on {sorted(present_on)}, "
+                f"missing on {sorted(missing)}. Bind it on both the Rust and C++ "
+                f"builder surfaces, or add it to "
+                f"CLIENT_BUILDER_SETTER_PARITY_EXEMPT with a documented reason."
+            )
+    for setter, reason in exempt.items():
+        present_on = [lang for lang, names in bindings.items() if setter in names]
+        if present_on and len(present_on) == len(bindings):
+            errors.append(
+                f"  ClientBuilder setter `{setter}`: listed in "
+                f"CLIENT_BUILDER_SETTER_PARITY_EXEMPT ({reason!r}) but is now "
+                f"present on both Rust and C++. Drop the stale exemption."
+            )
+    return errors
+
+
+# ─── TypeScript connectWith option-field roster ────────────────────
+
+
+# The canonical JS-visible `Client.connectWith(...)` option-field roster.
+# The Rust `ClientConnectOptions` struct in `sdks/typescript/src/lib.rs`
+# must emit exactly this set after napi camel-casing. A dropped, renamed,
+# or newly-added field trips here even if no `[[connect]]` / `[[method]]`
+# row changes, so the inline connect surface stays pinned.
+TYPESCRIPT_CONNECT_WITH_FIELD_ROSTER: frozenset[str] = frozenset(
+    {
+        "apiKey",
+        "apiKeyFromEnv",
+        "apiKeyFromDotenv",
+        "email",
+        "password",
+        "credentialsFile",
+        "mddsType",
+    }
+)
+
+
+def _collect_typescript_connect_with_fields(ts_lib_rs: pathlib.Path) -> set[str]:
+    """JS-visible field names on `ClientConnectOptions`.
+
+    Parses the `#[napi(object)] pub struct ClientConnectOptions { ... }`
+    body in `sdks/typescript/src/lib.rs`, honoring an explicit
+    `#[napi(js_name = "...")]` on a field when present and otherwise
+    applying napi-rs' snake_case → camelCase object-field mapping.
+    """
+    out: set[str] = set()
+    if not ts_lib_rs.is_file():
+        return out
+    text = ts_lib_rs.read_text(encoding="utf-8")
+    m = re.search(
+        r"#\[napi\(object\)\]\s*pub\s+struct\s+ClientConnectOptions\s*\{",
+        text,
+    )
+    if not m:
+        return out
+    body = _balanced_body(text, m.end())
+    js_name_re = re.compile(r'js_name\s*=\s*"([a-zA-Z_][a-zA-Z0-9_]*)"')
+    field_re = re.compile(
+        r"((?:\s*#\[[^\]]*\]\s*)*)\s*pub\s+([a-z_][a-z0-9_]*)\s*:",
+        re.MULTILINE,
+    )
+    for fm in field_re.finditer(body):
+        attrs = fm.group(1)
+        snake = fm.group(2)
+        js_name = js_name_re.search(attrs)
+        out.add(js_name.group(1) if js_name else _snake_to_camel(snake))
+    return out
+
+
+def _check_typescript_connect_with_field_roster(
+    actual_fields: set[str],
+    expected_fields: frozenset[str] | None = None,
+) -> list[str]:
+    """Assert `ClientConnectOptions` emits exactly the canonical
+    connectWith option-field roster."""
+    if expected_fields is None:
+        expected_fields = TYPESCRIPT_CONNECT_WITH_FIELD_ROSTER
+    errors: list[str] = []
+    for field in sorted(expected_fields - actual_fields):
+        errors.append(
+            f"  Client.connectWith options: missing TypeScript field `{field}` on "
+            f"`ClientConnectOptions`. Expected roster is {sorted(expected_fields)}. "
+            f"Add the field back, or update TYPESCRIPT_CONNECT_WITH_FIELD_ROSTER "
+            f"intentionally."
+        )
+    for field in sorted(actual_fields - expected_fields):
+        errors.append(
+            f"  Client.connectWith options: unexpected TypeScript field `{field}` on "
+            f"`ClientConnectOptions`. Add it to TYPESCRIPT_CONNECT_WITH_FIELD_ROSTER "
+            f"if intentional, or remove / rename it."
+        )
+    return errors
 
 
 # ─── Public-surface identifier collection (vocab guard) ─────────────
@@ -4591,6 +4767,23 @@ def main(argv: list[str] | None = None) -> int:
         connect_rows, py_connect, ts_connect, cpp_connect, ffi_connect_stems
     )
 
+    # Inline builder parity: every public Rust `ClientBuilder` fluent
+    # setter must exist on the C++ `ClientBuilder`, and vice versa.
+    rust_client_builder_setters = _collect_rust_client_builder_setters(
+        RUST_CLIENT_BUILDER_RS
+    )
+    cpp_client_builder_setters = _collect_cpp_client_builder_setters(CPP_HPP)
+    client_builder_setter_errors = _check_client_builder_setter_parity(
+        rust_client_builder_setters, cpp_client_builder_setters
+    )
+
+    # TypeScript inline connect roster: `Client.connectWith(...)` must
+    # continue to expose exactly the canonical option fields.
+    ts_connect_with_fields = _collect_typescript_connect_with_fields(TS_LIB_RS)
+    connect_with_field_errors = _check_typescript_connect_with_field_roster(
+        ts_connect_with_fields
+    )
+
     # Credentials factory surface — the auth-handle factories
     # (`fromFile` / `fromEmail` / `fromApiKey` / `fromApiKeyWithEmail` /
     # `fromEnvOrFile` / `fromDotenv`). Each rides a `[[method]]` row, but a forward
@@ -4845,6 +5038,26 @@ def main(argv: list[str] | None = None) -> int:
             print(e)
         print()
 
+    if client_builder_setter_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(client_builder_setter_errors)} "
+            f"ClientBuilder fluent-setter divergence(s) between Rust and C++:"
+        )
+        for e in client_builder_setter_errors:
+            print(e)
+        print()
+
+    if connect_with_field_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(connect_with_field_errors)} "
+            f"TypeScript connectWith option-field divergence(s):"
+        )
+        for e in connect_with_field_errors:
+            print(e)
+        print()
+
     if credentials_factory_errors:
         had_errors = True
         print(
@@ -4952,6 +5165,9 @@ def main(argv: list[str] | None = None) -> int:
         f"cpp_setters={len(cpp_setters)} ffi_setters={len(ffi_setters)}; "
         f"getters py={len(py_getters)} ts={len(ts_getters)} "
         f"cpp={len(cpp_getters)} ffi={len(ffi_getters)}; "
+        f"builder_setters rust={len(rust_client_builder_setters)} "
+        f"cpp={len(cpp_client_builder_setters)}; "
+        f"connectWith_fields={len(ts_connect_with_fields)}; "
         f"kinds={len(CANONICAL_SUBSCRIPTION_KINDS)} "
         f"error_leaves={len(CANONICAL_ERROR_LEAVES)} "
         f"error_codes={len(CANONICAL_ERROR_CODES)})"
@@ -5967,6 +6183,53 @@ def _run_selftest() -> int:
     _case("connect negative — missing #[new] constructor trips", _case_connect_missing_python_constructor_trips)
     _case("connect negative — untracked connect surface trips", _case_connect_orphan_untracked_trips)
     _case("connect — FFI stem collector skips _connect_from_file", _case_connect_ffi_stem_collector_skips_from_file)
+
+    # ── TypeScript connectWith option-field roster selftests ───────
+
+    def _case_connect_with_field_collector_camelizes() -> None:
+        """The field collector lifts Rust snake_case to JS camelCase."""
+        with tempfile.TemporaryDirectory() as tmp:
+            lib = pathlib.Path(tmp) / "lib.rs"
+            lib.write_text(
+                "#[napi(object)]\n"
+                "pub struct ClientConnectOptions {\n"
+                "    pub api_key_from_env: Option<bool>,\n"
+                "    pub credentials_file: Option<String>,\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            fields = _collect_typescript_connect_with_fields(lib)
+            assert fields == {"apiKeyFromEnv", "credentialsFile"}, (
+                f"collector must camelCase fields; got {fields!r}"
+            )
+
+    def _case_connect_with_field_roster_missing_field_trips() -> None:
+        """A dropped/renamed connectWith field trips the roster."""
+        actual = set(TYPESCRIPT_CONNECT_WITH_FIELD_ROSTER) - {"mddsType"}
+        errors = _check_typescript_connect_with_field_roster(actual)
+        assert any("mddsType" in e and "missing" in e for e in errors), (
+            f"a missing connectWith field must trip; got {errors!r}"
+        )
+
+    def _case_connect_with_field_roster_unexpected_field_trips() -> None:
+        """An extra connectWith field trips the roster."""
+        actual = set(TYPESCRIPT_CONNECT_WITH_FIELD_ROSTER) | {"stageAlias"}
+        errors = _check_typescript_connect_with_field_roster(actual)
+        assert any("stageAlias" in e and "unexpected" in e for e in errors), (
+            f"an unexpected connectWith field must trip; got {errors!r}"
+        )
+
+    def _case_connect_with_field_roster_live_source_clean() -> None:
+        """The shipped `ClientConnectOptions` fields equal the pinned roster."""
+        errors = _check_typescript_connect_with_field_roster(
+            _collect_typescript_connect_with_fields(TS_LIB_RS)
+        )
+        assert errors == [], f"live connectWith field roster must be clean; got {errors!r}"
+
+    _case("connectWith fields — collector camelCases Rust fields", _case_connect_with_field_collector_camelizes)
+    _case("connectWith fields — missing field trips", _case_connect_with_field_roster_missing_field_trips)
+    _case("connectWith fields — unexpected field trips", _case_connect_with_field_roster_unexpected_field_trips)
+    _case("connectWith fields — live source clean", _case_connect_with_field_roster_live_source_clean)
 
     # ── C-ABI value-field + roster selftests ───────────────────────
 
@@ -7007,6 +7270,52 @@ def _run_selftest() -> int:
     _case("getter-set — missing-on-FFI getter trips", _case_getter_set_parity_missing_on_ffi_trips)
     _case("getter-set — live sources clean", _case_getter_set_parity_live_sources_clean)
     _case("getter collectors — scope to impl Config only", _case_getter_collectors_scope_to_config)
+
+    # ── ClientBuilder fluent-setter parity selftests ──────────────
+
+    def _case_client_builder_setter_parity_positive() -> None:
+        """Matching Rust/C++ builder setter rosters are silent."""
+        errors = _check_client_builder_setter_parity(
+            {"api_key", "environment", "from_dotenv"},
+            {"api_key", "environment", "from_dotenv"},
+            exempt={},
+        )
+        assert errors == [], f"matching builder setter sets must be silent; got {errors!r}"
+
+    def _case_client_builder_setter_missing_on_cpp_trips() -> None:
+        """A Rust builder setter missing from C++ trips."""
+        errors = _check_client_builder_setter_parity(
+            {"api_key", "environment"},
+            {"api_key"},
+            exempt={},
+        )
+        assert any("environment" in e and "cpp" in e for e in errors), (
+            f"a dropped C++ builder setter must trip; got {errors!r}"
+        )
+
+    def _case_client_builder_setter_stale_exemption_trips() -> None:
+        """A stale builder-setter exemption is an error."""
+        errors = _check_client_builder_setter_parity(
+            {"from_dotenv"},
+            {"from_dotenv"},
+            exempt={"from_dotenv": "legacy C++ gap"},
+        )
+        assert any("from_dotenv" in e and "stale" in e for e in errors), (
+            f"a stale builder-setter exemption must surface; got {errors!r}"
+        )
+
+    def _case_client_builder_setter_live_sources_clean() -> None:
+        """The shipped Rust and C++ `ClientBuilder` setter rosters match."""
+        errors = _check_client_builder_setter_parity(
+            _collect_rust_client_builder_setters(RUST_CLIENT_BUILDER_RS),
+            _collect_cpp_client_builder_setters(CPP_HPP),
+        )
+        assert errors == [], f"live builder setter parity must be clean; got {errors!r}"
+
+    _case("ClientBuilder setters — matching rosters silent", _case_client_builder_setter_parity_positive)
+    _case("ClientBuilder setters — missing on C++ trips", _case_client_builder_setter_missing_on_cpp_trips)
+    _case("ClientBuilder setters — stale exemption trips", _case_client_builder_setter_stale_exemption_trips)
+    _case("ClientBuilder setters — live sources clean", _case_client_builder_setter_live_sources_clean)
 
     # ── Subscription-kind label parity selftests ───────────────────
 

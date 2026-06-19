@@ -425,10 +425,25 @@ pub fn parse_contract_message(payload: &[u8]) -> Result<(i32, Contract), Error> 
     }
 
     let contract_id = i32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
-    let (contract, _consumed) = Contract::from_bytes(&payload[4..]).map_err(|e| Error::Fpss {
+    // The contract body follows the 4-byte `contract_id` prefix. Decode it and
+    // require that it consumes the body EXACTLY: any trailing bytes mean the
+    // frame's size bookkeeping understates the real payload, so reject the
+    // frame rather than silently ignore the surplus.
+    let body = &payload[4..];
+    let (contract, consumed) = Contract::from_bytes(body).map_err(|e| Error::Fpss {
         kind: crate::error::StreamErrorKind::ProtocolError,
         message: format!("failed to parse contract: {e}"),
     })?;
+
+    if consumed != body.len() {
+        return Err(Error::Fpss {
+            kind: crate::error::StreamErrorKind::ProtocolError,
+            message: format!(
+                "CONTRACT frame has {} trailing byte(s) after the contract record",
+                body.len() - consumed
+            ),
+        });
+    }
 
     Ok((contract_id, contract))
 }
@@ -763,6 +778,46 @@ mod tests {
 
         let (id, parsed) = parse_contract_message(&payload).unwrap();
         assert_eq!(id, 7);
+        assert_eq!(parsed, contract);
+    }
+
+    #[test]
+    fn parse_contract_message_rejects_trailing_junk() {
+        // A valid stock frame with extra bytes appended after the contract
+        // record. The trailing junk means the size bookkeeping understates
+        // the real payload, so the frame must be rejected.
+        let contract = Contract::stock("TSLA");
+        let contract_bytes = contract.to_bytes();
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&7i32.to_be_bytes());
+        payload.extend_from_slice(&contract_bytes);
+        // Surplus bytes beyond the contract record.
+        payload.extend_from_slice(&[0xAA, 0xBB]);
+
+        assert!(
+            parse_contract_message(&payload).is_err(),
+            "trailing bytes after the contract record must be rejected"
+        );
+    }
+
+    #[test]
+    fn parse_contract_message_option_roundtrips() {
+        // A valid option frame still parses exactly (no trailing bytes).
+        let contract = Contract::option(
+            "SPY",
+            crate::fpss::protocol::contract::OptionLeg {
+                expiration: "20261218",
+                strike: "60",
+                right: "C",
+            },
+        )
+        .expect("valid option");
+        let mut payload = Vec::new();
+        payload.extend_from_slice(&9i32.to_be_bytes());
+        payload.extend_from_slice(&contract.to_bytes());
+
+        let (id, parsed) = parse_contract_message(&payload).expect("valid option frame parses");
+        assert_eq!(id, 9);
         assert_eq!(parsed, contract);
     }
 

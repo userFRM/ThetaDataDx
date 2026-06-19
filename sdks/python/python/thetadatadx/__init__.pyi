@@ -106,6 +106,22 @@ class Credentials:
         ...
 
     @staticmethod
+    def from_env() -> Credentials:
+        """Source credentials strictly from the ``THETADATA_API_KEY`` env var.
+
+        Strict: an unset or whitespace-only value raises rather than
+        falling back, and there is no ``creds.txt`` file fallback. Use
+        :meth:`from_env_or_file` when a file fallback is wanted instead.
+
+        Returns:
+            The sourced :class:`Credentials`.
+
+        Raises:
+            ThetaDataError: If ``THETADATA_API_KEY`` is unset or empty.
+        """
+        ...
+
+    @staticmethod
     def from_env_or_file(path: str) -> Credentials:
         """Source credentials from the environment, falling back to a file.
 
@@ -274,6 +290,9 @@ class Config:
     """Whether OHLCVC bars are derived locally from the trade stream and delivered as :class:`Ohlcvc` events."""
     flush_mode: Literal["batched", "immediate"]
     """Streaming write-flush policy. ``"batched"`` (default) flushes on the heartbeat (~100 ms); ``"immediate"`` flushes after every wire write. The setter accepts the same two strings case-insensitively and raises ``ValueError`` otherwise."""
+    @property
+    def environment(self) -> Literal["PROD", "STAGE"]:
+        """Target server environment carried by this configuration: ``"PROD"`` for the production cluster, ``"STAGE"`` for staging. Set as a unit by :meth:`Config.production` / :meth:`Config.stage` (and the ``THETADATA_MDDS_TYPE`` key on :meth:`Config.from_dotenv`); this is the readback of that selection. Read-only: the selector is chosen by the environment-tier factories, not assigned directly. Mirrors the ``mdds_type`` string the inline :class:`Client` constructor accepts."""
     wait_strategy: Literal["low_latency", "balanced", "efficient", "busy_spin"]
     """Streaming event-ring consumer wait strategy — the latency-vs-CPU knob applied on each ring-empty poll. ``"low_latency"`` (default) never sleeps; ``"balanced"`` parks briefly; ``"efficient"`` parks longer; ``"busy_spin"`` pure-spins and pins a core. The setter accepts the same strings case-insensitively and raises ``ValueError`` otherwise."""
     wait_spin_iters: int

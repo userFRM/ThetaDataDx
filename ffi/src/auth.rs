@@ -148,6 +148,29 @@ pub unsafe extern "C" fn thetadatadx_credentials_from_file(
     })
 }
 
+/// Source credentials strictly from the `THETADATA_API_KEY` environment
+/// variable.
+///
+/// Strict: an unset or whitespace-only value is an error rather than a
+/// silent fallback, and there is no `creds.txt` file fallback. This is
+/// the C-ABI equivalent of the Rust / Python / TypeScript strict
+/// env-only resolver; use `thetadatadx_credentials_from_env_or_file`
+/// when a file fallback is wanted instead.
+///
+/// Returns null on error (check `thetadatadx_last_error()`).
+#[no_mangle]
+pub extern "C" fn thetadatadx_credentials_from_env() -> *mut ThetaDataDxCredentials {
+    ffi_boundary!(ptr::null_mut(), {
+        match thetadatadx::Credentials::from_env() {
+            Ok(creds) => Box::into_raw(Box::new(ThetaDataDxCredentials { inner: creds })),
+            Err(e) => {
+                set_error_from(&e);
+                ptr::null_mut()
+            }
+        }
+    })
+}
+
 /// Source credentials from the environment, falling back to a file.
 ///
 /// When `THETADATA_API_KEY` is set and non-empty an API key is used;
@@ -385,6 +408,37 @@ pub unsafe extern "C" fn thetadatadx_config_get_flush_mode(
             *out_mode = value;
         }
         0
+    })
+}
+
+/// Read the target server environment carried by the config.
+///
+/// On success, returns a heap-owned NUL-terminated C string (`"PROD"` or
+/// `"STAGE"`) the caller MUST release with `thetadatadx_string_free`. The
+/// environment is set as a unit by `thetadatadx_direct_config_new` /
+/// the stage preset (and the `THETADATA_MDDS_TYPE` dotenv key); this is
+/// the readback of that selection. Returns null if `config` is null
+/// (the diagnostic is written to `thetadatadx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_environment(
+    config: *const ThetaDataDxConfig,
+) -> *mut c_char {
+    ffi_boundary!(ptr::null_mut(), {
+        if config.is_null() {
+            set_error("config handle is null");
+            return ptr::null_mut();
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // `Environment::as_str` is a `'static` label free of interior NULs,
+        // so `CString::new` never fails here.
+        match std::ffi::CString::new(config.inner.environment().as_str()) {
+            Ok(c) => c.into_raw(),
+            Err(e) => {
+                set_error(&format!("environment label contains an interior NUL: {e}"));
+                ptr::null_mut()
+            }
+        }
     })
 }
 
@@ -3832,6 +3886,25 @@ mod auth_metrics_setter_tests {
     }
 
     #[test]
+    fn environment_reads_back_the_selected_cluster_via_getter() {
+        // The readback getter mirrored across the bindings: the stage
+        // preset reads back `"STAGE"`, the production preset `"PROD"`.
+        let staged = super::thetadatadx_config_stage();
+        let prod = super::thetadatadx_config_production();
+        // SAFETY: both handles were just returned by the config constructors.
+        unsafe {
+            let got = take_owned(super::thetadatadx_config_get_environment(staged));
+            assert_eq!(got.as_deref(), Some("STAGE"));
+            let got = take_owned(super::thetadatadx_config_get_environment(prod));
+            assert_eq!(got.as_deref(), Some("PROD"));
+            // A null handle yields null.
+            assert!(super::thetadatadx_config_get_environment(std::ptr::null()).is_null());
+            super::thetadatadx_config_free(staged);
+            super::thetadatadx_config_free(prod);
+        }
+    }
+
+    #[test]
     fn nexus_url_rejects_null_and_leaves_config_unchanged() {
         let cfg = super::thetadatadx_config_production();
         // SAFETY: handle just returned by thetadatadx_config_production.
@@ -4480,5 +4553,36 @@ mod credentials_dotenv_tests {
         let creds = unsafe { super::thetadatadx_credentials_from_dotenv(c_path.as_ptr()) };
         assert!(creds.is_null());
         std::fs::remove_file(&path).ok();
+    }
+}
+
+#[cfg(test)]
+mod credentials_from_env_tests {
+    //! Offline smoke coverage for the strict `thetadatadx_credentials_from_env`
+    //! resolver: with `THETADATA_API_KEY` unset it returns a null handle and
+    //! sets the last error, rather than falling back to a file.
+
+    use std::sync::{Mutex, OnceLock};
+
+    /// Serialize the env mutation so a parallel test never observes the
+    /// transient unset state. Held for the body of the test.
+    fn env_lock() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+    }
+
+    #[test]
+    fn from_env_returns_null_when_unset() {
+        let _guard = env_lock();
+        // SAFETY: `_guard` pins the process-global env lock for the body of
+        // this test, so no other thread reads or writes the environment while
+        // the unset lands.
+        unsafe {
+            std::env::remove_var("THETADATA_API_KEY");
+        }
+        let creds = super::thetadatadx_credentials_from_env();
+        assert!(creds.is_null());
     }
 }

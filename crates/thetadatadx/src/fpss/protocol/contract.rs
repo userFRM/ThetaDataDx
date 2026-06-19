@@ -655,12 +655,30 @@ impl Contract {
         let sec_type = SecType::from_code(i32::from(sec_type_byte))
             .ok_or(ContractParseError::UnknownSecType(sec_type_byte))?;
 
+        // The structural length is exact: `total_size` must equal the size the
+        // declared shape occupies, not merely bound it. A `total_size` that
+        // overstates the structure leaves a gap the caller would carry as
+        // trailing junk, and one that understates it would let fields be read
+        // past the declared record. Compute the expected length from the shape
+        // and require an exact match. Read option fields only from within
+        // `total_size` so a size byte that understates the real payload cannot
+        // pull bytes from beyond the declared record.
+        let expected_size = if sec_type == SecType::Option {
+            // size(1) + root_len(1) + root(N) + sec_type(1) + exp_date(4)
+            // + is_call(1) + strike(4)
+            root_end + 1 + 9
+        } else {
+            // size(1) + root_len(1) + root(N) + sec_type(1)
+            root_end + 1
+        };
+        if total_size != expected_size {
+            return Err(ContractParseError::InvalidSize(total_size));
+        }
+
         if sec_type == SecType::Option {
-            // Need 9 more bytes after sec_type: exp_date(4) + is_call(1) + strike(4)
+            // Option fields sit entirely within `total_size` (enforced above),
+            // and `data.len() >= total_size` was checked at entry.
             let opt_start = root_end + 1;
-            if data.len() < opt_start + 9 {
-                return Err(ContractParseError::TooShort);
-            }
 
             let exp_date = i32::from_be_bytes([
                 data[opt_start],
@@ -925,6 +943,43 @@ mod tests {
         // total_size = 2, but minimum valid is 3 (size + root_len + sec_type with root_len=0)
         let err = Contract::from_bytes(&[2, 0]).unwrap_err();
         assert_eq!(err, ContractParseError::InvalidSize(2));
+    }
+
+    #[test]
+    fn contract_from_bytes_understated_size_rejected() {
+        // A stock "AAPL" encodes to total_size = 7. If the size byte claims a
+        // shorter record than the declared root occupies, the structural
+        // length no longer matches and the frame is rejected rather than
+        // reading fields past the declared record.
+        let mut bytes = Contract::stock("AAPL").to_bytes();
+        // Understate the size byte (7 -> 6); the structure still needs 7.
+        bytes[0] = 6;
+        let err = Contract::from_bytes(&bytes).unwrap_err();
+        assert_eq!(err, ContractParseError::InvalidSize(6));
+    }
+
+    #[test]
+    fn contract_from_bytes_overstated_size_rejected() {
+        // A size byte that overstates the structural length must also be
+        // rejected: the surplus would otherwise be carried as trailing junk.
+        let mut bytes = Contract::stock("AAPL").to_bytes();
+        bytes.push(0x00); // pad so `data.len() >= total_size` holds
+        bytes[0] = 8; // claim 8 but the structure is exactly 7
+        let err = Contract::from_bytes(&bytes).unwrap_err();
+        assert_eq!(err, ContractParseError::InvalidSize(8));
+    }
+
+    #[test]
+    fn contract_from_bytes_consumes_exact_length() {
+        // `from_bytes` reports consuming exactly the structural length even
+        // when extra bytes trail in the buffer. The caller uses this to reject
+        // trailing junk at the frame layer.
+        let mut bytes = Contract::stock("AAPL").to_bytes();
+        let structural = bytes.len();
+        bytes.extend_from_slice(&[0xDE, 0xAD]); // trailing junk
+        let (parsed, consumed) = Contract::from_bytes(&bytes).unwrap();
+        assert_eq!(consumed, structural);
+        assert_eq!(&*parsed.symbol, "AAPL");
     }
 
     #[test]

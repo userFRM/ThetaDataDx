@@ -963,6 +963,15 @@ ThetaDataDxCredentials* thetadatadx_credentials_from_api_key_with_email(const ch
  *          thetadatadx_credentials_free, or NULL on error (check thetadatadx_last_error()). */
 ThetaDataDxCredentials* thetadatadx_credentials_from_file(const char* path);
 
+/** Source a credentials handle strictly from the THETADATA_API_KEY
+ *  environment variable. Strict: an unset or whitespace-only value is an
+ *  error rather than a silent fallback, and there is no creds.txt file
+ *  fallback. Use thetadatadx_credentials_from_env_or_file when a file
+ *  fallback is wanted instead.
+ *  @return Heap-owned ThetaDataDxCredentials the caller must release with
+ *          thetadatadx_credentials_free, or NULL on error (check thetadatadx_last_error()). */
+ThetaDataDxCredentials* thetadatadx_credentials_from_env(void);
+
 /** Source a credentials handle from the environment, falling back to a file.
  *  When THETADATA_API_KEY is set and non-empty an API key is used; otherwise
  *  the two-line file (line 1 = email, line 2 = password) at path is read.
@@ -1793,6 +1802,17 @@ int thetadatadx_config_set_flush_mode(ThetaDataDxConfig* config, int mode);
  * @return 0 on success, -1 if either pointer is null.
  */
 int32_t thetadatadx_config_get_flush_mode(const ThetaDataDxConfig* config, int32_t* out_mode);
+
+/**
+ * Read the target server environment carried by the config: "PROD" for
+ * the production cluster or "STAGE" for staging. Set as a unit by the
+ * production / stage presets (and the THETADATA_MDDS_TYPE dotenv key);
+ * this is the readback of that selection.
+ * @param config Config handle to read.
+ * @return A heap-owned NUL-terminated C string the caller MUST free with
+ *         thetadatadx_string_free, or NULL if config is null.
+ */
+char* thetadatadx_config_get_environment(const ThetaDataDxConfig* config);
 
 /* Streaming wait-strategy preset selectors for
  * thetadatadx_config_set_wait_strategy / _get_wait_strategy. */

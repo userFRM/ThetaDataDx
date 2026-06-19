@@ -561,6 +561,15 @@ export declare class Config {
    */
   get flushMode(): string
   /**
+   * Target server environment carried by this configuration: `"PROD"`
+   * for the production cluster, `"STAGE"` for staging. Set as a unit by
+   * `Config.production()` / `Config.stage()` (and by the
+   * `THETADATA_MDDS_TYPE` key on `Config.fromDotenv`); this is the
+   * readback of that selection. Mirrors the `mddsType` string the inline
+   * `Client.connectWith` factory accepts.
+   */
+  get environment(): string
+  /**
    * Set the streaming event-ring consumer wait strategy — the
    * latency-vs-CPU knob applied on each ring-empty poll.
    *
@@ -709,6 +718,14 @@ export declare class Credentials {
    * email is lowercased and trimmed; an empty email is dropped.
    */
   static fromApiKeyWithEmail(email: string, apiKey: string): Credentials
+  /**
+   * Source credentials strictly from the `THETADATA_API_KEY`
+   * environment variable. Strict: an unset or whitespace-only value
+   * rejects with `[ConfigError]` rather than falling back, and there is
+   * no `creds.txt` file fallback. Use `fromEnvOrFile` when a file
+   * fallback is wanted instead.
+   */
+  static fromEnv(): Credentials
   /**
    * Source credentials from the environment, falling back to a file.
    * When `THETADATA_API_KEY` is set and non-empty an API key is used;

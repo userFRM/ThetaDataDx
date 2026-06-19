@@ -14,6 +14,7 @@
 #include "thetadatadx.h"
 
 #include <chrono>
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -379,6 +380,25 @@ public:
 
 namespace detail {
 
+/// Best-effort wipe of a `std::string` holding secret material.
+///
+/// Overwrites the live buffer through a `volatile` byte pointer (so the
+/// compiler may not elide the store as dead) and then clears the string.
+/// This is best-effort: the C ABI boundary takes `const char*`, so the
+/// authoritative copy is the one the Rust core holds in zeroizing memory;
+/// this only shortens the lifetime of the transient C++-side plaintext.
+/// A reallocation earlier in the string's life may have left an untouched
+/// copy elsewhere, which no portable C++ can reach.
+inline void secure_wipe(std::string& secret) {
+    if (!secret.empty()) {
+        volatile char* p = const_cast<volatile char*>(secret.data());
+        for (std::size_t i = 0; i < secret.size(); ++i) {
+            p[i] = '\0';
+        }
+    }
+    secret.clear();
+}
+
 /// Throw the [`ThetaDataError`] leaf that matches the typed C ABI
 /// discriminant `code` (one of the `THETADATADX_ERR_*` constants in
 /// `thetadatadx.h`). Used by every wrapper that already has the formatted
@@ -628,6 +648,14 @@ public:
      *  @return An owning `Credentials` holder.
      *  @throws thetadatadx::ThetaDataError if the credentials cannot be built. */
     static Credentials from_api_key_with_email(const std::string& email, const std::string& api_key);
+
+    /** Source credentials strictly from the `THETADATA_API_KEY`
+     *  environment variable. Strict: an unset or whitespace-only value
+     *  throws rather than falling back, and there is no `creds.txt` file
+     *  fallback. Use `from_env_or_file` when a file fallback is wanted.
+     *  @return An owning `Credentials` holder.
+     *  @throws thetadatadx::ThetaDataError if `THETADATA_API_KEY` is unset or empty. */
+    static Credentials from_env();
 
     /** Source credentials from the environment, falling back to a file.
      *  When `THETADATA_API_KEY` is set and non-empty an API key is used;
@@ -1286,6 +1314,16 @@ public:
         int32_t mode = 0;
         thetadatadx_config_get_flush_mode(handle_.get(), &mode);
         return mode;
+    }
+
+    /** Target server environment carried by this configuration: `"PROD"`
+     *  for the production cluster, `"STAGE"` for staging. Set as a unit by
+     *  the production / stage presets (and the `THETADATA_MDDS_TYPE`
+     *  dotenv key); this is the readback of that selection. Returns an
+     *  empty string if the FFI getter returns null (null handle). */
+    std::string get_environment() const {
+        detail::FfiString s(thetadatadx_config_get_environment(handle_.get()));
+        return s.str();
     }
 
     /** Set the streaming event-ring consumer wait strategy.
@@ -2490,6 +2528,29 @@ private:
 /// `std::move(builder).connect()`.
 class ClientBuilder {
 public:
+    // The builder is move-only. Copying would duplicate the inline secret
+    // material (`auth_a_` / `auth_b_`) and would let a copy observe the
+    // moved-from credential / config state after `connect()` ran on its
+    // sibling, since `connect()` moves out of the shared members. Deleting
+    // the copy operations makes that class of bug impossible: the fluent
+    // rvalue chain (`Client::builder().api_key(k).stage().connect()`) is
+    // unaffected, and a stored builder is handed over with
+    // `std::move(b).connect()`.
+    ClientBuilder(const ClientBuilder&) = delete;
+    ClientBuilder& operator=(const ClientBuilder&) = delete;
+    ClientBuilder(ClientBuilder&&) = default;
+    ClientBuilder& operator=(ClientBuilder&&) = default;
+
+    /// Best-effort wipe of any inline secret material the builder still
+    /// holds, so a builder that is destroyed without `connect()` (or after
+    /// it) does not leave plaintext credentials in process memory longer
+    /// than necessary.
+    ~ClientBuilder() {
+        detail::secure_wipe(auth_a_);
+        detail::secure_wipe(auth_b_);
+        detail::secure_wipe(env_path_);
+    }
+
     // Each fluent setter mutates the builder in place and returns it with
     // the value category preserved: an lvalue overload (`&`) returns
     // `ClientBuilder&` so a named builder keeps chaining, and an rvalue
@@ -2530,11 +2591,13 @@ public:
     /// `THETADATA_EMAIL` + `THETADATA_PASSWORD` build email + password
     /// credentials.
     ClientBuilder& api_key_from_dotenv(const std::string& path) & {
-        set_auth(AuthKind::Dotenv, path, std::string(), "api_key_from_dotenv");
+        set_auth(AuthKind::Dotenv, path, std::string(),
+                 "api_key_from_dotenv / from_dotenv");
         return *this;
     }
     ClientBuilder&& api_key_from_dotenv(const std::string& path) && {
-        set_auth(AuthKind::Dotenv, path, std::string(), "api_key_from_dotenv");
+        set_auth(AuthKind::Dotenv, path, std::string(),
+                 "api_key_from_dotenv / from_dotenv");
         return std::move(*this);
     }
 
@@ -2570,23 +2633,34 @@ public:
         return std::move(*this);
     }
 
+    /// Select the target environment by its binding label (`"PROD"` or
+    /// `"STAGE"`, case-insensitive).
+    ClientBuilder& environment(const std::string& environment) & {
+        set_environment(environment);
+        return *this;
+    }
+    ClientBuilder&& environment(const std::string& environment) && {
+        set_environment(environment);
+        return std::move(*this);
+    }
+
     /// Target the staging cluster.
     ClientBuilder& stage() & {
-        env_kind_ = EnvKind::Stage;
+        set_environment_kind(EnvKind::Stage);
         return *this;
     }
     ClientBuilder&& stage() && {
-        env_kind_ = EnvKind::Stage;
+        set_environment_kind(EnvKind::Stage);
         return std::move(*this);
     }
 
     /// Target the production cluster (the default).
     ClientBuilder& production() & {
-        env_kind_ = EnvKind::Production;
+        set_environment_kind(EnvKind::Production);
         return *this;
     }
     ClientBuilder&& production() && {
-        env_kind_ = EnvKind::Production;
+        set_environment_kind(EnvKind::Production);
         return std::move(*this);
     }
 
@@ -2600,6 +2674,23 @@ public:
     }
     ClientBuilder&& config(Config cfg) && {
         set_config(std::move(cfg));
+        return std::move(*this);
+    }
+
+    /// Source both the credential and the target environment from a
+    /// `.env`-format file. Reuses `Credentials::from_dotenv` and
+    /// `Config::from_dotenv`, so one file can carry both
+    /// `THETADATA_API_KEY` and `THETADATA_MDDS_TYPE`.
+    ClientBuilder& from_dotenv(const std::string& path) & {
+        set_auth(AuthKind::Dotenv, path, std::string(),
+                 "api_key_from_dotenv / from_dotenv");
+        set_env_from_dotenv(path);
+        return *this;
+    }
+    ClientBuilder&& from_dotenv(const std::string& path) && {
+        set_auth(AuthKind::Dotenv, path, std::string(),
+                 "api_key_from_dotenv / from_dotenv");
+        set_env_from_dotenv(path);
         return std::move(*this);
     }
 
@@ -2626,14 +2717,22 @@ public:
         if (auth_kind_ == AuthKind::Unset) {
             detail::throw_config_error(
                 "no authentication source set — call one of api_key, api_key_from_env, "
-                "api_key_from_dotenv, email_password, credentials_file, or credentials");
+                "api_key_from_dotenv, from_dotenv, email_password, credentials_file, "
+                "or credentials");
         }
         // The builder is an about-to-expire rvalue, so the resolvers move
-        // the chosen credential and config straight out of the members. No
-        // shared state outlives this call, so a copy or a second use can
-        // never observe a moved-from source.
+        // the chosen credential and config straight out of the members. The
+        // builder is move-only (copy is deleted), so no sibling copy can
+        // observe a moved-from source.
         Credentials creds = resolve_credentials();
+        // The credential now lives in the `Credentials` handle, whose Rust
+        // core holds the authoritative secret in zeroizing memory. Wipe the
+        // transient inline plaintext immediately rather than waiting for the
+        // destructor, shortening its lifetime to the minimum.
+        detail::secure_wipe(auth_a_);
+        detail::secure_wipe(auth_b_);
         Config cfg = resolve_config();
+        detail::secure_wipe(env_path_);
         return Client::connect(creds, cfg);
     }
 
@@ -2650,14 +2749,14 @@ private:
         CredentialsFile,
         Prebuilt,
     };
-    enum class EnvKind { Default, Production, Stage, Config };
+    enum class EnvKind { Default, Production, Stage, Config, Dotenv };
 
     /// Record an auth source, rejecting a second different one. Re-stating
     /// the same kind overwrites; a different kind latches a conflict that
     /// `connect()` reports.
     void set_auth(AuthKind kind, const std::string& a, const std::string& b,
                   const char* label) {
-        record_auth(label);
+        record_auth(kind, label);
         if (!conflict_) {
             auth_kind_ = kind;
             auth_a_ = a;
@@ -2669,21 +2768,68 @@ private:
     /// Store a pre-built `Credentials` source, latching a conflict if a
     /// different source was already chosen.
     void set_credentials(Credentials creds) {
-        record_auth("credentials");
-        auth_kind_ = AuthKind::Prebuilt;
-        prebuilt_ = std::make_shared<Credentials>(std::move(creds));
+        record_auth(AuthKind::Prebuilt, "credentials");
+        if (!conflict_) {
+            auth_kind_ = AuthKind::Prebuilt;
+            prebuilt_ = std::make_shared<Credentials>(std::move(creds));
+        }
     }
 
     /// Store a fully built `Config`, selecting the verbatim-config
     /// environment.
     void set_config(Config cfg) {
         env_kind_ = EnvKind::Config;
+        detail::secure_wipe(env_path_);
         config_ = std::make_shared<Config>(std::move(cfg));
+    }
+
+    /// Store a symbolic environment selector (`"PROD"` / `"STAGE"`),
+    /// rejecting anything else as a client-construction config error.
+    void set_environment(const std::string& environment) {
+        set_environment_kind(parse_environment_kind(environment));
+    }
+
+    /// Store a `.env` file as the environment source; the same `path`
+    /// is also valid for the auth source when `from_dotenv(...)` chooses
+    /// the `.env` credential path.
+    void set_env_from_dotenv(const std::string& path) {
+        env_kind_ = EnvKind::Dotenv;
+        env_path_ = path;
+        config_.reset();
+    }
+
+    /// Switch to one of the preset environment sources, clearing any
+    /// prior verbatim-config or `.env` environment override.
+    void set_environment_kind(EnvKind kind) {
+        env_kind_ = kind;
+        detail::secure_wipe(env_path_);
+        config_.reset();
+    }
+
+    /// Parse the C++ binding's string environment representation.
+    static EnvKind parse_environment_kind(const std::string& environment) {
+        const auto first = environment.find_first_not_of(" \t\r\n");
+        if (first == std::string::npos) {
+            detail::throw_config_error("environment must be PROD or STAGE; got empty string");
+        }
+        const auto last = environment.find_last_not_of(" \t\r\n");
+        std::string normalized = environment.substr(first, last - first + 1);
+        for (char& ch : normalized) {
+            ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+        }
+        if (normalized == "PROD") {
+            return EnvKind::Production;
+        }
+        if (normalized == "STAGE") {
+            return EnvKind::Stage;
+        }
+        detail::throw_config_error(
+            "environment must be PROD or STAGE; got \"" + environment + "\"");
     }
 
     /// Track the auth-source label so a second, different source can be
     /// reported as a conflict naming both sides.
-    void record_auth(const char* label) {
+    void record_auth(AuthKind kind, const char* label) {
         if (auth_kind_ == AuthKind::Unset && !conflict_) {
             first_label_ = label;
             return;
@@ -2691,9 +2837,9 @@ private:
         if (conflict_) {
             return;
         }
-        // Same label re-stated → not a conflict (overwrite). Different
-        // label → latch the conflict.
-        if (first_label_ != label) {
+        // Same auth kind re-stated → not a conflict (overwrite).
+        // Different auth kind → latch the conflict naming both sides.
+        if (auth_kind_ != kind) {
             conflict_ = true;
             second_label_ = label;
         }
@@ -2730,6 +2876,13 @@ private:
     /// is a configuration error rather than a silent fallback, because the
     /// caller explicitly asked for the environment source. No `creds.txt`
     /// file fallback.
+    ///
+    /// The transient `std::string` holding the env value is wiped through
+    /// `detail::secure_wipe` before this returns: the authoritative secret
+    /// then lives only in the `Credentials` handle, whose Rust core keeps it
+    /// in zeroizing memory. The standalone strict resolver is also reachable
+    /// as `Credentials::from_env()` (over the `thetadatadx_credentials_from_env`
+    /// C ABI symbol) for callers outside the builder.
     static Credentials resolve_api_key_from_env() {
         const char* raw = std::getenv("THETADATA_API_KEY");
         if (raw == nullptr) {
@@ -2739,10 +2892,18 @@ private:
         std::string value(raw);
         const auto first = value.find_first_not_of(" \t\r\n");
         if (first == std::string::npos) {
+            detail::secure_wipe(value);
             detail::throw_config_error("THETADATA_API_KEY is set but empty");
         }
         const auto last = value.find_last_not_of(" \t\r\n");
-        return Credentials::from_api_key(value.substr(first, last - first + 1));
+        // Build the credential (the Rust core takes the authoritative
+        // zeroizing copy), then wipe both the trimmed key and the full env
+        // value so the C++-side plaintext does not outlive this call.
+        std::string trimmed = value.substr(first, last - first + 1);
+        Credentials creds = Credentials::from_api_key(trimmed);
+        detail::secure_wipe(trimmed);
+        detail::secure_wipe(value);
+        return creds;
     }
 
     /// Non-const: the `Config` arm moves the stored `Config` out of the
@@ -2752,6 +2913,8 @@ private:
         switch (env_kind_) {
             case EnvKind::Config:
                 return std::move(*config_);
+            case EnvKind::Dotenv:
+                return Config::from_dotenv(env_path_);
             case EnvKind::Stage:
                 // The staging preset carries the staging cluster routing.
                 return Config::stage();
@@ -2768,6 +2931,7 @@ private:
     std::shared_ptr<Credentials> prebuilt_;
 
     EnvKind env_kind_ = EnvKind::Default;
+    std::string env_path_;
     std::shared_ptr<Config> config_;
 
     bool conflict_ = false;

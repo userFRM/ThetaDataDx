@@ -214,6 +214,19 @@ impl Credentials {
         }
     }
 
+    /// Source credentials strictly from the ``THETADATA_API_KEY``
+    /// environment variable.
+    ///
+    /// Strict: an unset or whitespace-only value raises ``ConfigError``
+    /// rather than falling back, and there is no ``creds.txt`` file
+    /// fallback. Use :meth:`from_env_or_file` when a file fallback is
+    /// wanted instead.
+    #[staticmethod]
+    fn from_env() -> PyResult<Self> {
+        let inner = auth::Credentials::from_env().map_err(to_py_err)?;
+        Ok(Self { inner })
+    }
+
     /// Source credentials from the environment, falling back to a
     /// credentials file.
     ///
@@ -1177,6 +1190,18 @@ impl Config {
             config::StreamingFlushMode::Immediate => "immediate",
             _ => "unknown",
         }
+    }
+
+    /// Target server environment carried by this configuration:
+    /// ``"PROD"`` for the production cluster, ``"STAGE"`` for staging.
+    /// Set as a unit by :meth:`Config.production` / :meth:`Config.stage`
+    /// (and by the ``THETADATA_MDDS_TYPE`` key on :meth:`Config.from_dotenv`);
+    /// this is the readback of that selection. Mirrors the ``mdds_type``
+    /// string the inline ``Client`` constructor accepts.
+    #[getter]
+    fn get_environment(&self) -> &'static str {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.environment().as_str()
     }
 
     /// Set the streaming event-ring consumer wait strategy — the

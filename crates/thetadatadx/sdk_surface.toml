@@ -129,6 +129,12 @@ params = [
 ]
 
 [[methods]]
+name = "credentials_from_env"
+kind = "credentials_from_env"
+doc = "Source credentials strictly from the THETADATA_API_KEY environment variable. An unset or whitespace-only value is an error; there is no creds.txt fallback. Throws on failure."
+targets = ["cpp_lifecycle"]
+
+[[methods]]
 name = "credentials_from_env_or_file"
 kind = "credentials_from_env_or_file"
 doc = "Source credentials from the environment, falling back to a file. Throws on failure."

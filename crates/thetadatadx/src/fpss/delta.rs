@@ -172,6 +172,16 @@ impl DeltaState {
             return None;
         }
 
+        // Reject a truncated row: the FIT reader hit end-of-buffer before the
+        // terminating `END` nibble, so it flushed a partial integer and the
+        // remaining slots stayed zero-filled. Emitting that as a tick would
+        // surface silent zero/garbage fields, so treat it as a decode failure.
+        // Callers map the `None` to `Unparseable`, which the io-loop already
+        // handles without panicking.
+        if !reader.row_complete {
+            return None;
+        }
+
         if n == 0 {
             return None;
         }
@@ -184,8 +194,6 @@ impl DeltaState {
         // expected_fields is a build-time constant for every supported
         // tick shape (QUOTE_FIELDS, TRADE_FIELDS, OI_FIELDS, OHLCVC_FIELDS).
         debug_assert!(expected_fields <= MAX_DATA_FIELDS);
-        out.fill(0);
-        out[..expected_fields].copy_from_slice(&self.alloc_buf[1..total_fields]);
 
         // Delta decompression applies only to the tick portion (excluding
         // contract_id): the first field (contract_id) is skipped, and deltas
@@ -194,6 +202,24 @@ impl DeltaState {
         let tick_n = n.saturating_sub(1);
 
         let key = (msg_code, contract_id);
+        let is_absolute = !self.prev.contains_key(&key);
+
+        // An absolute row defines the cached field width and seeds the delta
+        // baseline. It must not declare MORE fields than the tick shape holds:
+        // a row wider than `expected_fields` would have its trailing fields
+        // silently dropped (the scratch buffer is `total_fields` wide) and the
+        // cached width would over-report, so reject it as a decode failure.
+        // A truncated row is already rejected above via `row_complete`. A
+        // complete row with fewer fields is a legitimately narrower wire
+        // layout (e.g. the simple-format trade); the per-tick consumer
+        // validates that the narrower width is one it knows how to read.
+        if is_absolute && tick_n > expected_fields {
+            return None;
+        }
+
+        out.fill(0);
+        out[..expected_fields].copy_from_slice(&self.alloc_buf[1..total_fields]);
+
         if let Some(prev) = self.prev.get(&key) {
             // Delta row: accumulate onto previous absolute values
             // in-place into the caller's buffer.
@@ -244,5 +270,143 @@ impl DeltaState {
     #[cfg(test)]
     pub(super) fn state_sizes(&self) -> (usize, usize, usize) {
         (self.prev.len(), self.ohlcvc.len(), self.field_counts.len())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const FIELD_SEP: u8 = 0xB;
+    const END: u8 = 0xD;
+
+    /// Encode a single complete FIT row of non-negative `i32` values:
+    /// digit runs joined by `FIELD_SEP` and terminated by `END`. The first
+    /// value is the `contract_id`, the rest are tick fields.
+    fn encode_row(values: &[i32]) -> Vec<u8> {
+        let mut nibbles: Vec<u8> = Vec::new();
+        for (i, &v) in values.iter().enumerate() {
+            if i > 0 {
+                nibbles.push(FIELD_SEP);
+            }
+            for ch in v.to_string().bytes() {
+                nibbles.push(ch - b'0');
+            }
+        }
+        nibbles.push(END);
+        let mut out = Vec::with_capacity(nibbles.len() / 2 + 1);
+        let mut i = 0;
+        while i < nibbles.len() {
+            let high = nibbles[i];
+            let low = if i + 1 < nibbles.len() {
+                nibbles[i + 1]
+            } else {
+                0
+            };
+            out.push((high << 4) | (low & 0x0F));
+            i += 2;
+        }
+        out
+    }
+
+    // A representative non-trade message code; the value only keys the maps.
+    const QUOTE_CODE: u8 = 2;
+
+    #[test]
+    fn complete_quote_row_decodes_to_correct_tick() {
+        let mut state = DeltaState::new();
+        // contract_id = 7, then 11 quote data fields 100..110.
+        let mut values = vec![7];
+        values.extend(100..=110);
+        assert_eq!(values.len(), QUOTE_FIELDS + 1);
+        let payload = encode_row(&values);
+
+        let mut out: TickFields = [0; MAX_DATA_FIELDS];
+        let decoded = state.decode_tick(QUOTE_CODE, &payload, QUOTE_FIELDS, &mut out);
+        let (contract_id, n_data) = decoded.expect("complete row decodes");
+        assert_eq!(contract_id, 7);
+        assert_eq!(n_data, QUOTE_FIELDS);
+        for (i, v) in (100..=110).enumerate() {
+            assert_eq!(out[i], v, "field {i} mismatch");
+        }
+    }
+
+    #[test]
+    fn truncated_quote_row_missing_end_is_rejected() {
+        let mut state = DeltaState::new();
+        let mut values = vec![7];
+        values.extend(100..=110);
+        let mut payload = encode_row(&values);
+        // Drop the trailing byte(s) so the END nibble is gone: the row now
+        // ends mid-buffer with no terminator.
+        payload.pop();
+        payload.pop();
+
+        let mut out: TickFields = [0; MAX_DATA_FIELDS];
+        let decoded = state.decode_tick(QUOTE_CODE, &payload, QUOTE_FIELDS, &mut out);
+        assert!(
+            decoded.is_none(),
+            "a truncated row must decode to None, not a zero-filled tick"
+        );
+        assert!(
+            !state.last_was_date,
+            "rejection is a decode failure, not a DATE skip"
+        );
+        // The reject path must not have cached any width/baseline.
+        assert_eq!(state.state_sizes().0, 0, "no prev baseline cached");
+    }
+
+    #[test]
+    fn truncated_first_row_does_not_poison_width_for_later_delta() {
+        let mut state = DeltaState::new();
+        let cid = 7;
+
+        // A truncated first row (no END) must be rejected and leave NO cached
+        // baseline or width.
+        let mut full = vec![cid];
+        full.extend(100..=110);
+        let mut truncated = encode_row(&full);
+        truncated.pop();
+        truncated.pop();
+        let mut out: TickFields = [0; MAX_DATA_FIELDS];
+        assert!(state
+            .decode_tick(QUOTE_CODE, &truncated, QUOTE_FIELDS, &mut out)
+            .is_none());
+        assert_eq!(state.state_sizes().0, 0, "truncated row poisoned the cache");
+
+        // A subsequent COMPLETE absolute row for the same contract decodes as
+        // a clean absolute tick with the full width, proving the earlier
+        // truncated row left no stale state behind.
+        let good = encode_row(&full);
+        let decoded = state.decode_tick(QUOTE_CODE, &good, QUOTE_FIELDS, &mut out);
+        let (contract_id, n_data) = decoded.expect("complete row decodes");
+        assert_eq!(contract_id, cid);
+        assert_eq!(n_data, QUOTE_FIELDS);
+        for (i, v) in (100..=110).enumerate() {
+            assert_eq!(out[i], v, "field {i} mismatch after clean re-seed");
+        }
+    }
+
+    #[test]
+    fn complete_then_delta_row_accumulates() {
+        // Confirms the happy path is unchanged: a complete absolute row seeds
+        // the baseline and a following delta row accumulates onto it.
+        let mut state = DeltaState::new();
+        let cid = 7;
+        let mut abs = vec![cid];
+        abs.extend(100..=110);
+        let abs_payload = encode_row(&abs);
+        let mut out: TickFields = [0; MAX_DATA_FIELDS];
+        state
+            .decode_tick(QUOTE_CODE, &abs_payload, QUOTE_FIELDS, &mut out)
+            .expect("absolute row decodes");
+
+        // Delta row: contract_id then a single +5 change to field 0.
+        let delta_payload = encode_row(&[cid, 5]);
+        let decoded = state.decode_tick(QUOTE_CODE, &delta_payload, QUOTE_FIELDS, &mut out);
+        let (contract_id, _n) = decoded.expect("delta row decodes");
+        assert_eq!(contract_id, cid);
+        assert_eq!(out[0], 105, "delta accumulated onto prior absolute value");
+        assert_eq!(out[1], 101, "unchanged field carried forward from baseline");
     }
 }

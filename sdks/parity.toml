@@ -1080,6 +1080,28 @@ typescript = true   # `Client.connectWith({ apiKey, mddsType, ... })` napi facto
 cpp = false         # C++ uses the `Client::builder()` fluent builder
 rust = false        # Rust uses the `Client::builder()` fluent builder
 
+# Two Rust-core ergonomic conveniences carry no binding twin by design,
+# so they are intentional asymmetries rather than parity gaps:
+#
+#   - `Client::connect_with_api_key(key, config)` is thin sugar over
+#     `Client::builder().api_key(key).config(config).connect()` for the
+#     single most common inline shape. Every binding already reaches the
+#     same surface through its idiomatic inline entry point (the Python
+#     `Client(api_key=...)` constructor kwargs, the TypeScript
+#     `Client.connectWith({ apiKey })` factory, the C++ `Client::builder()`
+#     fluent builder), so a fourth named twin would be redundant.
+#   - `Config::with_dotenv(path)` is the builder companion to
+#     `Config::from_dotenv`: it layers the same `.env`-sourced cluster
+#     selection onto an existing config instead of starting from the
+#     production preset. The bindings expose the `from_dotenv` factory
+#     (the `fromDotenv` rows above); the layer-onto-existing variant stays
+#     a Rust convenience because the binding callers build the config in
+#     one expression rather than mutating a receiver.
+#
+# Both are pure sugar over surfaces already at full cross-binding parity,
+# so they are deliberately not enrolled as rows (a binding twin is not
+# expected and their absence is not a gap).
+
 # ── FlatFilesNamespace fetch surface (bulk per-day flat-file requests) ──
 #
 # The `flatFiles` accessor above returns the flat-file namespace; the rows
@@ -1537,6 +1559,22 @@ python = true
 typescript = true   # `Credentials.fromApiKeyWithEmail(email, key)` napi factory
 cpp = true
 
+# Strict env-only sourcing: read `THETADATA_API_KEY` from the
+# environment with no `creds.txt` fallback (unset or empty is an error).
+# Symmetric with the other `Credentials` factories, so all columns stay
+# `true` across Python (`from_env` staticmethod), TypeScript (`fromEnv`
+# napi factory), and C++ (`from_env` static member over the
+# `thetadatadx_credentials_from_env` C ABI symbol). The `Client`-level
+# `Client.from_env` / `connectWith({ apiKeyFromEnv })` paths are a
+# separate surface, not a substitute for the factory.
+
+[[method]]
+class = "Credentials"
+name = "fromEnv"
+python = true       # `Credentials.from_env()` staticmethod
+typescript = true   # `Credentials.fromEnv()` napi factory
+cpp = true          # `Credentials::from_env()` over `thetadatadx_credentials_from_env`
+
 # Environment-or-file sourcing: read `THETADATA_API_KEY` from the
 # environment, else fall back to the two-line credentials file. Every
 # binding exposes it, so all columns stay `true` across Python
@@ -1706,6 +1744,23 @@ cpp = true
 [[method]]
 class = "Config"
 name = "deriveOhlcvc"
+python = true
+typescript = true
+cpp = true
+
+# `environment` is the target-server readback: the production / stage
+# presets (and the `THETADATA_MDDS_TYPE` dotenv key) set the cluster
+# selector as a unit, and this getter reads it back as a `"PROD"` /
+# `"STAGE"` string, the same selector spelling the inline client takes
+# as `mddsType` / `mdds_type`. Exposed on every binding: Python
+# (`Config.environment` property), TypeScript (`Config.environment`
+# getter), C++ (`Config::get_environment()` over the FFI
+# `thetadatadx_config_get_environment` symbol). There is no matching
+# setter row: the selector is chosen by the `production` / `stage`
+# factories, not a free-standing field write.
+[[method]]
+class = "Config"
+name = "environment"
 python = true
 typescript = true
 cpp = true

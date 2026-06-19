@@ -147,6 +147,17 @@ impl Credentials {
         }
     }
 
+    /// Source credentials strictly from the `THETADATA_API_KEY`
+    /// environment variable. Strict: an unset or whitespace-only value
+    /// rejects with `[ConfigError]` rather than falling back, and there is
+    /// no `creds.txt` file fallback. Use `fromEnvOrFile` when a file
+    /// fallback is wanted instead.
+    #[napi(factory, js_name = "fromEnv")]
+    pub fn from_env() -> napi::Result<Credentials> {
+        let inner = auth::Credentials::from_env().map_err(to_napi_err)?;
+        Ok(Credentials { inner })
+    }
+
     /// Source credentials from the environment, falling back to a file.
     /// When `THETADATA_API_KEY` is set and non-empty an API key is used;
     /// otherwise the two-line file at `path` is read.
