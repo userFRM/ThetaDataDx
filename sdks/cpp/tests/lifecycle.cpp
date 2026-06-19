@@ -52,6 +52,21 @@ TEST_CASE("Credentials::from_api_key_with_email builds a handle without network 
     REQUIRE(creds.get() != nullptr);
 }
 
+TEST_CASE("Credentials::from_env sources strictly from THETADATA_API_KEY",
+          "[lifecycle][offline]") {
+    setenv("THETADATA_API_KEY", "env-sourced-key", 1);
+    auto creds = thetadatadx::Credentials::from_env();
+    REQUIRE(creds.get() != nullptr);
+    unsetenv("THETADATA_API_KEY");
+}
+
+TEST_CASE("Credentials::from_env throws when THETADATA_API_KEY is unset",
+          "[lifecycle][offline]") {
+    // Strict: an unset value is an error, with NO creds.txt fallback.
+    unsetenv("THETADATA_API_KEY");
+    REQUIRE_THROWS(thetadatadx::Credentials::from_env());
+}
+
 TEST_CASE("Credentials::from_env_or_file sources from THETADATA_API_KEY",
           "[lifecycle][offline]") {
     setenv("THETADATA_API_KEY", "env-sourced-key", 1);

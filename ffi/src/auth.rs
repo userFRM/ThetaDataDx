@@ -148,6 +148,29 @@ pub unsafe extern "C" fn thetadatadx_credentials_from_file(
     })
 }
 
+/// Source credentials strictly from the `THETADATA_API_KEY` environment
+/// variable.
+///
+/// Strict: an unset or whitespace-only value is an error rather than a
+/// silent fallback, and there is no `creds.txt` file fallback. This is
+/// the C-ABI equivalent of the Rust / Python / TypeScript strict
+/// env-only resolver; use `thetadatadx_credentials_from_env_or_file`
+/// when a file fallback is wanted instead.
+///
+/// Returns null on error (check `thetadatadx_last_error()`).
+#[no_mangle]
+pub extern "C" fn thetadatadx_credentials_from_env() -> *mut ThetaDataDxCredentials {
+    ffi_boundary!(ptr::null_mut(), {
+        match thetadatadx::Credentials::from_env() {
+            Ok(creds) => Box::into_raw(Box::new(ThetaDataDxCredentials { inner: creds })),
+            Err(e) => {
+                set_error_from(&e);
+                ptr::null_mut()
+            }
+        }
+    })
+}
+
 /// Source credentials from the environment, falling back to a file.
 ///
 /// When `THETADATA_API_KEY` is set and non-empty an API key is used;
@@ -4480,5 +4503,36 @@ mod credentials_dotenv_tests {
         let creds = unsafe { super::thetadatadx_credentials_from_dotenv(c_path.as_ptr()) };
         assert!(creds.is_null());
         std::fs::remove_file(&path).ok();
+    }
+}
+
+#[cfg(test)]
+mod credentials_from_env_tests {
+    //! Offline smoke coverage for the strict `thetadatadx_credentials_from_env`
+    //! resolver: with `THETADATA_API_KEY` unset it returns a null handle and
+    //! sets the last error, rather than falling back to a file.
+
+    use std::sync::{Mutex, OnceLock};
+
+    /// Serialize the env mutation so a parallel test never observes the
+    /// transient unset state. Held for the body of the test.
+    fn env_lock() -> std::sync::MutexGuard<'static, ()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
+    }
+
+    #[test]
+    fn from_env_returns_null_when_unset() {
+        let _guard = env_lock();
+        // SAFETY: `_guard` pins the process-global env lock for the body of
+        // this test, so no other thread reads or writes the environment while
+        // the unset lands.
+        unsafe {
+            std::env::remove_var("THETADATA_API_KEY");
+        }
+        let creds = super::thetadatadx_credentials_from_env();
+        assert!(creds.is_null());
     }
 }

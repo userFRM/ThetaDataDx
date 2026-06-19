@@ -379,6 +379,25 @@ public:
 
 namespace detail {
 
+/// Best-effort wipe of a `std::string` holding secret material.
+///
+/// Overwrites the live buffer through a `volatile` byte pointer (so the
+/// compiler may not elide the store as dead) and then clears the string.
+/// This is best-effort: the C ABI boundary takes `const char*`, so the
+/// authoritative copy is the one the Rust core holds in zeroizing memory;
+/// this only shortens the lifetime of the transient C++-side plaintext.
+/// A reallocation earlier in the string's life may have left an untouched
+/// copy elsewhere, which no portable C++ can reach.
+inline void secure_wipe(std::string& secret) {
+    if (!secret.empty()) {
+        volatile char* p = const_cast<volatile char*>(secret.data());
+        for (std::size_t i = 0; i < secret.size(); ++i) {
+            p[i] = '\0';
+        }
+    }
+    secret.clear();
+}
+
 /// Throw the [`ThetaDataError`] leaf that matches the typed C ABI
 /// discriminant `code` (one of the `THETADATADX_ERR_*` constants in
 /// `thetadatadx.h`). Used by every wrapper that already has the formatted
@@ -628,6 +647,14 @@ public:
      *  @return An owning `Credentials` holder.
      *  @throws thetadatadx::ThetaDataError if the credentials cannot be built. */
     static Credentials from_api_key_with_email(const std::string& email, const std::string& api_key);
+
+    /** Source credentials strictly from the `THETADATA_API_KEY`
+     *  environment variable. Strict: an unset or whitespace-only value
+     *  throws rather than falling back, and there is no `creds.txt` file
+     *  fallback. Use `from_env_or_file` when a file fallback is wanted.
+     *  @return An owning `Credentials` holder.
+     *  @throws thetadatadx::ThetaDataError if `THETADATA_API_KEY` is unset or empty. */
+    static Credentials from_env();
 
     /** Source credentials from the environment, falling back to a file.
      *  When `THETADATA_API_KEY` is set and non-empty an API key is used;
@@ -2490,6 +2517,28 @@ private:
 /// `std::move(builder).connect()`.
 class ClientBuilder {
 public:
+    // The builder is move-only. Copying would duplicate the inline secret
+    // material (`auth_a_` / `auth_b_`) and would let a copy observe the
+    // moved-from credential / config state after `connect()` ran on its
+    // sibling, since `connect()` moves out of the shared members. Deleting
+    // the copy operations makes that class of bug impossible: the fluent
+    // rvalue chain (`Client::builder().api_key(k).stage().connect()`) is
+    // unaffected, and a stored builder is handed over with
+    // `std::move(b).connect()`.
+    ClientBuilder(const ClientBuilder&) = delete;
+    ClientBuilder& operator=(const ClientBuilder&) = delete;
+    ClientBuilder(ClientBuilder&&) = default;
+    ClientBuilder& operator=(ClientBuilder&&) = default;
+
+    /// Best-effort wipe of any inline secret material the builder still
+    /// holds, so a builder that is destroyed without `connect()` (or after
+    /// it) does not leave plaintext credentials in process memory longer
+    /// than necessary.
+    ~ClientBuilder() {
+        detail::secure_wipe(auth_a_);
+        detail::secure_wipe(auth_b_);
+    }
+
     // Each fluent setter mutates the builder in place and returns it with
     // the value category preserved: an lvalue overload (`&`) returns
     // `ClientBuilder&` so a named builder keeps chaining, and an rvalue
@@ -2629,10 +2678,16 @@ public:
                 "api_key_from_dotenv, email_password, credentials_file, or credentials");
         }
         // The builder is an about-to-expire rvalue, so the resolvers move
-        // the chosen credential and config straight out of the members. No
-        // shared state outlives this call, so a copy or a second use can
-        // never observe a moved-from source.
+        // the chosen credential and config straight out of the members. The
+        // builder is move-only (copy is deleted), so no sibling copy can
+        // observe a moved-from source.
         Credentials creds = resolve_credentials();
+        // The credential now lives in the `Credentials` handle, whose Rust
+        // core holds the authoritative secret in zeroizing memory. Wipe the
+        // transient inline plaintext immediately rather than waiting for the
+        // destructor, shortening its lifetime to the minimum.
+        detail::secure_wipe(auth_a_);
+        detail::secure_wipe(auth_b_);
         Config cfg = resolve_config();
         return Client::connect(creds, cfg);
     }
@@ -2730,6 +2785,13 @@ private:
     /// is a configuration error rather than a silent fallback, because the
     /// caller explicitly asked for the environment source. No `creds.txt`
     /// file fallback.
+    ///
+    /// The transient `std::string` holding the env value is wiped through
+    /// `detail::secure_wipe` before this returns: the authoritative secret
+    /// then lives only in the `Credentials` handle, whose Rust core keeps it
+    /// in zeroizing memory. The standalone strict resolver is also reachable
+    /// as `Credentials::from_env()` (over the `thetadatadx_credentials_from_env`
+    /// C ABI symbol) for callers outside the builder.
     static Credentials resolve_api_key_from_env() {
         const char* raw = std::getenv("THETADATA_API_KEY");
         if (raw == nullptr) {
@@ -2739,10 +2801,18 @@ private:
         std::string value(raw);
         const auto first = value.find_first_not_of(" \t\r\n");
         if (first == std::string::npos) {
+            detail::secure_wipe(value);
             detail::throw_config_error("THETADATA_API_KEY is set but empty");
         }
         const auto last = value.find_last_not_of(" \t\r\n");
-        return Credentials::from_api_key(value.substr(first, last - first + 1));
+        // Build the credential (the Rust core takes the authoritative
+        // zeroizing copy), then wipe both the trimmed key and the full env
+        // value so the C++-side plaintext does not outlive this call.
+        std::string trimmed = value.substr(first, last - first + 1);
+        Credentials creds = Credentials::from_api_key(trimmed);
+        detail::secure_wipe(trimmed);
+        detail::secure_wipe(value);
+        return creds;
     }
 
     /// Non-const: the `Config` arm moves the stored `Config` out of the

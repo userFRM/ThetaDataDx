@@ -963,6 +963,15 @@ ThetaDataDxCredentials* thetadatadx_credentials_from_api_key_with_email(const ch
  *          thetadatadx_credentials_free, or NULL on error (check thetadatadx_last_error()). */
 ThetaDataDxCredentials* thetadatadx_credentials_from_file(const char* path);
 
+/** Source a credentials handle strictly from the THETADATA_API_KEY
+ *  environment variable. Strict: an unset or whitespace-only value is an
+ *  error rather than a silent fallback, and there is no creds.txt file
+ *  fallback. Use thetadatadx_credentials_from_env_or_file when a file
+ *  fallback is wanted instead.
+ *  @return Heap-owned ThetaDataDxCredentials the caller must release with
+ *          thetadatadx_credentials_free, or NULL on error (check thetadatadx_last_error()). */
+ThetaDataDxCredentials* thetadatadx_credentials_from_env(void);
+
 /** Source a credentials handle from the environment, falling back to a file.
  *  When THETADATA_API_KEY is set and non-empty an API key is used; otherwise
  *  the two-line file (line 1 = email, line 2 = password) at path is read.

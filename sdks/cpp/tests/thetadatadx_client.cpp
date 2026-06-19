@@ -48,6 +48,19 @@ TEST_CASE("Client is move-only with the right type-trait shape",
     STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<thetadatadx::Client>);
 }
 
+TEST_CASE("ClientBuilder is move-only (non-copyable)",
+          "[unified][offline]") {
+    // A copyable builder could duplicate inline secret material and let a
+    // copy observe moved-from credential / config state after connect()
+    // ran on its sibling. The builder is move-only so that class of bug
+    // cannot be written: the fluent rvalue chain and a std::move handover
+    // both stay valid, only the implicit copy is gone.
+    STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<thetadatadx::ClientBuilder>);
+    STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<thetadatadx::ClientBuilder>);
+    STATIC_REQUIRE(std::is_move_constructible_v<thetadatadx::ClientBuilder>);
+    STATIC_REQUIRE(std::is_move_assignable_v<thetadatadx::ClientBuilder>);
+}
+
 TEST_CASE("ClientBuilder validates auth before connecting",
           "[unified][offline]") {
     // The builder rejects an empty auth set and a conflict BEFORE any

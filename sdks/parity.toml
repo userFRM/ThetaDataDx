@@ -1537,6 +1537,20 @@ python = true
 typescript = true   # `Credentials.fromApiKeyWithEmail(email, key)` napi factory
 cpp = true
 
+# Strict env-only sourcing: read `THETADATA_API_KEY` from the
+# environment with no `creds.txt` fallback (unset or empty is an error).
+# Python and TypeScript reach the strict resolver through the `Client`
+# class (`Client.from_env` / `connectWith({ apiKeyFromEnv })`), so the
+# `Credentials`-class factory is C++ only, sitting over the
+# `thetadatadx_credentials_from_env` C ABI symbol.
+
+[[method]]
+class = "Credentials"
+name = "fromEnv"
+python = false
+typescript = false
+cpp = true   # `Credentials::from_env()` over `thetadatadx_credentials_from_env`
+
 # Environment-or-file sourcing: read `THETADATA_API_KEY` from the
 # environment, else fall back to the two-line credentials file. Every
 # binding exposes it, so all columns stay `true` across Python

@@ -266,7 +266,15 @@ impl DirectConfig {
     /// Returns [`Error::Config`] if the file cannot be read. Returns whatever
     /// [`Self::validate`] returns for the resulting configuration.
     pub fn from_dotenv(path: impl AsRef<std::path::Path>) -> Result<Self, Error> {
-        Self::production().with_dotenv(path)
+        // Start from the hardcoded production defaults, NOT from
+        // [`Self::production`]: a file-sourced config must be deterministic
+        // from its defaults plus the file, so the ambient process env never
+        // leaks in. A `.env` that selects `PROD` must yield the prod cluster
+        // even when the shell has `THETADATA_MDDS_TYPE=STAGE` (or a stray
+        // `THETADATA_HISTORICAL_HOST`) left over. `with_dotenv` layers only
+        // the parsed file pairs via `apply_dotenv_overrides`, which reads the
+        // file, never the process env.
+        Self::production_defaults().with_dotenv(path)
     }
 
     /// Apply a `.env` file's environment selection and host overrides onto an
@@ -327,8 +335,14 @@ impl DirectConfig {
     pub fn dev() -> Self {
         let mut config = Self::production();
         // Dev is a streaming-only preset: historical data still uses the
-        // production cluster, so the environment marker stays `Prod`.
-        config.environment = Environment::Prod;
+        // production cluster. Reset the FULL cluster routing to prod (env
+        // marker AND historical host) before overriding the streaming hosts.
+        // `production()` may have applied `THETADATA_MDDS_TYPE=STAGE` from the
+        // process env, which would otherwise leave `historical.host` pointed at
+        // the stage cluster while only the marker flipped back to `Prod` — a
+        // broken preset where the marker says prod but historical routes to
+        // stage. `apply_environment` re-points both together.
+        config.apply_environment(Environment::Prod);
         // Source: config.toml fpss_dev_hosts
         config.streaming.hosts = vec![
             ("nj-a.thetadata.us".to_string(), 20200),
@@ -2400,6 +2414,90 @@ mod tests {
         let config = DirectConfig::from_dotenv(&path).expect(".env must source");
         assert_eq!(config.streaming.hosts[0].0, "stream.example.com");
         std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_prod_ignores_ambient_stage_env() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // The shell forces STAGE and a stage historical host, but a file-sourced
+        // config must be deterministic from defaults plus the file. A `.env`
+        // selecting PROD must yield the prod cluster regardless of the ambient
+        // process env.
+        // SAFETY: `_guard` holds the process-global env-var mutex for the body
+        // of this test, so no other thread observes or mutates the environment
+        // while these writes land.
+        unsafe {
+            std::env::set_var(ENV_MDDS_TYPE, "STAGE");
+            std::env::set_var(ENV_HISTORICAL_HOST, "mdds-stage.thetadata.us");
+        }
+        let path = write_temp_dotenv("prodfile.env", "THETADATA_MDDS_TYPE=PROD\n");
+        let config = DirectConfig::from_dotenv(&path).expect(".env mdds-type must source");
+        // The file says PROD, so the prod cluster wins over the ambient STAGE.
+        assert_eq!(config.environment, Environment::Prod);
+        assert_eq!(config.historical.host, "mdds-01.thetadata.us");
+        let prod_defaults = DirectConfig::production_defaults();
+        assert_eq!(config.streaming.hosts, prod_defaults.streaming.hosts);
+        clear_env_matrix();
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_only_api_key_ignores_ambient_stage_env() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // A `.env` that carries no cluster keys must still ignore the ambient
+        // env: it sources from defaults plus the file, never the shell.
+        // SAFETY: see `from_dotenv_prod_ignores_ambient_stage_env`.
+        unsafe {
+            std::env::set_var(ENV_MDDS_TYPE, "STAGE");
+            std::env::set_var(ENV_HISTORICAL_HOST, "mdds-stage.thetadata.us");
+        }
+        let path = write_temp_dotenv("nocluster.env", "THETADATA_API_KEY=td_example_key\n");
+        let config = DirectConfig::from_dotenv(&path).expect("api-key-only .env must source");
+        assert_eq!(config.environment, Environment::Prod);
+        assert_eq!(config.historical.host, "mdds-01.thetadata.us");
+        clear_env_matrix();
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn dev_resets_prod_cluster_under_ambient_stage_env() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // The shell forces STAGE, which `production()` honors. `dev()` is a
+        // streaming-only preset whose historical channel must stay on the prod
+        // cluster: resetting via `apply_environment(Prod)` re-points both the
+        // env marker AND the historical host, never leaving the marker prod
+        // while historical routes to stage.
+        // SAFETY: see `from_dotenv_prod_ignores_ambient_stage_env`.
+        unsafe {
+            std::env::set_var(ENV_MDDS_TYPE, "STAGE");
+        }
+        let config = DirectConfig::dev();
+        assert_eq!(config.environment, Environment::Prod);
+        assert_eq!(config.historical.host, "mdds-01.thetadata.us");
+        // Dev streaming hosts (port 20200/20201).
+        assert_eq!(config.streaming.hosts[0].0, "nj-a.thetadata.us");
+        assert_eq!(config.streaming.hosts[0].1, 20200);
+        clear_env_matrix();
+    }
+
+    #[test]
+    fn stage_stays_stage_under_ambient_prod_env() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // An explicit `stage()` preset must end up fully Stage even when the
+        // ambient env says PROD: the preset is not silently overridden into an
+        // inconsistent state.
+        // SAFETY: see `from_dotenv_prod_ignores_ambient_stage_env`.
+        unsafe {
+            std::env::set_var(ENV_MDDS_TYPE, "PROD");
+        }
+        let config = DirectConfig::stage();
+        assert_eq!(config.environment, Environment::Stage);
+        assert_eq!(config.historical.host, "mdds-stage.thetadata.us");
+        clear_env_matrix();
     }
 
     #[test]
