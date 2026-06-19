@@ -561,6 +561,15 @@ export declare class Config {
    */
   get flushMode(): string
   /**
+   * Target server environment carried by this configuration: `"PROD"`
+   * for the production cluster, `"STAGE"` for staging. Set as a unit by
+   * `Config.production()` / `Config.stage()` (and by the
+   * `THETADATA_MDDS_TYPE` key on `Config.fromDotenv`); this is the
+   * readback of that selection. Mirrors the `mddsType` string the inline
+   * `Client.connectWith` factory accepts.
+   */
+  get environment(): string
+  /**
    * Set the streaming event-ring consumer wait strategy — the
    * latency-vs-CPU knob applied on each ring-empty poll.
    *

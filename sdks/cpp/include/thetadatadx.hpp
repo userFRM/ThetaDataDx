@@ -1315,6 +1315,16 @@ public:
         return mode;
     }
 
+    /** Target server environment carried by this configuration: `"PROD"`
+     *  for the production cluster, `"STAGE"` for staging. Set as a unit by
+     *  the production / stage presets (and the `THETADATA_MDDS_TYPE`
+     *  dotenv key); this is the readback of that selection. Returns an
+     *  empty string if the FFI getter returns null (null handle). */
+    std::string get_environment() const {
+        detail::FfiString s(thetadatadx_config_get_environment(handle_.get()));
+        return s.str();
+    }
+
     /** Set the streaming event-ring consumer wait strategy.
      *  0=LowLatency (default), 1=Balanced, 2=Efficient, 3=BusySpin
      *  (see the @c THETADATADX_WAIT_* constants). Throws

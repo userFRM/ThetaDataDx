@@ -1803,6 +1803,17 @@ int thetadatadx_config_set_flush_mode(ThetaDataDxConfig* config, int mode);
  */
 int32_t thetadatadx_config_get_flush_mode(const ThetaDataDxConfig* config, int32_t* out_mode);
 
+/**
+ * Read the target server environment carried by the config: "PROD" for
+ * the production cluster or "STAGE" for staging. Set as a unit by the
+ * production / stage presets (and the THETADATA_MDDS_TYPE dotenv key);
+ * this is the readback of that selection.
+ * @param config Config handle to read.
+ * @return A heap-owned NUL-terminated C string the caller MUST free with
+ *         thetadatadx_string_free, or NULL if config is null.
+ */
+char* thetadatadx_config_get_environment(const ThetaDataDxConfig* config);
+
 /* Streaming wait-strategy preset selectors for
  * thetadatadx_config_set_wait_strategy / _get_wait_strategy. */
 #define THETADATADX_WAIT_LOW_LATENCY 0

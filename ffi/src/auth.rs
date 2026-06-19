@@ -411,6 +411,37 @@ pub unsafe extern "C" fn thetadatadx_config_get_flush_mode(
     })
 }
 
+/// Read the target server environment carried by the config.
+///
+/// On success, returns a heap-owned NUL-terminated C string (`"PROD"` or
+/// `"STAGE"`) the caller MUST release with `thetadatadx_string_free`. The
+/// environment is set as a unit by `thetadatadx_direct_config_new` /
+/// the stage preset (and the `THETADATA_MDDS_TYPE` dotenv key); this is
+/// the readback of that selection. Returns null if `config` is null
+/// (the diagnostic is written to `thetadatadx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_environment(
+    config: *const ThetaDataDxConfig,
+) -> *mut c_char {
+    ffi_boundary!(ptr::null_mut(), {
+        if config.is_null() {
+            set_error("config handle is null");
+            return ptr::null_mut();
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // `Environment::as_str` is a `'static` label free of interior NULs,
+        // so `CString::new` never fails here.
+        match std::ffi::CString::new(config.inner.environment().as_str()) {
+            Ok(c) => c.into_raw(),
+            Err(e) => {
+                set_error(&format!("environment label contains an interior NUL: {e}"));
+                ptr::null_mut()
+            }
+        }
+    })
+}
+
 /// Set the streaming event-ring consumer wait strategy on a config
 /// handle.
 ///
@@ -3851,6 +3882,25 @@ mod auth_metrics_setter_tests {
             let got = take_owned(super::thetadatadx_config_get_client_type(cfg));
             assert_eq!(got.as_deref(), Some("fleet-east-1"));
             super::thetadatadx_config_free(cfg);
+        }
+    }
+
+    #[test]
+    fn environment_reads_back_the_selected_cluster_via_getter() {
+        // The readback getter mirrored across the bindings: the stage
+        // preset reads back `"STAGE"`, the production preset `"PROD"`.
+        let staged = super::thetadatadx_config_stage();
+        let prod = super::thetadatadx_config_production();
+        // SAFETY: both handles were just returned by the config constructors.
+        unsafe {
+            let got = take_owned(super::thetadatadx_config_get_environment(staged));
+            assert_eq!(got.as_deref(), Some("STAGE"));
+            let got = take_owned(super::thetadatadx_config_get_environment(prod));
+            assert_eq!(got.as_deref(), Some("PROD"));
+            // A null handle yields null.
+            assert!(super::thetadatadx_config_get_environment(std::ptr::null()).is_null());
+            super::thetadatadx_config_free(staged);
+            super::thetadatadx_config_free(prod);
         }
     }
 

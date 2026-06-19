@@ -1192,6 +1192,18 @@ impl Config {
         }
     }
 
+    /// Target server environment carried by this configuration:
+    /// ``"PROD"`` for the production cluster, ``"STAGE"`` for staging.
+    /// Set as a unit by :meth:`Config.production` / :meth:`Config.stage`
+    /// (and by the ``THETADATA_MDDS_TYPE`` key on :meth:`Config.from_dotenv`);
+    /// this is the readback of that selection. Mirrors the ``mdds_type``
+    /// string the inline ``Client`` constructor accepts.
+    #[getter]
+    fn get_environment(&self) -> &'static str {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.environment().as_str()
+    }
+
     /// Set the streaming event-ring consumer wait strategy — the
     /// latency-vs-CPU knob applied on each ring-empty poll.
     ///

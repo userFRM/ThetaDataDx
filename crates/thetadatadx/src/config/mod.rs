@@ -2260,6 +2260,20 @@ mod tests {
     }
 
     #[test]
+    fn environment_getter_reads_back_the_selected_cluster() {
+        // The readback getter mirrored across the bindings: `stage()`
+        // carries `Stage`, `production()` carries `Prod`.
+        assert_eq!(DirectConfig::stage().environment(), Environment::Stage);
+        assert_eq!(DirectConfig::production().environment(), Environment::Prod);
+        assert_eq!(
+            DirectConfig::production()
+                .with_environment(Environment::Stage)
+                .environment(),
+            Environment::Stage
+        );
+    }
+
+    #[test]
     fn env_overrides_apply_on_production() {
         let _guard = env_test_guard();
         clear_env_matrix();

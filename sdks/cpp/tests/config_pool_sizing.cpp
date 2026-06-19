@@ -44,3 +44,13 @@ TEST_CASE("Config historical_host / historical_port setters + getters round-trip
     cfg.set_historical_port(50051);
     REQUIRE(cfg.get_historical_port() == 50051u);
 }
+
+TEST_CASE("Config environment getter reads back the selected cluster",
+          "[config][environment][offline]") {
+    // The environment readback mirrors the Python `Config.environment`
+    // and TypeScript `environment` getters: the production / stage
+    // presets select the cluster as a unit, and this getter reads the
+    // selection back as the `"PROD"` / `"STAGE"` string.
+    REQUIRE(thetadatadx::Config::stage().get_environment() == "STAGE");
+    REQUIRE(thetadatadx::Config::production().get_environment() == "PROD");
+}

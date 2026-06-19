@@ -1585,6 +1585,21 @@ impl Config {
         })
     }
 
+    /// Target server environment carried by this configuration: `"PROD"`
+    /// for the production cluster, `"STAGE"` for staging. Set as a unit by
+    /// `Config.production()` / `Config.stage()` (and by the
+    /// `THETADATA_MDDS_TYPE` key on `Config.fromDotenv`); this is the
+    /// readback of that selection. Mirrors the `mddsType` string the inline
+    /// `Client.connectWith` factory accepts.
+    #[napi(getter, js_name = "environment")]
+    pub fn environment(&self) -> napi::Result<&'static str> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.environment().as_str())
+    }
+
     /// Set the streaming event-ring consumer wait strategy — the
     /// latency-vs-CPU knob applied on each ring-empty poll.
     ///
