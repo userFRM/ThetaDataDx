@@ -468,6 +468,14 @@ static std::string last_ffi_error() {
     throw_for_code(code, message);
 }
 
+/// Throw a `ConfigError` for a malformed client-construction argument
+/// (conflicting or absent builder auth sources). A local, pre-network
+/// configuration fault — surfaced as the same typed leaf the C ABI
+/// selects for `THETADATADX_ERR_CONFIG`, matching the other bindings.
+[[noreturn]] inline void throw_config_error(const std::string& message) {
+    throw_for_code(THETADATADX_ERR_CONFIG, message);
+}
+
 // Raw variant: returns "" when the FFI error slot is empty. Used by
 // post-call disambiguation in check_array helpers — distinguishes
 // success-empty from failure-empty (e.g. timeout on a list endpoint
@@ -2303,6 +2311,10 @@ private:
     std::unique_ptr<std::function<void(const StreamEvent&)>>* callback_;
 };
 
+/// Forward declaration for `Client::builder()`; defined immediately after
+/// `Client` so it can reach the public `Client::connect`.
+class ClientBuilder;
+
 /// RAII wrapper around a unified client handle (`ThetaDataDxClient*`).
 /// The unified handle owns both the historical (gRPC/MDDS) and
 /// streaming (FPSS) sub-clients. Historical queries are reached through
@@ -2346,6 +2358,27 @@ public:
         }
         return Client(h);
     }
+
+    /// Start a fluent `ClientBuilder` — the headline ergonomic for
+    /// constructing a client with the API key (or email + password) and
+    /// the target environment selected inline.
+    ///
+    /// The API key is a first-class, directly-passed argument
+    /// (`ClientBuilder::api_key` and its env / `.env` siblings),
+    /// distinct from the email + password pair. The lower-level typed
+    /// path `Client::connect(creds, config)` stays available for power
+    /// users; the builder composes the `Credentials` + `Config` and calls
+    /// it.
+    ///
+    /// ```cpp
+    /// auto client = thetadatadx::Client::builder()
+    ///     .api_key("td1_example_key")
+    ///     .stage()
+    ///     .connect();
+    /// ```
+    ///
+    /// Defined out-of-line below `ClientBuilder`.
+    static ClientBuilder builder();
 
     Client(const Client&) = delete;
     Client& operator=(const Client&) = delete;
@@ -2429,6 +2462,211 @@ private:
     std::unique_ptr<std::function<void(const StreamEvent&)>> callback_;
     std::unique_ptr<ThetaDataDxClient, UnifiedDeleter> handle_;
 };
+
+/// Fluent builder for `Client`, mirroring the Rust `ClientBuilder`.
+///
+/// The API key is a first-class, directly-passed argument: `api_key`,
+/// `api_key_from_env`, and `api_key_from_dotenv` are distinct from the
+/// `email_password` pair and from `credentials_file`. Set exactly one
+/// authentication source plus an optional environment, then call
+/// `connect()`.
+///
+/// ```cpp
+/// auto client = thetadatadx::Client::builder()
+///     .api_key("td1_example_key")
+///     .stage()
+///     .connect();
+/// ```
+///
+/// Setting no authentication source, or two different ones, throws a
+/// `ConfigError` from `connect()` before any network round-trip. The
+/// builder holds the chosen source by value and resolves it (env / file
+/// reads, then the gRPC handshake) only when `connect()` is called.
+class ClientBuilder {
+public:
+    /// Authenticate with an inline API key — the primary, directly-passed
+    /// auth argument.
+    ClientBuilder& api_key(const std::string& key) {
+        return set_auth(AuthKind::ApiKey, key, std::string(), "api_key");
+    }
+
+    /// Source the API key from the `THETADATA_API_KEY` environment
+    /// variable, read at `connect()` time.
+    ClientBuilder& api_key_from_env() {
+        return set_auth(AuthKind::ApiKeyFromEnv, std::string(), std::string(),
+                        "api_key_from_env");
+    }
+
+    /// Source the credential from a `.env`-format file at `connect()`
+    /// time. `THETADATA_API_KEY` selects an API key, otherwise
+    /// `THETADATA_EMAIL` + `THETADATA_PASSWORD` build email + password
+    /// credentials.
+    ClientBuilder& api_key_from_dotenv(const std::string& path) {
+        return set_auth(AuthKind::Dotenv, path, std::string(), "api_key_from_dotenv");
+    }
+
+    /// Authenticate with an inline email + password pair.
+    ClientBuilder& email_password(const std::string& email, const std::string& password) {
+        return set_auth(AuthKind::EmailPassword, email, password, "email_password");
+    }
+
+    /// Authenticate from a two-line `creds.txt` file (line 1 = email,
+    /// line 2 = password), read at `connect()` time.
+    ClientBuilder& credentials_file(const std::string& path) {
+        return set_auth(AuthKind::CredentialsFile, path, std::string(), "credentials_file");
+    }
+
+    /// Authenticate with a pre-built `Credentials` value — the escape
+    /// hatch that covers every existing factory.
+    ClientBuilder& credentials(Credentials creds) {
+        record_auth("credentials");
+        auth_kind_ = AuthKind::Prebuilt;
+        prebuilt_ = std::make_shared<Credentials>(std::move(creds));
+        return *this;
+    }
+
+    /// Target the staging cluster.
+    ClientBuilder& stage() {
+        env_kind_ = EnvKind::Stage;
+        return *this;
+    }
+
+    /// Target the production cluster (the default).
+    ClientBuilder& production() {
+        env_kind_ = EnvKind::Production;
+        return *this;
+    }
+
+    /// Use a fully built `Config` verbatim. Its environment and hosts win
+    /// over any `environment()` / `stage()` call.
+    ClientBuilder& config(Config cfg) {
+        env_kind_ = EnvKind::Config;
+        config_ = std::make_shared<Config>(std::move(cfg));
+        return *this;
+    }
+
+    /// Build the `Credentials` + `Config` and connect.
+    ///
+    /// @return A connected, owning `Client`.
+    /// @throws thetadatadx::ConfigError when no authentication source was
+    ///         set or when two different sources were set (a conflict),
+    ///         before any network round-trip. Otherwise throws on a
+    ///         credential-resolution or handshake failure.
+    Client connect() {
+        if (conflict_) {
+            detail::throw_config_error(
+                "conflicting authentication sources: " + first_label_ + " and " +
+                second_label_ + " were both set; set exactly one");
+        }
+        if (auth_kind_ == AuthKind::Unset) {
+            detail::throw_config_error(
+                "no authentication source set — call one of api_key, api_key_from_env, "
+                "api_key_from_dotenv, email_password, credentials_file, or credentials");
+        }
+        Credentials creds = resolve_credentials();
+        Config cfg = resolve_config();
+        return Client::connect(creds, cfg);
+    }
+
+private:
+    friend class Client;
+    ClientBuilder() = default;
+
+    enum class AuthKind {
+        Unset,
+        ApiKey,
+        ApiKeyFromEnv,
+        Dotenv,
+        EmailPassword,
+        CredentialsFile,
+        Prebuilt,
+    };
+    enum class EnvKind { Default, Production, Stage, Config };
+
+    /// Record an auth source, rejecting a second different one. Re-stating
+    /// the same kind overwrites; a different kind latches a conflict that
+    /// `connect()` reports.
+    ClientBuilder& set_auth(AuthKind kind, const std::string& a, const std::string& b,
+                            const char* label) {
+        record_auth(label);
+        if (!conflict_) {
+            auth_kind_ = kind;
+            auth_a_ = a;
+            auth_b_ = b;
+            prebuilt_.reset();
+        }
+        return *this;
+    }
+
+    /// Track the auth-source label so a second, different source can be
+    /// reported as a conflict naming both sides.
+    void record_auth(const char* label) {
+        if (auth_kind_ == AuthKind::Unset && !conflict_) {
+            first_label_ = label;
+            return;
+        }
+        if (conflict_) {
+            return;
+        }
+        // Same label re-stated → not a conflict (overwrite). Different
+        // label → latch the conflict.
+        if (first_label_ != label) {
+            conflict_ = true;
+            second_label_ = label;
+        }
+    }
+
+    Credentials resolve_credentials() const {
+        switch (auth_kind_) {
+            case AuthKind::ApiKey:
+                return Credentials::from_api_key(auth_a_);
+            case AuthKind::ApiKeyFromEnv:
+                return Credentials::from_env_or_file("creds.txt");
+            case AuthKind::Dotenv:
+                return Credentials::from_dotenv(auth_a_);
+            case AuthKind::EmailPassword:
+                return Credentials::from_email(auth_a_, auth_b_);
+            case AuthKind::CredentialsFile:
+                return Credentials::from_file(auth_a_);
+            case AuthKind::Prebuilt:
+                // `connect()` only reaches here with a non-null prebuilt.
+                return std::move(*prebuilt_);
+            case AuthKind::Unset:
+            default:
+                detail::throw_config_error("no authentication source set");
+                // throw_config_error never returns; satisfy the compiler.
+                return Credentials::from_api_key("");
+        }
+    }
+
+    Config resolve_config() const {
+        switch (env_kind_) {
+            case EnvKind::Config:
+                return std::move(*config_);
+            case EnvKind::Stage:
+                // The staging preset carries the staging cluster routing.
+                return Config::stage();
+            case EnvKind::Production:
+            case EnvKind::Default:
+            default:
+                return Config::production();
+        }
+    }
+
+    AuthKind auth_kind_ = AuthKind::Unset;
+    std::string auth_a_;
+    std::string auth_b_;
+    std::shared_ptr<Credentials> prebuilt_;
+
+    EnvKind env_kind_ = EnvKind::Default;
+    std::shared_ptr<Config> config_;
+
+    bool conflict_ = false;
+    std::string first_label_;
+    std::string second_label_;
+};
+
+inline ClientBuilder Client::builder() { return ClientBuilder(); }
 
 // ══════════════════════════════════════════════════════════════════════════
 

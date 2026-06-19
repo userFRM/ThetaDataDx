@@ -53,6 +53,27 @@ export declare class Client {
    * method returns a `Promise<Client>`.
    */
   static connectFromFile(path: string, config?: Config | undefined | null): Promise<Client>
+  /**
+   * Connect with the authentication and environment selected inline via
+   * an options object — the API key as a first-class, directly-passed
+   * field.
+   *
+   * ```js
+   * const client = await Client.connectWith({ apiKey: "td1_...", mddsType: "STAGE" });
+   * const client = await Client.connectWith({ email: "u@e.com", password: "secret" });
+   * const client = await Client.connectWith({ apiKeyFromEnv: true });
+   * ```
+   *
+   * Exactly one authentication field must be set — `apiKey`,
+   * `apiKeyFromEnv`, `apiKeyFromDotenv`, the `email` + `password` pair,
+   * or `credentialsFile`. Passing none, or two different ones, rejects
+   * with a `ConfigError` before any network round-trip. `mddsType`
+   * (`"PROD"` / `"STAGE"`, case-insensitive) selects the environment. For
+   * a pre-built `Credentials` handle, use [`Client::connect`].
+   *
+   * `async` for the same reason as [`Client::connect`].
+   */
+  static connectWith(options: ClientConnectOptions): Promise<Client>
   /** FLATFILES namespace handle. Cheap — shares the underlying client connection. */
   get flatFiles(): FlatFilesNamespace
   /**
@@ -3089,6 +3110,38 @@ export interface CalendarYearOptions {
    * rejected with `InvalidParameterError` rather than coerced.
    */
   timeoutMs?: number
+}
+
+/**
+ * Inline authentication + environment for `Client.connectWith`.
+ *
+ * The API key is a first-class field, distinct from the email +
+ * password pair and from the `credentialsFile` path. Exactly one
+ * authentication field must be set; a conflict or an empty set rejects
+ * with a `ConfigError` before any network round-trip.
+ */
+export interface ClientConnectOptions {
+  /** Inline API key — the primary, directly-passed auth field. */
+  apiKey?: string
+  /**
+   * Source the API key from the `THETADATA_API_KEY` environment
+   * variable (set to `true` to select this source).
+   */
+  apiKeyFromEnv?: boolean
+  /** Source the credential from a `.env`-format file at this path. */
+  apiKeyFromDotenv?: string
+  /** Inline account email, paired with `password`. */
+  email?: string
+  /** Inline account password, paired with `email`. */
+  password?: string
+  /** Path to a two-line `creds.txt` file (line 1 = email, line 2 = password). */
+  credentialsFile?: string
+  /**
+   * Target environment selector (`"PROD"` / `"STAGE"`,
+   * case-insensitive). Defaults to production. For full host-level
+   * control, build a `Config` and use `Client.connect(creds, config)`.
+   */
+  mddsType?: string
 }
 
 /** FPSS server connection ack (wire code 4). Carries no payload. */

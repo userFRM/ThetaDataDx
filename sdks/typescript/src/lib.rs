@@ -186,6 +186,121 @@ pub(crate) fn config_or_production(config: Option<&Config>) -> config::DirectCon
     }
 }
 
+/// Build a napi `Error` tagged as a `ConfigError` for a malformed
+/// client-construction option (conflicting or absent auth fields, an
+/// unparseable `mddsType`). Matches the `[ConfigError]` prefix the JS
+/// shim re-throws as a typed `ConfigError`, so the failure surfaces the
+/// same branded class the other bindings raise.
+fn config_option_err(message: impl AsRef<str>) -> napi::Error {
+    napi::Error::from_reason(format!("[ConfigError] {}", message.as_ref()))
+}
+
+/// Inline authentication + environment for [`Client::connectWith`].
+///
+/// The API key is a first-class field, distinct from the email +
+/// password pair and from the `credentialsFile` path. Exactly one
+/// authentication field must be set; [`Self::resolve`] enforces this and
+/// rejects a conflict before any network round-trip.
+#[napi(object)]
+pub struct ClientConnectOptions {
+    /// Inline API key — the primary, directly-passed auth field.
+    pub api_key: Option<String>,
+    /// Source the API key from the `THETADATA_API_KEY` environment
+    /// variable (set to `true` to select this source).
+    pub api_key_from_env: Option<bool>,
+    /// Source the credential from a `.env`-format file at this path.
+    pub api_key_from_dotenv: Option<String>,
+    /// Inline account email, paired with `password`.
+    pub email: Option<String>,
+    /// Inline account password, paired with `email`.
+    pub password: Option<String>,
+    /// Path to a two-line `creds.txt` file (line 1 = email, line 2 =
+    /// password).
+    pub credentials_file: Option<String>,
+    /// Target environment selector (`"PROD"` / `"STAGE"`,
+    /// case-insensitive). Defaults to production. For full host-level
+    /// control, build a `Config` and use `Client.connect(creds, config)`.
+    pub mdds_type: Option<String>,
+}
+
+impl ClientConnectOptions {
+    /// Resolve the options into a concrete credential + config, enforcing
+    /// exactly one authentication source.
+    fn resolve(self) -> napi::Result<(auth::Credentials, config::DirectConfig)> {
+        let ClientConnectOptions {
+            api_key,
+            api_key_from_env,
+            api_key_from_dotenv,
+            email,
+            password,
+            credentials_file,
+            mdds_type,
+        } = self;
+
+        // Count the distinct auth methods. `email` + `password` together
+        // count as the single email/password method.
+        let has_api_key = api_key.is_some();
+        let has_env = api_key_from_env == Some(true);
+        let has_dotenv = api_key_from_dotenv.is_some();
+        let has_email_pw = email.is_some() || password.is_some();
+        let has_creds_file = credentials_file.is_some();
+        let set_count = u8::from(has_api_key)
+            + u8::from(has_env)
+            + u8::from(has_dotenv)
+            + u8::from(has_email_pw)
+            + u8::from(has_creds_file);
+
+        if set_count == 0 {
+            return Err(config_option_err(
+                "no authentication field set — set one of apiKey, apiKeyFromEnv, \
+                 apiKeyFromDotenv, the email/password pair, or credentialsFile",
+            ));
+        }
+        if set_count > 1 {
+            return Err(config_option_err(
+                "conflicting authentication fields — set exactly one of apiKey, \
+                 apiKeyFromEnv, apiKeyFromDotenv, the email/password pair, or credentialsFile",
+            ));
+        }
+
+        let creds = if let Some(key) = api_key {
+            auth::Credentials::api_key(key)
+        } else if has_env {
+            auth::Credentials::from_env_or_file("creds.txt").map_err(to_napi_err)?
+        } else if let Some(path) = api_key_from_dotenv {
+            auth::Credentials::from_dotenv(&path).map_err(to_napi_err)?
+        } else if has_email_pw {
+            match (email, password) {
+                (Some(email), Some(password)) => auth::Credentials::new(email, password),
+                _ => {
+                    return Err(config_option_err(
+                        "email/password authentication needs both email and password",
+                    ));
+                }
+            }
+        } else if let Some(path) = credentials_file {
+            auth::Credentials::from_file(&path).map_err(to_napi_err)?
+        } else {
+            // Unreachable: set_count == 1 covers every branch above.
+            return Err(config_option_err("no authentication field set"));
+        };
+
+        let cfg = match mdds_type.as_deref() {
+            None => config::DirectConfig::production(),
+            Some(raw) => {
+                let environment = config::Environment::parse(raw).ok_or_else(|| {
+                    config_option_err(format!(
+                        "mddsType must be \"PROD\" or \"STAGE\" (case-insensitive); got {raw:?}"
+                    ))
+                })?;
+                config::DirectConfig::production().with_environment(environment)
+            }
+        };
+
+        Ok((creds, cfg))
+    }
+}
+
 /// Validate a JavaScript `timeoutMs` deadline and convert it to the
 /// integer millisecond domain the Python, C++, and C ABI bindings take.
 ///
@@ -628,6 +743,40 @@ impl Client {
             callback: Arc::new(Mutex::new(None)),
         })
     }
+
+    /// Connect with the authentication and environment selected inline via
+    /// an options object — the API key as a first-class, directly-passed
+    /// field.
+    ///
+    /// ```js
+    /// const client = await Client.connectWith({ apiKey: "td1_...", mddsType: "STAGE" });
+    /// const client = await Client.connectWith({ email: "u@e.com", password: "secret" });
+    /// const client = await Client.connectWith({ apiKeyFromEnv: true });
+    /// ```
+    ///
+    /// Exactly one authentication field must be set — `apiKey`,
+    /// `apiKeyFromEnv`, `apiKeyFromDotenv`, the `email` + `password` pair,
+    /// or `credentialsFile`. Passing none, or two different ones, rejects
+    /// with a `ConfigError` before any network round-trip. `mddsType`
+    /// (`"PROD"` / `"STAGE"`, case-insensitive) selects the environment;
+    /// `config` supplies a full `Config` whose environment and hosts win.
+    /// For a pre-built `Credentials` handle, use [`Client::connect`].
+    ///
+    /// `async` for the same reason as [`Client::connect`].
+    #[napi(js_name = "connectWith")]
+    pub async fn connect_with(options: ClientConnectOptions) -> napi::Result<Client> {
+        let (creds, cfg) = options.resolve()?;
+        let rt = runtime_from_config(&cfg.runtime);
+        let client = rt
+            .spawn(async move { thetadatadx::Client::connect(&creds, cfg).await })
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("connect task failed to complete: {e}")))?
+            .map_err(to_napi_err)?;
+        Ok(Client {
+            client: Arc::new(client),
+            callback: Arc::new(Mutex::new(None)),
+        })
+    }
 }
 
 #[napi]
@@ -1010,3 +1159,97 @@ impl StreamView {
 }
 
 // `Client` is the public name (rename complete; no alias).
+
+#[cfg(test)]
+mod connect_options_tests {
+    use super::*;
+
+    /// Build a default (all-`None`) options object so each test sets only
+    /// the fields it exercises.
+    fn empty() -> ClientConnectOptions {
+        ClientConnectOptions {
+            api_key: None,
+            api_key_from_env: None,
+            api_key_from_dotenv: None,
+            email: None,
+            password: None,
+            credentials_file: None,
+            mdds_type: None,
+        }
+    }
+
+    #[test]
+    fn api_key_inline_resolves_to_api_key_credentials() {
+        let opts = ClientConnectOptions {
+            api_key: Some("td1_example".to_string()),
+            ..empty()
+        };
+        let (creds, cfg) = opts.resolve().expect("api_key resolves");
+        assert!(creds.is_api_key());
+        assert_eq!(creds.api_key_secret(), Some("td1_example"));
+        assert_eq!(cfg.environment(), config::Environment::Prod);
+    }
+
+    #[test]
+    fn email_password_with_stage_resolves() {
+        let opts = ClientConnectOptions {
+            email: Some("You@Example.COM".to_string()),
+            password: Some("hunter2".to_string()),
+            mdds_type: Some("STAGE".to_string()),
+            ..empty()
+        };
+        let (creds, cfg) = opts.resolve().expect("email/password resolves");
+        assert!(!creds.is_api_key());
+        assert_eq!(creds.email(), Some("you@example.com"));
+        assert_eq!(cfg.environment(), config::Environment::Stage);
+    }
+
+    #[test]
+    fn no_auth_field_is_an_error() {
+        let msg = match empty().resolve() {
+            Ok(_) => panic!("expected an error for an empty options object"),
+            Err(e) => e.reason.clone(),
+        };
+        assert!(msg.contains("ConfigError"), "got: {msg}");
+        assert!(msg.contains("no authentication field"), "got: {msg}");
+    }
+
+    #[test]
+    fn conflicting_auth_fields_are_an_error() {
+        let opts = ClientConnectOptions {
+            api_key: Some("k".to_string()),
+            email: Some("a@b.com".to_string()),
+            password: Some("pw".to_string()),
+            ..empty()
+        };
+        let msg = match opts.resolve() {
+            Ok(_) => panic!("expected a conflict error"),
+            Err(e) => e.reason.clone(),
+        };
+        assert!(msg.contains("ConfigError"), "got: {msg}");
+        assert!(msg.contains("conflicting authentication"), "got: {msg}");
+    }
+
+    #[test]
+    fn bad_mdds_type_is_an_error() {
+        let opts = ClientConnectOptions {
+            api_key: Some("k".to_string()),
+            mdds_type: Some("nope".to_string()),
+            ..empty()
+        };
+        let msg = match opts.resolve() {
+            Ok(_) => panic!("expected an mddsType parse error"),
+            Err(e) => e.reason.clone(),
+        };
+        assert!(msg.contains("mddsType"), "got: {msg}");
+    }
+
+    #[test]
+    fn email_without_password_is_an_error() {
+        let opts = ClientConnectOptions {
+            email: Some("a@b.com".to_string()),
+            ..empty()
+        };
+        assert!(opts.resolve().is_err());
+    }
+}

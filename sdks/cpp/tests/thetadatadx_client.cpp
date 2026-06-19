@@ -47,6 +47,30 @@ TEST_CASE("Client is move-only with the right type-trait shape",
     STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<thetadatadx::Client>);
 }
 
+TEST_CASE("ClientBuilder validates auth before connecting",
+          "[unified][offline]") {
+    // The builder rejects an empty auth set and a conflict BEFORE any
+    // network round-trip, surfacing the failure as a typed `ConfigError`.
+    // These paths never touch the server, so they run offline.
+
+    // No authentication source set → ConfigError.
+    REQUIRE_THROWS_AS(thetadatadx::Client::builder().connect(),
+                      thetadatadx::ConfigError);
+
+    // Two different authentication sources → ConfigError naming both.
+    REQUIRE_THROWS_AS(thetadatadx::Client::builder()
+                          .api_key("td1_example")
+                          .email_password("you@example.com", "secret")
+                          .connect(),
+                      thetadatadx::ConfigError);
+
+    // The builder is fluent: each setter returns a reference so the chain
+    // composes. Pin the surface (api key first-class, plus the
+    // environment selectors) at compile time without connecting.
+    thetadatadx::ClientBuilder builder = thetadatadx::Client::builder();
+    builder.api_key("td1_example").stage();
+}
+
 TEST_CASE("Stream binds the full FPSS surface",
           "[unified][offline]") {
     // The unified client's streaming surface lives on the

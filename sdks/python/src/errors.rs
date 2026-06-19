@@ -196,6 +196,16 @@ fn rate_limit_err(e: &thetadatadx::Error) -> PyErr {
     err
 }
 
+/// Raise a `ConfigError` for a malformed client-construction argument.
+///
+/// Used by the inline client constructor when the authentication kwargs
+/// conflict, are absent, or carry an unparseable `mdds_type` — a local,
+/// pre-network configuration fault distinct from a server-side auth
+/// rejection.
+pub fn config_err(message: impl Into<String>) -> PyErr {
+    ConfigError::new_err(message.into())
+}
+
 /// Map a `thetadatadx::Error` into the closest Python exception class.
 ///
 /// The mapping is deliberately narrow: every variant routes to one

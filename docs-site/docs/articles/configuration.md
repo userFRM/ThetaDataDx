@@ -13,7 +13,7 @@ The configuration object (`DirectConfig` in Rust, `Config` elsewhere) ships sens
 |---|---|
 | `production()` | Live market data. The default. |
 | `dev()` | Streaming servers replay a past trading day in a loop at full speed — develop while markets are closed. Historical requests still hit production. |
-| `stage()` | Staging environment — points authentication, historical, and streaming all at the staging cluster. Used to validate against pre-release server changes; less stable than production and subject to reboots. |
+| `stage()` | Staging environment: points authentication, historical, and streaming all at the staging cluster. Used to validate against pre-release server changes; less stable than production and subject to reboots. |
 
 ```python
 from thetadatadx import Config
@@ -68,6 +68,8 @@ THETADATA_MDDS_TYPE=STAGE
 ```
 
 Load the credential with `Credentials.from_dotenv` and the environment with `Config.from_dotenv`, both pointed at that one file.
+
+You can also select the environment inline at the client, without building a `Config` first. The fluent builder takes the environment alongside the credential: `Client::builder().api_key("...").stage().connect()` in Rust and C++, `Client(api_key="...", mdds_type="STAGE")` in Python, and `Client.connectWith({ apiKey: '...', mddsType: 'STAGE' })` in TypeScript. The `Config` path above stays available when you need full control over the hosts and tuning knobs — the builder is a convenience over it.
 
 If you also set an explicit streaming or historical host (through `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST`, in the environment, in the `.env` file, or in the config file), that explicit host wins over the environment's default for that channel.
 

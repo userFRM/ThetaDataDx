@@ -28,7 +28,7 @@ mod util_helpers;
 // own `use` declarations.
 use async_runtime::spawn_awaitable;
 use coerce::{PyDateArg, PyStringArg, PySymbols, PyTimeArg};
-use errors::to_py_err;
+use errors::{config_err, to_py_err};
 
 /// Shared tokio runtime for running async Rust from sync Python.
 ///
@@ -172,7 +172,7 @@ where
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 #[derive(Clone)]
 struct Credentials {
-    inner: auth::Credentials,
+    pub(crate) inner: auth::Credentials,
 }
 
 #[pymethods]
@@ -1412,6 +1412,93 @@ include!("_generated/utility_functions.rs");
 // dispatch under the free-threaded interpreter. A future `&mut self`
 // regression surfaces as a `cargo check` failure rather than slipping
 // silently through.
+/// Default `creds.txt` filename used when a credential is sourced from
+/// the environment with a file fallback (`Client.from_env`). Matches the
+/// two-line `creds.txt` format read by [`auth::Credentials::from_file`].
+const DEFAULT_CREDS_FILE: &str = "creds.txt";
+
+/// Resolve the inline authentication kwargs into a single
+/// [`auth::Credentials`], enforcing that exactly one source was given.
+///
+/// The API key is first-class and mutually exclusive with the email +
+/// password pair and with a pre-built `credentials` handle. Conflicts and
+/// the empty case raise `ConfigError` before any network round-trip, so a
+/// bad call fails fast and locally.
+fn resolve_credentials(
+    credentials: Option<&Credentials>,
+    api_key: Option<String>,
+    email: Option<String>,
+    password: Option<String>,
+) -> PyResult<auth::Credentials> {
+    // Count the distinct auth methods supplied. `email` + `password`
+    // together count as the single "email/password" method.
+    let has_api_key = api_key.is_some();
+    let has_email_pw = email.is_some() || password.is_some();
+    let has_credentials = credentials.is_some();
+    let set_count = u8::from(has_api_key) + u8::from(has_email_pw) + u8::from(has_credentials);
+
+    if set_count == 0 {
+        return Err(config_err(
+            "no authentication argument given — pass api_key=..., the email=... and \
+             password=... pair, or credentials=...",
+        ));
+    }
+    if set_count > 1 {
+        return Err(config_err(
+            "conflicting authentication arguments — pass exactly one of api_key, the \
+             email/password pair, or credentials",
+        ));
+    }
+
+    if let Some(key) = api_key {
+        return Ok(auth::Credentials::api_key(key));
+    }
+    if has_email_pw {
+        match (email, password) {
+            (Some(email), Some(password)) => return Ok(auth::Credentials::new(email, password)),
+            _ => {
+                return Err(config_err(
+                    "email/password authentication needs both email= and password=",
+                ));
+            }
+        }
+    }
+    // Exactly one source remained: the pre-built credentials handle.
+    Ok(credentials
+        .expect("set_count == 1 with no api_key / email-password leaves credentials")
+        .inner
+        .clone())
+}
+
+/// Resolve the environment selection into a [`config::DirectConfig`].
+///
+/// A full `config` handle wins (its environment and hosts are taken
+/// verbatim). Otherwise `mdds_type` (`"PROD"` / `"STAGE"`,
+/// case-insensitive) selects the environment on top of the production
+/// defaults; absent, the default is production.
+fn resolve_direct_config(
+    config: Option<&Config>,
+    mdds_type: Option<&str>,
+) -> PyResult<config::DirectConfig> {
+    if let Some(cfg) = config {
+        // Snapshot under the mutex — connect() takes ownership and the
+        // outer handle may still be mutated Python-side afterward.
+        let guard = cfg.inner.lock().unwrap_or_else(|e| e.into_inner());
+        return Ok(guard.clone());
+    }
+    match mdds_type {
+        None => Ok(config::DirectConfig::production()),
+        Some(raw) => {
+            let environment = config::Environment::parse(raw).ok_or_else(|| {
+                config_err(format!(
+                    "mdds_type must be \"PROD\" or \"STAGE\" (case-insensitive); got {raw:?}"
+                ))
+            })?;
+            Ok(config::DirectConfig::production().with_environment(environment))
+        }
+    }
+}
+
 #[pyclass(frozen)]
 struct Client {
     /// The underlying Rust unified client (Deref to HistoricalClient for historical).
@@ -1453,6 +1540,30 @@ struct Client {
     /// keeping `start_streaming` / `stop_streaming` / `reconnect`
     /// idempotent regardless of which surface the caller reaches through.
     callback: Arc<Mutex<Option<Py<PyAny>>>>,
+}
+
+impl Client {
+    /// Connect a resolved credential + config, blocking on the
+    /// process-global runtime via [`run_blocking`] so a hung handshake
+    /// stays cancellable via Ctrl+C. Shared by every Python constructor
+    /// (`__new__`, `from_file`, `from_env`, `from_dotenv`).
+    fn connect_blocking(
+        py: Python<'_>,
+        creds: auth::Credentials,
+        direct_config: config::DirectConfig,
+    ) -> PyResult<Self> {
+        // Seed the process-global runtime from this client's runtime
+        // config before the first `run_blocking` resolves it, so
+        // `worker_threads` takes effect on the first connect.
+        runtime_from_config(&direct_config.runtime);
+        let client = run_blocking(py, async move {
+            thetadatadx::Client::connect(&creds, direct_config).await
+        })?;
+        Ok(Self {
+            client: std::sync::Arc::new(client),
+            callback: Arc::new(Mutex::new(None)),
+        })
+    }
 }
 
 /// User-facing historical-data sub-namespace returned by
@@ -1498,28 +1609,91 @@ impl Client {
     /// runtime-driven `connect()` would swallow `SIGINT` until
     /// the network returned (signals can't fire while the GIL is
     /// released inside the runtime executor).
+    ///
+    /// The API key is a first-class, directly-passed argument:
+    /// ``Client(api_key="td1_...")`` and ``Client(api_key="td1_...",
+    /// mdds_type="STAGE")`` select the credential and the environment
+    /// inline. Email + password is the parallel method:
+    /// ``Client(email="user@example.com", password="secret")``. The
+    /// lower-level typed path stays a clean superset:
+    /// ``Client(credentials=creds, config=cfg)`` (and the historical
+    /// positional ``Client(creds, config)``) still work.
+    ///
+    /// Exactly one authentication argument must be given — ``api_key``,
+    /// the ``email`` + ``password`` pair, or ``credentials``. Passing
+    /// none, or two different ones, raises ``ConfigError`` before any
+    /// network round-trip. ``mdds_type`` (``"PROD"`` / ``"STAGE"``,
+    /// case-insensitive) selects the environment; ``config`` supplies a
+    /// full :class:`Config` whose environment and hosts win.
     #[new]
-    fn new(py: Python<'_>, creds: &Credentials, config: &Config) -> PyResult<Self> {
-        // Snapshot the DirectConfig under the mutex — connect() takes
-        // ownership, and the outer `Config` handle may still be mutated
-        // Python-side after construction.
-        let direct_config = {
-            let guard = config.inner.lock().unwrap_or_else(|e| e.into_inner());
-            guard.clone()
-        };
-        // Seed the process-global runtime from this client's runtime config
-        // before the first `run_blocking` resolves it, so `worker_threads`
-        // takes effect when the first client in the process connects.
-        runtime_from_config(&direct_config.runtime);
-        let inner_creds = creds.inner.clone();
-        let client = run_blocking(py, async move {
-            thetadatadx::Client::connect(&inner_creds, direct_config).await
-        })?;
+    #[pyo3(signature = (
+        credentials=None,
+        config=None,
+        *,
+        api_key=None,
+        email=None,
+        password=None,
+        mdds_type=None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        py: Python<'_>,
+        credentials: Option<&Credentials>,
+        config: Option<&Config>,
+        api_key: Option<String>,
+        email: Option<String>,
+        password: Option<String>,
+        mdds_type: Option<&str>,
+    ) -> PyResult<Self> {
+        let creds = resolve_credentials(credentials, api_key, email, password)?;
+        let direct_config = resolve_direct_config(config, mdds_type)?;
+        Self::connect_blocking(py, creds, direct_config)
+    }
 
-        Ok(Self {
-            client: std::sync::Arc::new(client),
-            callback: Arc::new(Mutex::new(None)),
-        })
+    /// Connect with the API key sourced from the environment
+    /// (``THETADATA_API_KEY``).
+    ///
+    /// ``mdds_type`` selects the environment (``"PROD"`` / ``"STAGE"``);
+    /// ``config`` supplies a full :class:`Config` whose environment and
+    /// hosts win. The key is read once, immediately before the network
+    /// round-trip.
+    #[staticmethod]
+    #[pyo3(signature = (config=None, *, mdds_type=None))]
+    fn from_env(
+        py: Python<'_>,
+        config: Option<&Config>,
+        mdds_type: Option<&str>,
+    ) -> PyResult<Self> {
+        let creds = auth::Credentials::from_env_or_file(DEFAULT_CREDS_FILE).map_err(to_py_err)?;
+        let direct_config = resolve_direct_config(config, mdds_type)?;
+        Self::connect_blocking(py, creds, direct_config)
+    }
+
+    /// Connect with the credential (and optionally the environment)
+    /// sourced from a ``.env``-format file.
+    ///
+    /// ``THETADATA_API_KEY`` selects an API key; otherwise
+    /// ``THETADATA_EMAIL`` + ``THETADATA_PASSWORD`` build email +
+    /// password credentials. When ``config`` is omitted the same file is
+    /// also read for ``THETADATA_MDDS_TYPE``, so one ``.env`` can carry
+    /// both the credential and the environment. An explicit ``config`` or
+    /// ``mdds_type`` overrides the file's environment selection.
+    #[staticmethod]
+    #[pyo3(signature = (path, config=None, *, mdds_type=None))]
+    fn from_dotenv(
+        py: Python<'_>,
+        path: &str,
+        config: Option<&Config>,
+        mdds_type: Option<&str>,
+    ) -> PyResult<Self> {
+        let creds = auth::Credentials::from_dotenv(path).map_err(to_py_err)?;
+        // With no explicit config / mdds_type, read the environment from
+        // the same file; otherwise honour the explicit override.
+        let direct_config = match (config, mdds_type) {
+            (None, None) => config::DirectConfig::from_dotenv(path).map_err(to_py_err)?,
+            _ => resolve_direct_config(config, mdds_type)?,
+        };
+        Self::connect_blocking(py, creds, direct_config)
     }
 
     /// Convenience constructor: `Client.from_file("creds.txt")`.
@@ -1536,16 +1710,9 @@ impl Client {
     #[staticmethod]
     #[pyo3(signature = (path, config=None))]
     fn from_file(py: Python<'_>, path: &str, config: Option<&Config>) -> PyResult<Self> {
-        let creds = Credentials::from_file(path)?;
-        let owned_default;
-        let cfg = match config {
-            Some(c) => c,
-            None => {
-                owned_default = Config::production();
-                &owned_default
-            }
-        };
-        Self::new(py, &creds, cfg)
+        let creds = auth::Credentials::from_file(path).map_err(to_py_err)?;
+        let direct_config = resolve_direct_config(config, None)?;
+        Self::connect_blocking(py, creds, direct_config)
     }
 
     // No per-endpoint `_df` / `_arrow` / `_polars` convenience wrappers.
@@ -2052,7 +2219,9 @@ impl AsyncClient {
     /// the handshake does not stall the event loop.
     #[new]
     fn new(py: Python<'_>, creds: &Credentials, config: &Config) -> PyResult<Self> {
-        let client = Py::new(py, Client::new(py, creds, config)?)?;
+        let direct_config = resolve_direct_config(Some(config), None)?;
+        let inner = Client::connect_blocking(py, creds.inner.clone(), direct_config)?;
+        let client = Py::new(py, inner)?;
         Ok(Self { inner: client })
     }
 
@@ -2107,16 +2276,10 @@ impl AsyncClient {
     #[staticmethod]
     #[pyo3(signature = (path, config=None))]
     fn from_file(py: Python<'_>, path: &str, config: Option<&Config>) -> PyResult<Self> {
-        let creds = Credentials::from_file(path)?;
-        let owned_default;
-        let cfg = match config {
-            Some(c) => c,
-            None => {
-                owned_default = Config::production();
-                &owned_default
-            }
-        };
-        let client = Py::new(py, Client::new(py, &creds, cfg)?)?;
+        let creds = auth::Credentials::from_file(path).map_err(to_py_err)?;
+        let direct_config = resolve_direct_config(config, None)?;
+        let inner = Client::connect_blocking(py, creds, direct_config)?;
+        let client = Py::new(py, inner)?;
         Ok(Self { inner: client })
     }
 

@@ -196,6 +196,53 @@ pub struct Client {
 }
 
 impl Client {
+    /// Start a fluent [`ClientBuilder`] — the headline ergonomic for
+    /// constructing a client with the API key (or email + password) and
+    /// the target environment selected inline.
+    ///
+    /// The API key is a first-class, directly-passed argument
+    /// ([`ClientBuilder::api_key`](crate::ClientBuilder::api_key) and its
+    /// env / `.env` siblings), distinct from the email + password pair.
+    /// The lower-level typed path [`Client::connect`] (a pre-built
+    /// [`Credentials`] + [`DirectConfig`]) stays available for power
+    /// users; the builder composes those two values internally and calls
+    /// it.
+    ///
+    /// ```rust,no_run
+    /// use thetadatadx::Client;
+    ///
+    /// # async fn doc() -> Result<(), thetadatadx::Error> {
+    /// let client = Client::builder()
+    ///     .api_key("td1_example_key")
+    ///     .stage()
+    ///     .connect()
+    ///     .await?;
+    /// # Ok(()) }
+    /// ```
+    pub fn builder() -> crate::client_builder::ClientBuilder {
+        crate::client_builder::ClientBuilder::new()
+    }
+
+    /// Connect with an inline API key and a target config.
+    ///
+    /// A lightweight direct convenience over [`Client::builder`] for the
+    /// single most common shape — an API key plus a [`DirectConfig`].
+    /// Equivalent to
+    /// `Client::builder().api_key(key).config(config).connect().await`
+    /// and to `Client::connect(&Credentials::api_key(key), config).await`.
+    /// Reach for the [`builder`](Self::builder) when sourcing the key from
+    /// the environment or a file, or for email + password auth.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
+    pub async fn connect_with_api_key(
+        key: impl Into<String>,
+        config: DirectConfig,
+    ) -> Result<Self, Error> {
+        Self::connect(&Credentials::api_key(key), config).await
+    }
+
     /// Connect to `ThetaData`. Authenticates once, opens gRPC channel.
     ///
     /// FPSS streaming is NOT connected yet -- call
