@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.0.0-rc.5] - 2026-06-19
+
+### Added
+
+- Staging environment selection across authentication, historical, and streaming. Choose `PROD` or `STAGE` and the choice applies to every channel, with both API-key and email/password credentials. Select it three ways: in code via `DirectConfig::stage()` or `with_environment(Environment::Stage)` (`Config.stage()` on every binding), through the `THETADATA_MDDS_TYPE` environment variable (`PROD` or `STAGE`), or from a `.env` file via `Config::from_dotenv(path)`. A single `.env` can hold both `THETADATA_API_KEY` and `THETADATA_MDDS_TYPE`. The selected environment is readable through `Config.environment`.
+- First-class inline client construction that takes the API key as a directly-passed argument. Rust and C++ gain a fluent `Client::builder()` with `.api_key`, `.api_key_from_env`, `.api_key_from_dotenv`, `.email_password`, `.credentials_file`, `.stage` / `.production` / `.environment`, and `.connect`. Python adds `Client(api_key=..., mdds_type=...)` plus `Client.from_env(...)` and `Client.from_dotenv(...)`. TypeScript adds `Client.connectWith({ apiKey, apiKeyFromEnv, apiKeyFromDotenv, email, password, credentialsFile, mddsType })`. The typed `Client::connect(&Credentials, Config)` remains available for full control.
+- `Credentials::from_env` (strict, environment-only) across all bindings.
+
+### Changed
+
+- `api_key_from_env` is strict in every binding: an unset or empty `THETADATA_API_KEY` is now an error with no fallback to a credentials file. The lenient environment-or-file behavior stays available through `from_env_or_file`.
+- Documentation now leads with passing the API key directly to the client.
+
+### Fixed
+
+- The streaming decoder now rejects truncated or incomplete tick rows instead of emitting a zero-filled tick, so a malformed or partially received stream message can no longer surface as a silent zero or garbage tick.
+- `Config::from_dotenv` is a pure file source: it no longer inherits ambient process-environment overrides, and the `dev()` and `stage()` presets route every channel to the correct cluster.
+
+### Security
+
+- Credential constructors no longer leave an un-zeroized copy of the API key or password in memory; the secret is wrapped before trimming on every direct-construction path.
+- Control frames with an inconsistent declared size or trailing bytes are now rejected instead of parsed.
+
 ## [13.0.0-rc.4] - 2026-06-19
 
 ### Added
@@ -3775,7 +3798,8 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.4...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.5...HEAD
+[13.0.0-rc.5]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.4...v13.0.0-rc.5
 [13.0.0-rc.4]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.3...v13.0.0-rc.4
 [13.0.0-rc.3]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.2...v13.0.0-rc.3
 [13.0.0-rc.2]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.1...v13.0.0-rc.2
