@@ -87,6 +87,26 @@ impl Config {
         }
     }
 
+    /// Source the target environment from a `.env`-format file.
+    ///
+    /// Starts from the production config and applies the cluster keys
+    /// carried by the file: `THETADATA_MDDS_TYPE` (`PROD` / `STAGE`,
+    /// case-insensitive) selects the environment, and the optional
+    /// `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` keys
+    /// override the hosts (an explicit host wins over the environment
+    /// default).
+    ///
+    /// Reads the same file format and keys as `Credentials.fromDotenv`, so
+    /// a single `.env` file can carry both `THETADATA_API_KEY` and
+    /// `THETADATA_MDDS_TYPE`.
+    #[napi(factory, js_name = "fromDotenv")]
+    pub fn from_dotenv(path: String) -> napi::Result<Self> {
+        let inner = config::DirectConfig::from_dotenv(&path).map_err(crate::to_napi_err)?;
+        Ok(Self {
+            inner: Arc::new(Mutex::new(inner)),
+        })
+    }
+
     /// Snapshot the inner [`config::DirectConfig`] for a connect call.
     ///
     /// The connect factories take an owned `DirectConfig`, while this

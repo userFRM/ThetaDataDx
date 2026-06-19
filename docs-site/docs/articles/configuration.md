@@ -11,9 +11,9 @@ The configuration object (`DirectConfig` in Rust, `Config` elsewhere) ships sens
 
 | Preset | Use |
 |---|---|
-| `production()` | Live market data. |
+| `production()` | Live market data. The default. |
 | `dev()` | Streaming servers replay a past trading day in a loop at full speed — develop while markets are closed. Historical requests still hit production. |
-| `stage()` | Vendor staging servers; expect reboots. |
+| `stage()` | Staging environment: points authentication, historical, and streaming all at the staging cluster. Used to validate against pre-release server changes; less stable than production and subject to reboots. |
 
 ```python
 from thetadatadx import Config
@@ -23,6 +23,55 @@ cfg.retry_max_attempts = 5
 cfg.flush_mode = "immediate"
 client = Client(creds, cfg)
 ```
+
+### Selecting the staging environment
+
+There are three ways to point the SDK at the staging cluster, and you can pick whichever fits how you configure the rest of your deployment. All three select the staging environment across every channel (authentication, historical, and streaming) in one step, and all three work the same whether you authenticate with an api-key or with email and password. The environment is independent of the credential.
+
+1. Pass it directly, in code. The typed selector is the most explicit option:
+
+```rust
+use thetadatadx::config::{DirectConfig, Environment};
+
+let cfg = DirectConfig::production().with_environment(Environment::Stage);
+```
+
+`DirectConfig::production().with_environment(Environment::Stage)` is equivalent to the `stage()` preset; passing `Environment::Prod` restores production. The `stage()` preset is the same selection in one call, available on every binding: `DirectConfig::stage()` in Rust, `Config.stage()` in Python and TypeScript, and `thetadatadx::Config::stage()` in C++.
+
+2. Set the `THETADATA_MDDS_TYPE` environment variable. Set it to `STAGE` to select the staging environment, or `PROD` (the default, also used when the variable is unset) for production. The value is case-insensitive. This steers an existing deployment at staging without a code change, and it works with every binding because each one reads it when it builds the config from a preset:
+
+```bash
+export THETADATA_MDDS_TYPE=STAGE
+```
+
+```python
+from thetadatadx import Config
+
+cfg = Config.production()  # reads THETADATA_MDDS_TYPE; STAGE selects staging
+client = Client(creds, cfg)
+```
+
+3. Put it in a `.env` file. `Config.from_dotenv(path)` reads `THETADATA_MDDS_TYPE` (`STAGE` / `PROD`) from a `.env`-format file and selects the matching environment:
+
+```python
+from thetadatadx import Config
+
+cfg = Config.from_dotenv(".env")  # THETADATA_MDDS_TYPE=STAGE selects staging
+client = Client(creds, cfg)
+```
+
+The same reader is on every binding: `DirectConfig::from_dotenv(path)` in Rust, `Config.fromDotenv(path)` in TypeScript, and `thetadatadx::Config::from_dotenv(path)` in C++. It reads the same `.env` file and the same keys that `Credentials.from_dotenv(path)` reads for the credential, so a single `.env` file can hold both the api key and the environment selector:
+
+```ini
+THETADATA_API_KEY=your_api_key_here
+THETADATA_MDDS_TYPE=STAGE
+```
+
+Load the credential with `Credentials.from_dotenv` and the environment with `Config.from_dotenv`, both pointed at that one file.
+
+You can also select the environment inline at the client, without building a `Config` first. The fluent builder takes the environment alongside the credential: `Client::builder().api_key("...").stage().connect()` in Rust and C++, `Client(api_key="...", mdds_type="STAGE")` in Python, and `Client.connectWith({ apiKey: '...', mddsType: 'STAGE' })` in TypeScript. The `Config` path above stays available when you need full control over the hosts and tuning knobs; the builder is a convenience over it.
+
+If you also set an explicit streaming or historical host (through `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST`, in the environment, in the `.env` file, or in the config file), that explicit host wins over the environment's default for that channel.
 
 In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry.max_attempts`, `config.streaming.flush_mode`); TypeScript uses `Config` setters (`cfg.setRetryMaxAttempts(5)`); C++ uses `thetadatadx::Config::set_retry_max_attempts(5)`.
 

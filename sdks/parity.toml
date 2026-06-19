@@ -1040,6 +1040,46 @@ typescript = true
 cpp = true
 rust = true         # `Client::flat_files()` view accessor
 
+# ── Inline client construction (first-class API-key entry points) ──
+#
+# The fluent builder is the headline ergonomic for selecting the API key
+# (or email + password) and the target environment inline at the client.
+# Each binding reaches all options through its idiomatic shape, so the
+# canonical name differs per binding and the columns are NOT uniformly
+# `true`:
+#
+#   - Rust + C++ expose a fluent `Client::builder()` / `Client::builder`
+#     returning a `ClientBuilder`, so the `builder` row carries the `rust`
+#     and `cpp` columns.
+#   - TypeScript exposes the options-object factory `Client.connectWith({
+#     apiKey, mddsType, ... })` — the idiomatic JS shape — tracked by the
+#     `connectWith` row.
+#   - Python reaches the same surface through the `Client(api_key=...,
+#     mdds_type=...)` constructor kwargs (a keyword constructor, not a
+#     named method), so it rides the existing `__new__` constructor rather
+#     than a `[[method]]` row; both `builder` and `connectWith` are
+#     therefore absent on the Python column.
+#
+# The forward check pins each binding's symbol exactly and trips if the
+# named entry is dropped from the binding that owns it, or appears on a
+# binding the row marks absent.
+
+[[method]]
+class = "Client"
+name = "builder"
+python = false      # Python uses the `Client(api_key=...)` constructor kwargs
+typescript = false  # TypeScript uses the `connectWith` options-object factory
+cpp = true          # `Client::builder()` fluent builder
+rust = true         # `Client::builder()` fluent builder
+
+[[method]]
+class = "Client"
+name = "connectWith"
+python = false      # Python uses the `Client(api_key=...)` constructor kwargs
+typescript = true   # `Client.connectWith({ apiKey, mddsType, ... })` napi factory
+cpp = false         # C++ uses the `Client::builder()` fluent builder
+rust = false        # Rust uses the `Client::builder()` fluent builder
+
 # ── FlatFilesNamespace fetch surface (bulk per-day flat-file requests) ──
 #
 # The `flatFiles` accessor above returns the flat-file namespace; the rows
@@ -1551,6 +1591,22 @@ class = "Config"
 name = "stage"
 python = true
 typescript = true
+cpp = true
+
+# Dotenv sourcing for the configuration: read the cluster selector
+# (`THETADATA_MDDS_TYPE`) and the documented host overrides from a
+# `.env`-format file. The mirror of `Credentials.fromDotenv` on the Config
+# class, so a single `.env` file serves both the credential and the
+# environment selection. Every binding exposes it: Python (`from_dotenv`
+# staticmethod), TypeScript (`fromDotenv` napi factory), and C++
+# (`from_dotenv` static member over the `thetadatadx_config_from_dotenv`
+# C ABI symbol).
+
+[[method]]
+class = "Config"
+name = "fromDotenv"
+python = true
+typescript = true   # `Config.fromDotenv(path)` napi factory
 cpp = true
 
 [[method]]

@@ -62,6 +62,7 @@ pub(super) enum MethodKind {
     CredentialsFromEnvOrFile,
     CredentialsFromDotenv,
     ConfigConstructor,
+    ConfigFromDotenv,
     ClientConnect,
     ClientConnectFromFile,
 }
@@ -356,6 +357,12 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
             }
             (None, &[LIFE], true, &[])
         }
+        MethodKind::ConfigFromDotenv => (
+            Some("config_from_dotenv"),
+            &[LIFE],
+            true,
+            &[("path", ParamType::String)],
+        ),
         MethodKind::ClientConnect => (
             Some("client_connect"),
             &[LIFE],

@@ -31,25 +31,35 @@ Prebuilt binaries are downloaded automatically for Linux x64 (glibc), macOS arm6
 ## Quick start
 
 > [!TIP]
-> The cleaner way to sign in is an API key: generate one from your
-> [ThetaData user portal](https://www.thetadata.net/), set `THETADATA_API_KEY`,
-> and build credentials with `Credentials.fromEnvOrFile("creds.txt")`. It reads
-> the key from the environment when set and falls back to the file otherwise. To
-> pass the key directly, use `Credentials.fromApiKey(key)` (or
-> `Credentials.fromApiKeyWithEmail(email, key)`), then `Client.connect(creds)`.
-> Email and password still works: a `creds.txt` file (email on line 1, password
-> on line 2) via `connectFromFile`, or inline via `connect(new Credentials(email, password))`.
+> Pass your API key directly to the client and you are one line from a live connection. Generate a key from your [ThetaData user portal](https://www.thetadata.net/), then call `Client.connectWith({ apiKey: "td1_..." })`. The key can also come from the environment (`{ apiKeyFromEnv: true }`, reading `THETADATA_API_KEY`) or a `.env` file (`{ apiKeyFromDotenv: ".env" }`). Email and password is also supported: `{ email, password }` inline, or a `creds.txt` file (email on line 1, password on line 2) via `connectFromFile`. Target staging with `mddsType: "STAGE"`. For full control over hosts and timeouts, build a typed `Credentials` + `Config` and call `Client.connect(creds, config)`.
 
 ```typescript
 import { Client } from 'thetadatadx';
 
-const client = await Client.connectFromFile('creds.txt');
+// Pass your API key directly. Add mddsType: "STAGE" to target staging.
+const client = await Client.connectWith({ apiKey: 'td1_...' });
 
 // First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
 const greeks = await client.historical.optionHistoryGreeksFirstOrder('SPY', '20260619', '20240315');
 for (const t of greeks.slice(0, 5)) {
   console.log(`K=${t.strike} ${t.right} delta=${t.delta.toFixed(4)} theta=${t.theta.toFixed(4)}`);
 }
+```
+
+Other ways to construct the client:
+
+```typescript
+import { Client } from 'thetadatadx';
+
+// API key from the THETADATA_API_KEY environment variable, or from a .env file
+const fromEnv = await Client.connectWith({ apiKeyFromEnv: true });
+const fromDotenv = await Client.connectWith({ apiKeyFromDotenv: '.env' });
+
+// Email and password, inline
+const withLogin = await Client.connectWith({ email: 'you@example.com', password: 'your_password' });
+
+// Full control: load a typed credentials file (custom hosts, timeouts via Config)
+const fullControl = await Client.connectFromFile('creds.txt');
 ```
 
 Every historical method resolves a `Promise` of typed tick objects off the runtime's execution thread, so a fetch never holds the event loop:
@@ -72,7 +82,7 @@ Real-time quotes and trades flow through the same client. Register a callback wi
 ```typescript
 import { Contract, Client } from 'thetadatadx';
 
-const client = await Client.connectFromFile('creds.txt');
+const client = await Client.connectWith({ apiKey: 'td1_...' });
 const formatContract = (contract: {
   symbol: string;
   expiration?: number;

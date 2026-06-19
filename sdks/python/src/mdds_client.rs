@@ -200,7 +200,9 @@ impl HistoricalClient {
     /// environment concern; see the module-level docstring).
     #[new]
     fn new(py: Python<'_>, creds: &Credentials, config: &Config) -> PyResult<Self> {
-        let inner = Py::new(py, Client::new(py, creds, config)?)?;
+        let direct_config = crate::resolve_direct_config(Some(config), None)?;
+        let unified = Client::connect_blocking(py, creds.inner.clone(), direct_config)?;
+        let inner = Py::new(py, unified)?;
         Ok(Self { inner })
     }
 
@@ -215,16 +217,10 @@ impl HistoricalClient {
     #[staticmethod]
     #[pyo3(signature = (path, config=None))]
     fn from_file(py: Python<'_>, path: &str, config: Option<&Config>) -> PyResult<Self> {
-        let creds = Credentials::from_file(path)?;
-        let owned_default;
-        let cfg = match config {
-            Some(c) => c,
-            None => {
-                owned_default = Config::production();
-                &owned_default
-            }
-        };
-        let inner = Py::new(py, Client::new(py, &creds, cfg)?)?;
+        let creds = thetadatadx::Credentials::from_file(path).map_err(crate::errors::to_py_err)?;
+        let direct_config = crate::resolve_direct_config(config, None)?;
+        let unified = Client::connect_blocking(py, creds, direct_config)?;
+        let inner = Py::new(py, unified)?;
         Ok(Self { inner })
     }
 

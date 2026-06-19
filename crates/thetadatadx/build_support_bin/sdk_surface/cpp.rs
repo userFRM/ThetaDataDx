@@ -228,6 +228,9 @@ fn cpp_lifecycle_def(method: &MethodSpec) -> String {
                 "Config Config::{variant}() {{ return Config(thetadatadx_config_{variant}()); }}\n"
             )
         }
+        MethodKind::ConfigFromDotenv => {
+            include_str!("templates/cpp/config_from_dotenv_def.cpp.tmpl").to_string()
+        }
         MethodKind::ClientConnect => {
             include_str!("templates/cpp/client_connect_def.cpp.tmpl").to_string()
         }

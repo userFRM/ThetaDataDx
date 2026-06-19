@@ -23,6 +23,7 @@
 #include <cstdlib>
 #include <functional>
 #include <string>
+#include <utility>
 #include <thread>
 #include <type_traits>
 
@@ -45,6 +46,82 @@ TEST_CASE("Client is move-only with the right type-trait shape",
     STATIC_REQUIRE(std::is_move_assignable_v<thetadatadx::Client>);
     STATIC_REQUIRE_FALSE(std::is_copy_constructible_v<thetadatadx::Client>);
     STATIC_REQUIRE_FALSE(std::is_copy_assignable_v<thetadatadx::Client>);
+}
+
+TEST_CASE("ClientBuilder validates auth before connecting",
+          "[unified][offline]") {
+    // The builder rejects an empty auth set and a conflict BEFORE any
+    // network round-trip, surfacing the failure as a typed `ConfigError`.
+    // These paths never touch the server, so they run offline.
+
+    // No authentication source set → ConfigError.
+    REQUIRE_THROWS_AS(thetadatadx::Client::builder().connect(),
+                      thetadatadx::ConfigError);
+
+    // Two different authentication sources → ConfigError naming both.
+    REQUIRE_THROWS_AS(thetadatadx::Client::builder()
+                          .api_key("td1_example")
+                          .email_password("you@example.com", "secret")
+                          .connect(),
+                      thetadatadx::ConfigError);
+
+    // The builder is fluent: each setter returns a reference so the chain
+    // composes. Pin the surface (api key first-class, plus the
+    // environment selectors) at compile time without connecting.
+    thetadatadx::ClientBuilder builder = thetadatadx::Client::builder();
+    builder.api_key("td1_example").stage();
+}
+
+TEST_CASE("ClientBuilder is single-use: connect() consumes the builder",
+          "[unified][offline]") {
+    // `connect()` is rvalue-ref-qualified, mirroring the Rust
+    // `ClientBuilder::connect(self)`. The documented inline form is an
+    // rvalue chain all the way through, so it compiles and reaches the
+    // pre-flight validation (here a conflict, surfaced before any network
+    // round-trip). This pins the consuming surface at compile time.
+    REQUIRE_THROWS_AS(thetadatadx::Client::builder()
+                          .api_key("td1_example")
+                          .email_password("you@example.com", "secret")
+                          .stage()
+                          .connect(),
+                      thetadatadx::ConfigError);
+
+    // A stored builder is handed over explicitly with std::move, which is
+    // the only way to reach the rvalue-only connect() from a named builder.
+    // Calling `stored.connect()` directly would NOT compile: connect() has
+    // a `&&` ref-qualifier, so a second use of a moved-from builder cannot
+    // be written by accident. The handover below consumes it exactly once,
+    // and the conflicting sources make connect() throw before any network
+    // round-trip, keeping the test offline.
+    thetadatadx::ClientBuilder stored = thetadatadx::Client::builder();
+    stored.api_key("td1_example").email_password("you@example.com", "secret");
+    REQUIRE_THROWS_AS(std::move(stored).connect(), thetadatadx::ConfigError);
+}
+
+TEST_CASE("api_key_from_env is strict — unset env throws ConfigError",
+          "[unified][offline]") {
+    // Mirror the Rust `ClientBuilder::api_key_from_env`: an unset or
+    // whitespace-only `THETADATA_API_KEY` is a ConfigError before any
+    // network round-trip, with NO `creds.txt` file fallback. This path
+    // never touches the server, so it runs offline.
+    const std::string saved = env_or_empty("THETADATA_API_KEY");
+    ::unsetenv("THETADATA_API_KEY");
+
+    REQUIRE_THROWS_AS(thetadatadx::Client::builder().api_key_from_env().connect(),
+                      thetadatadx::ConfigError);
+
+    // A whitespace-only value is likewise rejected (not trimmed to a
+    // valid key, not fallen back to a file).
+    ::setenv("THETADATA_API_KEY", "   ", 1);
+    REQUIRE_THROWS_AS(thetadatadx::Client::builder().api_key_from_env().connect(),
+                      thetadatadx::ConfigError);
+
+    // Restore the caller's environment so sibling tests are unaffected.
+    if (saved.empty()) {
+        ::unsetenv("THETADATA_API_KEY");
+    } else {
+        ::setenv("THETADATA_API_KEY", saved.c_str(), 1);
+    }
 }
 
 TEST_CASE("Stream binds the full FPSS surface",

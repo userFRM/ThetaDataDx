@@ -102,6 +102,7 @@ extern crate self as thetadatadx;
 pub mod auth;
 pub mod backoff;
 pub(crate) mod client;
+pub(crate) mod client_builder;
 pub mod config;
 pub mod error;
 pub mod flatfiles;
@@ -270,8 +271,9 @@ pub use mdds::registry::{
 pub use auth::Credentials;
 pub use backoff::JitterMode;
 pub use client::{Client, ConnectionStatus, FlatFiles, StreamSurface, SubscriptionInfo};
+pub use client_builder::ClientBuilder;
 pub use config::{
-    DirectConfig, FlatFilesConfig, HostSelectionPolicy, ReconnectAttemptClass,
+    DirectConfig, Environment, FlatFilesConfig, HostSelectionPolicy, ReconnectAttemptClass,
     ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig, StreamingFlushMode,
     StreamingWaitStrategy,
 };

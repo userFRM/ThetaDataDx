@@ -31,6 +31,7 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 
 use super::{authenticate_at, Credentials};
+use crate::config::Environment;
 use crate::error::Error;
 
 /// Opaque handle to a shared, mutable session UUID.
@@ -61,6 +62,9 @@ struct Inner {
     /// Nexus URL the token was originally issued from. Reused on
     /// refresh so a staging config stays on its staging endpoint.
     nexus_url: String,
+    /// Target server environment the token was issued for. Reused on
+    /// refresh so a staging session re-authenticates against staging.
+    environment: Environment,
     /// Credentials used for refresh. Clone is cheap (`Zeroizing<String>`
     /// inside) so we keep an owned copy rather than reaching back into
     /// the caller-provided handle every refresh.
@@ -79,18 +83,25 @@ pub struct SessionSnapshot {
 }
 
 impl SessionToken {
-    /// Build a new token around an initial UUID. The `nexus_url` and
-    /// `creds` pair is retained so [`refresh`] can re-authenticate
-    /// without the caller re-supplying them.
+    /// Build a new token around an initial UUID. The `nexus_url`,
+    /// `environment`, and `creds` are retained so [`refresh`] can
+    /// re-authenticate against the same cluster without the caller
+    /// re-supplying them.
     ///
     /// [`refresh`]: Self::refresh
     #[must_use]
-    pub fn new(uuid: String, nexus_url: String, creds: Credentials) -> Self {
+    pub fn new(
+        uuid: String,
+        nexus_url: String,
+        environment: Environment,
+        creds: Credentials,
+    ) -> Self {
         Self {
             state: Arc::new(RwLock::new(Inner {
                 uuid,
                 version: 0,
                 nexus_url,
+                environment,
                 creds,
             })),
             refresh_lock: Arc::new(Mutex::new(())),
@@ -145,7 +156,7 @@ impl SessionToken {
 
         // Re-check under the refresh lock — another task may have done
         // the work while we waited at the gate.
-        let (nexus_url, creds) = {
+        let (nexus_url, environment, creds) = {
             let guard = self.state.read().await;
             if guard.version != stale.version {
                 return Ok(SessionSnapshot {
@@ -153,10 +164,14 @@ impl SessionToken {
                     version: guard.version,
                 });
             }
-            (guard.nexus_url.clone(), guard.creds.clone())
+            (
+                guard.nexus_url.clone(),
+                guard.environment,
+                guard.creds.clone(),
+            )
         };
 
-        let resp = authenticate_at(&nexus_url, &creds).await?;
+        let resp = authenticate_at(&nexus_url, &creds, environment).await?;
 
         // Briefly take the write lock to swap the UUID + bump the version.
         let mut guard = self.state.write().await;
@@ -228,6 +243,7 @@ mod tests {
         SessionToken::new(
             uuid.to_string(),
             "https://nexus.example.invalid/auth".to_string(),
+            Environment::Prod,
             fake_creds(),
         )
     }
