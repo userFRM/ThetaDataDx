@@ -108,7 +108,8 @@ impl HistoricalClient {
         // the same downgrade applied to `auth/nexus.rs`.
         tracing::info!("authenticating with Nexus API");
         tracing::trace!(nexus_url = %config.auth.nexus_url, "Nexus auth URL");
-        let auth_resp = auth::authenticate_at(&config.auth.nexus_url, creds).await?;
+        let auth_resp =
+            auth::authenticate_at(&config.auth.nexus_url, creds, config.environment).await?;
         let session_uuid = auth_resp.session_id.clone();
 
         tracing::debug!(
@@ -165,7 +166,12 @@ impl HistoricalClient {
             .and_then(|u| u.interest_rate_subscription)
             .and_then(SubscriptionTier::from_wire);
 
-        let session = SessionToken::new(session_uuid, config.auth.nexus_url.clone(), creds.clone());
+        let session = SessionToken::new(
+            session_uuid,
+            config.auth.nexus_url.clone(),
+            config.environment,
+            creds.clone(),
+        );
         let client_type = config.auth.client_type.clone();
 
         Ok(Self {
@@ -290,6 +296,7 @@ impl HistoricalClient {
         let session = SessionToken::new(
             "00000000-0000-0000-0000-000000000000".to_string(),
             config.auth.nexus_url.clone(),
+            config.environment,
             creds,
         );
         let mut query_parameters = HashMap::new();

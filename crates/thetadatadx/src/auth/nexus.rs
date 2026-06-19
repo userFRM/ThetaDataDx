@@ -16,8 +16,10 @@
 //! Body (API key):          {"apiKey": "..."}
 //! ```
 //!
-//! The endpoint accepts either form; the two are mutually exclusive on a
-//! single request.
+//! The endpoint accepts either credential form; the two are mutually
+//! exclusive on a single request. Targeting the staging cluster adds an
+//! `authEnv` object (`{"envType": "STAGE"}`); production omits it and the
+//! server routes the session as `PROD` by default.
 //!
 //! The `TD-TERMINAL-KEY` is a static UUID that identifies the terminal
 //! application (not the user). It is not a user secret.
@@ -44,6 +46,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use super::Credentials;
+use crate::config::Environment;
 use crate::error::Error;
 use crate::util::random_id::validate_uuid_format;
 
@@ -65,10 +68,53 @@ const TERMINAL_KEY_HEADER: &str = "TD-TERMINAL-KEY";
 
 // -- Request / Response types --
 
+/// Target environment marker carried on the auth request.
+///
+/// Serializes as the UPPERCASE string the server expects. Only the
+/// staging environment is ever carried on the wire (`"STAGE"`);
+/// production omits the marker entirely (the server treats an absent
+/// `authEnv` as `PROD`), so the `Prod` variant exists only to keep the
+/// mapping total.
+#[derive(Serialize, Clone, Copy)]
+#[serde(rename_all = "UPPERCASE")]
+enum EnvType {
+    Stage,
+}
+
+/// Nested `authEnv` object on the auth request body.
+///
+/// Serializes as `{"envType": "STAGE"}` and routes the session to the
+/// staging cluster.
+#[derive(Serialize, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+struct AuthEnv {
+    env_type: EnvType,
+}
+
+impl AuthEnv {
+    /// Build the `authEnv` marker for the target environment.
+    ///
+    /// Production carries no marker: the server treats an absent
+    /// `authEnv` as `PROD`, so omitting it keeps the production request
+    /// body byte-identical to the long-validated shape. Only the staging
+    /// environment serializes an explicit marker.
+    fn for_environment(env: Environment) -> Option<Self> {
+        match env {
+            Environment::Prod => None,
+            Environment::Stage => Some(Self {
+                env_type: EnvType::Stage,
+            }),
+        }
+    }
+}
+
 /// JSON body for the auth request.
 ///
-/// Carries either email + password or an API key; the unused fields are
-/// skipped so the serialized body holds exactly one credential form.
+/// Carries either email + password or an API key; the unused credential
+/// fields are skipped so the serialized body holds exactly one credential
+/// form. The staging environment additionally carries an `authEnv`
+/// object; production omits it so the body stays byte-identical to the
+/// validated production shape.
 ///
 /// Debug is intentionally NOT derived — `password` and `api_key` must
 /// never appear in logs.
@@ -81,24 +127,33 @@ struct AuthRequest<'a> {
     password: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     api_key: Option<&'a str>,
+    /// Target server environment. Present only for staging; absent for
+    /// production, which the server routes as `PROD` by default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    auth_env: Option<AuthEnv>,
 }
 
 impl<'a> AuthRequest<'a> {
     /// Build the request body from the credential's authentication
-    /// method. An API key serializes as `{"apiKey": ...}`; an email +
-    /// password serializes as `{"email": ..., "password": ...}`.
-    fn from_credentials(creds: &'a Credentials) -> Self {
+    /// method and the target environment. An API key serializes as
+    /// `{"apiKey": ...}`; an email + password serializes as
+    /// `{"email": ..., "password": ...}`. The staging environment adds
+    /// `"authEnv": {"envType": "STAGE"}`; production omits it.
+    fn from_credentials(creds: &'a Credentials, environment: Environment) -> Self {
+        let auth_env = AuthEnv::for_environment(environment);
         if let Some(key) = creds.api_key_secret() {
             Self {
                 email: None,
                 password: None,
                 api_key: Some(key),
+                auth_env,
             }
         } else {
             Self {
                 email: creds.email(),
                 password: creds.password(),
                 api_key: None,
+                auth_env,
             }
         }
     }
@@ -281,8 +336,11 @@ fn is_transient_network_error(err: &reqwest::Error) -> bool {
 ///
 /// Only available when the `__internal` feature is enabled.
 #[cfg(feature = "__internal")]
-pub async fn authenticate(creds: &Credentials) -> Result<AuthResponse, Error> {
-    authenticate_at(NEXUS_AUTH_URL, creds).await
+pub async fn authenticate(
+    creds: &Credentials,
+    environment: Environment,
+) -> Result<AuthResponse, Error> {
+    authenticate_at(NEXUS_AUTH_URL, creds, environment).await
 }
 
 /// Build the rustls config for the auth HTTP client with an explicit ring
@@ -346,7 +404,8 @@ fn bound_body_excerpt(body: &str) -> String {
 ///
 /// Identical to [`authenticate`] but accepts a caller-supplied URL.
 /// Used by auto-refresh and by deployments that redirect auth to a
-/// staging cluster via the `THETADATA_NEXUS_URL` env variable.
+/// staging cluster via the `THETADATA_NEXUS_URL` env variable. The
+/// `environment` selects the target cluster carried on the request body.
 ///
 /// The returned `AuthResponse.session_id` is a UUID string that must be
 /// embedded in every historical request as `QueryInfo.auth_token.session_uuid`.
@@ -368,7 +427,11 @@ fn bound_body_excerpt(body: &str) -> String {
 /// [`AuthErrorKind::Timeout`]: crate::error::AuthErrorKind::Timeout
 /// [`AuthErrorKind::NetworkError`]: crate::error::AuthErrorKind::NetworkError
 /// [`AuthErrorKind::ServerError`]: crate::error::AuthErrorKind::ServerError
-pub async fn authenticate_at(url: &str, creds: &Credentials) -> Result<AuthResponse, Error> {
+pub async fn authenticate_at(
+    url: &str,
+    creds: &Credentials,
+    environment: Environment,
+) -> Result<AuthResponse, Error> {
     metrics::counter!("thetadatadx.auth.requests").increment(1);
     let auth_start = std::time::Instant::now();
 
@@ -382,7 +445,7 @@ pub async fn authenticate_at(url: &str, creds: &Credentials) -> Result<AuthRespo
             message: format!("failed to build HTTP client: {e}"),
         })?;
 
-    let body = AuthRequest::from_credentials(creds);
+    let body = AuthRequest::from_credentials(creds, environment);
 
     // Log the email prefix rather than the full address: full emails in
     // structured logs / crash reports are recoverable PII even when the
@@ -521,7 +584,7 @@ mod tests {
     #[test]
     fn auth_request_serializes_email_password() {
         let creds = Credentials::new("user@example.com", "hunter2");
-        let body = AuthRequest::from_credentials(&creds);
+        let body = AuthRequest::from_credentials(&creds, Environment::Prod);
         let json: serde_json::Value = serde_json::to_value(&body).unwrap();
         assert_eq!(json["email"], "user@example.com");
         assert_eq!(json["password"], "hunter2");
@@ -536,7 +599,7 @@ mod tests {
     #[test]
     fn auth_request_serializes_api_key_only() {
         let creds = Credentials::api_key("secret-key-xyz");
-        let body = AuthRequest::from_credentials(&creds);
+        let body = AuthRequest::from_credentials(&creds, Environment::Prod);
         let json: serde_json::Value = serde_json::to_value(&body).unwrap();
         assert_eq!(json["apiKey"], "secret-key-xyz");
         assert!(
@@ -555,11 +618,70 @@ mod tests {
     #[test]
     fn auth_request_api_key_with_email_stays_api_key_only() {
         let creds = Credentials::api_key_with_email("user@example.com", "secret-key-xyz");
-        let body = AuthRequest::from_credentials(&creds);
+        let body = AuthRequest::from_credentials(&creds, Environment::Prod);
         let json: serde_json::Value = serde_json::to_value(&body).unwrap();
         assert_eq!(json["apiKey"], "secret-key-xyz");
         assert!(json.get("email").is_none());
         assert!(json.get("password").is_none());
+    }
+
+    /// The production environment carries NO `authEnv` marker: the server
+    /// treats an absent `authEnv` as `PROD`, so omitting it keeps the
+    /// production request body byte-identical to the validated shape.
+    #[test]
+    fn auth_request_omits_auth_env_for_prod() {
+        let creds = Credentials::new("user@example.com", "hunter2");
+        let body = AuthRequest::from_credentials(&creds, Environment::Prod);
+        let json: serde_json::Value = serde_json::to_value(&body).unwrap();
+        assert!(
+            json.get("authEnv").is_none(),
+            "production body must omit authEnv: {json}"
+        );
+    }
+
+    /// The staging environment serializes `authEnv` as
+    /// `{"envType": "STAGE"}` so the server routes the session to the
+    /// staging cluster.
+    #[test]
+    fn auth_request_serializes_auth_env_stage() {
+        let creds = Credentials::new("user@example.com", "hunter2");
+        let body = AuthRequest::from_credentials(&creds, Environment::Stage);
+        let json: serde_json::Value = serde_json::to_value(&body).unwrap();
+        assert_eq!(json["authEnv"], serde_json::json!({ "envType": "STAGE" }));
+    }
+
+    /// The full production body shape, pinned end to end: exactly the
+    /// credential fields and nothing else — byte-identical to the
+    /// validated production auth body, with no `authEnv` key.
+    #[test]
+    fn auth_request_full_body_shape_prod() {
+        let creds = Credentials::new("user@example.com", "hunter2");
+        let body = AuthRequest::from_credentials(&creds, Environment::Prod);
+        let json: serde_json::Value = serde_json::to_value(&body).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "email": "user@example.com",
+                "password": "hunter2"
+            })
+        );
+    }
+
+    /// The full staging body shape: the same credential fields plus the
+    /// explicit `authEnv` staging marker.
+    #[test]
+    fn auth_request_full_body_shape_stage() {
+        let creds = Credentials::new("user@example.com", "hunter2");
+        let body = AuthRequest::from_credentials(&creds, Environment::Stage);
+        let json: serde_json::Value = serde_json::to_value(&body).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "email": "user@example.com",
+                "password": "hunter2",
+                "authEnv": { "envType": "STAGE" }
+            })
+        );
     }
 
     #[test]

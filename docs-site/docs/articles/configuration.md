@@ -11,9 +11,9 @@ The configuration object (`DirectConfig` in Rust, `Config` elsewhere) ships sens
 
 | Preset | Use |
 |---|---|
-| `production()` | Live market data. |
+| `production()` | Live market data. The default. |
 | `dev()` | Streaming servers replay a past trading day in a loop at full speed — develop while markets are closed. Historical requests still hit production. |
-| `stage()` | Vendor staging servers; expect reboots. |
+| `stage()` | Staging environment — points authentication, historical, and streaming all at the staging cluster. Used to validate against pre-release server changes; less stable than production and subject to reboots. |
 
 ```python
 from thetadatadx import Config
@@ -23,6 +23,17 @@ cfg.retry_max_attempts = 5
 cfg.flush_mode = "immediate"
 client = Client(creds, cfg)
 ```
+
+To target the staging cluster, build the config from the staging preset instead. It selects the staging environment across every channel — authentication, historical, and streaming — in one call:
+
+```python
+from thetadatadx import Config
+
+cfg = Config.stage()
+client = Client(creds, cfg)
+```
+
+The same preset is available on every binding: `DirectConfig::stage()` in Rust, `Config.stage()` in TypeScript, and `thetadatadx::Config::stage()` in C++.
 
 In Rust the same fields live on `DirectConfig` struct sub-configs (`config.retry.max_attempts`, `config.streaming.flush_mode`); TypeScript uses `Config` setters (`cfg.setRetryMaxAttempts(5)`); C++ uses `thetadatadx::Config::set_retry_max_attempts(5)`.
 

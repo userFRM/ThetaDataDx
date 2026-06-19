@@ -495,3 +495,4 @@ Every endpoint follows this shape. Browse the [API Reference](/reference/) — e
 - **Dates are `YYYYMMDD` strings** in the SDKs (`"20250303"`); the HTTP server also accepts ISO `YYYY-MM-DD`. Timestamps come back as milliseconds since midnight Eastern Time — see [Symbology & Contract Identity](/articles/symbology).
 - **Connect once, reuse the client.** One client multiplexes any number of historical requests and an optional [streaming](/streaming/) session; per-request connections waste the authentication round trip.
 - **Markets closed?** Connect with `Config.dev()` / `DirectConfig::dev()` to stream a replayed historical session, and prefer historical endpoints over snapshots on weekends.
+- **Targeting staging?** Build the config from the staging preset (`Config.stage()` / `DirectConfig::stage()`) to point authentication, historical, and streaming all at the staging cluster. See [Configuration](/articles/configuration).

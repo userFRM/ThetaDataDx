@@ -91,7 +91,8 @@ async fn try_run_generated_utility(
     match subcommand {
         Some(("auth", _)) => {
             let creds = thetadatadx::Credentials::from_file(creds_path)?;
-            let resp = thetadatadx::auth::authenticate(&creds).await?;
+            let resp =
+                thetadatadx::auth::authenticate(&creds, thetadatadx::Environment::Prod).await?;
             let mut td = TabularData::new(vec![
                 "session_id",
                 "email",

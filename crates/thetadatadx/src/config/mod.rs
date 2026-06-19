@@ -38,6 +38,7 @@
 
 mod auth;
 mod env;
+mod environment;
 mod flatfiles;
 mod fpss;
 mod mdds;
@@ -53,6 +54,7 @@ pub use env::{
     ENV_CLIENT_TYPE, ENV_HISTORICAL_HOST, ENV_HISTORICAL_PORT, ENV_NEXUS_URL, ENV_STREAMING_HOST,
     ENV_STREAMING_PORT,
 };
+pub use environment::Environment;
 pub use flatfiles::{bounds as flatfiles_bounds, FlatFilesConfig};
 pub use fpss::{
     bounds as streaming_bounds, HostSelectionPolicy, StreamingConfig, StreamingFlushMode,
@@ -121,6 +123,11 @@ pub struct DirectConfig {
     pub metrics: MetricsConfig,
     /// Async runtime tuning.
     pub runtime: RuntimeConfig,
+    /// Target server environment (production or staging). Defaults to
+    /// [`Environment::Prod`]; [`DirectConfig::stage`] selects
+    /// [`Environment::Stage`]. Carried on the auth request so the server
+    /// routes the session to the matching cluster.
+    pub environment: Environment,
 }
 
 impl DirectConfig {
@@ -167,6 +174,7 @@ impl DirectConfig {
             auth: AuthConfig::production_defaults(),
             metrics: MetricsConfig::default(),
             runtime: RuntimeConfig::default(),
+            environment: Environment::Prod,
         }
     }
 
@@ -193,6 +201,9 @@ impl DirectConfig {
     #[must_use]
     pub fn dev() -> Self {
         let mut config = Self::production();
+        // Dev is a streaming-only preset: historical data still uses the
+        // production cluster, so the environment marker stays `Prod`.
+        config.environment = Environment::Prod;
         // Source: config.toml fpss_dev_hosts
         config.streaming.hosts = vec![
             ("nj-a.thetadata.us".to_string(), 20200),
@@ -204,12 +215,17 @@ impl DirectConfig {
             .expect("dev preset is within validated bounds")
     }
 
-    /// Stage streaming configuration.
+    /// Staging environment configuration.
     ///
-    /// Connects to `ThetaData`'s staging streaming servers (port 20100).
-    /// Frequent reboots, testing data. Not stable.
+    /// Points every channel at `ThetaData`'s staging cluster:
     ///
-    /// Historical data still uses production servers.
+    /// - Environment marker: [`Environment::Stage`] (carried on the auth
+    ///   request so the server routes the session to staging).
+    /// - Historical: `mdds-stage.thetadata.us:443` (TLS).
+    /// - Streaming: the staging streaming hosts (port 20100 / 20101).
+    ///
+    /// Staging is used to validate against pre-release server changes;
+    /// it is less stable than production and subject to frequent reboots.
     ///
     /// Source: `config.toml` `fpss_stage_hosts`
     ///
@@ -221,6 +237,10 @@ impl DirectConfig {
     #[must_use]
     pub fn stage() -> Self {
         let mut config = Self::production();
+        config.environment = Environment::Stage;
+        // Historical (gRPC) targets the staging cluster on the same TLS
+        // port; only the host differs from production.
+        config.historical.host = "mdds-stage.thetadata.us".to_string();
         // Source: config.toml fpss_stage_hosts
         config.streaming.hosts = vec![
             ("nj-a.thetadata.us".to_string(), 20100),
@@ -752,6 +772,12 @@ impl DirectConfig {
     pub fn tokio_worker_threads(&self) -> Option<usize> {
         self.runtime.tokio_worker_threads
     }
+
+    /// Target server environment (production or staging).
+    #[must_use]
+    pub fn environment(&self) -> Environment {
+        self.environment
+    }
 }
 
 // ── Config file loading (behind `config-file` feature) ──────────────────────
@@ -1130,6 +1156,47 @@ mod tests {
         clear_env_matrix();
         let config = DirectConfig::production();
         assert_eq!(config.historical_uri(), "https://mdds-01.thetadata.us:443");
+    }
+
+    #[test]
+    fn production_selects_prod_environment() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        let config = DirectConfig::production();
+        assert_eq!(config.environment, Environment::Prod);
+        assert_eq!(config.historical.host, "mdds-01.thetadata.us");
+    }
+
+    #[test]
+    fn stage_selects_full_stage_environment() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        let config = DirectConfig::stage();
+        // Environment marker flips to Stage.
+        assert_eq!(config.environment, Environment::Stage);
+        // Historical (gRPC) points at the staging cluster on the same TLS port.
+        assert_eq!(config.historical.host, "mdds-stage.thetadata.us");
+        assert_eq!(config.historical.port, 443);
+        assert!(config.historical.tls);
+        // Streaming uses the staging hosts.
+        assert_eq!(
+            config.streaming.hosts,
+            vec![
+                ("nj-a.thetadata.us".to_string(), 20100),
+                ("test-server.thetadata.us".to_string(), 20100),
+                ("test-server.thetadata.us".to_string(), 20101),
+            ]
+        );
+    }
+
+    #[test]
+    fn dev_keeps_prod_environment_and_historical_host() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        let config = DirectConfig::dev();
+        // Dev is streaming-only: historical stays on production.
+        assert_eq!(config.environment, Environment::Prod);
+        assert_eq!(config.historical.host, "mdds-01.thetadata.us");
     }
 
     #[test]
