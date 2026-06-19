@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.0.0-rc.5] - 2026-06-19
+
+### Added
+
+- Staging-environment selection (production or staging) across authentication, historical, and streaming, working with both API-key and email/password credentials. Choose it three ways: in code via `DirectConfig::stage()` / `with_environment(Environment::Stage)` in Rust (`Config.stage()` on every binding), through the `THETADATA_MDDS_TYPE` environment variable (`PROD` or `STAGE`), or from a `.env` file via `Config::from_dotenv(path)` so a single file can hold both `THETADATA_API_KEY` and `THETADATA_MDDS_TYPE`.
+- First-class inline client construction that takes the API key as a directly-passed argument. Rust and C++ gain a fluent `Client::builder()` (`.api_key`, `.api_key_from_env`, `.api_key_from_dotenv`, `.email_password`, `.credentials_file`, `.stage` / `.production` / `.environment`, `.connect`). Python gains `Client(api_key=..., mdds_type=...)` plus `Client.from_env(...)` and `Client.from_dotenv(...)`. TypeScript gains `Client.connectWith({ apiKey, apiKeyFromEnv, apiKeyFromDotenv, email, password, credentialsFile, mddsType })`. The typed `Client::connect(&Credentials, Config)` remains for full control.
+
+### Changed
+
+- `api_key_from_env` is strict in every binding: an unset or empty `THETADATA_API_KEY` is an error with no silent fallback to a credentials file. The lenient environment-or-file behaviour stays available under `from_env_or_file`.
+- The documentation now leads with passing the API key directly to the client.
+
 ## [13.0.0-rc.4] - 2026-06-19
 
 ### Added
@@ -3775,7 +3787,8 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.4...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.5...HEAD
+[13.0.0-rc.5]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.4...v13.0.0-rc.5
 [13.0.0-rc.4]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.3...v13.0.0-rc.4
 [13.0.0-rc.3]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.2...v13.0.0-rc.3
 [13.0.0-rc.2]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.1...v13.0.0-rc.2
