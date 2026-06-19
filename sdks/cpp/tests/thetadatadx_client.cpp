@@ -82,7 +82,9 @@ TEST_CASE("ClientBuilder validates auth before connecting",
     // composes. Pin the surface (api key first-class, plus the
     // environment selectors) at compile time without connecting.
     thetadatadx::ClientBuilder builder = thetadatadx::Client::builder();
-    builder.api_key("td1_example").stage();
+    builder.api_key("td1_example").environment("STAGE");
+    thetadatadx::ClientBuilder dotenv_builder = thetadatadx::Client::builder();
+    dotenv_builder.from_dotenv("/tmp/example.env").production();
 }
 
 TEST_CASE("ClientBuilder is single-use: connect() consumes the builder",
@@ -109,6 +111,32 @@ TEST_CASE("ClientBuilder is single-use: connect() consumes the builder",
     thetadatadx::ClientBuilder stored = thetadatadx::Client::builder();
     stored.api_key("td1_example").email_password("you@example.com", "secret");
     REQUIRE_THROWS_AS(std::move(stored).connect(), thetadatadx::ConfigError);
+}
+
+TEST_CASE("ClientBuilder environment and from_dotenv setters stay offline",
+          "[unified][offline]") {
+    // The explicit environment selector uses the C++ binding's string
+    // representation (`PROD` / `STAGE`, case-insensitive) and validates
+    // locally, before any network round-trip.
+    REQUIRE_NOTHROW(thetadatadx::Client::builder().environment("stage"));
+    REQUIRE_NOTHROW(thetadatadx::Client::builder().environment(" PROD "));
+    REQUIRE_THROWS_AS(thetadatadx::Client::builder().environment("qa"),
+                      thetadatadx::ConfigError);
+
+    // `from_dotenv` is fluent on both lvalues and rvalues; the setter
+    // itself does not read the file until `connect()`.
+    thetadatadx::ClientBuilder named = thetadatadx::Client::builder();
+    REQUIRE_NOTHROW(named.from_dotenv("/tmp/example.env").stage());
+
+    // `from_dotenv` selects the same auth kind as `api_key_from_dotenv`,
+    // but it still conflicts with a different auth source. The conflict
+    // surfaces before any file read or network round-trip, so the test
+    // stays offline even with a nonexistent path.
+    REQUIRE_THROWS_AS(thetadatadx::Client::builder()
+                          .api_key("td1_example")
+                          .from_dotenv("/nonexistent/.env")
+                          .connect(),
+                      thetadatadx::ConfigError);
 }
 
 TEST_CASE("api_key_from_env is strict — unset env throws ConfigError",

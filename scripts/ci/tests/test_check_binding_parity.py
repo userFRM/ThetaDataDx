@@ -466,6 +466,80 @@ def test_getter_collectors_scope_to_config() -> None:
     assert "get_streaming_ring_size" in bodies[0] and "bid_price" not in bodies[0]
 
 
+# ─── ClientBuilder fluent-setter parity ────────────────────────────
+
+
+def test_client_builder_setter_parity_positive() -> None:
+    """Matching Rust/C++ builder setter rosters are silent."""
+    errors = cbp._check_client_builder_setter_parity(
+        {"api_key", "environment", "from_dotenv"},
+        {"api_key", "environment", "from_dotenv"},
+        exempt={},
+    )
+    assert errors == [], f"matching builder setter sets must be silent; got {errors!r}"
+
+
+def test_client_builder_setter_parity_missing_on_cpp_trips() -> None:
+    """A Rust builder setter missing from C++ trips."""
+    errors = cbp._check_client_builder_setter_parity(
+        {"api_key", "environment"},
+        {"api_key"},
+        exempt={},
+    )
+    assert any("environment" in e and "cpp" in e for e in errors), (
+        f"a dropped C++ builder setter must trip; got {errors!r}"
+    )
+
+
+def test_client_builder_setter_parity_live_sources_clean() -> None:
+    """The shipped Rust and C++ builder setter rosters match."""
+    errors = cbp._check_client_builder_setter_parity(
+        cbp._collect_rust_client_builder_setters(cbp.RUST_CLIENT_BUILDER_RS),
+        cbp._collect_cpp_client_builder_setters(cbp.CPP_HPP),
+    )
+    assert errors == [], f"live builder setter parity must be clean; got {errors!r}"
+
+
+# ─── TypeScript connectWith option-field roster ────────────────────
+
+
+def test_connect_with_field_collector_camelizes() -> None:
+    """The collector lifts Rust snake_case fields to JS camelCase."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        lib = pathlib.Path(tmp) / "lib.rs"
+        lib.write_text(
+            "#[napi(object)]\n"
+            "pub struct ClientConnectOptions {\n"
+            "    pub api_key_from_env: Option<bool>,\n"
+            "    pub credentials_file: Option<String>,\n"
+            "}\n",
+            encoding="utf-8",
+        )
+        fields = cbp._collect_typescript_connect_with_fields(lib)
+    assert fields == {"apiKeyFromEnv", "credentialsFile"}, (
+        f"collector must camelCase fields; got {fields!r}"
+    )
+
+
+def test_connect_with_field_roster_missing_field_trips() -> None:
+    """A dropped/renamed connectWith field trips."""
+    actual = set(cbp.TYPESCRIPT_CONNECT_WITH_FIELD_ROSTER) - {"mddsType"}
+    errors = cbp._check_typescript_connect_with_field_roster(actual)
+    assert any("mddsType" in e and "missing" in e for e in errors), (
+        f"a missing connectWith field must trip; got {errors!r}"
+    )
+
+
+def test_connect_with_field_roster_live_source_clean() -> None:
+    """The shipped `ClientConnectOptions` fields equal the pinned roster."""
+    errors = cbp._check_typescript_connect_with_field_roster(
+        cbp._collect_typescript_connect_with_fields(cbp.TS_LIB_RS)
+    )
+    assert errors == [], f"live connectWith field roster must be clean; got {errors!r}"
+
+
 # ─── Subscription-kind label parity ────────────────────────────────
 
 

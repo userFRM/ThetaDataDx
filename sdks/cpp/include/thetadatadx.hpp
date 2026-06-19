@@ -14,6 +14,7 @@
 #include "thetadatadx.h"
 
 #include <chrono>
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -2547,6 +2548,7 @@ public:
     ~ClientBuilder() {
         detail::secure_wipe(auth_a_);
         detail::secure_wipe(auth_b_);
+        detail::secure_wipe(env_path_);
     }
 
     // Each fluent setter mutates the builder in place and returns it with
@@ -2589,11 +2591,13 @@ public:
     /// `THETADATA_EMAIL` + `THETADATA_PASSWORD` build email + password
     /// credentials.
     ClientBuilder& api_key_from_dotenv(const std::string& path) & {
-        set_auth(AuthKind::Dotenv, path, std::string(), "api_key_from_dotenv");
+        set_auth(AuthKind::Dotenv, path, std::string(),
+                 "api_key_from_dotenv / from_dotenv");
         return *this;
     }
     ClientBuilder&& api_key_from_dotenv(const std::string& path) && {
-        set_auth(AuthKind::Dotenv, path, std::string(), "api_key_from_dotenv");
+        set_auth(AuthKind::Dotenv, path, std::string(),
+                 "api_key_from_dotenv / from_dotenv");
         return std::move(*this);
     }
 
@@ -2629,23 +2633,34 @@ public:
         return std::move(*this);
     }
 
+    /// Select the target environment by its binding label (`"PROD"` or
+    /// `"STAGE"`, case-insensitive).
+    ClientBuilder& environment(const std::string& environment) & {
+        set_environment(environment);
+        return *this;
+    }
+    ClientBuilder&& environment(const std::string& environment) && {
+        set_environment(environment);
+        return std::move(*this);
+    }
+
     /// Target the staging cluster.
     ClientBuilder& stage() & {
-        env_kind_ = EnvKind::Stage;
+        set_environment_kind(EnvKind::Stage);
         return *this;
     }
     ClientBuilder&& stage() && {
-        env_kind_ = EnvKind::Stage;
+        set_environment_kind(EnvKind::Stage);
         return std::move(*this);
     }
 
     /// Target the production cluster (the default).
     ClientBuilder& production() & {
-        env_kind_ = EnvKind::Production;
+        set_environment_kind(EnvKind::Production);
         return *this;
     }
     ClientBuilder&& production() && {
-        env_kind_ = EnvKind::Production;
+        set_environment_kind(EnvKind::Production);
         return std::move(*this);
     }
 
@@ -2659,6 +2674,23 @@ public:
     }
     ClientBuilder&& config(Config cfg) && {
         set_config(std::move(cfg));
+        return std::move(*this);
+    }
+
+    /// Source both the credential and the target environment from a
+    /// `.env`-format file. Reuses `Credentials::from_dotenv` and
+    /// `Config::from_dotenv`, so one file can carry both
+    /// `THETADATA_API_KEY` and `THETADATA_MDDS_TYPE`.
+    ClientBuilder& from_dotenv(const std::string& path) & {
+        set_auth(AuthKind::Dotenv, path, std::string(),
+                 "api_key_from_dotenv / from_dotenv");
+        set_env_from_dotenv(path);
+        return *this;
+    }
+    ClientBuilder&& from_dotenv(const std::string& path) && {
+        set_auth(AuthKind::Dotenv, path, std::string(),
+                 "api_key_from_dotenv / from_dotenv");
+        set_env_from_dotenv(path);
         return std::move(*this);
     }
 
@@ -2685,7 +2717,8 @@ public:
         if (auth_kind_ == AuthKind::Unset) {
             detail::throw_config_error(
                 "no authentication source set — call one of api_key, api_key_from_env, "
-                "api_key_from_dotenv, email_password, credentials_file, or credentials");
+                "api_key_from_dotenv, from_dotenv, email_password, credentials_file, "
+                "or credentials");
         }
         // The builder is an about-to-expire rvalue, so the resolvers move
         // the chosen credential and config straight out of the members. The
@@ -2699,6 +2732,7 @@ public:
         detail::secure_wipe(auth_a_);
         detail::secure_wipe(auth_b_);
         Config cfg = resolve_config();
+        detail::secure_wipe(env_path_);
         return Client::connect(creds, cfg);
     }
 
@@ -2715,14 +2749,14 @@ private:
         CredentialsFile,
         Prebuilt,
     };
-    enum class EnvKind { Default, Production, Stage, Config };
+    enum class EnvKind { Default, Production, Stage, Config, Dotenv };
 
     /// Record an auth source, rejecting a second different one. Re-stating
     /// the same kind overwrites; a different kind latches a conflict that
     /// `connect()` reports.
     void set_auth(AuthKind kind, const std::string& a, const std::string& b,
                   const char* label) {
-        record_auth(label);
+        record_auth(kind, label);
         if (!conflict_) {
             auth_kind_ = kind;
             auth_a_ = a;
@@ -2734,21 +2768,68 @@ private:
     /// Store a pre-built `Credentials` source, latching a conflict if a
     /// different source was already chosen.
     void set_credentials(Credentials creds) {
-        record_auth("credentials");
-        auth_kind_ = AuthKind::Prebuilt;
-        prebuilt_ = std::make_shared<Credentials>(std::move(creds));
+        record_auth(AuthKind::Prebuilt, "credentials");
+        if (!conflict_) {
+            auth_kind_ = AuthKind::Prebuilt;
+            prebuilt_ = std::make_shared<Credentials>(std::move(creds));
+        }
     }
 
     /// Store a fully built `Config`, selecting the verbatim-config
     /// environment.
     void set_config(Config cfg) {
         env_kind_ = EnvKind::Config;
+        detail::secure_wipe(env_path_);
         config_ = std::make_shared<Config>(std::move(cfg));
+    }
+
+    /// Store a symbolic environment selector (`"PROD"` / `"STAGE"`),
+    /// rejecting anything else as a client-construction config error.
+    void set_environment(const std::string& environment) {
+        set_environment_kind(parse_environment_kind(environment));
+    }
+
+    /// Store a `.env` file as the environment source; the same `path`
+    /// is also valid for the auth source when `from_dotenv(...)` chooses
+    /// the `.env` credential path.
+    void set_env_from_dotenv(const std::string& path) {
+        env_kind_ = EnvKind::Dotenv;
+        env_path_ = path;
+        config_.reset();
+    }
+
+    /// Switch to one of the preset environment sources, clearing any
+    /// prior verbatim-config or `.env` environment override.
+    void set_environment_kind(EnvKind kind) {
+        env_kind_ = kind;
+        detail::secure_wipe(env_path_);
+        config_.reset();
+    }
+
+    /// Parse the C++ binding's string environment representation.
+    static EnvKind parse_environment_kind(const std::string& environment) {
+        const auto first = environment.find_first_not_of(" \t\r\n");
+        if (first == std::string::npos) {
+            detail::throw_config_error("environment must be PROD or STAGE; got empty string");
+        }
+        const auto last = environment.find_last_not_of(" \t\r\n");
+        std::string normalized = environment.substr(first, last - first + 1);
+        for (char& ch : normalized) {
+            ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
+        }
+        if (normalized == "PROD") {
+            return EnvKind::Production;
+        }
+        if (normalized == "STAGE") {
+            return EnvKind::Stage;
+        }
+        detail::throw_config_error(
+            "environment must be PROD or STAGE; got \"" + environment + "\"");
     }
 
     /// Track the auth-source label so a second, different source can be
     /// reported as a conflict naming both sides.
-    void record_auth(const char* label) {
+    void record_auth(AuthKind kind, const char* label) {
         if (auth_kind_ == AuthKind::Unset && !conflict_) {
             first_label_ = label;
             return;
@@ -2756,9 +2837,9 @@ private:
         if (conflict_) {
             return;
         }
-        // Same label re-stated → not a conflict (overwrite). Different
-        // label → latch the conflict.
-        if (first_label_ != label) {
+        // Same auth kind re-stated → not a conflict (overwrite).
+        // Different auth kind → latch the conflict naming both sides.
+        if (auth_kind_ != kind) {
             conflict_ = true;
             second_label_ = label;
         }
@@ -2832,6 +2913,8 @@ private:
         switch (env_kind_) {
             case EnvKind::Config:
                 return std::move(*config_);
+            case EnvKind::Dotenv:
+                return Config::from_dotenv(env_path_);
             case EnvKind::Stage:
                 // The staging preset carries the staging cluster routing.
                 return Config::stage();
@@ -2848,6 +2931,7 @@ private:
     std::shared_ptr<Credentials> prebuilt_;
 
     EnvKind env_kind_ = EnvKind::Default;
+    std::string env_path_;
     std::shared_ptr<Config> config_;
 
     bool conflict_ = false;
