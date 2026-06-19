@@ -481,7 +481,7 @@ thetadatadx-server --api-key "your_api_key" &
 
 </SdkTabs>
 
-Need full control over the hosts and tuning knobs? Build a `Credentials` and a `Config` and pass them to the lower-level `connect` shown next — the builder and the kwargs are a convenience over exactly that path.
+Need full control over the hosts and tuning knobs? Build a `Credentials` and a `Config` and pass them to the lower-level `connect` shown next; the builder and the kwargs are a convenience over exactly that path.
 
 ## 3. First request
 
