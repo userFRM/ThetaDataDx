@@ -45,28 +45,37 @@ C++ ships as a header plus a small implementation file over a prebuilt library (
 ## Quick start
 
 > [!TIP]
-> The cleaner way to sign in is an API key: generate one from your
-> [ThetaData user portal](https://www.thetadata.net/), set `THETADATA_API_KEY`,
-> and build credentials with `from_env_or_file`. Or pass the key to the api-key
-> constructor: `Credentials.from_api_key` in Python, `Credentials.fromApiKey` in
-> TypeScript, `Credentials::api_key` in Rust, and
-> `thetadatadx::Credentials::from_api_key` in C++. Email and password still
-> works: a `creds.txt` file (email on line 1,
-> password on line 2), an inline `Credentials`, or the `THETADATA_EMAIL` /
-> `THETADATA_PASSWORD` environment variables.
+> Pass your API key directly to the client and you are one line from a live connection. Generate a key from your [ThetaData user portal](https://www.thetadata.net/), then hand it to the client: `Client(api_key="td1_...")` in Python, `Client.connectWith({ apiKey: "td1_..." })` in TypeScript, `Client::builder().api_key("td1_...").connect()` in Rust and C++. The key can come from `THETADATA_API_KEY` (the env source) or a `.env` file instead of an inline literal. Email and password is also supported: pass `email` and `password` inline, load a `creds.txt` file (email on line 1, password on line 2), or read the `THETADATA_EMAIL` / `THETADATA_PASSWORD` environment variables. For full control over hosts and timeouts, build a typed `Credentials` + `Config` (see each SDK's "full control" example).
 
 ### Python
 
 ```python
-from thetadatadx import Client, Credentials, Config
+from thetadatadx import Client
 
-client = Client(Credentials.from_file("creds.txt"), Config.production())
+# Pass your API key directly. Use mdds_type="STAGE" to target staging.
+client = Client(api_key="td1_...")
 
 # First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
 greeks = client.historical.option_history_greeks_first_order("SPY", "20260619", "20240315")
 
 df = greeks.to_polars()
 print(df.select(["strike", "right", "delta", "gamma", "theta", "vega"]).head())
+```
+
+Other ways to construct the client:
+
+```python
+from thetadatadx import Client, Credentials, Config
+
+# API key from the THETADATA_API_KEY environment variable, or from a .env file
+client = Client.from_env()
+client = Client.from_dotenv(".env")
+
+# Email and password, inline
+client = Client(email="you@example.com", password="your_password")
+
+# Full control: build a typed Credentials + Config (custom hosts, timeouts)
+client = Client(Credentials.from_file("creds.txt"), Config.production())
 ```
 
 Stream live quotes and trades through the same client. The callback matches on
@@ -122,7 +131,8 @@ const formatContract = (contract: {
   .join(' ');
 
 async function main() {
-  const client = await Client.connectFromFile('creds.txt');
+  // Pass your API key directly. Add mddsType: "STAGE" to target staging.
+  const client = await Client.connectWith({ apiKey: 'td1_...' });
 
   await client.stream.startStreaming((event) => {
     if (event.kind === 'trade' && event.trade) {
@@ -151,6 +161,22 @@ async function main() {
 await main();
 ```
 
+Other ways to construct the client:
+
+```typescript
+import { Client } from 'thetadatadx';
+
+// API key from the THETADATA_API_KEY environment variable, or from a .env file
+const fromEnv = await Client.connectWith({ apiKeyFromEnv: true });
+const fromDotenv = await Client.connectWith({ apiKeyFromDotenv: '.env' });
+
+// Email and password, inline
+const withLogin = await Client.connectWith({ email: 'you@example.com', password: 'your_password' });
+
+// Full control: load a typed credentials file (custom hosts, timeouts via Config)
+const fullControl = await Client.connectFromFile('creds.txt');
+```
+
 ### C++
 
 ```cpp
@@ -158,9 +184,10 @@ await main();
 #include <cstdio>
 
 int main() {
-    auto client = thetadatadx::Client::connect(
-        thetadatadx::Credentials::from_file("creds.txt"),
-        thetadatadx::Config::production());
+    // Pass your API key directly. Add .stage() before .connect() for staging.
+    auto client = thetadatadx::Client::builder()
+        .api_key("td1_...")
+        .connect();
 
     auto greeks = client.historical().option_history_greeks_first_order("SPY", "20260619", "20240315");
     for (const auto& t : greeks) {
@@ -179,12 +206,12 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
 ```rust
-use thetadatadx::{Client, Credentials, DirectConfig};
+use thetadatadx::Client;
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
-    let creds = Credentials::from_file("creds.txt")?;
-    let client = Client::connect(&creds, DirectConfig::production()).await?;
+    // Pass your API key directly. Add .stage() before .connect() for staging.
+    let client = Client::builder().api_key("td1_...").connect().await?;
 
     let greeks = client
         .historical()

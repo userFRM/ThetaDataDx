@@ -36,25 +36,35 @@ Binary wheels ship for Linux, macOS, and Windows and require no Rust toolchain. 
 ## Quick start
 
 > [!TIP]
-> The cleaner way to sign in is an API key: generate one from your
-> [ThetaData user portal](https://www.thetadata.net/), set `THETADATA_API_KEY`,
-> and use `Credentials.from_env_or_file("creds.txt")`. It reads the key from the
-> environment when set and falls back to the file otherwise. To pass the key
-> directly, use `Credentials.from_api_key(key)` (or `Credentials.from_api_key_with_email(email, key)`).
-> Email and password still works: a `creds.txt` file (email on line 1, password
-> on line 2), an inline `Credentials("you@example.com", "password")`, or the
-> `THETADATA_EMAIL` / `THETADATA_PASSWORD` environment variables.
+> Pass your API key directly to the client and you are one line from a live connection. Generate a key from your [ThetaData user portal](https://www.thetadata.net/), then construct `Client(api_key="td1_...")`. The key can also come from the environment with `Client.from_env()` (reading `THETADATA_API_KEY`) or a `.env` file with `Client.from_dotenv(".env")`. Email and password is also supported: `Client(email="you@example.com", password="your_password")` inline, or a `creds.txt` file (email on line 1, password on line 2) via `Credentials.from_file`. Target staging with `mdds_type="STAGE"`. For full control over hosts and timeouts, build a typed `Credentials` + `Config` and pass both to `Client(...)`.
 
 ```python
-from thetadatadx import Client, Credentials, Config
+from thetadatadx import Client
 
-client = Client(Credentials.from_file("creds.txt"), Config.production())
+# Pass your API key directly. Use mdds_type="STAGE" to target staging.
+client = Client(api_key="td1_...")
 
 # First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
 greeks = client.historical.option_history_greeks_first_order("SPY", "20260619", "20240315")
 
 df = greeks.to_polars()
 print(df.select(["strike", "right", "delta", "gamma", "theta", "vega"]).head())
+```
+
+Other ways to construct the client:
+
+```python
+from thetadatadx import Client, Credentials, Config
+
+# API key from the THETADATA_API_KEY environment variable, or from a .env file
+client = Client.from_env()
+client = Client.from_dotenv(".env")
+
+# Email and password, inline
+client = Client(email="you@example.com", password="your_password")
+
+# Full control: build a typed Credentials + Config (custom hosts, timeouts)
+client = Client(Credentials.from_file("creds.txt"), Config.production())
 ```
 
 Every historical method returns a typed list — iterate it, index it, or convert it to a dataframe:

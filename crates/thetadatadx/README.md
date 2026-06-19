@@ -36,22 +36,15 @@ thetadatadx = { version = "13.0.0-rc.1", features = ["polars"] }
 ## Quick start
 
 > [!TIP]
-> The cleaner way to sign in is an API key: generate one from your
-> [ThetaData user portal](https://www.thetadata.net/), set `THETADATA_API_KEY`,
-> and call `Credentials::from_env_or_file("creds.txt")`. It reads the key from
-> the environment when set and falls back to the file otherwise. To pass the key
-> directly, use `Credentials::api_key(key)` (or `Credentials::api_key_with_email(email, key)`).
-> Email and password still works: a `creds.txt` file (email on line 1, password
-> on line 2), an inline `Credentials::new(...)`, or the `THETADATA_EMAIL` /
-> `THETADATA_PASSWORD` environment variables.
+> Pass your API key directly to the builder and you are one line from a live client. Generate a key from your [ThetaData user portal](https://www.thetadata.net/), then chain `Client::builder().api_key("td1_...").connect().await?`. The key can also come from the environment (`.api_key_from_env()`, reading `THETADATA_API_KEY`) or a `.env` file (`.api_key_from_dotenv(".env")`). Email and password is also supported: `.email_password(email, password)` inline, `.credentials_file("creds.txt")` (email on line 1, password on line 2), or the `THETADATA_EMAIL` / `THETADATA_PASSWORD` environment variables. Target staging with `.stage()` before `.connect()`. For full control over hosts and timeouts, build a typed `Credentials` + `DirectConfig` and call `Client::connect(&creds, config)` directly.
 
 ```rust
-use thetadatadx::{Client, Credentials, DirectConfig};
+use thetadatadx::Client;
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
-    let creds = Credentials::from_file("creds.txt")?;
-    let client = Client::connect(&creds, DirectConfig::production()).await?;
+    // Pass your API key directly. Add .stage() before .connect() for staging.
+    let client = Client::builder().api_key("td1_...").connect().await?;
 
     // EOD Greeks for a SPY option chain across Q1 2024.
     let chain = client
@@ -67,6 +60,28 @@ async fn main() -> Result<(), thetadatadx::Error> {
     }
     Ok(())
 }
+```
+
+The builder accepts every credential source through one fluent chain:
+
+```rust
+use thetadatadx::Client;
+
+// API key from the THETADATA_API_KEY environment variable, or from a .env file
+let client = Client::builder().api_key_from_env().connect().await?;
+let client = Client::builder().api_key_from_dotenv(".env").connect().await?;
+
+// Email and password, inline
+let client = Client::builder().email_password("you@example.com", "your_password").connect().await?;
+```
+
+For full control over hosts and timeouts, build a typed `Credentials` + `DirectConfig` and connect directly:
+
+```rust
+use thetadatadx::{Client, Credentials, DirectConfig};
+
+let creds = Credentials::from_file("creds.txt")?;
+let client = Client::connect(&creds, DirectConfig::production()).await?;
 ```
 
 65 typed endpoints span stocks, options, indices, the market calendar, and interest rates. Each builder accepts `.await` for a buffered `Vec<Tick>`, or `.stream(handler)` for chunk-by-chunk delivery — the right choice for multi-day backfills, where it holds peak memory flat instead of materialising the whole response.

@@ -46,31 +46,46 @@ cmake --build build/cpp --config Release --target thetadatadx_cpp
 ## Quick start
 
 > [!TIP]
-> The cleaner way to sign in is an API key: generate one from your
-> [ThetaData user portal](https://www.thetadata.net/), set `THETADATA_API_KEY`,
-> and use `Credentials::from_env_or_file("creds.txt")`. It reads the key from the
-> environment when set and falls back to the file otherwise. To pass the key
-> directly, use `Credentials::from_api_key(key)` (or `Credentials::from_api_key_with_email(email, key)`).
-> Email and password still works: a `creds.txt` file (email on line 1, password
-> on line 2) via `Credentials::from_file`, or inline via
-> `Credentials::from_email(email, password)`.
+> Pass your API key directly to the builder and you are one line from a live client. Generate a key from your [ThetaData user portal](https://www.thetadata.net/), then chain `thetadatadx::Client::builder().api_key("td1_...").connect()`. The key can also come from the environment (`.api_key_from_env()`, reading `THETADATA_API_KEY`) or a `.env` file (`.api_key_from_dotenv(".env")`). Email and password is also supported: `.email_password(email, password)` inline, or a `creds.txt` file (email on line 1, password on line 2) via `.credentials_file("creds.txt")`. Target staging with `.stage()` before `.connect()`. For full control over hosts and timeouts, build a typed `Credentials` + `Config` and call `Client::connect(creds, config)`.
 
 ```cpp
 #include <thetadatadx.hpp>
 #include <cstdio>
 
 int main() {
-    auto client = thetadatadx::HistoricalClient::connect(
-        thetadatadx::Credentials::from_file("creds.txt"),
-        thetadatadx::Config::production());
+    // Pass your API key directly. Add .stage() before .connect() for staging.
+    auto client = thetadatadx::Client::builder()
+        .api_key("td1_...")
+        .connect();
 
     // First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
-    auto greeks = client.option_history_greeks_first_order("SPY", "20260619", "20240315");
+    auto greeks = client.historical().option_history_greeks_first_order("SPY", "20260619", "20240315");
     for (const auto& t : greeks) {
         std::printf("K=%.2f %c delta=%+.4f theta=%+.4f vega=%+.4f\n",
                     t.strike, static_cast<char>(t.right), t.delta, t.theta, t.vega);
     }
 }
+```
+
+The builder accepts every credential source through one fluent chain:
+
+```cpp
+// API key from the THETADATA_API_KEY environment variable, or from a .env file
+auto from_env = thetadatadx::Client::builder().api_key_from_env().connect();
+auto from_dotenv = thetadatadx::Client::builder().api_key_from_dotenv(".env").connect();
+
+// Email and password, inline
+auto with_login = thetadatadx::Client::builder()
+    .email_password("you@example.com", "your_password")
+    .connect();
+```
+
+For full control over hosts and timeouts, build a typed `Credentials` + `Config` and connect directly. `thetadatadx::HistoricalClient` is the historical-only entry point when you do not need streaming or flat files:
+
+```cpp
+auto client = thetadatadx::HistoricalClient::connect(
+    thetadatadx::Credentials::from_file("creds.txt"),
+    thetadatadx::Config::production());
 ```
 
 Every historical method returns a typed `std::vector` — iterate it directly:

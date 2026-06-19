@@ -79,9 +79,144 @@ The [server binary](/server/) exposes the full surface as local HTTP REST and We
 
 ## 2. Authenticate
 
-You can sign in with an API key or with your account email and password. An API key is the simpler option: a cleaner sign-in that does not require storing your account password. Email and password still works. Each form has three ways to supply the credential, so you can pick whichever fits your setup.
+Pass your API key directly to the client and you are one line from a live connection. Generate a key from your [ThetaData user portal](https://www.thetadata.net/), hand it to the client, and you have a connected client ready to make requests.
 
-### API key
+<SdkTabs>
+
+<template #rust>
+
+```rust
+// API key inline, production by default.
+let client = thetadatadx::Client::builder()
+    .api_key("your_api_key")
+    .connect()
+    .await?;
+```
+
+</template>
+
+<template #python>
+
+```python
+# API key inline, production by default.
+client = Client(api_key="your_api_key")
+```
+
+</template>
+
+<template #typescript>
+
+```typescript
+// API key inline, production by default.
+const client = await Client.connectWith({ apiKey: 'your_api_key' });
+```
+
+</template>
+
+<template #cpp>
+
+```cpp
+// API key inline, production by default.
+auto client = thetadatadx::Client::builder()
+    .api_key("your_api_key")
+    .connect();
+```
+
+</template>
+
+<template #http>
+
+```bash
+thetadatadx-server --api-key "your_api_key" &
+```
+
+</template>
+
+</SdkTabs>
+
+The same one-step construction takes the key from the environment or a `.env` file, takes an email and password instead, and selects the staging cluster. Email and password is also supported; it is shown alongside the api-key forms below.
+
+<SdkTabs>
+
+<template #rust>
+
+```rust
+// Source the key from THETADATA_API_KEY, or from a .env file.
+let client = thetadatadx::Client::builder().api_key_from_env().connect().await?;
+let client = thetadatadx::Client::builder().api_key_from_dotenv(".env").connect().await?;
+
+// Email and password inline, staging environment.
+let client = thetadatadx::Client::builder()
+    .email_password("you@example.com", "your-password")
+    .stage()
+    .connect()
+    .await?;
+```
+
+</template>
+
+<template #python>
+
+```python
+# Source the key from THETADATA_API_KEY, or from a .env file.
+client = Client.from_env()
+client = Client.from_dotenv(".env")
+
+# Email and password inline, staging environment.
+client = Client(email="you@example.com", password="your-password", mdds_type="STAGE")
+```
+
+</template>
+
+<template #typescript>
+
+```typescript
+// Source the key from THETADATA_API_KEY, or from a .env file.
+const fromEnv = await Client.connectWith({ apiKeyFromEnv: true });
+const fromDotenv = await Client.connectWith({ apiKeyFromDotenv: '.env' });
+
+// Email and password inline, staging environment.
+const withLogin = await Client.connectWith({
+  email: 'you@example.com',
+  password: 'your-password',
+  mddsType: 'STAGE',
+});
+```
+
+</template>
+
+<template #cpp>
+
+```cpp
+// Source the key from THETADATA_API_KEY, or from a .env file.
+auto fromEnv = thetadatadx::Client::builder().api_key_from_env().connect();
+auto fromDotenv = thetadatadx::Client::builder().api_key_from_dotenv(".env").connect();
+
+// Email and password inline, staging environment.
+auto staged = thetadatadx::Client::builder()
+    .email_password("you@example.com", "your-password")
+    .stage()
+    .connect();
+```
+
+</template>
+
+<template #http>
+
+```bash
+# The server takes the same inputs as flags.
+thetadatadx-server --api-key "your_api_key" &
+```
+
+</template>
+
+</SdkTabs>
+
+### Credential sources
+
+The client resolves any of the credential sources below. They are the building blocks behind the one-step construction above: an API key supplied inline, from the environment, or from a `.env` file; or an email and password supplied from a file, inline, or at a custom path. Each one also produces a standalone `Credentials` value you can hold and pass to the lower-level `connect` when you want full control over hosts and tuning (see "Full control" at the end of this section).
+
+#### API key
 
 Generate an API key from your [ThetaData user portal](https://www.thetadata.net/), then supply it one of three ways.
 
@@ -234,7 +369,7 @@ thetadatadx-server &
 
 </SdkTabs>
 
-### Email and password
+#### Email and password
 
 Supply your account email and password one of three ways.
 
@@ -384,31 +519,17 @@ thetadatadx-server --creds /path/to/creds.txt &
 
 No subscription yet? Create an account at [thetadata.net](https://www.thetadata.net/) — several endpoints work on the free tier (look for the Free badge on [reference pages](/reference/)).
 
-### Connect in one step
+### Full control
 
-You do not have to build a separate credential object first. The client takes the API key (or the email and password, or the environment) directly, so the simplest sign-in is a single call. The API key is the primary, directly-passed argument.
+The one-step construction at the top of this section is a convenience over the typed path: build a `Credentials` and a `Config` yourself and pass both to the lower-level `connect`. Reach for this when you need to override hosts, timeouts, or other tuning knobs on the `Config`.
 
 <SdkTabs>
 
 <template #rust>
 
 ```rust
-// API key inline, production by default.
-let client = thetadatadx::Client::builder()
-    .api_key("your_api_key")
-    .connect()
-    .await?;
-
-// Email and password inline, staging environment.
-let client = thetadatadx::Client::builder()
-    .email_password("you@example.com", "your-password")
-    .stage()
-    .connect()
-    .await?;
-
-// Source the key from THETADATA_API_KEY, or from a .env file.
-let client = thetadatadx::Client::builder().api_key_from_env().connect().await?;
-let client = thetadatadx::Client::builder().api_key_from_dotenv(".env").connect().await?;
+let creds = thetadatadx::Credentials::from_file("creds.txt")?;
+let client = thetadatadx::Client::connect(&creds, thetadatadx::DirectConfig::production()).await?;
 ```
 
 </template>
@@ -416,15 +537,7 @@ let client = thetadatadx::Client::builder().api_key_from_dotenv(".env").connect(
 <template #python>
 
 ```python
-# API key inline, production by default.
-client = Client(api_key="your_api_key")
-
-# Email and password inline, staging environment.
-client = Client(email="you@example.com", password="your-password", mdds_type="STAGE")
-
-# Source the key from THETADATA_API_KEY, or from a .env file.
-client = Client.from_env()
-client = Client.from_dotenv(".env")
+client = Client(Credentials.from_file("creds.txt"), Config.production())
 ```
 
 </template>
@@ -432,19 +545,7 @@ client = Client.from_dotenv(".env")
 <template #typescript>
 
 ```typescript
-// API key inline, production by default.
-const client = await Client.connectWith({ apiKey: 'your_api_key' });
-
-// Email and password inline, staging environment.
-const client = await Client.connectWith({
-  email: 'you@example.com',
-  password: 'your-password',
-  mddsType: 'STAGE',
-});
-
-// Source the key from THETADATA_API_KEY, or from a .env file.
-const fromEnv = await Client.connectWith({ apiKeyFromEnv: true });
-const fromDotenv = await Client.connectWith({ apiKeyFromDotenv: '.env' });
+const client = await Client.connect(Credentials.fromFile('creds.txt'));
 ```
 
 </template>
@@ -452,20 +553,8 @@ const fromDotenv = await Client.connectWith({ apiKeyFromDotenv: '.env' });
 <template #cpp>
 
 ```cpp
-// API key inline, production by default.
-auto client = thetadatadx::Client::builder()
-    .api_key("your_api_key")
-    .connect();
-
-// Email and password inline, staging environment.
-auto staged = thetadatadx::Client::builder()
-    .email_password("you@example.com", "your-password")
-    .stage()
-    .connect();
-
-// Source the key from THETADATA_API_KEY, or from a .env file.
-auto fromEnv = thetadatadx::Client::builder().api_key_from_env().connect();
-auto fromDotenv = thetadatadx::Client::builder().api_key_from_dotenv(".env").connect();
+auto creds = thetadatadx::Credentials::from_file("creds.txt");
+auto client = thetadatadx::Client::connect(creds, thetadatadx::Config::production());
 ```
 
 </template>
@@ -473,15 +562,12 @@ auto fromDotenv = thetadatadx::Client::builder().api_key_from_dotenv(".env").con
 <template #http>
 
 ```bash
-# The server takes the same inputs as flags.
-thetadatadx-server --api-key "your_api_key" &
+thetadatadx-server --creds creds.txt &
 ```
 
 </template>
 
 </SdkTabs>
-
-Need full control over the hosts and tuning knobs? Build a `Credentials` and a `Config` and pass them to the lower-level `connect` shown next; the builder and the kwargs are a convenience over exactly that path.
 
 ## 3. First request
 
@@ -490,15 +576,12 @@ Need full control over the hosts and tuning knobs? Build a `Credentials` and a `
 <template #rust>
 
 ```rust
-use thetadatadx::{Credentials, DirectConfig, Client};
+use thetadatadx::Client;
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
-    // API key: reads THETADATA_API_KEY when set, else falls back to creds.txt.
-    let creds = Credentials::from_env_or_file("creds.txt")?;
-    // Or pass the key directly: Credentials::api_key(std::env::var("THETADATA_API_KEY")?)
-    // Email + password: Credentials::from_file("creds.txt")?
-    let client = Client::connect(&creds, DirectConfig::production()).await?;
+    // Pass your API key directly. Add .stage() before .connect() for staging.
+    let client = Client::builder().api_key("your_api_key").connect().await?;
 
     let rows = client.historical().stock_history_eod("AAPL", "20250303", "20250306").await?;
     for t in &rows {
@@ -513,15 +596,10 @@ async fn main() -> Result<(), thetadatadx::Error> {
 <template #python>
 
 ```python
-import os
+from thetadatadx import Client
 
-from thetadatadx import Config, Credentials, Client
-
-# API key: reads THETADATA_API_KEY when set, else falls back to creds.txt.
-creds = Credentials.from_env_or_file("creds.txt")
-# Or pass the key directly: Credentials.from_api_key(os.environ["THETADATA_API_KEY"])
-# Email + password: Credentials.from_file("creds.txt")
-client = Client(creds, Config.production())
+# Pass your API key directly. Use mdds_type="STAGE" to target staging.
+client = Client(api_key="your_api_key")
 
 rows = client.historical.stock_history_eod("AAPL", "20250303", "20250306")
 for t in rows:
@@ -533,12 +611,10 @@ for t in rows:
 <template #typescript>
 
 ```typescript
-import { Client, Credentials } from 'thetadatadx';
+import { Client } from 'thetadatadx';
 
-// API key: reads THETADATA_API_KEY when set, else falls back to creds.txt.
-const client = await Client.connect(Credentials.fromEnvOrFile('creds.txt'));
-// Or pass the key directly: Credentials.fromApiKey(process.env.THETADATA_API_KEY!)
-// Email + password: Client.connectFromFile('creds.txt')
+// Pass your API key directly. Add mddsType: 'STAGE' to target staging.
+const client = await Client.connectWith({ apiKey: 'your_api_key' });
 
 const rows = await client.historical.stockHistoryEOD('AAPL', '20250303', '20250306');
 for (const t of rows) {
@@ -555,13 +631,12 @@ for (const t of rows) {
 #include <iostream>
 
 int main() {
-    // API key: reads THETADATA_API_KEY when set, else falls back to creds.txt.
-    auto creds = thetadatadx::Credentials::from_env_or_file("creds.txt");
-    // Or pass the key directly: thetadatadx::Credentials::from_api_key(std::getenv("THETADATA_API_KEY"))
-    // Email + password: thetadatadx::Credentials::from_file("creds.txt")
-    auto client = thetadatadx::HistoricalClient::connect(creds, thetadatadx::Config::production());
+    // Pass your API key directly. Add .stage() before .connect() for staging.
+    auto client = thetadatadx::Client::builder()
+        .api_key("your_api_key")
+        .connect();
 
-    auto rows = client.stock_history_eod("AAPL", "20250303", "20250306");
+    auto rows = client.historical().stock_history_eod("AAPL", "20250303", "20250306");
     for (const auto& t : rows) {
         std::cout << t.date << ": open=" << t.open
                   << " close=" << t.close << " volume=" << t.volume << "\n";
