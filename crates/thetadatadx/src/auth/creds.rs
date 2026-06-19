@@ -226,12 +226,13 @@ impl Credentials {
     /// is wrapped in `Zeroizing` immediately so the post-trim copy is
     /// also wiped on drop -- matching the file-read path.
     pub fn new(email: impl Into<String>, password: impl Into<String>) -> Self {
-        // `trim().to_string()` returns an owned `String` that is NOT
-        // the same allocation as the caller's `Into<String>` source.
-        // Wrap it in `Zeroizing` before building the struct so the
-        // transient is wiped even if the caller panics between the
-        // allocation and the `Credentials` construction.
-        let password: Zeroizing<String> = Zeroizing::new(password.into().trim().to_string());
+        // `value.into()` materializes an owned `String` holding the raw
+        // secret; wrap THAT allocation in `Zeroizing` first so it is wiped
+        // on drop, then derive the trimmed copy (also `Zeroizing`). Trimming
+        // the owned string before this wrap would leave the original
+        // allocation un-zeroized in freed heap.
+        let raw_password: Zeroizing<String> = Zeroizing::new(password.into());
+        let password: Zeroizing<String> = Zeroizing::new(raw_password.trim().to_string());
         Self {
             method: AuthMethod::Password {
                 email: email.into().trim().to_lowercase(),
@@ -253,7 +254,10 @@ impl Credentials {
     /// before the struct is built so the post-trim copy is wiped on
     /// drop even on a panic between the allocation and construction.
     pub fn api_key(key: impl Into<String>) -> Self {
-        let key: Zeroizing<String> = Zeroizing::new(key.into().trim().to_string());
+        // Wrap the owned `into()` allocation before trimming so no
+        // un-zeroized copy of the key lingers in freed heap.
+        let raw_key: Zeroizing<String> = Zeroizing::new(key.into());
+        let key: Zeroizing<String> = Zeroizing::new(raw_key.trim().to_string());
         Self {
             method: AuthMethod::ApiKey { email: None, key },
         }
@@ -269,7 +273,11 @@ impl Credentials {
     /// The key transient is wrapped in `Zeroizing` before the struct is
     /// built, matching [`Credentials::api_key`].
     pub fn api_key_with_email(email: impl Into<String>, key: impl Into<String>) -> Self {
-        let key: Zeroizing<String> = Zeroizing::new(key.into().trim().to_string());
+        // Wrap the owned `into()` key allocation before trimming so no
+        // un-zeroized copy of the key lingers in freed heap. The email is
+        // not secret, so it does not need the same treatment.
+        let raw_key: Zeroizing<String> = Zeroizing::new(key.into());
+        let key: Zeroizing<String> = Zeroizing::new(raw_key.trim().to_string());
         let email = email.into().trim().to_lowercase();
         Self {
             method: AuthMethod::ApiKey {
@@ -786,6 +794,32 @@ mod tests {
     fn password_accessor_round_trips() {
         let creds = Credentials::new("user@example.com", "hunter2");
         assert_eq!(creds.password(), Some("hunter2"));
+    }
+
+    /// The direct constructors wrap the owned input allocation in `Zeroizing`
+    /// before trimming, so no un-zeroized secret copy lingers. That wrap is
+    /// not directly observable, so this test pins the behavior that MUST hold
+    /// alongside it: the constructors still trim correctly, expose the right
+    /// secret, and redact it in `Debug`. The zero-before-trim itself is
+    /// verified by code review.
+    #[test]
+    fn direct_constructors_construct_correctly_and_redact() {
+        // Password constructor: trims, stores, redacts.
+        let pw = Credentials::new("  User@Example.COM  ", "  hunter2  ");
+        assert_eq!(pw.password(), Some("hunter2"));
+        assert_eq!(pw.email(), Some("user@example.com"));
+        assert!(!format!("{pw:?}").contains("hunter2"));
+
+        // Api-key constructor: trims, stores, redacts.
+        let key = Credentials::api_key("  super-secret-key  ");
+        assert_eq!(key.api_key_secret(), Some("super-secret-key"));
+        assert!(!format!("{key:?}").contains("super-secret-key"));
+
+        // Api-key-with-email constructor: trims both, stores, redacts the key.
+        let keymail = Credentials::api_key_with_email("  A@B.CO  ", "  k-123  ");
+        assert_eq!(keymail.api_key_secret(), Some("k-123"));
+        assert_eq!(keymail.email(), Some("a@b.co"));
+        assert!(!format!("{keymail:?}").contains("k-123"));
     }
 
     /// The full file contents and the parsed password both round-trip

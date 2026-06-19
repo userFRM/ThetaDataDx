@@ -158,6 +158,13 @@ pub struct FitReader<'a> {
     pos: usize,
     /// Set to `true` when the current row was preceded by a DATE marker (0xCE).
     pub is_date: bool,
+    /// Set by [`FitReader::read_changes`] to `true` when the row terminated on
+    /// an `END` nibble and `false` when the buffer was exhausted before an
+    /// `END` was seen. A `false` value flags a truncated row: the decoder
+    /// flushed whatever partial integer it had, so the field count and the
+    /// trailing slots are not trustworthy. Callers on the live stream reject
+    /// such a row rather than emit a zero-filled tick.
+    pub row_complete: bool,
 }
 
 impl<'a> FitReader<'a> {
@@ -169,6 +176,7 @@ impl<'a> FitReader<'a> {
             buf,
             pos: 0,
             is_date: false,
+            row_complete: false,
         }
     }
 
@@ -180,6 +188,7 @@ impl<'a> FitReader<'a> {
             buf,
             pos: offset,
             is_date: false,
+            row_complete: false,
         }
     }
 
@@ -205,6 +214,13 @@ impl<'a> FitReader<'a> {
     /// A DATE marker row reports `0` fields; callers use `is_date` to
     /// distinguish a DATE row from a legitimate 0-field row.
     ///
+    /// After the call, [`row_complete`](Self::row_complete) reports whether the
+    /// row terminated on an `END` nibble (`true`) or the buffer ran out first
+    /// (`false`). A `false` result means the returned field count came from a
+    /// truncated row and the trailing slots are not trustworthy; callers that
+    /// read fixed field positions reject such a row instead of treating the
+    /// zero-filled buffer as a valid tick.
+    ///
     /// # Panics
     ///
     /// Does **not** panic — if `alloc` is too short, excess fields are silently
@@ -212,13 +228,15 @@ impl<'a> FitReader<'a> {
     #[inline]
     pub fn read_changes(&mut self, alloc: &mut [i32]) -> usize {
         self.is_date = false;
+        self.row_complete = false;
 
         // Check for DATE marker prefix.
         if self.pos < self.buf.len() && self.buf[self.pos] == DATE_MARKER {
             self.is_date = true;
             self.pos += 1;
-            // Consume until END nibble, then return 0.
-            self.skip_to_end();
+            // Consume until END nibble, then return 0. `row_complete` mirrors
+            // whether the marker row actually carried its terminating END.
+            self.row_complete = self.skip_to_end();
             return 0;
         }
 
@@ -244,14 +262,18 @@ impl<'a> FitReader<'a> {
                 &mut count,
                 &mut negative,
             ) {
+                self.row_complete = true;
                 return idx;
             }
             if Self::process_nibble(low, alloc, &mut idx, &mut digits, &mut count, &mut negative) {
+                self.row_complete = true;
                 return idx;
             }
         }
 
-        // Buffer exhausted without END nibble — flush whatever we have.
+        // Buffer exhausted without END nibble, so flush whatever we have. The
+        // row is truncated: `row_complete` stays `false` so callers can reject
+        // it rather than emit a partial/zero-filled tick.
         if count > 0 || negative {
             let val = flush_digits(&digits, count, negative);
             if idx < alloc.len() {
@@ -343,14 +365,18 @@ impl<'a> FitReader<'a> {
     }
 
     /// Consume bytes until an END nibble is found (used after DATE marker).
-    fn skip_to_end(&mut self) {
+    ///
+    /// Returns `true` if an `END` nibble was reached, `false` if the buffer was
+    /// exhausted first (a truncated DATE row).
+    fn skip_to_end(&mut self) -> bool {
         while self.pos < self.buf.len() {
             let byte = self.buf[self.pos];
             self.pos += 1;
             if (byte >> 4) == END || (byte & 0x0F) == END {
-                return;
+                return true;
             }
         }
+        false
     }
 }
 
@@ -846,6 +872,47 @@ mod tests {
         assert_eq!(n, 5);
         assert_eq!(alloc[0], 1);
         assert_eq!(alloc[1], 2);
+    }
+
+    #[test]
+    fn complete_row_reports_row_complete() {
+        // A well-formed row terminating on END sets `row_complete`.
+        let data = [pack(4, 2), pack(END, 0)];
+        let mut alloc = [0i32; 8];
+        let mut reader = FitReader::new(&data);
+        let n = reader.read_changes(&mut alloc);
+        assert_eq!(n, 1);
+        assert_eq!(alloc[0], 42);
+        assert!(reader.row_complete, "END-terminated row must be complete");
+    }
+
+    #[test]
+    fn truncated_row_missing_end_is_not_complete() {
+        // "123" with NO END nibble: buffer is exhausted mid-row. The reader
+        // flushes the partial integer but must flag the row as incomplete so
+        // the caller can reject it rather than emit a partial tick.
+        let data = [pack(1, 2), pack(3, 0)];
+        let mut alloc = [0i32; 8];
+        let mut reader = FitReader::new(&data);
+        let _ = reader.read_changes(&mut alloc);
+        assert!(
+            !reader.row_complete,
+            "row without an END nibble must report incomplete"
+        );
+    }
+
+    #[test]
+    fn truncated_mid_field_is_not_complete() {
+        // A field separator then digits, then EOF with no END.
+        // "12," then "34" and the buffer ends with no terminating END.
+        let data = [pack(1, 2), pack(FIELD_SEP, 3), pack(4, 0)];
+        let mut alloc = [0i32; 8];
+        let mut reader = FitReader::new(&data);
+        let _ = reader.read_changes(&mut alloc);
+        assert!(
+            !reader.row_complete,
+            "truncated multi-field row must report incomplete"
+        );
     }
 
     #[test]
