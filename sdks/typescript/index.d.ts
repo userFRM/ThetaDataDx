@@ -68,8 +68,9 @@ export declare class Client {
    * `apiKeyFromEnv`, `apiKeyFromDotenv`, the `email` + `password` pair,
    * or `credentialsFile`. Passing none, or two different ones, rejects
    * with a `ConfigError` before any network round-trip. `mddsType`
-   * (`"PROD"` / `"STAGE"`, case-insensitive) selects the environment. For
-   * a pre-built `Credentials` handle, use [`Client::connect`].
+   * (`"PROD"` / `"STAGE"`, case-insensitive) selects the environment;
+   * `config` supplies a full `Config` whose environment and hosts win.
+   * For a pre-built `Credentials` handle, use [`Client::connect`].
    *
    * `async` for the same reason as [`Client::connect`].
    */
@@ -110,10 +111,15 @@ export declare class Config {
   /**
    * Source the target environment from a `.env`-format file.
    *
-   * `THETADATA_MDDS_TYPE` (`PROD` / `STAGE`) selects the environment;
-   * `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` override the
-   * hosts. Reads the same file and keys as `Credentials.fromDotenv`, so a
-   * single `.env` file can carry both `THETADATA_API_KEY` and
+   * Starts from the production config and applies the cluster keys
+   * carried by the file: `THETADATA_MDDS_TYPE` (`PROD` / `STAGE`,
+   * case-insensitive) selects the environment, and the optional
+   * `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` keys
+   * override the hosts (an explicit host wins over the environment
+   * default).
+   *
+   * Reads the same file format and keys as `Credentials.fromDotenv`, so
+   * a single `.env` file can carry both `THETADATA_API_KEY` and
    * `THETADATA_MDDS_TYPE`.
    */
   static fromDotenv(path: string): Config
@@ -3113,12 +3119,12 @@ export interface CalendarYearOptions {
 }
 
 /**
- * Inline authentication + environment for `Client.connectWith`.
+ * Inline authentication + environment for [`Client::connectWith`].
  *
  * The API key is a first-class field, distinct from the email +
  * password pair and from the `credentialsFile` path. Exactly one
- * authentication field must be set; a conflict or an empty set rejects
- * with a `ConfigError` before any network round-trip.
+ * authentication field must be set; [`Self::resolve`] enforces this and
+ * rejects a conflict before any network round-trip.
  */
 export interface ClientConnectOptions {
   /** Inline API key — the primary, directly-passed auth field. */
@@ -3137,7 +3143,10 @@ export interface ClientConnectOptions {
   email?: string
   /** Inline account password, paired with `email`. */
   password?: string
-  /** Path to a two-line `creds.txt` file (line 1 = email, line 2 = password). */
+  /**
+   * Path to a two-line `creds.txt` file (line 1 = email, line 2 =
+   * password).
+   */
   credentialsFile?: string
   /**
    * Target environment selector (`"PROD"` / `"STAGE"`,
