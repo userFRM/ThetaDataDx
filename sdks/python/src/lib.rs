@@ -214,6 +214,19 @@ impl Credentials {
         }
     }
 
+    /// Source credentials strictly from the ``THETADATA_API_KEY``
+    /// environment variable.
+    ///
+    /// Strict: an unset or whitespace-only value raises ``ConfigError``
+    /// rather than falling back, and there is no ``creds.txt`` file
+    /// fallback. Use :meth:`from_env_or_file` when a file fallback is
+    /// wanted instead.
+    #[staticmethod]
+    fn from_env() -> PyResult<Self> {
+        let inner = auth::Credentials::from_env().map_err(to_py_err)?;
+        Ok(Self { inner })
+    }
+
     /// Source credentials from the environment, falling back to a
     /// credentials file.
     ///

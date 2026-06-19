@@ -106,6 +106,22 @@ class Credentials:
         ...
 
     @staticmethod
+    def from_env() -> Credentials:
+        """Source credentials strictly from the ``THETADATA_API_KEY`` env var.
+
+        Strict: an unset or whitespace-only value raises rather than
+        falling back, and there is no ``creds.txt`` file fallback. Use
+        :meth:`from_env_or_file` when a file fallback is wanted instead.
+
+        Returns:
+            The sourced :class:`Credentials`.
+
+        Raises:
+            ThetaDataError: If ``THETADATA_API_KEY`` is unset or empty.
+        """
+        ...
+
+    @staticmethod
     def from_env_or_file(path: str) -> Credentials:
         """Source credentials from the environment, falling back to a file.
 

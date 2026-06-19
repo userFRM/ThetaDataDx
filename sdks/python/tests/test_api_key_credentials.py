@@ -29,6 +29,27 @@ def test_from_api_key_with_email_builds_credentials(mod) -> None:
     assert creds is not None
 
 
+def test_from_env_sources_strictly_from_env(mod, monkeypatch) -> None:
+    monkeypatch.setenv("THETADATA_API_KEY", "env-sourced-key")
+    creds = mod.Credentials.from_env()
+    assert creds is not None
+    # The strict env factory holds the key as secret material; the repr
+    # never exposes it.
+    rendered = repr(creds)
+    assert "env-sourced-key" not in rendered
+    assert "<redacted>" in rendered
+
+
+def test_from_env_strict_raises_when_unset(mod, monkeypatch) -> None:
+    # Strict: an unset THETADATA_API_KEY raises, with NO creds.txt fallback.
+    # The strict-unset case is an invalid-parameter config fault, a subclass
+    # of the binding's ThetaDataError base (the same base ConfigError derives
+    # from), so a `except ThetaDataError` clause covers it.
+    monkeypatch.delenv("THETADATA_API_KEY", raising=False)
+    with pytest.raises(mod.ThetaDataError):
+        mod.Credentials.from_env()
+
+
 def test_from_env_or_file_sources_from_env(mod, monkeypatch) -> None:
     monkeypatch.setenv("THETADATA_API_KEY", "env-sourced-key")
     creds = mod.Credentials.from_env_or_file("/nonexistent/creds.txt")

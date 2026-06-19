@@ -33,6 +33,30 @@ describe('Credentials API-key factories', () => {
     assert.ok(creds, 'fromApiKeyWithEmail should return a Credentials handle');
   });
 
+  it('sources credentials strictly from THETADATA_API_KEY', () => {
+    process.env.THETADATA_API_KEY = 'env-sourced-key';
+    try {
+      const creds = mod.Credentials.fromEnv();
+      assert.ok(creds, 'fromEnv should source the API key from the env');
+      const rendered = creds.toString();
+      assert.ok(
+        !rendered.includes('env-sourced-key'),
+        `toString leaked the env API key: ${rendered}`,
+      );
+      assert.ok(rendered.includes('<redacted>'));
+    } finally {
+      delete process.env.THETADATA_API_KEY;
+    }
+  });
+
+  it('rejects strict fromEnv when the env is unset (no file fallback)', () => {
+    delete process.env.THETADATA_API_KEY;
+    assert.throws(
+      () => mod.Credentials.fromEnv(),
+      'fromEnv should throw when THETADATA_API_KEY is unset',
+    );
+  });
+
   it('sources credentials from the environment, falling back to a file', () => {
     process.env.THETADATA_API_KEY = 'env-sourced-key';
     try {
