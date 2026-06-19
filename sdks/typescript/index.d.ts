@@ -68,9 +68,9 @@ export declare class Client {
    * `apiKeyFromEnv`, `apiKeyFromDotenv`, the `email` + `password` pair,
    * or `credentialsFile`. Passing none, or two different ones, rejects
    * with a `ConfigError` before any network round-trip. `mddsType`
-   * (`"PROD"` / `"STAGE"`, case-insensitive) selects the environment;
-   * `config` supplies a full `Config` whose environment and hosts win.
-   * For a pre-built `Credentials` handle, use [`Client::connect`].
+   * (`"PROD"` / `"STAGE"`, case-insensitive) selects the environment.
+   * For a pre-built full `Config` (or a pre-built `Credentials` handle),
+   * use [`Client::connect`], which takes both.
    *
    * `async` for the same reason as [`Client::connect`].
    */

@@ -23,6 +23,7 @@
 #include <cstdlib>
 #include <functional>
 #include <string>
+#include <utility>
 #include <thread>
 #include <type_traits>
 
@@ -69,6 +70,32 @@ TEST_CASE("ClientBuilder validates auth before connecting",
     // environment selectors) at compile time without connecting.
     thetadatadx::ClientBuilder builder = thetadatadx::Client::builder();
     builder.api_key("td1_example").stage();
+}
+
+TEST_CASE("ClientBuilder is single-use: connect() consumes the builder",
+          "[unified][offline]") {
+    // `connect()` is rvalue-ref-qualified, mirroring the Rust
+    // `ClientBuilder::connect(self)`. The documented inline form is an
+    // rvalue chain all the way through, so it compiles and reaches the
+    // pre-flight validation (here a conflict, surfaced before any network
+    // round-trip). This pins the consuming surface at compile time.
+    REQUIRE_THROWS_AS(thetadatadx::Client::builder()
+                          .api_key("td1_example")
+                          .email_password("you@example.com", "secret")
+                          .stage()
+                          .connect(),
+                      thetadatadx::ConfigError);
+
+    // A stored builder is handed over explicitly with std::move, which is
+    // the only way to reach the rvalue-only connect() from a named builder.
+    // Calling `stored.connect()` directly would NOT compile: connect() has
+    // a `&&` ref-qualifier, so a second use of a moved-from builder cannot
+    // be written by accident. The handover below consumes it exactly once,
+    // and the conflicting sources make connect() throw before any network
+    // round-trip, keeping the test offline.
+    thetadatadx::ClientBuilder stored = thetadatadx::Client::builder();
+    stored.api_key("td1_example").email_password("you@example.com", "secret");
+    REQUIRE_THROWS_AS(std::move(stored).connect(), thetadatadx::ConfigError);
 }
 
 TEST_CASE("api_key_from_env is strict — unset env throws ConfigError",

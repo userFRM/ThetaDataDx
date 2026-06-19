@@ -2483,81 +2483,141 @@ private:
 /// `ConfigError` from `connect()` before any network round-trip. The
 /// builder holds the chosen source by value and resolves it (env / file
 /// reads, then the gRPC handshake) only when `connect()` is called.
+///
+/// `connect()` consumes the builder: it is rvalue-ref-qualified and so is
+/// single-use, mirroring the Rust `ClientBuilder::connect(self)`. Chain it
+/// inline as above, or, for a stored builder, hand it over with
+/// `std::move(builder).connect()`.
 class ClientBuilder {
 public:
+    // Each fluent setter mutates the builder in place and returns it with
+    // the value category preserved: an lvalue overload (`&`) returns
+    // `ClientBuilder&` so a named builder keeps chaining, and an rvalue
+    // overload (`&&`) returns `ClientBuilder&&` so a chain that starts from
+    // `Client::builder()` stays an rvalue all the way into the
+    // rvalue-only `connect()`. Preserving the category is what lets the
+    // documented `Client::builder().api_key(k).stage().connect()` form
+    // compile while keeping the single-use guarantee.
+
     /// Authenticate with an inline API key — the primary, directly-passed
     /// auth argument.
-    ClientBuilder& api_key(const std::string& key) {
-        return set_auth(AuthKind::ApiKey, key, std::string(), "api_key");
+    ClientBuilder& api_key(const std::string& key) & {
+        set_auth(AuthKind::ApiKey, key, std::string(), "api_key");
+        return *this;
+    }
+    ClientBuilder&& api_key(const std::string& key) && {
+        set_auth(AuthKind::ApiKey, key, std::string(), "api_key");
+        return std::move(*this);
     }
 
     /// Source the API key from the `THETADATA_API_KEY` environment
     /// variable, read at `connect()` time. Strict: an unset or
     /// whitespace-only value throws `ConfigError` from `connect()`; there
     /// is no `creds.txt` file fallback.
-    ClientBuilder& api_key_from_env() {
-        return set_auth(AuthKind::ApiKeyFromEnv, std::string(), std::string(),
-                        "api_key_from_env");
+    ClientBuilder& api_key_from_env() & {
+        set_auth(AuthKind::ApiKeyFromEnv, std::string(), std::string(),
+                 "api_key_from_env");
+        return *this;
+    }
+    ClientBuilder&& api_key_from_env() && {
+        set_auth(AuthKind::ApiKeyFromEnv, std::string(), std::string(),
+                 "api_key_from_env");
+        return std::move(*this);
     }
 
     /// Source the credential from a `.env`-format file at `connect()`
     /// time. `THETADATA_API_KEY` selects an API key, otherwise
     /// `THETADATA_EMAIL` + `THETADATA_PASSWORD` build email + password
     /// credentials.
-    ClientBuilder& api_key_from_dotenv(const std::string& path) {
-        return set_auth(AuthKind::Dotenv, path, std::string(), "api_key_from_dotenv");
+    ClientBuilder& api_key_from_dotenv(const std::string& path) & {
+        set_auth(AuthKind::Dotenv, path, std::string(), "api_key_from_dotenv");
+        return *this;
+    }
+    ClientBuilder&& api_key_from_dotenv(const std::string& path) && {
+        set_auth(AuthKind::Dotenv, path, std::string(), "api_key_from_dotenv");
+        return std::move(*this);
     }
 
     /// Authenticate with an inline email + password pair.
-    ClientBuilder& email_password(const std::string& email, const std::string& password) {
-        return set_auth(AuthKind::EmailPassword, email, password, "email_password");
+    ClientBuilder& email_password(const std::string& email, const std::string& password) & {
+        set_auth(AuthKind::EmailPassword, email, password, "email_password");
+        return *this;
+    }
+    ClientBuilder&& email_password(const std::string& email, const std::string& password) && {
+        set_auth(AuthKind::EmailPassword, email, password, "email_password");
+        return std::move(*this);
     }
 
     /// Authenticate from a two-line `creds.txt` file (line 1 = email,
     /// line 2 = password), read at `connect()` time.
-    ClientBuilder& credentials_file(const std::string& path) {
-        return set_auth(AuthKind::CredentialsFile, path, std::string(), "credentials_file");
+    ClientBuilder& credentials_file(const std::string& path) & {
+        set_auth(AuthKind::CredentialsFile, path, std::string(), "credentials_file");
+        return *this;
+    }
+    ClientBuilder&& credentials_file(const std::string& path) && {
+        set_auth(AuthKind::CredentialsFile, path, std::string(), "credentials_file");
+        return std::move(*this);
     }
 
     /// Authenticate with a pre-built `Credentials` value — the escape
     /// hatch that covers every existing factory.
-    ClientBuilder& credentials(Credentials creds) {
-        record_auth("credentials");
-        auth_kind_ = AuthKind::Prebuilt;
-        prebuilt_ = std::make_shared<Credentials>(std::move(creds));
+    ClientBuilder& credentials(Credentials creds) & {
+        set_credentials(std::move(creds));
         return *this;
+    }
+    ClientBuilder&& credentials(Credentials creds) && {
+        set_credentials(std::move(creds));
+        return std::move(*this);
     }
 
     /// Target the staging cluster.
-    ClientBuilder& stage() {
+    ClientBuilder& stage() & {
         env_kind_ = EnvKind::Stage;
         return *this;
     }
+    ClientBuilder&& stage() && {
+        env_kind_ = EnvKind::Stage;
+        return std::move(*this);
+    }
 
     /// Target the production cluster (the default).
-    ClientBuilder& production() {
+    ClientBuilder& production() & {
         env_kind_ = EnvKind::Production;
         return *this;
+    }
+    ClientBuilder&& production() && {
+        env_kind_ = EnvKind::Production;
+        return std::move(*this);
     }
 
     /// Use a fully built `Config` verbatim. The config and the environment
     /// setters resolve in call order, last one wins: this config replaces
     /// an earlier `stage()` / `production()` selection, and a later
     /// `stage()` / `production()` call replaces this config.
-    ClientBuilder& config(Config cfg) {
-        env_kind_ = EnvKind::Config;
-        config_ = std::make_shared<Config>(std::move(cfg));
+    ClientBuilder& config(Config cfg) & {
+        set_config(std::move(cfg));
         return *this;
+    }
+    ClientBuilder&& config(Config cfg) && {
+        set_config(std::move(cfg));
+        return std::move(*this);
     }
 
     /// Build the `Credentials` + `Config` and connect.
+    ///
+    /// Consumes the builder: `connect()` is rvalue-ref-qualified, so it can
+    /// only be invoked on a temporary or a `std::move`-d builder, and a
+    /// named builder is single-use. This mirrors the Rust `ClientBuilder`,
+    /// whose `connect(self)` takes the builder by value. Call it inline,
+    /// `Client::builder().api_key(k).stage().connect()`, or on a stored
+    /// builder via `std::move(b).connect()`.
     ///
     /// @return A connected, owning `Client`.
     /// @throws thetadatadx::ConfigError when no authentication source was
     ///         set or when two different sources were set (a conflict),
     ///         before any network round-trip. Otherwise throws on a
     ///         credential-resolution or handshake failure.
-    Client connect() {
+    Client connect() && {
         if (conflict_) {
             detail::throw_config_error(
                 "conflicting authentication sources: " + first_label_ + " and " +
@@ -2568,6 +2628,10 @@ public:
                 "no authentication source set — call one of api_key, api_key_from_env, "
                 "api_key_from_dotenv, email_password, credentials_file, or credentials");
         }
+        // The builder is an about-to-expire rvalue, so the resolvers move
+        // the chosen credential and config straight out of the members. No
+        // shared state outlives this call, so a copy or a second use can
+        // never observe a moved-from source.
         Credentials creds = resolve_credentials();
         Config cfg = resolve_config();
         return Client::connect(creds, cfg);
@@ -2591,8 +2655,8 @@ private:
     /// Record an auth source, rejecting a second different one. Re-stating
     /// the same kind overwrites; a different kind latches a conflict that
     /// `connect()` reports.
-    ClientBuilder& set_auth(AuthKind kind, const std::string& a, const std::string& b,
-                            const char* label) {
+    void set_auth(AuthKind kind, const std::string& a, const std::string& b,
+                  const char* label) {
         record_auth(label);
         if (!conflict_) {
             auth_kind_ = kind;
@@ -2600,7 +2664,21 @@ private:
             auth_b_ = b;
             prebuilt_.reset();
         }
-        return *this;
+    }
+
+    /// Store a pre-built `Credentials` source, latching a conflict if a
+    /// different source was already chosen.
+    void set_credentials(Credentials creds) {
+        record_auth("credentials");
+        auth_kind_ = AuthKind::Prebuilt;
+        prebuilt_ = std::make_shared<Credentials>(std::move(creds));
+    }
+
+    /// Store a fully built `Config`, selecting the verbatim-config
+    /// environment.
+    void set_config(Config cfg) {
+        env_kind_ = EnvKind::Config;
+        config_ = std::make_shared<Config>(std::move(cfg));
     }
 
     /// Track the auth-source label so a second, different source can be
@@ -2621,7 +2699,10 @@ private:
         }
     }
 
-    Credentials resolve_credentials() const {
+    /// Non-const: the `Prebuilt` arm moves the stored `Credentials` out of
+    /// the shared member, so this runs only from the rvalue-qualified
+    /// `connect()` on an about-to-expire builder.
+    Credentials resolve_credentials() {
         switch (auth_kind_) {
             case AuthKind::ApiKey:
                 return Credentials::from_api_key(auth_a_);
@@ -2664,7 +2745,10 @@ private:
         return Credentials::from_api_key(value.substr(first, last - first + 1));
     }
 
-    Config resolve_config() const {
+    /// Non-const: the `Config` arm moves the stored `Config` out of the
+    /// shared member, so this runs only from the rvalue-qualified
+    /// `connect()` on an about-to-expire builder.
+    Config resolve_config() {
         switch (env_kind_) {
             case EnvKind::Config:
                 return std::move(*config_);
