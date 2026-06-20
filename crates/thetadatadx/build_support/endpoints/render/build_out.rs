@@ -379,17 +379,12 @@ fn generate_endpoint_stream_dispatch_arm(out: &mut String, endpoint: &GeneratedE
         .collect::<Vec<_>>()
         .join(", ");
 
-    // `mut` only when there are optional setters to apply; an endpoint with
-    // no builder params (e.g. `option_history_eod` shape) binds an immutable
-    // builder so the binding does not trip `unused_mut`.
-    let builder_binding = if builder_params.is_empty() {
-        "let builder"
-    } else {
-        "let mut builder"
-    };
+    // Always `mut`: the per-call deadline is threaded onto the builder
+    // below (and optional setters may also reassign it), so the binding is
+    // never left unused.
     writeln!(
         out,
-        "            {builder_binding} = client.{}({call_args});",
+        "            let mut builder = client.{}({call_args});",
         endpoint.name
     )
     .unwrap();
@@ -410,6 +405,8 @@ fn generate_endpoint_stream_dispatch_arm(out: &mut String, endpoint: &GeneratedE
         .unwrap();
         out.push_str("            }\n");
     }
+
+    emit_builder_deadline(out);
 
     // Drain row-by-row. The closure hands the decoder-owned slice's data
     // pointer + length to `handler` as type-erased `(*const c_void, usize)`;
@@ -483,12 +480,33 @@ fn generate_endpoint_dispatch_arm(out: &mut String, endpoint: &GeneratedEndpoint
             .map(|param| call_arg_name(param))
             .collect::<Vec<_>>()
             .join(", ");
+        // Honour the tri-state per-call deadline. `Unset` calls the plain
+        // method so the configured `request_timeout_secs` default applies;
+        // `Disabled` (`with_timeout_ms(0)`) and an explicit `Millis` route
+        // through the generated `_with_deadline` overload, where an explicit
+        // `Duration::ZERO` disables the deadline and a positive value bounds
+        // the call.
+        let deadline_args = if args.is_empty() {
+            "deadline".to_string()
+        } else {
+            format!("{args}, deadline")
+        };
+        out.push_str(
+            "            let values = match args.deadline_setting().builder_deadline() {\n",
+        );
         writeln!(
             out,
-            "            let values = client.{}({args}).await?;",
+            "                Some(deadline) => client.{}_with_deadline({deadline_args}).await?,",
             endpoint.name
         )
         .unwrap();
+        writeln!(
+            out,
+            "                None => client.{}({args}).await?,",
+            endpoint.name
+        )
+        .unwrap();
+        out.push_str("            };\n");
         writeln!(
             out,
             "            Ok(EndpointOutput::{}(values))",
@@ -545,6 +563,7 @@ fn generate_endpoint_dispatch_arm(out: &mut String, endpoint: &GeneratedEndpoint
             out.push_str("            }\n");
         }
 
+        emit_builder_deadline(out);
         out.push_str("            let mut result = Vec::new();\n");
         out.push_str("            builder\n");
         out.push_str("                .stream(|chunk| result.extend_from_slice(chunk))\n");
@@ -559,40 +578,35 @@ fn generate_endpoint_dispatch_arm(out: &mut String, endpoint: &GeneratedEndpoint
         return;
     }
 
-    if builder_params.is_empty() {
+    // Parsed (buffered) endpoint. Always bind a mutable builder so the
+    // per-call deadline can be threaded onto it even when the endpoint has
+    // no optional builder params.
+    writeln!(
+        out,
+        "            let mut builder = client.{}({call_args});",
+        endpoint.name
+    )
+    .unwrap();
+
+    for param in builder_params {
+        let getter = optional_getter_name(&param.param_type);
         writeln!(
             out,
-            "            let result = client.{}({call_args}).await?;",
-            endpoint.name
+            "            if let Some(value) = args.{getter}(\"{}\")? {{",
+            param.name
         )
         .unwrap();
-    } else {
         writeln!(
             out,
-            "            let mut builder = client.{}({call_args});",
-            endpoint.name
+            "                builder = builder.{}(value);",
+            param.name
         )
         .unwrap();
-
-        for param in builder_params {
-            let getter = optional_getter_name(&param.param_type);
-            writeln!(
-                out,
-                "            if let Some(value) = args.{getter}(\"{}\")? {{",
-                param.name
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "                builder = builder.{}(value);",
-                param.name
-            )
-            .unwrap();
-            out.push_str("            }\n");
-        }
-
-        out.push_str("            let result = builder.await?;\n");
+        out.push_str("            }\n");
     }
+
+    emit_builder_deadline(out);
+    out.push_str("            let result = builder.await?;\n");
     writeln!(
         out,
         "            Ok(EndpointOutput::{}(result))",
@@ -600,6 +614,22 @@ fn generate_endpoint_dispatch_arm(out: &mut String, endpoint: &GeneratedEndpoint
     )
     .unwrap();
     out.push_str("        }\n");
+}
+
+/// Emit the per-call deadline application for a parsed / streaming builder
+/// already bound as `mut builder`.
+///
+/// Threads [`EndpointArgs::deadline_setting`] onto the builder so the three
+/// deadline intents are honoured: an unset deadline leaves the builder's
+/// configured `request_timeout_secs` default in force (no `with_deadline`
+/// call), an explicit zero (`with_timeout_ms(0)`) disables the deadline
+/// (the call runs unbounded), and a positive value applies that bound.
+fn emit_builder_deadline(out: &mut String) {
+    out.push_str(
+        "            if let Some(deadline) = args.deadline_setting().builder_deadline() {\n",
+    );
+    out.push_str("                builder = builder.with_deadline(deadline);\n");
+    out.push_str("            }\n");
 }
 
 fn emit_required_arg(out: &mut String, _endpoint: &GeneratedEndpoint, param: &GeneratedParam) {

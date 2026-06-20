@@ -119,13 +119,25 @@ pub enum ChannelError {
     #[error("h2 handshake: {0}")]
     H2Handshake(String),
     /// h2 stream-level error scoped to the specific stream this RPC
-    /// opened. Covers `RST_STREAM` from the peer (any reason code:
-    /// `CANCEL`, `REFUSED_STREAM`, `INTERNAL_ERROR`, etc.). The h2
-    /// connection itself is healthy and the next RPC on the same
-    /// channel can succeed. Connection-level death surfaces through
-    /// [`Self::ConnectionClosed`] instead.
+    /// opened. Covers a terminal `RST_STREAM` from the peer (a reason
+    /// code that may have had server-side effect: `CANCEL`,
+    /// `INTERNAL_ERROR`, etc.). The h2 connection itself is healthy and
+    /// the next RPC on the same channel can succeed, but this stream's
+    /// outcome is undefined, so the retry shell treats it as terminal.
+    /// Connection-level death surfaces through [`Self::ConnectionClosed`]
+    /// instead, and a not-processed `REFUSED_STREAM` through
+    /// [`Self::H2StreamRefused`].
     #[error("h2 stream: {0}")]
     H2Stream(String),
+    /// h2 `RST_STREAM` with reason `REFUSED_STREAM`: the server did not
+    /// process this stream at all (RFC 7540 § 8.1.4). The h2 connection
+    /// is healthy and, because no work was started, the RPC is safe to
+    /// re-dispatch — the retry shell classifies this as transient and
+    /// retries on the next pool pick. Kept distinct from the terminal
+    /// [`Self::H2Stream`] so a not-processed reset never surfaces to the
+    /// caller as a hard failure.
+    #[error("h2 stream refused: {0}")]
+    H2StreamRefused(String),
     /// Failed to build the request URI or `:path` for the RPC.
     #[error("invalid method path {path:?}: {message}")]
     InvalidPath {
@@ -729,12 +741,18 @@ fn classify_dispatch_error(
 /// - The "inactive stream" user error — an operation targeted a stream
 ///   whose underlying connection already died.
 ///
-/// Per-stream `RST_STREAM` (`CANCEL`, `REFUSED_STREAM`,
-/// `INTERNAL_ERROR`, any reason code) is *stream-level*: only the
-/// offending stream is dead, the h2 connection itself is healthy and
-/// the next RPC on the same channel can succeed. Misclassifying these
-/// as connection-level would recycle a still-good connection. They
-/// surface as [`ChannelError::H2Stream`].
+/// Per-stream `RST_STREAM` is *stream-level*: only the offending stream
+/// is dead, the h2 connection itself is healthy and the next RPC on the
+/// same channel can succeed. Misclassifying these as connection-level
+/// would recycle a still-good connection. The reset reason decides
+/// retry-safety:
+///
+/// - `REFUSED_STREAM` means the server did not process the stream at all
+///   (RFC 7540 § 8.1.4), so the RPC is safe to re-dispatch — it surfaces
+///   as the transient [`ChannelError::H2StreamRefused`].
+/// - Every other reason (`CANCEL`, `INTERNAL_ERROR`, any other code) may
+///   have had server-side effect; the stream's outcome is undefined, so
+///   it surfaces as the terminal [`ChannelError::H2Stream`].
 fn classify_h2_error(e: &h2::Error) -> ChannelError {
     if e.is_go_away() || e.is_io() {
         return ChannelError::ConnectionClosed(e.to_string());
@@ -742,6 +760,11 @@ fn classify_h2_error(e: &h2::Error) -> ChannelError {
     let msg = e.to_string();
     if msg.contains("inactive stream") {
         return ChannelError::ConnectionClosed(msg);
+    }
+    // A not-processed reset is retry-safe; only this reason code carries
+    // that guarantee, so every other reset stays terminal.
+    if e.reason() == Some(h2::Reason::REFUSED_STREAM) {
+        return ChannelError::H2StreamRefused(msg);
     }
     ChannelError::H2Stream(msg)
 }
@@ -1053,6 +1076,54 @@ mod tests {
         match classify_status(status, None) {
             ChannelError::ConnectionClosed(_) => {}
             other => panic!("expected ConnectionClosed, got {other:?}"),
+        }
+    }
+
+    /// A `REFUSED_STREAM` reset means the server never processed the
+    /// stream (RFC 7540 § 8.1.4), so it must classify as the retry-safe
+    /// [`ChannelError::H2StreamRefused`] — the retry shell re-dispatches
+    /// it instead of surfacing a terminal failure. Pinned because the
+    /// reason-code branch is the whole of the not-processed-reset fix.
+    #[test]
+    fn refused_stream_reset_classifies_as_h2_stream_refused() {
+        let refused: h2::Error = h2::Reason::REFUSED_STREAM.into();
+        match classify_h2_error(&refused) {
+            ChannelError::H2StreamRefused(_) => {}
+            other => panic!("REFUSED_STREAM must classify as H2StreamRefused, got {other:?}"),
+        }
+    }
+
+    /// Companion: a reset with a reason other than `REFUSED_STREAM`
+    /// (here `CANCEL`) may have had server-side effect, so it stays the
+    /// terminal [`ChannelError::H2Stream`]. Only the not-processed reason
+    /// is promoted to retry-safe; every other per-stream reset keeps its
+    /// undefined outcome.
+    #[test]
+    fn other_reset_reason_stays_terminal_h2_stream() {
+        for reason in [
+            h2::Reason::CANCEL,
+            h2::Reason::INTERNAL_ERROR,
+            h2::Reason::NO_ERROR,
+        ] {
+            let err: h2::Error = reason.into();
+            match classify_h2_error(&err) {
+                ChannelError::H2Stream(_) => {}
+                other => panic!("reset {reason:?} must stay terminal H2Stream, got {other:?}"),
+            }
+        }
+    }
+
+    /// End-to-end through the status classifier: a tonic status whose
+    /// source chain carries a `REFUSED_STREAM` h2 error must surface as
+    /// the retry-safe `H2StreamRefused`, so the path the dispatch layer
+    /// actually walks honours the not-processed reset.
+    #[test]
+    fn refused_stream_through_status_chain_is_retry_safe() {
+        let refused: h2::Error = h2::Reason::REFUSED_STREAM.into();
+        let status = tonic::Status::from_error(Box::new(refused));
+        match classify_status(status, None) {
+            ChannelError::H2StreamRefused(_) => {}
+            other => panic!("expected H2StreamRefused from the status chain, got {other:?}"),
         }
     }
 }

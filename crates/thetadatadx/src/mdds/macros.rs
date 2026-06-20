@@ -34,9 +34,13 @@
 /// Resolve the effective per-request deadline.
 ///
 /// An explicit `with_deadline(...)` always wins, including
-/// `with_deadline(Duration::ZERO)` which normalizes to `None` at the
-/// builder and opts the request out of any deadline. When the caller set
-/// nothing (`explicit == None`), fall back to the configured
+/// `with_deadline(Duration::ZERO)` which means "disable the deadline" and
+/// opts the request out of any deadline. A zero `explicit` duration is
+/// normalized to `None` here so the opt-out holds on every endpoint —
+/// letting a zero `Duration` reach [`tokio::time::timeout`] would fire on
+/// the first poll and time the call out instantly, the opposite of the
+/// documented contract. When the caller set nothing (`explicit == None`),
+/// fall back to the configured
 /// [`crate::config::HistoricalConfig::request_timeout_secs`] default so a
 /// server holding the stream open without sending chunks cannot hang the
 /// request indefinitely. A configured default of `0` disables the
@@ -45,7 +49,13 @@ pub(crate) fn effective_deadline(
     explicit: Option<std::time::Duration>,
     default_secs: u64,
 ) -> Option<std::time::Duration> {
-    explicit.or_else(|| (default_secs > 0).then(|| std::time::Duration::from_secs(default_secs)))
+    match explicit {
+        // An explicit zero is the deadline opt-out: normalize to "no
+        // deadline" rather than a zero-length timeout that fires at once.
+        Some(d) if d.is_zero() => None,
+        Some(d) => Some(d),
+        None => (default_secs > 0).then(|| std::time::Duration::from_secs(default_secs)),
+    }
 }
 
 pub(crate) async fn run_with_optional_deadline<F, T>(
@@ -503,6 +513,13 @@ pub(crate) fn warn_buffered_response_size(
 /// via the pool's load-balancing picker. Either way, a transient
 /// connection blip on a long-running pool surfaces to the caller only
 /// if the retry budget itself exhausts.
+///
+/// `Error::Transport { kind: H2StreamRefused, .. }` is the per-stream
+/// `REFUSED_STREAM` reset: the server did not process the stream
+/// (RFC 7540 § 8.1.4), so the RPC is safe to re-dispatch and is
+/// classified Transient as well. A terminal per-stream reset
+/// (`TransportErrorKind::H2Stream`) keeps its undefined outcome and
+/// stays Terminal — only the not-processed reason is retried.
 fn classify_error(err: &crate::error::Error) -> StatusClass {
     use crate::error::{GrpcStatusKind, TransportErrorKind};
     match err {
@@ -514,7 +531,7 @@ fn classify_error(err: &crate::error::Error) -> StatusClass {
             _ => StatusClass::Terminal,
         },
         crate::error::Error::Transport {
-            kind: TransportErrorKind::ConnectionClosed,
+            kind: TransportErrorKind::ConnectionClosed | TransportErrorKind::H2StreamRefused,
             ..
         } => StatusClass::Transient,
         _ => StatusClass::Terminal,
@@ -722,15 +739,21 @@ macro_rules! parsed_endpoint {
             /// underlying `HistoricalClient` is unaffected; subsequent calls
             /// on the same handle succeed.
             ///
-            /// `Duration::ZERO` is normalized to "no deadline". The
-            /// alternative — wrapping in `tokio::time::timeout(ZERO, ...)` —
-            /// would fire on the first poll and never let the call complete,
-            /// almost certainly not the caller's intent. Pass a positive
-            /// `Duration` (e.g. `Duration::from_millis(1)`) for a near-instant
-            /// expiration.
+            /// `Duration::ZERO` means "disable the deadline": it opts the
+            /// call out of any bound, including the configured
+            /// `request_timeout_secs` default. The explicit zero is carried
+            /// through to [`effective_deadline`], which normalizes it to "no
+            /// deadline" — leaving it to fall back to the configured default
+            /// (the behaviour of an unset deadline) would make the opt-out
+            /// silently impose a bound. Pass a positive `Duration` (e.g.
+            /// `Duration::from_millis(1)`) for a near-instant expiration.
             #[must_use]
             pub fn with_deadline(mut self, duration: std::time::Duration) -> Self {
-                self.deadline = if duration.is_zero() { None } else { Some(duration) };
+                // Carry the value through verbatim — including `ZERO`. A
+                // bare `None` here means "caller set nothing" and routes to
+                // the configured default; an explicit `ZERO` must instead
+                // disable the deadline, which `effective_deadline` resolves.
+                self.deadline = Some(duration);
                 self
             }
 
@@ -1142,11 +1165,29 @@ mod classify_error_tests {
         assert_eq!(classify_error(&err), StatusClass::Transient);
     }
 
+    /// A `REFUSED_STREAM` per-stream reset is retry-safe: the server did
+    /// not process the stream, so the retry shell must re-dispatch it on
+    /// the next pool pick rather than surfacing it as a terminal user
+    /// error. If this flips to Terminal a future contributor has
+    /// re-broken the not-processed-reset recovery.
+    #[test]
+    fn refused_stream_transport_error_maps_to_transient() {
+        use crate::error::TransportErrorKind;
+        let err = Error::Transport {
+            kind: TransportErrorKind::H2StreamRefused,
+            message: "h2 stream refused: REFUSED_STREAM".to_string(),
+        };
+        assert_eq!(classify_error(&err), StatusClass::Transient);
+    }
+
     /// Companion: other transport errors stay terminal. A genuine
     /// TLS / DNS / Codec failure won't fix itself on retry, so the
-    /// retry shell must propagate. Pin every variant explicitly so
-    /// a future `TransportErrorKind` addition cannot accidentally
-    /// inherit the `Transient` classification.
+    /// retry shell must propagate. A terminal per-stream reset
+    /// (`H2Stream`, e.g. `CANCEL` / `INTERNAL_ERROR`) keeps its
+    /// undefined outcome and stays terminal — only the not-processed
+    /// `H2StreamRefused` reset above is retried. Pin every variant
+    /// explicitly so a future `TransportErrorKind` addition cannot
+    /// accidentally inherit the `Transient` classification.
     #[test]
     fn other_transport_error_kinds_stay_terminal() {
         use crate::error::TransportErrorKind;
@@ -1174,7 +1215,7 @@ mod classify_error_tests {
 
 #[cfg(test)]
 mod effective_deadline_tests {
-    use super::effective_deadline;
+    use super::{effective_deadline, run_with_optional_deadline};
     use std::time::Duration;
 
     /// With no explicit `with_deadline(...)`, the configured default is
@@ -1216,6 +1257,40 @@ mod effective_deadline_tests {
         assert_eq!(
             effective_deadline(None, cfg.request_timeout_secs),
             Some(Duration::from_secs(cfg.request_timeout_secs))
+        );
+    }
+
+    /// An explicit `Duration::ZERO` is the deadline opt-out and must
+    /// normalize to `None` even when a positive configured default is in
+    /// force — the explicit zero wins over the fallback. Letting the zero
+    /// flow through would wrap the call in `timeout(ZERO, ..)` and fire on
+    /// the first poll, breaking the advertised opt-out on every list
+    /// endpoint.
+    #[test]
+    fn explicit_zero_disables_deadline_over_configured_default() {
+        assert_eq!(effective_deadline(Some(Duration::ZERO), 300), None);
+    }
+
+    /// End-to-end guard for the list-endpoint deadline contract: the
+    /// `_with_deadline` arm resolves its deadline via `effective_deadline`,
+    /// so an explicit `Duration::ZERO` must yield `None` and the wrapped
+    /// future must run to completion rather than timing out on the first
+    /// poll. Drive a future that only resolves after a real `await` point
+    /// to prove the opt-out actually disables the timeout.
+    #[tokio::test]
+    async fn explicit_zero_deadline_runs_to_completion() {
+        let deadline = effective_deadline(Some(Duration::ZERO), 300);
+        assert_eq!(deadline, None, "explicit zero must disable the deadline");
+        let out: Result<u8, crate::error::Error> = run_with_optional_deadline(deadline, async {
+            // Yield once so a zero-length timeout would have a poll to
+            // fire on before this resolves.
+            tokio::task::yield_now().await;
+            Ok(7)
+        })
+        .await;
+        assert!(
+            matches!(out, Ok(7)),
+            "an explicit-zero deadline must let the call complete, got {out:?}"
         );
     }
 }
