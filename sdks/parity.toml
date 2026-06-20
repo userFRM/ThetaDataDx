@@ -71,8 +71,8 @@ cpp = true          # returned by `client.stream()`; exposed as `thetadatadx::St
 [[class]]
 name = "StreamingSession"
 python = true
-typescript = false  # JS uses a Promise-based async iterator instead — equivalent ergonomics
-cpp = false         # C++ uses RAII guard pattern instead
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts}) as the `await using` session wrapper
+cpp = false         # C++ uses the RAII guard pattern instead
 
 [[class]]
 name = "Contract"
@@ -140,90 +140,89 @@ cpp = true
 # ports across bindings by class name.
 #
 # C++ exposes one class per leaf in `thetadatadx.hpp`, matching the Python
-# tree. TypeScript also exposes one runtime class per leaf, but they
-# live in the package entry point `streaming-session.{js,d.ts}` (the
-# napi shim re-casts every `[ClassName] ...`-prefixed rejection into the
-# matching subclass). The parity checker reads the napi-generated
-# `index.d.ts`, which does not declare these JS-side classes, so each
-# row records the TypeScript column as `false` — the classes exist on
-# the public TS surface, they are simply not in the file the gate scans.
+# tree. TypeScript also exposes one runtime class per leaf; they live in the
+# package entry point `streaming-session.{js,d.ts}` (the napi shim re-casts
+# every `[ClassName] ...`-prefixed rejection into the matching subclass). The
+# parity checker resolves the TypeScript entry from `package.json` `types` /
+# `main` and scans it, so it sees these wrapper-side leaves and each row
+# records the TypeScript column as `true`.
 
 [[class]]
 name = "ThetaDataError"
 python = true
-typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
 cpp = true
 
 [[class]]
 name = "AuthenticationError"
 python = true
-typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
 cpp = true
 
 [[class]]
 name = "InvalidCredentialsError"
 python = true
-typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
 cpp = true
 
 [[class]]
 name = "SubscriptionError"
 python = true
-typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
 cpp = true
 
 [[class]]
 name = "RateLimitError"
 python = true
-typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
 cpp = true
 
 [[class]]
 name = "InvalidParameterError"
 python = true
-typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
 cpp = true
 
 [[class]]
 name = "NetworkError"
 python = true
-typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
 cpp = true
 
 [[class]]
 name = "UnavailableError"
 python = true
-typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
 cpp = true
 
 [[class]]
 name = "DeadlineExceededError"
 python = true
-typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
 cpp = true
 
 [[class]]
 name = "NotFoundError"
 python = true
-typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
 cpp = true
 
 [[class]]
 name = "SchemaMismatchError"
 python = true
-typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
 cpp = true
 
 [[class]]
 name = "StreamError"
 python = true
-typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
 cpp = true
 
 [[class]]
 name = "ConfigError"
 python = true
-typescript = false  # exported via streaming-session.{js,d.ts}, not index.d.ts
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
 cpp = true
 
 # ─── FlatFilesConfig cross-binding setters ─────────────────────────────
@@ -1039,6 +1038,24 @@ python = true
 typescript = true
 cpp = true
 rust = true         # `Client::flat_files()` view accessor
+
+# Context-managed streaming session opener. A managed-binding ergonomic that
+# pairs `start_streaming` with a scope-exit `stop_streaming` + drain barrier:
+# Python `with client.streaming(cb) as session:` and TypeScript
+# `await using session = await client.streaming(cb)`. C++ and Rust express the
+# same lifecycle through idiomatic scope-bound resource management (the C++
+# `Client` RAII destructor; Rust scoped streaming APIs) rather than a named
+# `streaming(...)` factory, so the helper is intentionally Python + TypeScript
+# only. The TypeScript side lives on the package-entry wrapper
+# (`streaming-session.{js,d.ts}`), which the method collector reads alongside
+# the napi `impl` blocks.
+[[method]]
+class = "Client"
+name = "streaming"
+python = true       # `with client.streaming(callback) as session:` context manager
+typescript = true   # `await using session = await client.streaming(callback)` wrapper
+cpp = false         # C++ uses the `Client` RAII destructor, no `streaming()` factory
+rust = false        # Rust uses scoped streaming APIs, no `streaming()` factory
 
 # ── Inline client construction (first-class API-key entry points) ──
 #

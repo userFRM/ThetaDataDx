@@ -22,8 +22,8 @@ info:
     url: https://github.com/userFRM/ThetaDataDx/blob/main/LICENSE
 
 servers:
-  - url: grpc://mdds.thetadata.us
-    description: ThetaData MDDS production gRPC server (TLS)
+  - url: http://localhost:25503
+    description: Local ThetaDataDx server (HTTP)
 
 tags:
   - name: Stock / List
