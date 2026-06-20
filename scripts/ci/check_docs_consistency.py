@@ -54,13 +54,55 @@ OPENAPI_SERVER_URL = "http://localhost:25503"
 DOCS_SITE = ROOT / "docs-site/docs"
 OPENAPI_YAML = DOCS_SITE / "public/thetadatadx.yaml"
 
-# Paths exposed only by the thetadatadx-server binary (not by the upstream
-# ThetaData terminal). Allowlist these so the drift check focuses on
-# upstream-tracking endpoints. `/v3/system/shutdown` is a privileged
-# graceful-shutdown route gated by a per-startup UUID token — see
-# `tools/server/src/handler.rs::system_shutdown` and the hardening section
-# in `docs-site/docs/server/index.md`.
-SERVER_SPECIFIC_PATHS = {"/v3/system/shutdown"}
+# Server source files that register the `/v3` HTTP routes. The server is the
+# source of truth for the served route set, so the gate parses the `.route(...)`
+# literals from these files rather than carrying a hand-maintained duplicate
+# list that could silently drift from what the binary actually serves.
+SERVER_ROUTER_FILES = (
+    ROOT / "tools/server/src/router.rs",
+    ROOT / "tools/server/src/flatfile_routes.rs",
+)
+
+# `.route("/v3/...")` literal. The path string may sit on the same line as
+# `.route(` or wrap onto the next, so `\s*` (which spans newlines) bridges the
+# two. Restricting the capture to `/v3/...` naturally excludes any non-served
+# test-only route (e.g. a `/probe` probe router under `#[cfg(test)]`).
+ROUTE_LITERAL_RE = re.compile(r"\.route\(\s*\"(/v3/[^\"]*)\"")
+
+
+def served_v3_routes() -> set[str]:
+    """The full `/v3` route set the server binary actually serves.
+
+    Parsed from the server router source (`SERVER_ROUTER_FILES`), so a route
+    added to or removed from the binary moves this set with it and the OpenAPI
+    path-set assertion below tracks the real surface with no edit to this gate.
+    Axum path params use `{name}` braces, matching the OpenAPI path templating.
+    """
+    routes: set[str] = set()
+    for path in SERVER_ROUTER_FILES:
+        routes |= set(ROUTE_LITERAL_RE.findall(path.read_text()))
+    return routes
+
+
+# Routes the server serves beyond the upstream-tracking registry endpoints:
+# the system status / lifecycle routes and the flat-file download routes. These
+# are documented in the OpenAPI contract (they are real served routes) but are
+# not in `REST_PATHS`. Derived, not hand-listed, so it cannot drift.
+SERVER_ONLY_PATHS = served_v3_routes() - REST_PATHS
+
+# operationIds for the server-only routes documented in the OpenAPI contract.
+# The upstream endpoints derive their operationId from the registry name; the
+# server-only routes carry hand-authored operationIds, pinned here so the
+# operationId-set equality below neither rejects them nor lets an unrelated id
+# slip in. `/v3/system/shutdown` carries no operationId (it never has), so it
+# contributes none.
+SERVER_ONLY_OPERATION_IDS = {
+    "systemStatus",
+    "systemMddsStatus",
+    "systemFpssStatus",
+    "flatfileGet",
+    "flatfileRequest",
+}
 BUILDER_PARAMS = {
     param["name"]
     for group in SURFACE["param_groups"].values()
@@ -452,33 +494,56 @@ def check_openapi() -> None:
             f"HTTP server url {OPENAPI_SERVER_URL!r}; found {server_urls}"
         )
 
+    # OpenAPI path keys, including templated segments (`{sec_type}`): the brace
+    # characters must be in the class or the flat-file path is invisible to the
+    # gate, the gap that let a server-only route go undocumented.
     actual_paths = {
         match.group(1)
-        for match in re.finditer(r"^  (/[A-Za-z0-9_/-]+):\s*$", text, re.MULTILINE)
+        for match in re.finditer(r"^  (/[A-Za-z0-9_/{}-]+):\s*$", text, re.MULTILINE)
     }
-    # Server-specific paths are expected in our OpenAPI (they document
-    # functionality the thetadatadx-server binary exposes) but are NOT in
-    # the upstream endpoint registry. Filter them out before comparing to
-    # `REST_PATHS` so the drift check only fires on real upstream drift.
-    effective_actual_paths = actual_paths - SERVER_SPECIFIC_PATHS
-    if effective_actual_paths != REST_PATHS:
-        missing = sorted(REST_PATHS - effective_actual_paths)
-        extra = sorted(effective_actual_paths - REST_PATHS)
+    # The contract must document the FULL served route set: the upstream-tracking
+    # registry endpoints plus every server-only `/v3` route the binary serves
+    # (system status / lifecycle + flat-file downloads), derived from the server
+    # router source. A route the binary serves but the spec omits leaves a
+    # generated client unable to call it; a spec path the binary does not serve
+    # is a dangling contract. Either direction trips.
+    expected_paths = REST_PATHS | SERVER_ONLY_PATHS
+    if actual_paths != expected_paths:
+        missing = sorted(expected_paths - actual_paths)
+        extra = sorted(actual_paths - expected_paths)
         fail(
-            f"{OPENAPI_YAML.relative_to(ROOT)} path set drifted. "
-            f"missing={missing or '[]'} extra={extra or '[]'}"
+            f"{OPENAPI_YAML.relative_to(ROOT)} path set drifted from the served "
+            f"route set. missing={missing or '[]'} extra={extra or '[]'}"
         )
 
     actual_ops = {
         match.group(1) for match in re.finditer(r"^\s*operationId:\s*(\S+)", text, re.MULTILINE)
     }
-    expected_ops = {lower_camel(ep["name"]) for ep in REGISTRY_ENDPOINTS}
+    # Registry endpoints derive their operationId from the registry name; the
+    # server-only routes carry their pinned hand-authored ids. The full set must
+    # match exactly so neither a dropped endpoint id nor a stray id slips by.
+    expected_ops = {
+        lower_camel(ep["name"]) for ep in REGISTRY_ENDPOINTS
+    } | SERVER_ONLY_OPERATION_IDS
     if actual_ops != expected_ops:
         missing = sorted(expected_ops - actual_ops)
         extra = sorted(actual_ops - expected_ops)
         fail(
             f"{OPENAPI_YAML.relative_to(ROOT)} operationId set drifted. "
             f"missing={missing or '[]'} extra={extra or '[]'}"
+        )
+
+    # No global per-request security scheme. The server authenticates its
+    # upstream connection once at startup; request paths carry no per-request
+    # credential. The only allowed requirement is the route-scoped shutdown
+    # token on POST /v3/system/shutdown. A top-level `security:` block (a
+    # document-wide default applied to every operation) is a contract for a
+    # credential the server never reads, so it must not reappear.
+    if re.search(r"(?m)^security:\s*$", text):
+        fail(
+            f"{OPENAPI_YAML.relative_to(ROOT)} declares a global `security:` block. "
+            f"The server reads no per-request credential; keep only the "
+            f"route-scoped shutdown token on POST /v3/system/shutdown."
         )
 
 

@@ -240,10 +240,25 @@ def collect_python_classes(py_src: pathlib.Path) -> set[str]:
 # hierarchy).
 TS_CLASS_RE = re.compile(r"export\s+(?:declare\s+)?(?:abstract\s+)?class\s+(\w+)")
 TS_INTERFACE_RE = re.compile(r"export\s+(?:declare\s+)?interface\s+(\w+)")
-# `export declare const X: { new (...): X; ... }`: the runtime-class shape
-# the wrapper uses for a hand-written class (e.g. `StreamingSession`) that has
-# a companion `interface` of the same name.
-TS_CONST_CLASS_RE = re.compile(r"export\s+declare\s+const\s+(\w+)\s*:")
+# Runtime-class-const shapes: a `const` export whose value is a real runtime
+# constructor. Two forms ship on the wrapper entry, and both must be held to a
+# matching runtime export exactly like a declared `class`:
+#
+#   export const Contract: typeof ContractRef;              (alias to a class)
+#   export declare const StreamingSession: { new (...): X } (inline ctor object)
+#
+# The `declare` keyword is optional: the `Contract` alias is emitted without it
+# (`export const Contract: typeof ContractRef`), while `StreamingSession` ships
+# with it. The annotation MUST be a `typeof` alias or an object type carrying a
+# `new` constructor signature; a plain value const (`export declare const
+# VERSION: string`) compiles to no constructor, so it is NOT a runtime class and
+# must not be forced to have a runtime export. `const enum` declarations are
+# excluded because the captured token would be `enum`, which is not followed by
+# the `:` annotation this pattern requires.
+TS_CONST_CLASS_RE = re.compile(
+    r"export\s+(?:declare\s+)?const\s+(\w+)\s*:\s*"
+    r"(?:typeof\s+\w+|\{[^}]*\bnew\b[^}]*\})"
+)
 # `export * from './<module>'`: the wrapper entry re-exports the whole napi
 # surface this way, so the gate must follow the re-export to see those
 # declarations as part of the scanned entry.
@@ -6482,11 +6497,139 @@ def _run_selftest() -> int:
                 f"got {sorted(found)}"
             )
 
+    def _case_ts_const_alias_class_runtime_present_silent() -> None:
+        """A `const` runtime-class alias (`export const X: typeof Y`) backed by a
+        same-name `interface` is satisfied ONLY when the alias is exported at
+        runtime. With the runtime export present the row stays silent — this is
+        the shipped `Contract` shape (alias of `ContractRef`, plus the streaming
+        event-payload `interface Contract`)."""
+        rows = [{"name": "Contract", "python": False, "typescript": True, "cpp": False}]
+        with tempfile.TemporaryDirectory() as tmp:
+            dc, di, rt = _materialize_ts_pkg(
+                tmp,
+                dts_body=(
+                    "export declare class ContractRef {}\n"
+                    "export const Contract: typeof ContractRef;\n"
+                    "export type Contract = ContractRef;\n"
+                    "export interface Contract { symbol: string }\n"
+                ),
+                js_body=(
+                    "module.exports = Object.assign({}, "
+                    "{ ContractRef, Contract: ContractRef });\n"
+                ),
+            )
+            assert "Contract" in dc, (
+                f"the `typeof` alias must classify Contract as a runtime class; "
+                f"got declared_classes={sorted(dc)}"
+            )
+            errors = _check_class_rows(rows, set(), set(), dc, di, rt)
+        assert errors == [], (
+            f"const-alias runtime class with a runtime export must be silent; "
+            f"got {errors!r}"
+        )
+
+    def _case_ts_const_alias_class_runtime_drop_trips() -> None:
+        """Dropping ONLY the runtime `Contract` alias from the package entry
+        (while the same-name `interface Contract` and the `ContractRef` class
+        both remain) MUST trip the gate. The `typeof` alias is a real runtime
+        constructor, so the interface fallback must not stand in for the dropped
+        runtime export — the alias-bypass hole this fix closes."""
+        rows = [{"name": "Contract", "python": False, "typescript": True, "cpp": False}]
+        with tempfile.TemporaryDirectory() as tmp:
+            dc, di, rt = _materialize_ts_pkg(
+                tmp,
+                # `Contract` is still declared as a runtime-class alias and as a
+                # same-name interface; `ContractRef` still ships ...
+                dts_body=(
+                    "export declare class ContractRef {}\n"
+                    "export const Contract: typeof ContractRef;\n"
+                    "export interface Contract { symbol: string }\n"
+                ),
+                # ... but the runtime `Contract` alias is gone (only ContractRef
+                # is exported), so `import { Contract }` resolves to undefined.
+                js_body="module.exports = Object.assign({}, { ContractRef });\n",
+            )
+            errors = _check_class_rows(rows, set(), set(), dc, di, rt)
+        assert any(
+            "Contract.typescript" in e and "missing" in e and "runtime export" in e
+            for e in errors
+        ), (
+            f"a dropped runtime const-alias must trip despite the same-name "
+            f"interface; got {errors!r}"
+        )
+
+    def _case_ts_inline_ctor_const_class_runtime_drop_trips() -> None:
+        """The inline-constructor `const` shape
+        (`export declare const X: { new (...): X }`, the shipped
+        `StreamingSession`) is also held to a runtime export: dropping it from
+        the runtime trips the gate."""
+        rows = [
+            {"name": "StreamingSession", "python": False, "typescript": True, "cpp": False}
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            dc, di, rt = _materialize_ts_pkg(
+                tmp,
+                dts_body=(
+                    "export declare const StreamingSession: {\n"
+                    "  new (client: unknown): StreamingSession;\n"
+                    "  prototype: StreamingSession;\n"
+                    "};\n"
+                    "export interface StreamingSession { drainNow(): void }\n"
+                ),
+                js_body="module.exports = Object.assign({}, {});\n",
+            )
+            assert "StreamingSession" in dc, (
+                f"the inline-ctor const must classify as a runtime class; "
+                f"got declared_classes={sorted(dc)}"
+            )
+            errors = _check_class_rows(rows, set(), set(), dc, di, rt)
+        assert any(
+            "StreamingSession.typescript" in e and "missing" in e and "runtime export" in e
+            for e in errors
+        ), f"a dropped inline-ctor const-class must trip; got {errors!r}"
+
+    def _case_ts_value_const_not_a_runtime_class() -> None:
+        """A plain value `const` export (`export declare const VERSION: string`)
+        is NOT a runtime class: it carries no constructor, so it must never be
+        forced to have a runtime constructor export. The over-broad earlier
+        pattern matched any `export declare const X:` and wrongly demanded one.
+        A `const enum` is likewise not a runtime class here."""
+        with tempfile.TemporaryDirectory() as tmp:
+            dc, di, rt = _materialize_ts_pkg(
+                tmp,
+                dts_body=(
+                    "export declare const VERSION: string;\n"
+                    "export const BUILD: number = 7;\n"
+                    "export declare const enum Venue { Nasdaq = 0 }\n"
+                ),
+                js_body='module.exports = Object.assign({}, { VERSION, BUILD });\n',
+            )
+            for value_const in ("VERSION", "BUILD", "Venue"):
+                assert value_const not in dc, (
+                    f"value const / const enum {value_const} must NOT classify as a "
+                    f"runtime class; got declared_classes={sorted(dc)}"
+                )
+            # A row that claims `VERSION` ships on TypeScript is satisfied by the
+            # runtime export alone (flagged only as an untyped-runtime typing
+            # gap), never rejected for a missing constructor.
+            rows = [
+                {"name": "VERSION", "python": False, "typescript": True, "cpp": False}
+            ]
+            errors = _check_class_rows(rows, set(), set(), dc, di, rt)
+        assert not any("missing" in e for e in errors), (
+            f"a value const exported at runtime must not be reported missing as a "
+            f"runtime class; got {errors!r}"
+        )
+
     _case("ts class row - declared + runtime export silent", _case_ts_class_row_runtime_present_silent)
     _case("ts class row - JS runtime export drop trips", _case_ts_class_row_runtime_drop_trips)
     _case("ts class row - .d.ts drop caught as typing gap", _case_ts_class_row_dts_drop_caught_as_typing_gap)
     _case("ts class row - interface-only needs no runtime export", _case_ts_interface_row_no_runtime_required)
     _case("ts runtime - object-literal keys read past comments", _case_ts_runtime_export_via_object_literal_comments)
+    _case("ts const-alias class - typeof alias + runtime export silent", _case_ts_const_alias_class_runtime_present_silent)
+    _case("ts const-alias class - dropped runtime alias trips past interface", _case_ts_const_alias_class_runtime_drop_trips)
+    _case("ts const-class - dropped inline-ctor runtime export trips", _case_ts_inline_ctor_const_class_runtime_drop_trips)
+    _case("ts value const - not forced to be a runtime class", _case_ts_value_const_not_a_runtime_class)
 
     def _case_flatfiles_namespace_fetch_resolves() -> None:
         """A `FlatFilesNamespace` fetch row resolves through the C++ alias to the

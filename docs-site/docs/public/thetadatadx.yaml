@@ -60,9 +60,15 @@ tags:
     description: Market calendar operations (open today, date info, yearly calendar)
   - name: Interest Rate
     description: Interest rate data endpoints
+  - name: System
+    description: Server status and lifecycle endpoints
+  - name: Flat Files
+    description: Whole-universe daily flat-file downloads (CSV or JSON Lines)
 
-security:
-  - sessionAuth: []
+# No global security requirement: the server authenticates its upstream
+# connection once at startup, and request paths carry no per-request
+# credential. The only route-scoped requirement is the shutdown token on
+# POST /v3/system/shutdown.
 
 # ---------------------------------------------------------------------------
 # Reusable anchors for common parameter/schema objects
@@ -2962,9 +2968,105 @@ paths:
           source: |
             auto rates = client.historical().interest_rate_history_eod("SOFR", "20240101", "20240301");
 
+  # =========================================================================
+  # SYSTEM
+  # =========================================================================
+
+  /v3/system/status:
+    get:
+      operationId: systemStatus
+      tags: [System]
+      summary: Server status
+      description: |
+        Reports overall server health: the upstream data connection state and
+        the running server version.
+      parameters: []
+      responses:
+        '200':
+          description: Server status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [CONNECTED, DISCONNECTED]
+                    description: Upstream data connection state.
+                  version:
+                    type: string
+                    description: Running server version.
+
+  /v3/system/mdds/status:
+    get:
+      operationId: systemMddsStatus
+      tags: [System]
+      summary: Historical data connection status
+      description: |
+        Reports the historical data connection state wrapped in the standard
+        response envelope.
+      parameters: []
+      responses:
+        '200':
+          description: Historical data connection status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  header:
+                    type: object
+                    properties:
+                      format:
+                        type: string
+                        enum: [json]
+                      error_type:
+                        type: string
+                        enum: ['null']
+                  response:
+                    type: array
+                    items:
+                      type: string
+                      enum: [CONNECTED, DISCONNECTED]
+                    description: Single-element array with the connection state.
+
+  /v3/system/fpss/status:
+    get:
+      operationId: systemFpssStatus
+      tags: [System]
+      summary: Streaming connection status
+      description: |
+        Reports the streaming connection state, the running server version, and
+        two back-pressure counters operators can scrape to detect dropped
+        events without tailing logs.
+      parameters: []
+      responses:
+        '200':
+          description: Streaming connection status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [CONNECTED, DISCONNECTED]
+                    description: Streaming connection state.
+                  version:
+                    type: string
+                    description: Running server version.
+                  broadcast_dropped:
+                    type: integer
+                    format: int64
+                    description: Total streaming events dropped on the internal handoff since startup.
+                  json_serialize_failures:
+                    type: integer
+                    format: int64
+                    description: Total streaming-event serialization failures since startup.
+
   /v3/system/shutdown:
     post:
-      tags: [system]
+      tags: [System]
       summary: Graceful server shutdown
       description: |
         Initiates a graceful shutdown of the thetadatadx server.
@@ -2981,18 +3083,128 @@ paths:
         '429':
           description: Too many attempts (rate-limited)
 
+  # =========================================================================
+  # FLAT FILES
+  # =========================================================================
+
+  /v3/flatfile/{sec_type}/{req_type}:
+    get:
+      operationId: flatfileGet
+      tags: [Flat Files]
+      summary: Download a daily flat file (path form)
+      description: |
+        Downloads a whole-universe daily flat file for one security type and
+        request type. The `sec_type` and `req_type` path segments are matched
+        case-insensitively. The response body is the file bytes, streamed as an
+        attachment. A security-type / request-type pair the flat-file
+        distribution does not serve returns 400.
+      parameters:
+        - name: sec_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [option, stock, index]
+          description: Security type (case-insensitive).
+        - name: req_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [eod, quote, open_interest, ohlc, trade, trade_quote]
+          description: Request type (case-insensitive).
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Trading date in YYYYMMDD format.
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [csv, jsonl]
+            default: csv
+          description: On-disk format. Defaults to csv.
+      responses:
+        '200':
+          description: |
+            Flat-file bytes streamed as an attachment. Content type is
+            `text/csv` for csv or `application/x-ndjson` for jsonl.
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/x-ndjson:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Unknown security type, request type, format, or date, or an unserved pair.
+        '502':
+          description: The flat-file distribution is unavailable upstream.
+
+  /v3/flatfile/request:
+    post:
+      operationId: flatfileRequest
+      tags: [Flat Files]
+      summary: Download a daily flat file (body form)
+      description: |
+        Downloads a whole-universe daily flat file described by a JSON body.
+        The `sec_type` and `req_type` fields are matched case-insensitively.
+        The response body is the file bytes, streamed as an attachment. A
+        security-type / request-type pair the flat-file distribution does not
+        serve returns 400.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sec_type, req_type, date]
+              properties:
+                sec_type:
+                  type: string
+                  enum: [option, stock, index]
+                  description: Security type (case-insensitive).
+                req_type:
+                  type: string
+                  enum: [eod, quote, open_interest, ohlc, trade, trade_quote]
+                  description: Request type (case-insensitive).
+                date:
+                  type: string
+                  description: Trading date in YYYYMMDD format.
+                format:
+                  type: string
+                  enum: [csv, jsonl]
+                  default: csv
+                  description: On-disk format. Defaults to csv.
+      responses:
+        '200':
+          description: |
+            Flat-file bytes streamed as an attachment. Content type is
+            `text/csv` for csv or `application/x-ndjson` for jsonl.
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/x-ndjson:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Unknown security type, request type, format, or date, or an unserved pair.
+        '502':
+          description: The flat-file distribution is unavailable upstream.
+
 # ---------------------------------------------------------------------------
 # COMPONENTS
 # ---------------------------------------------------------------------------
 components:
   securitySchemes:
-    sessionAuth:
-      type: apiKey
-      in: header
-      name: X-Session-UUID
-      description: |
-        Session UUID obtained by authenticating credentials against the Nexus HTTP API.
-        The SDK handles this automatically via `Client::connect()`.
     shutdownToken:
       type: apiKey
       in: header
