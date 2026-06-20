@@ -310,6 +310,35 @@ fn is_hex_token_at(bytes: &[u8], pos: usize) -> bool {
 //  Tool definitions — generated from endpoint registry + generated utilities
 // ═══════════════════════════════════════════════════════════════════════════
 
+/// Tools that run without a connected ThetaData client.
+///
+/// `ping` reports server status; `all_greeks` and `implied_volatility` are pure
+/// Black-Scholes computations that never touch an upstream server. When no
+/// client is connected the server advertises exactly these — the rest of the
+/// surface (registry historical endpoints, flat-file tools) requires a live
+/// connection and is withheld until one exists, so `tools/list` never offers a
+/// tool a `tools/call` would reject for lack of a client. The set must match
+/// the offline-mode tools the README and process banner promise.
+const OFFLINE_TOOL_NAMES: [&str; 3] = ["ping", "all_greeks", "implied_volatility"];
+
+/// Tool definitions to advertise given the current connection state.
+///
+/// Connected: the full surface. Disconnected: only [`OFFLINE_TOOL_NAMES`], so
+/// the advertised list matches what `tools/call` can actually serve offline.
+fn tool_definitions_for(connected: bool) -> Vec<Value> {
+    let all = tool_definitions();
+    if connected {
+        return all;
+    }
+    all.into_iter()
+        .filter(|tool| {
+            tool.get("name")
+                .and_then(|name: &Value| name.as_str())
+                .is_some_and(|name| OFFLINE_TOOL_NAMES.contains(&name))
+        })
+        .collect()
+}
+
 fn tool_definitions() -> Vec<Value> {
     let mut tools = Vec::with_capacity(ENDPOINTS.len() + 3);
 
@@ -1014,6 +1043,7 @@ fn convert_endpoint_args(args: &Value) -> Result<EndpointArgs, String> {
 
 /// Failure of a tool invocation, mapped to a JSON-RPC error code at the
 /// dispatch boundary.
+#[derive(Debug)]
 pub(crate) enum ToolError {
     /// -32602: Invalid params
     InvalidParams(String),
@@ -1109,7 +1139,11 @@ async fn handle_request(
         "notifications/initialized" => JsonRpcResponse::success(id, Value::new_null()),
 
         "tools/list" => {
-            let tools = tool_definitions();
+            // Advertise only what `tools/call` can serve in the current state:
+            // the full surface when a client is connected, otherwise just the
+            // offline tools. `client` is the lock-free `OnceCell::get` above,
+            // so presence reflects whether the background connect has landed.
+            let tools = tool_definitions_for(client.is_some());
             JsonRpcResponse::success(id, json!({ "tools": tools }))
         }
 
@@ -1477,6 +1511,70 @@ mod tests {
         assert!(
             strike_range.contains("does not expand a pinned strike"),
             "strike_range description should explain wildcard-only filtering semantics: {strike_range}"
+        );
+    }
+
+    fn tool_names(tools: &[Value]) -> HashSet<String> {
+        tools
+            .iter()
+            .filter_map(|tool| {
+                tool.get("name")
+                    .and_then(|name: &Value| name.as_str())
+                    .map(ToString::to_string)
+            })
+            .collect()
+    }
+
+    /// Offline (`connected = false`), `tools/list` must advertise exactly the
+    /// three tools that run without an upstream connection — the same set the
+    /// README and process banner promise — and nothing that `tools/call` would
+    /// reject for lack of a client.
+    #[test]
+    fn offline_tools_list_advertises_only_the_offline_tools() {
+        let offline = tool_definitions_for(false);
+        let names = tool_names(&offline);
+
+        let expected: HashSet<String> =
+            OFFLINE_TOOL_NAMES.iter().map(ToString::to_string).collect();
+        assert_eq!(
+            names, expected,
+            "offline tools/list must advertise exactly {OFFLINE_TOOL_NAMES:?}"
+        );
+    }
+
+    /// Connected (`connected = true`), `tools/list` must advertise the full
+    /// surface: the offline tools plus the registry historical endpoints and
+    /// the flat-file tools that require a live client.
+    #[test]
+    fn connected_tools_list_advertises_the_full_surface() {
+        let connected = tool_definitions_for(true);
+        let names = tool_names(&connected);
+
+        for offline in OFFLINE_TOOL_NAMES {
+            assert!(
+                names.contains(offline),
+                "connected tools/list must still advertise the offline tool `{offline}`"
+            );
+        }
+        // A flat-file tool and a registry historical endpoint are connection-only
+        // and must appear only in the connected surface.
+        for online_only in [
+            "thetadatadx_flatfile_option_trade_quote",
+            "option_history_greeks_eod",
+        ] {
+            assert!(
+                names.contains(online_only),
+                "connected tools/list must advertise the connection-only tool `{online_only}`"
+            );
+            assert!(
+                !OFFLINE_TOOL_NAMES.contains(&online_only),
+                "test fixture `{online_only}` must be a connection-only tool"
+            );
+        }
+        assert_eq!(
+            connected.len(),
+            tool_definitions().len(),
+            "connected tools/list must advertise the complete tool surface"
         );
     }
 

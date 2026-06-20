@@ -19,16 +19,37 @@
 //! The convenience tools cover exactly the datasets the flat-file
 //! distribution serves, each taking `(date, output_path?, format?)`. The
 //! generic tool takes `(sec_type, req_type, date, output_path, format)`
-//! with case-insensitive enum strings; an unserved `(sec_type, req_type)`
-//! pair surfaces a typed invalid-parameter error before any network
-//! round-trip. A missing `output_path` writes to a deterministic temp
-//! path and surfaces it in the response.
+//! with case-insensitive enum strings constrained to the served matrix; an
+//! unserved `(sec_type, req_type)` pair is rejected with a typed
+//! invalid-parameter error before any network round-trip. A missing
+//! `output_path` writes to a deterministic temp path and surfaces it in
+//! the response.
 
 use sonic_rs::{json, JsonValueTrait, Value};
-use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
+use thetadatadx::flatfiles::{flat_file_serves, FlatFileFormat, ReqType, SecType, SERVED_DATASETS};
 use thetadatadx::Client;
 
 use crate::ToolError;
+
+/// Distinct enum tokens for the `sec_type` / `req_type` schema, derived from
+/// the served matrix so the advertised choices can never drift from what the
+/// flat-file service actually serves. Each served token is offered in both its
+/// upper-case (`OPTION`) and lower-case (`option`) spelling, matching the
+/// case-insensitive parser; the helper preserves the matrix order and skips
+/// duplicates.
+fn served_enum_tokens(select: impl Fn(&(SecType, ReqType)) -> String) -> Vec<Value> {
+    let mut tokens: Vec<String> = Vec::new();
+    for pair in SERVED_DATASETS {
+        let upper = select(pair);
+        let lower = upper.to_ascii_lowercase();
+        for token in [upper, lower] {
+            if !tokens.contains(&token) {
+                tokens.push(token);
+            }
+        }
+    }
+    tokens.iter().map(|t| Value::from(t.as_str())).collect()
+}
 
 /// Append flatfile tool definitions to the `tools/list` array.
 pub(crate) fn push_flatfile_tool_definitions(tools: &mut Vec<Value>) {
@@ -88,24 +109,24 @@ pub(crate) fn push_flatfile_tool_definitions(tools: &mut Vec<Value>) {
 
     tools.push(json!({
         "name": "thetadatadx_flatfile_request",
-        "description": "Generic flat-file request. Pull a whole-universe daily blob for any \
-                        (sec_type, req_type) combination supported by ThetaData. Returns the \
-                        written file path.",
+        "description": "Generic flat-file request. Pull a whole-universe daily blob for a \
+                        served (sec_type, req_type) combination. The flat-file service serves \
+                        option trade_quote / open_interest / eod and stock trade_quote / eod; \
+                        any other pair is rejected. Returns the written file path.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "sec_type": {
                     "type": "string",
-                    "description": "Security type.",
-                    "enum": ["OPTION", "STOCK", "INDEX", "option", "stock", "index"]
+                    "description": "Security type. Only security types with a served flat-file \
+                                    dataset are accepted.",
+                    "enum": served_enum_tokens(|(sec, _)| sec.to_string())
                 },
                 "req_type": {
                     "type": "string",
-                    "description": "Request type.",
-                    "enum": [
-                        "EOD", "QUOTE", "OPEN_INTEREST", "OHLC", "TRADE", "TRADE_QUOTE",
-                        "eod", "quote", "open_interest", "ohlc", "trade", "trade_quote"
-                    ]
+                    "description": "Request type. Only request types served as a flat file are \
+                                    accepted; the valid set depends on the security type.",
+                    "enum": served_enum_tokens(|(_, req)| req.as_str().to_ascii_uppercase())
                 },
                 "date": date_prop,
                 "output_path": output_prop,
@@ -214,6 +235,18 @@ pub(crate) async fn try_execute_flatfile_tool(
         convenience_pair(name)?
     };
 
+    // Reject an unserved (sec_type, req_type) pair at the surface, before any
+    // path or network work. The advertised enums already exclude pairs the
+    // service never serves; this guards the generic tool against a combination
+    // that parses to valid variants but isn't a served flat-file dataset
+    // (e.g. stock open_interest). The served matrix is the single source.
+    if !flat_file_serves(sec_type, req_type) {
+        return Some(Err(ToolError::InvalidParams(format!(
+            "flat-file service does not serve {sec_type} {}",
+            req_type.as_str()
+        ))));
+    }
+
     let date = match arg_str(args, "date") {
         Ok(d) => d,
         Err(e) => return Some(Err(ToolError::InvalidParams(e))),
@@ -285,7 +318,87 @@ fn classify_core_error(e: &thetadatadx::Error) -> ToolError {
 
 #[cfg(test)]
 mod tests {
+    use sonic_rs::JsonContainerTrait;
+
     use super::*;
+
+    /// Collect the advertised `enum` tokens for a property on the generic
+    /// `thetadatadx_flatfile_request` tool schema.
+    fn generic_request_enum(property: &str) -> Vec<String> {
+        let mut tools: Vec<Value> = Vec::new();
+        push_flatfile_tool_definitions(&mut tools);
+        let generic = tools
+            .iter()
+            .find(|t| t.get("name").as_str() == Some("thetadatadx_flatfile_request"))
+            .expect("generic flatfile tool must be advertised");
+        generic
+            .pointer(["inputSchema", "properties", property, "enum"])
+            .and_then(|v| v.as_array())
+            .expect("property must carry an enum")
+            .iter()
+            .filter_map(|v| v.as_str().map(ToString::to_string))
+            .collect()
+    }
+
+    /// The advertised `sec_type` / `req_type` enums must cover exactly the
+    /// tokens the served matrix yields (each in both cases) and must not offer
+    /// a security or request type the flat-file service never serves — no
+    /// `INDEX`, no per-tick `QUOTE` / `TRADE` / `OHLC`.
+    #[test]
+    fn generic_tool_enums_match_the_served_matrix() {
+        let sec_tokens = generic_request_enum("sec_type");
+        for served in ["OPTION", "STOCK", "option", "stock"] {
+            assert!(
+                sec_tokens.iter().any(|t| t == served),
+                "sec_type enum must advertise `{served}`; got {sec_tokens:?}"
+            );
+        }
+        for unserved in ["INDEX", "index"] {
+            assert!(
+                !sec_tokens.iter().any(|t| t == unserved),
+                "sec_type enum must not advertise unserved `{unserved}`; got {sec_tokens:?}"
+            );
+        }
+
+        let req_tokens = generic_request_enum("req_type");
+        for served in ["TRADE_QUOTE", "OPEN_INTEREST", "EOD"] {
+            assert!(
+                req_tokens.iter().any(|t| t == served),
+                "req_type enum must advertise `{served}`; got {req_tokens:?}"
+            );
+        }
+        for unserved in ["QUOTE", "TRADE", "OHLC", "quote", "trade", "ohlc"] {
+            assert!(
+                !req_tokens.iter().any(|t| t == unserved),
+                "req_type enum must not advertise unserved `{unserved}`; got {req_tokens:?}"
+            );
+        }
+    }
+
+    /// A pair that parses to valid variants but is not a served flat-file
+    /// dataset — stock `open_interest` — must be rejected at the surface with
+    /// `-32602` Invalid params, before any client work, even though both the
+    /// security type and the request type are individually served.
+    #[tokio::test]
+    async fn unserved_but_parseable_pair_is_rejected_at_the_surface() {
+        let args = json!({
+            "sec_type": "STOCK",
+            "req_type": "OPEN_INTEREST",
+            "date": "20260428",
+        });
+        let result = try_execute_flatfile_tool(None, "thetadatadx_flatfile_request", &args)
+            .await
+            .expect("the generic flatfile tool must handle this name");
+        match result {
+            Err(ToolError::InvalidParams(msg)) => {
+                assert!(
+                    msg.contains("does not serve") && msg.contains("open_interest"),
+                    "rejection must name the unserved dataset; got {msg:?}"
+                );
+            }
+            other => panic!("unserved pair must map to InvalidParams; got {other:?}"),
+        }
+    }
 
     /// An unserved (sec_type, req_type) flat-file pair — e.g. option
     /// quote — is rejected by the core dataset gate with the same typed

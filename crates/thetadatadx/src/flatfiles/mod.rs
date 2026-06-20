@@ -41,7 +41,7 @@ pub use decoded::{
 pub use decoded_row::{FlatFileRow, FlatFileValue};
 pub use format::FlatFileFormat;
 pub use request::{flatfile_request_raw, flatfile_request_raw_with_config};
-pub use types::{FlatFilesUnavailableReason, ReqType, SecType};
+pub use types::{flat_file_serves, FlatFilesUnavailableReason, ReqType, SecType, SERVED_DATASETS};
 
 /// Decode an already-saved raw FLATFILES blob into a typed output file.
 ///

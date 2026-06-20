@@ -3,8 +3,9 @@
 //! Wires `thetadatadx flatfile {trade_quote,open_interest,eod,stock_trade_quote,stock_eod,request}`
 //! to `thetadatadx::Client::flatfile_request`. The convenience
 //! subcommands cover exactly the datasets the flat-file distribution
-//! serves; the generic `request` arm rejects an unserved `(sec_type,
-//! req_type)` pair with a typed invalid-parameter error. Output goes to the
+//! serves; the generic `request` arm constrains `--sec-type` / `--req-type`
+//! to the served union and rejects an unserved `(sec_type, req_type)` pair
+//! with a typed invalid-parameter error. Output goes to the
 //! path supplied with `-o` / `--output`; if absent, the CSV/JSONL bytes
 //! are streamed to stdout via `std::io::copy` from the file just written
 //! (the SDK's primary entry point writes to disk; the CLI reroutes on demand).
@@ -14,8 +15,49 @@
 //! SDK methods reflect that contract; the CLI mirrors it 1:1.
 
 use clap::{Arg, ArgMatches, Command};
-use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
+use thetadatadx::flatfiles::{flat_file_serves, FlatFileFormat, ReqType, SecType, SERVED_DATASETS};
 use thetadatadx::Credentials;
+
+/// Lower-case CLI token for a security type. The flag spelling is lower-case
+/// (`option` / `stock`), distinct from the upper-case `SEC=` wire token, so it
+/// is sourced here rather than from the wire formatter.
+fn sec_type_cli_token(sec: SecType) -> &'static str {
+    match sec {
+        SecType::Option => "option",
+        SecType::Stock => "stock",
+        SecType::Index => "index",
+    }
+}
+
+/// Distinct lower-case `sec_type` flag values the flat-file service serves,
+/// derived from the served matrix so the generic `request` arm can never
+/// advertise a security type without a served dataset (no `index`). Order
+/// follows the matrix; duplicates are skipped.
+fn served_sec_type_tokens() -> Vec<&'static str> {
+    let mut tokens: Vec<&'static str> = Vec::new();
+    for (sec, _) in SERVED_DATASETS {
+        let token = sec_type_cli_token(*sec);
+        if !tokens.contains(&token) {
+            tokens.push(token);
+        }
+    }
+    tokens
+}
+
+/// Distinct lower-case `req_type` flag values served as a flat file, derived
+/// from the served matrix so the generic `request` arm advertises only request
+/// types that exist as flat files (no per-tick `quote` / `trade` / `ohlc`).
+/// `ReqType::as_str` is the canonical lower-case dataset token.
+fn served_req_type_tokens() -> Vec<&'static str> {
+    let mut tokens: Vec<&'static str> = Vec::new();
+    for (_, req) in SERVED_DATASETS {
+        let token = req.as_str();
+        if !tokens.contains(&token) {
+            tokens.push(token);
+        }
+    }
+    tokens
+}
 
 /// Add the top-level `flatfile` subcommand group.
 pub(crate) fn add_flatfile_command(app: Command) -> Command {
@@ -71,27 +113,28 @@ pub(crate) fn add_flatfile_command(app: Command) -> Command {
         ))
         .subcommand(
             Command::new("request")
-                .about("Generic flatfile request (any sec_type / req_type)")
+                .about("Generic flatfile request over a served (sec_type, req_type) dataset")
                 .arg(
                     Arg::new("sec_type")
                         .long("sec-type")
                         .required(true)
-                        .value_parser(["option", "stock", "index"])
-                        .help("Security type: option, stock, or index"),
+                        .value_parser(clap::builder::PossibleValuesParser::new(
+                            served_sec_type_tokens(),
+                        ))
+                        .help("Security type with a served flat-file dataset (option or stock)"),
                 )
                 .arg(
                     Arg::new("req_type")
                         .long("req-type")
                         .required(true)
-                        .value_parser([
-                            "eod",
-                            "quote",
-                            "open_interest",
-                            "ohlc",
-                            "trade",
-                            "trade_quote",
-                        ])
-                        .help("Request type"),
+                        .value_parser(clap::builder::PossibleValuesParser::new(
+                            served_req_type_tokens(),
+                        ))
+                        .help(
+                            "Request type served as a flat file. Valid set depends on \
+                             --sec-type (option: trade_quote, open_interest, eod; stock: \
+                             trade_quote, eod)",
+                        ),
                 )
                 .arg(
                     Arg::new("date")
@@ -229,6 +272,22 @@ pub(crate) async fn try_dispatch(
         ));
     };
 
+    // Reject an unserved (sec_type, req_type) pair before loading credentials
+    // or touching the network. The generic `request` arm constrains each flag
+    // to the served union, but their cross-product still admits an unserved
+    // pair (e.g. `--sec-type stock --req-type open_interest`); the convenience
+    // subcommands are served by construction. The served matrix is the single
+    // source of truth.
+    if !flat_file_serves(sec_type, req_type) {
+        return Err(thetadatadx::Error::config_invalid(
+            "flatfile",
+            format!(
+                "flat-file service does not serve {sec_type} {}",
+                req_type.as_str()
+            ),
+        ));
+    }
+
     let creds = Credentials::from_file(creds_path)?;
 
     // Choose the on-disk path: explicit `-o`, otherwise a temp file we
@@ -277,4 +336,63 @@ pub(crate) async fn try_dispatch(
     }
 
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The generic `request` arm advertises only security types with a served
+    /// flat-file dataset — `option` and `stock`, never `index`.
+    #[test]
+    fn sec_type_choices_match_the_served_matrix() {
+        let tokens = served_sec_type_tokens();
+        assert!(tokens.contains(&"option"));
+        assert!(tokens.contains(&"stock"));
+        assert!(
+            !tokens.contains(&"index"),
+            "index has no served flat-file dataset; got {tokens:?}"
+        );
+    }
+
+    /// The generic `request` arm advertises only request types served as a
+    /// flat file — never per-tick `quote` / `trade` / `ohlc`.
+    #[test]
+    fn req_type_choices_match_the_served_matrix() {
+        let tokens = served_req_type_tokens();
+        for served in ["trade_quote", "open_interest", "eod"] {
+            assert!(
+                tokens.contains(&served),
+                "req_type choices must include served `{served}`; got {tokens:?}"
+            );
+        }
+        for unserved in ["quote", "trade", "ohlc"] {
+            assert!(
+                !tokens.contains(&unserved),
+                "req_type choices must exclude unserved `{unserved}`; got {tokens:?}"
+            );
+        }
+    }
+
+    /// Every advertised choice must parse back to a variant, and every
+    /// resulting same-name cross pair the matrix does not serve (e.g. stock
+    /// open_interest) is caught by the `flat_file_serves` gate the dispatch
+    /// applies before any network work.
+    #[test]
+    fn unserved_cross_pair_is_not_in_the_served_matrix() {
+        // Both tokens are individually advertised, but the pair is unserved.
+        let sec = parse_sec_type("stock").expect("stock parses");
+        let req = parse_req_type("open_interest").expect("open_interest parses");
+        assert!(
+            !flat_file_serves(sec, req),
+            "stock open_interest must be rejected by the served-matrix gate"
+        );
+    }
+
+    /// The constrained value parsers must build a valid clap command.
+    #[test]
+    fn flatfile_command_builds() {
+        let app = add_flatfile_command(Command::new("tdx"));
+        app.debug_assert();
+    }
 }

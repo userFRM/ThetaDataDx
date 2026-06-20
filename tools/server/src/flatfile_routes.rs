@@ -11,11 +11,15 @@
 //!
 //! - `GET /v3/flatfile/{sec_type}/{req_type}` — convenience path. Path
 //!   segments parse case-insensitively to the matching `SecType` /
-//!   `ReqType`. Query params: `date=YYYYMMDD&format=csv|jsonl`.
+//!   `ReqType`. Query params: `date=YYYYMMDD&format=csv|jsonl`. The pair
+//!   must be a served flat-file dataset (see below) or the route returns
+//!   `400 bad_request`.
 //! - `POST /v3/flatfile/request` — generic endpoint. JSON body:
 //!   `{ "sec_type": "OPTION", "req_type": "TRADE_QUOTE", "date":
-//!      "20260428", "format": "csv" }`. An `(sec_type, req_type)` pair the
-//!   flat-file distribution does not serve returns `400 bad_request`.
+//!      "20260428", "format": "csv" }`. Both routes serve the same fixed
+//!   matrix — option `trade_quote` / `open_interest` / `eod` and stock
+//!   `trade_quote` / `eod`; any other `(sec_type, req_type)` pair returns
+//!   `400 bad_request`.
 //!
 //! Response:
 //! - `Content-Type: text/csv` (csv) or `application/x-ndjson` (jsonl).
@@ -38,7 +42,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::Router;
 use serde::Deserialize;
-use thetadatadx::flatfiles::{FlatFileFormat, ReqType, SecType};
+use thetadatadx::flatfiles::{flat_file_serves, FlatFileFormat, ReqType, SecType};
 use tokio_util::io::ReaderStream;
 
 use crate::format;
@@ -59,9 +63,11 @@ pub(crate) struct FlatfileQuery {
 /// (`POST /v3/flatfile/request`).
 #[derive(Debug, Deserialize)]
 pub(crate) struct FlatfileRequestBody {
-    /// Security type, parsed case-insensitively (`OPTION`, `STOCK`, `INDEX`).
+    /// Security type, parsed case-insensitively. Must be a security type with
+    /// a served flat-file dataset (`OPTION` or `STOCK`).
     pub sec_type: String,
-    /// Request type, parsed case-insensitively (`QUOTE`, `TRADE`, `EOD`, ...).
+    /// Request type, parsed case-insensitively. Must be served as a flat file
+    /// for the given security type (`TRADE_QUOTE`, `OPEN_INTEREST`, `EOD`).
     pub req_type: String,
     /// Trading date in `YYYYMMDD` form.
     pub date: String,
@@ -241,6 +247,26 @@ fn parse_format(value: Option<&str>) -> Result<FlatFileFormat, String> {
     }
 }
 
+/// Reject an `(sec_type, req_type)` pair the flat-file distribution does not
+/// serve, at the route boundary, before any temp-path or upstream work.
+///
+/// The route surface parses the security and request types case-insensitively
+/// to their variants; this guard then constrains the pair to the served matrix
+/// (option `trade_quote` / `open_interest` / `eod`, stock `trade_quote` /
+/// `eod`) so an impossible combination — e.g. `INDEX`, or stock
+/// `open_interest` — fails as a `400 bad_request` here rather than reaching the
+/// SDK gate. The served matrix is the single source of truth.
+fn reject_unserved_dataset(sec_type: SecType, req_type: ReqType) -> Result<(), String> {
+    if flat_file_serves(sec_type, req_type) {
+        Ok(())
+    } else {
+        Err(format!(
+            "flat-file service does not serve {sec_type} {}",
+            req_type.as_str()
+        ))
+    }
+}
+
 fn content_type_for(format: FlatFileFormat) -> &'static str {
     match format {
         FlatFileFormat::Csv => "text/csv; charset=utf-8",
@@ -274,6 +300,9 @@ async fn handle_get(
     if let Err(e) = crate::validation::validate_date(&params.date, "date") {
         return error_response(StatusCode::BAD_REQUEST, "bad_request", &e.message);
     }
+    if let Err(e) = reject_unserved_dataset(sec_type, req_type) {
+        return error_response(StatusCode::BAD_REQUEST, "bad_request", &e);
+    }
     serve_flatfile(state, sec_type, req_type, &params.date, format).await
 }
 
@@ -298,6 +327,9 @@ async fn handle_post(
     // on the downstream format validator rejecting non-YYYYMMDD first.
     if let Err(e) = crate::validation::validate_date(&body.date, "date") {
         return error_response(StatusCode::BAD_REQUEST, "bad_request", &e.message);
+    }
+    if let Err(e) = reject_unserved_dataset(sec_type, req_type) {
+        return error_response(StatusCode::BAD_REQUEST, "bad_request", &e);
     }
     serve_flatfile(state, sec_type, req_type, &body.date, format).await
 }
@@ -444,6 +476,45 @@ pub(crate) fn flatfile_paths(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The served-matrix gate accepts every pair the distribution serves and
+    /// rejects everything else — including a pair whose security and request
+    /// types are each individually served but not as a pair (stock
+    /// open_interest), and any `INDEX` pair. The rejection names the dataset.
+    #[test]
+    fn unserved_dataset_is_rejected_at_the_boundary() {
+        for (sec, req) in [
+            (SecType::Option, ReqType::TradeQuote),
+            (SecType::Option, ReqType::OpenInterest),
+            (SecType::Option, ReqType::Eod),
+            (SecType::Stock, ReqType::TradeQuote),
+            (SecType::Stock, ReqType::Eod),
+        ] {
+            assert!(
+                reject_unserved_dataset(sec, req).is_ok(),
+                "served pair {sec} {} must be accepted",
+                req.as_str()
+            );
+        }
+
+        for (sec, req) in [
+            (SecType::Stock, ReqType::OpenInterest),
+            (SecType::Option, ReqType::Quote),
+            (SecType::Option, ReqType::Trade),
+            (SecType::Option, ReqType::Ohlc),
+            (SecType::Index, ReqType::Eod),
+            (SecType::Index, ReqType::TradeQuote),
+        ] {
+            let err = reject_unserved_dataset(sec, req).expect_err(&format!(
+                "unserved pair {sec} {} must be rejected",
+                req.as_str()
+            ));
+            assert!(
+                err.contains("does not serve") && err.contains(req.as_str()),
+                "rejection must name the unserved dataset; got {err:?}"
+            );
+        }
+    }
 
     /// A malformed flat-file POST body must surface the server's
     /// canonical error envelope, not axum's default plain-text 400.
