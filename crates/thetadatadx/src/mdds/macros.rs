@@ -525,13 +525,24 @@ fn classify_error(err: &crate::error::Error) -> StatusClass {
 /// column from the response `DataTable`.
 ///
 /// Pattern: build request -> gRPC call -> collect stream -> extract text column.
-/// Emits one method on `HistoricalClient`:
-/// - `pub async fn <name>(...)` — per-call deadline routed through
-///   [`EndpointArgs::with_timeout_ms`] + the builder-style APIs.
+/// Emits two methods on `HistoricalClient`, matching the deadline contract
+/// of the builder endpoints:
+/// - `pub async fn <name>(...)` — bounded by the configured
+///   [`crate::config::HistoricalConfig::request_timeout_secs`] default so a
+///   live-but-silent stream cannot hang the request forever.
+/// - `pub async fn <name>_with_deadline(..., deadline: Duration)` — same
+///   call with an explicit per-call deadline. `Duration::ZERO` opts out of
+///   any deadline (see [`effective_deadline`]).
+///
+/// Both route through [`run_with_optional_deadline`], so the in-flight gRPC
+/// call (`<grpc>` + `collect_stream`) is dropped on expiry — the `_permit`
+/// releases its semaphore slot and the `tonic::Streaming` is dropped
+/// (RST_STREAM), returning `Err(Error::Timeout)`.
 macro_rules! list_endpoint {
     (
         $(#[$meta:meta])*
         fn $name:ident( $($arg:ident : $arg_ty:ty),* ) -> $col:literal;
+        with_deadline_fn: $with_deadline:ident;
         grpc: $grpc:ident;
         request: $req:ident;
         query: $query:ident { $($field:ident : $val:expr),* $(,)? };
@@ -541,19 +552,81 @@ macro_rules! list_endpoint {
         /// # Errors
         ///
         /// Returns an error on network, authentication, or parsing failure.
+        /// Returns [`Error::Timeout`] when the configured request deadline
+        /// elapses before the response completes.
         pub async fn $name(&self, $($arg : $arg_ty),*) -> Result<Vec<String>, Error> {
+            // No explicit deadline: fall back to the configured default so
+            // the request is always bounded.
+            let deadline = $crate::mdds::macros::effective_deadline(
+                None,
+                self.config().historical.request_timeout_secs,
+            );
+            list_endpoint_impl_body!(
+                self, deadline, $name, $grpc, $req,
+                $query { $($field : $val),* }, $col
+            )
+        }
+
+        #[allow(clippy::too_many_arguments)] // Reason: ThetaData endpoints require many parameters (symbol, date, strike, exp, right, etc.).
+        $(#[$meta])*
+        /// Same as the deadline-free variant, but bounds the call with an
+        /// explicit per-call deadline. `Duration::ZERO` opts out of any
+        /// deadline.
+        ///
+        /// # Errors
+        ///
+        /// Returns an error on network, authentication, or parsing failure.
+        /// Returns [`Error::Timeout`] when `deadline` elapses first.
+        pub async fn $with_deadline(
+            &self,
+            $($arg : $arg_ty,)*
+            deadline: std::time::Duration,
+        ) -> Result<Vec<String>, Error> {
+            let deadline = $crate::mdds::macros::effective_deadline(
+                Some(deadline),
+                self.config().historical.request_timeout_secs,
+            );
+            list_endpoint_impl_body!(
+                self, deadline, $name, $grpc, $req,
+                $query { $($field : $val),* }, $col
+            )
+        }
+    };
+}
+
+/// Shared request/collect body for the [`list_endpoint!`] pair (`<name>` /
+/// `<name>_with_deadline`). Defined once so the deadline-bounded
+/// request/collect path is written a single time; the two public methods
+/// differ only in how they resolve the `deadline` they pass in.
+///
+/// `macro_rules!` cannot synthesize a private impl-method name (no `paste`
+/// dependency), so rather than a shared method this is a shared macro: each
+/// public method expands it inline with the already-resolved `deadline` and
+/// the per-endpoint specifics (receiver, gRPC stub, request/query types,
+/// fields, column).
+macro_rules! list_endpoint_impl_body {
+    (
+        $client:expr, $deadline:ident, $name:ident, $grpc:ident, $req:ident,
+        $query:ident { $($field:ident : $val:expr),* $(,)? }, $col:literal
+    ) => {{
+        // `&HistoricalClient` is `Copy`, so bind the receiver once and reuse
+        // it across the (possibly retried) request closure. Passing `self`
+        // through a macro parameter is required: a `self` token synthesized
+        // by the macro body cannot reach the caller's `self`.
+        let client: &HistoricalClient = $client;
+        $crate::mdds::macros::run_with_optional_deadline($deadline, async move {
             tracing::debug!(endpoint = stringify!($name), "gRPC request");
             metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
             let _metrics_start = std::time::Instant::now();
-            let _permit = self.request_semaphore.acquire().await
+            let _permit = client.request_semaphore.acquire().await
                 .map_err(|_| Error::config_internal("request semaphore closed"))?;
-            let policy = self.config().retry;
+            let policy = client.config().retry;
             let table: proto::DataTable = $crate::mdds::macros::run_unary_retry_loop(
-                self.session(),
+                client.session(),
                 &policy,
                 stringify!($name),
                 |snap| async move {
-                    let qi = self.build_query_info(snap.uuid.clone());
+                    let qi = client.build_query_info(snap.uuid.clone());
                     let request = proto::$req {
                         query_info: Some(qi),
                         params: Some(proto::$query { $($field : $val),* }),
@@ -565,14 +638,14 @@ macro_rules! list_endpoint {
                     // contention. Deref coercion from `&ChannelLease`
                     // to `&Channel` satisfies the generated stub
                     // signature.
-                    let lease = self.channel();
+                    let lease = client.channel();
                     let stream = $crate::proto::beta_theta_terminal::$grpc(
                         &lease,
                         request,
                     )
                     .await
                     .map_err(|e| -> Error { e.into() })?;
-                    self.collect_stream(stream).await
+                    client.collect_stream(stream).await
                 },
             ).await?;
             metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
@@ -585,8 +658,8 @@ macro_rules! list_endpoint {
                     .flatten()
                     .collect(),
             ))
-        }
-    };
+        }).await
+    }};
 }
 
 /// Generate an endpoint that returns parsed tick data (`Vec<T>`) via a builder.

@@ -374,11 +374,6 @@ fn auth_tls_config() -> Result<rustls::ClientConfig, Error> {
     Ok(config)
 }
 
-/// Maximum number of characters from an upstream response body carried into
-/// a surfaced error. Bounds the untrusted excerpt so it cannot flood logs
-/// or smuggle a large payload through the error chain.
-const MAX_BODY_EXCERPT_CHARS: usize = 256;
-
 /// Render a non-reversible marker for a session id.
 ///
 /// The session id is a bearer token and must never appear verbatim in a
@@ -388,16 +383,18 @@ fn redacted_session_marker() -> &'static str {
     "redacted"
 }
 
-/// Produce a bounded excerpt of an untrusted upstream body.
+/// Build the surfaced message for a non-401/404 auth failure.
 ///
-/// Keeps at most [`MAX_BODY_EXCERPT_CHARS`] characters and appends an
-/// ellipsis marker when truncated. Operates on a `char` boundary so the
-/// result is always valid UTF-8.
-fn bound_body_excerpt(body: &str) -> String {
-    match body.char_indices().nth(MAX_BODY_EXCERPT_CHARS) {
-        Some((cut, _)) => format!("{}...", &body[..cut]),
-        None => body.to_string(),
-    }
+/// The message is a pure function of the HTTP status — it never takes the
+/// upstream response body as input, so it cannot mirror a credential that a
+/// proxy or Nexus error reflected back from the submitted auth request. This
+/// is the boundary that keeps the secret out of the error chain by
+/// construction.
+fn server_error_message(status: reqwest::StatusCode) -> String {
+    format!(
+        "authentication failed (server returned HTTP {})",
+        status.as_u16()
+    )
 }
 
 /// Authenticate against the Nexus API and return the session info.
@@ -527,20 +524,15 @@ pub async fn authenticate_at(
         });
     }
     if !status.is_success() {
-        let body_text = resp
-            .text()
-            .await
-            .unwrap_or_else(|_| "<unreadable>".to_string());
-        // The upstream body is untrusted and unbounded — it may carry
-        // arbitrary (or hostile) text. Carry only a bounded excerpt into
-        // the surfaced error so it cannot flood logs or smuggle a large
-        // payload through the error chain.
+        // The auth REQUEST body carries the credential (password / apiKey).
+        // A proxy or Nexus error that reflects the submitted JSON would
+        // otherwise mirror that secret into the surfaced error and any
+        // caller log. Carry only the HTTP status — never the upstream
+        // response body — so the error can never interpolate untrusted text
+        // that might echo a credential. (`resp` is dropped unread.)
         return Err(Error::Auth {
             kind: crate::error::AuthErrorKind::ServerError,
-            message: format!(
-                "Nexus API returned HTTP {status}: {}",
-                bound_body_excerpt(&body_text)
-            ),
+            message: server_error_message(status),
         });
     }
 
@@ -698,30 +690,24 @@ mod tests {
     }
 
     #[test]
-    fn bound_body_excerpt_truncates_oversized_body() {
-        let body = "x".repeat(MAX_BODY_EXCERPT_CHARS * 4);
-        let excerpt = bound_body_excerpt(&body);
-        assert!(excerpt.ends_with("..."), "missing truncation marker");
+    fn server_error_message_carries_status_not_body() {
+        // A non-401/404 auth failure must surface only the HTTP status. The
+        // upstream body can mirror the submitted auth request (which carries
+        // the password / apiKey); the message is a pure function of the
+        // status and never accepts that body, so a secret can never reach
+        // the error chain on this path.
+        let msg = server_error_message(reqwest::StatusCode::INTERNAL_SERVER_ERROR);
         assert!(
-            excerpt.chars().count() <= MAX_BODY_EXCERPT_CHARS + 3,
-            "excerpt exceeds bound: {} chars",
-            excerpt.chars().count()
+            msg.contains("500"),
+            "status code missing from message: {msg}"
         );
-    }
-
-    #[test]
-    fn bound_body_excerpt_passes_through_short_body() {
-        let body = "upstream is down";
-        assert_eq!(bound_body_excerpt(body), body);
-    }
-
-    #[test]
-    fn bound_body_excerpt_respects_char_boundaries() {
-        // Multi-byte characters must not be split mid-codepoint.
-        let body = "é".repeat(MAX_BODY_EXCERPT_CHARS * 2);
-        let excerpt = bound_body_excerpt(&body);
-        assert!(excerpt.ends_with("..."), "missing truncation marker");
-        // If a byte boundary had been used this would have panicked above.
+        // Stand-ins for a reflected credential or any upstream body text.
+        for leaked in ["hunter2", "td_secret_apikey", "password", "apiKey", "email"] {
+            assert!(
+                !msg.contains(leaked),
+                "message must not carry body-derived text {leaked:?}: {msg}"
+            );
+        }
     }
 
     #[test]

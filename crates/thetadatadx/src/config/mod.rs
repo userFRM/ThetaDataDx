@@ -110,6 +110,17 @@ pub use crate::backoff::JitterMode;
 /// same with either an api-key or an email/password login. The typed
 /// [`DirectConfig::with_environment`] is the programmatic equivalent.
 ///
+/// The "explicit host wins over the environment default" precedence holds
+/// for **every** path that selects an environment, not only the env-var
+/// ordering above. An explicit `THETADATA_HISTORICAL_HOST` /
+/// `THETADATA_STREAMING_HOST` (set via the process env, a `.env`, or a
+/// config file) survives a later [`DirectConfig::with_environment`],
+/// [`DirectConfig::stage`], or [`DirectConfig::dev`]: the override is
+/// tracked per channel and environment selection skips a channel whose host
+/// was set explicitly, while still flipping the [`Environment`] marker that
+/// routes the auth session. A plain `production()` / `stage()` / `dev()`
+/// with no override yields that environment's full cluster, unchanged.
+///
 /// Malformed values (e.g. a non-integer `THETADATA_HISTORICAL_PORT`, or a
 /// `THETADATA_MDDS_TYPE` that is neither `PROD` nor `STAGE`) are ignored
 /// with a `tracing::warn!` — the current value is retained so a typo
@@ -138,6 +149,18 @@ pub struct DirectConfig {
     /// [`Environment::Stage`]. Carried on the auth request so the server
     /// routes the session to the matching cluster.
     pub environment: Environment,
+    /// Whether [`Self::historical`]'s host was set explicitly (via an
+    /// env-var / `.env` / config-file override). When set, environment
+    /// selection ([`Self::apply_environment`]) leaves the host untouched
+    /// so an explicit host wins over the environment's default — the
+    /// precedence documented on this struct. Not part of the public field
+    /// set; reset implicitly by [`Default`] and the preset constructors.
+    historical_host_overridden: bool,
+    /// Whether [`Self::streaming`]'s hosts were set explicitly (via an
+    /// env-var / `.env` / config-file override). Gates the streaming-host
+    /// rewrite in [`Self::apply_environment`] the same way
+    /// [`Self::historical_host_overridden`] gates the historical host.
+    streaming_hosts_overridden: bool,
 }
 
 impl DirectConfig {
@@ -185,25 +208,67 @@ impl DirectConfig {
             metrics: MetricsConfig::default(),
             runtime: RuntimeConfig::default(),
             environment: Environment::Prod,
+            // The canonical defaults are the environment's own cluster, not
+            // a caller override, so environment selection is free to move
+            // them. The override layer flips these when an explicit host is
+            // supplied.
+            historical_host_overridden: false,
+            streaming_hosts_overridden: false,
         }
     }
 
     /// Route every cluster-bound channel at `env`.
     ///
-    /// Sets [`Self::environment`] and overwrites the historical host and
-    /// streaming hosts with that environment's cluster. This is the
-    /// single place that maps an [`Environment`] to its hosts, so
+    /// Sets [`Self::environment`] and points the historical host and
+    /// streaming hosts at that environment's cluster. This is the single
+    /// place that maps an [`Environment`] to its hosts, so
     /// [`Self::production`], [`Self::stage`], and [`Self::with_environment`]
     /// all stay in agreement without duplicating host literals.
+    ///
+    /// A channel whose host was set explicitly (env-var / `.env` /
+    /// config-file override; tracked by [`Self::historical_host_overridden`]
+    /// / [`Self::streaming_hosts_overridden`]) is left untouched: an
+    /// explicit host wins over the environment's default for that channel,
+    /// the precedence documented on the struct. The environment marker
+    /// still flips regardless, since it routes the auth session.
     ///
     /// Only the cluster routing changes; every tuning knob (timeouts,
     /// ring size, retry policy, ...) is left as-is.
     fn apply_environment(&mut self, env: Environment) {
         self.environment = env;
         // Historical (gRPC) targets the cluster host on the same TLS port;
-        // only the host differs between environments.
-        self.historical.host = env.historical_host().to_string();
-        self.streaming.hosts = env.streaming_hosts();
+        // only the host differs between environments. Skip the rewrite when
+        // an explicit host override is in force so it survives environment
+        // selection.
+        if !self.historical_host_overridden {
+            self.historical.host = env.historical_host().to_string();
+        }
+        if !self.streaming_hosts_overridden {
+            self.streaming.hosts = env.streaming_hosts();
+        }
+    }
+
+    /// Set the historical host explicitly and record the override.
+    ///
+    /// The recorded flag makes the host survive a later
+    /// [`Self::apply_environment`] (and therefore [`Self::with_environment`]
+    /// / [`Self::stage`] / [`Self::dev`]), so an explicit host wins over the
+    /// environment's default — the precedence documented on the struct.
+    /// This is the single internal entry point the env-var / `.env` override
+    /// layers use, so the override accounting can never drift from the write.
+    pub(crate) fn set_historical_host_override(&mut self, host: String) {
+        self.historical.host = host;
+        self.historical_host_overridden = true;
+    }
+
+    /// Record that the streaming hosts were set explicitly, so they survive
+    /// a later [`Self::apply_environment`].
+    ///
+    /// The streaming override edits the primary slot in place (see the env
+    /// layer), so unlike [`Self::set_historical_host_override`] the value is
+    /// written by the caller and this method only records the override.
+    pub(crate) fn mark_streaming_hosts_overridden(&mut self) {
+        self.streaming_hosts_overridden = true;
     }
 
     /// Select the target server environment, returning the updated config.
@@ -343,15 +408,28 @@ impl DirectConfig {
         // broken preset where the marker says prod but historical routes to
         // stage. `apply_environment` re-points both together.
         config.apply_environment(Environment::Prod);
-        // Source: config.toml fpss_dev_hosts
-        config.streaming.hosts = vec![
-            ("nj-a.thetadata.us".to_string(), 20200),
-            ("test-server.thetadata.us".to_string(), 20200),
-            ("test-server.thetadata.us".to_string(), 20201),
-        ];
+        config.streaming.hosts = Self::dev_streaming_hosts();
         config
             .validate()
             .expect("dev preset is within validated bounds")
+    }
+
+    /// Streaming hosts for the dev preset.
+    ///
+    /// Dev is not an [`Environment`] (historical still uses the production
+    /// cluster), so its streaming host set lives here rather than on
+    /// [`Environment::streaming_hosts`]. This is the single source of truth
+    /// for the dev hosts, shared with the FPSS allowlist coverage test so a
+    /// new dev host can never drift out of the FPSS hostname allowlist.
+    ///
+    /// Source: `config.toml` `fpss_dev_hosts`.
+    #[must_use]
+    pub(crate) fn dev_streaming_hosts() -> Vec<(String, u16)> {
+        vec![
+            ("nj-a.thetadata.us".to_string(), 20200),
+            ("test-server.thetadata.us".to_string(), 20200),
+            ("test-server.thetadata.us".to_string(), 20201),
+        ]
     }
 
     /// Staging environment configuration.
@@ -2231,6 +2309,110 @@ mod tests {
         // override wins over the environment's default cluster host.
         assert_eq!(config.environment, Environment::Stage);
         assert_eq!(config.historical.host, "custom.example.com");
+        clear_env_matrix();
+    }
+
+    #[test]
+    fn explicit_historical_host_survives_stage_preset() {
+        // Finding 2(a): an explicit `THETADATA_HISTORICAL_HOST` must survive
+        // the `stage()` preset. `stage()` selects the stage cluster, but the
+        // explicit host wins for the historical channel while the
+        // non-overridden streaming hosts still move to the stage set.
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        unsafe {
+            std::env::set_var(ENV_HISTORICAL_HOST, "myhost");
+        }
+        let config = DirectConfig::stage();
+        assert_eq!(config.environment, Environment::Stage);
+        assert_eq!(
+            config.historical.host, "myhost",
+            "explicit historical host must survive stage()"
+        );
+        assert_eq!(
+            config.streaming.hosts,
+            Environment::Stage.streaming_hosts(),
+            "non-overridden streaming hosts must move to the stage cluster"
+        );
+        clear_env_matrix();
+    }
+
+    #[test]
+    fn with_environment_honors_previously_set_explicit_host() {
+        // Finding 2(b): the typed `with_environment(Stage)` setter, applied
+        // after an explicit historical host was recorded, must keep that
+        // host while still routing the (non-overridden) streaming hosts and
+        // the environment marker to stage.
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        unsafe {
+            std::env::set_var(ENV_HISTORICAL_HOST, "myhost");
+        }
+        let config = DirectConfig::production().with_environment(Environment::Stage);
+        assert_eq!(config.environment, Environment::Stage);
+        assert_eq!(
+            config.historical.host, "myhost",
+            "with_environment must not clobber an explicit historical host"
+        );
+        assert_eq!(config.streaming.hosts, Environment::Stage.streaming_hosts());
+        clear_env_matrix();
+    }
+
+    #[test]
+    fn explicit_streaming_host_survives_stage_preset() {
+        // Companion to 2(a) for the streaming channel: an explicit
+        // `THETADATA_STREAMING_HOST` survives `stage()` in the primary slot
+        // while the non-overridden historical host moves to the stage host.
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        unsafe {
+            std::env::set_var(ENV_STREAMING_HOST, "stream.example.com");
+        }
+        let config = DirectConfig::stage();
+        assert_eq!(config.environment, Environment::Stage);
+        assert_eq!(
+            config.streaming.hosts[0].0, "stream.example.com",
+            "explicit streaming host must survive stage()"
+        );
+        assert_eq!(
+            config.historical.host,
+            Environment::Stage.historical_host(),
+            "non-overridden historical host must move to the stage cluster"
+        );
+        clear_env_matrix();
+    }
+
+    #[test]
+    fn presets_unchanged_without_any_override() {
+        // Finding 2(c): with no override in the environment, the plain
+        // presets must produce exactly today's hosts — the override-tracking
+        // change must be invisible on the common paths.
+        let _guard = env_test_guard();
+        clear_env_matrix();
+
+        let prod = DirectConfig::production();
+        assert_eq!(prod.environment, Environment::Prod);
+        assert_eq!(prod.historical.host, "mdds-01.thetadata.us");
+        assert_eq!(
+            prod.streaming.hosts,
+            StreamingConfig::production_defaults().hosts
+        );
+
+        let stage = DirectConfig::stage();
+        assert_eq!(stage.environment, Environment::Stage);
+        assert_eq!(stage.historical.host, "mdds-stage.thetadata.us");
+        assert_eq!(stage.streaming.hosts, Environment::Stage.streaming_hosts());
+
+        let dev = DirectConfig::dev();
+        // Dev keeps the prod environment + prod historical host; only the
+        // streaming hosts switch to the dev replay cluster.
+        assert_eq!(dev.environment, Environment::Prod);
+        assert_eq!(dev.historical.host, "mdds-01.thetadata.us");
+        assert_eq!(dev.streaming.hosts, DirectConfig::dev_streaming_hosts());
+
         clear_env_matrix();
     }
 

@@ -65,7 +65,7 @@ pub(super) fn apply_env_overrides(cfg: &mut DirectConfig) {
     if let Ok(host) = std::env::var(ENV_HISTORICAL_HOST) {
         let trimmed = host.trim();
         if !trimmed.is_empty() {
-            cfg.historical.host = trimmed.to_string();
+            cfg.set_historical_host_override(trimmed.to_string());
         }
     }
     if let Ok(port_str) = std::env::var(ENV_HISTORICAL_PORT) {
@@ -126,6 +126,7 @@ pub(super) fn apply_env_overrides(cfg: &mut DirectConfig) {
                 })
                 .unwrap_or(default_port);
             cfg.streaming.hosts[0] = (host, port);
+            cfg.mark_streaming_hosts_overridden();
         }
     }
 }
@@ -163,7 +164,7 @@ pub(super) fn apply_dotenv_overrides(cfg: &mut DirectConfig, pairs: &[(String, &
         }
     }
     if let Some(host) = lookup(pairs, ENV_HISTORICAL_HOST) {
-        cfg.historical.host = host.to_string();
+        cfg.set_historical_host_override(host.to_string());
     }
     if let Some(host) = lookup(pairs, ENV_STREAMING_HOST) {
         if cfg.streaming.hosts.is_empty() {
@@ -174,6 +175,7 @@ pub(super) fn apply_dotenv_overrides(cfg: &mut DirectConfig, pairs: &[(String, &
         } else {
             let port = cfg.streaming.hosts[0].1;
             cfg.streaming.hosts[0] = (host.to_string(), port);
+            cfg.mark_streaming_hosts_overridden();
         }
     }
 }

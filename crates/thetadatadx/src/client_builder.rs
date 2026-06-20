@@ -323,8 +323,26 @@ impl ClientBuilder {
         // Surface a deferred conflict (two different auth sources) as a
         // clear error before resolving anything.
         let auth = auth.into_resolved_source()?;
-        let creds = auth.resolve()?;
-        let config = self.env.resolve()?;
+        let env = self.env;
+        // The file-backed sources (`credentials_file`, `api_key_from_dotenv`,
+        // `from_dotenv`) read from disk with synchronous `std::fs`. Running
+        // that on the async worker would block the runtime thread, so resolve
+        // both the credential and the config on a blocking-pool thread. The
+        // inline sources (`api_key`, `email_password`, an explicit env)
+        // perform no I/O and resolve there for free. Behavior and errors are
+        // identical to resolving inline — only the thread differs.
+        let (creds, config) = tokio::task::spawn_blocking(move || {
+            let creds = auth.resolve()?;
+            let config = env.resolve()?;
+            Ok::<(Credentials, DirectConfig), Error>((creds, config))
+        })
+        .await
+        .map_err(|e| {
+            // The closure never panics on the resolution paths; a join error
+            // here means the blocking task was cancelled or the worker
+            // panicked, which is an internal invariant violation.
+            Error::config_internal(format!("credential resolution task failed to join: {e}"))
+        })??;
         Client::connect(&creds, config).await
     }
 }
@@ -479,6 +497,33 @@ mod tests {
         assert!(msg.contains("conflicting authentication"), "got: {msg}");
         assert!(msg.contains("api_key"), "got: {msg}");
         assert!(msg.contains("email_password"), "got: {msg}");
+    }
+
+    #[tokio::test]
+    async fn file_backed_source_resolution_error_surfaces_through_connect() {
+        // `connect()` resolves the file-backed credential on a blocking-pool
+        // thread (so the synchronous `std::fs` read never blocks the async
+        // worker). The resolution error must surface unchanged — identical to
+        // resolving the same source inline.
+        let missing = std::env::temp_dir().join(format!(
+            "thetadatadx-no-such-creds-{}.txt",
+            std::process::id()
+        ));
+        // Inline resolution (the test-only path) for the same source.
+        let inline_err = resolve(ClientBuilder::new().credentials_file(&missing))
+            .expect_err("missing credentials file must error inline");
+        // Resolution routed through connect()'s spawn_blocking offload.
+        let connect_err = match ClientBuilder::new()
+            .credentials_file(&missing)
+            .connect()
+            .await
+        {
+            Ok(_) => panic!("expected an error for a missing credentials file"),
+            Err(e) => e,
+        };
+        // Same surfaced message — the offload changes the thread, not the
+        // error.
+        assert_eq!(inline_err.to_string(), connect_err.to_string());
     }
 
     #[test]
