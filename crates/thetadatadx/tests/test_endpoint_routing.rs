@@ -265,3 +265,121 @@ async fn option_history_trade_greeks_implied_volatility_routes_to_iv_parser() {
         "price column dropped — routing reverted to non-trade IV parser"
     );
 }
+
+// ────────────────────────────────────────────────────────────────────
+// List endpoints honor the per-request deadline
+//
+// List RPCs (`*_list_*`) must apply the same deadline contract as the
+// builder endpoints: the configured `request_timeout_secs` bounds the
+// plain method, and the generated `<name>_with_deadline` overload accepts
+// an explicit per-call deadline. Without it a live-but-silent stream hangs
+// the request forever (the gRPC keepalive PING only detects a fully dead
+// peer, not a stalled one).
+// ────────────────────────────────────────────────────────────────────
+
+use std::time::Duration;
+
+use thetadatadx::Error;
+
+/// Build a `HistoricalClient` wired to a mock that delays its response by
+/// `pre_response_delay`, with `request_timeout_secs` set on the config so
+/// the default-deadline path can be exercised deterministically.
+async fn client_for_delayed_mock(
+    response: proto::ResponseData,
+    pre_response_delay: Duration,
+    request_timeout_secs: u64,
+) -> (mock::MockServer, HistoricalClient) {
+    let server = mock::MockServer::spawn_with_behaviour(
+        vec![response],
+        0,
+        String::new(),
+        mock::MockBehaviour {
+            pre_response_delay: Some(pre_response_delay),
+            ..mock::MockBehaviour::default()
+        },
+    )
+    .await;
+    let channel = Channel::connect_h2c("127.0.0.1", server.addr.port())
+        .await
+        .expect("h2c connect to mock");
+    let pool = ChannelPool::from_channels(vec![channel]);
+    let mut cfg = DirectConfig::production();
+    cfg.historical.request_timeout_secs = request_timeout_secs;
+    let sem = Arc::new(Semaphore::new(4));
+    let client = HistoricalClient::for_endpoint_routing_test(cfg, pool, sem);
+    (server, client)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn list_endpoint_plain_call_is_bounded_by_configured_default() {
+    // The mock holds the response 5s; the configured default deadline is
+    // 1s. The plain `stock_list_symbols()` (no explicit deadline) must
+    // surface `Error::Timeout` from the configured default rather than
+    // hang on the silent stream.
+    let (_mock, client) = client_for_delayed_mock(
+        mock::make_response_data(&["AAPL"]),
+        Duration::from_secs(5),
+        1,
+    )
+    .await;
+
+    let result = client.stock_list_symbols().await;
+    match result {
+        Err(Error::Timeout { duration_ms }) => {
+            assert!(
+                duration_ms <= 1_000,
+                "default deadline carried the wrong bound; got {duration_ms}ms"
+            );
+        }
+        other => panic!("expected Error::Timeout from the configured default, got {other:?}"),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn list_endpoint_with_deadline_overload_bounds_the_call() {
+    // The generated `<name>_with_deadline` overload exists (compile-time)
+    // and an explicit short deadline wins: the mock delays 5s, the call
+    // bounds at 100ms. `request_timeout_secs` is left high to prove the
+    // explicit per-call deadline — not the default — drives the timeout.
+    let (_mock, client) = client_for_delayed_mock(
+        mock::make_response_data(&["AAPL"]),
+        Duration::from_secs(5),
+        300,
+    )
+    .await;
+
+    let result = client
+        .stock_list_symbols_with_deadline(Duration::from_millis(100))
+        .await;
+    match result {
+        Err(Error::Timeout { duration_ms }) => {
+            assert!(
+                duration_ms <= 100,
+                "explicit deadline carried the wrong bound; got {duration_ms}ms"
+            );
+        }
+        other => panic!("expected Error::Timeout from the explicit deadline, got {other:?}"),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn list_endpoint_completes_within_deadline() {
+    // A prompt response well inside the deadline returns `Ok`, proving the
+    // deadline wrapper is transparent on the success path (the in-flight
+    // call completes and is not cancelled). The mock responds immediately,
+    // far inside the 10s bound.
+    let (_mock, client) = client_for_delayed_mock(
+        mock::make_response_data(&["AAPL", "MSFT"]),
+        Duration::from_millis(0),
+        300,
+    )
+    .await;
+
+    let result = client
+        .stock_list_symbols_with_deadline(Duration::from_secs(10))
+        .await;
+    assert!(
+        result.is_ok(),
+        "prompt list call must complete within the deadline, got {result:?}"
+    );
+}

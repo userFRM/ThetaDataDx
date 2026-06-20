@@ -44,7 +44,7 @@ fn frame<M: Message>(msg: &M) -> Bytes {
 /// in its `compressed_data` field. The real server zstd-compresses
 /// the inner payload; the bench/test bypasses that step and asserts on
 /// the framed protobuf alone.
-fn make_response_data(symbols: &[&str]) -> ResponseData {
+pub fn make_response_data(symbols: &[&str]) -> ResponseData {
     let list = DataValueList {
         values: symbols
             .iter()

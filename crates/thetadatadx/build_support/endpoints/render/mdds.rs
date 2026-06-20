@@ -42,29 +42,27 @@ pub(super) fn generate_mdds_list_endpoint(out: &mut String, endpoint: &Generated
         .map(|param| format!("{}: &str", direct_method_arg_name(endpoint, param)))
         .collect::<Vec<_>>()
         .join(", ");
+    let list_column = endpoint
+        .list_column
+        .as_deref()
+        .expect("list endpoint must declare list_column");
+    // Emit the base method name plus the `<name>_with_deadline` overload
+    // name. `macro_rules!` cannot concatenate identifiers, so the explicit
+    // overload identifier is passed as a token here, keeping the macro a
+    // pure template. This mirrors the builder endpoints, which expose the
+    // same per-call deadline contract.
+    let with_deadline_fn = format!("{}_with_deadline", endpoint.name);
     if signature.is_empty() {
-        writeln!(
-            out,
-            "    fn {}() -> {:?};",
-            endpoint.name,
-            endpoint
-                .list_column
-                .as_deref()
-                .expect("list endpoint must declare list_column")
-        )
-        .unwrap();
+        writeln!(out, "    fn {}() -> {list_column:?};", endpoint.name).unwrap();
     } else {
         writeln!(
             out,
-            "    fn {}({signature}) -> {:?};",
-            endpoint.name,
-            endpoint
-                .list_column
-                .as_deref()
-                .expect("list endpoint must declare list_column")
+            "    fn {}({signature}) -> {list_column:?};",
+            endpoint.name
         )
         .unwrap();
     }
+    writeln!(out, "    with_deadline_fn: {with_deadline_fn};").unwrap();
 
     writeln!(out, "    grpc: {};", endpoint.grpc_name).unwrap();
     writeln!(out, "    request: {};", endpoint.request_type).unwrap();

@@ -43,8 +43,10 @@ pub(crate) fn ct_eq_bytes(a: &[u8], b: &[u8]) -> bool {
 }
 
 /// SHA-256 of the `SubjectPublicKeyInfo` presented by every `ThetaData`
-/// FPSS endpoint (prod `nj-a:20000`, `nj-a:20001`, `nj-b:20000`, `nj-b:20001`;
-/// dev `nj-a:20200`; stage `nj-a:20100`).
+/// FPSS endpoint. The same keypair fronts every preset host: prod
+/// (`nj-a:20000/20001`, `nj-b:20000/20001`), stage (`nj-a:20100`,
+/// `test-server:20100/20101`), and dev (`nj-a:20200`,
+/// `test-server:20200/20201`).
 ///
 /// Captured 2026-04-20 via the `openssl` pipeline documented in the module
 /// header. SPKI (not whole-cert) so the pin survives `ThetaData`'s cert
@@ -58,10 +60,26 @@ pub(crate) const FPSS_SPKI_SHA256: [u8; 32] = [
 
 /// Hostnames we are willing to connect to for FPSS.
 ///
-/// Even with SPKI pinning we keep an explicit hostname allowlist: if a
-/// config typo or DNS shenanigan points us at an unexpected host that
-/// happens to share the pinned keypair, we still fail closed.
-pub(crate) const ALLOWED_FPSS_HOSTS: &[&str] = &["nj-a.thetadata.us", "nj-b.thetadata.us"];
+/// Covers every host the shipped presets dial: production spans the two NJ
+/// machines (`nj-a` / `nj-b`), while the stage and dev presets dial
+/// `nj-a` plus `test-server.thetadata.us`. The hostname allowlist runs
+/// before the SPKI pin, so a host missing here fails TLS with
+/// `NotValidForName` and that environment loses failover — `test-server`
+/// must be present for stage/dev to connect at all.
+///
+/// Even with SPKI pinning we keep this explicit allowlist: if a config typo
+/// or DNS shenanigan points us at an unexpected host that happens to share
+/// the pinned keypair, we still fail closed. The [`FPSS_SPKI_SHA256`] pin is
+/// the independent verifier and continues to reject any host that presents
+/// an unpinned key, so widening the hostname set never weakens the pin.
+///
+/// A unit test enumerates the hosts across every preset and asserts each is
+/// listed here, so a future preset host that is missing trips CI.
+pub(crate) const ALLOWED_FPSS_HOSTS: &[&str] = &[
+    "nj-a.thetadata.us",
+    "nj-b.thetadata.us",
+    "test-server.thetadata.us",
+];
 
 /// `rustls` server-cert verifier that enforces the FPSS SPKI pin.
 ///
@@ -289,14 +307,29 @@ mod tests {
 
     #[test]
     fn allowed_hosts_cover_every_fpss_environment() {
-        // Prod, dev, and stage all use either nj-a or nj-b. Keep this
-        // test in sync with `DirectConfig::{production,dev,stage}` so we
-        // notice if a new environment is added that needs an allowlist
-        // entry.
-        for host in ["nj-a.thetadata.us", "nj-b.thetadata.us"] {
+        use crate::config::{DirectConfig, Environment};
+
+        // Enumerate every streaming host the shipped presets dial, pulled
+        // from the config layer itself rather than a hardcoded list, and
+        // assert each hostname is in the allowlist. The allowlist runs
+        // before the SPKI pin, so a preset host missing here fails TLS with
+        // `NotValidForName` and that environment silently loses failover.
+        // Sourcing from `Environment::streaming_hosts` + the dev preset
+        // means a future preset host that is not allowlisted trips this
+        // test instead of shipping a dead environment.
+        let mut preset_hosts: Vec<(String, u16)> = Vec::new();
+        for env in [Environment::Prod, Environment::Stage] {
+            preset_hosts.extend(env.streaming_hosts());
+        }
+        // Dev is not an `Environment` (historical stays on prod), so its
+        // streaming hosts come from the dedicated source of truth.
+        preset_hosts.extend(DirectConfig::dev_streaming_hosts());
+
+        for (host, _port) in preset_hosts {
             assert!(
-                ALLOWED_FPSS_HOSTS.contains(&host),
-                "{host} must be in ALLOWED_FPSS_HOSTS"
+                ALLOWED_FPSS_HOSTS.contains(&host.as_str()),
+                "preset streaming host {host} is missing from ALLOWED_FPSS_HOSTS \
+                 — that environment fails TLS hostname verification and loses failover"
             );
         }
     }

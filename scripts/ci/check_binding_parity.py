@@ -9,8 +9,13 @@ Class-level rows (no dot in `name`):
 - Python: every `m.add_class::<T>()` registered in `lib.rs` + helper
   `register_*` calls, expanded statically by parsing the Rust source.
   Mirrors the regex powering `test_no_pyclass_name_collisions.py`.
-- TypeScript: `export declare class X` / `export class X` declarations
-  in `sdks/typescript/index.d.ts`.
+- TypeScript: the package entry resolved from `sdks/typescript/package.json`
+  `types` (declarations) and `main` (runtime). The gate scans that entry,
+  follows its `export * from './...'` re-exports, and harvests
+  `export class X` / `export declare class X` / `export declare const X`
+  declarations plus the runtime `module.exports` names. This sees the
+  actually-shipped surface (the napi `index.*` re-export PLUS the wrapper-side
+  classes such as the context-managed session and the typed-error leaves).
 - C++: `^class X` / `^struct X` declarations in
   `sdks/cpp/include/thetadatadx.hpp`. The `.h` header is C-only and not
   considered for parity.
@@ -63,6 +68,7 @@ audit-protocol convention for CI gates.
 
 from __future__ import annotations
 
+import json
 import pathlib
 import re
 import sys
@@ -74,7 +80,37 @@ from typing import Any
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 PARITY_TOML = REPO_ROOT / "sdks" / "parity.toml"
 PY_SRC = REPO_ROOT / "sdks" / "python" / "src"
-TS_DTS = REPO_ROOT / "sdks" / "typescript" / "index.d.ts"
+TS_PKG_DIR = REPO_ROOT / "sdks" / "typescript"
+
+
+def _resolve_ts_entry(pkg_dir: pathlib.Path, key: str, fallback: str) -> pathlib.Path:
+    """Resolve the package's declared entry file for a `package.json` key.
+
+    The published TypeScript package declares its root through `package.json`
+    `main` (the runtime `.js` entry) and `types` (the `.d.ts` entry). The
+    parity gate must scan THOSE files, not a hardcoded `index.*`, so it sees
+    the surface a consumer actually imports. The entry may re-export the napi
+    `index.*` and add its own wrapper-side exports (the context-managed
+    streaming session, the typed-error classes). Falls back to `fallback`
+    (e.g. `index.d.ts`) only when the key is absent so a package without an
+    explicit `main`/`types` still resolves.
+    """
+    pkg_json = pkg_dir / "package.json"
+    declared: str | None = None
+    if pkg_json.is_file():
+        try:
+            declared = json.loads(pkg_json.read_text(encoding="utf-8")).get(key)
+        except (json.JSONDecodeError, OSError):
+            declared = None
+    return pkg_dir / (declared or fallback)
+
+
+# The package entry the gate scans for the TypeScript surface. Resolved from
+# `package.json` `types` (declarations) / `main` (runtime) so the gate reads
+# the actually-shipped root, which re-exports the napi `index.*` and layers
+# the wrapper-side exports on top.
+TS_DTS = _resolve_ts_entry(TS_PKG_DIR, "types", "index.d.ts")
+TS_MAIN_JS = _resolve_ts_entry(TS_PKG_DIR, "main", "index.js")
 TS_SRC = REPO_ROOT / "sdks" / "typescript" / "src"
 CPP_HPP = REPO_ROOT / "sdks" / "cpp" / "include" / "thetadatadx.hpp"
 CPP_H = REPO_ROOT / "sdks" / "cpp" / "include" / "thetadatadx.h"
@@ -198,24 +234,290 @@ def collect_python_classes(py_src: pathlib.Path) -> set[str]:
     return out
 
 
-TS_CLASS_RE = re.compile(r"export\s+declare\s+class\s+(\w+)")
+# `export class X` / `export declare class X` (the `declare` keyword is
+# optional: the napi `index.d.ts` declares ambient classes, while the
+# wrapper entry ships concrete `export class` leaves such as the typed-error
+# hierarchy).
+TS_CLASS_RE = re.compile(r"export\s+(?:declare\s+)?(?:abstract\s+)?class\s+(\w+)")
 TS_INTERFACE_RE = re.compile(r"export\s+(?:declare\s+)?interface\s+(\w+)")
+# `export declare const X: { new (...): X; ... }`: the runtime-class shape
+# the wrapper uses for a hand-written class (e.g. `StreamingSession`) that has
+# a companion `interface` of the same name.
+TS_CONST_CLASS_RE = re.compile(r"export\s+declare\s+const\s+(\w+)\s*:")
+# `export * from './<module>'`: the wrapper entry re-exports the whole napi
+# surface this way, so the gate must follow the re-export to see those
+# declarations as part of the scanned entry.
+TS_REEXPORT_RE = re.compile(r"export\s+\*\s+from\s+['\"]([^'\"]+)['\"]")
+
+
+def _ts_resolve_module(from_file: pathlib.Path, spec: str) -> pathlib.Path | None:
+    """Resolve a relative module specifier (`./index`) to a `.d.ts` file
+    next to `from_file`, honoring an explicit or implied `.d.ts` extension."""
+    if not spec.startswith("."):
+        return None
+    base = (from_file.parent / spec).resolve()
+    for cand in (base, base.with_suffix(".d.ts"), base.parent / (base.name + ".d.ts")):
+        if cand.is_file():
+            return cand
+    return None
+
+
+def _collect_ts_dts_classes(
+    dts: pathlib.Path, _seen: set[pathlib.Path] | None = None
+) -> set[str]:
+    """Harvest every exported class / interface / runtime-class-const name
+    declared in `dts`, following `export * from './...'` re-exports so the
+    declared package entry's full surface is seen."""
+    classes, interfaces = _collect_ts_dts_class_kinds(dts, _seen)
+    return classes | interfaces
+
+
+def _collect_ts_dts_class_kinds(
+    dts: pathlib.Path, _seen: set[pathlib.Path] | None = None
+) -> tuple[set[str], set[str]]:
+    """Harvest declaration-side names from `dts`, split by runtime kind.
+
+    Returns `(runtime_classes, interfaces)`:
+
+    - `runtime_classes` are `export class` / `export declare class` and the
+      `export declare const X: { new (...): X }` runtime-class shape. These
+      compile to a real constructor that MUST be reachable at runtime, so a
+      row declaring one is held to having a matching runtime export.
+    - `interfaces` are `export interface` declarations (the napi `#[napi(object)]`
+      plain-object shape and hand-written interfaces). These are erased at
+      compile time and carry no runtime constructor, so a row backed by one
+      is satisfied by the declaration alone.
+
+    Follows `export * from './...'` re-exports so the declared package entry's
+    full surface is seen.
+    """
+    classes: set[str] = set()
+    interfaces: set[str] = set()
+    if not dts.is_file():
+        return classes, interfaces
+    seen = _seen if _seen is not None else set()
+    resolved = dts.resolve()
+    if resolved in seen:
+        return classes, interfaces
+    seen.add(resolved)
+    text = dts.read_text(encoding="utf-8")
+    for rx in (TS_CLASS_RE, TS_CONST_CLASS_RE):
+        for m in rx.finditer(text):
+            classes.add(m.group(1))
+    for m in TS_INTERFACE_RE.finditer(text):
+        interfaces.add(m.group(1))
+    for m in TS_REEXPORT_RE.finditer(text):
+        target = _ts_resolve_module(dts, m.group(1))
+        if target is not None:
+            sub_classes, sub_interfaces = _collect_ts_dts_class_kinds(target, seen)
+            classes |= sub_classes
+            interfaces |= sub_interfaces
+    return classes, interfaces
+
+
+# Runtime (`.js`) export shapes the wrapper entry uses:
+# `exports.X = Y` / `module.exports.X = Y` (napi-generated) and
+# `module.exports = Object.assign(..., { X, Y, ... })` (the wrapper's
+# object-shorthand re-export of its hand-written classes). The object-literal
+# scan is bounded to identifier shorthand / `Name: expr` entries so it cannot
+# pick up arbitrary code. `module.exports.X` contains the `exports.X` substring,
+# so the same pattern catches both forms.
+JS_EXPORTS_ASSIGN_RE = re.compile(r"exports\.(\w+)\s*=")
+JS_REQUIRE_RE = re.compile(r"require\(\s*['\"]([^'\"]+)['\"]\s*\)")
+# Identifier-shorthand (`Name,`) and `Name: expr` keys of an object literal.
+# The trailing delimiter is a lookahead, not a consumed group, so a key never
+# eats the comma that the next key needs to anchor on; otherwise alternating
+# keys drop out of the scan and a runtime export reads as absent.
+JS_OBJECT_KEY_RE = re.compile(r"(?:[{,])\s*([A-Za-z_$][\w$]*)\s*(?=[,:}])")
+# Strip `/* ... */` block comments and `// ...` line comments. The runtime
+# export blocks carry explanatory comments between the keys; without removing
+# them the whitespace-then-comment run breaks the object-key scan's anchor.
+JS_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
+JS_LINE_COMMENT_RE = re.compile(r"//[^\n]*")
+
+
+def _strip_js_comments(text: str) -> str:
+    """Remove block and line comments from JS source.
+
+    Export blocks rely on identifier / delimiter adjacency to be scanned; an
+    interleaved comment otherwise hides the keys that follow it. The export
+    names this gate reads are bare identifiers, never string literals, so a
+    coarse comment strip is sufficient and cannot drop a tracked name.
+    """
+    return JS_LINE_COMMENT_RE.sub("", JS_BLOCK_COMMENT_RE.sub("", text))
+
+
+def _collect_js_exports(js: pathlib.Path, _seen: set[pathlib.Path] | None = None) -> set[str]:
+    """Harvest the runtime export names from a `.js` entry: `exports.X = ...`,
+    the keys of a `module.exports = Object.assign(..., { ... })` object, and
+    (transitively) the exports of any `require('./...')` it re-exports.
+
+    This is the TRUE shipped surface: the names a consumer can reach at
+    runtime through the package `main` entry. A class declared only in the
+    `.d.ts` but dropped from this set is not actually exported, so the gate
+    must never substitute a declaration-side hit for a runtime export.
+    """
+    out: set[str] = set()
+    if not js.is_file():
+        return out
+    seen = _seen if _seen is not None else set()
+    resolved = js.resolve()
+    if resolved in seen:
+        return out
+    seen.add(resolved)
+    text = _strip_js_comments(js.read_text(encoding="utf-8"))
+    for m in JS_EXPORTS_ASSIGN_RE.finditer(text):
+        out.add(m.group(1))
+    # `module.exports = Object.assign(..., { StreamingSession, ThetaDataError, ... })`:
+    # capture each object-literal block passed to the export assignment and
+    # read its identifier-shorthand / `Name:` keys.
+    for obj in re.finditer(
+        r"module\.exports\s*=\s*Object\.assign\(([^;]*)\)", text, re.DOTALL
+    ):
+        for key in JS_OBJECT_KEY_RE.finditer(obj.group(1)):
+            name = key.group(1)
+            if name not in {"Object", "assign"}:
+                out.add(name)
+    # A `module.exports = require('./index')`-style re-export (or a
+    # `const native = require('./index')` spread into the export) means the
+    # napi runtime surface ships through this entry too; follow it.
+    for m in JS_REQUIRE_RE.finditer(text):
+        target = js.parent / m.group(1)
+        for cand in (target, target.with_suffix(".js"), target.parent / (target.name + ".js")):
+            if cand.is_file():
+                out |= _collect_js_exports(cand, seen)
+                break
+    return out
+
+
+def _collect_ts_runtime_classes(ts_dts: pathlib.Path) -> set[str]:
+    """Runtime export names reachable through the package `main` entry.
+
+    Resolves the runtime entry from the package directory the `types` entry
+    lives in (so a caller passing a synthetic `types` path picks up the sibling
+    `.js`), then harvests its export names. This is the shipped surface a
+    consumer can `require`; the class-presence check holds every declared
+    runtime class to a hit here.
+    """
+    return _collect_js_exports(_resolve_ts_entry(ts_dts.parent, "main", "index.js"))
 
 
 def collect_typescript_classes(ts_dts: pathlib.Path) -> set[str]:
-    out: set[str] = set()
-    if not ts_dts.is_file():
-        return out
-    text = ts_dts.read_text(encoding="utf-8")
-    for m in TS_CLASS_RE.finditer(text):
-        out.add(m.group(1))
-    for m in TS_INTERFACE_RE.finditer(text):
-        out.add(m.group(1))
-    js_path = ts_dts.with_name("index.js")
-    if js_path.is_file():
-        for m in re.finditer(r"exports\.(\w+)\s*=\s*\w+", js_path.read_text(encoding="utf-8")):
-            out.add(m.group(1))
-    return out
+    """Every TypeScript surface name: declarations unioned with runtime.
+
+    Scans the declared package entry (`package.json` `types`), following its
+    `export * from './...'` re-exports, and unions the runtime entry
+    (`package.json` `main`) export names. This union is the name UNIVERSE used
+    by the public-surface vocabulary scan (which only needs the full set of
+    identifiers to check for banned tokens). It deliberately does NOT decide
+    class presence: a name present in the `.d.ts` but absent from the runtime
+    is in this union yet is NOT a shipped class. Presence is decided by
+    `_collect_ts_dts_class_kinds` (declaration kind) plus
+    `_collect_ts_runtime_classes` (runtime export) so a declaration-side hit
+    can never stand in for a dropped runtime export.
+    """
+    classes, interfaces = _collect_ts_dts_class_kinds(ts_dts)
+    return classes | interfaces | _collect_ts_runtime_classes(ts_dts)
+
+
+def _ts_class_presence(
+    name: str,
+    ts_declared_classes: set[str],
+    ts_declared_interfaces: set[str],
+    ts_runtime_exports: set[str],
+) -> tuple[bool, str | None]:
+    """Decide whether `name` is shipped on the TypeScript surface.
+
+    Returns `(present, detail)`. `present` is the actual-state boolean the
+    class-row check compares against the row's `typescript` claim; `detail`
+    is a non-empty string only when the name is in a half-shipped state the
+    gate must call out even where it would otherwise read as present:
+
+    - declared as a runtime `class` / runtime-class `const` but missing from
+      the runtime export set: NOT present. A consumer importing it gets
+      `undefined`, so this is a dropped export, not a typing detail.
+    - exported at runtime but with no declaration of any kind: present, but
+      flagged as an untyped runtime export (a `.d.ts` gap) so it cannot pass
+      silently on a declaration the package never ships.
+    - declared only as an `interface` (the napi plain-object shape, erased at
+      compile time): present on the declaration alone, since the type carries
+      no runtime constructor to export.
+    """
+    declared_class = name in ts_declared_classes
+    declared_interface = name in ts_declared_interfaces
+    runtime = name in ts_runtime_exports
+    if declared_class:
+        if runtime:
+            return True, None
+        return (
+            False,
+            "declared on the TypeScript .d.ts as a runtime class but missing "
+            "from the package runtime export; a consumer importing it resolves "
+            "to undefined (restore the export on the package `main` entry)",
+        )
+    if declared_interface:
+        # Object-shape type: no runtime constructor, declaration is the surface.
+        return True, None
+    if runtime:
+        return (
+            True,
+            "exported at runtime with no matching .d.ts declaration (add the "
+            "declaration so the typed surface matches what ships)",
+        )
+    return False, None
+
+
+def _check_class_rows(
+    rows: list[dict[str, Any]],
+    py_classes: set[str],
+    cpp_classes: set[str],
+    ts_declared_classes: set[str],
+    ts_declared_interfaces: set[str],
+    ts_runtime_exports: set[str],
+) -> list[str]:
+    """Class-level presence parity for the non-dotted `[[class]]` rows.
+
+    Compares each row's `python` / `typescript` / `cpp` claim to the actual
+    binding state. The TypeScript verdict goes through `_ts_class_presence`, so
+    a row marked `typescript = true` requires the runtime export when the class
+    is a real runtime class; a `.d.ts` declaration never stands in for a dropped
+    runtime export, and an untyped runtime export is flagged as a typing gap.
+    """
+    errors: list[str] = []
+    for row in rows:
+        name = row["name"]
+        if "." in name:
+            continue
+        for lang, declared in (
+            ("python", row["python"]),
+            ("typescript", row["typescript"]),
+            ("cpp", row["cpp"]),
+        ):
+            detail: str | None = None
+            if lang == "python":
+                actual = name in py_classes
+            elif lang == "typescript":
+                actual, detail = _ts_class_presence(
+                    name,
+                    ts_declared_classes,
+                    ts_declared_interfaces,
+                    ts_runtime_exports,
+                )
+            else:
+                actual = cpp_has(name, cpp_classes)
+            if actual != declared:
+                verb = "missing" if declared and not actual else "unexpected"
+                suffix = f" -- {detail}" if detail else ""
+                errors.append(
+                    f"  {name}.{lang}: declared={declared}, actual={actual} "
+                    f"({verb}){suffix}"
+                )
+            elif detail and declared:
+                # actual == declared (both true) yet the surface is half-shipped
+                # (e.g. a runtime export with no declaration). Flag it so a
+                # typing/parity gap cannot pass silently behind a true claim.
+                errors.append(f"  {name}.{lang}: {detail}")
+    return errors
 
 
 CPP_CLASS_RE = re.compile(r"^(?:class|struct)\s+(\w+)", re.MULTILINE)
@@ -1254,7 +1556,9 @@ def _collect_python_class_methods(py_src: pathlib.Path) -> dict[str, set[str]]:
     return out
 
 
-def _collect_typescript_class_methods(ts_src: pathlib.Path) -> dict[str, set[str]]:
+def _collect_typescript_class_methods(
+    ts_src: pathlib.Path, ts_pkg_dir: pathlib.Path | None = None
+) -> dict[str, set[str]]:
     """Return `{ts_class_name: {method, ...}}` for every TypeScript
     napi class.
 
@@ -1263,6 +1567,14 @@ def _collect_typescript_class_methods(ts_src: pathlib.Path) -> dict[str, set[str
     live across multiple files (`lib.rs`, `_generated/*.rs`,
     `config_class.rs`, ...); the collector walks each one and bounds
     the method scan to the impl body with a brace counter.
+
+    A method may also be added on the WRAPPER side rather than the napi
+    `impl`. The package entry augments a napi class through a
+    `declare module './index' { interface Client { ... } }` block and a
+    matching `Client.prototype.<name> = ...` runtime assignment (the
+    context-managed `Client.streaming(...)` helper is the load-bearing
+    case). When `ts_pkg_dir` is supplied, those augmentations are merged
+    in so a wrapper-only method is seen exactly like a napi one.
 
     Covers both method-attribute shapes:
 
@@ -1318,6 +1630,52 @@ def _collect_typescript_class_methods(ts_src: pathlib.Path) -> dict[str, set[str
                 camel = head + "".join(p.capitalize() for p in rest)
                 out.setdefault(class_name, set()).add(camel)
                 out.setdefault(class_name, set()).add(snake)
+    if ts_pkg_dir is not None:
+        for cls, methods in _collect_ts_wrapper_class_methods(ts_pkg_dir).items():
+            out.setdefault(cls, set()).update(methods)
+    return out
+
+
+# A wrapper-side method augmentation on the `.d.ts` entry:
+# `declare module './index' { interface <Class> { <name>(...): ...; } }`.
+# Captures each augmented interface name and its method declarations so a
+# method the wrapper layers onto a napi class (e.g. `Client.streaming`) is
+# harvested under that class.
+TS_AUGMENT_MODULE_RE = re.compile(
+    r"declare\s+module\s+['\"][^'\"]+['\"]\s*\{(.*?)\n\}", re.DOTALL
+)
+TS_AUGMENT_IFACE_RE = re.compile(r"interface\s+(\w+)\s*\{(.*?)\n\s*\}", re.DOTALL)
+TS_AUGMENT_METHOD_RE = re.compile(r"^\s*(\w+)\s*[(<]", re.MULTILINE)
+# A wrapper-side runtime method on the `.js` entry:
+# `<Native>.Client.prototype.<name> = ...` or `Client.prototype.<name> = ...`.
+JS_PROTOTYPE_METHOD_RE = re.compile(
+    r"(?:\b\w+\.)?(\w+)\.prototype\.(\w+)\s*="
+)
+
+
+def _collect_ts_wrapper_class_methods(ts_pkg_dir: pathlib.Path) -> dict[str, set[str]]:
+    """Harvest wrapper-side method augmentations from the package entry.
+
+    Reads the declared `.d.ts` entry (`package.json` `types`) for
+    `declare module './index' { interface <Class> { ... } }` augmentations and
+    the declared `.js` entry (`main`) for `<Class>.prototype.<name> = ...`
+    runtime additions, returning `{class: {method, ...}}`. This is how a
+    method present on the public TS surface only because the wrapper adds it
+    (not the napi `impl`) becomes visible to the parity gate.
+    """
+    out: dict[str, set[str]] = {}
+    dts = _resolve_ts_entry(ts_pkg_dir, "types", "index.d.ts")
+    if dts.is_file():
+        text = dts.read_text(encoding="utf-8")
+        for mod in TS_AUGMENT_MODULE_RE.finditer(text):
+            for iface in TS_AUGMENT_IFACE_RE.finditer(mod.group(1)):
+                cls = iface.group(1)
+                for meth in TS_AUGMENT_METHOD_RE.finditer(iface.group(2)):
+                    out.setdefault(cls, set()).add(meth.group(1))
+    js = _resolve_ts_entry(ts_pkg_dir, "main", "index.js")
+    if js.is_file():
+        for m in JS_PROTOTYPE_METHOD_RE.finditer(js.read_text(encoding="utf-8")):
+            out.setdefault(m.group(1), set()).add(m.group(2))
     return out
 
 
@@ -1412,17 +1770,46 @@ def _collect_cpp_class_methods(cpp_hpp: pathlib.Path) -> dict[str, set[str]]:
     return out
 
 
-# The unified `Client`'s data surfaces are reached through view
-# accessors that return a cheap handle clone (`historical`, `stream`,
-# `flatFiles`). They are hand-written per binding rather than generated
-# from `endpoint_surface.toml`, so a drop or rename in one binding would
-# otherwise pass silently. The forward `[[method]]` check catches a drop
-# of a declared accessor; this roster anchors the reverse-direction scan
-# that catches a NEW symmetric view accessor added on a binding without
-# an enrolling row. Names are the canonical camelCase row spelling; the
-# scan derives the per-binding form exactly as the forward check does.
+# The unified `Client`'s data surfaces are reached through view accessors
+# that return a cheap handle clone (`historical`, `stream`, `flatFiles`).
+# They are hand-written per binding rather than generated from
+# `endpoint_surface.toml`. Kept as the canonical-name reference for the view
+# accessors; the reverse-orphan scan below is no longer limited to this set.
+# It discovers every Client-level helper from the bindings so a NEW helper
+# (any shape, not just a view accessor) cannot ship on a binding untracked.
 CLIENT_VIEW_ACCESSORS: frozenset[str] = frozenset(
     {"historical", "stream", "flatFiles"}
+)
+
+
+# Client-level members the reverse-orphan scan must NOT treat as
+# cross-binding helper methods needing a `[[method]]` row. The scan
+# discovers candidate helpers from the precise Python (`#[pymethods]`) and
+# TypeScript (napi `#[napi]` + wrapper augmentation) collectors; this roster
+# names the members those collectors harvest that carry no Client
+# `[[method]]` contract, with the reason each is exempt:
+#
+#   * constructors / connection factories, gated by the `[[connect]]` and
+#     `[[from_file]]` families, not Client `[[method]]` rows;
+#   * Python-only convenience readbacks (`sessionUuid` / `subscriptionInfo`)
+#     that expose an auth-time value and have no symmetric cross-binding
+#     method contract.
+#
+# Names are the canonical camelCase spelling the scan derives. The blob-to-
+# disk helper (`flatFileToPath` / `flatfile_to_path`) is enrolled through
+# `METHOD_BINDING_OVERRIDES` against a `FlatFilesNamespace` row, so it is
+# resolved as enrolled by the scan (not listed here) and never double-counts.
+CLIENT_REVERSE_ORPHAN_EXEMPT_MEMBERS: frozenset[str] = frozenset(
+    {
+        "connect",
+        "connectBlocking",
+        "connectFromFile",
+        "fromFile",
+        "fromEnv",
+        "fromDotenv",
+        "sessionUuid",
+        "subscriptionInfo",
+    }
 )
 
 
@@ -1559,11 +1946,14 @@ def _check_method_rows(
     returns a list of human-readable mismatch strings (empty when
     every row matches).
 
-    Beyond the per-row forward check, the unified `Client` view accessors
-    (`CLIENT_VIEW_ACCESSORS`) get a reverse-direction orphan scan: a view
-    accessor that exists on the `Client` class in a binding but carries no
-    enrolling `Client` `[[method]]` row trips the gate, so a future
-    accessor cannot ship on one binding untracked.
+    Beyond the per-row forward check, Client-level helper methods get a
+    reverse-direction orphan scan. It is NOT limited to the view accessors:
+    candidate helpers are discovered from the precise Python and TypeScript
+    collectors (the latter including the wrapper-side `Client` augmentation),
+    so any helper a user calls as `client.<helper>(...)` that exists on a
+    binding but carries no enrolling `Client` `[[method]]` row trips the gate
+    unless it is named in `CLIENT_REVERSE_ORPHAN_EXEMPT_MEMBERS`. A future
+    helper cannot ship on one binding untracked.
     """
     errors: list[str] = []
     for row in method_rows:
@@ -1687,38 +2077,89 @@ def _check_method_rows(
                     f"crates/thetadatadx/src/client.rs)"
                 )
 
-    # Reverse-direction orphan scan for the unified-client view accessors.
-    # An accessor present on the `Client` class in a binding but carrying
-    # no enrolling `Client` `[[method]]` row is undocumented drift: the
-    # symmetric `historical` / `stream` / `flatFiles` surface stays in
-    # lockstep only if every accessor each binding exposes is enrolled.
+    # Reverse-direction orphan scan for Client-level helper methods. A helper
+    # present on the `Client` class in a binding but carrying no enrolling
+    # `Client` `[[method]]` row is undocumented drift. This is NOT limited to
+    # the view accessors: candidate helpers are discovered from the PRECISE
+    # Python (`#[pymethods]`) and TypeScript (napi `#[napi]` impls + the
+    # wrapper-side `Client` augmentation) collectors, so any new Client helper
+    # (a view accessor, a context-managed session opener, anything a user
+    # calls as `client.<helper>(...)`) trips unless it is enrolled or named
+    # in the exempt roster. The C++ collector is intentionally not a discovery
+    # source here: its heuristic class-body scan harvests FFI-extern calls,
+    # data members, and tokens inside method bodies that are not public
+    # methods; the C++ column of each helper is validated by the FORWARD row
+    # check instead. The error still reports every binding the flagged helper
+    # appears on (Python / TypeScript / C++) for context.
     enrolled_client_methods = {
         row["name"]
         for row in method_rows
         if row.get("class") == "Client" and row.get("name")
     }
+    # Members enrolled against a non-Client row but whose binding-specific
+    # home IS the `Client` class (the blob-to-disk helper routed through
+    # `METHOD_BINDING_OVERRIDES`). Keyed per binding so the scan resolves them
+    # as enrolled without double-counting under a Client row.
+    override_client_members: dict[str, set[str]] = {}
+    for binding_targets in METHOD_BINDING_OVERRIDES.values():
+        for binding, (target_class, target_member) in binding_targets.items():
+            if target_class == "Client":
+                override_client_members.setdefault(binding, set()).add(target_member)
     py_client = py_methods.get("Client", set())
     ts_client = ts_methods.get("Client", set())
     cpp_client = cpp_methods.get(_cpp_class_for("Client"), set())
-    for camel in sorted(CLIENT_VIEW_ACCESSORS):
-        if camel in enrolled_client_methods:
+
+    def _client_member_enrolled(camel: str, snake: str) -> bool:
+        return camel in enrolled_client_methods or snake in enrolled_client_methods
+
+    # Discover candidate helpers from the precise collectors. A Python
+    # `<name>_async` member is the awaitable twin of its sync helper, not a
+    # distinct contract, so its base is matched (mirroring the flat-file and
+    # historical `_async` handling). The camelCase row spelling is the lookup
+    # key; a Python override-home member (`flatfile_to_path`) and a TS one
+    # (`flatFileToPath`) are skipped as enrolled-elsewhere.
+    py_override_members = override_client_members.get("python", set())
+    ts_override_members = override_client_members.get("typescript", set())
+    candidates: set[str] = set()
+    for member in py_client:
+        base = member[: -len("_async")] if member.endswith("_async") else member
+        # An override-home member (and its `_async` twin) is enrolled against
+        # its own non-Client row; skip it here.
+        if member in py_override_members or base in py_override_members:
             continue
+        candidates.add(_snake_to_camel(base))
+    for member in ts_client:
+        if member in ts_override_members or _snake_to_camel(member) in {
+            _snake_to_camel(o) for o in ts_override_members
+        }:
+            continue
+        # napi members are recorded in both snake and camel form; normalise to
+        # the camelCase row spelling.
+        candidates.add(_snake_to_camel(member) if "_" in member else member)
+
+    for camel in sorted(candidates):
         snake = _camel_to_snake(camel)
+        if _client_member_enrolled(camel, snake):
+            continue
+        if camel in CLIENT_REVERSE_ORPHAN_EXEMPT_MEMBERS:
+            continue
         present_on = sorted(
             lang
             for lang, seen in (
-                ("python", snake in py_client or f"get_{snake}" in py_client),
-                ("typescript", camel in ts_client),
+                ("python", snake in py_client or f"{snake}_async" in py_client),
+                ("typescript", camel in ts_client or snake in ts_client),
                 ("cpp", snake in cpp_client or f"get_{snake}" in cpp_client),
             )
             if seen
         )
         if present_on:
             errors.append(
-                f"  Client.{camel}: view accessor present on {present_on} but "
-                f"has no Client [[method]] row. Add one enrolling its "
-                f"per-binding presence so the unified-client view surface "
-                f"stays tracked."
+                f"  Client.{camel}: helper method present on {present_on} but "
+                f"has no Client [[method]] row. Either enroll it (with its "
+                f"per-binding presence) so the unified-client helper surface "
+                f"stays tracked, or add it to "
+                f"CLIENT_REVERSE_ORPHAN_EXEMPT_MEMBERS with the documented "
+                f"reason it carries no cross-binding contract."
             )
 
     # Reverse-direction orphan scan for the flat-file fetch namespace. A fetch
@@ -4569,6 +5010,12 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     py_classes = collect_python_classes(PY_SRC)
+    # The TypeScript surface is read in three parts so a row's class-presence
+    # verdict rests on what actually ships at runtime, not on a declaration the
+    # runtime entry may have dropped. `ts_classes` (the union) is retained only
+    # for the name-universe consumers (anchor rows, the vocab scan).
+    ts_declared_classes, ts_declared_interfaces = _collect_ts_dts_class_kinds(TS_DTS)
+    ts_runtime_exports = _collect_ts_runtime_classes(TS_DTS)
     ts_classes = collect_typescript_classes(TS_DTS)
     cpp_classes = collect_cpp_classes(CPP_HPP)
 
@@ -4580,31 +5027,23 @@ def main(argv: list[str] | None = None) -> int:
     rust_fields = _collect_rust_pub_fields(CONFIG_DIR)
 
     py_class_methods = _collect_python_class_methods(PY_SRC)
-    ts_class_methods = _collect_typescript_class_methods(TS_SRC)
+    ts_class_methods = _collect_typescript_class_methods(TS_SRC, TS_PKG_DIR)
     cpp_class_methods = _collect_cpp_class_methods(CPP_HPP)
     rust_view_methods = _collect_rust_view_methods(CORE_CLIENT_RS)
 
     declared_names: set[str] = {row["name"] for row in rows}
 
-    # Class-level mismatches (non-dotted rows).
-    class_mismatches: list[tuple[str, str, bool, bool]] = []
-    for row in rows:
-        name = row["name"]
-        if "." in name:
-            continue
-        for lang, declared in (
-            ("python", row["python"]),
-            ("typescript", row["typescript"]),
-            ("cpp", row["cpp"]),
-        ):
-            if lang == "python":
-                actual = name in py_classes
-            elif lang == "typescript":
-                actual = name in ts_classes
-            else:
-                actual = cpp_has(name, cpp_classes)
-            if actual != declared:
-                class_mismatches.append((name, lang, declared, actual))
+    # Class-level mismatches (non-dotted rows). The TypeScript column is held
+    # to the runtime export, not the declaration, so a class dropped from the
+    # shipped package surface trips even while the `.d.ts` still declares it.
+    class_mismatches = _check_class_rows(
+        rows,
+        py_classes,
+        cpp_classes,
+        ts_declared_classes,
+        ts_declared_interfaces,
+        ts_runtime_exports,
+    )
 
     # Field-level mismatches (dotted rows / #595). The class universe lets
     # the dotted-row check validate documentation-anchor rows (an anchor on
@@ -4898,9 +5337,8 @@ def main(argv: list[str] | None = None) -> int:
             f"check_binding_parity: {len(class_mismatches)} class-level "
             f"mismatch(es) vs sdks/parity.toml:"
         )
-        for name, lang, declared, actual in class_mismatches:
-            verb = "missing" if declared and not actual else "unexpected"
-            print(f"  {name}.{lang}: declared={declared}, actual={actual} ({verb})")
+        for e in class_mismatches:
+            print(e)
         print()
 
     if field_errors:
@@ -5635,7 +6073,10 @@ def _run_selftest() -> int:
         every method is scoped to its owning class. This protects
         against false-positive 'unexpected' verdicts when two classes
         coincidentally share a method name (`subscribe` on both
-        `Client` and `Subscription` etc.).
+        `Subscription` and `StreamingClient` etc.). The decoy holder is
+        `Subscription` (a non-Client class) so the forward-isolation
+        behaviour is exercised without entangling the Client-scoped
+        reverse-orphan scan.
         """
         rows = [
             {
@@ -5646,10 +6087,10 @@ def _run_selftest() -> int:
                 "cpp": True,
             }
         ]
-        # `subscribe` exists on `Client` (TS) but NOT on
+        # `subscribe` exists on `Subscription` (TS) but NOT on
         # `StreamingClient` (TS). Class-scoped lookup must respect that.
         py_methods = {"StreamingClient": {"subscribe"}}
-        ts_methods = {"Client": {"subscribe"}}
+        ts_methods = {"Subscription": {"subscribe"}}
         cpp_methods = {"StreamingClient": {"subscribe"}}
         errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
         assert errors == [], (
@@ -5775,6 +6216,277 @@ def _run_selftest() -> int:
     _case("method negative — stale `false` row with method present", _case_method_unexpected_extra)
     _case("method negative — malformed row missing class or name", _case_method_row_missing_class_or_name)
     _case("method positive — class-scoped TS lookup isolates classes", _case_method_class_scoping_isolates_classes)
+
+    def _case_client_reverse_orphan_generalized_trips() -> None:
+        """A NEW Client helper (not one of the historical view accessors)
+        present on Python + TypeScript but carrying no `[[method]]` row trips
+        the generalized reverse-orphan scan."""
+        rows: list[dict[str, Any]] = []  # no Client rows at all
+        py_methods = {"Client": {"streaming"}}
+        ts_methods = {"Client": {"streaming"}}
+        cpp_methods: dict[str, set[str]] = {}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert any(
+            "Client.streaming" in e and "no Client [[method]] row" in e
+            for e in errors
+        ), f"a new unenrolled Client helper must trip; got {errors!r}"
+
+    def _case_client_reverse_orphan_enrolled_silent() -> None:
+        """An enrolled Client helper does NOT trip the reverse-orphan scan."""
+        rows = [
+            {
+                "class": "Client",
+                "name": "streaming",
+                "python": True,
+                "typescript": True,
+                "cpp": False,
+                "rust": False,
+            }
+        ]
+        py_methods = {"Client": {"streaming"}}
+        ts_methods = {"Client": {"streaming"}}
+        cpp_methods: dict[str, set[str]] = {}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert errors == [], f"enrolled Client helper must be silent; got {errors!r}"
+
+    def _case_client_reverse_orphan_exempt_silent() -> None:
+        """An exempt Client member (a connection factory, a Python-only
+        readback) does NOT trip the reverse-orphan scan."""
+        rows: list[dict[str, Any]] = []
+        py_methods = {
+            "Client": {"from_file", "from_env", "from_dotenv", "session_uuid", "subscription_info"}
+        }
+        ts_methods = {"Client": {"connect", "connectFromFile"}}
+        cpp_methods: dict[str, set[str]] = {}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert errors == [], (
+            f"exempt Client members must not trip; got {errors!r}"
+        )
+
+    def _case_client_reverse_orphan_override_home_silent() -> None:
+        """The blob-to-disk helper lives on the Client class per binding but is
+        enrolled against a `FlatFilesNamespace` row through
+        `METHOD_BINDING_OVERRIDES`; neither it nor its Python `_async` twin
+        trips the Client reverse-orphan scan."""
+        rows = [
+            {
+                "class": "FlatFilesNamespace",
+                "name": "flatFileToPath",
+                "python": True,
+                "typescript": True,
+                "cpp": True,
+            }
+        ]
+        py_methods = {"Client": {"flatfile_to_path", "flatfile_to_path_async"}}
+        ts_methods = {"Client": {"flatFileToPath"}}
+        cpp_methods = {"FlatFiles": {"to_path"}}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert errors == [], (
+            f"override-home Client member must not trip; got {errors!r}"
+        )
+
+    _case("client reverse-orphan - new helper trips (beyond the triple)", _case_client_reverse_orphan_generalized_trips)
+    _case("client reverse-orphan - enrolled helper silent", _case_client_reverse_orphan_enrolled_silent)
+    _case("client reverse-orphan - exempt members silent", _case_client_reverse_orphan_exempt_silent)
+    _case("client reverse-orphan - override-home member silent", _case_client_reverse_orphan_override_home_silent)
+
+    def _case_ts_entry_resolves_from_package_json() -> None:
+        """The TS class collector resolves the entry from `package.json`
+        `types`, follows `export * from './index'`, and harvests `export class`
+        / `export declare const` leaves plus runtime `Object.assign` exports
+        from the `main` entry."""
+        with tempfile.TemporaryDirectory() as tmp:
+            pkg = pathlib.Path(tmp)
+            (pkg / "package.json").write_text(
+                '{"main": "entry.js", "types": "entry.d.ts"}\n', encoding="utf-8"
+            )
+            (pkg / "index.d.ts").write_text(
+                "export declare class NapiClient {}\n"
+                "export interface NapiThing {}\n",
+                encoding="utf-8",
+            )
+            (pkg / "entry.d.ts").write_text(
+                "export * from './index';\n"
+                "export class WrapperError extends Error {}\n"
+                "export declare const WrapperSession: { new (): WrapperSession };\n"
+                "export interface WrapperSession {}\n",
+                encoding="utf-8",
+            )
+            (pkg / "entry.js").write_text(
+                "const native = require('./index');\n"
+                "module.exports = Object.assign({}, native, "
+                "{ WrapperError, WrapperSession });\n",
+                encoding="utf-8",
+            )
+            (pkg / "index.js").write_text(
+                "exports.NapiClient = class {};\n", encoding="utf-8"
+            )
+            found = collect_typescript_classes(_resolve_ts_entry(pkg, "types", "index.d.ts"))
+            for want in ("NapiClient", "NapiThing", "WrapperError", "WrapperSession"):
+                assert want in found, f"{want} must be seen via the resolved entry; got {sorted(found)}"
+
+    def _case_ts_entry_falls_back_to_index() -> None:
+        """With no `types`/`main` keys, the resolver falls back to `index.*`."""
+        with tempfile.TemporaryDirectory() as tmp:
+            pkg = pathlib.Path(tmp)
+            (pkg / "package.json").write_text("{}\n", encoding="utf-8")
+            (pkg / "index.d.ts").write_text(
+                "export declare class OnlyClient {}\n", encoding="utf-8"
+            )
+            found = collect_typescript_classes(_resolve_ts_entry(pkg, "types", "index.d.ts"))
+            assert "OnlyClient" in found, f"fallback to index.d.ts must work; got {sorted(found)}"
+
+    def _case_ts_wrapper_augmentation_method_seen() -> None:
+        """A wrapper-side `declare module './index' { interface Client { ... } }`
+        augmentation and its `Client.prototype.<name>` runtime addition are
+        harvested under `Client`."""
+        with tempfile.TemporaryDirectory() as tmp:
+            pkg = pathlib.Path(tmp)
+            (pkg / "package.json").write_text(
+                '{"main": "entry.js", "types": "entry.d.ts"}\n', encoding="utf-8"
+            )
+            (pkg / "entry.d.ts").write_text(
+                "declare module './index' {\n"
+                "  interface Client {\n"
+                "    streaming(cb: unknown): Promise<void>;\n"
+                "  }\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            (pkg / "entry.js").write_text(
+                "native.Client.prototype.streaming = async function streaming(cb) {};\n",
+                encoding="utf-8",
+            )
+            wrapper = _collect_ts_wrapper_class_methods(pkg)
+            assert wrapper.get("Client") == {"streaming"}, (
+                f"wrapper augmentation must surface Client.streaming; got {wrapper!r}"
+            )
+
+    _case("ts entry - resolves from package.json + follows re-exports", _case_ts_entry_resolves_from_package_json)
+    _case("ts entry - falls back to index.* when keys absent", _case_ts_entry_falls_back_to_index)
+    _case("ts entry - wrapper Client augmentation harvested", _case_ts_wrapper_augmentation_method_seen)
+
+    def _materialize_ts_pkg(
+        tmp: str, *, dts_body: str, js_body: str
+    ) -> tuple[set[str], set[str], set[str]]:
+        """Write a synthetic TypeScript package and return the three TS sets the
+        class-row check consumes: declared classes, declared interfaces, runtime
+        exports. The package declares its entries through `package.json` so the
+        resolver path under test runs exactly as it does on the real tree."""
+        pkg = pathlib.Path(tmp)
+        (pkg / "package.json").write_text(
+            '{"main": "entry.js", "types": "entry.d.ts"}\n', encoding="utf-8"
+        )
+        (pkg / "entry.d.ts").write_text(dts_body, encoding="utf-8")
+        (pkg / "entry.js").write_text(js_body, encoding="utf-8")
+        dts_path = _resolve_ts_entry(pkg, "types", "index.d.ts")
+        declared_classes, declared_interfaces = _collect_ts_dts_class_kinds(dts_path)
+        runtime = _collect_ts_runtime_classes(dts_path)
+        return declared_classes, declared_interfaces, runtime
+
+    def _case_ts_class_row_runtime_present_silent() -> None:
+        """A class declared in `.d.ts` AND exported at runtime is silent."""
+        rows = [{"name": "Widget", "python": False, "typescript": True, "cpp": False}]
+        with tempfile.TemporaryDirectory() as tmp:
+            dc, di, rt = _materialize_ts_pkg(
+                tmp,
+                dts_body="export declare class Widget {}\n",
+                js_body="module.exports = Object.assign({}, { Widget });\n",
+            )
+            errors = _check_class_rows(rows, set(), set(), dc, di, rt)
+        assert errors == [], (
+            f"declared + runtime-exported class must be silent; got {errors!r}"
+        )
+
+    def _case_ts_class_row_runtime_drop_trips() -> None:
+        """Dropping ONLY the JS runtime export (the class still declared in the
+        `.d.ts`) must trip the gate. This is the audit-proven hole: a
+        declaration-side hit must never stand in for the shipped surface."""
+        rows = [{"name": "Widget", "python": False, "typescript": True, "cpp": False}]
+        with tempfile.TemporaryDirectory() as tmp:
+            dc, di, rt = _materialize_ts_pkg(
+                tmp,
+                # Still declared as a runtime class on the typed surface ...
+                dts_body="export declare class Widget {}\n",
+                # ... but absent from the runtime export object.
+                js_body="module.exports = Object.assign({}, {});\n",
+            )
+            errors = _check_class_rows(rows, set(), set(), dc, di, rt)
+        assert any(
+            "Widget.typescript" in e and "missing" in e and "runtime export" in e
+            for e in errors
+        ), f"dropped JS runtime export must trip the gate; got {errors!r}"
+
+    def _case_ts_class_row_dts_drop_caught_as_typing_gap() -> None:
+        """Dropping ONLY the `.d.ts` declaration (the class still exported at
+        runtime) is caught as a typing/parity gap, not passed silently."""
+        rows = [{"name": "Widget", "python": False, "typescript": True, "cpp": False}]
+        with tempfile.TemporaryDirectory() as tmp:
+            dc, di, rt = _materialize_ts_pkg(
+                tmp,
+                # No declaration of any kind on the typed surface ...
+                dts_body="export declare class Other {}\n",
+                # ... yet present at runtime.
+                js_body="module.exports = Object.assign({}, { Widget });\n",
+            )
+            errors = _check_class_rows(rows, set(), set(), dc, di, rt)
+        assert any(
+            "Widget.typescript" in e and "no matching .d.ts declaration" in e
+            for e in errors
+        ), f"runtime export with no declaration must be flagged; got {errors!r}"
+
+    def _case_ts_interface_row_no_runtime_required() -> None:
+        """An `interface`-declared object type (the napi `#[napi(object)]`
+        plain-object shape) is satisfied by the declaration alone; it has no
+        runtime constructor to export, so a true claim stays silent."""
+        rows = [
+            {"name": "PlainShape", "python": False, "typescript": True, "cpp": False}
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            dc, di, rt = _materialize_ts_pkg(
+                tmp,
+                dts_body="export interface PlainShape { x: number }\n",
+                # The runtime ships no `PlainShape` constructor, and that is
+                # correct for an erased interface.
+                js_body="module.exports = Object.assign({}, {});\n",
+            )
+            errors = _check_class_rows(rows, set(), set(), dc, di, rt)
+        assert errors == [], (
+            f"interface-only object type must not require a runtime export; "
+            f"got {errors!r}"
+        )
+
+    def _case_ts_runtime_export_via_object_literal_comments() -> None:
+        """`_collect_js_exports` reads every key of a `module.exports =
+        Object.assign(..., { ... })` literal even when comments interleave the
+        keys; this covers the alternating-drop and comment-anchor defects that
+        previously hid half the runtime names."""
+        with tempfile.TemporaryDirectory() as tmp:
+            pkg = pathlib.Path(tmp)
+            js = pkg / "entry.js"
+            js.write_text(
+                "module.exports = Object.assign({}, native, {\n"
+                "  Alpha,\n"
+                "  // a comment between two keys must not hide the next key\n"
+                "  Beta,\n"
+                "  Gamma: native.GammaImpl,\n"
+                "  /* block comment */ Delta,\n"
+                "  Epsilon,\n"
+                "});\n",
+                encoding="utf-8",
+            )
+            found = _collect_js_exports(js)
+        for want in ("Alpha", "Beta", "Gamma", "Delta", "Epsilon"):
+            assert want in found, (
+                f"runtime export {want} must be harvested despite comments; "
+                f"got {sorted(found)}"
+            )
+
+    _case("ts class row - declared + runtime export silent", _case_ts_class_row_runtime_present_silent)
+    _case("ts class row - JS runtime export drop trips", _case_ts_class_row_runtime_drop_trips)
+    _case("ts class row - .d.ts drop caught as typing gap", _case_ts_class_row_dts_drop_caught_as_typing_gap)
+    _case("ts class row - interface-only needs no runtime export", _case_ts_interface_row_no_runtime_required)
+    _case("ts runtime - object-literal keys read past comments", _case_ts_runtime_export_via_object_literal_comments)
 
     def _case_flatfiles_namespace_fetch_resolves() -> None:
         """A `FlatFilesNamespace` fetch row resolves through the C++ alias to the

@@ -22,8 +22,8 @@ info:
     url: https://github.com/userFRM/ThetaDataDx/blob/main/LICENSE
 
 servers:
-  - url: grpc://mdds.thetadata.us
-    description: ThetaData MDDS production gRPC server (TLS)
+  - url: http://localhost:25503
+    description: Local ThetaDataDx server (HTTP)
 
 tags:
   - name: Stock / List
@@ -649,7 +649,7 @@ paths:
   # STOCK / LIST
   # =========================================================================
 
-  /stock/list/symbols:
+  /v3/stock/list/symbols:
     x-min-subscription: free
     get:
       operationId: stockListSymbols
@@ -675,7 +675,7 @@ paths:
           source: |
             auto symbols = client.historical().stock_list_symbols();
 
-  /stock/list/dates:
+  /v3/stock/list/dates:
     x-min-subscription: free
     get:
       operationId: stockListDates
@@ -708,7 +708,7 @@ paths:
   # STOCK / SNAPSHOT
   # =========================================================================
 
-  /stock/snapshot/ohlc:
+  /v3/stock/snapshot/ohlc:
     x-min-subscription: value
     get:
       operationId: stockSnapshotOhlc
@@ -739,7 +739,7 @@ paths:
           source: |
             auto ohlc = client.historical().stock_snapshot_ohlc({"AAPL"});
 
-  /stock/snapshot/trade:
+  /v3/stock/snapshot/trade:
     x-min-subscription: standard
     get:
       operationId: stockSnapshotTrade
@@ -770,7 +770,7 @@ paths:
           source: |
             auto trades = client.historical().stock_snapshot_trade({"AAPL"});
 
-  /stock/snapshot/quote:
+  /v3/stock/snapshot/quote:
     x-min-subscription: value
     get:
       operationId: stockSnapshotQuote
@@ -801,7 +801,7 @@ paths:
           source: |
             auto quotes = client.historical().stock_snapshot_quote({"AAPL"});
 
-  /stock/snapshot/market_value:
+  /v3/stock/snapshot/market_value:
     x-min-subscription: standard
     get:
       operationId: stockSnapshotMarketValue
@@ -834,7 +834,7 @@ paths:
   # STOCK / HISTORY
   # =========================================================================
 
-  /stock/history/eod:
+  /v3/stock/history/eod:
     x-min-subscription: free
     get:
       operationId: stockHistoryEod
@@ -863,7 +863,7 @@ paths:
           source: |
             auto eod = client.historical().stock_history_eod("AAPL", "20240101", "20240301");
 
-  /stock/history/ohlc:
+  /v3/stock/history/ohlc:
     x-min-subscription: value
     get:
       operationId: stockHistoryOhlc
@@ -896,7 +896,7 @@ paths:
           source: |
             auto bars = client.historical().stock_history_ohlc("AAPL", "20240315", "60000");
 
-  /stock/history/ohlc_range:
+  /v3/stock/history/ohlc_range:
     x-min-subscription: value
     get:
       operationId: stockHistoryOhlcRange
@@ -930,7 +930,7 @@ paths:
           source: |
             auto bars = client.historical().stock_history_ohlc_range("AAPL", "20240101", "20240301", "60000");
 
-  /stock/history/trade:
+  /v3/stock/history/trade:
     x-min-subscription: standard
     get:
       operationId: stockHistoryTrade
@@ -972,7 +972,7 @@ paths:
           label: C++
           source: |
             auto trades = client.historical().stock_history_trade("AAPL", "20240315");
-  /stock/history/quote:
+  /v3/stock/history/quote:
     x-min-subscription: value
     get:
       operationId: stockHistoryQuote
@@ -1015,7 +1015,7 @@ paths:
           label: C++
           source: |
             auto quotes = client.historical().stock_history_quote("AAPL", "20240315", "60000");
-  /stock/history/trade_quote:
+  /v3/stock/history/trade_quote:
     x-min-subscription: standard
     get:
       operationId: stockHistoryTradeQuote
@@ -1064,7 +1064,7 @@ paths:
   # STOCK / AT-TIME
   # =========================================================================
 
-  /stock/at_time/trade:
+  /v3/stock/at_time/trade:
     x-min-subscription: standard
     get:
       operationId: stockAtTimeTrade
@@ -1096,7 +1096,7 @@ paths:
           source: |
             auto trades = client.historical().stock_at_time_trade("AAPL", "20240101", "20240301", "09:30:00.000");
 
-  /stock/at_time/quote:
+  /v3/stock/at_time/quote:
     x-min-subscription: value
     get:
       operationId: stockAtTimeQuote
@@ -1131,7 +1131,7 @@ paths:
   # OPTION / LIST
   # =========================================================================
 
-  /option/list/symbols:
+  /v3/option/list/symbols:
     x-min-subscription: free
     get:
       operationId: optionListSymbols
@@ -1157,7 +1157,7 @@ paths:
           source: |
             auto symbols = client.historical().option_list_symbols();
 
-  /option/list/dates:
+  /v3/option/list/dates:
     x-min-subscription: free
     get:
       operationId: optionListDates
@@ -1188,7 +1188,7 @@ paths:
           source: |
             auto dates = client.historical().option_list_dates("TRADE", "SPY", "20240419", "500", "C");
 
-  /option/list/expirations:
+  /v3/option/list/expirations:
     x-min-subscription: free
     get:
       operationId: optionListExpirations
@@ -1215,7 +1215,7 @@ paths:
           source: |
             auto exps = client.historical().option_list_expirations("SPY");
 
-  /option/list/strikes:
+  /v3/option/list/strikes:
     x-min-subscription: free
     get:
       operationId: optionListStrikes
@@ -1250,7 +1250,7 @@ paths:
           source: |
             auto strikes = client.historical().option_list_strikes("SPY", "20240419");
 
-  /option/list/contracts:
+  /v3/option/list/contracts:
     x-min-subscription: free
     get:
       operationId: optionListContracts
@@ -1285,7 +1285,7 @@ paths:
   # OPTION / SNAPSHOT
   # =========================================================================
 
-  /option/snapshot/ohlc:
+  /v3/option/snapshot/ohlc:
     x-min-subscription: value
     get:
       operationId: optionSnapshotOhlc
@@ -1318,7 +1318,7 @@ paths:
           source: |
             auto ohlc = client.historical().option_snapshot_ohlc("SPY", "20240419", "500", "C");
 
-  /option/snapshot/trade:
+  /v3/option/snapshot/trade:
     x-min-subscription: standard
     get:
       operationId: optionSnapshotTrade
@@ -1350,7 +1350,7 @@ paths:
           source: |
             auto trades = client.historical().option_snapshot_trade("SPY", "20240419", "500", "C");
 
-  /option/snapshot/quote:
+  /v3/option/snapshot/quote:
     x-min-subscription: value
     get:
       operationId: optionSnapshotQuote
@@ -1383,7 +1383,7 @@ paths:
           source: |
             auto quotes = client.historical().option_snapshot_quote("SPY", "20240419", "500", "C");
 
-  /option/snapshot/open_interest:
+  /v3/option/snapshot/open_interest:
     x-min-subscription: value
     get:
       operationId: optionSnapshotOpenInterest
@@ -1416,7 +1416,7 @@ paths:
           source: |
             auto oi = client.historical().option_snapshot_open_interest("SPY", "20240419", "500", "C");
 
-  /option/snapshot/market_value:
+  /v3/option/snapshot/market_value:
     x-min-subscription: standard
     get:
       operationId: optionSnapshotMarketValue
@@ -1453,7 +1453,7 @@ paths:
   # OPTION / SNAPSHOT GREEKS
   # =========================================================================
 
-  /option/snapshot/greeks/implied_volatility:
+  /v3/option/snapshot/greeks/implied_volatility:
     x-min-subscription: standard
     get:
       operationId: optionSnapshotGreeksImpliedVolatility
@@ -1492,7 +1492,7 @@ paths:
           source: |
             auto iv = client.historical().option_snapshot_greeks_implied_volatility("SPY", "20240419", "500", "C");
 
-  /option/snapshot/greeks/all:
+  /v3/option/snapshot/greeks/all:
     x-min-subscription: professional
     get:
       operationId: optionSnapshotGreeksAll
@@ -1532,7 +1532,7 @@ paths:
           source: |
             auto greeks = client.historical().option_snapshot_greeks_all("SPY", "20240419", "500", "C");
 
-  /option/snapshot/greeks/first_order:
+  /v3/option/snapshot/greeks/first_order:
     x-min-subscription: standard
     get:
       operationId: optionSnapshotGreeksFirstOrder
@@ -1571,7 +1571,7 @@ paths:
           source: |
             auto g1 = client.historical().option_snapshot_greeks_first_order("SPY", "20240419", "500", "C");
 
-  /option/snapshot/greeks/second_order:
+  /v3/option/snapshot/greeks/second_order:
     x-min-subscription: professional
     get:
       operationId: optionSnapshotGreeksSecondOrder
@@ -1610,7 +1610,7 @@ paths:
           source: |
             auto g2 = client.historical().option_snapshot_greeks_second_order("SPY", "20240419", "500", "C");
 
-  /option/snapshot/greeks/third_order:
+  /v3/option/snapshot/greeks/third_order:
     x-min-subscription: professional
     get:
       operationId: optionSnapshotGreeksThirdOrder
@@ -1653,7 +1653,7 @@ paths:
   # OPTION / HISTORY
   # =========================================================================
 
-  /option/history/eod:
+  /v3/option/history/eod:
     x-min-subscription: free
     get:
       operationId: optionHistoryEod
@@ -1688,7 +1688,7 @@ paths:
           source: |
             auto eod = client.historical().option_history_eod("SPY", "20240419", "500", "C", "20240101", "20240301");
 
-  /option/history/ohlc:
+  /v3/option/history/ohlc:
     x-min-subscription: value
     get:
       operationId: optionHistoryOhlc
@@ -1735,7 +1735,7 @@ paths:
           source: |
             auto bars = client.historical().option_history_ohlc("SPY", "20240419", "500", "C", "20240315", "60000");
 
-  /option/history/trade:
+  /v3/option/history/trade:
     x-min-subscription: standard
     get:
       operationId: optionHistoryTrade
@@ -1781,7 +1781,7 @@ paths:
           label: C++
           source: |
             auto trades = client.historical().option_history_trade("SPY", "20240419", "500", "C", "20240315");
-  /option/history/quote:
+  /v3/option/history/quote:
     x-min-subscription: value
     get:
       operationId: optionHistoryQuote
@@ -1828,7 +1828,7 @@ paths:
           label: C++
           source: |
             auto quotes = client.historical().option_history_quote("SPY", "20240419", "500", "C", "20240315", "60000");
-  /option/history/trade_quote:
+  /v3/option/history/trade_quote:
     x-min-subscription: standard
     get:
       operationId: optionHistoryTradeQuote
@@ -1876,7 +1876,7 @@ paths:
           source: |
             auto tq = client.historical().option_history_trade_quote("SPY", "20240419", "500", "C", "20240315");
 
-  /option/history/open_interest:
+  /v3/option/history/open_interest:
     x-min-subscription: value
     get:
       operationId: optionHistoryOpenInterest
@@ -1925,7 +1925,7 @@ paths:
   # OPTION / HISTORY GREEKS
   # =========================================================================
 
-  /option/history/greeks/eod:
+  /v3/option/history/greeks/eod:
     x-min-subscription: standard
     get:
       operationId: optionHistoryGreeksEod
@@ -1964,7 +1964,7 @@ paths:
           source: |
             auto greeks = client.historical().option_history_greeks_eod("SPY", "20240419", "500", "C", "20240101", "20240301");
 
-  /option/history/greeks/all:
+  /v3/option/history/greeks/all:
     x-min-subscription: professional
     get:
       operationId: optionHistoryGreeksAll
@@ -2015,7 +2015,7 @@ paths:
           source: |
             auto greeks = client.historical().option_history_greeks_all("SPY", "20240419", "500", "C", "20240315", "60000");
 
-  /option/history/greeks/first_order:
+  /v3/option/history/greeks/first_order:
     x-min-subscription: standard
     get:
       operationId: optionHistoryGreeksFirstOrder
@@ -2066,7 +2066,7 @@ paths:
           source: |
             auto g1 = client.historical().option_history_greeks_first_order("SPY", "20240419", "500", "C", "20240315", "60000");
 
-  /option/history/greeks/second_order:
+  /v3/option/history/greeks/second_order:
     x-min-subscription: professional
     get:
       operationId: optionHistoryGreeksSecondOrder
@@ -2117,7 +2117,7 @@ paths:
           source: |
             auto g2 = client.historical().option_history_greeks_second_order("SPY", "20240419", "500", "C", "20240315", "60000");
 
-  /option/history/greeks/third_order:
+  /v3/option/history/greeks/third_order:
     x-min-subscription: professional
     get:
       operationId: optionHistoryGreeksThirdOrder
@@ -2168,7 +2168,7 @@ paths:
           source: |
             auto g3 = client.historical().option_history_greeks_third_order("SPY", "20240419", "500", "C", "20240315", "60000");
 
-  /option/history/greeks/implied_volatility:
+  /v3/option/history/greeks/implied_volatility:
     x-min-subscription: standard
     get:
       operationId: optionHistoryGreeksImpliedVolatility
@@ -2223,7 +2223,7 @@ paths:
   # OPTION / HISTORY TRADE GREEKS
   # =========================================================================
 
-  /option/history/trade_greeks/all:
+  /v3/option/history/trade_greeks/all:
     x-min-subscription: professional
     get:
       operationId: optionHistoryTradeGreeksAll
@@ -2274,7 +2274,7 @@ paths:
           source: |
             auto tg = client.historical().option_history_trade_greeks_all("SPY", "20240419", "500", "C", "20240315");
 
-  /option/history/trade_greeks/first_order:
+  /v3/option/history/trade_greeks/first_order:
     x-min-subscription: professional
     get:
       operationId: optionHistoryTradeGreeksFirstOrder
@@ -2325,7 +2325,7 @@ paths:
           source: |
             auto tg1 = client.historical().option_history_trade_greeks_first_order("SPY", "20240419", "500", "C", "20240315");
 
-  /option/history/trade_greeks/second_order:
+  /v3/option/history/trade_greeks/second_order:
     x-min-subscription: professional
     get:
       operationId: optionHistoryTradeGreeksSecondOrder
@@ -2376,7 +2376,7 @@ paths:
           source: |
             auto tg2 = client.historical().option_history_trade_greeks_second_order("SPY", "20240419", "500", "C", "20240315");
 
-  /option/history/trade_greeks/third_order:
+  /v3/option/history/trade_greeks/third_order:
     x-min-subscription: professional
     get:
       operationId: optionHistoryTradeGreeksThirdOrder
@@ -2427,7 +2427,7 @@ paths:
           source: |
             auto tg3 = client.historical().option_history_trade_greeks_third_order("SPY", "20240419", "500", "C", "20240315");
 
-  /option/history/trade_greeks/implied_volatility:
+  /v3/option/history/trade_greeks/implied_volatility:
     x-min-subscription: professional
     get:
       operationId: optionHistoryTradeGreeksImpliedVolatility
@@ -2482,7 +2482,7 @@ paths:
   # OPTION / AT-TIME
   # =========================================================================
 
-  /option/at_time/trade:
+  /v3/option/at_time/trade:
     x-min-subscription: standard
     get:
       operationId: optionAtTimeTrade
@@ -2517,7 +2517,7 @@ paths:
           source: |
             auto trades = client.historical().option_at_time_trade("SPY", "20240419", "500", "C", "20240101", "20240301", "09:30:00.000");
 
-  /option/at_time/quote:
+  /v3/option/at_time/quote:
     x-min-subscription: value
     get:
       operationId: optionAtTimeQuote
@@ -2556,7 +2556,7 @@ paths:
   # INDEX / LIST
   # =========================================================================
 
-  /index/list/symbols:
+  /v3/index/list/symbols:
     x-min-subscription: free
     get:
       operationId: indexListSymbols
@@ -2582,7 +2582,7 @@ paths:
           source: |
             auto symbols = client.historical().index_list_symbols();
 
-  /index/list/dates:
+  /v3/index/list/dates:
     x-min-subscription: free
     get:
       operationId: indexListDates
@@ -2613,7 +2613,7 @@ paths:
   # INDEX / SNAPSHOT
   # =========================================================================
 
-  /index/snapshot/ohlc:
+  /v3/index/snapshot/ohlc:
     x-min-subscription: standard
     get:
       operationId: indexSnapshotOhlc
@@ -2641,7 +2641,7 @@ paths:
           source: |
             auto ohlc = client.historical().index_snapshot_ohlc({"SPX"});
 
-  /index/snapshot/price:
+  /v3/index/snapshot/price:
     x-min-subscription: standard
     get:
       operationId: indexSnapshotPrice
@@ -2669,7 +2669,7 @@ paths:
           source: |
             auto price = client.historical().index_snapshot_price({"SPX"});
 
-  /index/snapshot/market_value:
+  /v3/index/snapshot/market_value:
     x-min-subscription: standard
     get:
       operationId: indexSnapshotMarketValue
@@ -2701,7 +2701,7 @@ paths:
   # INDEX / HISTORY
   # =========================================================================
 
-  /index/history/eod:
+  /v3/index/history/eod:
     x-min-subscription: free
     get:
       operationId: indexHistoryEod
@@ -2730,7 +2730,7 @@ paths:
           source: |
             auto eod = client.historical().index_history_eod("SPX", "20240101", "20240301");
 
-  /index/history/ohlc:
+  /v3/index/history/ohlc:
     x-min-subscription: standard
     get:
       operationId: indexHistoryOhlc
@@ -2762,7 +2762,7 @@ paths:
           source: |
             auto bars = client.historical().index_history_ohlc("SPX", "20240101", "20240301", "60000");
 
-  /index/history/price:
+  /v3/index/history/price:
     x-min-subscription: value
     get:
       operationId: indexHistoryPrice
@@ -2809,7 +2809,7 @@ paths:
   # INDEX / AT-TIME
   # =========================================================================
 
-  /index/at_time/price:
+  /v3/index/at_time/price:
     x-min-subscription: value
     get:
       operationId: indexAtTimePrice
@@ -2843,7 +2843,7 @@ paths:
   # CALENDAR
   # =========================================================================
 
-  /calendar/open_today:
+  /v3/calendar/open_today:
     x-min-subscription: free
     get:
       operationId: calendarOpenToday
@@ -2869,7 +2869,7 @@ paths:
           source: |
             auto open = client.historical().calendar_open_today();
 
-  /calendar/on_date:
+  /v3/calendar/on_date:
     x-min-subscription: free
     get:
       operationId: calendarOnDate
@@ -2896,7 +2896,7 @@ paths:
           source: |
             auto cal = client.historical().calendar_on_date("20240315");
 
-  /calendar/year:
+  /v3/calendar/year:
     x-min-subscription: free
     get:
       operationId: calendarYear
@@ -2933,7 +2933,7 @@ paths:
   # INTEREST RATE
   # =========================================================================
 
-  /rate/history/eod:
+  /v3/rate/history/eod:
     x-min-subscription: free
     get:
       operationId: interestRateHistoryEod
