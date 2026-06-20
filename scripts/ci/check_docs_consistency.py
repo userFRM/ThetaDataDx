@@ -43,6 +43,14 @@ ENDPOINT_NAMES = {ep["name"] for ep in ENDPOINTS}
 # generated client to resolve it. Compare the registry paths as-is.
 REST_PATHS = {ep["rest_path"] for ep in ENDPOINTS}
 
+# The single server a generated client targets: the local HTTP server root.
+# `tools/server` listens on this port by default (`tools/server/src/main.rs`),
+# and the documented paths are the `/v3/...` routes served there. The block
+# must name an `http(s)` URL on this host; a backend scheme/host (a `grpc://`
+# URL, or an `mdds`/private-backend host) is a request a generated client
+# cannot issue and must trip the gate.
+OPENAPI_SERVER_URL = "http://localhost:25503"
+
 DOCS_SITE = ROOT / "docs-site/docs"
 OPENAPI_YAML = DOCS_SITE / "public/thetadatadx.yaml"
 
@@ -386,8 +394,64 @@ def check_llms_txt() -> None:
         )
 
 
+def _openapi_server_urls(text: str) -> list[str]:
+    """Return the `url:` values under the top-level `servers:` block.
+
+    Reads from the `servers:` key to the next top-level key (a line starting in
+    column zero), collecting each `- url: <value>` entry in order. Keeps the
+    parse local to the block so a `url:` under `info`/`contact`/`license` never
+    leaks in.
+    """
+    lines = text.splitlines()
+    urls: list[str] = []
+    in_block = False
+    for line in lines:
+        if not in_block:
+            if re.match(r"^servers:\s*$", line):
+                in_block = True
+            continue
+        # A new top-level key (no indentation) ends the servers block.
+        if line and not line[0].isspace():
+            break
+        m = re.match(r"\s*-\s*url:\s*(\S+)", line)
+        if m:
+            urls.append(m.group(1).strip())
+    return urls
+
+
 def check_openapi() -> None:
     text = OPENAPI_YAML.read_text()
+
+    # The `servers` block is the base URL a generated client prepends to every
+    # documented path. It must name the local HTTP server root; a missing /
+    # empty block, or a backend scheme/host (a `grpc://` URL or an
+    # `mdds`/private-backend host), yields a contract a client cannot call.
+    server_urls = _openapi_server_urls(text)
+    if not server_urls:
+        fail(
+            f"{OPENAPI_YAML.relative_to(ROOT)} has no `servers:` entry. "
+            f"Declare the local HTTP server: {OPENAPI_SERVER_URL}"
+        )
+    for url in server_urls:
+        scheme = url.split("://", 1)[0].lower() if "://" in url else ""
+        if scheme not in {"http", "https"}:
+            fail(
+                f"{OPENAPI_YAML.relative_to(ROOT)} servers url {url!r} is not an "
+                f"http(s) endpoint a generated client can call. Use the local "
+                f"HTTP server: {OPENAPI_SERVER_URL}"
+            )
+        host = url.split("://", 1)[1].split("/", 1)[0].lower()
+        if "mdds" in host:
+            fail(
+                f"{OPENAPI_YAML.relative_to(ROOT)} servers url {url!r} points at a "
+                f"backend host. Use the local HTTP server: {OPENAPI_SERVER_URL}"
+            )
+    if OPENAPI_SERVER_URL not in server_urls:
+        fail(
+            f"{OPENAPI_YAML.relative_to(ROOT)} servers block is missing the local "
+            f"HTTP server url {OPENAPI_SERVER_URL!r}; found {server_urls}"
+        )
+
     actual_paths = {
         match.group(1)
         for match in re.finditer(r"^  (/[A-Za-z0-9_/-]+):\s*$", text, re.MULTILINE)

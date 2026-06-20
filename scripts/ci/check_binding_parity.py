@@ -268,38 +268,95 @@ def _collect_ts_dts_classes(
     """Harvest every exported class / interface / runtime-class-const name
     declared in `dts`, following `export * from './...'` re-exports so the
     declared package entry's full surface is seen."""
-    out: set[str] = set()
+    classes, interfaces = _collect_ts_dts_class_kinds(dts, _seen)
+    return classes | interfaces
+
+
+def _collect_ts_dts_class_kinds(
+    dts: pathlib.Path, _seen: set[pathlib.Path] | None = None
+) -> tuple[set[str], set[str]]:
+    """Harvest declaration-side names from `dts`, split by runtime kind.
+
+    Returns `(runtime_classes, interfaces)`:
+
+    - `runtime_classes` are `export class` / `export declare class` and the
+      `export declare const X: { new (...): X }` runtime-class shape. These
+      compile to a real constructor that MUST be reachable at runtime, so a
+      row declaring one is held to having a matching runtime export.
+    - `interfaces` are `export interface` declarations (the napi `#[napi(object)]`
+      plain-object shape and hand-written interfaces). These are erased at
+      compile time and carry no runtime constructor, so a row backed by one
+      is satisfied by the declaration alone.
+
+    Follows `export * from './...'` re-exports so the declared package entry's
+    full surface is seen.
+    """
+    classes: set[str] = set()
+    interfaces: set[str] = set()
     if not dts.is_file():
-        return out
+        return classes, interfaces
     seen = _seen if _seen is not None else set()
     resolved = dts.resolve()
     if resolved in seen:
-        return out
+        return classes, interfaces
     seen.add(resolved)
     text = dts.read_text(encoding="utf-8")
-    for rx in (TS_CLASS_RE, TS_INTERFACE_RE, TS_CONST_CLASS_RE):
+    for rx in (TS_CLASS_RE, TS_CONST_CLASS_RE):
         for m in rx.finditer(text):
-            out.add(m.group(1))
+            classes.add(m.group(1))
+    for m in TS_INTERFACE_RE.finditer(text):
+        interfaces.add(m.group(1))
     for m in TS_REEXPORT_RE.finditer(text):
         target = _ts_resolve_module(dts, m.group(1))
         if target is not None:
-            out |= _collect_ts_dts_classes(target, seen)
-    return out
+            sub_classes, sub_interfaces = _collect_ts_dts_class_kinds(target, seen)
+            classes |= sub_classes
+            interfaces |= sub_interfaces
+    return classes, interfaces
 
 
 # Runtime (`.js`) export shapes the wrapper entry uses:
-# `exports.X = Y` (napi-generated) and `module.exports = Object.assign(...,
-# { X, Y, ... })` (the wrapper's object-shorthand re-export of its
-# hand-written classes). The object-literal scan is bounded to identifier
-# shorthand / `Name: expr` entries so it cannot pick up arbitrary code.
+# `exports.X = Y` / `module.exports.X = Y` (napi-generated) and
+# `module.exports = Object.assign(..., { X, Y, ... })` (the wrapper's
+# object-shorthand re-export of its hand-written classes). The object-literal
+# scan is bounded to identifier shorthand / `Name: expr` entries so it cannot
+# pick up arbitrary code. `module.exports.X` contains the `exports.X` substring,
+# so the same pattern catches both forms.
 JS_EXPORTS_ASSIGN_RE = re.compile(r"exports\.(\w+)\s*=")
 JS_REQUIRE_RE = re.compile(r"require\(\s*['\"]([^'\"]+)['\"]\s*\)")
+# Identifier-shorthand (`Name,`) and `Name: expr` keys of an object literal.
+# The trailing delimiter is a lookahead, not a consumed group, so a key never
+# eats the comma that the next key needs to anchor on; otherwise alternating
+# keys drop out of the scan and a runtime export reads as absent.
+JS_OBJECT_KEY_RE = re.compile(r"(?:[{,])\s*([A-Za-z_$][\w$]*)\s*(?=[,:}])")
+# Strip `/* ... */` block comments and `// ...` line comments. The runtime
+# export blocks carry explanatory comments between the keys; without removing
+# them the whitespace-then-comment run breaks the object-key scan's anchor.
+JS_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
+JS_LINE_COMMENT_RE = re.compile(r"//[^\n]*")
+
+
+def _strip_js_comments(text: str) -> str:
+    """Remove block and line comments from JS source.
+
+    Export blocks rely on identifier / delimiter adjacency to be scanned; an
+    interleaved comment otherwise hides the keys that follow it. The export
+    names this gate reads are bare identifiers, never string literals, so a
+    coarse comment strip is sufficient and cannot drop a tracked name.
+    """
+    return JS_LINE_COMMENT_RE.sub("", JS_BLOCK_COMMENT_RE.sub("", text))
 
 
 def _collect_js_exports(js: pathlib.Path, _seen: set[pathlib.Path] | None = None) -> set[str]:
     """Harvest the runtime export names from a `.js` entry: `exports.X = ...`,
     the keys of a `module.exports = Object.assign(..., { ... })` object, and
-    (transitively) the exports of any `require('./...')` it re-exports."""
+    (transitively) the exports of any `require('./...')` it re-exports.
+
+    This is the TRUE shipped surface: the names a consumer can reach at
+    runtime through the package `main` entry. A class declared only in the
+    `.d.ts` but dropped from this set is not actually exported, so the gate
+    must never substitute a declaration-side hit for a runtime export.
+    """
     out: set[str] = set()
     if not js.is_file():
         return out
@@ -308,7 +365,7 @@ def _collect_js_exports(js: pathlib.Path, _seen: set[pathlib.Path] | None = None
     if resolved in seen:
         return out
     seen.add(resolved)
-    text = js.read_text(encoding="utf-8")
+    text = _strip_js_comments(js.read_text(encoding="utf-8"))
     for m in JS_EXPORTS_ASSIGN_RE.finditer(text):
         out.add(m.group(1))
     # `module.exports = Object.assign(..., { StreamingSession, ThetaDataError, ... })`:
@@ -317,9 +374,7 @@ def _collect_js_exports(js: pathlib.Path, _seen: set[pathlib.Path] | None = None
     for obj in re.finditer(
         r"module\.exports\s*=\s*Object\.assign\(([^;]*)\)", text, re.DOTALL
     ):
-        for key in re.finditer(
-            r"(?:^|[{,])\s*([A-Za-z_$][\w$]*)\s*(?:[,:}]|$)", obj.group(1)
-        ):
+        for key in JS_OBJECT_KEY_RE.finditer(obj.group(1)):
             name = key.group(1)
             if name not in {"Object", "assign"}:
                 out.add(name)
@@ -335,21 +390,134 @@ def _collect_js_exports(js: pathlib.Path, _seen: set[pathlib.Path] | None = None
     return out
 
 
+def _collect_ts_runtime_classes(ts_dts: pathlib.Path) -> set[str]:
+    """Runtime export names reachable through the package `main` entry.
+
+    Resolves the runtime entry from the package directory the `types` entry
+    lives in (so a caller passing a synthetic `types` path picks up the sibling
+    `.js`), then harvests its export names. This is the shipped surface a
+    consumer can `require`; the class-presence check holds every declared
+    runtime class to a hit here.
+    """
+    return _collect_js_exports(_resolve_ts_entry(ts_dts.parent, "main", "index.js"))
+
+
 def collect_typescript_classes(ts_dts: pathlib.Path) -> set[str]:
-    """Exported class / interface names on the published TypeScript surface.
+    """Every TypeScript surface name: declarations unioned with runtime.
 
     Scans the declared package entry (`package.json` `types`), following its
     `export * from './...'` re-exports, and unions the runtime entry
-    (`package.json` `main`) export names so a class shipped only through the
-    wrapper's runtime object-export (the typed-error leaves, the
-    context-managed session) is seen. `ts_dts` is the resolved `types` entry;
-    the matching runtime entry is resolved from the same package directory.
+    (`package.json` `main`) export names. This union is the name UNIVERSE used
+    by the public-surface vocabulary scan (which only needs the full set of
+    identifiers to check for banned tokens). It deliberately does NOT decide
+    class presence: a name present in the `.d.ts` but absent from the runtime
+    is in this union yet is NOT a shipped class. Presence is decided by
+    `_collect_ts_dts_class_kinds` (declaration kind) plus
+    `_collect_ts_runtime_classes` (runtime export) so a declaration-side hit
+    can never stand in for a dropped runtime export.
     """
-    out = _collect_ts_dts_classes(ts_dts)
-    # Resolve the runtime entry from the package the types entry lives in, so
-    # a caller passing a synthetic `types` path picks up the sibling `.js`.
-    out |= _collect_js_exports(_resolve_ts_entry(ts_dts.parent, "main", "index.js"))
-    return out
+    classes, interfaces = _collect_ts_dts_class_kinds(ts_dts)
+    return classes | interfaces | _collect_ts_runtime_classes(ts_dts)
+
+
+def _ts_class_presence(
+    name: str,
+    ts_declared_classes: set[str],
+    ts_declared_interfaces: set[str],
+    ts_runtime_exports: set[str],
+) -> tuple[bool, str | None]:
+    """Decide whether `name` is shipped on the TypeScript surface.
+
+    Returns `(present, detail)`. `present` is the actual-state boolean the
+    class-row check compares against the row's `typescript` claim; `detail`
+    is a non-empty string only when the name is in a half-shipped state the
+    gate must call out even where it would otherwise read as present:
+
+    - declared as a runtime `class` / runtime-class `const` but missing from
+      the runtime export set: NOT present. A consumer importing it gets
+      `undefined`, so this is a dropped export, not a typing detail.
+    - exported at runtime but with no declaration of any kind: present, but
+      flagged as an untyped runtime export (a `.d.ts` gap) so it cannot pass
+      silently on a declaration the package never ships.
+    - declared only as an `interface` (the napi plain-object shape, erased at
+      compile time): present on the declaration alone, since the type carries
+      no runtime constructor to export.
+    """
+    declared_class = name in ts_declared_classes
+    declared_interface = name in ts_declared_interfaces
+    runtime = name in ts_runtime_exports
+    if declared_class:
+        if runtime:
+            return True, None
+        return (
+            False,
+            "declared on the TypeScript .d.ts as a runtime class but missing "
+            "from the package runtime export; a consumer importing it resolves "
+            "to undefined (restore the export on the package `main` entry)",
+        )
+    if declared_interface:
+        # Object-shape type: no runtime constructor, declaration is the surface.
+        return True, None
+    if runtime:
+        return (
+            True,
+            "exported at runtime with no matching .d.ts declaration (add the "
+            "declaration so the typed surface matches what ships)",
+        )
+    return False, None
+
+
+def _check_class_rows(
+    rows: list[dict[str, Any]],
+    py_classes: set[str],
+    cpp_classes: set[str],
+    ts_declared_classes: set[str],
+    ts_declared_interfaces: set[str],
+    ts_runtime_exports: set[str],
+) -> list[str]:
+    """Class-level presence parity for the non-dotted `[[class]]` rows.
+
+    Compares each row's `python` / `typescript` / `cpp` claim to the actual
+    binding state. The TypeScript verdict goes through `_ts_class_presence`, so
+    a row marked `typescript = true` requires the runtime export when the class
+    is a real runtime class; a `.d.ts` declaration never stands in for a dropped
+    runtime export, and an untyped runtime export is flagged as a typing gap.
+    """
+    errors: list[str] = []
+    for row in rows:
+        name = row["name"]
+        if "." in name:
+            continue
+        for lang, declared in (
+            ("python", row["python"]),
+            ("typescript", row["typescript"]),
+            ("cpp", row["cpp"]),
+        ):
+            detail: str | None = None
+            if lang == "python":
+                actual = name in py_classes
+            elif lang == "typescript":
+                actual, detail = _ts_class_presence(
+                    name,
+                    ts_declared_classes,
+                    ts_declared_interfaces,
+                    ts_runtime_exports,
+                )
+            else:
+                actual = cpp_has(name, cpp_classes)
+            if actual != declared:
+                verb = "missing" if declared and not actual else "unexpected"
+                suffix = f" -- {detail}" if detail else ""
+                errors.append(
+                    f"  {name}.{lang}: declared={declared}, actual={actual} "
+                    f"({verb}){suffix}"
+                )
+            elif detail and declared:
+                # actual == declared (both true) yet the surface is half-shipped
+                # (e.g. a runtime export with no declaration). Flag it so a
+                # typing/parity gap cannot pass silently behind a true claim.
+                errors.append(f"  {name}.{lang}: {detail}")
+    return errors
 
 
 CPP_CLASS_RE = re.compile(r"^(?:class|struct)\s+(\w+)", re.MULTILINE)
@@ -4842,6 +5010,12 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     py_classes = collect_python_classes(PY_SRC)
+    # The TypeScript surface is read in three parts so a row's class-presence
+    # verdict rests on what actually ships at runtime, not on a declaration the
+    # runtime entry may have dropped. `ts_classes` (the union) is retained only
+    # for the name-universe consumers (anchor rows, the vocab scan).
+    ts_declared_classes, ts_declared_interfaces = _collect_ts_dts_class_kinds(TS_DTS)
+    ts_runtime_exports = _collect_ts_runtime_classes(TS_DTS)
     ts_classes = collect_typescript_classes(TS_DTS)
     cpp_classes = collect_cpp_classes(CPP_HPP)
 
@@ -4859,25 +5033,17 @@ def main(argv: list[str] | None = None) -> int:
 
     declared_names: set[str] = {row["name"] for row in rows}
 
-    # Class-level mismatches (non-dotted rows).
-    class_mismatches: list[tuple[str, str, bool, bool]] = []
-    for row in rows:
-        name = row["name"]
-        if "." in name:
-            continue
-        for lang, declared in (
-            ("python", row["python"]),
-            ("typescript", row["typescript"]),
-            ("cpp", row["cpp"]),
-        ):
-            if lang == "python":
-                actual = name in py_classes
-            elif lang == "typescript":
-                actual = name in ts_classes
-            else:
-                actual = cpp_has(name, cpp_classes)
-            if actual != declared:
-                class_mismatches.append((name, lang, declared, actual))
+    # Class-level mismatches (non-dotted rows). The TypeScript column is held
+    # to the runtime export, not the declaration, so a class dropped from the
+    # shipped package surface trips even while the `.d.ts` still declares it.
+    class_mismatches = _check_class_rows(
+        rows,
+        py_classes,
+        cpp_classes,
+        ts_declared_classes,
+        ts_declared_interfaces,
+        ts_runtime_exports,
+    )
 
     # Field-level mismatches (dotted rows / #595). The class universe lets
     # the dotted-row check validate documentation-anchor rows (an anchor on
@@ -5171,9 +5337,8 @@ def main(argv: list[str] | None = None) -> int:
             f"check_binding_parity: {len(class_mismatches)} class-level "
             f"mismatch(es) vs sdks/parity.toml:"
         )
-        for name, lang, declared, actual in class_mismatches:
-            verb = "missing" if declared and not actual else "unexpected"
-            print(f"  {name}.{lang}: declared={declared}, actual={actual} ({verb})")
+        for e in class_mismatches:
+            print(e)
         print()
 
     if field_errors:
@@ -6200,6 +6365,128 @@ def _run_selftest() -> int:
     _case("ts entry - resolves from package.json + follows re-exports", _case_ts_entry_resolves_from_package_json)
     _case("ts entry - falls back to index.* when keys absent", _case_ts_entry_falls_back_to_index)
     _case("ts entry - wrapper Client augmentation harvested", _case_ts_wrapper_augmentation_method_seen)
+
+    def _materialize_ts_pkg(
+        tmp: str, *, dts_body: str, js_body: str
+    ) -> tuple[set[str], set[str], set[str]]:
+        """Write a synthetic TypeScript package and return the three TS sets the
+        class-row check consumes: declared classes, declared interfaces, runtime
+        exports. The package declares its entries through `package.json` so the
+        resolver path under test runs exactly as it does on the real tree."""
+        pkg = pathlib.Path(tmp)
+        (pkg / "package.json").write_text(
+            '{"main": "entry.js", "types": "entry.d.ts"}\n', encoding="utf-8"
+        )
+        (pkg / "entry.d.ts").write_text(dts_body, encoding="utf-8")
+        (pkg / "entry.js").write_text(js_body, encoding="utf-8")
+        dts_path = _resolve_ts_entry(pkg, "types", "index.d.ts")
+        declared_classes, declared_interfaces = _collect_ts_dts_class_kinds(dts_path)
+        runtime = _collect_ts_runtime_classes(dts_path)
+        return declared_classes, declared_interfaces, runtime
+
+    def _case_ts_class_row_runtime_present_silent() -> None:
+        """A class declared in `.d.ts` AND exported at runtime is silent."""
+        rows = [{"name": "Widget", "python": False, "typescript": True, "cpp": False}]
+        with tempfile.TemporaryDirectory() as tmp:
+            dc, di, rt = _materialize_ts_pkg(
+                tmp,
+                dts_body="export declare class Widget {}\n",
+                js_body="module.exports = Object.assign({}, { Widget });\n",
+            )
+            errors = _check_class_rows(rows, set(), set(), dc, di, rt)
+        assert errors == [], (
+            f"declared + runtime-exported class must be silent; got {errors!r}"
+        )
+
+    def _case_ts_class_row_runtime_drop_trips() -> None:
+        """Dropping ONLY the JS runtime export (the class still declared in the
+        `.d.ts`) must trip the gate. This is the audit-proven hole: a
+        declaration-side hit must never stand in for the shipped surface."""
+        rows = [{"name": "Widget", "python": False, "typescript": True, "cpp": False}]
+        with tempfile.TemporaryDirectory() as tmp:
+            dc, di, rt = _materialize_ts_pkg(
+                tmp,
+                # Still declared as a runtime class on the typed surface ...
+                dts_body="export declare class Widget {}\n",
+                # ... but absent from the runtime export object.
+                js_body="module.exports = Object.assign({}, {});\n",
+            )
+            errors = _check_class_rows(rows, set(), set(), dc, di, rt)
+        assert any(
+            "Widget.typescript" in e and "missing" in e and "runtime export" in e
+            for e in errors
+        ), f"dropped JS runtime export must trip the gate; got {errors!r}"
+
+    def _case_ts_class_row_dts_drop_caught_as_typing_gap() -> None:
+        """Dropping ONLY the `.d.ts` declaration (the class still exported at
+        runtime) is caught as a typing/parity gap, not passed silently."""
+        rows = [{"name": "Widget", "python": False, "typescript": True, "cpp": False}]
+        with tempfile.TemporaryDirectory() as tmp:
+            dc, di, rt = _materialize_ts_pkg(
+                tmp,
+                # No declaration of any kind on the typed surface ...
+                dts_body="export declare class Other {}\n",
+                # ... yet present at runtime.
+                js_body="module.exports = Object.assign({}, { Widget });\n",
+            )
+            errors = _check_class_rows(rows, set(), set(), dc, di, rt)
+        assert any(
+            "Widget.typescript" in e and "no matching .d.ts declaration" in e
+            for e in errors
+        ), f"runtime export with no declaration must be flagged; got {errors!r}"
+
+    def _case_ts_interface_row_no_runtime_required() -> None:
+        """An `interface`-declared object type (the napi `#[napi(object)]`
+        plain-object shape) is satisfied by the declaration alone; it has no
+        runtime constructor to export, so a true claim stays silent."""
+        rows = [
+            {"name": "PlainShape", "python": False, "typescript": True, "cpp": False}
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            dc, di, rt = _materialize_ts_pkg(
+                tmp,
+                dts_body="export interface PlainShape { x: number }\n",
+                # The runtime ships no `PlainShape` constructor, and that is
+                # correct for an erased interface.
+                js_body="module.exports = Object.assign({}, {});\n",
+            )
+            errors = _check_class_rows(rows, set(), set(), dc, di, rt)
+        assert errors == [], (
+            f"interface-only object type must not require a runtime export; "
+            f"got {errors!r}"
+        )
+
+    def _case_ts_runtime_export_via_object_literal_comments() -> None:
+        """`_collect_js_exports` reads every key of a `module.exports =
+        Object.assign(..., { ... })` literal even when comments interleave the
+        keys; this covers the alternating-drop and comment-anchor defects that
+        previously hid half the runtime names."""
+        with tempfile.TemporaryDirectory() as tmp:
+            pkg = pathlib.Path(tmp)
+            js = pkg / "entry.js"
+            js.write_text(
+                "module.exports = Object.assign({}, native, {\n"
+                "  Alpha,\n"
+                "  // a comment between two keys must not hide the next key\n"
+                "  Beta,\n"
+                "  Gamma: native.GammaImpl,\n"
+                "  /* block comment */ Delta,\n"
+                "  Epsilon,\n"
+                "});\n",
+                encoding="utf-8",
+            )
+            found = _collect_js_exports(js)
+        for want in ("Alpha", "Beta", "Gamma", "Delta", "Epsilon"):
+            assert want in found, (
+                f"runtime export {want} must be harvested despite comments; "
+                f"got {sorted(found)}"
+            )
+
+    _case("ts class row - declared + runtime export silent", _case_ts_class_row_runtime_present_silent)
+    _case("ts class row - JS runtime export drop trips", _case_ts_class_row_runtime_drop_trips)
+    _case("ts class row - .d.ts drop caught as typing gap", _case_ts_class_row_dts_drop_caught_as_typing_gap)
+    _case("ts class row - interface-only needs no runtime export", _case_ts_interface_row_no_runtime_required)
+    _case("ts runtime - object-literal keys read past comments", _case_ts_runtime_export_via_object_literal_comments)
 
     def _case_flatfiles_namespace_fetch_resolves() -> None:
         """A `FlatFilesNamespace` fetch row resolves through the C++ alias to the
