@@ -37,7 +37,11 @@ SURFACE = tomllib.loads((ROOT / "crates/thetadatadx/endpoint_surface.toml").read
 ENDPOINTS = SURFACE["endpoints"]
 TEMPLATES = SURFACE["templates"]
 ENDPOINT_NAMES = {ep["name"] for ep in ENDPOINTS}
-REST_PATHS = {ep["rest_path"].removeprefix("/v3") for ep in ENDPOINTS}
+# The OpenAPI `servers` block points at the HTTP server root
+# (`http://localhost:25503`), so each documented path must carry the full
+# served route (the registry `rest_path` verbatim, `/v3/...`) for a
+# generated client to resolve it. Compare the registry paths as-is.
+REST_PATHS = {ep["rest_path"] for ep in ENDPOINTS}
 
 DOCS_SITE = ROOT / "docs-site/docs"
 OPENAPI_YAML = DOCS_SITE / "public/thetadatadx.yaml"
