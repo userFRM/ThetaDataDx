@@ -201,7 +201,7 @@ This returns a filtered bulk response across multiple strikes. If you change `st
 ### Compute Greeks offline
 
 ```json
-{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"all_greeks","arguments":{"spot":150.0,"strike":155.0,"rate":0.05,"dividend_yield":0.01,"time_to_expiry":0.25,"option_price":5.50,"is_call":true}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"all_greeks","arguments":{"spot":150.0,"strike":155.0,"rate":0.05,"dividend_yield":0.01,"time_to_expiry":0.25,"option_price":5.50,"right":"call"}}}
 ```
 
 Response:

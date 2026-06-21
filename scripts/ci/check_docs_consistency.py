@@ -210,12 +210,17 @@ def check_static_docs() -> None:
         DOCS_SITE / "mcp.md",
         "Every generated historical endpoint plus `ping`, `all_greeks`, and `implied_volatility`.",
     )
-    # Version strings in getting-started docs must match the workspace
-    # major; the version-sync gate (`scripts/ci/check_version_sync.py`)
-    # enforces this against `crates/thetadatadx/Cargo.toml` canonically.
+    # Version strings in getting-started docs must match the canonical
+    # workspace version; derive it from `crates/thetadatadx/Cargo.toml`
+    # so the pin tracks bumps automatically instead of pinning a literal
+    # that silently ages. The version-sync gate
+    # (`scripts/ci/check_version_sync.py`) enforces the major separately.
+    cargo_version = tomllib.loads(
+        (ROOT / "crates/thetadatadx/Cargo.toml").read_text()
+    )["package"]["version"]
     expect_contains(
         DOCS_SITE / "articles/getting-started.md",
-        'thetadatadx = "13.0.0-rc.1"',
+        f'thetadatadx = "{cargo_version}"',
     )
     expect_contains(
         DOCS_SITE / "mcp.md",
