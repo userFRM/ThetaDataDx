@@ -215,16 +215,20 @@ fn read_header_with_timeout<R: Read>(
     drain_budget: Duration,
 ) -> Result<Option<[u8; 2]>, crate::error::Error> {
     let mut stall_deadline: Option<Instant> = None;
-    let drain_deadline: Option<Instant> =
-        // Only arm the drain budget on the first call that makes any
-        // progress: a fresh invocation with zero bytes in flight must
-        // keep the pre-header WouldBlock semantics unchanged (the
-        // caller drains pings + commands on `Error::Io`).
-        if state.header_read > 0 {
-            Some(Instant::now() + drain_budget)
-        } else {
-            None
-        };
+    // Arm the drain budget the moment ANY header byte is in flight —
+    // whether it was delivered by a prior call (`state.header_read > 0`
+    // on entry) or by the first successful read inside this call. A
+    // fresh invocation with zero bytes in flight keeps the pre-header
+    // WouldBlock semantics unchanged (the caller drains pings + commands
+    // on `Error::Io`); but once the first byte lands, a subsequent
+    // mid-header stall must be bounded by the yield cap exactly like the
+    // mid-payload path, so it cannot block the command drain for the
+    // full `stall_timeout`.
+    let mut drain_deadline: Option<Instant> = if state.header_read > 0 {
+        Some(Instant::now() + drain_budget)
+    } else {
+        None
+    };
     loop {
         let n = state.header_read as usize;
         match reader.read(&mut state.header_buf[n..]) {
@@ -243,6 +247,10 @@ fn read_header_with_timeout<R: Read>(
                 if new_n >= 2 {
                     return Ok(Some(state.header_buf));
                 }
+                // First header byte just landed inside this call: arm the
+                // drain budget so a stall on the second byte yields at the
+                // cap rather than blocking for the full `stall_timeout`.
+                drain_deadline.get_or_insert_with(|| Instant::now() + drain_budget);
             }
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof && n == 0 => return Ok(None),
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
@@ -1125,6 +1133,156 @@ mod tests {
             }
             other => panic!("expected fatal ProtocolError, got {other:?}"),
         }
+    }
+
+    /// Finding #2: a peer that delivers the FIRST header byte and then
+    /// stalls must be cut off at the drain-yield cap, NOT held for the
+    /// full per-stall `stall_timeout`. The drain budget is armed on the
+    /// first successful header byte read inside the call, so a mid-header
+    /// stall is bounded exactly like the mid-payload path; otherwise the
+    /// reader could block the command drain (heartbeats, subscribes) for
+    /// the whole `stall_timeout`.
+    ///
+    /// The deciding signature: with `drain_budget` (40 ms) far below
+    /// `stall_timeout` (5 s), the error must carry [`DRAIN_YIELD_MARKER`]
+    /// and return well inside the stall timeout. Before the fix the first
+    /// byte left `drain_deadline` un-armed, so this call fell through to
+    /// the per-stall path and the test would block for ~5 s before a
+    /// "without progress" fatal.
+    #[test]
+    fn mid_header_first_byte_then_stall_yields_at_cap() {
+        let mut reader = AlwaysStalledAfter {
+            // One header byte (LEN=5), then an unbroken stall.
+            prefix: vec![0x05],
+            pos: 0,
+            err_kind: std::io::ErrorKind::WouldBlock,
+        };
+        let mut state = FrameReadState::new();
+        let started = Instant::now();
+        let err = read_header_with_timeout(
+            &mut reader,
+            &mut state,
+            // Generous per-stall timeout: if the drain budget were not
+            // armed on the first byte, the call would block this long.
+            Duration::from_secs(5),
+            // Tight drain budget — the cap that must fire instead.
+            Duration::from_millis(40),
+        )
+        .unwrap_err();
+        let elapsed = started.elapsed();
+
+        match &err {
+            crate::error::Error::Fpss { kind, message } => {
+                assert_eq!(*kind, crate::error::StreamErrorKind::ProtocolError);
+                assert!(
+                    message.contains(DRAIN_YIELD_MARKER),
+                    "first-byte-then-stall must yield at the drain cap, got: {message}"
+                );
+                assert!(
+                    message.contains("mid-header"),
+                    "expected mid-header context, got: {message}"
+                );
+            }
+            other => panic!("expected mid-header drain-yield, got {other:?}"),
+        }
+        assert!(
+            is_drain_yield(&err),
+            "is_drain_yield must match the produced error"
+        );
+        // Must return at the cap, nowhere near the 5 s stall timeout.
+        assert!(
+            elapsed < Duration::from_secs(1),
+            "drain-yield must fire at the ~40 ms cap, not the 5 s stall timeout; \
+             elapsed = {elapsed:?}"
+        );
+        // The single delivered byte must be preserved for resumption.
+        assert_eq!(
+            state.header_read, 1,
+            "the first header byte must be retained on state for the next call"
+        );
+    }
+
+    /// Reader that delivers the first header byte IMMEDIATELY (no
+    /// pre-stall), then emits sleeping `WouldBlock` errors before the
+    /// second byte. Models the exact mid-header stall finding #2 bounds:
+    /// the first byte lands inside the call (arming the drain budget),
+    /// and the gap before the second byte must be cut off at the cap.
+    struct FirstByteThenSleepingStall {
+        byte_one: Option<u8>,
+        byte_two: Option<u8>,
+        sleep_per_stall: Duration,
+        stalls_before_byte_two: usize,
+    }
+
+    impl std::io::Read for FirstByteThenSleepingStall {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            if let Some(b) = self.byte_one.take() {
+                buf[0] = b;
+                return Ok(1);
+            }
+            if self.stalls_before_byte_two > 0 {
+                self.stalls_before_byte_two -= 1;
+                std::thread::sleep(self.sleep_per_stall);
+                return Err(std::io::Error::new(std::io::ErrorKind::WouldBlock, "gap"));
+            }
+            if let Some(b) = self.byte_two.take() {
+                buf[0] = b;
+                return Ok(1);
+            }
+            Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "exhausted",
+            ))
+        }
+    }
+
+    /// Finding #2: after the first-byte drain-yield, the next call with
+    /// the SAME state resumes at byte 1 and completes the header once the
+    /// peer delivers the second byte. No byte is lost or re-read — the
+    /// invariant that makes the mid-header yield safe for command-drain
+    /// re-entry.
+    #[test]
+    fn mid_header_drain_yield_resumes_without_byte_loss() {
+        let mut reader = FirstByteThenSleepingStall {
+            byte_one: Some(0x01),
+            byte_two: Some(StreamMsgType::Ping as u8),
+            sleep_per_stall: Duration::from_millis(25),
+            // Enough sleeping stalls (25 ms each) to overrun the 10 ms
+            // budget on the first call.
+            stalls_before_byte_two: 10,
+        };
+        let mut state = FrameReadState::new();
+
+        // First call: byte 1 lands immediately and arms the 10 ms budget;
+        // the first 25 ms stall then trips the cap, so the call yields
+        // with exactly one byte banked.
+        let err = read_header_with_timeout(
+            &mut reader,
+            &mut state,
+            Duration::from_secs(5),
+            Duration::from_millis(10),
+        )
+        .unwrap_err();
+        assert!(is_drain_yield(&err), "first call must drain-yield");
+        assert_eq!(state.header_read, 1, "one byte banked across the yield");
+
+        // Drain the remaining inter-byte stalls so byte 2 is reachable,
+        // then the second call completes the header from the preserved
+        // offset with a generous budget. No byte is re-read.
+        reader.stalls_before_byte_two = 0;
+        let header = read_header_with_timeout(
+            &mut reader,
+            &mut state,
+            Duration::from_secs(5),
+            Duration::from_secs(1),
+        )
+        .expect("second call completes the header")
+        .expect("a full 2-byte header");
+        assert_eq!(
+            header,
+            [0x01, StreamMsgType::Ping as u8],
+            "both header bytes must be present and in order after resumption"
+        );
     }
 
     /// Truncated header (EOF after one byte) must be fatal — same desync

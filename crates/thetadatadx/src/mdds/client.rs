@@ -408,6 +408,7 @@ async fn open_channel_pool(
                     tls_config.clone(),
                     max_message_size,
                     tuning,
+                    connect_timeout,
                 ),
             )
             .await
@@ -428,7 +429,7 @@ async fn open_channel_pool(
         } else {
             tokio::time::timeout(
                 connect_timeout,
-                Channel::connect_h2c_tuned(host, port, max_message_size, tuning),
+                Channel::connect_h2c_tuned(host, port, max_message_size, tuning, connect_timeout),
             )
             .await
             .map_err(|_| {
