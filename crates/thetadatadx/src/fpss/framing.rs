@@ -119,6 +119,20 @@ pub struct FrameReadState {
     /// Count of consecutive unknown codes observed during this
     /// resumption chain. Resets when a known frame is returned.
     consecutive_unknown: usize,
+    /// Hard wall-clock deadline for the in-progress frame, armed when
+    /// the first byte of the frame is read and carried across every
+    /// resumed `read_frame_into*` / drain-yield re-entry. `None` until
+    /// the first byte lands; cleared (with the rest of the state) when
+    /// the frame completes.
+    ///
+    /// The per-stall and per-call drain budgets both re-arm on progress
+    /// (stall) or per invocation (drain), so neither bounds the *total*
+    /// time a single frame may occupy: a peer trickling one byte per
+    /// resume keeps both clocks fresh forever. This deadline is the one
+    /// budget that accumulates across resumptions, so a partial frame
+    /// can never be held past the configured cap — once it expires the
+    /// reader fails fatally and the I/O loop's reconnect/watchdog fires.
+    frame_deadline: Option<Instant>,
 }
 
 impl FrameReadState {
@@ -172,11 +186,16 @@ fn read_header<R: Read>(
     state: &mut FrameReadState,
     stall_timeout: Duration,
 ) -> Result<Option<[u8; 2]>, crate::error::Error> {
+    // The per-frame hard cap is tied to `stall_timeout`: a single FPSS
+    // frame (≤ 257 bytes on the wire) never legitimately takes longer
+    // than the read deadline to fully arrive, so the same budget that
+    // bounds one stall also bounds the whole frame against a trickler.
     read_header_with_timeout(
         reader,
         state,
         stall_timeout,
         Duration::from_millis(MID_FRAME_DRAIN_WINDOW_MS),
+        stall_timeout,
     )
 }
 
@@ -201,6 +220,12 @@ fn read_header<R: Read>(
 ///   drains outbound commands, and re-enters the reader. The
 ///   partial header bytes are preserved on `state` so the next
 ///   call resumes from byte `state.header_read` without desync.
+/// - The in-progress frame exceeding `frame_cap` of total wall-clock
+///   time (measured from the first byte of the frame, persisted on
+///   `state.frame_deadline` so it accumulates across resumed calls) →
+///   fatal `ProtocolError`. The per-stall and drain budgets both
+///   re-arm on progress / per call, so only this cap stops a peer that
+///   trickles one byte per resume from holding a single header forever.
 ///
 /// Earlier revisions treated the first mid-header `WouldBlock` as
 /// fatal desync. Captured raw-byte dumps on dev + prod showed the
@@ -213,6 +238,7 @@ fn read_header_with_timeout<R: Read>(
     state: &mut FrameReadState,
     stall_timeout: Duration,
     drain_budget: Duration,
+    frame_cap: Duration,
 ) -> Result<Option<[u8; 2]>, crate::error::Error> {
     let mut stall_deadline: Option<Instant> = None;
     // Arm the drain budget the moment ANY header byte is in flight —
@@ -229,6 +255,15 @@ fn read_header_with_timeout<R: Read>(
     } else {
         None
     };
+    // Arm the per-frame hard cap if a prior call already banked header
+    // bytes for this frame; otherwise it arms below when the first byte
+    // of the frame lands. Persisted on `state` so it survives both
+    // drain-yields and the header→payload phase transition.
+    if state.header_read > 0 {
+        state
+            .frame_deadline
+            .get_or_insert_with(|| Instant::now() + frame_cap);
+    }
     loop {
         let n = state.header_read as usize;
         match reader.read(&mut state.header_buf[n..]) {
@@ -249,8 +284,13 @@ fn read_header_with_timeout<R: Read>(
                 }
                 // First header byte just landed inside this call: arm the
                 // drain budget so a stall on the second byte yields at the
-                // cap rather than blocking for the full `stall_timeout`.
+                // cap rather than blocking for the full `stall_timeout`,
+                // and arm the per-frame hard cap from the same instant so
+                // the whole frame is bounded against a trickler.
                 drain_deadline.get_or_insert_with(|| Instant::now() + drain_budget);
+                state
+                    .frame_deadline
+                    .get_or_insert_with(|| Instant::now() + frame_cap);
             }
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof && n == 0 => return Ok(None),
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
@@ -267,6 +307,23 @@ fn read_header_with_timeout<R: Read>(
                 // `state` so the next call resumes at byte
                 // `state.header_read`.
                 let now = Instant::now();
+                // Per-frame hard cap first: unlike the drain-yield (which
+                // is recoverable and re-armed per call) an exhausted frame
+                // deadline is fatal, so the I/O loop's reconnect/watchdog
+                // tears down a peer that has trickled a single header past
+                // the cap instead of resuming it forever.
+                if let Some(fd) = state.frame_deadline {
+                    if now >= fd {
+                        return Err(crate::error::Error::Fpss {
+                            kind: crate::error::StreamErrorKind::ProtocolError,
+                            message: format!(
+                                "mid-header frame deadline exceeded after {n} of 2 byte(s) \
+                                 (per-frame cap {} ms): {e}",
+                                frame_cap.as_millis()
+                            ),
+                        });
+                    }
+                }
                 if let Some(db) = drain_deadline {
                     if now >= db {
                         return Err(crate::error::Error::Fpss {
@@ -308,12 +365,17 @@ fn read_exact_payload<R: Read>(
     state: &mut FrameReadState,
     stall_timeout: Duration,
 ) -> Result<(), crate::error::Error> {
+    // Per-frame hard cap tied to `stall_timeout`; see `read_header` for
+    // the rationale. The deadline persisted on `state` already carries
+    // the header-phase elapsed time, so the payload phase continues the
+    // same per-frame budget rather than restarting it.
     read_exact_payload_with_timeout(
         reader,
         buf,
         state,
         stall_timeout,
         Duration::from_millis(MID_FRAME_DRAIN_WINDOW_MS),
+        stall_timeout,
     )
 }
 
@@ -337,6 +399,14 @@ fn read_exact_payload<R: Read>(
 /// for up to `stall_timeout * payload_len / byte` seconds -- the
 /// ping / subscribe / shutdown queue would stall behind it.
 ///
+/// `frame_cap` is the per-frame hard cap (persisted on
+/// `state.frame_deadline`). Unlike `drain_budget` it accumulates across
+/// resumed calls and across the header→payload phase transition, so a
+/// peer trickling one byte per resume — which keeps both the per-stall
+/// and per-call drain clocks fresh — is still cut off once the whole
+/// frame exceeds the cap. Exhausting it is fatal (not a drain-yield) so
+/// the I/O loop's reconnect/watchdog fires instead of resuming forever.
+///
 /// Earlier revisions treated the first `WouldBlock` as a fatal
 /// desync. Raw-byte tap captures on dev + prod showed every
 /// "corruption" event was a valid frame that finished arriving
@@ -351,9 +421,17 @@ fn read_exact_payload_with_timeout<R: Read>(
     state: &mut FrameReadState,
     stall_timeout: Duration,
     drain_budget: Duration,
+    frame_cap: Duration,
 ) -> Result<(), crate::error::Error> {
     let mut stall_deadline: Option<Instant> = None;
     let drain_deadline: Instant = Instant::now() + drain_budget;
+    // Continue (or, for a zero-byte-header frame that somehow reaches
+    // here, arm) the per-frame hard cap. In the normal flow the header
+    // phase already armed it on the first byte, so this preserves the
+    // elapsed header time rather than resetting the budget.
+    let frame_deadline: Instant = *state
+        .frame_deadline
+        .get_or_insert_with(|| Instant::now() + frame_cap);
     while state.payload_read < buf.len() {
         let n = state.payload_read;
         match reader.read(&mut buf[n..]) {
@@ -376,6 +454,22 @@ fn read_exact_payload_with_timeout<R: Read>(
                 // on `state.payload_read` so the next call resumes
                 // from the exact byte offset.
                 let now = Instant::now();
+                // Per-frame hard cap first: an exhausted frame deadline is
+                // fatal (the drain-yield is recoverable and re-armed per
+                // call), so a peer trickling one byte per resume is torn
+                // down by the I/O loop's reconnect/watchdog once the whole
+                // frame exceeds the cap instead of resuming forever.
+                if now >= frame_deadline {
+                    return Err(crate::error::Error::Fpss {
+                        kind: crate::error::StreamErrorKind::ProtocolError,
+                        message: format!(
+                            "mid-payload frame deadline exceeded after {n} of {} byte(s) \
+                             (per-frame cap {} ms): {e}",
+                            buf.len(),
+                            frame_cap.as_millis()
+                        ),
+                    });
+                }
                 if now >= drain_deadline {
                     return Err(crate::error::Error::Fpss {
                         kind: crate::error::StreamErrorKind::ProtocolError,
@@ -977,14 +1071,16 @@ mod tests {
         let mut payload = [0u8; 4];
         let mut state = FrameReadState::new();
         // First two payload bytes land; next reads stall forever. Use a
-        // generous drain budget (1 s) so the stall-deadline escalation
-        // fires first -- this test asserts the per-stall failure path.
+        // generous drain budget (1 s) and per-frame cap (60 s) so the
+        // stall-deadline escalation fires first -- this test asserts the
+        // per-stall failure path.
         let err = read_exact_payload_with_timeout(
             &mut reader,
             &mut payload,
             &mut state,
             Duration::from_millis(20),
             Duration::from_secs(1),
+            Duration::from_secs(60),
         )
         .unwrap_err();
         match err {
@@ -1075,15 +1171,17 @@ mod tests {
         let mut payload = vec![0u8; PAYLOAD_LEN];
         let mut state = FrameReadState::new();
         let started = Instant::now();
-        // Drain budget far above the aggregate wall time so this test
-        // pins the per-stall reset semantics independently of the
-        // drain-yield path (a generous upper bound, not a tight one).
+        // Drain budget and per-frame cap far above the aggregate wall
+        // time so this test pins the per-stall reset semantics
+        // independently of both the drain-yield and per-frame-cap paths
+        // (generous upper bounds, not tight ones).
         read_exact_payload_with_timeout(
             &mut reader,
             &mut payload,
             &mut state,
             Duration::from_millis(STALL_MS),
             Duration::from_secs(5),
+            Duration::from_secs(60),
         )
         .unwrap();
         let elapsed = started.elapsed();
@@ -1109,13 +1207,15 @@ mod tests {
         std::io::Read::read_exact(&mut reader, &mut header).unwrap();
         let mut payload = [0u8; 3];
         let mut state = FrameReadState::new();
-        // Drain budget is generous (1 s) so the stall-deadline wins.
+        // Drain budget (1 s) and per-frame cap (60 s) are generous so the
+        // stall-deadline wins.
         let err = read_exact_payload_with_timeout(
             &mut reader,
             &mut payload,
             &mut state,
             Duration::from_millis(20),
             Duration::from_secs(1),
+            Duration::from_secs(60),
         )
         .unwrap_err();
         match err {
@@ -1136,12 +1236,14 @@ mod tests {
             err_kind: std::io::ErrorKind::WouldBlock,
         };
         let mut state = FrameReadState::new();
-        // Drain budget generous (1 s) so the per-stall deadline trips first.
+        // Drain budget (1 s) and per-frame cap (60 s) generous so the
+        // per-stall deadline trips first.
         let err = read_header_with_timeout(
             &mut reader,
             &mut state,
             Duration::from_millis(20),
             Duration::from_secs(1),
+            Duration::from_secs(60),
         )
         .unwrap_err();
         match err {
@@ -1189,6 +1291,8 @@ mod tests {
             Duration::from_secs(5),
             // Tight drain budget — the cap that must fire instead.
             Duration::from_millis(40),
+            // Generous per-frame cap so the drain-yield fires first.
+            Duration::from_secs(60),
         )
         .unwrap_err();
         let elapsed = started.elapsed();
@@ -1277,12 +1381,14 @@ mod tests {
 
         // First call: byte 1 lands immediately and arms the 10 ms budget;
         // the first 25 ms stall then trips the cap, so the call yields
-        // with exactly one byte banked.
+        // with exactly one byte banked. The per-frame cap (60 s) is far
+        // above the test's runtime so the drain-yield fires first.
         let err = read_header_with_timeout(
             &mut reader,
             &mut state,
             Duration::from_secs(5),
             Duration::from_millis(10),
+            Duration::from_secs(60),
         )
         .unwrap_err();
         assert!(is_drain_yield(&err), "first call must drain-yield");
@@ -1290,13 +1396,16 @@ mod tests {
 
         // Drain the remaining inter-byte stalls so byte 2 is reachable,
         // then the second call completes the header from the preserved
-        // offset with a generous budget. No byte is re-read.
+        // offset with a generous budget. No byte is re-read. The per-frame
+        // deadline carried on `state` from the first call is far from
+        // expiry, so it does not preempt completion.
         reader.stalls_before_byte_two = 0;
         let header = read_header_with_timeout(
             &mut reader,
             &mut state,
             Duration::from_secs(5),
             Duration::from_secs(1),
+            Duration::from_secs(60),
         )
         .expect("second call completes the header")
         .expect("a full 2-byte header");
@@ -1424,14 +1533,16 @@ mod tests {
         let mut payload = vec![0u8; PAYLOAD_LEN];
         let mut state = FrameReadState::new();
         let started = Instant::now();
-        // Per-stall deadline is enormous (30 s) so it can never preempt
-        // the drain-yield; the drain budget is what must fire.
+        // Per-stall deadline (30 s) and per-frame cap (120 s) are enormous
+        // so neither can preempt the drain-yield; the drain budget is what
+        // must fire.
         let err = read_exact_payload_with_timeout(
             &mut reader,
             &mut payload,
             &mut state,
             Duration::from_secs(30),
             Duration::from_millis(BUDGET_MS),
+            Duration::from_secs(120),
         )
         .unwrap_err();
         let elapsed = started.elapsed();
@@ -1517,13 +1628,16 @@ mod tests {
 
         // First call: per-stall deadline 30 s (never trips), drain budget
         // 60 ms -> yields after a handful of bytes, never the whole
-        // payload (aggregate sleep is PAYLOAD_LEN × GAP_MS = 200 ms).
+        // payload (aggregate sleep is PAYLOAD_LEN × GAP_MS = 200 ms). The
+        // per-frame cap (120 s) is far above the aggregate so it never
+        // preempts the drain-yield this test pins.
         let err = read_exact_payload_with_timeout(
             &mut reader,
             &mut payload,
             &mut state,
             Duration::from_secs(30),
             Duration::from_millis(BUDGET_MS),
+            Duration::from_secs(120),
         )
         .unwrap_err();
         assert!(is_drain_yield(&err), "first call must drain-yield");
@@ -1534,13 +1648,16 @@ mod tests {
         );
 
         // Second call: finish the payload with a generous budget. The
-        // state carries the first-call progress so no bytes are re-read.
+        // state carries the first-call progress (including the per-frame
+        // deadline) so no bytes are re-read and the deadline does not
+        // preempt completion.
         read_exact_payload_with_timeout(
             &mut reader,
             &mut payload,
             &mut state,
             Duration::from_secs(30),
             Duration::from_secs(5),
+            Duration::from_secs(120),
         )
         .expect("second call must complete the payload without error");
         assert_eq!(
@@ -1628,6 +1745,179 @@ mod tests {
             yields + idle_ticks <= 32,
             "retries should not loop forever; yields={yields}, \
              idle_ticks={idle_ticks}"
+        );
+    }
+
+    /// Finding #2: a peer trickling one byte per resume must be cut off
+    /// once the in-progress frame exceeds the per-frame hard cap — it
+    /// must NOT be held forever. This drives the exact I/O-loop re-entry
+    /// pattern: each `read_exact_payload_with_timeout` call yields to the
+    /// command drain (small `drain_budget`), then the loop re-enters with
+    /// the SAME `state`. The per-frame deadline persisted on `state`
+    /// accumulates across every resume, so after the cap elapses the read
+    /// fails FATALLY (not a drain-yield) and the watchdog/reconnect can
+    /// fire.
+    ///
+    /// Before the fix the drain deadline was a stack-local re-armed on
+    /// every resumed call, so this loop would yield-and-resume forever
+    /// and a single partial frame could pin the connection indefinitely.
+    ///
+    /// Load-robust: the per-byte gap (3 ms) is far below the per-stall
+    /// timeout (5 s, never trips) and the payload is large enough that
+    /// the trickle cannot complete within the per-frame cap (120 ms) even
+    /// when the scheduler is loose. The non-vacuousness is pinned by the
+    /// structural inequality below, not a tight wall-clock margin.
+    #[test]
+    fn trickling_peer_cut_off_at_per_frame_deadline() {
+        const PAYLOAD_LEN: usize = 200;
+        const GAP_MS: u64 = 3;
+        const DRAIN_BUDGET_MS: u64 = 20;
+        const FRAME_CAP_MS: u64 = 120;
+        // A byte lands per (gap + Ok); the trickle needs far longer than
+        // the per-frame cap to finish, so the cap MUST fire mid-frame.
+        const _: () = assert!(PAYLOAD_LEN as u64 * GAP_MS > FRAME_CAP_MS);
+        // The drain budget is well under the per-frame cap so yields fire
+        // and the loop genuinely re-enters across the deadline.
+        const _: () = assert!(DRAIN_BUDGET_MS < FRAME_CAP_MS);
+
+        let mut reader = OneByteAtATime {
+            remaining: (0..PAYLOAD_LEN).map(|i| (i % 256) as u8).collect(),
+            sleep_per_stall: Duration::from_millis(GAP_MS),
+            stalled_since_last_byte: false,
+        };
+        let mut payload = vec![0u8; PAYLOAD_LEN];
+        let mut state = FrameReadState::new();
+
+        let started = Instant::now();
+        let mut resumes = 0u32;
+        let fatal = loop {
+            match read_exact_payload_with_timeout(
+                &mut reader,
+                &mut payload,
+                &mut state,
+                Duration::from_secs(5),
+                Duration::from_millis(DRAIN_BUDGET_MS),
+                Duration::from_millis(FRAME_CAP_MS),
+            ) {
+                Ok(()) => panic!(
+                    "the trickle must never complete within the per-frame cap; \
+                     read {} of {PAYLOAD_LEN} bytes",
+                    state.payload_read
+                ),
+                Err(ref e) if is_drain_yield(e) => {
+                    // Service the (simulated) command drain and re-enter
+                    // with the SAME state — the per-frame deadline carries
+                    // across this boundary.
+                    resumes += 1;
+                    assert!(
+                        started.elapsed() < Duration::from_secs(5),
+                        "the per-frame cap must fire long before this guard; \
+                         the trickle is being held instead of cut off"
+                    );
+                    continue;
+                }
+                Err(e) => break e,
+            }
+        };
+
+        // The terminating error must be the FATAL per-frame deadline, not
+        // a drain-yield: only a fatal read makes the I/O loop reconnect.
+        assert!(
+            !is_drain_yield(&fatal),
+            "the cut-off must be a fatal read, not a recoverable drain-yield"
+        );
+        match &fatal {
+            crate::error::Error::Fpss { kind, message } => {
+                assert_eq!(*kind, crate::error::StreamErrorKind::ProtocolError);
+                assert!(
+                    message.contains("frame deadline exceeded") && message.contains("mid-payload"),
+                    "expected a per-frame-deadline fatal, got: {message}"
+                );
+            }
+            other => panic!("expected a fatal Fpss ProtocolError, got {other:?}"),
+        }
+        // The frame was genuinely partial when cut off (held, then
+        // bounded — not completed), and the loop really did re-enter
+        // across the deadline rather than failing on the first call.
+        assert!(
+            state.payload_read < PAYLOAD_LEN,
+            "frame must be cut off mid-payload, not completed; got {} of {PAYLOAD_LEN}",
+            state.payload_read
+        );
+        assert!(
+            resumes >= 1,
+            "the per-frame deadline must persist across at least one \
+             drain-yield re-entry; resumes = {resumes}"
+        );
+    }
+
+    /// Finding #2: the same per-frame bound applies in the header phase.
+    /// A peer that delivers the first header byte and then trickles
+    /// (never the second byte) must be cut off once the per-frame cap
+    /// elapses, across resumed calls, with a FATAL error.
+    #[test]
+    fn trickling_header_cut_off_at_per_frame_deadline() {
+        const GAP_MS: u64 = 3;
+        const DRAIN_BUDGET_MS: u64 = 15;
+        const FRAME_CAP_MS: u64 = 90;
+
+        // Delivers byte one, then an unbounded run of short sleeping
+        // stalls before byte two — byte two never actually arrives within
+        // the cap, so the header can never complete.
+        let mut reader = FirstByteThenSleepingStall {
+            byte_one: Some(0x05),
+            byte_two: Some(StreamMsgType::Ping as u8),
+            sleep_per_stall: Duration::from_millis(GAP_MS),
+            // Far more stalls than the cap admits at GAP_MS each.
+            stalls_before_byte_two: (FRAME_CAP_MS / GAP_MS) as usize * 4,
+        };
+        let mut state = FrameReadState::new();
+
+        let started = Instant::now();
+        let mut resumes = 0u32;
+        let fatal = loop {
+            match read_header_with_timeout(
+                &mut reader,
+                &mut state,
+                Duration::from_secs(5),
+                Duration::from_millis(DRAIN_BUDGET_MS),
+                Duration::from_millis(FRAME_CAP_MS),
+            ) {
+                Ok(Some(_)) => panic!("header must not complete within the cap"),
+                Ok(None) => panic!("unexpected EOF"),
+                Err(ref e) if is_drain_yield(e) => {
+                    resumes += 1;
+                    assert!(
+                        started.elapsed() < Duration::from_secs(5),
+                        "per-frame cap must fire well before this guard"
+                    );
+                    continue;
+                }
+                Err(e) => break e,
+            }
+        };
+
+        assert!(
+            !is_drain_yield(&fatal),
+            "header cut-off must be fatal, not a drain-yield"
+        );
+        match &fatal {
+            crate::error::Error::Fpss { kind, message } => {
+                assert_eq!(*kind, crate::error::StreamErrorKind::ProtocolError);
+                assert!(
+                    message.contains("frame deadline exceeded") && message.contains("mid-header"),
+                    "expected a mid-header per-frame-deadline fatal, got: {message}"
+                );
+            }
+            other => panic!("expected a fatal Fpss ProtocolError, got {other:?}"),
+        }
+        assert_eq!(
+            state.header_read, 1,
+            "the single delivered header byte stays banked at cut-off"
+        );
+        assert!(
+            resumes >= 1,
+            "the per-frame deadline must persist across header re-entries"
         );
     }
 

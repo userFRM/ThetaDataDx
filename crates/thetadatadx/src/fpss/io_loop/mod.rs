@@ -495,12 +495,13 @@ where
     // (`TooManyRequests`, 130 s spacing) does not burn through the
     // generic transient budget meant for fast TimedOut / Unspecified
     // retries, and a `ServerRestarting` pool bounce gets its own
-    // evenly-paced window. Each counter resets to zero on a successful
-    // read; an additional time-based reset fires when the connection
+    // evenly-paced window. The counters reset only when the connection
     // has been running cleanly for at least
     // `ReconnectAttemptLimits::stable_window`, so a connection that
     // ran cleanly for a minute before dropping picks up the full
-    // budget again rather than inheriting the previous cycle's count.
+    // budget again rather than inheriting the previous cycle's count —
+    // while a connection that flaps after only a frame or two keeps
+    // consuming the budget instead of resetting it every short cycle.
     let mut reconnect_state = ReconnectCounters::new(BackoffSchedule::new(
         Duration::from_millis(wait_ms),
         Duration::from_millis(wait_max_ms),
@@ -587,12 +588,17 @@ where
                     Ok(Some((code, payload_len))) => {
                         last_frame_at = Instant::now();
                         last_event_at_ns.store(unix_nanos_now(), Ordering::Relaxed);
-                        // Reset reconnect counters on successful data reception
-                        // and mark "data did flow on this session" so the
-                        // stable-window check on the next drop knows whether
-                        // the connection ran long enough to deserve a fresh
-                        // retry budget.
-                        reconnect_state.reset_counters();
+                        // Anchor the stable-window clock on the FIRST frame
+                        // of this session (idempotent thereafter). The
+                        // per-class retry budget must NOT reset on every
+                        // inbound frame: a session that drops after even a
+                        // single heartbeat / control / data frame would
+                        // then reset its budget and a flapping connection
+                        // could reconnect forever. Instead the budget
+                        // resets only once the connection has been
+                        // continuously up for `reconnect_stable_window_secs`
+                        // — enforced by `maybe_reset_after_stable()` on the
+                        // next drop, which measures uptime from this anchor.
                         reconnect_state.note_data_received();
 
                         let (primary, secondary) = decode_frame(
@@ -1236,11 +1242,12 @@ where
         // connection always begins at a frame boundary.
         frame_state = FrameReadState::new();
 
-        // Fresh authenticated session: start the data-flow marker from
-        // zero so the stable-window check on the NEXT drop uses the
-        // wall-clock of THIS session, not the previous one. Counters
-        // stay live (the budget was just decremented to permit this
-        // attempt); they reset when the new session delivers data.
+        // Fresh authenticated session: clear the stable-window anchor so
+        // it re-arms on the FIRST frame of THIS session. The check on the
+        // NEXT drop then measures uptime from this session's first frame,
+        // not the previous session's. Counters stay live (the budget was
+        // just decremented to permit this attempt); they reset only if
+        // the new session stays up past `stable_window`.
         reconnect_state.last_data_at = None;
 
         // The session is NOT marked live yet. `authenticated` stays
@@ -1667,8 +1674,12 @@ struct ReconnectCounters {
     transient: u32,
     rate_limited: u32,
     server_restart: u32,
-    /// Wall-clock instant of the last successful frame read; `None`
-    /// until the first frame on the current session arrives.
+    /// Wall-clock instant of the FIRST successful frame read on the
+    /// current session; `None` until that frame arrives and reset to
+    /// `None` at the start of every new session. Anchors the
+    /// stable-window uptime measurement: `last_data_at.elapsed()` at the
+    /// next drop is how long the session ran, so the budget resets only
+    /// after a genuinely stable connection rather than on first data.
     last_data_at: Option<Instant>,
     /// Instant of the first attempt in the current
     /// consecutive-reconnect sequence; `None` outside a sequence.
@@ -1691,11 +1702,17 @@ impl ReconnectCounters {
         }
     }
 
-    /// Record a successful frame read. Marks "data did flow on this
-    /// session" so the stable-window check on next drop knows whether
-    /// to reset the counters.
+    /// Record the first successful frame read on the current session.
+    /// Idempotent within a session: only the FIRST frame arms the
+    /// anchor, so `last_data_at.elapsed()` measures continuous uptime
+    /// from the moment data began flowing — the quantity the
+    /// stable-window check compares against `stable_window`. Subsequent
+    /// frames do not push the anchor forward (that would make the check
+    /// measure inter-frame quiet time instead of uptime). The per-session
+    /// reset to `None` happens on the reconnect path before a new session
+    /// begins delivering data.
     fn note_data_received(&mut self) {
-        self.last_data_at = Some(Instant::now());
+        self.last_data_at.get_or_insert_with(Instant::now);
     }
 
     /// Zero every per-class counter and end the current reconnect
@@ -1710,7 +1727,13 @@ impl ReconnectCounters {
 
     /// Decide whether the connection that just disconnected ran long
     /// enough to be considered "stable" — if so, reset all counters
-    /// before scheduling the next attempt.
+    /// before scheduling the next attempt. "Stable" means the session
+    /// delivered at least one frame (so `last_data_at` is armed) and
+    /// then stayed up for at least `stable_window` measured from that
+    /// first frame. A session that drops sooner keeps the running
+    /// per-class count, so a connection that flaps after a single frame
+    /// continues to consume — and eventually exhausts — its retry budget
+    /// rather than resetting it on every short-lived cycle.
     fn maybe_reset_after_stable(&mut self, limits: &ReconnectAttemptLimits) -> bool {
         if let Some(t) = self.last_data_at {
             if t.elapsed() >= limits.stable_window {
@@ -2001,6 +2024,128 @@ mod tests {
             counters.burst_started_at.is_none(),
             "stable-window reset must also end the envelope sequence"
         );
+    }
+
+    /// A connection that flaps — drops after a single frame on every
+    /// cycle — must keep consuming its retry budget and eventually
+    /// EXHAUST it, never reconnecting forever. This reproduces the
+    /// per-cycle sequence the I/O loop runs: arm the stable-window anchor
+    /// on the session's first frame (`note_data_received`), then on the
+    /// drop try the stable-window reset (`maybe_reset_after_stable`) and
+    /// record the attempt (`record`), then clear the anchor for the next
+    /// session — exactly as the reconnect path does. Because each session
+    /// is far shorter than `stable_window`, the reset never fires and the
+    /// attempt count climbs monotonically until it crosses the budget.
+    ///
+    /// Before the fix the I/O loop reset the counters on every inbound
+    /// frame, so this flapping pattern reset its budget each cycle and
+    /// the loop would reconnect without bound.
+    #[test]
+    fn flapping_after_single_frame_exhausts_budget() {
+        // Stable window the flapping sessions never reach.
+        let limits = ReconnectAttemptLimits {
+            stable_window: Duration::from_secs(60),
+            max_attempts: 5,
+            ..ReconnectAttemptLimits::default()
+        };
+        let mut counters = ReconnectCounters::new(test_schedule());
+        let budget = limits.budget_for(ReconnectAttemptClass::Transient);
+
+        let mut last_attempt = 0;
+        // Many more cycles than the budget: if the per-frame reset bug
+        // were present every cycle would reset to attempt 1 and this loop
+        // would never exceed the budget.
+        for _ in 0..(budget * 3) {
+            // New session delivers one frame: anchor armed (idempotent),
+            // but no stable window elapses before the drop.
+            counters.note_data_received();
+            // Drop: the stable-window reset must NOT fire (session far
+            // shorter than the 60 s window), so the attempt count climbs.
+            assert!(
+                !counters.maybe_reset_after_stable(&limits),
+                "a sub-stable-window session must never reset the budget"
+            );
+            last_attempt = counters.record(ReconnectAttemptClass::Transient);
+            // Reconnect path clears the anchor for the next session.
+            counters.last_data_at = None;
+            if last_attempt > budget {
+                break;
+            }
+        }
+
+        assert!(
+            last_attempt > budget,
+            "a flapping connection must exhaust its retry budget (reached \
+             attempt {last_attempt} against budget {budget}), not reconnect forever"
+        );
+    }
+
+    /// A connection that stays up past `stable_window` before dropping
+    /// DOES earn a fresh budget: the stable-window reset fires on the
+    /// drop and zeroes the per-class counters. This is the counterpart
+    /// to the flapping case — the budget resets only for a genuinely
+    /// stable session, measured as uptime from the session's first frame.
+    #[test]
+    fn stable_session_past_window_resets_budget() {
+        let limits = ReconnectAttemptLimits {
+            stable_window: Duration::from_millis(10),
+            ..ReconnectAttemptLimits::default()
+        };
+        let mut counters = ReconnectCounters::new(test_schedule());
+        // Spend some budget on a prior unstable burst.
+        counters.record(ReconnectAttemptClass::Transient);
+        counters.record(ReconnectAttemptClass::Transient);
+        assert_eq!(counters.transient, 2);
+
+        // New session: first frame arms the anchor.
+        counters.last_data_at = None;
+        counters.note_data_received();
+        // The session stays up past the stable window.
+        std::thread::sleep(Duration::from_millis(15));
+        // Drop after a stable run: the reset fires and clears the budget.
+        assert!(
+            counters.maybe_reset_after_stable(&limits),
+            "a session up past the stable window must reset the budget"
+        );
+        assert_eq!(
+            counters.transient, 0,
+            "stable-window reset must zero the per-class counters"
+        );
+    }
+
+    /// The stable-window anchor measures UPTIME from the session's first
+    /// frame, not the quiet gap since the most recent frame: later frames
+    /// on the same session must not push the anchor forward. A long-lived
+    /// busy session (many frames) therefore still resets the budget on its
+    /// next drop even though its most recent frame was very recent.
+    #[test]
+    fn note_data_received_anchors_on_first_frame_only() {
+        let limits = ReconnectAttemptLimits {
+            stable_window: Duration::from_millis(10),
+            ..ReconnectAttemptLimits::default()
+        };
+        let mut counters = ReconnectCounters::new(test_schedule());
+        counters.record(ReconnectAttemptClass::Transient);
+
+        // First frame anchors the window.
+        counters.note_data_received();
+        let anchored_at = counters.last_data_at;
+        std::thread::sleep(Duration::from_millis(15));
+        // A fresh frame arrives late in the session: the anchor must NOT
+        // move (otherwise the window would measure inter-frame quiet time
+        // and a busy session would never look stable).
+        counters.note_data_received();
+        assert_eq!(
+            counters.last_data_at, anchored_at,
+            "subsequent frames must not push the stable-window anchor forward"
+        );
+        // The drop still sees >= stable_window of uptime → reset fires.
+        assert!(
+            counters.maybe_reset_after_stable(&limits),
+            "uptime measured from the first frame must satisfy the window \
+             even when the latest frame is recent"
+        );
+        assert_eq!(counters.transient, 0);
     }
 
     /// The wall-clock envelope anchors at the FIRST attempt of a

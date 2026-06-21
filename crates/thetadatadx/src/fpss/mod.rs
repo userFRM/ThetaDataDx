@@ -995,10 +995,15 @@ pub struct StreamingClient {
     /// [`Self::poll_batch`] / [`Self::try_next_event_internal`]) via
     /// [`affinity::pin_consumer_thread`].
     consumer_cpu: Option<usize>,
-    /// One-shot guard so [`Self::record_drainer_and_pin`] applies the CPU
-    /// pin exactly once across repeated `next_event` / `for_each` drives,
-    /// keeping the affinity syscall off the per-event path.
-    consumer_pinned: std::sync::atomic::AtomicBool,
+    /// `ThreadId` the consumer-core pin currently targets, or `None`
+    /// before the first pin. [`Self::record_drainer_and_pin`] re-applies
+    /// the pin whenever the proven drainer differs from this value, so a
+    /// handoff of drain ownership to a new thread re-pins the *new*
+    /// drainer instead of leaving the affinity stuck on a stale thread.
+    /// The recorded thread is the steady-state on the single-consumer
+    /// path, so the affinity syscall still fires at most once there and
+    /// never on the per-event path.
+    consumer_pinned_to: Mutex<Option<ThreadId>>,
     /// Cumulative count of user-callback panics caught by the
     /// event-dispatch consumer's `catch_unwind` boundary. Snapshot via
     /// [`StreamingClient::panic_count`].
@@ -1602,7 +1607,7 @@ impl StreamingClient {
             ring_size,
             wait_strategy,
             consumer_cpu,
-            consumer_pinned: std::sync::atomic::AtomicBool::new(false),
+            consumer_pinned_to: Mutex::new(None),
             consumer_thread_id,
             drained: Arc::new(AtomicBool::new(false)),
             slow_callback_threshold_ns,
@@ -1760,17 +1765,20 @@ impl StreamingClient {
     /// the one cleanup must complete on, so the inline join would
     /// self-deadlock.
     ///
-    /// The CPU affinity pin is applied at most once for the life of the
-    /// client (guarded by the one-shot `consumer_pinned` flag) and only
-    /// when a `consumer_cpu` is configured; folding it in here means only
-    /// the proven drainer is ever pinned.
+    /// The CPU affinity pin targets whichever thread is the proven
+    /// drainer and is re-applied when that thread changes (tracked by
+    /// `consumer_pinned_to`), only when a `consumer_cpu` is configured.
+    /// On the single-consumer steady state the drainer never changes, so
+    /// the affinity syscall still fires at most once; a genuine handoff
+    /// re-pins the new drainer rather than leaving the pin on the stale
+    /// thread.
     fn record_drainer_and_pin(&self) {
         // Record under the lock: the value is small and the lock is
         // uncontended on the single-consumer happy path. Overwrite rather
         // than set-once so a (legitimate) change of drain owner corrects
         // the recorded identity instead of pinning a stale one.
+        let cur = thread::current().id();
         if let Ok(mut id) = self.consumer_thread_id.lock() {
-            let cur = thread::current().id();
             if *id != Some(cur) {
                 *id = Some(cur);
             }
@@ -1778,10 +1786,18 @@ impl StreamingClient {
         if self.consumer_cpu.is_none() {
             return;
         }
-        if self.consumer_pinned.swap(true, Ordering::Relaxed) {
-            return;
+        // Re-pin only when the proven drainer differs from the thread the
+        // pin currently targets. The one-shot flag this replaces could
+        // not re-pin after a handoff, so a new drainer inherited the old
+        // thread's affinity. Holding the lock across the syscall keeps
+        // the check-and-pin atomic against a concurrent handoff; on the
+        // single-consumer path the branch is taken exactly once.
+        if let Ok(mut pinned) = self.consumer_pinned_to.lock() {
+            if *pinned != Some(cur) {
+                affinity::pin_consumer_thread(self.consumer_cpu);
+                *pinned = Some(cur);
+            }
         }
-        affinity::pin_consumer_thread(self.consumer_cpu);
     }
 
     /// Block the calling thread until the next event is available or
@@ -2920,7 +2936,7 @@ impl StreamingClient {
             ring_size,
             wait_strategy: ring::AdaptiveWaitStrategy::low_latency(),
             consumer_cpu: None,
-            consumer_pinned: std::sync::atomic::AtomicBool::new(false),
+            consumer_pinned_to: Mutex::new(None),
             consumer_thread_id,
             drained: Arc::new(AtomicBool::new(false)),
             slow_callback_threshold_ns: Arc::new(AtomicU64::new(0)),
@@ -2986,7 +3002,7 @@ impl StreamingClient {
             ring_size,
             wait_strategy: ring::AdaptiveWaitStrategy::low_latency(),
             consumer_cpu: None,
-            consumer_pinned: std::sync::atomic::AtomicBool::new(false),
+            consumer_pinned_to: Mutex::new(None),
             consumer_thread_id: Arc::new(Mutex::new(None)),
             drained: Arc::new(AtomicBool::new(false)),
             slow_callback_threshold_ns: Arc::new(AtomicU64::new(0)),
@@ -4273,6 +4289,105 @@ mod ring_occupancy_tests {
             Some(a_id),
             "after both drains, the recorded consumer is the real drainer A"
         );
+    }
+
+    /// Finding #3: when drain ownership moves to a different thread, the
+    /// consumer-CPU pin must follow the NEW drainer rather than staying
+    /// stuck on the original thread. The one-shot pin guard this replaces
+    /// pinned exactly once for the life of the client, so a handoff left
+    /// the new drainer inheriting the old thread's core binding.
+    ///
+    /// Uses the `affinity` test seams (a high, almost-certainly-absent
+    /// core id so the real `set_for_current` no-ops, with the attempt
+    /// counted regardless) to assert the pin path runs once per distinct
+    /// drainer: once on this thread, NOT again on a repeat call from the
+    /// same thread, then AGAIN once ownership moves to a spawned thread.
+    #[test]
+    fn pin_follows_drain_owner_across_handoff() {
+        use std::sync::atomic::Ordering;
+
+        // `PIN_ATTEMPTS` is a process-global seam; serialise this test
+        // against any other test that resets/reads it.
+        let _guard = pin_seam_guard();
+
+        let (mut client, _producer) = StreamingClient::for_ring_occupancy_test(64);
+        // Configure a consumer core so the pin path is live. The id is
+        // deliberately out of range so the OS call is a graceful no-op on
+        // CI; the attempt is still counted by the seam.
+        client.consumer_cpu = Some(4096);
+
+        super::affinity::PIN_ATTEMPTS.store(0, Ordering::Relaxed);
+
+        // First drive on THIS thread pins once and records this thread as
+        // the pinned target.
+        client.record_drainer_and_pin();
+        let this_thread = std::thread::current().id();
+        assert_eq!(
+            super::affinity::PIN_ATTEMPTS.load(Ordering::Relaxed),
+            1,
+            "the first drive must pin the consumer thread exactly once"
+        );
+        assert_eq!(
+            *client.consumer_pinned_to.lock().unwrap(),
+            Some(this_thread),
+            "the pin must target the first drainer"
+        );
+
+        // A repeat drive on the SAME thread must NOT re-pin: steady state
+        // on the single-consumer path keeps the affinity syscall off the
+        // per-event path.
+        client.record_drainer_and_pin();
+        assert_eq!(
+            super::affinity::PIN_ATTEMPTS.load(Ordering::Relaxed),
+            1,
+            "an unchanged drainer must not re-pin"
+        );
+
+        // Ownership moves to a different thread: the pin must follow it.
+        let client = Arc::new(client);
+        let handoff_id = {
+            let client = Arc::clone(&client);
+            std::thread::Builder::new()
+                .name("drain-handoff".to_owned())
+                .spawn(move || {
+                    client.record_drainer_and_pin();
+                    std::thread::current().id()
+                })
+                .expect("spawn handoff drainer")
+                .join()
+                .expect("join handoff drainer")
+        };
+
+        assert_ne!(
+            handoff_id, this_thread,
+            "the handoff thread must be distinct for this test"
+        );
+        assert_eq!(
+            super::affinity::PIN_ATTEMPTS.load(Ordering::Relaxed),
+            2,
+            "a drain-owner handoff must re-pin the new drainer (not stay stuck \
+             on the stale thread)"
+        );
+        assert_eq!(
+            *client.consumer_pinned_to.lock().unwrap(),
+            Some(handoff_id),
+            "the pin must now target the new drainer"
+        );
+        assert_eq!(
+            client.recorded_consumer_thread_id(),
+            Some(handoff_id),
+            "the recorded drain owner must also be the new thread"
+        );
+    }
+
+    /// Serialises tests that touch the process-global `PIN_ATTEMPTS`
+    /// affinity seam so concurrent runs never observe each other's writes.
+    fn pin_seam_guard() -> std::sync::MutexGuard<'static, ()> {
+        use std::sync::{Mutex, OnceLock};
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner())
     }
 
     /// The real drainer's `Drop` detaches the join: when `Drop` runs on the

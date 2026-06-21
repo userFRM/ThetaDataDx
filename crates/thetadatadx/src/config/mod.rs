@@ -312,21 +312,31 @@ impl DirectConfig {
     /// This is the single accounting path for the streaming override
     /// precedence, shared by [`Self::apply_environment`] (where `base` is the
     /// selected environment's hosts) and the override setters (where `base` is
-    /// the current environment's hosts), so they can never drift:
+    /// the current environment's hosts), so they can never drift. Resolution
+    /// honours the documented most-recent-wins rule across both tiers:
     ///
     /// * A full host list ([`Self::streaming_hosts_full_override`], set via
     ///   [`Self::set_streaming_hosts`] or the config-file `[streaming] hosts`
-    ///   power-user list) wins outright — the `base` is discarded entirely,
-    ///   even when the list equals the base.
-    /// * Otherwise a recorded primary host
-    ///   ([`Self::streaming_primary_host_override`]) and/or primary port
-    ///   ([`Self::streaming_primary_port_override`]) patch the primary slot of
-    ///   `base`, keeping its failover hosts.
+    ///   power-user list) replaces `base` outright — `base` is discarded
+    ///   entirely, even when the list equals it.
+    /// * A recorded primary host ([`Self::streaming_primary_host_override`])
+    ///   and/or primary port ([`Self::streaming_primary_port_override`]) then
+    ///   patch the primary slot of whatever host set survived above (the full
+    ///   override's list when set, otherwise `base`), keeping its failover
+    ///   hosts.
+    ///
+    /// Recency is encoded by the setters rather than a stamp: a later full
+    /// list clears the primary overrides it supersedes ([`Self::set_streaming_hosts`]),
+    /// so a primary override is present here only when it was recorded *after*
+    /// the most recent full list. Applying it on top of the full list is
+    /// therefore exactly "newest wins" — a primary `THETADATA_STREAMING_HOST`
+    /// / `THETADATA_STREAMING_PORT` set after a full override re-points the
+    /// primary slot instead of being swallowed by the full list. When only one
+    /// tier is set the result is identical to the single-override case.
     fn resolve_streaming_hosts(&self, base: Vec<(String, u16)>) -> Vec<(String, u16)> {
-        if let Some(full) = &self.streaming_hosts_full_override {
-            return full.clone();
-        }
-        let mut hosts = base;
+        // The full override replaces the base; a primary override recorded
+        // after it still patches the primary slot on top (newest wins).
+        let mut hosts = self.streaming_hosts_full_override.clone().unwrap_or(base);
         if let Some(first) = hosts.first_mut() {
             if let Some(host) = &self.streaming_primary_host_override {
                 first.0 = host.clone();
@@ -3203,6 +3213,97 @@ mod tests {
             "the latest set_streaming_hosts must win over the stale primary override"
         );
         assert_eq!(staged.environment, Environment::Stage);
+        clear_env_matrix();
+    }
+
+    /// Finding #4: a primary streaming override recorded AFTER a full
+    /// host-list override must take effect (newest wins). The full list
+    /// supplies the host set; a later `THETADATA_STREAMING_HOST` /
+    /// `THETADATA_STREAMING_PORT` (here via `.env`) re-points the primary
+    /// slot on top of it, keeping the full list's failover hosts. Before
+    /// the fix `resolve_streaming_hosts` returned the full list outright,
+    /// silently swallowing the later primary override.
+    #[test]
+    fn primary_override_after_full_override_wins_newest() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // Full power-user list set first (the config-file `[streaming]
+        // hosts` / `set_streaming_hosts` tier).
+        let full = vec![
+            ("full-primary.example.com".to_string(), 6000),
+            ("full-failover-a.example.com".to_string(), 6001),
+            ("full-failover-b.example.com".to_string(), 6002),
+        ];
+        let mut config = DirectConfig::production();
+        config.set_streaming_hosts(full.clone());
+        assert_eq!(
+            config.streaming_hosts(),
+            full,
+            "the full list applies before the later primary override"
+        );
+
+        // A later primary override via `.env` (host + port). No
+        // MDDS_TYPE, so the environment marker is unchanged.
+        let path = write_temp_dotenv(
+            "primary-after-full.env",
+            "THETADATA_STREAMING_HOST=later-primary.example.com\n\
+             THETADATA_STREAMING_PORT=6543\n",
+        );
+        let config = config
+            .with_dotenv(&path)
+            .expect(".env must layer onto the full override");
+
+        // Newest wins: the primary slot is re-pointed by the later
+        // override; the full list's failover hosts are preserved.
+        assert_eq!(
+            config.streaming_hosts(),
+            vec![
+                ("later-primary.example.com".to_string(), 6543),
+                ("full-failover-a.example.com".to_string(), 6001),
+                ("full-failover-b.example.com".to_string(), 6002),
+            ],
+            "a primary override set after a full override must patch the full \
+             list's primary slot (newest wins), not be swallowed by it"
+        );
+        std::fs::remove_file(&path).ok();
+        clear_env_matrix();
+    }
+
+    /// Finding #4 (reverse order): a full override recorded AFTER a
+    /// primary override still wins outright. The `.env` primary override
+    /// is recorded first, then `set_streaming_hosts` supersedes it — the
+    /// full list replaces the host set and the stale primary patch is
+    /// dropped. Complements the env-var-ordered test above; together they
+    /// pin most-recent-wins in both directions.
+    #[test]
+    fn full_override_after_primary_override_still_wins() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // Primary override recorded first via `.env`.
+        let path = write_temp_dotenv(
+            "primary-before-full.env",
+            "THETADATA_STREAMING_HOST=early-primary.example.com\n\
+             THETADATA_STREAMING_PORT=7001\n",
+        );
+        let mut config = DirectConfig::production()
+            .with_dotenv(&path)
+            .expect(".env must source the primary override");
+        assert_eq!(config.streaming_hosts()[0].0, "early-primary.example.com");
+        assert_eq!(config.streaming_hosts()[0].1, 7001);
+
+        // A later full list supersedes the primary override entirely.
+        let full = vec![
+            ("late-full-primary.example.com".to_string(), 8000),
+            ("late-full-failover.example.com".to_string(), 8001),
+        ];
+        config.set_streaming_hosts(full.clone());
+        assert_eq!(
+            config.streaming_hosts(),
+            full,
+            "the later full override must win outright, dropping the stale \
+             primary patch (its port 7001 must not survive)"
+        );
+        std::fs::remove_file(&path).ok();
         clear_env_matrix();
     }
 
