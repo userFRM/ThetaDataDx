@@ -31,23 +31,91 @@ use thetadatadx::Client;
 
 use crate::ToolError;
 
-/// Distinct enum tokens for the `sec_type` / `req_type` schema, derived from
-/// the served matrix so the advertised choices can never drift from what the
-/// flat-file service actually serves. Each served token is offered in both its
-/// upper-case (`OPTION`) and lower-case (`option`) spelling, matching the
-/// case-insensitive parser; the helper preserves the matrix order and skips
-/// duplicates.
-fn served_enum_tokens(select: impl Fn(&(SecType, ReqType)) -> String) -> Vec<Value> {
-    let mut tokens: Vec<String> = Vec::new();
-    for pair in SERVED_DATASETS {
-        let upper = select(pair);
-        let lower = upper.to_ascii_lowercase();
-        for token in [upper, lower] {
-            if !tokens.contains(&token) {
-                tokens.push(token);
-            }
+/// Both case spellings of a token, in matrix-stable order: the upper-case
+/// form (`OPTION`) first, then the lower-case form (`option`), matching the
+/// case-insensitive parser. Duplicates (a token already collected) are
+/// skipped so a token that is its own lower-case never appears twice.
+fn case_variants(upper: &str, out: &mut Vec<String>) {
+    for token in [upper.to_string(), upper.to_ascii_lowercase()] {
+        if !out.contains(&token) {
+            out.push(token);
         }
     }
+}
+
+/// Distinct, matrix-ordered `sec_type` tokens (both case spellings) for the
+/// served datasets. Derived from the served matrix so the advertised choices
+/// can never drift from what the flat-file service actually serves.
+fn served_sec_type_tokens() -> Vec<String> {
+    let mut tokens: Vec<String> = Vec::new();
+    for (sec, _) in SERVED_DATASETS {
+        case_variants(&sec.to_string(), &mut tokens);
+    }
+    tokens
+}
+
+/// Distinct, matrix-ordered `req_type` tokens (both case spellings) across all
+/// served datasets, for the standalone `req_type` enum.
+fn served_req_type_tokens() -> Vec<String> {
+    let mut tokens: Vec<String> = Vec::new();
+    for (_, req) in SERVED_DATASETS {
+        case_variants(&req.as_str().to_ascii_uppercase(), &mut tokens);
+    }
+    tokens
+}
+
+/// The served `req_type` tokens (both case spellings) for one `sec_type`, in
+/// matrix order. Empty when the security type has no served flat-file dataset.
+fn served_req_type_tokens_for(sec: SecType) -> Vec<String> {
+    let mut tokens: Vec<String> = Vec::new();
+    for (served_sec, req) in SERVED_DATASETS {
+        if *served_sec == sec {
+            case_variants(&req.as_str().to_ascii_uppercase(), &mut tokens);
+        }
+    }
+    tokens
+}
+
+/// A `oneOf` branch list that pairs each served `sec_type` with exactly the
+/// `req_type` tokens served for it, derived from `SERVED_DATASETS`. This makes
+/// the generic-tool schema pair-aware: a JSON-schema validator accepts a
+/// `(sec_type, req_type)` document only when it matches a served pair, so an
+/// individually-valid-but-unserved combination (e.g. stock `open_interest`,
+/// any `index` request) fails the schema rather than parsing and being
+/// rejected only at runtime.
+fn served_pair_branches() -> Vec<Value> {
+    let mut branches: Vec<Value> = Vec::new();
+    let mut seen_secs: Vec<String> = Vec::new();
+    for (sec, _) in SERVED_DATASETS {
+        let sec_upper = sec.to_string();
+        if seen_secs.contains(&sec_upper) {
+            continue;
+        }
+        seen_secs.push(sec_upper.clone());
+
+        let sec_tokens: Vec<Value> = {
+            let mut v = Vec::new();
+            case_variants(&sec_upper, &mut v);
+            v.into_iter().map(|t| Value::from(t.as_str())).collect()
+        };
+        let req_tokens: Vec<Value> = served_req_type_tokens_for(*sec)
+            .into_iter()
+            .map(|t| Value::from(t.as_str()))
+            .collect();
+
+        branches.push(json!({
+            "properties": {
+                "sec_type": { "enum": sec_tokens },
+                "req_type": { "enum": req_tokens },
+            }
+        }));
+    }
+    branches
+}
+
+/// `sec_type` / `req_type` enum tokens as JSON `Value`s, derived from the
+/// served matrix.
+fn token_values(tokens: Vec<String>) -> Vec<Value> {
     tokens.iter().map(|t| Value::from(t.as_str())).collect()
 }
 
@@ -120,19 +188,25 @@ pub(crate) fn push_flatfile_tool_definitions(tools: &mut Vec<Value>) {
                     "type": "string",
                     "description": "Security type. Only security types with a served flat-file \
                                     dataset are accepted.",
-                    "enum": served_enum_tokens(|(sec, _)| sec.to_string())
+                    "enum": token_values(served_sec_type_tokens())
                 },
                 "req_type": {
                     "type": "string",
                     "description": "Request type. Only request types served as a flat file are \
                                     accepted; the valid set depends on the security type.",
-                    "enum": served_enum_tokens(|(_, req)| req.as_str().to_ascii_uppercase())
+                    "enum": token_values(served_req_type_tokens())
                 },
                 "date": date_prop,
                 "output_path": output_prop,
                 "format": format_prop,
             },
-            "required": ["sec_type", "req_type", "date"]
+            "required": ["sec_type", "req_type", "date"],
+            // Pair-aware constraint: the (sec_type, req_type) document must match
+            // one served branch. The per-property enums above narrow each field to
+            // a served token; this oneOf rejects an unserved combination of two
+            // individually-valid tokens (e.g. stock open_interest) at the schema
+            // level, before the handler runs. Derived from SERVED_DATASETS.
+            "oneOf": served_pair_branches()
         }
     }));
 }
@@ -271,8 +345,8 @@ pub(crate) async fn try_execute_flatfile_tool(
         Some(c) => c,
         None => {
             return Some(Err(ToolError::ServerError(
-                "ThetaData client not connected. Set THETA_EMAIL + THETA_PASSWORD env vars or use \
-                 --creds flag."
+                "ThetaData client not connected. Set THETADATA_API_KEY, or THETADATA_EMAIL + \
+                 THETADATA_PASSWORD, or pass --api-key / --creds."
                     .to_string(),
             )));
         }
@@ -398,6 +472,119 @@ mod tests {
             }
             other => panic!("unserved pair must map to InvalidParams; got {other:?}"),
         }
+    }
+
+    /// A served pair (stock `eod`) must pass the surface pair check and
+    /// reach the client stage, where with no connected client it surfaces the
+    /// not-connected server error rather than an invalid-parameter rejection.
+    /// This proves the pair gate accepts a genuinely served combination.
+    #[tokio::test]
+    async fn served_pair_passes_the_surface_check() {
+        let args = json!({
+            "sec_type": "STOCK",
+            "req_type": "EOD",
+            "date": "20260428",
+        });
+        let result = try_execute_flatfile_tool(None, "thetadatadx_flatfile_request", &args)
+            .await
+            .expect("the generic flatfile tool must handle this name");
+        match result {
+            Err(ToolError::ServerError(msg)) => {
+                assert!(
+                    msg.contains("not connected"),
+                    "a served pair with no client must reach the not-connected error; got {msg:?}"
+                );
+            }
+            other => panic!("a served pair must not be rejected as invalid; got {other:?}"),
+        }
+    }
+
+    /// Collect the generic tool's `oneOf` pair branches as
+    /// `(sec_tokens, req_tokens)` pairs.
+    fn generic_request_pair_branches() -> Vec<(Vec<String>, Vec<String>)> {
+        let mut tools: Vec<Value> = Vec::new();
+        push_flatfile_tool_definitions(&mut tools);
+        let generic = tools
+            .iter()
+            .find(|t| t.get("name").as_str() == Some("thetadatadx_flatfile_request"))
+            .expect("generic flatfile tool must be advertised");
+        generic
+            .pointer(["inputSchema", "oneOf"])
+            .and_then(|v| v.as_array())
+            .expect("the generic schema must carry a oneOf of served pairs")
+            .iter()
+            .map(|branch| {
+                let pick = |prop: &str| {
+                    branch
+                        .pointer(["properties", prop, "enum"])
+                        .and_then(|v| v.as_array())
+                        .expect("each branch must enumerate sec_type and req_type")
+                        .iter()
+                        .filter_map(|v| v.as_str().map(ToString::to_string))
+                        .collect::<Vec<_>>()
+                };
+                (pick("sec_type"), pick("req_type"))
+            })
+            .collect()
+    }
+
+    /// The schema's pair-aware `oneOf` must encode exactly the served matrix:
+    /// the option branch offers `eod`, `open_interest`, and `trade_quote`; the
+    /// stock branch offers `eod` and `trade_quote` but never `open_interest`.
+    /// This is what makes a validator reject stock `open_interest` (and any
+    /// `index` request) before the handler runs.
+    #[test]
+    fn generic_tool_oneof_encodes_served_pairs() {
+        let branches = generic_request_pair_branches();
+
+        let option_branch = branches
+            .iter()
+            .find(|(sec, _)| sec.iter().any(|t| t == "OPTION"))
+            .expect("a oneOf branch must cover the option security type");
+        for served in ["EOD", "OPEN_INTEREST", "TRADE_QUOTE"] {
+            assert!(
+                option_branch.1.iter().any(|t| t == served),
+                "option branch must serve `{served}`; got {:?}",
+                option_branch.1
+            );
+        }
+
+        let stock_branch = branches
+            .iter()
+            .find(|(sec, _)| sec.iter().any(|t| t == "STOCK"))
+            .expect("a oneOf branch must cover the stock security type");
+        for served in ["EOD", "TRADE_QUOTE"] {
+            assert!(
+                stock_branch.1.iter().any(|t| t == served),
+                "stock branch must serve `{served}`; got {:?}",
+                stock_branch.1
+            );
+        }
+        for unserved in ["OPEN_INTEREST", "open_interest"] {
+            assert!(
+                !stock_branch.1.iter().any(|t| t == unserved),
+                "stock branch must not serve `{unserved}`; got {:?}",
+                stock_branch.1
+            );
+        }
+
+        // No branch may advertise an index security type: the flat-file
+        // service serves no index dataset.
+        for (sec, _) in &branches {
+            for unserved in ["INDEX", "index"] {
+                assert!(
+                    !sec.iter().any(|t| t == unserved),
+                    "no oneOf branch may advertise `{unserved}`; got {sec:?}"
+                );
+            }
+        }
+
+        // One branch per served security type (option, stock).
+        assert_eq!(
+            branches.len(),
+            2,
+            "the served matrix yields exactly two security-type branches"
+        );
     }
 
     /// An unserved (sec_type, req_type) flat-file pair — e.g. option

@@ -550,17 +550,27 @@ impl ThetaDataDxOptionContractArray {
                 len: 0,
             });
         }
-        let ffi_contracts = contracts
+        // Pass 1: validate every symbol into an owned `CString` BEFORE any
+        // `into_raw()`. If a later symbol carries an interior NUL this returns
+        // `Err` and the already-built `CString`s drop and free normally, so no
+        // raw pointer is ever orphaned across the FFI boundary.
+        let owned = contracts
             .into_iter()
-            .map(|c| {
-                Ok(ThetaDataDxOptionContract {
-                    symbol: CString::new(c.symbol)?.into_raw().cast_const(),
-                    expiration: c.expiration,
-                    strike: c.strike,
-                    right: c.right as u32,
-                })
-            })
+            .map(|c| CString::new(c.symbol).map(|symbol| (symbol, c.expiration, c.strike, c.right)))
             .collect::<Result<Vec<_>, std::ffi::NulError>>()?;
+        // Pass 2: the whole batch validated, so handing each symbol to C now
+        // cannot leave a partially-converted vector behind.
+        let ffi_contracts = owned
+            .into_iter()
+            .map(
+                |(symbol, expiration, strike, right)| ThetaDataDxOptionContract {
+                    symbol: symbol.into_raw().cast_const(),
+                    expiration,
+                    strike,
+                    right: right as u32,
+                },
+            )
+            .collect::<Vec<_>>();
         let boxed = ffi_contracts.into_boxed_slice();
         let data = Box::into_raw(boxed) as *const ThetaDataDxOptionContract;
         Ok(Self { data, len })
@@ -618,10 +628,19 @@ impl ThetaDataDxStringArray {
                 len: 0,
             });
         }
-        let cstrings = strings
+        // Pass 1: validate every string into an owned `CString` BEFORE any
+        // `into_raw()`. A later interior-NUL error then drops the owned
+        // `CString`s normally instead of orphaning the raw pointers already
+        // produced for earlier elements.
+        let owned = strings
             .into_iter()
-            .map(|s| CString::new(s).map(|c| c.into_raw().cast_const()))
-            .collect::<Result<Vec<*const c_char>, std::ffi::NulError>>()?;
+            .map(CString::new)
+            .collect::<Result<Vec<_>, std::ffi::NulError>>()?;
+        // Pass 2: hand the validated batch to C in one shot.
+        let cstrings = owned
+            .into_iter()
+            .map(|c| c.into_raw().cast_const())
+            .collect::<Vec<*const c_char>>();
         let boxed = cstrings.into_boxed_slice();
         let data = Box::into_raw(boxed) as *const *const c_char;
         Ok(Self { data, len })
@@ -688,4 +707,75 @@ pub(crate) unsafe fn parse_symbol_array(
         }
     }
     Some(out)
+}
+
+#[cfg(test)]
+mod array_construction_tests {
+    use super::{
+        thetadatadx_option_contract_array_free, thetadatadx_string_array_free,
+        ThetaDataDxOptionContractArray, ThetaDataDxStringArray,
+    };
+    use thetadatadx::OptionContract;
+
+    fn contract(symbol: &str) -> OptionContract {
+        OptionContract {
+            symbol: symbol.to_string(),
+            expiration: 20240119,
+            strike: 100.0,
+            right: 'C',
+        }
+    }
+
+    /// An interior NUL in a LATER element must fail the whole construction
+    /// without orphaning the raw pointer already produced for an earlier,
+    /// valid element. The two-pass build validates every symbol into an owned
+    /// `CString` before any `into_raw()`, so this returns `Err` with nothing
+    /// leaked. (The previous single-pass `collect` called `into_raw()` on the
+    /// first element before hitting the second's error, orphaning it.)
+    #[test]
+    fn option_contract_array_rejects_interior_nul_in_second_element() {
+        let input = vec![contract("AAPL"), contract("MS\0FT")];
+        let result = ThetaDataDxOptionContractArray::from_vec(input);
+        assert!(
+            result.is_err(),
+            "interior NUL in the second symbol must fail construction"
+        );
+    }
+
+    /// The valid path round-trips through the matching free function, proving
+    /// the two-pass conversion produces exactly the ownership the free path
+    /// expects (no leak, no double-free).
+    #[test]
+    fn option_contract_array_success_round_trips_through_free() {
+        let arr =
+            ThetaDataDxOptionContractArray::from_vec(vec![contract("AAPL"), contract("MSFT")])
+                .expect("all-valid symbols build");
+        assert_eq!(arr.len, 2);
+        assert!(!arr.data.is_null());
+        // SAFETY: `arr` was produced by `from_vec` above; the free matches the
+        // `Box::into_raw` + per-symbol `CString::into_raw` that built it.
+        unsafe { thetadatadx_option_contract_array_free(arr) };
+    }
+
+    /// Same interior-NUL leak guard for the list-endpoint string array.
+    #[test]
+    fn string_array_rejects_interior_nul_in_second_element() {
+        let input = vec!["AAPL".to_string(), "MS\0FT".to_string()];
+        let result = ThetaDataDxStringArray::from_vec(input);
+        assert!(
+            result.is_err(),
+            "interior NUL in the second string must fail construction"
+        );
+    }
+
+    #[test]
+    fn string_array_success_round_trips_through_free() {
+        let arr = ThetaDataDxStringArray::from_vec(vec!["AAPL".to_string(), "MSFT".to_string()])
+            .expect("all-valid strings build");
+        assert_eq!(arr.len, 2);
+        assert!(!arr.data.is_null());
+        // SAFETY: `arr` was produced by `from_vec` above; the free matches the
+        // `Box::into_raw` + per-string `CString::into_raw` that built it.
+        unsafe { thetadatadx_string_array_free(arr) };
+    }
 }

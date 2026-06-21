@@ -36,18 +36,23 @@ cargo build --release
 
 ### Credentials
 
-Provide ThetaData credentials via **environment variables** (preferred) or a **creds file**:
+Provide ThetaData credentials via an **API key**, **email + password environment variables** (preferred), or a **creds file**:
 
 ```bash
-# Environment variables (preferred)
-export THETA_EMAIL="you@example.com"
-export THETA_PASSWORD="your-password"
+# API key (environment variable or --api-key flag)
+export THETADATA_API_KEY="your-api-key"
+
+# Email + password environment variables (preferred)
+export THETADATA_EMAIL="you@example.com"
+export THETADATA_PASSWORD="your-password"
 
 # Or a creds.txt file (line 1: email, line 2: password)
 thetadatadx-mcp --creds ~/creds.txt
 ```
 
-If no credentials are provided, the server starts in **offline mode** - only `ping`, `all_greeks`, and `implied_volatility` tools are available.
+Credentials are resolved in this order, highest first: the `--api-key` flag, then `THETADATA_API_KEY`, then `THETADATA_EMAIL` + `THETADATA_PASSWORD`, then the `--creds` file. These are the same names the SDK and the server use.
+
+If no credentials are provided, the server starts in **offline mode**: only `ping`, `all_greeks`, and `implied_volatility` tools are available.
 
 ### Stdio MCP clients (config file)
 
@@ -59,8 +64,8 @@ Most MCP clients read an `mcpServers` block from a project-local or user-level s
     "thetadata": {
       "command": "thetadatadx-mcp",
       "env": {
-        "THETA_EMAIL": "you@example.com",
-        "THETA_PASSWORD": "your-password"
+        "THETADATA_EMAIL": "you@example.com",
+        "THETADATA_PASSWORD": "your-password"
       }
     }
   }
@@ -90,8 +95,8 @@ Add to Cursor MCP settings (`.cursor/mcp.json`):
     "thetadata": {
       "command": "thetadatadx-mcp",
       "env": {
-        "THETA_EMAIL": "you@example.com",
-        "THETA_PASSWORD": "your-password"
+        "THETADATA_EMAIL": "you@example.com",
+        "THETADATA_PASSWORD": "your-password"
       }
     }
   }

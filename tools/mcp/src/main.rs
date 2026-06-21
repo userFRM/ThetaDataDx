@@ -28,6 +28,7 @@ use serde::Serialize;
 use sonic_rs::{json, JsonContainerTrait, JsonValueMutTrait, JsonValueTrait, Value};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::OnceCell;
+use zeroize::Zeroizing;
 
 use thetadatadx::endpoint::{self, EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 use thetadatadx::{
@@ -1078,7 +1079,7 @@ async fn execute_tool(
     // ── Online tools (require connected client) ─────────────────────
     let client = client.ok_or_else(|| {
         ToolError::ServerError(
-            "ThetaData client not connected. Set THETA_EMAIL + THETA_PASSWORD env vars or use --creds flag.".to_string(),
+            "ThetaData client not connected. Set THETADATA_API_KEY, or THETADATA_EMAIL + THETADATA_PASSWORD, or pass --api-key / --creds.".to_string(),
         )
     })?;
 
@@ -1211,18 +1212,154 @@ fn emit_response(stdout: &std::io::Stdout, resp: &JsonRpcResponse) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+//  Credential source selection
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Canonical environment variable names, shared with the SDK and every
+/// other binding so the same value authenticates everywhere without
+/// per-tool divergence.
+const API_KEY_ENV: &str = "THETADATA_API_KEY";
+const EMAIL_ENV: &str = "THETADATA_EMAIL";
+const PASSWORD_ENV: &str = "THETADATA_PASSWORD";
+
+/// Which authentication path the resolved arguments and environment select,
+/// decided before any credential value is constructed or any file is read.
+///
+/// Splitting the decision from the construction keeps the precedence rules
+/// pure and unit-testable: the decision takes plain presence flags, so a
+/// test can assert the ordering without a live upstream or a creds file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CredentialSource {
+    /// An explicit `--api-key` flag was passed; use that key directly.
+    ApiKeyFlag,
+    /// No flag, but `THETADATA_API_KEY` is set; source the key from the
+    /// environment.
+    EnvApiKey,
+    /// No api key anywhere, but both `THETADATA_EMAIL` and
+    /// `THETADATA_PASSWORD` are set; build email + password credentials
+    /// from the environment.
+    EnvEmailPassword,
+    /// None of the above; fall back to the `--creds` file if one was given,
+    /// otherwise start in offline mode.
+    CredsFileOrOffline,
+}
+
+/// Decide which credential source to use from plain presence flags.
+///
+/// Precedence (highest first): an explicit `--api-key` flag, then the
+/// `THETADATA_API_KEY` environment variable, then the
+/// `THETADATA_EMAIL` + `THETADATA_PASSWORD` environment pair, then the
+/// `--creds` file (or offline mode when no file is given). This mirrors the
+/// server binary and the SDK ordering, where an explicit argument wins over
+/// the environment, which in turn wins over the creds file.
+fn select_credential_source(
+    api_key_flag: bool,
+    env_api_key_present: bool,
+    env_email_password_present: bool,
+) -> CredentialSource {
+    if api_key_flag {
+        CredentialSource::ApiKeyFlag
+    } else if env_api_key_present {
+        CredentialSource::EnvApiKey
+    } else if env_email_password_present {
+        CredentialSource::EnvEmailPassword
+    } else {
+        CredentialSource::CredsFileOrOffline
+    }
+}
+
+/// Whether an environment variable is set to a non-empty (after trim) value.
+///
+/// An empty or whitespace-only variable is treated as absent so it does not
+/// shadow a lower-precedence credential source, matching the SDK's handling
+/// of `THETADATA_API_KEY`.
+fn env_var_present(name: &str) -> bool {
+    std::env::var(name).is_ok_and(|v| !v.trim().is_empty())
+}
+
+/// Resolve credentials by precedence, or `None` for offline mode.
+///
+/// The api key and password are secrets: neither is ever logged or echoed.
+/// The "loaded credentials" lines name the source generically and never
+/// interpolate a secret value. An argv-sourced `--api-key` is moved into a
+/// [`Zeroizing`] buffer so the raw allocation is scrubbed on drop;
+/// `Credentials::api_key` / `Credentials::new` keep their own zeroized copy.
+fn resolve_credentials(args: &mut Args) -> Option<Credentials> {
+    match select_credential_source(
+        args.api_key.is_some(),
+        env_var_present(API_KEY_ENV),
+        env_var_present(EMAIL_ENV) && env_var_present(PASSWORD_ENV),
+    ) {
+        CredentialSource::ApiKeyFlag => {
+            let raw_key = args.api_key.take().expect("api_key is Some on this arm");
+            let key = Zeroizing::new(raw_key);
+            tracing::info!("loaded credentials from --api-key flag");
+            Some(Credentials::api_key(key.trim()))
+        }
+        CredentialSource::EnvApiKey => {
+            // `from_env_or_file` reads `THETADATA_API_KEY` (already known
+            // non-empty) and keeps the key inside its own zeroized buffer;
+            // the key is never surfaced here. The file path is unused on
+            // this arm because the env var is present.
+            tracing::info!("loaded credentials from the THETADATA_API_KEY environment variable");
+            match Credentials::from_env_or_file(args.creds_path.as_deref().unwrap_or_default()) {
+                Ok(c) => Some(c),
+                Err(e) => {
+                    tracing::warn!(error = %e, "failed to source THETADATA_API_KEY, starting in offline mode");
+                    None
+                }
+            }
+        }
+        CredentialSource::EnvEmailPassword => {
+            // Both values are known non-empty. Move the password into a
+            // `Zeroizing` buffer so the env-sourced allocation is scrubbed
+            // on drop; `Credentials::new` keeps its own zeroized copy.
+            let email = std::env::var(EMAIL_ENV).unwrap_or_default();
+            let password = Zeroizing::new(std::env::var(PASSWORD_ENV).unwrap_or_default());
+            tracing::info!(
+                "loaded credentials from the THETADATA_EMAIL/THETADATA_PASSWORD environment variables"
+            );
+            Some(Credentials::new(email.trim(), password.trim()))
+        }
+        CredentialSource::CredsFileOrOffline => match args.creds_path.as_deref() {
+            Some(path) => match Credentials::from_file(path) {
+                Ok(c) => {
+                    tracing::info!(path = %path, "loaded credentials from file");
+                    Some(c)
+                }
+                Err(e) => {
+                    tracing::warn!(path = %path, error = %e, "failed to load credentials, starting in offline mode");
+                    None
+                }
+            },
+            None => {
+                tracing::info!("no credentials provided, starting in offline mode (ping, all_greeks, implied_volatility only)");
+                None
+            }
+        },
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 //  CLI argument parsing (minimal, no clap dependency)
 // ═══════════════════════════════════════════════════════════════════════════
 
 struct Args {
+    api_key: Option<String>,
     creds_path: Option<String>,
 }
 
 fn parse_args() -> Args {
-    let mut args = Args { creds_path: None };
+    let mut args = Args {
+        api_key: None,
+        creds_path: None,
+    };
     let mut argv = std::env::args().skip(1);
     while let Some(arg) = argv.next() {
         match arg.as_str() {
+            "--api-key" => {
+                args.api_key = argv.next();
+            }
             "--creds" => {
                 args.creds_path = argv.next();
             }
@@ -1234,16 +1371,22 @@ fn parse_args() -> Args {
                 eprintln!("  thetadatadx-mcp [OPTIONS]");
                 eprintln!();
                 eprintln!("OPTIONS:");
-                eprintln!("  --creds <PATH>  Path to creds.txt (email + password)");
-                eprintln!("  -h, --help      Print help");
+                eprintln!("  --api-key <KEY>  ThetaData API key (alternative to email + password)");
+                eprintln!(
+                    "  --creds <PATH>   Path to creds.txt (email on line 1, password on line 2)"
+                );
+                eprintln!("  -h, --help       Print help");
                 eprintln!();
                 eprintln!("ENVIRONMENT:");
-                eprintln!("  THETA_EMAIL     ThetaData account email");
-                eprintln!("  THETA_PASSWORD  ThetaData account password");
-                eprintln!("  RUST_LOG        Log level (default: info)");
+                eprintln!("  THETADATA_API_KEY   ThetaData API key");
+                eprintln!("  THETADATA_EMAIL     ThetaData account email");
+                eprintln!("  THETADATA_PASSWORD  ThetaData account password");
+                eprintln!("  RUST_LOG            Log level (default: info)");
                 eprintln!();
-                eprintln!("Credentials are read from env vars first, then --creds file.");
-                eprintln!("If neither is provided, the server starts in offline mode");
+                eprintln!("Credential precedence (highest first): --api-key flag,");
+                eprintln!("THETADATA_API_KEY, THETADATA_EMAIL + THETADATA_PASSWORD,");
+                eprintln!("then the --creds file.");
+                eprintln!("If none resolve, the server starts in offline mode");
                 eprintln!("(only ping, all_greeks, and implied_volatility tools work).");
                 std::process::exit(0);
             }
@@ -1276,31 +1419,15 @@ async fn main() {
         )
         .init();
 
-    let cli_args = parse_args();
+    let mut cli_args = parse_args();
     let start_time = std::time::Instant::now();
 
     // ── Resolve credentials ─────────────────────────────────────────
-    let creds = if let (Ok(email), Ok(password)) = (
-        std::env::var("THETA_EMAIL"),
-        std::env::var("THETA_PASSWORD"),
-    ) {
-        tracing::info!("using credentials from THETA_EMAIL/THETA_PASSWORD env vars");
-        Some(Credentials::new(email, password))
-    } else if let Some(path) = &cli_args.creds_path {
-        match Credentials::from_file(path) {
-            Ok(c) => {
-                tracing::info!(path = %path, "loaded credentials from file");
-                Some(c)
-            }
-            Err(e) => {
-                tracing::warn!(path = %path, error = %e, "failed to load credentials, starting in offline mode");
-                None
-            }
-        }
-    } else {
-        tracing::info!("no credentials provided, starting in offline mode (ping, all_greeks, implied_volatility only)");
-        None
-    };
+    // Precedence (highest first): --api-key flag, THETADATA_API_KEY,
+    // THETADATA_EMAIL + THETADATA_PASSWORD, then the --creds file. This
+    // mirrors the server binary and the SDK so the same credential
+    // authenticates everywhere. Secrets are never logged or echoed.
+    let creds = resolve_credentials(&mut cli_args);
 
     // ── Connect to ThetaData in the background ──────────────────────
     // We must NOT block here: MCP clients (e.g. Claude Code) send `initialize`
@@ -1523,6 +1650,76 @@ mod tests {
                     .map(ToString::to_string)
             })
             .collect()
+    }
+
+    // ── Credential precedence ───────────────────────────────────────
+    //
+    // The decision function takes plain presence flags, so the precedence
+    // can be asserted without touching the process environment, a creds
+    // file, or a live upstream. Precedence (highest first): --api-key flag,
+    // THETADATA_API_KEY, THETADATA_EMAIL + THETADATA_PASSWORD, then the
+    // --creds file (or offline mode).
+
+    /// An explicit `--api-key` flag wins over every environment source.
+    #[test]
+    fn api_key_flag_takes_precedence_over_env() {
+        assert_eq!(
+            select_credential_source(true, true, true),
+            CredentialSource::ApiKeyFlag
+        );
+        assert_eq!(
+            select_credential_source(true, false, false),
+            CredentialSource::ApiKeyFlag
+        );
+    }
+
+    /// With no flag, `THETADATA_API_KEY` wins over the email/password env pair.
+    #[test]
+    fn env_api_key_takes_precedence_over_env_email_password() {
+        assert_eq!(
+            select_credential_source(false, true, true),
+            CredentialSource::EnvApiKey
+        );
+        assert_eq!(
+            select_credential_source(false, true, false),
+            CredentialSource::EnvApiKey
+        );
+    }
+
+    /// With neither an api key flag nor `THETADATA_API_KEY`, the canonical
+    /// `THETADATA_EMAIL` + `THETADATA_PASSWORD` env pair is selected.
+    #[test]
+    fn env_email_password_selected_when_no_api_key() {
+        assert_eq!(
+            select_credential_source(false, false, true),
+            CredentialSource::EnvEmailPassword
+        );
+    }
+
+    /// With no flag and no canonical env var, resolution falls back to the
+    /// `--creds` file (or offline mode when no file is given).
+    #[test]
+    fn no_credentials_falls_back_to_creds_file_or_offline() {
+        assert_eq!(
+            select_credential_source(false, false, false),
+            CredentialSource::CredsFileOrOffline
+        );
+    }
+
+    /// The selected source resolves to the expected credential *kind*: the
+    /// api-key arm builds API-key credentials, the email/password arm builds
+    /// password credentials. This pins what each canonical source constructs.
+    #[test]
+    fn selected_source_constructs_expected_credential_kind() {
+        let api = Credentials::api_key("secret-key");
+        assert!(api.is_api_key());
+        assert_eq!(api.api_key_secret(), Some("secret-key"));
+        assert_eq!(api.password(), None);
+
+        let pw = Credentials::new("you@example.com", "hunter2");
+        assert!(!pw.is_api_key());
+        assert_eq!(pw.password(), Some("hunter2"));
+        assert_eq!(pw.api_key_secret(), None);
     }
 
     /// Offline (`connected = false`), `tools/list` must advertise exactly the

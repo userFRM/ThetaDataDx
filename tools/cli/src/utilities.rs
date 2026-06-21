@@ -86,11 +86,12 @@ fn add_generated_utility_commands(mut app: Command) -> Command {
 async fn try_run_generated_utility(
     subcommand: Option<(&str, &ArgMatches)>,
     fmt: &OutputFormat,
+    api_key_flag: Option<&str>,
     creds_path: &str,
 ) -> Result<bool, thetadatadx::Error> {
     match subcommand {
         Some(("auth", _)) => {
-            let creds = thetadatadx::Credentials::from_file(creds_path)?;
+            let creds = resolve_credentials(api_key_flag, creds_path)?;
             let resp =
                 thetadatadx::auth::authenticate(&creds, thetadatadx::Environment::Prod).await?;
             let mut td = TabularData::new(vec![

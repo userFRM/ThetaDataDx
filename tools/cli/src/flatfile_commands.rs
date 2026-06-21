@@ -16,7 +16,6 @@
 
 use clap::{Arg, ArgMatches, Command};
 use thetadatadx::flatfiles::{flat_file_serves, FlatFileFormat, ReqType, SecType, SERVED_DATASETS};
-use thetadatadx::Credentials;
 
 /// Lower-case CLI token for a security type. The flag spelling is lower-case
 /// (`option` / `stock`), distinct from the upper-case `SEC=` wire token, so it
@@ -215,6 +214,7 @@ fn parse_req_type(s: &str) -> Result<ReqType, thetadatadx::Error> {
 /// result to stdout hits an I/O error.
 pub(crate) async fn try_dispatch(
     matches: &ArgMatches,
+    api_key_flag: Option<&str>,
     creds_path: &str,
 ) -> Result<bool, thetadatadx::Error> {
     let Some(("flatfile", ff_m)) = matches.subcommand() else {
@@ -288,7 +288,7 @@ pub(crate) async fn try_dispatch(
         ));
     }
 
-    let creds = Credentials::from_file(creds_path)?;
+    let creds = crate::resolve_credentials(api_key_flag, creds_path)?;
 
     // Choose the on-disk path: explicit `-o`, otherwise a temp file we
     // stream to stdout afterwards. Flat files are large, so streaming
@@ -380,13 +380,34 @@ mod tests {
     /// applies before any network work.
     #[test]
     fn unserved_cross_pair_is_not_in_the_served_matrix() {
-        // Both tokens are individually advertised, but the pair is unserved.
+        // Both tokens are individually advertised, but the pair is unserved:
+        // stock has no open-interest flat file. The dispatch gate rejects it
+        // before any credential load or network work.
         let sec = parse_sec_type("stock").expect("stock parses");
         let req = parse_req_type("open_interest").expect("open_interest parses");
         assert!(
             !flat_file_serves(sec, req),
             "stock open_interest must be rejected by the served-matrix gate"
         );
+
+        // A pair the matrix does serve (option open-interest) is accepted, so
+        // the gate rejects only impossible combinations, not every cross pair.
+        let served_sec = parse_sec_type("option").expect("option parses");
+        let served_req = parse_req_type("open_interest").expect("open_interest parses");
+        assert!(
+            flat_file_serves(served_sec, served_req),
+            "option open_interest is a served pair and must be accepted"
+        );
+
+        // Every entry in the served matrix is, by definition, accepted by the
+        // gate the dispatch applies; this pins the gate to the SSOT.
+        for (sec, req) in SERVED_DATASETS {
+            assert!(
+                flat_file_serves(*sec, *req),
+                "served matrix pair {sec} {} must pass the gate",
+                req.as_str()
+            );
+        }
     }
 
     /// The constrained value parsers must build a valid clap command.

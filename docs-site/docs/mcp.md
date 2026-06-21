@@ -23,13 +23,30 @@ Most MCP clients read an `mcpServers` block from a project-local or user-level s
     "thetadata": {
       "command": "thetadatadx-mcp",
       "env": {
-        "THETA_EMAIL": "you@example.com",
-        "THETA_PASSWORD": "your-password"
+        "THETADATA_EMAIL": "you@example.com",
+        "THETADATA_PASSWORD": "your-password"
       }
     }
   }
 }
 ```
+
+To authenticate with an API key instead of email and password, set `THETADATA_API_KEY` in the `env` block (or pass `--api-key <KEY>` in `args`):
+
+```json
+{
+  "mcpServers": {
+    "thetadata": {
+      "command": "thetadatadx-mcp",
+      "env": {
+        "THETADATA_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
+
+The server resolves credentials in this order, highest first: the `--api-key` flag, then `THETADATA_API_KEY`, then `THETADATA_EMAIL` + `THETADATA_PASSWORD`, then a `--creds` file (email on line 1, password on line 2). The same names authenticate the SDK, the server, and every binding.
 
 ::: warning
 Keep credentials in environment variables or a secrets manager — not in config files committed to version control.
@@ -54,7 +71,7 @@ Run `thetadatadx-mcp` by hand: the process must start silently and wait on stdin
 :::
 
 ::: details Only three tools appear
-That is offline mode: credentials were missing or rejected. Check `THETA_EMAIL` / `THETA_PASSWORD` in the client's `env` block.
+That is offline mode: credentials were missing or rejected. Check `THETADATA_API_KEY`, or `THETADATA_EMAIL` / `THETADATA_PASSWORD`, in the client's `env` block.
 :::
 
 ::: details Calls fail with permission errors
