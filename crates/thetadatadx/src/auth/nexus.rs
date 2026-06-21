@@ -96,11 +96,18 @@ impl AuthEnv {
     ///
     /// Production carries no marker: the server treats an absent
     /// `authEnv` as `PROD`, so omitting it keeps the production request
-    /// body byte-identical to the long-validated shape. Only the staging
-    /// environment serializes an explicit marker.
+    /// body byte-identical to the long-validated shape. Dev is a
+    /// streaming-only cluster with no server-side auth env of its own, so
+    /// it authenticates exactly as production — it too carries no marker,
+    /// keeping a dev session's auth body byte-identical to a production
+    /// one. Only the staging environment serializes an explicit marker.
+    ///
+    /// The environment selector is both a cluster selector and an auth
+    /// wire marker; this is the seam where the two diverge: `Dev` selects
+    /// a distinct streaming cluster but the *same* auth body as `Prod`.
     fn for_environment(env: Environment) -> Option<Self> {
         match env {
-            Environment::Prod => None,
+            Environment::Prod | Environment::Dev => None,
             Environment::Stage => Some(Self {
                 env_type: EnvType::Stage,
             }),
@@ -157,6 +164,22 @@ impl<'a> AuthRequest<'a> {
             }
         }
     }
+}
+
+/// Serialize the auth request body for `environment` using a fixed
+/// credential, returning the on-the-wire JSON.
+///
+/// Test-only seam so callers outside this module (notably the config-layer
+/// tests) can assert the auth wire body a given [`Environment`] produces —
+/// in particular that a dev config's body is byte-identical to production's
+/// — without `AuthRequest` leaving this module's private surface. The
+/// credential is irrelevant to the `authEnv` marker under test, so a fixed
+/// email/password pair is used.
+#[cfg(test)]
+pub(crate) fn auth_request_json_for_test(environment: Environment) -> serde_json::Value {
+    let creds = Credentials::new("user@example.com", "hunter2");
+    serde_json::to_value(AuthRequest::from_credentials(&creds, environment))
+        .expect("auth request serializes")
 }
 
 /// Successful authentication response from Nexus API.
@@ -656,6 +679,36 @@ mod tests {
         let body = AuthRequest::from_credentials(&creds, Environment::Stage);
         let json: serde_json::Value = serde_json::to_value(&body).unwrap();
         assert_eq!(json["authEnv"], serde_json::json!({ "envType": "STAGE" }));
+    }
+
+    /// The dev environment carries NO `authEnv` marker and produces an
+    /// auth body byte-identical to production: dev replay is a
+    /// streaming-only cluster with no server-side auth env of its own, so
+    /// a dev session authenticates exactly as a production session. This
+    /// locks the "dev auths as prod" invariant — the seam where the
+    /// cluster selector (dev streaming) diverges from the auth wire marker
+    /// (prod).
+    #[test]
+    fn auth_request_dev_auth_body_is_byte_identical_to_prod() {
+        for creds in [
+            Credentials::new("user@example.com", "hunter2"),
+            Credentials::api_key("secret-key-xyz"),
+        ] {
+            let dev: serde_json::Value =
+                serde_json::to_value(AuthRequest::from_credentials(&creds, Environment::Dev))
+                    .unwrap();
+            let prod: serde_json::Value =
+                serde_json::to_value(AuthRequest::from_credentials(&creds, Environment::Prod))
+                    .unwrap();
+            assert!(
+                dev.get("authEnv").is_none(),
+                "dev body must omit authEnv: {dev}"
+            );
+            assert_eq!(
+                dev, prod,
+                "dev auth body must be byte-identical to production"
+            );
+        }
     }
 
     /// The full production body shape, pinned end to end: exactly the

@@ -16,10 +16,12 @@
 
 use super::{DirectConfig, Environment};
 
-/// Target server environment selector (`PROD` / `STAGE`, case-insensitive).
-/// Equivalent to ThetaData's `mdds_type` option. `STAGE` points every
-/// cluster-bound channel at the staging environment; `PROD` (or unset)
-/// keeps production. The explicit host/port overrides are recorded first
+/// Target server environment selector (`PROD` / `STAGE` / `DEV`,
+/// case-insensitive). Equivalent to ThetaData's `mdds_type` option.
+/// `STAGE` points every cluster-bound channel at the staging environment;
+/// `DEV` points the streaming channel at the dev replay cluster while auth
+/// and historical stay on production; `PROD` (or unset) keeps production.
+/// The explicit host/port overrides are recorded first
 /// and the environment is selected last, so an explicit
 /// `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` /
 /// `THETADATA_STREAMING_PORT` patches the selected environment's cluster
@@ -120,7 +122,7 @@ pub(super) fn apply_env_overrides(cfg: &mut DirectConfig) {
                 tracing::warn!(
                     env = ENV_MDDS_TYPE,
                     value = %mdds_type,
-                    "ignoring unrecognized env var (expected PROD or STAGE); keeping current environment"
+                    "ignoring unrecognized env var (expected PROD, STAGE, or DEV); keeping current environment"
                 );
                 cfg.environment
             }
@@ -183,7 +185,7 @@ pub(super) fn apply_dotenv_overrides(cfg: &mut DirectConfig, pairs: &[(String, &
                 tracing::warn!(
                     env = ENV_MDDS_TYPE,
                     value = %mdds_type,
-                    "ignoring unrecognized .env value (expected PROD or STAGE); keeping current environment"
+                    "ignoring unrecognized .env value (expected PROD, STAGE, or DEV); keeping current environment"
                 );
                 cfg.environment
             }

@@ -98,7 +98,7 @@ pub mod __test_internals {
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::mpsc as std_mpsc;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle, ThreadId};
 use std::time::Duration;
 
@@ -869,7 +869,7 @@ struct SpawnArgs<'a, P> {
     dropped: Arc<AtomicU64>,
     panics: Arc<AtomicU64>,
     ring_cursors: Arc<RingCursors>,
-    consumer_thread_id: Arc<OnceLock<ThreadId>>,
+    consumer_thread_id: Arc<Mutex<Option<ThreadId>>>,
     slow_callback_threshold_ns: Arc<AtomicU64>,
     slow_callback_count: Arc<AtomicU64>,
     next_req_id: Arc<AtomicI64>,
@@ -990,27 +990,39 @@ pub struct StreamingClient {
     /// consumer-side wait matches the ring builder's strategy.
     wait_strategy: ring::AdaptiveWaitStrategy,
     /// Optional CPU core to pin the consumer drain thread to; `None`
-    /// (default) leaves it under the OS scheduler. Applied once at
-    /// drain-loop entry in [`Self::for_each_scoped`] / [`Self::next_event`]
-    /// via [`affinity::pin_consumer_thread`].
+    /// (default) leaves it under the OS scheduler. Applied by the drain
+    /// primitives once drain ownership is proven (inside
+    /// [`Self::poll_batch`] / [`Self::try_next_event_internal`]) via
+    /// [`affinity::pin_consumer_thread`].
     consumer_cpu: Option<usize>,
-    /// One-shot guard so [`Self::pin_consumer_once`] applies the CPU pin
-    /// exactly once across repeated `next_event` / `for_each` drives,
+    /// One-shot guard so [`Self::record_drainer_and_pin`] applies the CPU
+    /// pin exactly once across repeated `next_event` / `for_each` drives,
     /// keeping the affinity syscall off the per-event path.
     consumer_pinned: std::sync::atomic::AtomicBool,
     /// Cumulative count of user-callback panics caught by the
     /// event-dispatch consumer's `catch_unwind` boundary. Snapshot via
     /// [`StreamingClient::panic_count`].
     panics: Arc<AtomicU64>,
-    /// Captured `ThreadId` of a per-binding dispatcher / consumer
-    /// thread that the binding wants the core's `Drop` self-join
-    /// detector to skip. The harness in
-    /// [`Self::for_self_join_test`] is the only path that actually
-    /// initialises this cell — production bindings own their own
-    /// dispatcher join handles and detect self-join at their level.
-    /// Kept here so the offline self-join soak harness has a real
-    /// fixture without paying for a separate type.
-    consumer_thread_id: Arc<OnceLock<ThreadId>>,
+    /// `ThreadId` of the thread that actually owns the drain, recorded by
+    /// the drain primitives **after** they acquire the `poller_state` lock.
+    ///
+    /// Held in a `Mutex<Option<_>>` rather than a `OnceLock` on purpose:
+    /// the identity must be recordable only once drain ownership is proven
+    /// and **correctable** afterwards. A `OnceLock` armed at drain entry
+    /// (before the `try_lock`) could be claimed permanently by a thread
+    /// whose drain attempt then failed with `Busy` / `ReentrantDrain` and
+    /// never drained a single event; `Drop` would then read that phantom
+    /// identity and miss the real drainer's detach path. Recording inside
+    /// the lock guarantees the value is always the most recent thread that
+    /// held drain ownership, so the `Drop` self-join detector and the
+    /// consumer-CPU pin both observe the true drainer.
+    ///
+    /// `None` until the first drain runs. The harness in
+    /// [`Self::for_self_join_test`] records through the same cell from its
+    /// dispatcher-thread consumer; production bindings own their own
+    /// dispatcher join handles and additionally detect self-join at their
+    /// level.
+    consumer_thread_id: Arc<Mutex<Option<ThreadId>>>,
     /// Quiescence barrier: flipped to `true` once the I/O thread and
     /// the event-dispatch consumer have both joined and the user callback
     /// is guaranteed to have stopped firing. Set inside [`Drop`] for both
@@ -1330,7 +1342,7 @@ impl StreamingClient {
         // and read by `StreamingClient::drop` to break the self-join cycle
         // (callback -> stop_streaming -> drop StreamingClient -> join io
         // thread -> drop producer -> join consumer thread = self).
-        let consumer_thread_id: Arc<OnceLock<ThreadId>> = Arc::new(OnceLock::new());
+        let consumer_thread_id: Arc<Mutex<Option<ThreadId>>> = Arc::new(Mutex::new(None));
 
         // Shared `next_req_id` counter — the StreamingClient public API
         // owns one handle for caller-issued subscribes; the io_loop
@@ -1727,27 +1739,42 @@ impl StreamingClient {
         Arc::clone(&self.drained)
     }
 
-    /// Apply the configured consumer-core pin to the current thread at
-    /// most once for the life of this client.
+    /// Record the current thread as the drain owner and apply the
+    /// configured consumer-core pin.
     ///
-    /// The blocking drain paths ([`Self::next_event`] /
-    /// [`Self::for_each_scoped`] / [`Self::for_each_with_wait_strategy`])
-    /// call this at entry; the one-shot
-    /// `AtomicBool` keeps the affinity syscall off the per-event path
-    /// when `next_event` is driven one event at a time. A `None`
-    /// `consumer_cpu` short-circuits the affinity pin.
+    /// Called by the drain primitives ([`Self::try_next_event_internal`]
+    /// and [`Self::poll_batch`]) **after** they acquire the `poller_state`
+    /// lock — never before. Acquiring drain ownership first is the
+    /// invariant that keeps the recorded identity honest: a thread whose
+    /// drain attempt loses the `try_lock` race (a `Busy` / `ReentrantDrain`
+    /// that never drains) must not be able to claim the consumer-thread
+    /// role. Only the thread holding the staging lock has proven it is the
+    /// real drainer, so only it records here.
     ///
-    /// Recording the consumer thread id is the single choke point that
-    /// arms the `Drop` self-join guard in production: every drain path
-    /// routes through here, so the thread that drives the ring is
-    /// captured exactly once. Without it `Drop` could join the I/O
-    /// handle inline on the dispatcher thread a user callback called
-    /// back into — that thread is the one cleanup must complete on, so
-    /// the inline join would self-deadlock. The capture happens before
-    /// the `consumer_cpu` short-circuit so the guard arms regardless of
-    /// whether CPU pinning is configured.
-    fn pin_consumer_once(&self) {
-        self.record_consumer_thread();
+    /// The identity is stored in a `Mutex<Option<ThreadId>>` and refreshed
+    /// to the current thread on every call, so the value always reflects
+    /// the most recent proven drainer (correctable, unlike a `OnceLock`).
+    /// Recording the consumer thread id arms the `Drop` self-join guard:
+    /// without it `Drop` could join the I/O handle inline on the
+    /// dispatcher thread a user callback called back into — that thread is
+    /// the one cleanup must complete on, so the inline join would
+    /// self-deadlock.
+    ///
+    /// The CPU affinity pin is applied at most once for the life of the
+    /// client (guarded by the one-shot `consumer_pinned` flag) and only
+    /// when a `consumer_cpu` is configured; folding it in here means only
+    /// the proven drainer is ever pinned.
+    fn record_drainer_and_pin(&self) {
+        // Record under the lock: the value is small and the lock is
+        // uncontended on the single-consumer happy path. Overwrite rather
+        // than set-once so a (legitimate) change of drain owner corrects
+        // the recorded identity instead of pinning a stale one.
+        if let Ok(mut id) = self.consumer_thread_id.lock() {
+            let cur = thread::current().id();
+            if *id != Some(cur) {
+                *id = Some(cur);
+            }
+        }
         if self.consumer_cpu.is_none() {
             return;
         }
@@ -1755,17 +1782,6 @@ impl StreamingClient {
             return;
         }
         affinity::pin_consumer_thread(self.consumer_cpu);
-    }
-
-    /// Capture the draining thread's id exactly once so the `Drop`
-    /// self-join guard can detect a `Drop` running on the consumer
-    /// thread. Idempotent: the first drain wins, later calls are a cheap
-    /// `OnceLock` read. Separated from the CPU pin so the non-blocking
-    /// [`Self::poll_batch`] primitive arms the guard without inheriting
-    /// the affinity pin the blocking drains apply.
-    fn record_consumer_thread(&self) {
-        self.consumer_thread_id
-            .get_or_init(|| thread::current().id());
     }
 
     /// Block the calling thread until the next event is available or
@@ -1802,7 +1818,10 @@ impl StreamingClient {
     /// invocation, or [`StreamError::ReentrantDrain`] if the drain was
     /// re-entered or driven concurrently.
     pub fn next_event(&self) -> Result<Option<StreamEvent>, StreamError> {
-        self.pin_consumer_once();
+        // The drain owner is recorded inside `try_next_event_internal`,
+        // after the staging lock is acquired — not here at entry — so a
+        // failed `ReentrantDrain` attempt never claims the consumer-thread
+        // identity. See `record_drainer_and_pin`.
         let waiter = self.wait_strategy;
         loop {
             match self.try_next_event_internal()? {
@@ -1858,6 +1877,11 @@ impl StreamingClient {
                 )));
             }
         };
+        // Drain ownership is now proven (the staging lock is held), so this
+        // is the real drainer: record its identity and apply the CPU pin.
+        // A reentrant/concurrent caller that failed the `try_lock` above
+        // returned before reaching here, so it can never claim the role.
+        self.record_drainer_and_pin();
         let Some(mut state) = guard.take() else {
             return Ok(TryNext::Shutdown);
         };
@@ -1975,11 +1999,6 @@ impl StreamingClient {
     /// misuse fails fast instead of hard-hanging. The normal single-threaded
     /// drain always acquires uncontended and is unaffected.
     pub fn poll_batch(&self, mut on_event: impl FnMut(&StreamEvent)) -> PollOutcome {
-        // Arm the self-join guard from this drain path too: a caller
-        // driving `poll_batch` in its own loop is the consumer thread,
-        // and a `Drop` reached from inside `on_event` must detach its
-        // join rather than block this thread on its own termination.
-        self.record_consumer_thread();
         // `try_lock`, not `lock`: the staging mutex is non-reentrant, so a
         // user `on_event` callback that re-enters a drain method on this
         // client (or a second thread draining concurrently) would hard-hang
@@ -1993,6 +2012,14 @@ impl StreamingClient {
             Err(std::sync::TryLockError::WouldBlock) => return PollOutcome::Busy,
             Err(std::sync::TryLockError::Poisoned(_)) => return PollOutcome::Shutdown,
         };
+        // Arm the self-join guard only now that drain ownership is proven:
+        // a caller driving `poll_batch` in its own loop and holding the
+        // staging lock is the real consumer thread, so a `Drop` reached
+        // from inside `on_event` detaches its join rather than blocking
+        // this thread on its own termination. A reentrant/concurrent caller
+        // that hit `Busy` above returned before this point and never claims
+        // the role.
+        self.record_drainer_and_pin();
         let Some(mut state) = guard.take() else {
             return PollOutcome::Shutdown;
         };
@@ -2131,7 +2158,9 @@ impl StreamingClient {
     where
         S: FnMut(&mut dyn FnMut() -> PollOutcome) -> PollOutcome,
     {
-        self.pin_consumer_once();
+        // The drain owner + CPU pin are recorded inside `poll_batch`, after
+        // the staging lock is acquired, so the identity reflects the proven
+        // drainer rather than whichever thread merely entered this loop.
         let waiter = self.wait_strategy;
         loop {
             // Drain one batch inside the caller's scope. `on_event` fires
@@ -2189,7 +2218,9 @@ impl StreamingClient {
         W: crate::streaming::wait::WaitStrategy,
         F: FnMut(&StreamEvent),
     {
-        self.pin_consumer_once();
+        // The drain owner + CPU pin are recorded inside `poll_batch`, after
+        // the staging lock is acquired, so the identity reflects the proven
+        // drainer rather than whichever thread merely entered this loop.
         loop {
             match self.poll_batch(&mut on_event) {
                 PollOutcome::Shutdown => return,
@@ -2756,7 +2787,7 @@ impl StreamingClient {
         let dropped = Arc::new(AtomicU64::new(0));
         let panics = Arc::new(AtomicU64::new(0));
         let ring_cursors = Arc::new(RingCursors::new());
-        let consumer_thread_id: Arc<OnceLock<ThreadId>> = Arc::new(OnceLock::new());
+        let consumer_thread_id: Arc<Mutex<Option<ThreadId>>> = Arc::new(Mutex::new(None));
         let next_req_id: Arc<AtomicI64> = Arc::new(AtomicI64::new(1));
 
         let (cmd_tx, cmd_rx) = std_mpsc::sync_channel::<IoCommand>(CMD_CHANNEL_CAPACITY);
@@ -2770,7 +2801,16 @@ impl StreamingClient {
         let mut producer = SequencedProducer::new(
             build_single_producer(ring_size, factory, BusySpin)
                 .handle_events_with(move |slot: &RingEvent, seq: Sequence, eob: bool| {
-                    consumer_thread_id_cell.get_or_init(|| thread::current().id());
+                    // The disruptor's consumer thread is the genuine drain
+                    // owner in this harness; record its identity (idempotent
+                    // refresh) the same way the production primitives do once
+                    // they hold the staging lock.
+                    if let Ok(mut id) = consumer_thread_id_cell.lock() {
+                        let cur = thread::current().id();
+                        if *id != Some(cur) {
+                            *id = Some(cur);
+                        }
+                    }
                     if let Some(evt) = slot.event.as_public() {
                         let mut h = handler_cell
                             .lock()
@@ -2947,7 +2987,7 @@ impl StreamingClient {
             wait_strategy: ring::AdaptiveWaitStrategy::low_latency(),
             consumer_cpu: None,
             consumer_pinned: std::sync::atomic::AtomicBool::new(false),
-            consumer_thread_id: Arc::new(OnceLock::new()),
+            consumer_thread_id: Arc::new(Mutex::new(None)),
             drained: Arc::new(AtomicBool::new(false)),
             slow_callback_threshold_ns: Arc::new(AtomicU64::new(0)),
             slow_callback_count: Arc::new(AtomicU64::new(0)),
@@ -2962,7 +3002,10 @@ impl StreamingClient {
     /// the test-only `for_self_join_test` setter.
     #[cfg(test)]
     pub(in crate::fpss) fn recorded_consumer_thread_id(&self) -> Option<ThreadId> {
-        self.consumer_thread_id.get().copied()
+        self.consumer_thread_id
+            .lock()
+            .map(|id| *id)
+            .unwrap_or_else(|poisoned| *poisoned.into_inner())
     }
 
     /// Send a command to the I/O thread over the bounded control channel.
@@ -3079,7 +3122,11 @@ impl Drop for StreamingClient {
         // `false` once the helper finishes, instead of `Drop` blocking
         // forever.
         let cur = thread::current().id();
-        let consumer_id = self.consumer_thread_id.get().copied();
+        let consumer_id = self
+            .consumer_thread_id
+            .lock()
+            .map(|id| *id)
+            .unwrap_or_else(|poisoned| *poisoned.into_inner());
 
         // Drop the poller state proactively so any caller still holding
         // a borrow observes the ring shutdown immediately rather than
@@ -4016,9 +4063,10 @@ mod ring_occupancy_tests {
     /// A real drain path arms the `Drop` self-join guard.
     ///
     /// In production the only thing that records the consumer thread id
-    /// is the drain entry point (`pin_consumer_once` for the blocking
-    /// drains, `record_consumer_thread` for `poll_batch`). If that
-    /// recording regresses, `Drop` reads a `None` thread id, never
+    /// is `record_drainer_and_pin`, called by the drain primitives
+    /// (`poll_batch` / `try_next_event_internal`) once they hold the
+    /// staging lock. If that recording regresses, `Drop` reads a `None`
+    /// thread id, never
     /// detects a `Drop` running on the consumer thread, and joins the
     /// I/O handle inline — a self-join deadlock when a user callback
     /// drops the last client handle. This pins the recording to a real
@@ -4079,7 +4127,7 @@ mod ring_occupancy_tests {
     }
 
     /// The blocking `next_event` drain also arms the guard, covering the
-    /// `pin_consumer_once` entry point shared by every blocking drain.
+    /// post-lock recording shared by every blocking drain.
     #[test]
     fn next_event_records_consumer_thread_id_for_self_join_guard() {
         let (client, mut producer) = StreamingClient::for_ring_occupancy_test(64);
@@ -4134,6 +4182,147 @@ mod ring_occupancy_tests {
             Some(PollOutcome::Busy),
             "a reentrant poll_batch must report Busy instead of deadlocking"
         );
+    }
+
+    /// A concurrent drain attempt that FAILS to acquire the staging lock
+    /// (`Busy`) must NOT become the recorded consumer-thread identity; the
+    /// thread that actually holds the lock and drains is the one recorded,
+    /// so `Drop`'s self-join detector tracks the real drainer.
+    ///
+    /// This is the regression guard for the identity-claim defect: the
+    /// recording used to be armed at drain entry, before the `try_lock`, so
+    /// the first thread to enter could permanently claim the role even if
+    /// its drain then failed. Here a losing thread (`B`) attempts the drain
+    /// while the winning thread (`A`) holds the lock inside its callback; A
+    /// must be the recorded identity, never B.
+    #[test]
+    fn failed_concurrent_drain_does_not_claim_consumer_identity() {
+        use std::sync::Barrier;
+
+        let (client, mut producer) = StreamingClient::for_ring_occupancy_test(64);
+        // Two events: one drained by A inside the callback window, one left
+        // so A's outer drain reports a delivery.
+        assert!(publish_one(&mut producer), "fresh ring must accept publish");
+        assert!(publish_one(&mut producer), "fresh ring must accept publish");
+
+        let client = Arc::new(client);
+        let a_id = std::thread::current().id();
+
+        // Gate B's attempt to occur strictly while A holds the staging lock,
+        // and gate A's release until B has finished its failed attempt.
+        let b_may_try = Arc::new(Barrier::new(2));
+        let b_done = Arc::new(Barrier::new(2));
+
+        let b_outcome = {
+            let client_b = Arc::clone(&client);
+            let b_may_try = Arc::clone(&b_may_try);
+            let b_done = Arc::clone(&b_done);
+            std::thread::Builder::new()
+                .name("drain-loser-B".to_owned())
+                .spawn(move || {
+                    // Wait until A is inside its callback holding the lock.
+                    b_may_try.wait();
+                    // This must fail fast with Busy (A holds the staging lock).
+                    let outcome = client_b.poll_batch(|_| {});
+                    // Snapshot the recorded identity right after B's failed
+                    // attempt: with the bug, B would have claimed it here.
+                    let recorded_after_b = client_b.recorded_consumer_thread_id();
+                    b_done.wait();
+                    (outcome, recorded_after_b, std::thread::current().id())
+                })
+                .expect("spawn B")
+        };
+
+        // A is the real drainer. Inside the callback the staging lock is held,
+        // so this is the deterministic window for B's losing attempt.
+        let mut released_b = false;
+        let outer = client.poll_batch(|_event| {
+            if !released_b {
+                released_b = true;
+                b_may_try.wait(); // let B attempt now
+                b_done.wait(); // wait for B's failed attempt to complete
+            }
+        });
+
+        let (b_poll, recorded_after_b, b_id) = b_outcome.join().expect("join B");
+
+        assert_eq!(
+            b_poll,
+            PollOutcome::Busy,
+            "B's concurrent drain must report Busy (A holds the staging lock)"
+        );
+        assert_ne!(a_id, b_id, "A and B must be distinct threads for this test");
+        assert_eq!(
+            recorded_after_b,
+            Some(a_id),
+            "the failed concurrent attempt (B) must NOT claim the consumer identity; \
+             the real drainer (A) must be recorded"
+        );
+        assert_ne!(
+            recorded_after_b,
+            Some(b_id),
+            "B failed to drain and must never be recorded as the consumer thread"
+        );
+        // A delivered at least its first event; the recorded identity stays A.
+        assert!(
+            matches!(outer, PollOutcome::Drained(_)),
+            "A's drain delivers normally, got {outer:?}"
+        );
+        assert_eq!(
+            client.recorded_consumer_thread_id(),
+            Some(a_id),
+            "after both drains, the recorded consumer is the real drainer A"
+        );
+    }
+
+    /// The real drainer's `Drop` detaches the join: when `Drop` runs on the
+    /// recorded consumer thread, the I/O / ping handles are joined on a
+    /// detached helper rather than inline, and `drained` flips once that
+    /// helper completes. Pairs with the identity guard above — `Drop` must
+    /// observe the TRUE drainer so a callback-driven drop never self-joins.
+    #[test]
+    fn drop_on_recorded_drainer_detaches_join() {
+        let client = StreamingClient::for_self_join_test(
+            4,
+            64,
+            HarnessPublishMode::BlockingPublish,
+            None,
+            |_event| {},
+        );
+        // The harness's dispatcher-thread consumer records itself as the
+        // drain owner as it processes the burst. Wait until that identity is
+        // present so the Drop below exercises the detach path deterministically.
+        let drained = client.drained_flag();
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while client.recorded_consumer_thread_id().is_none() {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "consumer identity must be recorded by the dispatcher consumer"
+            );
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        let recorded = client
+            .recorded_consumer_thread_id()
+            .expect("identity recorded");
+        // Sanity: the recorded drainer is the dispatcher thread, not this
+        // test thread (this thread never drove a drain).
+        assert_ne!(
+            recorded,
+            std::thread::current().id(),
+            "the recorded drainer is the dispatcher consumer, not the test thread"
+        );
+
+        // Drop the only handle. The detach helper joins the I/O thread and
+        // flips `drained`; poll for that quiescence (bounded).
+        drop(client);
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while !drained.load(Ordering::Acquire) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "Drop's detach helper must flip drained for the real drainer"
+            );
+            std::thread::sleep(Duration::from_millis(1));
+        }
     }
 
     /// A callback that re-enters the event-at-a-time drain must get a typed
