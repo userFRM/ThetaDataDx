@@ -4,13 +4,21 @@
 //! the behavior is undefined. Both modes crash the host process, which is
 //! unacceptable for a library binding (a typo in a macro arg or an unexpected
 //! invariant violation inside the tokio runtime executor would take down the
-//! user's entire program). Wrapping the body in `catch_unwind` keeps the
-//! crash contained in the thread and surfaces the reason through the normal
-//! FFI error channel.
+//! user's entire program). Wrapping the body in `catch_unwind` keeps a panic
+//! raised inside our own Rust code contained in the thread and surfaces the
+//! reason through the normal FFI error channel. It does not, and cannot,
+//! contain a foreign exception (a C++ `throw` or a C `longjmp`) that unwinds
+//! into one of these bodies from a caller-supplied callback; that is the
+//! caller's no-unwind contract, documented on each callback type.
 
-/// Wrap an `extern "C"` fn body. Catches panics that would otherwise
-/// abort the host process (C / C++ / Python) and converts them into a
+/// Wrap an `extern "C"` fn body. Catches panics raised by our own Rust code
+/// that would otherwise abort the host process and converts them into a
 /// well-defined error return plus a thread-local `last_error` entry.
+///
+/// This protects only against Rust panics. A foreign exception that unwinds
+/// across the C ABI (a C++ `throw` or a C `longjmp` escaping a caller-supplied
+/// callback) is undefined behavior and is not contained here; callers must not
+/// let one cross the boundary (see each callback type's no-unwind contract).
 ///
 /// The wrapped block must return `T`. On panic, `default` is returned and
 /// an error string describing the panic payload (if extractable) is set
@@ -21,7 +29,7 @@
 /// which is unacceptable for a library binding (a typo in a macro arg or
 /// an unexpected invariant violation inside the tokio runtime executor
 /// would take down the user's entire program). Wrapping the body in
-/// `catch_unwind` keeps the crash contained in the thread and surfaces
+/// `catch_unwind` keeps that Rust panic contained in the thread and surfaces
 /// the reason through the normal FFI error channel.
 macro_rules! ffi_boundary {
     ($default:expr, $body:block) => {{

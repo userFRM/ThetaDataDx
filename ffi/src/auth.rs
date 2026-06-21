@@ -1913,6 +1913,14 @@ pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_jitter(
 /// Return the reconnect delay in milliseconds, or any negative value
 /// to stop reconnecting (the I/O loop then emits the terminal
 /// `ReconnectsExhausted` event and exits).
+///
+/// The callback runs under the C ABI and must not unwind across the
+/// boundary. A C++ `throw` or a C `longjmp` that escapes the callback into
+/// the calling Rust frame is undefined behavior. The I/O loop wraps each
+/// invocation in [`std::panic::catch_unwind`], but that contains only a Rust
+/// panic raised on our side of the boundary, not a foreign exception out of
+/// the callback. Catch and handle every exception inside the callback before
+/// returning a decision.
 pub type ThetaDataDxReconnectCallback =
     unsafe extern "C" fn(reason: i32, attempt: u32, user_data: *mut std::ffi::c_void) -> i64;
 
@@ -1965,12 +1973,16 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_callback(
         impl CallbackCtx {
             fn invoke(&self, reason: i32, attempt: u32) -> i64 {
                 // The decision callback runs on the streaming I/O thread,
-                // not on a `ffi_boundary!`-guarded entry point, so a panic
-                // here would unwind across the C ABI on a foreign thread.
-                // Catch it and fall back to the stop decision (`-1`), the
-                // same defence the stream dispatcher applies per
-                // invocation, so a panicking decision callback ends the
-                // reconnect loop instead of aborting the process.
+                // not on a `ffi_boundary!`-guarded entry point, so a Rust
+                // panic raised on this path would otherwise unwind across the
+                // C ABI on a foreign thread. Wrap the invocation in
+                // `catch_unwind` and fall back to the stop decision (`-1`),
+                // the same defence the stream dispatcher applies per
+                // invocation, so a panic from our own Rust code ends the
+                // reconnect loop instead of aborting the process. This does
+                // not contain a foreign exception thrown out of the callback;
+                // that no-unwind contract is documented on
+                // `ThetaDataDxReconnectCallback`.
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     // SAFETY: `self.cb` is the caller-registered function pointer and `self.user_data` the matching context; the registration contract guarantees both stay valid and thread-safe while any client built from the config is alive.
                     unsafe { (self.cb)(reason, attempt, self.user_data) }

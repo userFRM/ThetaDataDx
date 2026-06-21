@@ -13,11 +13,16 @@
 //!
 //! - `thetadatadx_*_set_callback` — the user callback runs on the event ring
 //!   event-dispatch consumer thread, with each invocation wrapped in
-//!   [`std::panic::catch_unwind`] so a C/C++ panic does not kill the
-//!   consumer. The TLS reader publishes events via
-//!   `Producer::try_publish`; on ring overflow the event is dropped and
-//!   the drop count is exposed via `thetadatadx_*_dropped_events`. The reader
-//!   thread never blocks on user code.
+//!   [`std::panic::catch_unwind`]. That wrapper contains a panic raised by
+//!   our own Rust code on the dispatch path so it does not kill the
+//!   consumer; it does not contain a foreign exception thrown out of the
+//!   user callback. The user callback runs under the C ABI and must not let
+//!   an exception or other unwind escape across that boundary (doing so is
+//!   undefined behavior; see [`ThetaDataDxStreamCallback`]). The TLS reader
+//!   publishes events via `Producer::try_publish`; on ring overflow the
+//!   event is dropped and the drop count is exposed via
+//!   `thetadatadx_*_dropped_events`. The reader thread never blocks on user
+//!   code.
 //!
 //! The poll-based `thetadatadx_*_next_event` API and its supporting `mpsc`
 //! pipeline have been removed; the C ABI is callback-only.
@@ -41,6 +46,16 @@ use thetadatadx::DispatcherSession as FfpssDispatcherSession;
 /// `ctx` is the opaque user context pointer registered alongside the
 /// callback (`thetadatadx_*_set_callback(handle, fn, ctx)`); it is passed back
 /// unchanged on every invocation.
+///
+/// The callback runs under the C ABI and must not unwind across the
+/// boundary. A C++ `throw` or a C `longjmp` that escapes the callback into
+/// the calling Rust frame is undefined behavior. The dispatch path wraps
+/// each invocation in [`std::panic::catch_unwind`], but that contains only a
+/// Rust panic raised on our side of the boundary, not a foreign exception
+/// out of the callback. Catch and handle every exception inside the callback
+/// before returning. (The C++ wrapper's `set_callback` shim does this for
+/// you: it is `noexcept` and swallows any exception its `std::function`
+/// raises.)
 pub type ThetaDataDxStreamCallback =
     extern "C" fn(event: *const ThetaDataDxStreamEvent, ctx: *mut c_void);
 
@@ -486,12 +501,15 @@ pub unsafe extern "C" fn thetadatadx_client_connect_from_file(
 ///
 /// `callback` is invoked from the LMAX event-dispatch consumer thread for
 /// every FPSS event the reader pulls off the wire. Each invocation is
-/// wrapped in [`std::panic::catch_unwind`] so a C/C++ callback panic
-/// does not kill the consumer. The TLS reader publishes events into a
-/// pre-allocated ring via `Producer::try_publish`; on overflow the
-/// event is dropped and the per-handle drop counter (queryable via
-/// `thetadatadx_client_dropped_events`) ticks. The reader thread NEVER blocks
-/// on `callback`.
+/// wrapped in [`std::panic::catch_unwind`], which contains a panic raised by
+/// our own Rust code on the dispatch path so it does not kill the consumer.
+/// `callback` itself runs under the C ABI and must not unwind across the
+/// boundary: an exception or `longjmp` escaping it is undefined behavior and
+/// is not contained by that wrapper (see [`ThetaDataDxStreamCallback`]). The
+/// TLS reader publishes events into a pre-allocated ring via
+/// `Producer::try_publish`; on overflow the event is dropped and the
+/// per-handle drop counter (queryable via `thetadatadx_client_dropped_events`)
+/// ticks. The reader thread NEVER blocks on `callback`.
 ///
 /// # `ctx` lifetime + thread affinity
 ///
@@ -1740,9 +1758,13 @@ where
 /// Register a queued FPSS callback and open the FPSS connection.
 ///
 /// `callback` is invoked from the LMAX event-dispatch consumer thread for
-/// every FPSS event the reader pulls off the wire, with each
-/// invocation wrapped in [`std::panic::catch_unwind`] so a C/C++ panic
-/// does not kill the consumer. The TLS reader publishes events via
+/// every FPSS event the reader pulls off the wire, with each invocation
+/// wrapped in [`std::panic::catch_unwind`]. That wrapper contains a panic
+/// raised by our own Rust code on the dispatch path so it does not kill the
+/// consumer; `callback` itself runs under the C ABI and must not unwind
+/// across the boundary, because an exception or `longjmp` escaping it is
+/// undefined behavior and is not contained by the wrapper (see
+/// [`ThetaDataDxStreamCallback`]). The TLS reader publishes events via
 /// `Producer::try_publish`; on ring overflow events are dropped and
 /// counted (queryable via `thetadatadx_streaming_dropped_events`). The reader
 /// thread NEVER blocks on `callback`.

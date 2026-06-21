@@ -1286,6 +1286,12 @@ int32_t thetadatadx_config_get_reconnect_replay_pace_ms(const ThetaDataDxConfig*
  * @param user_data The opaque pointer registered alongside the callback.
  * @return The reconnect delay in milliseconds, or any negative value to
  *         stop reconnecting.
+ * @note This callback must not unwind across the C ABI. A C++ throw or a C
+ *       longjmp that escapes the callback into the calling frame is undefined
+ *       behavior, the same as for any C library. The library wraps each
+ *       invocation to contain a fault on its own side of the boundary, but
+ *       that does not contain an exception thrown out of your callback. Catch
+ *       and handle every exception before returning a decision.
  */
 typedef int64_t (*ThetaDataDxReconnectCallback)(int32_t reason, uint32_t attempt, void* user_data);
 
@@ -2035,7 +2041,14 @@ void thetadatadx_string_free(char* s);
  *  invocations (a null `rows` with `len == 0` is never delivered).
  *
  *  `ctx` is the opaque pointer registered alongside the callback; it is passed
- *  back unchanged on every invocation. */
+ *  back unchanged on every invocation.
+ *
+ *  This callback must not unwind across the C ABI. A C++ throw or a C longjmp
+ *  that escapes the callback into the calling frame is undefined behavior, the
+ *  same as for any C library. The library wraps each invocation to contain a
+ *  fault on its own side of the boundary, but that does not contain an
+ *  exception thrown out of your callback. Catch and handle every exception
+ *  before returning. */
 typedef void (*ThetaDataDxTickChunkCallback)(const void* rows, size_t len, void* ctx);
 
 /* Generated server-stream endpoint declarations. */
@@ -2267,7 +2280,15 @@ ThetaDataDxSubscriptionArray* thetadatadx_streaming_active_full_subscriptions(co
 /** User callback signature for thetadatadx_*_set_callback.
  *  `event` is valid only for the duration of the call -- copy any fields the
  *  caller wants to outlive the callback. `ctx` is the opaque pointer the
- *  caller registered alongside the callback; it is passed back unchanged. */
+ *  caller registered alongside the callback; it is passed back unchanged.
+ *
+ *  This callback must not unwind across the C ABI. A C++ throw or a C longjmp
+ *  that escapes the callback into the calling frame is undefined behavior, the
+ *  same as for any C library. The library wraps each invocation to contain a
+ *  fault on its own side of the boundary, but that does not contain an
+ *  exception thrown out of your callback. Catch and handle every exception
+ *  before returning. (The C++ wrapper's set_callback handles this for you: its
+ *  shim is noexcept and swallows any exception the std::function raises.) */
 typedef void (*ThetaDataDxStreamCallback)(const ThetaDataDxStreamEvent* event, void* ctx);
 
 /** Register a streaming callback and open the streaming connection.
