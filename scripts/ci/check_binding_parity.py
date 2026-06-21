@@ -339,6 +339,35 @@ def _collect_ts_dts_class_kinds(
 # so the same pattern catches both forms.
 JS_EXPORTS_ASSIGN_RE = re.compile(r"exports\.(\w+)\s*=")
 JS_REQUIRE_RE = re.compile(r"require\(\s*['\"]([^'\"]+)['\"]\s*\)")
+# A local binding initialised straight from a relative `require`
+# (`const native = require('./index.js')`). Captured so a require'd module's
+# surface is followed ONLY when its binding is later re-exported on
+# `module.exports` (a bare `const helper = require('./helper')` used purely for
+# its side effects must NOT leak its names into the runtime surface).
+JS_REQUIRE_BINDING_RE = re.compile(
+    r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*"
+    r"require\(\s*['\"](\.[^'\"]+)['\"]\s*\)"
+)
+# Inline relative `require` sitting in a genuine re-export position:
+#   module.exports = require('./x')
+#   module.exports = Object.assign(<...> require('./x') <...>)   (assign arg)
+#   module.exports = { ...require('./x') }                       (object spread)
+#   Object.assign(module.exports, require('./x'))                (assign onto exports)
+#   exports.NAME = require('./x') / module.exports.NAME = require('./x')
+# Each form actually places the required surface on this module's exports, so
+# its names are part of the shipped runtime surface and must be followed.
+JS_REEXPORT_WHOLE_RE = re.compile(
+    r"module\.exports\s*=\s*require\(\s*['\"](\.[^'\"]+)['\"]\s*\)"
+)
+JS_REEXPORT_EXPORTS_PROP_REQUIRE_RE = re.compile(
+    r"(?:module\.)?exports\.\w+\s*=\s*require\(\s*['\"](\.[^'\"]+)['\"]\s*\)"
+)
+JS_REEXPORT_OBJECT_SPREAD_REQUIRE_RE = re.compile(
+    r"\{[^{}]*\.\.\.\s*require\(\s*['\"](\.[^'\"]+)['\"]\s*\)[^{}]*\}"
+)
+JS_REEXPORT_ASSIGN_ONTO_EXPORTS_RE = re.compile(
+    r"Object\.assign\(\s*module\.exports\b([^;]*)\)", re.DOTALL
+)
 # Identifier-shorthand (`Name,`) and `Name: expr` keys of an object literal.
 # The trailing delimiter is a lookahead, not a consumed group, so a key never
 # eats the comma that the next key needs to anchor on; otherwise alternating
@@ -362,15 +391,129 @@ def _strip_js_comments(text: str) -> str:
     return JS_LINE_COMMENT_RE.sub("", JS_BLOCK_COMMENT_RE.sub("", text))
 
 
+def _resolve_js_module(from_js: pathlib.Path, spec: str) -> pathlib.Path | None:
+    """Resolve a relative module specifier (`./index`) to a sibling `.js`
+    file, honoring an explicit or implied `.js` extension. Returns ``None``
+    for a non-relative specifier or one that resolves to no file on disk."""
+    if not spec.startswith("."):
+        return None
+    target = from_js.parent / spec
+    for cand in (target, target.with_suffix(".js"), target.parent / (target.name + ".js")):
+        if cand.is_file():
+            return cand
+    return None
+
+
+def _js_reexported_require_specs(text: str) -> set[str]:
+    """Relative `require(...)` specifiers this module actually RE-EXPORTS.
+
+    A required module's surface is part of the shipped runtime surface only
+    when it is genuinely placed on `module.exports`. This recognises the
+    re-export forms and returns their specifiers; a bare
+    `const helper = require('./helper')` used only for its side effects is
+    deliberately excluded, so helper-only names never read as runtime exports.
+
+    Followed forms:
+
+    - ``module.exports = require('./x')`` — whole-module re-export.
+    - ``exports.NAME = require('./x')`` / ``module.exports.NAME = require('./x')``
+      — a single binding re-exported from a require.
+    - ``module.exports = { ...require('./x') }`` — object-spread re-export.
+    - ``Object.assign(module.exports, require('./x'), ...)`` — assign onto
+      ``module.exports``; every inline `require(...)` argument is re-exported.
+    - ``const native = require('./x'); module.exports = Object.assign({}, native, ...)``
+      — a require-bound name spread into the export object / passed as an
+      ``Object.assign`` argument that builds ``module.exports`` (the wrapper
+      entry's shape). The binding counts only when it is referenced as a bare
+      re-export argument, not merely defined.
+    """
+    specs: set[str] = set()
+
+    # Inline `require(...)` directly in a re-export position.
+    for m in JS_REEXPORT_WHOLE_RE.finditer(text):
+        specs.add(m.group(1))
+    for m in JS_REEXPORT_EXPORTS_PROP_REQUIRE_RE.finditer(text):
+        specs.add(m.group(1))
+    for m in JS_REEXPORT_OBJECT_SPREAD_REQUIRE_RE.finditer(text):
+        specs.add(m.group(1))
+
+    # `Object.assign` blocks that build / extend `module.exports`: the
+    # `module.exports = Object.assign(<args>)` body and the
+    # `Object.assign(module.exports, <args>)` body. A bare top-level identifier
+    # argument here is a wholesale spread of that value's own enumerable props
+    # (`Object.assign({}, native, ...)`), so a require-bound name in this
+    # position re-exports the required surface; an inline `require(...)`
+    # argument does the same.
+    assign_arg_blocks = [
+        m.group(1)
+        for m in re.finditer(
+            r"module\.exports\s*=\s*Object\.assign\(([^;]*)\)", text, re.DOTALL
+        )
+    ]
+    assign_arg_blocks += [
+        m.group(1) for m in JS_REEXPORT_ASSIGN_ONTO_EXPORTS_RE.finditer(text)
+    ]
+    for block in assign_arg_blocks:
+        for inner in JS_REQUIRE_RE.finditer(block):
+            if inner.group(1).startswith("."):
+                specs.add(inner.group(1))
+
+    # `require`-bound local names, mapped to their specifier. Such a binding
+    # contributes its surface ONLY when its name is forwarded WHOLESALE — as a
+    # bare `Object.assign` argument (`Object.assign({}, native, ...)`) or an
+    # object spread (`{ ...native }`). A `const helper = require('./helper')`
+    # referenced only internally, or used as a property VALUE
+    # (`{ alias: helper }` re-exports the single key `alias`, not the surface),
+    # never contributes its names.
+    binding_specs: dict[str, str] = {
+        m.group(1): m.group(2) for m in JS_REQUIRE_BINDING_RE.finditer(text)
+    }
+    if binding_specs:
+        # Bare identifier argument of an `Object.assign` export block.
+        for block in assign_arg_blocks:
+            for arg in re.split(r",", block):
+                stripped = arg.strip()
+                if stripped in binding_specs:
+                    specs.add(binding_specs[stripped])
+        # Object-spread of a bound name in an object that becomes
+        # `module.exports`: `module.exports = { ...native }` and any object
+        # literal passed to an `Object.assign` export block
+        # (`Object.assign({}, { ...native })`). Spreads in unrelated internal
+        # objects are deliberately NOT followed.
+        spread_bodies = [
+            m.group(1)
+            for m in re.finditer(
+                r"module\.exports\s*=\s*\{([^{}]*)\}", text, re.DOTALL
+            )
+        ]
+        for block in assign_arg_blocks:
+            spread_bodies += [
+                obj.group(1) for obj in re.finditer(r"\{([^{}]*)\}", block, re.DOTALL)
+            ]
+        for body in spread_bodies:
+            for spread in re.finditer(r"\.\.\.\s*([A-Za-z_$][\w$]*)", body):
+                name = spread.group(1)
+                if name in binding_specs:
+                    specs.add(binding_specs[name])
+
+    return specs
+
+
 def _collect_js_exports(js: pathlib.Path, _seen: set[pathlib.Path] | None = None) -> set[str]:
     """Harvest the runtime export names from a `.js` entry: `exports.X = ...`,
     the keys of a `module.exports = Object.assign(..., { ... })` object, and
-    (transitively) the exports of any `require('./...')` it re-exports.
+    (transitively) the exports of any `require('./...')` it actually RE-EXPORTS.
 
     This is the TRUE shipped surface: the names a consumer can reach at
     runtime through the package `main` entry. A class declared only in the
     `.d.ts` but dropped from this set is not actually exported, so the gate
     must never substitute a declaration-side hit for a runtime export.
+
+    Recursion follows a `require(...)` ONLY when its surface is genuinely
+    placed on this module's `module.exports` (see
+    `_js_reexported_require_specs`). A side-effect / helper
+    `require('./helper')` whose names are not re-exported does NOT contribute,
+    so helper-only names cannot masquerade as package runtime exports.
     """
     out: set[str] = set()
     if not js.is_file():
@@ -383,6 +526,10 @@ def _collect_js_exports(js: pathlib.Path, _seen: set[pathlib.Path] | None = None
     text = _strip_js_comments(js.read_text(encoding="utf-8"))
     for m in JS_EXPORTS_ASSIGN_RE.finditer(text):
         out.add(m.group(1))
+    # A `require`-bound local name (`const native = require('./index.js')`) is a
+    # spread SOURCE, not an export NAME; its surface is followed transitively,
+    # so the binding identifier itself must not read as a runtime export.
+    require_bindings = {m.group(1) for m in JS_REQUIRE_BINDING_RE.finditer(text)}
     # `module.exports = Object.assign(..., { StreamingSession, ThetaDataError, ... })`:
     # capture each object-literal block passed to the export assignment and
     # read its identifier-shorthand / `Name:` keys.
@@ -391,17 +538,16 @@ def _collect_js_exports(js: pathlib.Path, _seen: set[pathlib.Path] | None = None
     ):
         for key in JS_OBJECT_KEY_RE.finditer(obj.group(1)):
             name = key.group(1)
-            if name not in {"Object", "assign"}:
+            if name not in {"Object", "assign"} and name not in require_bindings:
                 out.add(name)
-    # A `module.exports = require('./index')`-style re-export (or a
-    # `const native = require('./index')` spread into the export) means the
-    # napi runtime surface ships through this entry too; follow it.
-    for m in JS_REQUIRE_RE.finditer(text):
-        target = js.parent / m.group(1)
-        for cand in (target, target.with_suffix(".js"), target.parent / (target.name + ".js")):
-            if cand.is_file():
-                out |= _collect_js_exports(cand, seen)
-                break
+    # Follow ONLY the requires this module genuinely re-exports — the napi
+    # `index.js` surface ships through the wrapper entry via
+    # `module.exports = Object.assign({}, native, ...)` (with
+    # `const native = require('./index.js')`), so that chain still resolves.
+    for spec in _js_reexported_require_specs(text):
+        target = _resolve_js_module(js, spec)
+        if target is not None:
+            out |= _collect_js_exports(target, seen)
     return out
 
 
@@ -6621,6 +6767,124 @@ def _run_selftest() -> int:
             f"runtime class; got {errors!r}"
         )
 
+    def _case_ts_runtime_helper_require_not_exported() -> None:
+        """A name defined only in a helper module that is `require`d for its side
+        effects but NOT re-exported must NOT count as a runtime export. The
+        runtime surface is what is placed on this module's `module.exports`;
+        following arbitrary `require(...)` calls would let a helper-only class
+        masquerade as a shipped export and bypass the runtime-export gate. With
+        the require unfollowed, a row claiming `typescript = true` for the
+        helper-only class trips."""
+        rows = [{"name": "HelperOnly", "python": False, "typescript": True, "cpp": False}]
+        with tempfile.TemporaryDirectory() as tmp:
+            pkg = pathlib.Path(tmp)
+            (pkg / "package.json").write_text(
+                '{"main": "entry.js", "types": "entry.d.ts"}\n', encoding="utf-8"
+            )
+            # Declared on the typed surface as a runtime class ...
+            (pkg / "entry.d.ts").write_text(
+                "export declare class HelperOnly {}\n", encoding="utf-8"
+            )
+            # ... but the helper holding it is imported for side effects only and
+            # is NOT re-exported, so it never reaches `module.exports`.
+            (pkg / "entry.js").write_text(
+                "const helper = require('./helper');\n"
+                "void helper;\n"
+                "module.exports = Object.assign({}, {});\n",
+                encoding="utf-8",
+            )
+            (pkg / "helper.js").write_text(
+                "class HelperOnly {}\nmodule.exports = { HelperOnly };\n",
+                encoding="utf-8",
+            )
+            dts_path = _resolve_ts_entry(pkg, "types", "index.d.ts")
+            dc, di = _collect_ts_dts_class_kinds(dts_path)
+            rt = _collect_ts_runtime_classes(dts_path)
+            assert "HelperOnly" not in rt, (
+                f"a helper-only side-effect require must not count as a runtime "
+                f"export; got runtime={sorted(rt)}"
+            )
+            errors = _check_class_rows(rows, set(), set(), dc, di, rt)
+        assert any(
+            "HelperOnly.typescript" in e and "missing" in e and "runtime export" in e
+            for e in errors
+        ), f"helper-only class must trip the runtime-export gate; got {errors!r}"
+
+    def _case_ts_runtime_real_reexport_chain_collected() -> None:
+        """The genuine re-export chain still resolves: a wrapper entry binding
+        the napi module (`const native = require('./index')`) and spreading it
+        into `module.exports = Object.assign({}, native, { ... })` MUST still
+        surface the napi names AND the wrapper-added names. This mirrors the
+        shipped `streaming-session.js` -> `index.js` chain, so the bound-name
+        re-export must keep being followed while the helper-only require above is
+        excluded."""
+        with tempfile.TemporaryDirectory() as tmp:
+            pkg = pathlib.Path(tmp)
+            (pkg / "package.json").write_text(
+                '{"main": "entry.js", "types": "entry.d.ts"}\n', encoding="utf-8"
+            )
+            (pkg / "entry.d.ts").write_text(
+                "export * from './index';\n"
+                "export declare const StreamingSession: { new (): StreamingSession };\n",
+                encoding="utf-8",
+            )
+            (pkg / "entry.js").write_text(
+                "const native = require('./index');\n"
+                "class StreamingSession {}\n"
+                "module.exports = Object.assign({}, native, { StreamingSession });\n",
+                encoding="utf-8",
+            )
+            (pkg / "index.js").write_text(
+                "module.exports.Contract = class {};\n"
+                "module.exports.ThetaDataError = class {};\n",
+                encoding="utf-8",
+            )
+            (pkg / "index.d.ts").write_text(
+                "export declare class Contract {}\n"
+                "export declare class ThetaDataError {}\n",
+                encoding="utf-8",
+            )
+            dts_path = _resolve_ts_entry(pkg, "types", "index.d.ts")
+            rt = _collect_ts_runtime_classes(dts_path)
+        # The require-bound name `native` is a spread SOURCE, not an export.
+        assert "native" not in rt, (
+            f"the require-binding identifier must not read as a runtime export; "
+            f"got runtime={sorted(rt)}"
+        )
+        for want in ("Contract", "ThetaDataError", "StreamingSession"):
+            assert want in rt, (
+                f"the real re-export chain must still surface {want}; "
+                f"got runtime={sorted(rt)}"
+            )
+
+    def _case_ts_runtime_require_value_not_wholesale() -> None:
+        """A require-bound name used as a property VALUE
+        (`module.exports = Object.assign({}, { alias: sub })`) re-exports the
+        single key (`alias`), NOT the required module's whole surface. The
+        required module's own names must therefore stay out of the runtime set
+        — only a bare-argument / object-spread forward is wholesale."""
+        with tempfile.TemporaryDirectory() as tmp:
+            pkg = pathlib.Path(tmp)
+            (pkg / "package.json").write_text(
+                '{"main": "entry.js", "types": "entry.d.ts"}\n', encoding="utf-8"
+            )
+            (pkg / "entry.d.ts").write_text("export {};\n", encoding="utf-8")
+            (pkg / "entry.js").write_text(
+                "const sub = require('./sub');\n"
+                "module.exports = Object.assign({}, { alias: sub });\n",
+                encoding="utf-8",
+            )
+            (pkg / "sub.js").write_text(
+                "module.exports.Buried = class {};\n", encoding="utf-8"
+            )
+            dts_path = _resolve_ts_entry(pkg, "types", "index.d.ts")
+            rt = _collect_ts_runtime_classes(dts_path)
+        assert "alias" in rt, f"the re-exported key must be present; got {sorted(rt)}"
+        assert "Buried" not in rt, (
+            f"a require-bound name used as a property value must not pull in the "
+            f"required surface wholesale; got runtime={sorted(rt)}"
+        )
+
     _case("ts class row - declared + runtime export silent", _case_ts_class_row_runtime_present_silent)
     _case("ts class row - JS runtime export drop trips", _case_ts_class_row_runtime_drop_trips)
     _case("ts class row - .d.ts drop caught as typing gap", _case_ts_class_row_dts_drop_caught_as_typing_gap)
@@ -6630,6 +6894,9 @@ def _run_selftest() -> int:
     _case("ts const-alias class - dropped runtime alias trips past interface", _case_ts_const_alias_class_runtime_drop_trips)
     _case("ts const-class - dropped inline-ctor runtime export trips", _case_ts_inline_ctor_const_class_runtime_drop_trips)
     _case("ts value const - not forced to be a runtime class", _case_ts_value_const_not_a_runtime_class)
+    _case("ts runtime - helper-only side-effect require not exported", _case_ts_runtime_helper_require_not_exported)
+    _case("ts runtime - real bound-name re-export chain still collected", _case_ts_runtime_real_reexport_chain_collected)
+    _case("ts runtime - require bound as property value is not wholesale", _case_ts_runtime_require_value_not_wholesale)
 
     def _case_flatfiles_namespace_fetch_resolves() -> None:
         """A `FlatFilesNamespace` fetch row resolves through the C++ alias to the
