@@ -190,7 +190,7 @@ struct StreamingConnectParams {
 fn streaming_builder(
     params: &StreamingConnectParams,
 ) -> thetadatadx::fpss::StreamingClientBuilder<'_> {
-    thetadatadx::fpss::StreamingClient::builder(&params.creds, &params.streaming.hosts)
+    thetadatadx::fpss::StreamingClient::builder(&params.creds, params.streaming.hosts())
         .ring_size(params.streaming.ring_size)
         .flush_mode(params.streaming.flush_mode)
         .wait_strategy(params.streaming.wait_strategy)

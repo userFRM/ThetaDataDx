@@ -113,24 +113,31 @@ pub use crate::backoff::JitterMode;
 /// [`DirectConfig::with_environment`] is the programmatic equivalent.
 ///
 /// The "explicit host wins over the environment default" precedence holds
-/// for **every** path that selects an environment, not only the env-var
-/// ordering above. An explicit override survives a later
-/// [`DirectConfig::with_environment`], [`DirectConfig::stage`], or
-/// [`DirectConfig::dev`]: the override is recorded as a typed value and
-/// re-applied on top of the selected environment's cluster on every switch,
-/// while the [`Environment`] marker that routes the auth session still flips.
-/// The override is recorded the same way regardless of how the host was set —
-/// the process env, a `.env`, a config file, or a direct programmatic write
-/// to the public `historical.host` / `streaming.hosts` field. A direct field
-/// write leaves no override slot set, so environment selection promotes it to
-/// an override before re-pointing the cluster (it compares the field against
-/// the current environment's default and records any caller edit), keeping the
-/// programmatic path on the same precedence as the others. The streaming
-/// override has two tiers — a primary host/port patch (env-var / `.env`) that
-/// keeps the environment's failover hosts, and a full explicit host list (the
-/// config-file `[streaming] hosts` power-user list, or a direct write to
-/// `streaming.hosts`) that wins outright. A plain `production()` / `stage()` /
-/// `dev()` with no override yields that environment's full cluster, unchanged.
+/// for **every** path that sets a host, not only the env-var ordering above.
+/// An explicit host survives a later [`DirectConfig::with_environment`],
+/// [`DirectConfig::stage`], or [`DirectConfig::dev`], while the
+/// [`Environment`] marker that routes the auth session still flips. This is
+/// modelled by **provenance, not value comparison**: the two host fields are
+/// encapsulated (a host can only be set through a tracked setter), and each
+/// setter records the host as a typed override that environment selection
+/// re-applies on top of the selected cluster.
+///
+/// The host is set the same way regardless of source — the process env, a
+/// `.env`, a config file, or the programmatic
+/// [`DirectConfig::set_historical_host`] / [`DirectConfig::set_streaming_hosts`]
+/// setters all funnel through the override-recording path, so every source
+/// shares one precedence. There is no untracked direct-write path: the fields
+/// are crate-private, so environment selection never has to guess whether a
+/// field value was a caller edit or a leftover default.
+///
+/// The streaming override has two tiers — a primary host/port patch (env-var
+/// / `.env`) that keeps the environment's failover hosts, and a full explicit
+/// host list (the config-file `[streaming] hosts` power-user list, or
+/// [`DirectConfig::set_streaming_hosts`]) that wins outright. The full list
+/// wins as an explicit choice even when it happens to equal the current
+/// environment's own host vector — it is honoured by provenance, never
+/// dropped by a value match. A plain `production()` / `stage()` / `dev()` with
+/// no override yields that environment's full cluster, unchanged.
 ///
 /// Malformed values (e.g. a non-integer `THETADATA_HISTORICAL_PORT`, or a
 /// `THETADATA_MDDS_TYPE` that is neither `PROD` nor `STAGE`) are ignored
@@ -270,113 +277,30 @@ impl DirectConfig {
     /// Only the cluster routing changes; every tuning knob (timeouts,
     /// ring size, retry policy, ...) is left as-is.
     ///
-    /// A host set programmatically through the public [`Self::historical`] /
-    /// [`Self::streaming`] fields (e.g. `cfg.historical.host = h`) bypasses
-    /// the override setters, so it is promoted to an override here — before
-    /// the cluster rewrite would clobber it — by
-    /// [`Self::promote_untracked_host_edits`]. That keeps the documented
-    /// "an explicit host wins over the environment default" invariant holding
-    /// for the programmatic path too, not only the env-var / `.env` /
-    /// config-file paths that record an override up front.
+    /// Resolution is purely provenance-driven: the host fields are
+    /// encapsulated, so the recorded overrides are the single source of truth
+    /// for whether a caller set a host. There is no value comparison and no
+    /// untracked direct-write to detect — a host set via
+    /// [`Self::set_historical_host`] / [`Self::set_streaming_hosts`] (or the
+    /// env-var / `.env` / config-file layers, which funnel through the same
+    /// override-recording path) is honoured here, and an unset channel takes
+    /// the selected environment's cluster.
     fn apply_environment(&mut self, env: Environment) {
-        // Promote any direct field edit to a tracked override BEFORE the
-        // rewrite below overwrites it. Must run while `self.environment`
-        // still names the cluster the current field values reflect.
-        self.promote_untracked_host_edits();
         self.environment = env;
         // Historical (gRPC) targets the cluster host on the same TLS port;
-        // only the host differs between environments. An explicit override
+        // only the host differs between environments. A recorded override
         // wins over the environment default so it survives environment
         // selection.
         self.historical.host = self
             .historical_host_override
             .clone()
             .unwrap_or_else(|| env.historical_host().to_string());
-        // Streaming: rebuild from the selected environment's host set, then
-        // apply the recorded streaming overrides. Rebuilding from `env` every
-        // call is what makes an env-var primary override keep tracking the
-        // current environment's failover hosts across a later switch.
+        // Streaming: take the selected environment's host set as the base and
+        // layer the recorded streaming overrides on top. Rebuilding from `env`
+        // every call is what makes an env-var primary override keep tracking
+        // the current environment's failover hosts across a later switch.
         let base = env.streaming_hosts();
         self.streaming.hosts = self.resolve_streaming_hosts(base);
-    }
-
-    /// Promote a direct edit of the public [`Self::historical`] /
-    /// [`Self::streaming`] host fields to a tracked override.
-    ///
-    /// The env-var, `.env`, and config-file paths record an override up
-    /// front, but a caller can also assign the public fields directly
-    /// (`cfg.historical.host = h.into()` / `cfg.streaming.hosts = vec![..]`).
-    /// Such an edit leaves no override recorded, so a later
-    /// [`Self::apply_environment`] would silently discard it — violating the
-    /// "explicit host wins over the environment default" invariant. Detect it
-    /// by comparing the live field against the value the blessed paths always
-    /// leave for the CURRENT environment when no override is recorded (the
-    /// environment's own cluster default, resolved through the same streaming
-    /// override accounting), and record any difference as an override so it
-    /// survives this switch and every later one.
-    ///
-    /// A no-op when an override is already recorded (the setter paths) or the
-    /// field still matches the current environment's default (no caller edit),
-    /// so the common presets stay byte-identical. The [`Self::dev`] preset's
-    /// own replay host set is treated as a preset-defined base, not a caller
-    /// edit: it is excluded from promotion so a later environment switch
-    /// re-points streaming to the selected cluster instead of pinning it to the
-    /// dev replay hosts.
-    fn promote_untracked_host_edits(&mut self) {
-        // Historical: the live field reflects the recorded override after every
-        // `apply_environment`, so a divergence between them can only come from a
-        // direct field write performed since the last switch. Honour the most
-        // recent explicit host — record the field value when no override exists
-        // yet, and refresh a stale recorded override to match a later direct
-        // edit, so the latest write always wins.
-        match &self.historical_host_override {
-            None if self.historical.host != self.environment.historical_host() => {
-                // A caller wrote `historical.host` directly with no override
-                // recorded; make it an override so the environment rewrite
-                // preserves it. The `dev()` preset keeps the production
-                // historical host, which already equals the current (`Prod`)
-                // environment's host, so this branch is a no-op for the
-                // no-override dev path — the dev replay cluster never leaks
-                // into the historical channel.
-                self.historical_host_override = Some(self.historical.host.clone());
-            }
-            Some(recorded) if *recorded != self.historical.host => {
-                // An override was recorded earlier, then the caller wrote the
-                // public field directly; the direct edit is the newer explicit
-                // host, so it supersedes the stale recorded override.
-                self.historical_host_override = Some(self.historical.host.clone());
-            }
-            _ => {}
-        }
-        // Streaming: resolve what the recorded overrides imply for the CURRENT
-        // environment and compare against the live field. They match right after
-        // every `apply_environment`, so any divergence is a direct field write
-        // since the last switch — promote the live vector to a full override so
-        // the most recent explicit host list wins (matching the config-file
-        // power-user-list tier).
-        //
-        // With no override of any kind, the implied value is the current
-        // environment's own cluster. The `dev()` preset is the one exception:
-        // it sets `streaming.hosts` to its replay cluster while leaving
-        // `environment` at `Prod`, and that replay set is a preset base, not a
-        // caller override — promoting it would pin streaming to the dev replay
-        // hosts while auth + historical moved to the new cluster on a later
-        // switch (a split config), so it is excluded.
-        let has_streaming_override = self.streaming_hosts_full_override.is_some()
-            || self.streaming_primary_host_override.is_some()
-            || self.streaming_primary_port_override.is_some();
-        let implied = self.resolve_streaming_hosts(self.environment.streaming_hosts());
-        if self.streaming.hosts != implied && self.streaming.hosts != Self::dev_streaming_hosts() {
-            if has_streaming_override {
-                // A primary or full override was recorded earlier, then the
-                // caller wrote the public vector directly; the direct edit is
-                // the newer explicit list. Clear the stale primary patches and
-                // record the live vector as the winning full override.
-                self.streaming_primary_host_override = None;
-                self.streaming_primary_port_override = None;
-            }
-            self.streaming_hosts_full_override = Some(self.streaming.hosts.clone());
-        }
     }
 
     /// Apply the recorded streaming host overrides on top of a `base` host
@@ -384,12 +308,13 @@ impl DirectConfig {
     ///
     /// This is the single accounting path for the streaming override
     /// precedence, shared by [`Self::apply_environment`] (where `base` is the
-    /// selected environment's hosts) and [`Self::dev`] (where `base` is the
-    /// dev replay hosts), so the two can never drift:
+    /// selected environment's hosts) and the override setters (where `base` is
+    /// the current environment's hosts), so they can never drift:
     ///
-    /// * A full host list ([`Self::streaming_hosts_full_override`], the
-    ///   config-file `[streaming] hosts` power-user list) wins outright — the
-    ///   `base` is discarded entirely.
+    /// * A full host list ([`Self::streaming_hosts_full_override`], set via
+    ///   [`Self::set_streaming_hosts`] or the config-file `[streaming] hosts`
+    ///   power-user list) wins outright — the `base` is discarded entirely,
+    ///   even when the list equals the base.
     /// * Otherwise a recorded primary host
     ///   ([`Self::streaming_primary_host_override`]) and/or primary port
     ///   ([`Self::streaming_primary_port_override`]) patch the primary slot of
@@ -413,14 +338,10 @@ impl DirectConfig {
     /// Re-resolve the live host fields from the recorded overrides for the
     /// CURRENT environment.
     ///
-    /// Keeps the invariant that the live [`Self::historical`] /
-    /// [`Self::streaming`] host fields always equal what the recorded overrides
-    /// imply for [`Self::environment`]. The override setters call this the
-    /// moment they record a value, so a subsequent direct write to a public
-    /// field is the *only* thing that can make a live field diverge from that
-    /// implication — which is exactly the signal
-    /// [`Self::promote_untracked_host_edits`] uses to honour the most recent
-    /// explicit host on the next environment switch.
+    /// Keeps the invariant that the live host fields always equal what the
+    /// recorded overrides imply for [`Self::environment`]. The override setters
+    /// call this the moment they record a value, so the live field a getter
+    /// reads is consistent without waiting for the next environment switch.
     fn reapply_overrides_to_live_fields(&mut self) {
         self.historical.host = self
             .historical_host_override
@@ -429,17 +350,51 @@ impl DirectConfig {
         self.streaming.hosts = self.resolve_streaming_hosts(self.environment.streaming_hosts());
     }
 
+    /// Set an explicit historical host.
+    ///
+    /// This is the only supported way to point the historical (gRPC) channel
+    /// at a host. The host is recorded as a tracked override, so it survives a
+    /// later [`Self::apply_environment`] (and therefore
+    /// [`Self::with_environment`] / [`Self::stage`] / [`Self::dev`]): an
+    /// explicit host wins over the environment's default — the precedence
+    /// documented on the struct. The most recent call wins over any earlier
+    /// override (an env-var / `.env` / config-file host or a prior `set_*`
+    /// call). The live field is updated immediately so a subsequent
+    /// [`Self::historical_host`] read reflects the new host.
+    pub fn set_historical_host(&mut self, host: impl Into<String>) {
+        self.historical_host_override = Some(host.into());
+        self.reapply_overrides_to_live_fields();
+    }
+
+    /// Set the full explicit streaming host list.
+    ///
+    /// This is the only supported way to replace the streaming channel's whole
+    /// host set. The list is recorded as a full override that wins outright
+    /// over environment selection — [`Self::apply_environment`] does not touch
+    /// the streaming hosts when it is set, and the list is honoured even when
+    /// it happens to equal the selected environment's own host vector (it is
+    /// kept by provenance, never dropped by a value match). The most recent
+    /// call wins, superseding any earlier full or primary streaming override.
+    /// The live field is updated immediately so a subsequent
+    /// [`Self::streaming_hosts`] read reflects the new list.
+    pub fn set_streaming_hosts(&mut self, hosts: Vec<(String, u16)>) {
+        // A full list is the winning tier, so it supersedes any earlier
+        // primary host/port patch: clear the stale primary overrides it
+        // replaces before recording the new list.
+        self.streaming_primary_host_override = None;
+        self.streaming_primary_port_override = None;
+        self.streaming_hosts_full_override = Some(hosts);
+        self.reapply_overrides_to_live_fields();
+    }
+
     /// Record an explicit historical host override.
     ///
-    /// The recorded override makes the host survive a later
-    /// [`Self::apply_environment`] (and therefore [`Self::with_environment`]
-    /// / [`Self::stage`] / [`Self::dev`]), so an explicit host wins over the
-    /// environment's default — the precedence documented on the struct. This
-    /// is the single internal entry point the env-var / `.env` / config-file
-    /// layers use, so the override accounting can never drift. The override is
-    /// mirrored onto [`Self::historical`] immediately so the live field always
-    /// reflects the recorded override; [`Self::apply_environment`] re-resolves
-    /// it against the selected environment on the next switch.
+    /// The internal entry point the env-var / `.env` / config-file layers use;
+    /// [`Self::set_historical_host`] is the public equivalent. Recording an
+    /// override makes the host survive a later [`Self::apply_environment`], so
+    /// an explicit host wins over the environment's default — the precedence
+    /// documented on the struct. The override is mirrored onto the live field
+    /// immediately so a getter reflects it before the next switch.
     pub(crate) fn set_historical_host_override(&mut self, host: String) {
         self.historical_host_override = Some(host);
         self.reapply_overrides_to_live_fields();
@@ -474,15 +429,16 @@ impl DirectConfig {
     /// Record an explicit full streaming host list (the config-file
     /// `[streaming] hosts` power-user list).
     ///
-    /// When recorded, the list wins outright in [`Self::apply_environment`]:
-    /// environment selection does not touch the streaming hosts at all. Only
-    /// the config-file loader supplies a full host list, so this setter is
-    /// gated on that feature; the field stays `None` (and the override is
-    /// inert) without it.
+    /// The internal entry point the config-file loader uses;
+    /// [`Self::set_streaming_hosts`] is the public equivalent and carries the
+    /// shared recording logic. When recorded, the list wins outright in
+    /// [`Self::apply_environment`]: environment selection does not touch the
+    /// streaming hosts at all. Only the config-file loader supplies a full host
+    /// list, so this setter is gated on that feature; the field stays `None`
+    /// (and the override is inert) without it.
     #[cfg(feature = "config-file")]
     pub(crate) fn set_streaming_hosts_full_override(&mut self, hosts: Vec<(String, u16)>) {
-        self.streaming_hosts_full_override = Some(hosts);
-        self.reapply_overrides_to_live_fields();
+        self.set_streaming_hosts(hosts);
     }
 
     /// Select the target server environment, returning the updated config.
@@ -622,11 +578,14 @@ impl DirectConfig {
         // broken preset where the marker says prod but historical routes to
         // stage. `apply_environment` re-points both together.
         config.apply_environment(Environment::Prod);
-        // Dev's distinct streaming host set is the base; the recorded
-        // streaming overrides (primary host/port, or a config-file full list)
-        // patch it through the same accounting path as `apply_environment`, so
-        // an explicit `THETADATA_STREAMING_HOST` survives `dev()` instead of
-        // being clobbered by this assignment.
+        // Dev's distinct streaming host set is a PRESET base, not a caller
+        // override: assign it to the live field directly and record NO full
+        // override. That distinction is what makes a later
+        // `with_environment(Stage)` rebuild streaming from the stage cluster
+        // (the dev hosts are not pinned) while a recorded
+        // `THETADATA_STREAMING_HOST` / `_PORT` override — applied here through
+        // the same accounting path as `apply_environment` — still survives the
+        // dev preset by patching the dev primary slot.
         config.streaming.hosts = config.resolve_streaming_hosts(Self::dev_streaming_hosts());
         config
             .validate()
@@ -1517,17 +1476,15 @@ mod config_file {
 
             let mut out = DirectConfig::production_defaults();
             // An explicit `[historical] host` is the operator's choice, so
-            // record it as an override (not a bare field write): a later
-            // `with_environment()` / `stage()` / `dev()` must respect it
-            // rather than clobber it back to the environment default. The
-            // override is only applied to the live fields by
-            // `apply_environment`; this path does not switch environments, so
-            // mirror the value into `historical.host` here too. An absent key
-            // leaves the production default in force and records no override,
-            // so a later environment switch still re-points the host.
+            // record it as a tracked override: a later `with_environment()` /
+            // `stage()` / `dev()` must respect it rather than clobber it back
+            // to the environment default. The setter mirrors the value onto
+            // the live field immediately, so this path needs no separate field
+            // write. An absent key leaves the production default in force and
+            // records no override, so a later environment switch still
+            // re-points the host.
             if let Some(host) = cf.historical.host {
-                out.historical.host = host.clone();
-                out.set_historical_host_override(host);
+                out.set_historical_host(host);
             }
             out.historical.port = cf.historical.port;
             out.historical.tls = cf.historical.tls;
@@ -1541,15 +1498,13 @@ mod config_file {
             // An explicit `[streaming] hosts` list is the operator's full host
             // set (a power-user list), so record it as a full override: a
             // later `with_environment()` / `stage()` / `dev()` respects it
-            // outright rather than rebuilding from the environment cluster. As
-            // with the historical host, mirror it into the live field here
-            // since this path does not switch environments. An absent key
-            // leaves the production default host set in force and records no
-            // override, so a later environment switch still re-points it.
+            // outright rather than rebuilding from the environment cluster. The
+            // setter mirrors it onto the live field immediately, so this path
+            // needs no separate field write. An absent key leaves the
+            // production default host set in force and records no override, so
+            // a later environment switch still re-points it.
             if let Some(hosts) = cf.streaming.hosts {
-                let streaming_hosts = hosts.parse()?;
-                out.streaming.hosts = streaming_hosts.clone();
-                out.set_streaming_hosts_full_override(streaming_hosts);
+                out.set_streaming_hosts_full_override(hosts.parse()?);
             }
             out.streaming.timeout_ms = cf.streaming.read_timeout;
             out.streaming.ring_size = cf.streaming.ring_size;
@@ -2660,53 +2615,58 @@ mod tests {
     }
 
     #[test]
-    fn programmatic_historical_host_survives_later_environment_switch() {
-        // A host set by writing the PUBLIC field directly (no env var, no
-        // setter) must survive a later environment switch — the documented
-        // "explicit host wins over the environment default" invariant must
-        // hold for the programmatic path, not only the env-var path.
-        // Order: set-then-switch.
+    fn set_historical_host_survives_later_environment_switch() {
+        // A host set via the tracked `set_historical_host` setter must survive
+        // a later environment switch — the documented "explicit host wins over
+        // the environment default" invariant holds for the programmatic setter,
+        // not only the env-var path. Order: set-then-switch.
         let _guard = env_test_guard();
         clear_env_matrix();
         let mut config = DirectConfig::production();
-        config.historical.host = "programmatic.example.com".to_string();
+        config.set_historical_host("programmatic.example.com");
         let staged = config.with_environment(Environment::Stage);
         assert_eq!(staged.environment, Environment::Stage);
         assert_eq!(
-            staged.historical.host, "programmatic.example.com",
-            "a directly-set historical host must survive the environment switch"
+            staged.historical_host(),
+            "programmatic.example.com",
+            "a host set via set_historical_host must survive the environment switch"
         );
         // The non-overridden streaming channel still tracks the stage cluster.
-        assert_eq!(staged.streaming.hosts, Environment::Stage.streaming_hosts());
+        assert_eq!(
+            staged.streaming_hosts(),
+            Environment::Stage.streaming_hosts()
+        );
     }
 
     #[test]
-    fn programmatic_historical_host_set_after_a_switch_survives_the_next_switch() {
-        // Order: switch-then-set(-then-switch). A field written directly AFTER
-        // an environment switch must still be promoted and survive a SUBSEQUENT
-        // switch (and the round-trip back to prod keeps it).
+    fn set_historical_host_after_a_switch_survives_the_next_switch() {
+        // Order: switch-then-set(-then-switch). A host set AFTER an environment
+        // switch must survive a SUBSEQUENT switch (and the round-trip back to
+        // prod keeps it).
         let _guard = env_test_guard();
         clear_env_matrix();
         let mut config = DirectConfig::production().with_environment(Environment::Stage);
-        // Direct write after the first switch — bypasses every setter.
-        config.historical.host = "edited-after-switch.example.com".to_string();
+        // Set after the first switch.
+        config.set_historical_host("edited-after-switch.example.com");
         let back = config.with_environment(Environment::Prod);
         assert_eq!(back.environment, Environment::Prod);
         assert_eq!(
-            back.historical.host, "edited-after-switch.example.com",
+            back.historical_host(),
+            "edited-after-switch.example.com",
             "a host set after a switch must survive the next switch"
         );
         // And it persists across yet another switch.
         let staged_again = back.with_environment(Environment::Stage);
         assert_eq!(
-            staged_again.historical.host, "edited-after-switch.example.com",
-            "the promoted host must persist across repeated switches"
+            staged_again.historical_host(),
+            "edited-after-switch.example.com",
+            "the recorded host must persist across repeated switches"
         );
     }
 
     #[test]
-    fn programmatic_streaming_hosts_survive_later_environment_switch() {
-        // A streaming host vector written directly to the public field must
+    fn set_streaming_hosts_survive_later_environment_switch() {
+        // A host list set via the tracked `set_streaming_hosts` setter must
         // survive a later environment switch (it wins outright, the full-list
         // tier), while the non-overridden historical host moves to the cluster.
         let _guard = env_test_guard();
@@ -2716,52 +2676,85 @@ mod tests {
             ("prog-a.example.com".to_string(), 4100),
             ("prog-b.example.com".to_string(), 4101),
         ];
-        config.streaming.hosts = custom.clone();
+        config.set_streaming_hosts(custom.clone());
         let staged = config.with_environment(Environment::Stage);
         assert_eq!(staged.environment, Environment::Stage);
         assert_eq!(
-            staged.streaming.hosts, custom,
-            "directly-set streaming hosts must survive the environment switch"
+            staged.streaming_hosts(),
+            custom,
+            "hosts set via set_streaming_hosts must survive the environment switch"
         );
         // The non-overridden historical host still moves to the stage cluster.
-        assert_eq!(staged.historical.host, Environment::Stage.historical_host());
+        assert_eq!(
+            staged.historical_host(),
+            Environment::Stage.historical_host()
+        );
     }
 
     #[test]
-    fn programmatic_edits_to_both_channels_survive_together() {
-        // Both channels edited directly, then a switch: each is promoted
-        // independently and both survive.
+    fn set_streaming_hosts_full_list_survives_switch_even_when_equal_to_dev_hosts() {
+        // A full list set via `set_streaming_hosts` is honoured by PROVENANCE,
+        // not value: it must survive `with_environment` even when it happens to
+        // equal `dev_streaming_hosts()`. The old value-based heuristic would
+        // have dropped a list that matched the dev cluster; the encapsulated
+        // model keeps it because it was recorded as an override.
         let _guard = env_test_guard();
         clear_env_matrix();
         let mut config = DirectConfig::production();
-        config.historical.host = "h.example.com".to_string();
-        let custom = vec![("s.example.com".to_string(), 5000)];
-        config.streaming.hosts = custom.clone();
+        let dev_shaped = DirectConfig::dev_streaming_hosts();
+        config.set_streaming_hosts(dev_shaped.clone());
         let staged = config.with_environment(Environment::Stage);
-        assert_eq!(staged.historical.host, "h.example.com");
-        assert_eq!(staged.streaming.hosts, custom);
+        assert_eq!(staged.environment, Environment::Stage);
+        assert_eq!(
+            staged.streaming_hosts(),
+            dev_shaped,
+            "an explicit list equal to the dev hosts must not be dropped by a value match"
+        );
+        // Historical (no override) still tracks the stage cluster.
+        assert_eq!(
+            staged.historical_host(),
+            Environment::Stage.historical_host()
+        );
     }
 
     #[test]
-    fn no_override_presets_are_byte_identical_after_promote_logic() {
-        // Guard that the promote-on-switch logic is invisible on the common
-        // paths: a plain switch with no programmatic edit must yield the
-        // selected environment's cluster verbatim, recording no override.
+    fn set_both_channels_survive_together() {
+        // Both channels set via their tracked setters, then a switch: each is
+        // recorded independently and both survive.
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        let mut config = DirectConfig::production();
+        config.set_historical_host("h.example.com");
+        let custom = vec![("s.example.com".to_string(), 5000)];
+        config.set_streaming_hosts(custom.clone());
+        let staged = config.with_environment(Environment::Stage);
+        assert_eq!(staged.historical_host(), "h.example.com");
+        assert_eq!(staged.streaming_hosts(), custom);
+    }
+
+    #[test]
+    fn no_override_presets_are_byte_identical_across_switches() {
+        // Guard that the provenance model is invisible on the common paths: a
+        // plain switch with no recorded override must yield the selected
+        // environment's cluster verbatim.
         let _guard = env_test_guard();
         clear_env_matrix();
         // production() -> with_environment(Stage) must equal stage() exactly,
         // and round-tripping back to Prod must restore the prod cluster.
         let staged = DirectConfig::production().with_environment(Environment::Stage);
-        assert_eq!(staged.historical.host, "mdds-stage.thetadata.us");
-        assert_eq!(staged.streaming.hosts, Environment::Stage.streaming_hosts());
-        let back = staged.with_environment(Environment::Prod);
-        assert_eq!(back.historical.host, "mdds-01.thetadata.us");
-        assert_eq!(back.streaming.hosts, Environment::Prod.streaming_hosts());
-        // Repeated no-op switches keep the prod cluster (no spurious promote).
-        let still_prod = back.with_environment(Environment::Prod);
-        assert_eq!(still_prod.historical.host, "mdds-01.thetadata.us");
+        assert_eq!(staged.historical_host(), "mdds-stage.thetadata.us");
         assert_eq!(
-            still_prod.streaming.hosts,
+            staged.streaming_hosts(),
+            Environment::Stage.streaming_hosts()
+        );
+        let back = staged.with_environment(Environment::Prod);
+        assert_eq!(back.historical_host(), "mdds-01.thetadata.us");
+        assert_eq!(back.streaming_hosts(), Environment::Prod.streaming_hosts());
+        // Repeated no-op switches keep the prod cluster.
+        let still_prod = back.with_environment(Environment::Prod);
+        assert_eq!(still_prod.historical_host(), "mdds-01.thetadata.us");
+        assert_eq!(
+            still_prod.streaming_hosts(),
             Environment::Prod.streaming_hosts()
         );
     }
@@ -2981,6 +2974,37 @@ mod tests {
     }
 
     #[test]
+    fn dev_with_primary_override_then_stage_patches_stage_not_dev_failover() {
+        // `dev()` carries a recorded primary streaming override (env-var), then
+        // `with_environment(Stage)`: the primary patch is a real caller
+        // override and must survive, but it must patch the STAGE cluster's
+        // primary slot — the dev replay hosts are a preset base and must NOT
+        // pin the failover. This is the round-3 second case: the override
+        // tracks the selected environment, never the dev preset.
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        unsafe {
+            std::env::set_var(ENV_STREAMING_HOST, "sticky.example.com");
+        }
+        let staged = DirectConfig::dev().with_environment(Environment::Stage);
+        assert_eq!(staged.environment, Environment::Stage);
+        let stage_hosts = Environment::Stage.streaming_hosts();
+        // Primary host patched, primary port is STAGE's (not dev 20200).
+        assert_eq!(staged.streaming_hosts()[0].0, "sticky.example.com");
+        assert_eq!(staged.streaming_hosts()[0].1, stage_hosts[0].1);
+        // Failover hosts are STAGE's, never the dev replay cluster.
+        assert_eq!(
+            &staged.streaming_hosts()[1..],
+            &stage_hosts[1..],
+            "failover must track the stage cluster, not the dev replay hosts"
+        );
+        // Historical moved to stage too (no override on that channel).
+        assert_eq!(staged.historical_host(), "mdds-stage.thetadata.us");
+        clear_env_matrix();
+    }
+
+    #[test]
     fn dev_then_with_environment_stage_fully_switches_both_channels() {
         // The `dev()` preset sets the dev replay streaming hosts while keeping
         // the prod environment marker + prod historical host. A later
@@ -3025,11 +3049,10 @@ mod tests {
     }
 
     #[test]
-    fn latest_historical_field_edit_wins_over_recorded_override() {
+    fn latest_set_historical_host_wins_over_recorded_env_override() {
         // An override recorded up front (here via the process env), THEN a
-        // direct write to the public field, THEN an environment switch: the
-        // most recent explicit host must survive, not the stale recorded
-        // override.
+        // later `set_historical_host`, THEN an environment switch: the most
+        // recent setter must win over the stale env override.
         let _guard = env_test_guard();
         clear_env_matrix();
         // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
@@ -3037,24 +3060,24 @@ mod tests {
             std::env::set_var(ENV_HISTORICAL_HOST, "recorded.example.com");
         }
         let mut config = DirectConfig::production();
-        assert_eq!(config.historical.host, "recorded.example.com");
-        // Direct field write AFTER the override was recorded + applied.
-        config.historical.host = "field-edited.example.com".to_string();
+        assert_eq!(config.historical_host(), "recorded.example.com");
+        // Tracked setter AFTER the env override was recorded + applied.
+        config.set_historical_host("field-edited.example.com");
         let staged = config.with_environment(Environment::Stage);
         assert_eq!(
-            staged.historical.host, "field-edited.example.com",
-            "the latest direct field edit must win over the stale recorded override"
+            staged.historical_host(),
+            "field-edited.example.com",
+            "the latest set_historical_host must win over the stale env override"
         );
         assert_eq!(staged.environment, Environment::Stage);
         clear_env_matrix();
     }
 
     #[test]
-    fn latest_streaming_field_edit_wins_over_recorded_override() {
+    fn latest_set_streaming_hosts_wins_over_recorded_env_override() {
         // Streaming companion to the historical recency test: a recorded
-        // primary override, then a direct write to the public vector, then a
-        // switch — the latest explicit vector wins and the stale primary patch
-        // is dropped.
+        // primary override, then a later `set_streaming_hosts`, then a switch —
+        // the latest full list wins and the stale primary patch is dropped.
         let _guard = env_test_guard();
         clear_env_matrix();
         // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
@@ -3062,17 +3085,18 @@ mod tests {
             std::env::set_var(ENV_STREAMING_HOST, "recorded-stream.example.com");
         }
         let mut config = DirectConfig::production();
-        assert_eq!(config.streaming.hosts[0].0, "recorded-stream.example.com");
-        // Direct write AFTER the override was recorded + applied.
+        assert_eq!(config.streaming_hosts()[0].0, "recorded-stream.example.com");
+        // Tracked setter AFTER the primary override was recorded + applied.
         let edited = vec![
             ("field-stream-a.example.com".to_string(), 7000),
             ("field-stream-b.example.com".to_string(), 7001),
         ];
-        config.streaming.hosts = edited.clone();
+        config.set_streaming_hosts(edited.clone());
         let staged = config.with_environment(Environment::Stage);
         assert_eq!(
-            staged.streaming.hosts, edited,
-            "the latest direct field edit must win over the stale primary override"
+            staged.streaming_hosts(),
+            edited,
+            "the latest set_streaming_hosts must win over the stale primary override"
         );
         assert_eq!(staged.environment, Environment::Stage);
         clear_env_matrix();

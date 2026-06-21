@@ -1306,14 +1306,14 @@ impl Config {
     #[setter]
     fn set_historical_host(&self, host: String) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.historical.host = host;
+        guard.set_historical_host(host);
     }
 
     /// Current historical gRPC host.
     #[getter]
     fn get_historical_host(&self) -> String {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.historical.host.clone()
+        guard.historical_host().to_string()
     }
 
     /// Override the historical gRPC port. Companion to `historical_host` —
@@ -1386,9 +1386,9 @@ impl Config {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         format!(
             "Config(historical={}:{}, streaming_hosts={})",
-            guard.historical.host,
+            guard.historical_host(),
             guard.historical.port,
-            guard.streaming.hosts.len()
+            guard.streaming_hosts().len()
         )
     }
 }

@@ -2724,7 +2724,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_historical_host(
         };
         // SAFETY: config is a non-null pointer returned by thetadatadx_config_* and not yet freed.
         let config = unsafe { &mut *config };
-        config.inner.historical.host = host.to_string();
+        config.inner.set_historical_host(host);
         0
     })
 }
@@ -2746,7 +2746,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_historical_host(
         }
         // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
-        match std::ffi::CString::new(config.inner.historical.host.as_str()) {
+        match std::ffi::CString::new(config.inner.historical_host()) {
             Ok(c) => c.into_raw(),
             Err(e) => {
                 set_error(&format!("historical_host contains an interior NUL: {e}"));

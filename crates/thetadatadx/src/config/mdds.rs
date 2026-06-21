@@ -18,7 +18,17 @@
 #[non_exhaustive]
 pub struct HistoricalConfig {
     /// Historical hostname (v3 path).
-    pub host: String,
+    ///
+    /// Set through [`DirectConfig::set_historical_host`] so the write is
+    /// recorded as an explicit override that survives environment
+    /// selection; read through [`DirectConfig::historical_host`]. The field
+    /// is crate-private so the only way to point the historical channel at a
+    /// host is the tracked setter — there is no untracked direct-write path
+    /// for environment selection to second-guess.
+    ///
+    /// [`DirectConfig::set_historical_host`]: crate::config::DirectConfig::set_historical_host
+    /// [`DirectConfig::historical_host`]: crate::config::DirectConfig::historical_host
+    pub(crate) host: String,
 
     /// Historical port (443 for TLS in production).
     pub port: u16,
@@ -112,6 +122,20 @@ pub struct HistoricalConfig {
 }
 
 impl HistoricalConfig {
+    /// Historical hostname.
+    ///
+    /// Read accessor for the crate-private [`Self::host`] field. The host is
+    /// written through [`DirectConfig::set_historical_host`] so a
+    /// caller-supplied value is recorded as a tracked override; this getter
+    /// is the supported way to read it back (including from the SDK
+    /// bindings, which snapshot a [`HistoricalConfig`]).
+    ///
+    /// [`DirectConfig::set_historical_host`]: crate::config::DirectConfig::set_historical_host
+    #[must_use]
+    pub fn host(&self) -> &str {
+        &self.host
+    }
+
     /// Production defaults.
     #[must_use]
     pub fn production_defaults() -> Self {

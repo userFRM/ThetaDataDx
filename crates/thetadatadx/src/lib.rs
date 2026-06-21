@@ -47,9 +47,10 @@
 //!
 //! # fn doc() -> Result<(), thetadatadx::streaming::StreamError> {
 //! let creds = Credentials::new("user@example.com", "pw");
-//! let hosts = DirectConfig::production().streaming.hosts;
+//! let config = DirectConfig::production();
+//! let hosts = config.streaming_hosts();
 //!
-//! let client = StreamingClient::builder(&creds, &hosts)
+//! let client = StreamingClient::builder(&creds, hosts)
 //!     .ring_size(8192)
 //!     .build()?;
 //!

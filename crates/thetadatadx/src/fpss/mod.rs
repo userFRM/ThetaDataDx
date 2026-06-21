@@ -15,9 +15,10 @@
 //! # use thetadatadx::fpss::protocol::Contract;
 //! # fn example() -> Result<(), thetadatadx::streaming::StreamError> {
 //! let creds = Credentials::new("user@example.com", "pw");
-//! let hosts = thetadatadx::config::DirectConfig::production().streaming.hosts;
+//! let config = thetadatadx::config::DirectConfig::production();
+//! let hosts = config.streaming_hosts();
 //!
-//! let client = StreamingClient::builder(&creds, &hosts).build()?;
+//! let client = StreamingClient::builder(&creds, hosts).build()?;
 //! client.subscribe(Contract::stock("AAPL").quote())?;
 //!
 //! for event in &client {
@@ -385,9 +386,10 @@ pub(crate) fn full_stream_sec_type_supported(sec_type: SecType) -> bool {
 /// # use thetadatadx::auth::Credentials;
 /// # fn example() -> Result<(), thetadatadx::streaming::StreamError> {
 /// let creds = Credentials::new("user@example.com", "pw");
-/// let hosts = thetadatadx::config::DirectConfig::production().streaming.hosts;
+/// let config = thetadatadx::config::DirectConfig::production();
+/// let hosts = config.streaming_hosts();
 ///
-/// let client = StreamingClient::builder(&creds, &hosts)
+/// let client = StreamingClient::builder(&creds, hosts)
 ///     .ring_size(8192)
 ///     .read_timeout_ms(15_000)
 ///     .build()?;
