@@ -62,6 +62,27 @@ OPENAPI_YAML = DOCS_SITE / "public/thetadatadx.yaml"
 # from this file rather than carrying a hand-maintained copy that could drift.
 FLATFILE_TYPES_RS = ROOT / "crates/thetadatadx/src/flatfiles/types.rs"
 
+# The MCP server source is the single source of truth for the tool surface a
+# connected `tools/list` returns: the registry historical endpoints (one tool
+# per endpoint), the offline utilities (`OFFLINE_TOOL_NAMES` in `main.rs`), and
+# the flat-file tools advertised by `push_flatfile_tool_definitions` in
+# `flatfile_tools.rs`. The gate parses the non-registry tool names from these
+# files so a tool added in code but left out of the docs trips the gate rather
+# than the docs carrying a hand-maintained count that silently drifts.
+MCP_MAIN_RS = ROOT / "tools/mcp/src/main.rs"
+MCP_FLATFILE_TOOLS_RS = ROOT / "tools/mcp/src/flatfile_tools.rs"
+
+# Docs that must enumerate the connection-only MCP tools by name, each paired
+# with the `##` heading of the section that carries the tool listing. The
+# enumeration is checked inside that section only: a tool name mentioned in
+# unrelated prose elsewhere in the file (an intro blockquote, an example) must
+# not mask a missing entry in the actual tool list, so removing a tool from the
+# listing trips the gate even when the name survives elsewhere.
+MCP_DOC_TOOL_SECTIONS = (
+    (ROOT / "tools/mcp/README.md", "## Available Tools"),
+    (DOCS_SITE / "mcp.md", "## Tools"),
+)
+
 # Server source files that register the `/v3` HTTP routes. The server is the
 # source of truth for the served route set, so the gate parses the `.route(...)`
 # literals from these files rather than carrying a hand-maintained duplicate
@@ -145,7 +166,6 @@ def endpoint_kind(endpoint: dict) -> str:
 
 
 REGISTRY_ENDPOINTS = [ep for ep in ENDPOINTS if endpoint_kind(ep) != "stream"]
-EXPECTED_TOOL_COUNT = len(REGISTRY_ENDPOINTS) + 3
 
 
 def lower_camel(snake: str) -> str:
@@ -183,7 +203,7 @@ def check_static_docs() -> None:
     )
     expect_contains(
         ROOT / "tools/mcp/README.md",
-        "Every generated historical endpoint plus 3 offline tools (`ping`, `all_greeks`, `implied_volatility`).",
+        "Every generated historical endpoint plus 3 offline tools (`ping`, `all_greeks`, `implied_volatility`) and, when connected, 6 flat-file tools.",
     )
 
     expect_contains(
@@ -768,6 +788,139 @@ def check_flatfile_matrix() -> None:
         )
 
 
+def _rust_str_array_items(text: str, const_name: str) -> list[str]:
+    """The string literals in a `const NAME: [...] = [ "a", "b", ... ];` array.
+
+    Used to read `OFFLINE_TOOL_NAMES` from the MCP `main.rs` so the offline tool
+    set tracks the source const rather than a copy in this gate.
+    """
+    m = re.search(rf"const {const_name}:[^=]*=\s*\[(.*?)\];", text, re.DOTALL)
+    if not m:
+        fail(f"{MCP_MAIN_RS.relative_to(ROOT)} missing the {const_name} array")
+    return re.findall(r'"([^"]+)"', m.group(1))
+
+
+def _rust_fn_body(text: str, fn_signature_re: str, path: Path) -> str:
+    """The brace-balanced body of the first `fn` matching `fn_signature_re`.
+
+    Scopes a literal scan to one function so an identically-spelled literal in a
+    sibling function (e.g. a temp-path format string, a test fixture) is never
+    swept in.
+    """
+    m = re.search(fn_signature_re, text)
+    if not m:
+        fail(f"{path.relative_to(ROOT)} missing fn matching {fn_signature_re!r}")
+    depth = 0
+    start = None
+    for i in range(m.start(), len(text)):
+        ch = text[i]
+        if ch == "{":
+            if depth == 0:
+                start = i + 1
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start:i]
+    fail(f"{path.relative_to(ROOT)} fn matching {fn_signature_re!r} has no closed body")
+    return ""  # unreachable; fail() raises
+
+
+def mcp_tool_inventory() -> dict[str, list[str]]:
+    """The connected `tools/list` surface, derived from the MCP server source.
+
+    Returns the tool names grouped by origin:
+
+    - ``registry``: one tool per non-stream registry endpoint (the historical
+      surface), named after the endpoint.
+    - ``offline``: the always-available utilities, read from
+      ``OFFLINE_TOOL_NAMES`` in ``main.rs``.
+    - ``flatfile``: the flat-file tools advertised by
+      ``push_flatfile_tool_definitions`` in ``flatfile_tools.rs``.
+
+    A connected `tools/list` returns the union; the docs gate asserts the docs
+    enumerate it, so a tool added in code but absent from the docs fails here.
+    """
+    registry = [ep["name"] for ep in REGISTRY_ENDPOINTS]
+
+    offline = _rust_str_array_items(MCP_MAIN_RS.read_text(), "OFFLINE_TOOL_NAMES")
+    if not offline:
+        fail(f"{MCP_MAIN_RS.relative_to(ROOT)} OFFLINE_TOOL_NAMES parsed to no tools")
+
+    flatfile_body = _rust_fn_body(
+        MCP_FLATFILE_TOOLS_RS.read_text(),
+        r"fn push_flatfile_tool_definitions\b",
+        MCP_FLATFILE_TOOLS_RS,
+    )
+    flatfile = sorted(set(re.findall(r'"(thetadatadx_flatfile_[a-z_]+)"', flatfile_body)))
+    if not flatfile:
+        fail(
+            f"{MCP_FLATFILE_TOOLS_RS.relative_to(ROOT)} push_flatfile_tool_definitions "
+            f"advertised no flat-file tools"
+        )
+
+    return {"registry": registry, "offline": offline, "flatfile": flatfile}
+
+
+def _markdown_section(text: str, heading: str, path: Path) -> str:
+    """The body under a `##` `heading` up to the next `##`-or-shallower heading.
+
+    Scopes a tool-enumeration scan to the doc's tool-listing section so a tool
+    name appearing in unrelated prose elsewhere in the file cannot satisfy the
+    check for a tool dropped from the listing itself.
+    """
+    lines = text.splitlines()
+    try:
+        start = next(i for i, line in enumerate(lines) if line.strip() == heading)
+    except StopIteration:
+        fail(f"{path.relative_to(ROOT)} missing the {heading!r} section the tool gate scans")
+    level = len(heading) - len(heading.lstrip("#"))
+    out: list[str] = []
+    for line in lines[start + 1 :]:
+        stripped = line.lstrip("#")
+        depth = len(line) - len(stripped)
+        if line.startswith("#") and stripped.startswith(" ") and depth <= level:
+            break
+        out.append(line)
+    return "\n".join(out)
+
+
+def check_mcp_tool_inventory() -> None:
+    """The MCP docs must enumerate the connected `tools/list` surface.
+
+    Every connection-only tool (the offline utilities plus the flat-file tools)
+    must appear by name in each MCP doc's tool-listing section. The flat-file
+    tools are the surface that previously had no doc-gate coverage: a flat-file
+    tool advertised by the server but missing from the listing trips this check.
+    The README also lists every registry historical endpoint by name in its tool
+    tables, so the full inventory is asserted against it; `mcp.md` defers the
+    per-endpoint listing to the generated reference pages, so only the
+    connection-only tools are pinned there.
+    """
+    inv = mcp_tool_inventory()
+    connection_only = inv["offline"] + inv["flatfile"]
+
+    for doc, heading in MCP_DOC_TOOL_SECTIONS:
+        section = _markdown_section(doc.read_text(), heading, doc)
+        missing = [name for name in connection_only if f"`{name}`" not in section]
+        if missing:
+            fail(
+                f"{doc.relative_to(ROOT)} {heading!r} section does not enumerate MCP "
+                f"tools that the connected tools/list advertises: {missing}. Document "
+                f"them so the docs match the server's tool surface."
+            )
+
+    readme, readme_heading = MCP_DOC_TOOL_SECTIONS[0]
+    readme_section = _markdown_section(readme.read_text(), readme_heading, readme)
+    missing_registry = [name for name in inv["registry"] if f"`{name}`" not in readme_section]
+    if missing_registry:
+        fail(
+            f"{readme.relative_to(ROOT)} {readme_heading!r} section does not list every "
+            f"registry MCP tool by name: {missing_registry}. The README tool tables must "
+            f"cover the full historical surface the connected tools/list advertises."
+        )
+
+
 def check_endpoint_option_surface() -> None:
     rust_fields = extract_struct_fields(
         ROOT / "ffi/src/endpoint_request_options.rs",
@@ -845,6 +998,7 @@ def main() -> None:
     check_llms_txt()
     check_openapi()
     check_flatfile_matrix()
+    check_mcp_tool_inventory()
     check_endpoint_option_surface()
     check_tier_badges()
     print("docs consistency: ok")

@@ -112,7 +112,7 @@ The server speaks standard MCP over stdio:
 
 ## Available Tools
 
-Every generated historical endpoint plus 3 offline tools (`ping`, `all_greeks`, `implied_volatility`).
+Every generated historical endpoint plus 3 offline tools (`ping`, `all_greeks`, `implied_volatility`) and, when connected, 6 flat-file tools.
 
 ### Offline (3 total: `ping`, `all_greeks`, `implied_volatility`)
 
@@ -159,6 +159,17 @@ This matches the current JVM terminal behavior. The v3 REST surface uses `*` for
 ### Calendar & Rates (4 tools)
 - `calendar_open_today`, `calendar_on_date`, `calendar_year`
 - `interest_rate_history_eod`
+
+### Flat Files (6 tools)
+
+Advertised only when a client is connected. Each pulls a whole-universe daily blob, writes it to disk as CSV or JSON Lines, and returns the written path.
+
+- `thetadatadx_flatfile_request` - generic flat-file request for a served `(sec_type, req_type)` pair; an unserved pair is rejected with a typed invalid-parameter error
+- `thetadatadx_flatfile_option_trade_quote` - option trade-quote flat file
+- `thetadatadx_flatfile_option_open_interest` - option open-interest flat file
+- `thetadatadx_flatfile_option_eod` - option end-of-day flat file
+- `thetadatadx_flatfile_stock_trade_quote` - stock trade-quote flat file
+- `thetadatadx_flatfile_stock_eod` - stock end-of-day flat file
 
 ## Example Tool Calls
 

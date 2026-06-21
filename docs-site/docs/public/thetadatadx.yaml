@@ -3070,9 +3070,9 @@ paths:
       summary: Graceful server shutdown
       description: |
         Initiates a graceful shutdown of the thetadatadx server.
-        Requires a valid `X-Shutdown-Token` header (random UUID printed to
-        stderr on server startup). Rate-limited to ~3 attempts per hour per
-        client IP.
+        Requires a valid `X-Shutdown-Token` header (a 128-bit hex token, 32
+        lowercase hex characters, printed to stderr on server startup).
+        Rate-limited to ~3 attempts per hour per client IP.
       security:
         - shutdownToken: []
       responses:
@@ -3238,9 +3238,10 @@ components:
       in: header
       name: X-Shutdown-Token
       description: |
-        Random UUID printed to stderr on server startup. Required on the
-        `/v3/system/shutdown` POST endpoint. Rate-limited to ~3 attempts
-        per hour per client IP. See `tools/server/README.md`.
+        A 128-bit hex token (32 lowercase hex characters) printed to stderr on
+        server startup. Required on the `/v3/system/shutdown` POST endpoint.
+        Rate-limited to ~3 attempts per hour per client IP. See
+        `tools/server/README.md`.
 
   schemas:
     OhlcTick: *ohlc-tick
@@ -3270,27 +3271,6 @@ components:
           type: string
           enum: [C, P]
           description: '"C" for call, "P" for put'
-
-    Contract:
-      type: object
-      description: Full contract representation used in streaming
-      properties:
-        symbol:
-          type: string
-          description: Underlying symbol
-        sec_type:
-          type: integer
-          enum: [0, 1, 2, 3]
-          description: '0=Stock, 1=Option, 2=Index, 3=Rate'
-        expiration:
-          type: integer
-          description: Expiration as YYYYMMDD integer (options only)
-        is_call:
-          type: boolean
-          description: true=call, false=put (options only)
-        strike:
-          type: integer
-          description: Scaled integer strike price (options only)
 
     Price:
       type: number
