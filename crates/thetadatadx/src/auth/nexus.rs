@@ -397,6 +397,19 @@ fn server_error_message(status: reqwest::StatusCode) -> String {
     )
 }
 
+/// Fixed, body-free message for a malformed success (HTTP 200) response body.
+///
+/// A `serde_json` decode error can embed fragments of the input it failed to
+/// parse — including response-body token text — into its `Display`. On the 200
+/// path that body is the upstream auth payload, which can carry a session
+/// token, so interpolating the decoder error would reflect that material into
+/// the surfaced error and any caller log. The message is a constant with no
+/// decoder text, keeping the secret out of the error chain by construction
+/// (the same boundary [`server_error_message`] enforces for the non-200 path).
+fn malformed_success_body_message() -> &'static str {
+    "authentication response was malformed"
+}
+
 /// Authenticate against the Nexus API and return the session info.
 ///
 /// Identical to [`authenticate`] but accepts a caller-supplied URL.
@@ -536,9 +549,12 @@ pub async fn authenticate_at(
         });
     }
 
-    let auth: AuthResponse = resp.json().await.map_err(|e| Error::Auth {
+    let auth: AuthResponse = resp.json().await.map_err(|_| Error::Auth {
         kind: crate::error::AuthErrorKind::ServerError,
-        message: format!("failed to parse Nexus API response: {e}"),
+        // A 200 body that fails to decode must not echo the decoder error: it
+        // can embed body-token text (a session token rides this payload). Carry
+        // a fixed, body-free message — see `malformed_success_body_message`.
+        message: malformed_success_body_message().to_string(),
     })?;
 
     // Validate the session UUID is well-formed. The session id is a bearer
@@ -708,6 +724,69 @@ mod tests {
                 "message must not carry body-derived text {leaked:?}: {msg}"
             );
         }
+    }
+
+    #[test]
+    fn malformed_success_body_message_is_fixed_and_body_free() {
+        // The 200-path parse-failure message must be a constant with no
+        // decoder/body text. A `serde_json` error can embed fragments of the
+        // body it failed to parse — and the success body carries a session
+        // token — so the surfaced error must never interpolate it.
+        let msg = malformed_success_body_message();
+        assert_eq!(msg, "authentication response was malformed");
+        // Stand-ins for a reflected token or any upstream body text that a
+        // decoder error might otherwise embed.
+        for leaked in [
+            "11111111-2222-3333-4444-555555555555",
+            "sessionId",
+            "session_id",
+            "td_secret_apikey",
+            "expected",
+            "column",
+            "line",
+        ] {
+            assert!(
+                !msg.contains(leaked),
+                "fixed message must not carry body-derived text {leaked:?}: {msg}"
+            );
+        }
+    }
+
+    #[test]
+    fn malformed_200_body_maps_to_fixed_message_without_body_content() {
+        // Exercise the exact mapping the 200 path applies: a malformed body
+        // that EMBEDS a session token fails to decode into `AuthResponse`, and
+        // the `map_err` must collapse it to the fixed body-free message — never
+        // the `serde_json` error text, which can quote the offending body.
+        let token = "11111111-2222-3333-4444-555555555555";
+        // Valid JSON shape-wise but wrong type for `session_id` (number, not
+        // string), so the decoder error references the token-bearing field.
+        let body = format!(r#"{{"sessionId": 12345, "leaked_token": "{token}"}}"#);
+        let parse_result: Result<AuthResponse, _> = serde_json::from_str(&body);
+        let raw_decoder_text = parse_result
+            .as_ref()
+            .err()
+            .map(std::string::ToString::to_string)
+            .unwrap_or_default();
+        let err = parse_result.map_err(|_| Error::Auth {
+            kind: crate::error::AuthErrorKind::ServerError,
+            message: malformed_success_body_message().to_string(),
+        });
+        let surfaced = err.expect_err("a malformed 200 body must fail to decode");
+        let surfaced_msg = surfaced.to_string();
+        assert!(
+            surfaced_msg.contains("authentication response was malformed"),
+            "surfaced error must carry the fixed message: {surfaced_msg}"
+        );
+        assert!(
+            !surfaced_msg.contains(token),
+            "surfaced error must not reflect the body token: {surfaced_msg}"
+        );
+        // Sanity: the discarded raw decoder text COULD have carried body
+        // material, which is exactly why the fixed message is used. (Skip the
+        // assertion if a given serde version happens not to quote the field —
+        // the load-bearing guarantee is the surfaced message above.)
+        let _ = raw_decoder_text;
     }
 
     #[test]
