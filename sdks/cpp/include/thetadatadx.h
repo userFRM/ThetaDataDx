@@ -1811,9 +1811,9 @@ int32_t thetadatadx_config_get_flush_mode(const ThetaDataDxConfig* config, int32
 
 /**
  * Read the target server environment carried by the config: "PROD" for
- * the production cluster or "STAGE" for staging. Set as a unit by the
- * production / stage presets (and the THETADATA_MDDS_TYPE dotenv key);
- * this is the readback of that selection.
+ * the production cluster, "STAGE" for staging, or "DEV" for the dev
+ * cluster. Set as a unit by the production / stage / dev presets (and the
+ * THETADATA_MDDS_TYPE dotenv key); this is the readback of that selection.
  * @param config Config handle to read.
  * @return A heap-owned NUL-terminated C string the caller MUST free with
  *         thetadatadx_string_free, or NULL if config is null.

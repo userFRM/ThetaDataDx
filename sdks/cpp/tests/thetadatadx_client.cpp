@@ -182,6 +182,25 @@ TEST_CASE("Stream binds the full FPSS surface",
         decltype(std::declval<const thetadatadx::Client&>().historical()),
         thetadatadx::Historical>);
 
+    // Lvalue-only borrow contract: the view accessors are ref-qualified so
+    // they bind only to an lvalue `Client`. A view borrows the client's
+    // handle and must not outlive it, so calling an accessor on a temporary
+    // (`makeClient().historical()`) is a compile error: the view would
+    // dangle at the end of the full expression. These assertions pin that
+    // the lvalue forms are callable and the rvalue forms are not.
+    STATIC_REQUIRE(std::is_invocable_v<
+        decltype(&thetadatadx::Client::stream), thetadatadx::Client&>);
+    STATIC_REQUIRE_FALSE(std::is_invocable_v<
+        decltype(&thetadatadx::Client::stream), thetadatadx::Client&&>);
+    STATIC_REQUIRE(std::is_invocable_v<
+        decltype(&thetadatadx::Client::historical), const thetadatadx::Client&>);
+    STATIC_REQUIRE_FALSE(std::is_invocable_v<
+        decltype(&thetadatadx::Client::historical), thetadatadx::Client&&>);
+    STATIC_REQUIRE(std::is_invocable_v<
+        decltype(&thetadatadx::Client::flat_files), const thetadatadx::Client&>);
+    STATIC_REQUIRE_FALSE(std::is_invocable_v<
+        decltype(&thetadatadx::Client::flat_files), thetadatadx::Client&&>);
+
     // set_callback
     STATIC_REQUIRE(std::is_invocable_v<decltype(&SV::set_callback), SV&, Cb>);
     // stop_streaming

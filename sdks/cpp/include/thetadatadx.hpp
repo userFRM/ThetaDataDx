@@ -1317,10 +1317,11 @@ public:
     }
 
     /** Target server environment carried by this configuration: `"PROD"`
-     *  for the production cluster, `"STAGE"` for staging. Set as a unit by
-     *  the production / stage presets (and the `THETADATA_MDDS_TYPE`
-     *  dotenv key); this is the readback of that selection. Returns an
-     *  empty string if the FFI getter returns null (null handle). */
+     *  for the production cluster, `"STAGE"` for staging, or `"DEV"` for
+     *  the dev cluster. Set as a unit by the production / stage / dev
+     *  presets (and the `THETADATA_MDDS_TYPE` dotenv key); this is the
+     *  readback of that selection. Returns an empty string if the FFI
+     *  getter returns null (null handle). */
     std::string get_environment() const {
         detail::FfiString s(thetadatadx_config_get_environment(handle_.get()));
         return s.str();
@@ -2057,15 +2058,29 @@ private:
     const ThetaDataDxClient* handle_;
 };
 
+/// Stable, shared backing node for a unified client's push callback. The
+/// `std::function` lives at a fixed heap address for the node's whole
+/// life, so the `void* ctx` registered with the dispatcher stays valid
+/// even when the owning `Client` is moved: a `Client` move transfers the
+/// `shared_ptr` (the node itself does not move), and a `Stream` view holds
+/// its own `shared_ptr` to the same node. The dispatcher's `ctx` is the
+/// address of `fn` inside this node, so it outlives both a `Client` move
+/// and any transient view.
+struct CallbackSlot {
+    std::function<void(const StreamEvent&)> fn;
+};
+
 /// Real-time-streaming sub-namespace returned by `Client::stream()`.
 ///
-/// Borrows the unified `ThetaDataDxClient*` and a pointer to the parent `Client`'s
-/// callback storage slot, so `set_callback` / `stop_streaming` /
-/// `reconnect` observe the same registration the unified client manages.
-/// The view is non-owning and transient: the callback `std::function`
-/// storage lives on the parent `Client` (whose destructor runs the C-ABI
-/// drain barrier), never on the view, so a `Stream` value may be created
-/// and discarded freely without disturbing the streaming session.
+/// Borrows the unified `ThetaDataDxClient*` for the duration of the borrow
+/// and shares the parent `Client`'s callback node, so `set_callback` /
+/// `stop_streaming` / `reconnect` observe the same registration the
+/// unified client manages. The handle pointer is borrowed and must not
+/// outlive the parent `Client` (`Client::stream()` is lvalue-only, so the
+/// borrow cannot bind a temporary), but the callback node is held by
+/// shared ownership: it stays alive and at a fixed address while either
+/// the `Client` or this view references it, so a `Client` move never
+/// dangles the registered callback `ctx`.
 class Stream {
 public:
     Stream(const Stream&) = delete;
@@ -2081,13 +2096,15 @@ public:
      *
      *  ## Callback storage + thread affinity
      *
-     *  The parent `Client` owns a `std::unique_ptr<std::function>` whose
-     *  address is the `void* ctx` registered with the dispatcher. That
-     *  address must outlive every consumer-thread invocation; destruction
+     *  The parent `Client` and this view share a `CallbackSlot` node by
+     *  `shared_ptr`; the address of its `fn` member is the `void* ctx`
+     *  registered with the dispatcher. The node lives at a fixed heap
+     *  address while any holder lives, so the ctx stays valid across a
+     *  `Client` move and every consumer-thread invocation. Destruction
      *  routes through `thetadatadx_client_free` on the parent, which performs the
      *  shutdown + drain barrier internally, and replacement here calls
      *  `thetadatadx_client_stop_streaming` followed by
-     *  `thetadatadx_client_await_drain(5000)` before releasing the storage — so no
+     *  `thetadatadx_client_await_drain(5000)` before clearing the slot, so no
      *  thread can observe a dangling ctx.
      *
      *  ## Lifecycle contract (unified replace-allowed rule)
@@ -2101,31 +2118,37 @@ public:
      *  in, with the same `await_drain(5000)` budget. */
     void set_callback(std::function<void(const StreamEvent&)> fn) {
         // Drain the existing wiring first so the consumer thread stops
-        // invoking through the old `*callback_` storage before we release
-        // it. Matches the C ABI's replace-allowed contract: a successful
+        // invoking through the old callback storage before we release it.
+        // Matches the C ABI's replace-allowed contract: a successful
         // replacement registration leaves the old `ctx` observable only
         // inside the drain barrier window.
-        if (*callback_) {
+        if (callback_->fn) {
             thetadatadx_client_stop_streaming(handle_);
             int drained = thetadatadx_client_await_drain(handle_, 5000);
             if (drained == 0) {
                 // Drain barrier timed out: detach old storage to a helper
                 // thread for a 30 s grace window so destruction happens off
                 // the registration path; the consumer is bounded by its own
-                // ring drain and will quiesce well within that window.
-                std::thread([cb = std::move(*callback_)]() mutable {
+                // ring drain and will quiesce well within that window. Move
+                // the old node aside and install a fresh one so the new
+                // registration below gets a stable, distinct `ctx`.
+                auto retired = std::make_shared<CallbackSlot>();
+                retired->fn = std::move(callback_->fn);
+                std::thread([cb = retired]() mutable {
                     std::this_thread::sleep_for(std::chrono::seconds(30));
                 }).detach();
-            } else {
-                callback_->reset();
             }
+            callback_->fn = nullptr;
         }
-        auto staged = std::make_unique<std::function<void(const StreamEvent&)>>(std::move(fn));
-        int rc = thetadatadx_client_set_callback(handle_, &Stream::callback_shim, staged.get());
+        // Stage the new callback into the stable shared node, then register
+        // its fixed `&fn` address as the dispatcher `ctx`. On failure the
+        // node's `fn` is left cleared so no stale registration lingers.
+        callback_->fn = std::move(fn);
+        int rc = thetadatadx_client_set_callback(handle_, &Stream::callback_shim, &callback_->fn);
         if (rc < 0) {
+            callback_->fn = nullptr;
             detail::throw_last_ffi_error();
         }
-        *callback_ = std::move(staged);
     }
 
     /// Polymorphic subscribe — primary fluent entry point. Defined inline
@@ -2322,9 +2345,8 @@ public:
 
 private:
     friend class Client;
-    Stream(const ThetaDataDxClient* h,
-           std::unique_ptr<std::function<void(const StreamEvent&)>>* callback)
-        : handle_(h), callback_(callback) {}
+    Stream(const ThetaDataDxClient* h, std::shared_ptr<CallbackSlot> callback)
+        : handle_(h), callback_(std::move(callback)) {}
 
     // Static-member shim that the dispatcher invokes. It keeps C++ language
     // linkage (a member cannot be `extern "C"`) but its signature matches the
@@ -2344,10 +2366,11 @@ private:
     }
 
     const ThetaDataDxClient* handle_;
-    // Borrowed pointer to the parent `Client`'s callback storage slot. The
-    // parent outlives every transient `Stream` view, so the pointer is
-    // always valid for the view's lifetime.
-    std::unique_ptr<std::function<void(const StreamEvent&)>>* callback_;
+    // Shared ownership of the parent `Client`'s callback node. The node is
+    // a fixed heap address shared with the `Client`, so the registered
+    // dispatcher `ctx` (`&callback_->fn`) stays valid across a `Client`
+    // move and for this view's whole lifetime.
+    std::shared_ptr<CallbackSlot> callback_;
 };
 
 /// Forward declaration for `Client::builder()`; defined immediately after
@@ -2427,11 +2450,13 @@ public:
         : callback_(std::move(other.callback_)),
           handle_(std::move(other.handle_)) {}
     /** Move-assign. The receiver may already hold a live streaming
-     *  session whose consumer thread is invoking through the
-     *  `callback_` storage. Drain the consumer before releasing the
-     *  storage — same discipline as `StreamingClient::operator=`. On drain
-     *  timeout, detach the callback storage onto a helper thread for a
-     *  30 s grace window so destruction happens off the move path. */
+     *  session whose consumer thread is invoking through the callback
+     *  node. Drain the consumer before releasing the node, the same
+     *  discipline as `StreamingClient::operator=`. On drain timeout,
+     *  detach the callback node onto a helper thread for a 30 s grace
+     *  window so destruction happens off the move path. The node is held
+     *  by shared ownership, so the `shared_ptr` move below keeps any
+     *  outstanding `Stream` view's registered `ctx` valid. */
     Client& operator=(Client&& other) noexcept {
         if (this != &other) {
             if (handle_) {
@@ -2441,12 +2466,9 @@ public:
                     std::thread([cb = std::move(callback_)]() mutable {
                         std::this_thread::sleep_for(std::chrono::seconds(30));
                     }).detach();
-                } else {
-                    callback_.reset();
                 }
-            } else {
-                callback_.reset();
             }
+            callback_.reset();
             handle_ = std::move(other.handle_);
             callback_ = std::move(other.callback_);
         }
@@ -2454,33 +2476,47 @@ public:
     }
 
     /// Namespace handle for the FLATFILES surface. Cheap — borrows the
-    /// underlying C ABI handle, so the lifetime of the returned
-    /// `FlatFiles` value is bounded by `*this`.
-    FlatFiles flat_files() const { return FlatFiles(handle_.get()); }
+    /// underlying C ABI handle, so the returned `FlatFiles` value borrows
+    /// `*this` and must not outlive it.
+    ///
+    /// Lvalue-only: the accessor is ref-qualified to `const&`, so calling
+    /// it on a temporary is a compile error. Bind the client to a variable
+    /// first (`auto& c = ...; auto ff = c.flat_files();`); the view then
+    /// cannot outlive its client.
+    FlatFiles flat_files() const& { return FlatFiles(handle_.get()); }
 
     /// Historical-data sub-namespace: `client.historical().stock_history_eod(...)`.
     ///
     /// Returns a `Historical` view borrowing this client's handle. No auth
-    /// round-trip, no second connection; the view's lifetime is bounded by
-    /// `*this`.
-    Historical historical() const { return Historical(handle_.get()); }
+    /// round-trip, no second connection; the view borrows `*this` and must
+    /// not outlive it.
+    ///
+    /// Lvalue-only: the accessor is ref-qualified to `const&`, so calling
+    /// it on a temporary is a compile error. Bind the client to a variable
+    /// first; the view then cannot outlive its client.
+    Historical historical() const& { return Historical(handle_.get()); }
 
     /// Real-time-streaming sub-namespace: `client.stream().subscribe(...)`,
     /// `client.stream().set_callback(cb)`, …
     ///
-    /// Returns a `Stream` view borrowing this client's handle and a pointer
-    /// to this client's callback storage slot, so the streaming lifecycle
-    /// observed through the view is the one this client owns. The callback
-    /// `std::function` storage lives on `*this` (whose destructor runs the
-    /// C-ABI drain barrier), never on the transient view.
-    Stream stream() { return Stream(handle_.get(), &callback_); }
+    /// Returns a `Stream` view borrowing this client's handle and sharing
+    /// this client's callback node, so the streaming lifecycle observed
+    /// through the view is the one this client owns. The handle is borrowed
+    /// and must not outlive `*this`; the callback node is held by shared
+    /// ownership, so it survives a `Client` move.
+    ///
+    /// Lvalue-only: the accessor is ref-qualified to `&`, so calling it on
+    /// a temporary is a compile error. Bind the client to a variable first;
+    /// the view's borrowed handle then cannot outlive its client.
+    Stream stream() & { return Stream(handle_.get(), callback_); }
 
     /// Raw handle for advanced consumers that want to call the C ABI
     /// directly. Ownership remains with this object.
     const ThetaDataDxClient* get() const noexcept { return handle_.get(); }
 
 private:
-    explicit Client(ThetaDataDxClient* h) : handle_(h) {}
+    explicit Client(ThetaDataDxClient* h)
+        : callback_(std::make_shared<CallbackSlot>()), handle_(h) {}
 
     // ── Member ordering invariant (do not reorder) ──
     //
@@ -2495,10 +2531,16 @@ private:
     //
     // We therefore declare `handle_` AFTER `callback_`: reverse-order
     // destruction destroys `handle_` first → `thetadatadx_client_free` runs
-    // and its drain barrier returns → `callback_` storage is then
-    // released. Reordering these two members reintroduces the
-    // use-after-free.
-    std::unique_ptr<std::function<void(const StreamEvent&)>> callback_;
+    // and its drain barrier returns → this client's reference to the
+    // callback node is then released. Reordering these two members
+    // reintroduces the use-after-free.
+    //
+    // The node is held by `shared_ptr` so it lives at a fixed address: a
+    // `Client` move transfers the reference without moving the node, and a
+    // `Stream` view holds its own reference. The registered `ctx`
+    // (`&CallbackSlot::fn`) therefore stays valid across any move and for
+    // as long as any holder lives.
+    std::shared_ptr<CallbackSlot> callback_;
     std::unique_ptr<ThetaDataDxClient, UnifiedDeleter> handle_;
 };
 

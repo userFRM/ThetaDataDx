@@ -413,12 +413,13 @@ pub unsafe extern "C" fn thetadatadx_config_get_flush_mode(
 
 /// Read the target server environment carried by the config.
 ///
-/// On success, returns a heap-owned NUL-terminated C string (`"PROD"` or
-/// `"STAGE"`) the caller MUST release with `thetadatadx_string_free`. The
-/// environment is set as a unit by `thetadatadx_direct_config_new` /
-/// the stage preset (and the `THETADATA_MDDS_TYPE` dotenv key); this is
-/// the readback of that selection. Returns null if `config` is null
-/// (the diagnostic is written to `thetadatadx_last_error()`).
+/// On success, returns a heap-owned NUL-terminated C string (`"PROD"`,
+/// `"STAGE"`, or `"DEV"`) the caller MUST release with
+/// `thetadatadx_string_free`. The environment is set as a unit by
+/// `thetadatadx_direct_config_new` / the stage / dev presets (and the
+/// `THETADATA_MDDS_TYPE` dotenv key); this is the readback of that
+/// selection. Returns null if `config` is null (the diagnostic is written
+/// to `thetadatadx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_config_get_environment(
     config: *const ThetaDataDxConfig,
@@ -3900,19 +3901,24 @@ mod auth_metrics_setter_tests {
     #[test]
     fn environment_reads_back_the_selected_cluster_via_getter() {
         // The readback getter mirrored across the bindings: the stage
-        // preset reads back `"STAGE"`, the production preset `"PROD"`.
+        // preset reads back `"STAGE"`, the production preset `"PROD"`, and
+        // the dev preset `"DEV"`.
         let staged = super::thetadatadx_config_stage();
         let prod = super::thetadatadx_config_production();
-        // SAFETY: both handles were just returned by the config constructors.
+        let dev = super::thetadatadx_config_dev();
+        // SAFETY: all three handles were just returned by the config constructors.
         unsafe {
             let got = take_owned(super::thetadatadx_config_get_environment(staged));
             assert_eq!(got.as_deref(), Some("STAGE"));
             let got = take_owned(super::thetadatadx_config_get_environment(prod));
             assert_eq!(got.as_deref(), Some("PROD"));
+            let got = take_owned(super::thetadatadx_config_get_environment(dev));
+            assert_eq!(got.as_deref(), Some("DEV"));
             // A null handle yields null.
             assert!(super::thetadatadx_config_get_environment(std::ptr::null()).is_null());
             super::thetadatadx_config_free(staged);
             super::thetadatadx_config_free(prod);
+            super::thetadatadx_config_free(dev);
         }
     }
 

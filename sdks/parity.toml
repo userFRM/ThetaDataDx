@@ -1765,11 +1765,11 @@ python = true
 typescript = true
 cpp = true
 
-# `environment` is the target-server readback: the production / stage
-# presets (and the `THETADATA_MDDS_TYPE` dotenv key) set the cluster
+# `environment` is the target-server readback: the production / stage /
+# dev presets (and the `THETADATA_MDDS_TYPE` dotenv key) set the cluster
 # selector as a unit, and this getter reads it back as a `"PROD"` /
-# `"STAGE"` string, the same selector spelling the inline client takes
-# as `mddsType` / `mdds_type`. Exposed on every binding: Python
+# `"STAGE"` / `"DEV"` string, the same selector spelling the inline client
+# takes as `mddsType` / `mdds_type`. Exposed on every binding: Python
 # (`Config.environment` property), TypeScript (`Config.environment`
 # getter), C++ (`Config::get_environment()` over the FFI
 # `thetadatadx_config_get_environment` symbol). There is no matching
