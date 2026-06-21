@@ -19,7 +19,19 @@ cargo build --release -p thetadatadx-cli
 
 ## Setup
 
-Create a `creds.txt` file with your ThetaData credentials:
+Sign in any of these ways, resolved in this order (highest first): pass `--api-key <KEY>`, set `THETADATA_API_KEY` in the environment, set `THETADATA_EMAIL` + `THETADATA_PASSWORD` in the environment, or create a `creds.txt` file and point at it with `--creds`. These are the same names the SDK, the server, and the MCP server read, so one login authenticates every tool.
+
+```bash
+# API key on the flag or in the environment
+thetadatadx --api-key YOUR_API_KEY auth
+export THETADATA_API_KEY="YOUR_API_KEY"
+
+# Email + password in the environment
+export THETADATA_EMAIL="your-email@example.com"
+export THETADATA_PASSWORD="your-password"
+```
+
+Or a `creds.txt` file (email line 1, password line 2):
 
 ```
 your-email@example.com
@@ -127,7 +139,8 @@ thetadatadx stock history_eod AAPL 20240101 20240301 --format csv      # CSV
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--creds <path>` | `creds.txt` | Credentials file |
+| `--api-key <key>` | | Authenticate with a ThetaData API key (or set `THETADATA_API_KEY`). Takes precedence over the environment variables and the email/password path |
+| `--creds <path>` | `creds.txt` | Credentials file (email line 1, password line 2). Used when no API key and no `THETADATA_EMAIL` + `THETADATA_PASSWORD` pair is set |
 | `--config <preset>` | `production` | `production` or `dev` |
 | `--format <fmt>` | `table` | `table`, `json`, `json-raw`, or `csv`; `json-raw` emits dates as raw `YYYYMMDD` integers instead of the ISO values `json` produces |
 | `--timeout-ms <ms>` | | Per-call deadline in milliseconds; on expiry the in-flight request is cancelled |

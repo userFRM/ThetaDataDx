@@ -53,9 +53,19 @@ fn offline_tools_list_advertises_only_offline_tools() {
         return;
     }
 
-    // Launch the MCP server in offline mode (no THETA_EMAIL/THETA_PASSWORD so
-    // it never connects and answers `tools/list` from the offline surface).
+    // Launch the MCP server in offline mode. The child must not inherit ANY
+    // credential the resolver honours, or it would connect to a live upstream
+    // and answer `tools/list` from the connected surface, turning this
+    // offline assertion into a false pass. The resolver reads the canonical
+    // `THETADATA_API_KEY`, `THETADATA_EMAIL`, and `THETADATA_PASSWORD` vars
+    // (see `resolve_credentials` in the binary); clear all three, plus the
+    // legacy `THETA_EMAIL` / `THETA_PASSWORD` names, so the child has no
+    // credential source regardless of the parent environment. With `--creds`
+    // never passed and no env credential, the server stays offline.
     let mut child = Command::new(&bin)
+        .env_remove("THETADATA_API_KEY")
+        .env_remove("THETADATA_EMAIL")
+        .env_remove("THETADATA_PASSWORD")
         .env_remove("THETA_EMAIL")
         .env_remove("THETA_PASSWORD")
         .stdin(Stdio::piped())

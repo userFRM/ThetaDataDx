@@ -55,8 +55,9 @@ fn build_cli() -> Command {
                 .global(true)
                 .help(
                     "Authenticate with a ThetaData API key. Takes precedence over \
-                     THETADATA_API_KEY and the credentials file. May also be supplied \
-                     via the THETADATA_API_KEY environment variable.",
+                     THETADATA_API_KEY, the THETADATA_EMAIL + THETADATA_PASSWORD pair, \
+                     and the credentials file. May also be supplied via the \
+                     THETADATA_API_KEY environment variable.",
                 ),
         )
         .arg(

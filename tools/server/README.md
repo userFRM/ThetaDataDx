@@ -16,6 +16,11 @@ export THETADATA_API_KEY="YOUR_API_KEY" && thetadatadx-server
 # With email/password directly (no creds file needed)
 thetadatadx-server --email you@example.com --password YOUR_PASSWORD
 
+# Or with email/password in the environment
+export THETADATA_EMAIL="you@example.com"
+export THETADATA_PASSWORD="YOUR_PASSWORD"
+thetadatadx-server
+
 # With credentials file
 echo "your@email.com" > creds.txt
 echo "your_password" >> creds.txt
@@ -36,10 +41,10 @@ The server starts:
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--api-key` | | Authenticate with a ThetaData API key (or set `THETADATA_API_KEY`). Takes precedence over the environment variable and the email/password path. |
-| `--email` | | ThetaData email (alternative to `--creds`) |
-| `--password` | | ThetaData password (alternative to `--creds`) |
-| `--creds` | `creds.txt` | Path to credentials file |
+| `--api-key` | | Authenticate with a ThetaData API key (or set `THETADATA_API_KEY`). Takes precedence over the environment variables and the email/password path. |
+| `--email` | | ThetaData email (or set `THETADATA_EMAIL` + `THETADATA_PASSWORD`, or use `--creds`) |
+| `--password` | | ThetaData password (or set `THETADATA_EMAIL` + `THETADATA_PASSWORD`, or use `--creds`) |
+| `--creds` | `creds.txt` | Path to credentials file (email line 1, password line 2) |
 | `--config` | | Path to TOML config file |
 | `--fpss-region` | `production` | FPSS region: `production`, `dev`, `stage` |
 | `--http-port` | `25503` | HTTP REST API port |
@@ -53,13 +58,17 @@ The server starts:
 
 Every request emits one `INFO` access-log line (method, URI, status, latency) by default. The startup banner prints `thetadatadx-server v<version>`.
 
+Credentials resolve in this order, highest first: the `--api-key` flag, then `THETADATA_API_KEY`, then `THETADATA_EMAIL` + `THETADATA_PASSWORD`, then the `--creds` file (default `creds.txt`: email on line 1, password on line 2). These are the same names the SDK, the CLI, and the MCP server read, so one login authenticates every tool.
+
 ### Environment variables
 
-These runtime knobs are read from the environment. `THETADATA_API_KEY` also has a `--api-key` flag that overrides it; the rate-limit knobs have no flag. Per-IP rate limiting is off by default (matching the terminal it replaces); setting either rate-limit variable opts in. Full descriptions live in [`docs-site/docs/server/index.md`](../../docs-site/docs/server/index.md).
+These variables are read from the environment. The credential variables (`THETADATA_API_KEY`, and the `THETADATA_EMAIL` + `THETADATA_PASSWORD` pair) authenticate the server; the rate-limit knobs have no flag. Per-IP rate limiting is off by default (matching the terminal it replaces); setting either rate-limit variable opts in. Full descriptions live in [`docs-site/docs/server/index.md`](../../docs-site/docs/server/index.md).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `THETADATA_API_KEY` | | API key for authentication when `--api-key` is not passed. An explicit `--api-key` flag wins over this; both win over the email/password path. The key is never logged or echoed. |
+| `THETADATA_EMAIL` | | Account email. With `THETADATA_PASSWORD`, authenticates the server when no API key is supplied. Outranked by `--api-key` and `THETADATA_API_KEY`; wins over the `--creds` file. |
+| `THETADATA_PASSWORD` | | Account password, paired with `THETADATA_EMAIL`. Never logged or echoed. |
 | `THETADATADX_RATE_LIMIT_PER_SECOND` | off | Opt into per-IP rate limiting at this many requests per second. Setting either rate-limit variable turns the limiter on. |
 | `THETADATADX_RATE_LIMIT_BURST_SIZE` | off | Burst size for the per-IP rate limiter. If only one of the two rate-limit variables is set, the other falls back to `20` req/s / `40` burst. |
 | `THETADATADX_WS_CLIENT_CAPACITY` | `4096` | Per-client WebSocket send-buffer capacity in events. A larger buffer trades memory for more headroom before a slow consumer drops events; invalid or zero values keep the default. |

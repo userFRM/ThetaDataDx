@@ -54,6 +54,14 @@ OPENAPI_SERVER_URL = "http://localhost:25503"
 DOCS_SITE = ROOT / "docs-site/docs"
 OPENAPI_YAML = DOCS_SITE / "public/thetadatadx.yaml"
 
+# The Rust source that is the single source of truth for the flat-file served
+# matrix: the `(SecType, ReqType)` pairs the distribution serves
+# (`SERVED_DATASETS`), plus the client-facing tokens those variants render to
+# (`SecType::as_wire` lower-cased and `ReqType::as_str`). The OpenAPI flat-file
+# enums must match this matrix exactly, so the gate derives the expected matrix
+# from this file rather than carrying a hand-maintained copy that could drift.
+FLATFILE_TYPES_RS = ROOT / "crates/thetadatadx/src/flatfiles/types.rs"
+
 # Server source files that register the `/v3` HTTP routes. The server is the
 # source of truth for the served route set, so the gate parses the `.route(...)`
 # literals from these files rather than carrying a hand-maintained duplicate
@@ -555,6 +563,211 @@ def extract_struct_fields(path: Path, struct_pattern: str, field_pattern: str) -
     return set(re.findall(field_pattern, match.group(1), re.MULTILINE))
 
 
+def _rust_match_arm_map(body: str, lhs_variant: str) -> dict[str, str]:
+    """Parse `Self::Variant => "token",` arms into a `{Variant: token}` map.
+
+    `body` is the source slice holding the match arms (e.g. the body of a
+    `fn as_str` / `fn as_wire`). `lhs_variant` captures the variant identifier
+    after `Self::`. The result keys the Rust variant to the string literal it
+    renders to, so the gate maps `SERVED_DATASETS` entries to the client-facing
+    tokens the OpenAPI enums carry without hand-coding either side.
+    """
+    return {
+        m.group(1): m.group(2)
+        for m in re.finditer(
+            rf'Self::({lhs_variant})\s*=>\s*"([^"]+)"', body
+        )
+    }
+
+
+def flatfile_served_matrix() -> dict[str, set[str]]:
+    """Derive `{sec_type_token: {req_type_token, ...}}` from the Rust source.
+
+    Parses `SERVED_DATASETS` (the `(SecType::X, ReqType::Y)` pairs the flat-file
+    distribution serves) and the variant-to-token maps from `SecType::as_wire`
+    and `ReqType::as_str`, all in `FLATFILE_TYPES_RS`. The sec_type token is the
+    lower-cased `as_wire` value (`OPTION` -> `option`), matching the OpenAPI
+    flat-file path/enum spelling; the req_type token is the `as_str` value
+    verbatim. A single source means a served-matrix change in the Rust enum
+    moves the expected matrix here with no edit to this gate.
+    """
+    text = FLATFILE_TYPES_RS.read_text()
+
+    # Variant -> token maps from the two `as_*` methods. Restrict each search to
+    # the method body so unrelated `Self::X => ...` arms (e.g. Display) are not
+    # swept in.
+    sec_body = re.search(
+        r"fn as_wire\(self\) -> &'static str \{(.*?)\n    \}", text, re.DOTALL
+    )
+    req_body = re.search(
+        r"fn as_str\(self\) -> &'static str \{(.*?)\n    \}", text, re.DOTALL
+    )
+    if not sec_body or not req_body:
+        fail(
+            f"{FLATFILE_TYPES_RS.relative_to(ROOT)} missing SecType::as_wire / "
+            f"ReqType::as_str bodies the flat-file matrix gate parses"
+        )
+    sec_token = {
+        variant: wire.lower()
+        for variant, wire in _rust_match_arm_map(
+            sec_body.group(1), r"Option|Stock|Index"
+        ).items()
+    }
+    req_token = _rust_match_arm_map(
+        req_body.group(1), r"Eod|Quote|OpenInterest|Ohlc|Trade|TradeQuote"
+    )
+
+    # The served pairs themselves. `SERVED_DATASETS` is a `&[(SecType::_,
+    # ReqType::_)]` literal; capture each `(SecType::A, ReqType::B)` tuple.
+    served_block = re.search(
+        r"pub const SERVED_DATASETS:[^=]*=\s*&\[(.*?)\];", text, re.DOTALL
+    )
+    if not served_block:
+        fail(
+            f"{FLATFILE_TYPES_RS.relative_to(ROOT)} missing the SERVED_DATASETS "
+            f"slice the flat-file matrix gate parses"
+        )
+    pairs = re.findall(
+        r"\(\s*SecType::(\w+)\s*,\s*ReqType::(\w+)\s*\)", served_block.group(1)
+    )
+    if not pairs:
+        fail(
+            f"{FLATFILE_TYPES_RS.relative_to(ROOT)} SERVED_DATASETS parsed to no "
+            f"(SecType, ReqType) pairs"
+        )
+
+    matrix: dict[str, set[str]] = {}
+    for sec_variant, req_variant in pairs:
+        if sec_variant not in sec_token:
+            fail(f"SERVED_DATASETS names SecType::{sec_variant} with no as_wire token")
+        if req_variant not in req_token:
+            fail(f"SERVED_DATASETS names ReqType::{req_variant} with no as_str token")
+        matrix.setdefault(sec_token[sec_variant], set()).add(req_token[req_variant])
+    return matrix
+
+
+def _yaml_block(text: str, header_re: str, *, after: int = 0) -> tuple[str, int]:
+    """Return the indented body under the first `header_re` line at/after `after`.
+
+    The body runs from the header line to the next line indented at or below the
+    header's own indentation (or end of file). Used to scope an enum/oneOf parse
+    to a single OpenAPI node so a later same-named key cannot bleed in. Returns
+    the body text and the absolute offset where it ends.
+    """
+    m = re.search(header_re, text[after:], re.MULTILINE)
+    if not m:
+        return "", len(text)
+    start = after + m.start()
+    header_indent = len(m.group(0)) - len(m.group(0).lstrip())
+    lines = text[start:].splitlines(keepends=True)
+    out: list[str] = [lines[0]]
+    pos = start + len(lines[0])
+    for line in lines[1:]:
+        if line.strip() and (len(line) - len(line.lstrip())) <= header_indent:
+            break
+        out.append(line)
+        pos += len(line)
+    return "".join(out), pos
+
+
+def _enum_values(block: str) -> list[str]:
+    """The inline-list `enum: [a, b, c]` values in `block`, stripped of quotes."""
+    m = re.search(r"enum:\s*\[([^\]]*)\]", block)
+    if not m:
+        return []
+    return [v.strip().strip("'\"") for v in m.group(1).split(",") if v.strip()]
+
+
+def check_flatfile_matrix() -> None:
+    """OpenAPI flat-file enums must equal the `SERVED_DATASETS` served matrix.
+
+    The path form (`/v3/flatfile/{sec_type}/{req_type}`) takes the two segments
+    independently, so its `sec_type` enum must be the served security types and
+    its `req_type` enum the union of every served request type. The body form
+    (`POST /v3/flatfile/request`) constrains the served pairs per security type
+    through a `oneOf`, so each branch must pin one `sec_type` to exactly that
+    type's served request types. A served-matrix drift in the checked-in spec
+    in either direction fails the gate.
+    """
+    matrix = flatfile_served_matrix()
+    expected_secs = set(matrix)
+    expected_req_union = set().union(*matrix.values())
+
+    text = OPENAPI_YAML.read_text()
+
+    # --- Path form: /v3/flatfile/{sec_type}/{req_type} ----------------------
+    path_block, _ = _yaml_block(
+        text, r"^  /v3/flatfile/\{sec_type\}/\{req_type\}:\s*$"
+    )
+    if not path_block:
+        fail(
+            f"{OPENAPI_YAML.relative_to(ROOT)} missing the flat-file path "
+            f"/v3/flatfile/{{sec_type}}/{{req_type}}"
+        )
+    sec_param, _ = _yaml_block(path_block, r"^        - name: sec_type\s*$")
+    req_param, _ = _yaml_block(path_block, r"^        - name: req_type\s*$")
+    path_secs = set(_enum_values(sec_param))
+    path_reqs = set(_enum_values(req_param))
+    if path_secs != expected_secs:
+        fail(
+            f"{OPENAPI_YAML.relative_to(ROOT)} flat-file path sec_type enum "
+            f"{sorted(path_secs)} != served security types {sorted(expected_secs)}"
+        )
+    if path_reqs != expected_req_union:
+        fail(
+            f"{OPENAPI_YAML.relative_to(ROOT)} flat-file path req_type enum "
+            f"{sorted(path_reqs)} != union of served request types "
+            f"{sorted(expected_req_union)}"
+        )
+
+    # --- Body form: POST /v3/flatfile/request oneOf branches ----------------
+    req_path_block, _ = _yaml_block(text, r"^  /v3/flatfile/request:\s*$")
+    if not req_path_block:
+        fail(
+            f"{OPENAPI_YAML.relative_to(ROOT)} missing the flat-file body path "
+            f"/v3/flatfile/request"
+        )
+    oneof_block, _ = _yaml_block(req_path_block, r"^              oneOf:\s*$")
+    if not oneof_block:
+        fail(
+            f"{OPENAPI_YAML.relative_to(ROOT)} POST /v3/flatfile/request has no "
+            f"oneOf constraining the served (sec_type, req_type) pairs"
+        )
+    # Each branch begins at a `- title:` list item; split on those markers.
+    branch_starts = [m.start() for m in re.finditer(r"^                - ", oneof_block, re.MULTILINE)]
+    if not branch_starts:
+        fail(
+            f"{OPENAPI_YAML.relative_to(ROOT)} flat-file request oneOf has no "
+            f"branches"
+        )
+    branch_bounds = branch_starts + [len(oneof_block)]
+    body_matrix: dict[str, set[str]] = {}
+    for i in range(len(branch_starts)):
+        branch = oneof_block[branch_bounds[i] : branch_bounds[i + 1]]
+        sec_prop, _ = _yaml_block(branch, r"^                    sec_type:\s*$")
+        req_prop, _ = _yaml_block(branch, r"^                    req_type:\s*$")
+        secs = _enum_values(sec_prop)
+        reqs = set(_enum_values(req_prop))
+        if len(secs) != 1:
+            fail(
+                f"{OPENAPI_YAML.relative_to(ROOT)} flat-file request oneOf branch "
+                f"must pin exactly one sec_type; got {secs}"
+            )
+        sec = secs[0]
+        if sec in body_matrix:
+            fail(
+                f"{OPENAPI_YAML.relative_to(ROOT)} flat-file request oneOf has "
+                f"duplicate branch for sec_type {sec!r}"
+            )
+        body_matrix[sec] = reqs
+    if body_matrix != matrix:
+        fail(
+            f"{OPENAPI_YAML.relative_to(ROOT)} flat-file request oneOf matrix "
+            f"{ {k: sorted(v) for k, v in body_matrix.items()} } != served matrix "
+            f"{ {k: sorted(v) for k, v in matrix.items()} }"
+        )
+
+
 def check_endpoint_option_surface() -> None:
     rust_fields = extract_struct_fields(
         ROOT / "ffi/src/endpoint_request_options.rs",
@@ -631,6 +844,7 @@ def main() -> None:
     check_reference_pages()
     check_llms_txt()
     check_openapi()
+    check_flatfile_matrix()
     check_endpoint_option_surface()
     check_tier_badges()
     print("docs consistency: ok")
