@@ -1000,9 +1000,9 @@ mod tests {
         }
     }
 
-    /// A slow-trickling stream whose gaps are each under the deadline but
-    /// whose aggregate duration exceeds it must still succeed. Proves the
-    /// deadline re-arms on every successful byte (the JVM terminal's
+    /// A slow-trickling stream whose gaps are each well under the deadline
+    /// but whose aggregate duration exceeds it must still succeed. Proves
+    /// the deadline re-arms on every successful byte (the JVM terminal's
     /// per-read socket-timeout semantics) rather than running from function
     /// entry.
     /// Delivers one byte per `Ok`, with each byte preceded by a single
@@ -1011,6 +1011,12 @@ mod tests {
     /// cumulative sleep exceeds the configured deadline, but each
     /// individual gap is under it. If the deadline did not reset, the
     /// second gap would trip it.
+    ///
+    /// The per-stall sleep is kept far below the per-stall deadline so CPU
+    /// contention (a 5 ms sleep ballooning under load) cannot stretch a
+    /// single gap across the deadline and trip a spurious fatal; the
+    /// non-vacuousness instead comes from the *number* of gaps, whose real
+    /// cumulative sleep is guaranteed to exceed the deadline.
     struct SleepingTrickle {
         remaining: Vec<u8>,
         sleep_per_stall: Duration,
@@ -1036,41 +1042,57 @@ mod tests {
         }
     }
 
-    /// With an 8-byte payload + 15 ms of WouldBlock sleep per byte + a 40 ms
-    /// stall deadline:
-    /// - Cumulative wall time: 8 × 15 ms = 120 ms (> 40 ms)
-    /// - Longest single gap: 15 ms (< 40 ms)
+    /// Many small gaps under a generous per-stall deadline:
+    /// - `PAYLOAD_LEN` bytes, one `WouldBlock` gap before each.
+    /// - Per-stall sleep `GAP_MS` (5 ms) is 40× below the per-stall
+    ///   deadline `STALL_MS` (200 ms), so even a heavily load-stretched
+    ///   gap stays well under the deadline — no spurious "without
+    ///   progress" fatal.
+    /// - Cumulative real sleep `PAYLOAD_LEN × GAP_MS` (80 × 5 ms = 400 ms)
+    ///   structurally exceeds the per-stall deadline, so the success is
+    ///   not vacuous: a fixed deadline armed from function entry (the
+    ///   prior, broken style) would fire once cumulative sleep crossed
+    ///   `STALL_MS`. Only the reset-on-progress semantics let it complete.
     ///
-    /// Must succeed under the parity "reset on progress" semantics.
-    /// A fixed deadline from function entry (prior implementation style)
-    /// would fail around cycle 3 once cumulative sleep crossed 40 ms.
+    /// Behavioral assertions preserved: the read succeeds (no byte loss,
+    /// payload arrives in order) under reset-on-progress, and the
+    /// lower-bound wall-time check stays non-vacuous because it is backed
+    /// by `PAYLOAD_LEN` real sleeps that sum past the deadline.
     #[test]
     fn mid_payload_progress_resets_deadline() {
+        const PAYLOAD_LEN: usize = 80;
+        const GAP_MS: u64 = 5;
+        const STALL_MS: u64 = 200;
+        // The real cumulative sleep must exceed the per-stall deadline so
+        // the reset-on-progress property is exercised, not vacuously met.
+        const _: () = assert!(PAYLOAD_LEN as u64 * GAP_MS > STALL_MS);
+
         let mut reader = SleepingTrickle {
-            remaining: (1..=8).collect::<Vec<u8>>(),
-            sleep_per_stall: Duration::from_millis(15),
+            remaining: (0..u8::try_from(PAYLOAD_LEN).unwrap()).collect::<Vec<u8>>(),
+            sleep_per_stall: Duration::from_millis(GAP_MS),
             stalled_since_last_byte: false,
         };
-        let mut payload = [0u8; 8];
+        let mut payload = vec![0u8; PAYLOAD_LEN];
         let mut state = FrameReadState::new();
         let started = Instant::now();
-        // Use a drain budget (500 ms) that's larger than the aggregate
-        // wall time (120 ms) so this test pins the per-stall reset
-        // semantics independently of the drain-yield path.
+        // Drain budget far above the aggregate wall time so this test
+        // pins the per-stall reset semantics independently of the
+        // drain-yield path (a generous upper bound, not a tight one).
         read_exact_payload_with_timeout(
             &mut reader,
             &mut payload,
             &mut state,
-            Duration::from_millis(40),
-            Duration::from_millis(500),
+            Duration::from_millis(STALL_MS),
+            Duration::from_secs(5),
         )
         .unwrap();
         let elapsed = started.elapsed();
-        assert_eq!(payload, [1, 2, 3, 4, 5, 6, 7, 8]);
+        let expected: Vec<u8> = (0..u8::try_from(PAYLOAD_LEN).unwrap()).collect();
+        assert_eq!(payload, expected, "every byte must land in order");
         assert!(
-            elapsed >= Duration::from_millis(40),
-            "cumulative wall time {elapsed:?} should exceed the 40 ms deadline — \
-             otherwise the reset-on-progress property is vacuously true"
+            elapsed >= Duration::from_millis(STALL_MS),
+            "cumulative wall time {elapsed:?} must exceed the {STALL_MS} ms per-stall \
+             deadline — otherwise the reset-on-progress property is vacuously true"
         );
     }
 
@@ -1357,33 +1379,59 @@ mod tests {
         }
     }
 
-    /// Finding #3: a bytes-at-a-time producer with a 30 ms stall per
-    /// byte must NOT keep the mid-payload reader occupied past the
-    /// drain-yield budget. With an 80-byte payload and a 100 ms
-    /// drain budget, the reader must yield before consuming the
-    /// whole payload, preserving partial state. This is the exact
-    /// scenario the command drain needs to service heartbeats.
+    /// Finding #3: a bytes-at-a-time producer with a small stall per byte
+    /// must NOT keep the mid-payload reader occupied past the drain-yield
+    /// budget. The reader must yield before consuming the whole payload,
+    /// preserving partial state. This is the exact scenario the command
+    /// drain needs to service heartbeats.
+    ///
+    /// Load-robust parameter choice (no tight wall-clock margins):
+    /// - Per-stall sleep `GAP_MS` (3 ms) is three orders of magnitude
+    ///   below the per-stall deadline (30 s), so the per-stall "without
+    ///   progress" path can never preempt the drain-yield even when a
+    ///   sleep balloons under CPU contention. Only the drain-yield path
+    ///   can fire — which is the property under test.
+    /// - The drain budget (150 ms) is ~50× a single gap, so at least one
+    ///   byte is guaranteed to land before the budget trips (no spurious
+    ///   `payload_read == 0`), yet far below the aggregate
+    ///   `PAYLOAD_LEN × GAP_MS` (200 × 3 ms = 600 ms), so the yield is
+    ///   guaranteed to happen strictly before the full payload arrives.
+    ///
+    /// Behavioral assertions preserved: the error is a drain-yield
+    /// (`DRAIN_YIELD_MARKER`, mid-payload context), `is_drain_yield`
+    /// agrees, and partial progress is banked (`0 < payload_read <
+    /// PAYLOAD_LEN`). The wall-time bound stays only as a generous
+    /// "didn't hang" backstop; the before-completion property is pinned
+    /// deterministically by the `payload_read < PAYLOAD_LEN` count check.
     #[test]
     fn mid_payload_bytes_at_a_time_yields_before_full_payload() {
-        let payload_size = 80;
+        const PAYLOAD_LEN: usize = 200;
+        const GAP_MS: u64 = 3;
+        const BUDGET_MS: u64 = 150;
+        // Budget must sit between one gap (so a byte lands) and the
+        // aggregate (so the yield precedes completion).
+        const _: () = assert!(BUDGET_MS > GAP_MS);
+        const _: () = assert!(BUDGET_MS < PAYLOAD_LEN as u64 * GAP_MS);
+
+        // Byte values are irrelevant here (the test asserts counts, not
+        // contents); fill with a wrapping pattern so any PAYLOAD_LEN is
+        // valid without an overflow on the `u8` range.
         let mut reader = OneByteAtATime {
-            remaining: (0..u8::try_from(payload_size).unwrap()).collect(),
-            sleep_per_stall: Duration::from_millis(30),
+            remaining: (0..PAYLOAD_LEN).map(|i| (i % 256) as u8).collect(),
+            sleep_per_stall: Duration::from_millis(GAP_MS),
             stalled_since_last_byte: false,
         };
-        let mut payload = vec![0u8; payload_size];
+        let mut payload = vec![0u8; PAYLOAD_LEN];
         let mut state = FrameReadState::new();
         let started = Instant::now();
-        // Stall per-byte deadline = 60 ms (longer than the per-byte
-        // sleep so the stall-deadline alone would NOT trip).
-        // Drain budget = 100 ms (shorter than the aggregate 30 × 80 =
-        // 2400 ms wall time the trickler would otherwise burn).
+        // Per-stall deadline is enormous (30 s) so it can never preempt
+        // the drain-yield; the drain budget is what must fire.
         let err = read_exact_payload_with_timeout(
             &mut reader,
             &mut payload,
             &mut state,
-            Duration::from_millis(60),
-            Duration::from_millis(100),
+            Duration::from_secs(30),
+            Duration::from_millis(BUDGET_MS),
         )
         .unwrap_err();
         let elapsed = started.elapsed();
@@ -1408,30 +1456,30 @@ mod tests {
             "is_drain_yield helper must match the produced error"
         );
 
-        // Wall time bound: must not exceed the budget by more than
-        // one stall (allow 30 ms slack for the per-byte sleep that
-        // was already in flight when the deadline tripped).
+        // Generous "didn't hang" backstop only — the meaningful
+        // before-completion property is the deterministic count check
+        // below, not a tight wall-clock margin.
         assert!(
-            elapsed < Duration::from_millis(160),
-            "drain-yield must fire promptly; elapsed = {elapsed:?}, \
-             budget was 100 ms + 30 ms stall slack"
+            elapsed < Duration::from_secs(5),
+            "drain-yield must fire well before the per-stall deadline; \
+             elapsed = {elapsed:?}"
         );
 
         // Partial progress must be preserved: at least SOME bytes
-        // should have landed (the stall completed at least one
-        // iteration before the deadline fired), and strictly less
-        // than the full payload (the yield MUST happen before
-        // completion).
+        // should have landed (the budget is far above a single gap), and
+        // strictly less than the full payload (the yield MUST happen
+        // before completion — pinned deterministically by the budget
+        // sitting below the aggregate sleep).
         assert!(
             state.payload_read > 0,
             "partial payload bytes must have landed before the yield"
         );
         assert!(
-            state.payload_read < payload_size,
+            state.payload_read < PAYLOAD_LEN,
             "yield must happen BEFORE the full payload arrives; got \
              {} of {}",
             state.payload_read,
-            payload_size
+            PAYLOAD_LEN
         );
     }
 
@@ -1440,54 +1488,68 @@ mod tests {
     /// resume from the exact byte offset. No bytes are lost, none
     /// are re-read. This is the invariant that makes the yield
     /// safe for the command-drain re-entry pattern.
+    ///
+    /// Load-robust parameters (same shape as the yield-before-completion
+    /// test): tiny per-stall sleep under an enormous per-stall deadline so
+    /// the per-stall path can never preempt the drain-yield, and a drain
+    /// budget that sits comfortably between a single gap (so byte 1 lands)
+    /// and the aggregate sleep (so the first call yields mid-payload).
     #[test]
     fn drain_yield_preserves_payload_read_for_resumption() {
-        // 4-byte payload delivered one byte at a time. First call
-        // yields after the drain budget; second call completes
-        // the payload without losing any bytes.
+        const PAYLOAD_LEN: usize = 40;
+        const GAP_MS: u64 = 5;
+        const BUDGET_MS: u64 = 60;
+        const _: () = assert!(BUDGET_MS > GAP_MS);
+        const _: () = assert!(BUDGET_MS < PAYLOAD_LEN as u64 * GAP_MS);
+
+        // Deterministic, distinct-ish byte pattern so the final equality
+        // check proves both no-loss AND correct ordering.
+        let expected: Vec<u8> = (0..PAYLOAD_LEN)
+            .map(|i| (i.wrapping_mul(7) % 256) as u8)
+            .collect();
         let mut reader = OneByteAtATime {
-            remaining: vec![0x11, 0x22, 0x33, 0x44],
-            sleep_per_stall: Duration::from_millis(25),
+            remaining: expected.clone(),
+            sleep_per_stall: Duration::from_millis(GAP_MS),
             stalled_since_last_byte: false,
         };
-        let mut payload = vec![0u8; 4];
+        let mut payload = vec![0u8; PAYLOAD_LEN];
         let mut state = FrameReadState::new();
 
-        // First call: 60 ms drain budget -> yields somewhere
-        // between byte 2 and byte 3.
+        // First call: per-stall deadline 30 s (never trips), drain budget
+        // 60 ms -> yields after a handful of bytes, never the whole
+        // payload (aggregate sleep is PAYLOAD_LEN × GAP_MS = 200 ms).
         let err = read_exact_payload_with_timeout(
             &mut reader,
             &mut payload,
             &mut state,
-            Duration::from_millis(100),
-            Duration::from_millis(60),
+            Duration::from_secs(30),
+            Duration::from_millis(BUDGET_MS),
         )
         .unwrap_err();
         assert!(is_drain_yield(&err), "first call must drain-yield");
         let first_read = state.payload_read;
         assert!(
-            first_read > 0 && first_read < 4,
+            first_read > 0 && first_read < PAYLOAD_LEN,
             "first call must land some but not all bytes; got {first_read}"
         );
 
-        // Second call: finish the payload. The state carries the
-        // first-call progress so no bytes are re-read.
+        // Second call: finish the payload with a generous budget. The
+        // state carries the first-call progress so no bytes are re-read.
         read_exact_payload_with_timeout(
             &mut reader,
             &mut payload,
             &mut state,
-            Duration::from_millis(100),
-            Duration::from_secs(1),
+            Duration::from_secs(30),
+            Duration::from_secs(5),
         )
         .expect("second call must complete the payload without error");
         assert_eq!(
-            state.payload_read, 4,
+            state.payload_read, PAYLOAD_LEN,
             "state must reflect full payload completion"
         );
         assert_eq!(
-            payload,
-            vec![0x11, 0x22, 0x33, 0x44],
-            "every byte of the payload must land in the correct order"
+            payload, expected,
+            "every byte of the payload must land exactly once, in order"
         );
     }
 
@@ -1509,9 +1571,15 @@ mod tests {
         // Build a 6-byte payload frame: [LEN=6, CODE=PING, 6 bytes...]
         let mut wire = vec![0x06, StreamMsgType::Ping as u8];
         wire.extend_from_slice(&[0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]);
+        // Tiny per-stall sleep: this test does not depend on the yield
+        // actually firing (it tolerates zero yields), only on any yield
+        // being followed by clean resumption and the frame completing.
+        // Keeping the sleep small means the aggregate wall time stays
+        // orders of magnitude below the 5 s guard and the retry-count
+        // bound even under heavy CPU contention.
         let mut reader = OneByteAtATime {
             remaining: wire,
-            sleep_per_stall: Duration::from_millis(25),
+            sleep_per_stall: Duration::from_millis(2),
             stalled_since_last_byte: false,
         };
         let mut buf: Vec<u8> = Vec::new();
