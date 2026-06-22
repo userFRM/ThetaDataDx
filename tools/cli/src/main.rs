@@ -226,6 +226,13 @@ fn format_ms(ms: i32) -> String {
 
 /// Format a decoded f64 price for display.
 fn format_price_f64(value: f64) -> String {
+    // Non-finite prices never carry a decimal point, so the `.find('.')` below
+    // would panic. Collapse them the way the REST / MCP surfaces do via
+    // `json_canon::finite_or_null` (non-finite -> null): here the display
+    // equivalent of null is an empty cell. Keeps all frontends consistent.
+    if !value.is_finite() {
+        return String::new();
+    }
     if value == 0.0 {
         return "0.00".into();
     }

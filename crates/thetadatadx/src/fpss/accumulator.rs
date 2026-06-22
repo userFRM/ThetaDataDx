@@ -151,9 +151,23 @@ pub(super) fn change_price_type(price: i32, price_type: i32, new_price_type: i32
     if price == 0 || price_type == new_price_type {
         return price;
     }
-    let exp = new_price_type - price_type;
+    // Both `price_type`s are FPSS wire price types, validated into
+    // `0..=tdbe::types::price::MAX_PRICE_TYPE` (== 19) at the typed boundary by
+    // `strict_fpss_price` before any caller reaches here, so the difference is
+    // small and well-defined. Guard the helper at its boundary anyway: it is
+    // `pub(super)` with no compiler-enforced precondition, and a future caller
+    // must not be able to reintroduce a peer-triggerable subtract/negate
+    // debug-overflow. `saturating_sub` keeps `exp` finite; the `idx` lookups
+    // below are then bounded by `POW10.len()`, identical behavior for the valid
+    // range.
+    debug_assert!(
+        (0..=crate::tdbe::types::price::MAX_PRICE_TYPE).contains(&price_type)
+            && (0..=crate::tdbe::types::price::MAX_PRICE_TYPE).contains(&new_price_type),
+        "change_price_type expects price types in 0..=MAX_PRICE_TYPE"
+    );
+    let exp = new_price_type.saturating_sub(price_type);
     if exp <= 0 {
-        let idx = usize::try_from(-exp).unwrap_or(0);
+        let idx = usize::try_from(exp.unsigned_abs()).unwrap_or(usize::MAX);
         if idx < POW10.len() {
             // Match the JVM terminal's `int * int` wrap; differs from Rust's
             // default `*` which panics in debug. wrapping_mul makes the
