@@ -390,7 +390,21 @@ impl DirectConfig {
     /// call wins, superseding any earlier full or primary streaming override.
     /// The live field is updated immediately so a subsequent
     /// [`Self::streaming_hosts`] read reflects the new list.
+    ///
+    /// An **empty** list is ignored (logged and skipped): recording an empty
+    /// full override would leave the streaming channel with no host to dial and
+    /// silently swallow any primary host/port override that environment
+    /// selection layers on top. A caller that wants to reset to the
+    /// environment's own cluster selects it via
+    /// [`Self::with_environment`] / [`Self::stage`] / [`Self::dev`] rather than
+    /// passing an empty list.
     pub fn set_streaming_hosts(&mut self, hosts: Vec<(String, u16)>) {
+        if hosts.is_empty() {
+            tracing::warn!(
+                "ignoring empty streaming host list; keeping the current streaming hosts"
+            );
+            return;
+        }
         // A full list is the winning tier, so it supersedes any earlier
         // primary host/port patch: clear the stale primary overrides it
         // replaces before recording the new list.
@@ -887,6 +901,16 @@ impl DirectConfig {
                     self.retry.max_delay, self.retry.initial_delay
                 ),
             ));
+        }
+        // The streaming channel needs at least one host to dial. An empty list
+        // is reachable from a full override of `vec![]` (the public
+        // `set_streaming_hosts` setter); the config-file `[streaming] hosts`
+        // path already rejects empty in `parse_streaming_hosts`. Reject it here
+        // too so every construction path fails fast at build time with a clear
+        // field error rather than at the connect attempt with a generic "no
+        // servers configured".
+        if self.streaming.hosts.is_empty() {
+            return Err(Error::config_missing("streaming.hosts"));
         }
         // Validate ring_size eagerly so a bad config fails fast rather
         // than waiting for the connect attempt. Re-validation happens
@@ -2805,6 +2829,60 @@ mod tests {
     }
 
     #[test]
+    fn set_streaming_hosts_ignores_empty_list_and_keeps_primary_override() {
+        // An empty full-override list must be ignored: it would leave the
+        // streaming channel with no host and swallow a primary host/port
+        // override. After the no-op the environment's cluster and any recorded
+        // primary override are intact.
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        let mut config = DirectConfig::production();
+        // Record a primary host override first.
+        config.set_streaming_primary_host_override("primary.example.com".to_string());
+        let prod_hosts = DirectConfig::production_defaults().streaming.hosts;
+        assert_eq!(config.streaming.hosts[0].0, "primary.example.com");
+
+        // An empty list is a no-op: it neither zeroes the host list nor
+        // swallows the primary override.
+        config.set_streaming_hosts(vec![]);
+        assert!(
+            !config.streaming.hosts.is_empty(),
+            "an empty list must not clear the streaming hosts"
+        );
+        assert_eq!(
+            config.streaming.hosts[0].0, "primary.example.com",
+            "the primary override must survive an ignored empty list"
+        );
+        // Failover slots still track the production cluster.
+        assert_eq!(&config.streaming.hosts[1..], &prod_hosts[1..]);
+
+        // A non-empty list still wins outright as the full-override tier and
+        // supersedes the primary override.
+        let custom = vec![
+            ("full-a.example.com".to_string(), 4100),
+            ("full-b.example.com".to_string(), 4101),
+        ];
+        config.set_streaming_hosts(custom.clone());
+        assert_eq!(config.streaming.hosts, custom);
+    }
+
+    #[test]
+    fn validate_rejects_empty_streaming_hosts() {
+        // `validate()` is the fail-fast backstop for every construction path:
+        // an empty streaming host list is rejected at build time rather than
+        // surfacing as a generic "no servers configured" at connect.
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        let mut config = DirectConfig::production_defaults();
+        config.streaming.hosts = Vec::new();
+        let err = config.validate().unwrap_err();
+        assert!(
+            err.to_string().contains("streaming.hosts"),
+            "validate must name the empty streaming.hosts field, got: {err}"
+        );
+    }
+
+    #[test]
     fn set_streaming_hosts_full_list_survives_switch_even_when_equal_to_dev_hosts() {
         // A full list set via `set_streaming_hosts` is honoured by PROVENANCE,
         // not value: it must survive `with_environment` even when it happens to
@@ -3524,6 +3602,68 @@ mod tests {
         assert_eq!(config.streaming.hosts[0].0, stage_hosts[0].0);
         assert_eq!(config.streaming.hosts[0].1, 9999);
         assert_eq!(&config.streaming.hosts[1..], &stage_hosts[1..]);
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_nexus_url_with_stage_routes_auth_to_staging_no_split_cluster() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // An operator ships a `.env` that redirects the cluster to staging AND
+        // supplies a staging Nexus URL. Auth must follow the cluster: the
+        // historical + streaming channels go to staging hosts and auth POSTs to
+        // the staging Nexus, with no production/staging split.
+        let staging_nexus = "https://nexus-stage.thetadata.us/identity/terminal/auth_user";
+        let path = write_temp_dotenv(
+            "nexus-stage.env",
+            &format!(
+                "THETADATA_API_KEY=td_example_key\n\
+                 THETADATA_MDDS_TYPE=STAGE\n\
+                 THETADATA_NEXUS_URL={staging_nexus}\n"
+            ),
+        );
+        let config = DirectConfig::from_dotenv(&path).expect(".env must source");
+        let staged = DirectConfig::stage();
+        // Cluster: historical + streaming on staging.
+        assert_eq!(config.environment, Environment::Stage);
+        assert_eq!(config.historical.host, staged.historical.host);
+        assert_eq!(config.streaming.hosts, staged.streaming.hosts);
+        // Auth: the staging Nexus URL is honoured from the SAME `.env`, so auth
+        // does not keep POSTing to production while the data channels moved.
+        assert_eq!(config.auth.nexus_url, staging_nexus);
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_honors_historical_port_and_client_type() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // `THETADATA_HISTORICAL_PORT` and `THETADATA_CLIENT_TYPE` must be read
+        // from a `.env` exactly as the process-env path reads them — the `.env`
+        // path honours the same key set.
+        let path = write_temp_dotenv(
+            "histport.env",
+            "THETADATA_HISTORICAL_PORT=8443\nTHETADATA_CLIENT_TYPE=rust-thetadatadx-fleet\n",
+        );
+        let config = DirectConfig::from_dotenv(&path).expect(".env must source");
+        assert_eq!(config.historical.port, 8443);
+        assert_eq!(config.auth.client_type, "rust-thetadatadx-fleet");
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn from_dotenv_rejects_malformed_historical_port() {
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // A malformed / zero historical port from a `.env` is skipped leniently
+        // (logged), keeping the hardcoded default — matching the process-env
+        // path's `>0` + `parse::<u16>()` guard.
+        let path = write_temp_dotenv("badport.env", "THETADATA_HISTORICAL_PORT=not-a-port\n");
+        let config = DirectConfig::from_dotenv(&path).expect("malformed port must not error");
+        assert_eq!(
+            config.historical.port,
+            DirectConfig::production_defaults().historical.port
+        );
         std::fs::remove_file(&path).ok();
     }
 
