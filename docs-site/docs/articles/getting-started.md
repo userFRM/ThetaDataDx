@@ -16,7 +16,7 @@ ThetaDataDx connects directly to ThetaData's servers — nothing to install and 
 ```toml
 # Cargo.toml
 [dependencies]
-thetadatadx = "13.0.0-rc.4"
+thetadatadx = "13.0.0-rc.5"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
