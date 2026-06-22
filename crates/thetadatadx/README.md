@@ -153,7 +153,7 @@ use thetadatadx::streaming::{StreamingClient, StreamEvent};
 
 let creds = Credentials::from_file("creds.txt")?;
 let hosts = DirectConfig::production().streaming.hosts;
-let client = StreamingClient::builder(&creds, &hosts).ring_size(8192).build()?;
+let client = StreamingClient::builder(&creds, &hosts).build()?;
 
 client.subscribe(Contract::stock("AAPL").quote())?;
 

@@ -10,9 +10,10 @@ What is measured
 ----------------
 The bench-only ``thetadatadx.__bench_flood_events(n, callback)`` hook
 drives the SAME LMAX Disruptor pipeline the live FPSS consumer uses
-(single producer, single consumer thread, 4096-slot ring) and, for every
-delivered event, runs the IDENTICAL per-event handover the generated
-``start_streaming`` dispatcher runs in production:
+(single producer, single consumer thread, 131_072-slot ring = the
+production default) and, for every delivered event, runs the IDENTICAL
+per-event handover the generated ``start_streaming`` dispatcher runs in
+production:
 
   1. ``Python::attach`` — acquire the GIL on the consumer thread. The
      production granularity is PER-EVENT (the FPSS callback closure in

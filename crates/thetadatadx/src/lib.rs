@@ -51,7 +51,6 @@
 //! let hosts = config.streaming_hosts();
 //!
 //! let client = StreamingClient::builder(&creds, hosts)
-//!     .ring_size(8192)
 //!     .build()?;
 //!
 //! client.subscribe(Contract::stock("AAPL").quote())?;
