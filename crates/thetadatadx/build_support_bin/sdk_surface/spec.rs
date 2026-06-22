@@ -43,6 +43,7 @@ pub(super) struct MethodSpec {
 pub(super) enum MethodKind {
     StartStreaming,
     IsStreaming,
+    Batches,
     StockContractCall,
     OptionContractCall,
     FullCall,
@@ -231,6 +232,17 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
     let shape: MethodShape<'_> = match method.kind {
         MethodKind::StartStreaming => (Some("start_streaming"), &[PY, TS], true, &[]),
         MethodKind::IsStreaming => (Some("is_streaming"), &[PY, TS], true, &[]),
+        // The pull-based Arrow `RecordBatch` reader, a sibling to the
+        // per-event callback. The Python + TypeScript entries are generated
+        // (PY, TS). The C++ entry is hand-written on the `Stream` class —
+        // the same hand-written class that carries `set_callback`, distinct
+        // from the generated `StreamingClient` the `cpp_fpss` target feeds —
+        // so C++ is intentionally NOT in this generated set; it is tracked
+        // for parity directly. The tuning knobs (batch_size / linger /
+        // backpressure / capacity) are language-native optional parameters
+        // wired in each per-language surface, not positional spec params, so
+        // the layout here is empty.
+        MethodKind::Batches => (Some("batches"), &[PY, TS], true, &[]),
         MethodKind::StockContractCall => (
             None,
             &[PY, TS, CPP],

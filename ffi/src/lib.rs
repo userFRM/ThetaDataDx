@@ -126,6 +126,8 @@ pub mod auth;
 pub mod endpoints;
 pub mod flatfiles;
 pub mod streaming;
+pub mod streaming_batches;
+mod streaming_batches_ipc;
 pub mod types;
 pub mod utility;
 
@@ -141,5 +143,6 @@ pub use crate::endpoints::*;
 pub use crate::error::*;
 pub use crate::flatfiles::*;
 pub use crate::streaming::*;
+pub use crate::streaming_batches::*;
 pub use crate::types::*;
 pub use crate::utility::*;

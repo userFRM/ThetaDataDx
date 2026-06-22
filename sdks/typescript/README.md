@@ -140,6 +140,18 @@ const drained = await client.stream.awaitDrain(5000);
 > backoff with jitter, host failover, then a paced re-subscribe of every active
 > contract.
 
+Prefer columns? `client.stream.batches(...)` is a sibling to the callback — the same subscriptions, delivered as apache-arrow `RecordBatch` values under a fixed schema, consumed with `for await`. It closes (unsubscribe + tear down) on `Symbol.asyncDispose` or `close()`:
+
+```typescript
+client.stream.subscribe(Contract.stock('AAPL').trade());
+await using batches = await client.stream.batches({ batchSize: 8192 });
+for await (const batch of batches) {
+  console.log(batch.numRows);
+}
+```
+
+Decoding the batches needs `apache-arrow` installed alongside the SDK.
+
 ## Types
 
 Every tick type and streaming event is exported. Import the ones you need:

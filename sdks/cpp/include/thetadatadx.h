@@ -877,6 +877,64 @@ ThetaDataDxArrowBytes thetadatadx_trade_quote_ticks_to_arrow_ipc(const ThetaData
  *               buffer is a no-op. Call exactly once. */
 void thetadatadx_arrow_bytes_free(ThetaDataDxArrowBytes bytes);
 
+/* ── Streaming Arrow RecordBatch reader (pull-based) ── */
+
+/** Opaque handle to a live pull-based Arrow RecordBatch reader. Created by
+ *  thetadatadx_client_batches_open, drained by
+ *  thetadatadx_record_batch_stream_next_ipc, freed by
+ *  thetadatadx_record_batch_stream_free. */
+typedef struct ThetaDataDxRecordBatchStream ThetaDataDxRecordBatchStream;
+
+/** Backpressure: lossless block (applies backpressure to the wire). */
+#define THETADATADX_BACKPRESSURE_BLOCK 0
+/** Backpressure: bounded buffer, drop the oldest batch on overflow (counted
+ *  by thetadatadx_record_batch_stream_dropped). */
+#define THETADATADX_BACKPRESSURE_DROP_OLDEST 1
+
+/** Open a pull-based Arrow RecordBatch reader over the unified client's
+ *  stream — a sibling to thetadatadx_client_set_callback. Subscribe first on
+ *  the same surface, then open. Starts the FPSS session.
+ *  @param handle Client from thetadatadx_client_connect.
+ *  @param batch_size Rows per batch (0 clamped to 1).
+ *  @param linger_ms Partial-batch flush deadline in ms (quiet-stream flush).
+ *  @param backpressure THETADATADX_BACKPRESSURE_BLOCK or _DROP_OLDEST.
+ *  @param capacity Bounded-buffer depth in batches for drop-oldest (ignored
+ *                  for block; may be 0).
+ *  @return Reader handle, or NULL with thetadatadx_last_error() set on
+ *          failure. Free with thetadatadx_record_batch_stream_free. */
+ThetaDataDxRecordBatchStream* thetadatadx_client_batches_open(const ThetaDataDxClient* handle,
+                                                              size_t batch_size,
+                                                              uint64_t linger_ms,
+                                                              int32_t backpressure,
+                                                              size_t capacity);
+
+/** Block for the next batch and serialise it as an Arrow IPC stream into
+ *  *out.
+ *  @param stream Reader from thetadatadx_client_batches_open.
+ *  @param out Out-param, always initialised: holds the batch IPC bytes on a 0
+ *             return (free with thetadatadx_arrow_bytes_free), or empty
+ *             (data=NULL, len=0) otherwise.
+ *  @return 0 = a batch was produced; 1 = clean end of stream; -1 = error
+ *          (thetadatadx_last_error() set). */
+int32_t thetadatadx_record_batch_stream_next_ipc(const ThetaDataDxRecordBatchStream* stream,
+                                                 ThetaDataDxArrowBytes* out);
+
+/** Serialise the reader's fixed schema as a schema-only Arrow IPC stream into
+ *  *out, so a reader can report its schema before the first batch.
+ *  @return 0 on success (out holds schema IPC bytes, free with
+ *          thetadatadx_arrow_bytes_free); -1 on error (out empty,
+ *          thetadatadx_last_error() set). */
+int32_t thetadatadx_record_batch_stream_schema_ipc(const ThetaDataDxRecordBatchStream* stream,
+                                                   ThetaDataDxArrowBytes* out);
+
+/** Number of batches dropped so far under the drop-oldest policy. Always 0
+ *  under block. */
+uint64_t thetadatadx_record_batch_stream_dropped(const ThetaDataDxRecordBatchStream* stream);
+
+/** Stop the reader, tear down the FPSS session, and free the handle. A NULL
+ *  handle is a no-op. After this call the handle is invalid. */
+void thetadatadx_record_batch_stream_free(ThetaDataDxRecordBatchStream* stream);
+
 /* ── Error ── */
 
 /** Retrieve the last error message for the current thread.

@@ -1149,6 +1149,12 @@ pub use config_class::{Config, WorkerThreadsSetting};
 // Hand-written FLATFILES bindings — dynamic schema, see module docs.
 mod flatfile_methods;
 
+// Hand-written support for the pull-based Arrow `RecordBatch` reader —
+// the napi handle (`RecordBatchStreamHandle`) the generated
+// `StreamView.batches(..)` entry returns. See module docs.
+mod streaming_batches;
+pub use streaming_batches::RecordBatchStreamHandle;
+
 // Fluent contract-first API. Adds `ContractRef`,
 // `Subscription`, `SecType` napi classes and the polymorphic
 // `subscribe(sub)` / `subscribeMany([sub, ...])` methods on the

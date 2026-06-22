@@ -138,6 +138,52 @@ def test_fpss_streaming_paths_release_the_gil() -> None:
         )
 
 
+def test_record_batch_reader_releases_the_gil() -> None:
+    """Audit gate: the pull-based Arrow batch reader releases the GIL on
+    every blocking path.
+
+    The reader pulls market-data batches off a blocking ring queue. Two
+    blocking paths must release the GIL so a sibling Python thread keeps
+    running: the FPSS connect when the reader is opened, and the blocking
+    `__next__` pull. The async `__anext__` runs the blocking pull on a
+    tokio blocking-pool worker (no GIL held). This pins the structural
+    shape so a refactor cannot silently start holding the GIL across the
+    ring wait.
+    """
+    src = (_sdk_src_root() / "streaming_batches.rs").read_text()
+
+    # The connect (`builder.build()`) must run inside a `py.detach` envelope.
+    assert "py.detach(|| builder.build())" in src, (
+        "RecordBatchStream open (`open_reader`) must wrap the blocking FPSS "
+        "connect (`builder.build()`) in `py.detach` so a sibling Python "
+        "thread keeps running during the handshake"
+    )
+
+    # The synchronous blocking pull (`__next__`) must release the GIL across
+    # the ring wait via `py.detach`, re-acquiring only to build the pyarrow
+    # object after a batch lands.
+    assert ".detach(|| inner.next_blocking())" in src, (
+        "RecordBatchStream.__next__ must wrap the blocking ring pull in "
+        "`py.detach` so other Python threads run while it waits for a batch"
+    )
+
+    # The async pull must run on a blocking-pool worker (no GIL held during
+    # the wait), re-acquiring the GIL only inside `Python::attach` to build
+    # the pyarrow object.
+    assert "spawn_blocking(move || inner.next_blocking())" in src, (
+        "RecordBatchStream.__anext__ must run the blocking pull on a "
+        "blocking-pool worker so the async executor thread never holds the GIL"
+    )
+
+    # close() must signal shutdown OUTSIDE the GIL: the teardown shuts the
+    # client (which detaches its own join, re-acquiring the GIL per batch on
+    # the dispatcher), so holding the GIL across it would deadlock.
+    assert "py.detach(move || inner.close_shared())" in src, (
+        "RecordBatchStream.close must signal `close_shared` inside `py.detach` "
+        "so the dispatcher teardown (which re-acquires the GIL) cannot deadlock"
+    )
+
+
 # ── runtime verification (live, GIL-release on hot path) ────────────
 
 

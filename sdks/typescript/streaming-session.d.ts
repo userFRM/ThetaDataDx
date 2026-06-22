@@ -123,4 +123,61 @@ declare module './index' {
      */
     streaming(callback: StreamEventCallback): Promise<StreamingSession>;
   }
+
+  interface StreamView {
+    /**
+     * Open a pull-based columnar reader over the live stream — a sibling
+     * to the per-event `startStreaming(callback)`.
+     *
+     * The same subscriptions feed it, but market-data events arrive as
+     * apache-arrow `RecordBatch` values under a fixed schema, consumed
+     * with `for await (const batch of reader)`. The reader closes
+     * (unsubscribe + tear down) on `close()` or `Symbol.asyncDispose`
+     * (`await using reader = await client.stream.batches()`). Subscribe on
+     * this same surface first, then open the reader.
+     *
+     * The runtime returns the JS {@link RecordBatchStream} wrapper around
+     * the native handle; this override replaces the napi-generated
+     * `Promise<RecordBatchStreamHandle>` return type.
+     */
+    batches(options?: BatchesOptions): Promise<RecordBatchStream>;
+  }
+}
+
+/** Optional tuning for {@link StreamView.batches}. */
+export interface BatchesOptions {
+  /** Rows per batch. Default 65536. A batch also flushes on {@link lingerMs}. */
+  batchSize?: number;
+  /**
+   * Milliseconds a partial batch waits before flushing, so a quiet stream
+   * still delivers. Default 50.
+   */
+  lingerMs?: number;
+  /**
+   * Backpressure when the reader falls behind: `"block"` (default,
+   * lossless — applies backpressure to the wire) or `"dropOldest"`
+   * (bounded buffer; drops the oldest batch and counts it in
+   * {@link RecordBatchStream.dropped}).
+   */
+  backpressure?: 'block' | 'dropOldest';
+  /** Bounded-buffer depth in batches for `"dropOldest"`. Default 4. */
+  capacity?: number;
+}
+
+/**
+ * Pull-based columnar reader returned by `client.stream.batches(...)`.
+ *
+ * `AsyncIterable` of apache-arrow `RecordBatch` values under a fixed
+ * schema, and a TC39 async-disposable: `await using reader = ...` closes
+ * it on scope exit, or call {@link close}. Yields are concat-safe — every
+ * batch carries the identical {@link schema}.
+ */
+export interface RecordBatchStream extends AsyncIterable<import('apache-arrow').RecordBatch> {
+  /** The fixed Arrow schema every yielded batch carries. */
+  readonly schema: import('apache-arrow').Schema;
+  /** Batches dropped so far under `"dropOldest"`; `0` under `"block"`. */
+  readonly dropped: number;
+  /** Close the reader: unsubscribe and tear the FPSS session down. Idempotent. */
+  close(): void;
+  [Symbol.asyncDispose](): Promise<void>;
 }

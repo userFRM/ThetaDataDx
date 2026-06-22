@@ -190,16 +190,28 @@ TEST_CASE("Stream binds the full FPSS surface",
     // the lvalue forms are callable and the rvalue forms are not.
     STATIC_REQUIRE(std::is_invocable_v<
         decltype(&thetadatadx::Client::stream), thetadatadx::Client&>);
+    // `stream()` is `&`-qualified (non-const lvalue ref), so it rejects an
+    // rvalue in every standard.
     STATIC_REQUIRE_FALSE(std::is_invocable_v<
         decltype(&thetadatadx::Client::stream), thetadatadx::Client&&>);
     STATIC_REQUIRE(std::is_invocable_v<
         decltype(&thetadatadx::Client::historical), const thetadatadx::Client&>);
-    STATIC_REQUIRE_FALSE(std::is_invocable_v<
-        decltype(&thetadatadx::Client::historical), thetadatadx::Client&&>);
     STATIC_REQUIRE(std::is_invocable_v<
         decltype(&thetadatadx::Client::flat_files), const thetadatadx::Client&>);
+    // `historical()` / `flat_files()` are `const&`-qualified. C++17 treats
+    // `is_invocable` of a `const&` member on an rvalue as false (the rvalue
+    // is rejected), but C++20 (LWG-resolved) treats it as true — an rvalue
+    // binds to a const lvalue ref. The runtime borrow contract (a view must
+    // not outlive the client) is unchanged; only the trait's answer differs
+    // by standard, so this rvalue assertion is gated to C++17. The C++ SDK
+    // builds C++17 by default; the `THETADATADX_CPP_ARROW` reader links
+    // arrow-cpp, which mandates C++20.
+#if __cplusplus < 202002L
+    STATIC_REQUIRE_FALSE(std::is_invocable_v<
+        decltype(&thetadatadx::Client::historical), thetadatadx::Client&&>);
     STATIC_REQUIRE_FALSE(std::is_invocable_v<
         decltype(&thetadatadx::Client::flat_files), thetadatadx::Client&&>);
+#endif
 
     // set_callback
     STATIC_REQUIRE(std::is_invocable_v<decltype(&SV::set_callback), SV&, Cb>);

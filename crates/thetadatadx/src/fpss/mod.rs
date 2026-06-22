@@ -31,6 +31,10 @@
 
 mod accumulator;
 pub(crate) mod affinity;
+#[cfg(feature = "arrow")]
+pub mod batch_reader;
+#[cfg(feature = "arrow")]
+pub mod batch_schema;
 pub(crate) mod connection;
 mod decode;
 mod delta;

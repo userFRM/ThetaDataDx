@@ -33,6 +33,10 @@ testing-panic-boundary = []
 thetadatadx = { path = "../crates/thetadatadx", features = ["arrow", "__internal"] }
 tokio = { version = "1.52.3", features = ["rt-multi-thread"] }
 arrow-ipc = "59.0.0"
+# RecordBatch / Schema types for the streaming `RecordBatch` reader's Arrow
+# IPC boundary. Pinned to the same major as `arrow-ipc` and the parent crate.
+arrow-array = "59.0.0"
+arrow-schema = "59.0.0"
 # Used by the FPSS streaming callback silent-drop observability path
 # (see `thetadatadx_streaming_dropped_events` / `thetadatadx_client_dropped_events`). Keep
 # pinned to the same major/minor as the parent crate so the target that

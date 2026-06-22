@@ -20,6 +20,7 @@ mod fluent;
 mod fpss_client;
 mod logging_bridge;
 mod mdds_client;
+mod streaming_batches;
 mod util_helpers;
 
 // These imports look unused at source level — they are pulled in by
@@ -2533,6 +2534,7 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Client>()?;
     m.add_class::<HistoricalView>()?;
     m.add_class::<StreamView>()?;
+    m.add_class::<streaming_batches::RecordBatchStream>()?;
     m.add_class::<AsyncClient>()?;
     m.add_class::<fpss_client::StreamingClient>()?;
     m.add_class::<mdds_client::HistoricalClient>()?;
@@ -2570,6 +2572,9 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
         bench_streaming::__bench_flood_events_batched_list,
         m
     )?)?;
-    m.add_function(wrap_pyfunction!(bench_streaming::__bench_flood_events_arrow, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        bench_streaming::__bench_flood_events_arrow,
+        m
+    )?)?;
     Ok(())
 }

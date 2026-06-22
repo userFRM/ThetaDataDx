@@ -26,6 +26,15 @@ kind = "is_streaming"
 doc = "Whether the streaming connection is active."
 targets = ["python_unified", "typescript_napi"]
 
+[[methods]]
+name = "batches"
+kind = "batches"
+doc = "Open a pull-based columnar reader over the live stream, a sibling to the per-event callback. Returns a reader of Apache Arrow record batches under a fixed schema; the same subscriptions feed it. Tune batch_size, linger, and backpressure on the returned builder/reader."
+# C++ is intentionally absent: its `batches()` is hand-written on the `Stream`
+# class (the same hand-written class as `set_callback`), not the generated
+# `StreamingClient` the cpp_fpss target feeds. C++ parity is tracked directly.
+targets = ["python_unified", "typescript_napi"]
+
 #  — typed subscribe_* / unsubscribe_* methods deleted.
 # The polymorphic `subscribe(Subscription)` / `subscribe_many([...])` /
 # `unsubscribe(Subscription)` / `unsubscribe_many([...])` paths are

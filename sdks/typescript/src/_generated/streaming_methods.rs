@@ -126,6 +126,26 @@ impl StreamView {
         self.client.stream().is_streaming()
     }
 
+    /// Open a pull-based columnar reader over the live stream, a sibling to the per-event callback. Returns a reader of Apache Arrow record batches under a fixed schema; the same subscriptions feed it. Tune batch_size, linger, and backpressure on the returned builder/reader.
+    /// Open a pull-based columnar reader over the live stream.
+    ///
+    /// Returns a reader handle — a sibling to the per-event
+    /// `startStreaming(callback)`. The same subscriptions feed it,
+    /// but market-data events arrive as apache-arrow `RecordBatch`
+    /// values under a fixed schema, consumed with `for await`. The
+    /// reader closes (unsubscribes + tears down) on `close()` or
+    /// `Symbol.asyncDispose`. Subscribe on this same surface first,
+    /// then open the reader.
+    ///
+    /// `batchSize` rows per batch (default 65536); `lingerMs`
+    /// flushes a partial batch on a quiet stream (default 50);
+    /// `backpressure` is `"block"` (default, lossless) or
+    /// `"dropOldest"`; `capacity` bounds the drop-oldest buffer.
+    #[napi(js_name = "batches")]
+    pub async fn batches(&self, batch_size: Option<u32>, linger_ms: Option<u32>, backpressure: Option<String>, capacity: Option<u32>) -> napi::Result<crate::streaming_batches::RecordBatchStreamHandle> {
+        crate::streaming_batches::open_handle(std::sync::Arc::clone(&self.client), batch_size, linger_ms, backpressure, capacity).await
+    }
+
     /// Get a snapshot of currently active subscriptions.
     #[napi(js_name = "activeSubscriptions")]
     pub fn active_subscriptions(&self) -> napi::Result<serde_json::Value> {

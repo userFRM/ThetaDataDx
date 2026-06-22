@@ -61,6 +61,18 @@ python = true       # returned by the `client.stream` getter
 typescript = true   # returned by the `client.stream` getter
 cpp = true          # returned by `client.stream()`; exposed as `thetadatadx::Stream`
 
+[[class]]
+name = "RecordBatchStream"
+# The pull-based columnar reader returned by `client.stream().batches(..)`.
+# Python: a `RecordBatchStream` pyclass (sync + async iterable, context
+# manager). TypeScript: the JS `RecordBatchStream` wrapper in
+# `streaming-session.{js,d.ts}` over the napi `RecordBatchStreamHandle`
+# transport, yielding apache-arrow `RecordBatch`. C++: a `RecordBatchStream`
+# subclass of `arrow::RecordBatchReader` (gated on `THETADATADX_CPP_ARROW`).
+python = true
+typescript = true
+cpp = true
+
 # `StreamingSession` carries no `[[method]]` rows by design: its public
 # surface is the inner `Client`'s, reached through `__getattr__` proxying,
 # so its OWN first-class methods are only the async-iterator and
@@ -1236,6 +1248,13 @@ cpp = true
 [[method]]
 class = "StreamView"
 name = "isStreaming"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "StreamView"
+name = "batches"
 python = true
 typescript = true
 cpp = true

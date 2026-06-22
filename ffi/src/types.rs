@@ -354,7 +354,14 @@ impl ThetaDataDxArrowBytes {
         len: 0,
     };
 
-    fn from_vec(buf: Vec<u8>) -> Self {
+    /// An empty (`data = null, len = 0`) buffer. Shared with the streaming
+    /// `RecordBatch` reader's C ABI so its out-param can be initialised to a
+    /// well-formed empty value before each pull.
+    pub(crate) const fn empty() -> Self {
+        Self::EMPTY
+    }
+
+    pub(crate) fn from_vec(buf: Vec<u8>) -> Self {
         if buf.is_empty() {
             return Self::EMPTY;
         }

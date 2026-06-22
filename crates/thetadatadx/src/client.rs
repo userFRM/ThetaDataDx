@@ -355,6 +355,40 @@ impl Client {
         F: FnMut(&StreamEvent) + Send + 'static,
         S: FnMut(&mut dyn FnMut() -> crate::PollOutcome) -> crate::PollOutcome + Send + 'static,
     {
+        // The callback path's dispatcher body drives the scoped drain with
+        // the user handler. The connect / spawn / install / rollback
+        // sequence is shared with the columnar `batches()` path via
+        // `start_dispatcher`; only the per-thread consumer body differs.
+        let mut scope = scope;
+        self.start_dispatcher(move |client| {
+            client.for_each_scoped(|event| handler(event), &mut scope);
+        })
+        .map(|_client| ())
+    }
+
+    /// Start FPSS streaming with a custom dispatcher consumer body.
+    ///
+    /// Factors the connect / spawn / install / rollback sequence shared by
+    /// the per-event callback path ([`Self::start_streaming_scoped`]) and
+    /// the columnar pull path ([`Self::start_streaming_batches`]). The
+    /// `dispatcher_body` closure runs on the dispatcher thread once the
+    /// streaming slot is installed; it owns the consumer loop (typically
+    /// [`crate::fpss::StreamingClient::for_each_scoped`]) and returns when
+    /// the ring shuts down. The single-flight gate, startup gate, install,
+    /// and failure rollback are identical across both consumers, so they
+    /// live here once.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure, or
+    /// when a stream is already active on this client.
+    pub(crate) fn start_dispatcher<B>(
+        &self,
+        dispatcher_body: B,
+    ) -> Result<Arc<StreamingClient>, Error>
+    where
+        B: FnOnce(Arc<StreamingClient>) + Send + 'static,
+    {
         // Single-flight gate: `dispatcher` mutex serialises the entire
         // connect-spawn-install sequence so two concurrent starts cannot
         // each spawn a dispatcher and race to overwrite the Running
@@ -409,8 +443,8 @@ impl Client {
             .map_err(crate::error::Error::from)?;
         let client_arc = Arc::new(client);
 
-        // Spawn the dispatcher behind a startup gate so the callback
-        // does not fire until the streaming slot is installed. This
+        // Spawn the dispatcher behind a startup gate so the consumer body
+        // does not run until the streaming slot is installed. This
         // closes two windows simultaneously:
         //
         //   1. `is_streaming()` / `connection_status()` cannot observe
@@ -423,8 +457,8 @@ impl Client {
         //      first event.
         //
         // The gate also lets the install-failure rollback signal the
-        // dispatcher to fall through without ever invoking the user
-        // callback.
+        // dispatcher to fall through without ever running the consumer
+        // body.
         //
         // `OnceLock::wait()` (stable since Rust 1.87, below our 1.88 MSRV) blocks the
         // dispatcher until the spawn site calls `.set(true)` (go) or
@@ -432,25 +466,22 @@ impl Client {
         let gate: Arc<OnceLock<bool>> = Arc::new(OnceLock::new());
         let gate_for_dispatcher = Arc::clone(&gate);
         let dispatcher_client = Arc::clone(&client_arc);
-        let mut scope = scope;
         let dispatcher_handle = std::thread::Builder::new()
             .name("thetadatadx-fpss-dispatcher".into())
             .spawn(move || {
                 if !*gate_for_dispatcher.wait() {
                     return;
                 }
-                // `StreamingClient::for_each_scoped` drives `poll_batch`, which
-                // wraps each callback invocation in its own
-                // `catch_unwind`.  A panic in the handler is caught,
-                // recorded via `panic_count()`, and does not stop event
-                // delivery for subsequent events.  The outer
+                // The consumer body drives `StreamingClient::for_each_scoped`,
+                // which drives `poll_batch`, which wraps each callback
+                // invocation in its own `catch_unwind`.  A panic in the
+                // handler is caught, recorded via `panic_count()`, and does
+                // not stop event delivery for subsequent events.  The outer
                 // `catch_unwind` below guards only the event-iteration
                 // machinery itself (ring mutex poison, OOM in the polling
-                // path, etc.) — not user-callback panics. `scope` brackets
-                // each batch drain; for the identity scope it is a direct
-                // call, identical to `for_each`.
+                // path, etc.) — not user-callback panics.
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    dispatcher_client.for_each_scoped(|event| handler(event), &mut scope);
+                    dispatcher_body(dispatcher_client);
                 }));
                 if outcome.is_err() {
                     tracing::error!(
@@ -502,7 +533,7 @@ impl Client {
                     handle: dispatcher_handle,
                 };
                 let _ = gate.set(true);
-                Ok(())
+                Ok(client_arc)
             }
             Err(install_err) => {
                 // Shut down the client so the dispatcher sees a clean
@@ -518,6 +549,51 @@ impl Client {
                 Err(install_err)
             }
         }
+    }
+
+    /// Start FPSS streaming in columnar pull mode, routing decoded
+    /// market-data events into the Arrow batch sink behind `shared`.
+    ///
+    /// Reuses the connect / install / dispatcher machinery via
+    /// [`Self::start_dispatcher`]; the dispatcher thread owns a
+    /// [`crate::fpss::batch_reader::BatchSink`] and drives the scoped drain
+    /// with it instead of a user callback. The sink appends one row per data
+    /// event, flushes on `batch_size` / `linger` / shutdown, and publishes a
+    /// terminal marker when the drain loop returns. The returned
+    /// [`crate::fpss::batch_reader::RecordBatchStream`] reads finished
+    /// batches off the same `shared` queue.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure, or
+    /// when a stream is already active on this client.
+    #[cfg(feature = "arrow")]
+    pub(crate) fn start_streaming_batches(
+        &self,
+        shared: Arc<crate::fpss::batch_reader::Shared>,
+        batch_size: usize,
+        linger: std::time::Duration,
+        backpressure: crate::fpss::batch_reader::Backpressure,
+    ) -> Result<Arc<StreamingClient>, Error> {
+        self.start_dispatcher(move |client| {
+            let sink =
+                crate::fpss::batch_reader::BatchSink::new(shared, batch_size, linger, backpressure);
+            // The handler and the scope each take a short, non-overlapping
+            // lock on the sink's accumulator (see `BatchSink`), so cloning
+            // the sink (an `Arc` bundle) into both closures plus the
+            // post-loop finish is sound and the drain path stays lock-free
+            // between events.
+            let handler_sink = sink.clone();
+            let scope_sink = sink.clone();
+            client.for_each_scoped(
+                move |event| handler_sink.on_event(event),
+                move |drain| scope_sink.scope_drain(drain),
+            );
+            // The drain loop returned: the stream shut down. Flush the final
+            // partial batch and publish the terminal end-of-stream marker so
+            // the reader sees `finished` after consuming every queued batch.
+            sink.finish();
+        })
     }
 
     /// Atomically swap the slot to a fresh `Live` state.
@@ -1801,6 +1877,42 @@ impl StreamSurface<'_> {
         I: IntoIterator<Item = Subscription>,
     {
         self.0.unsubscribe_many(subs)
+    }
+
+    /// Open a pull-based columnar reader over the live stream — a sibling to
+    /// the per-event [`Self::start_streaming`] callback.
+    ///
+    /// Returns a [`BatchReaderBuilder`](crate::streaming::BatchReaderBuilder)
+    /// to tune `batch_size` / `linger` / `backpressure`; call
+    /// [`build`](crate::streaming::BatchReaderBuilder::build) to start FPSS
+    /// and obtain a
+    /// [`RecordBatchStream`](crate::streaming::RecordBatchStream) of Apache
+    /// Arrow `RecordBatch` values. Subscriptions are managed on this same
+    /// surface ([`Self::subscribe`] / [`Self::subscribe_many`]); subscribe
+    /// first, then open the reader. The batch schema is fixed for the
+    /// subscription and identical across every batch.
+    ///
+    /// Like the callback path, FPSS connects when the reader is built, so
+    /// this is an alternative to [`Self::start_streaming`], not a concurrent
+    /// consumer of the same session.
+    ///
+    /// ```rust,no_run
+    /// # use thetadatadx::Client;
+    /// # use thetadatadx::fpss::protocol::Contract;
+    /// # use futures::StreamExt;
+    /// # async fn doc(client: &Client) -> Result<(), thetadatadx::Error> {
+    /// client.stream().subscribe(Contract::stock("AAPL").trade())?;
+    /// let mut batches = client.stream().batches().batch_size(8_192).build()?;
+    /// while let Some(batch) = batches.next().await {
+    ///     let batch = batch?;
+    ///     println!("{} rows", batch.num_rows());
+    /// }
+    /// # Ok(()) }
+    /// ```
+    #[cfg(feature = "arrow")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
+    pub fn batches(&self) -> crate::streaming::BatchReaderBuilder<'_> {
+        crate::streaming::BatchReaderBuilder::new(self.0)
     }
 
     /// Get all active per-contract subscriptions.

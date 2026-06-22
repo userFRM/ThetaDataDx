@@ -2473,6 +2473,44 @@ export declare class HistoricalView {
 }
 
 /**
+ * napi handle to a live pull-based Arrow `RecordBatch` reader.
+ *
+ * Yields each batch as an Arrow IPC `Buffer` from [`Self::next_ipc`]; the
+ * JS wrapper decodes it with apache-arrow. The core [`RecordBatchStream`]
+ * is held behind a bare `Arc`: its methods take `&self` (the internal queue
+ * lock is released across the blocking wait), so [`Self::close`] can signal
+ * shutdown via [`RecordBatchStream::close_shared`] CONCURRENTLY with a
+ * blocking pull in flight on a worker thread — no handle-level lock for the
+ * two to contend on, so close never deadlocks against an in-flight pull.
+ * The session tears down when the last `Arc` reference drops (the core
+ * `Drop` is idempotent with the `close_shared` signal).
+ */
+export declare class RecordBatchStreamHandle {
+  /**
+   * Await the next batch as an Arrow IPC `Buffer`, or `null` at clean end
+   * of stream (or after close). The pull runs off the Node event loop, so
+   * it never blocks the main thread. Internal transport for the
+   * `RecordBatchStream` wrapper; consumers iterate the wrapper instead.
+   */
+  nextIpc(): Promise<Buffer | null>
+  /**
+   * The fixed schema as a schema-only Arrow IPC `Buffer`, so the JS
+   * wrapper can expose `.schema` before the first batch arrives.
+   */
+  schemaIpc(): Buffer
+  /**
+   * Number of batches dropped so far under the `dropOldest` backpressure
+   * policy. Always `0` under `block` (the default).
+   */
+  get dropped(): number
+  /**
+   * Close the stream: unsubscribe and tear the FPSS session down.
+   * Idempotent; subsequent pulls return `null`.
+   */
+  close(): void
+}
+
+/**
  * JS-visible `SecType` (frozen security-type enum). Construction
  * happens via the four named factories: `SecType.stock()`,
  * `SecType.option()`, `SecType.index()`, `SecType.rate()`. Returns
@@ -2862,6 +2900,24 @@ export declare class StreamView {
   startStreaming(callback: ((arg: StreamEvent) => void)): Promise<void>
   /** Whether the streaming connection is active. */
   isStreaming(): boolean
+  /**
+   * Open a pull-based columnar reader over the live stream, a sibling to the per-event callback. Returns a reader of Apache Arrow record batches under a fixed schema; the same subscriptions feed it. Tune batch_size, linger, and backpressure on the returned builder/reader.
+   * Open a pull-based columnar reader over the live stream.
+   *
+   * Returns a reader handle — a sibling to the per-event
+   * `startStreaming(callback)`. The same subscriptions feed it,
+   * but market-data events arrive as apache-arrow `RecordBatch`
+   * values under a fixed schema, consumed with `for await`. The
+   * reader closes (unsubscribes + tears down) on `close()` or
+   * `Symbol.asyncDispose`. Subscribe on this same surface first,
+   * then open the reader.
+   *
+   * `batchSize` rows per batch (default 65536); `lingerMs`
+   * flushes a partial batch on a quiet stream (default 50);
+   * `backpressure` is `"block"` (default, lossless) or
+   * `"dropOldest"`; `capacity` bounds the drop-oldest buffer.
+   */
+  batches(batchSize?: number | undefined | null, lingerMs?: number | undefined | null, backpressure?: string | undefined | null, capacity?: number | undefined | null): Promise<RecordBatchStreamHandle>
   /** Get a snapshot of currently active subscriptions. */
   activeSubscriptions(): any
   /**

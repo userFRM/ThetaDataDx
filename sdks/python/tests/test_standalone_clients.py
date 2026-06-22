@@ -59,6 +59,7 @@ BLOCKED_FPSS_METHODS = (
     "streaming",
     "stream",
     "is_streaming",
+    "batches",
     "await_drain",
     "subscribe",
     "subscribe_many",

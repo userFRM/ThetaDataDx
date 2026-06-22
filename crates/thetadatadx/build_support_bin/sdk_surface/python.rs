@@ -168,6 +168,48 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             out.push_str("        self.client.stream().is_streaming()\n");
             out.push_str("    }\n");
         }
+        MethodKind::Batches => {
+            // Thin entry: forward the optional tuning knobs to the
+            // hand-written `RecordBatchStream` constructor (the protocol
+            // surface — sync + async iteration, context managers — is
+            // intrinsic Python shape, not a per-endpoint projection, so the
+            // reader object itself is hand-written; only this entry is
+            // generated so the cross-binding surface stays in lockstep).
+            push_rust_doc_comment(
+                &mut out,
+                "    ",
+                "Open a pull-based columnar reader over the live stream.\n\
+                 \n\
+                 Returns a `RecordBatchStream` — a sibling to the per-event\n\
+                 `start_streaming(callback)`. The same subscriptions feed it,\n\
+                 but market-data events arrive as `pyarrow.RecordBatch`\n\
+                 values under a fixed schema. The reader is both a\n\
+                 synchronous `Iterable` (the blocking pull releases the GIL)\n\
+                 and an `AsyncIterable` (`async for`), and a sync / async\n\
+                 context manager that closes the stream on exit. Subscribe on\n\
+                 this same surface first, then open the reader.\n\
+                 \n\
+                 `batch_size` rows per batch (default 65536); `linger_ms`\n\
+                 flushes a partial batch on a quiet stream (default 50);\n\
+                 `backpressure` is `\"block\"` (default, lossless) or\n\
+                 `\"drop_oldest\"`; `capacity` bounds the drop-oldest buffer.",
+            );
+            out.push_str(
+                "    #[pyo3(signature = (*, batch_size=None, linger_ms=None, backpressure=None, capacity=None))]\n",
+            );
+            writeln!(out, "    fn {}(", method.name).unwrap();
+            out.push_str("        &self,\n");
+            out.push_str("        py: Python<'_>,\n");
+            out.push_str("        batch_size: Option<usize>,\n");
+            out.push_str("        linger_ms: Option<u64>,\n");
+            out.push_str("        backpressure: Option<&str>,\n");
+            out.push_str("        capacity: Option<usize>,\n");
+            out.push_str("    ) -> PyResult<crate::streaming_batches::RecordBatchStream> {\n");
+            out.push_str(
+                "        crate::streaming_batches::open_reader(py, &self.client, batch_size, linger_ms, backpressure, capacity)\n",
+            );
+            out.push_str("    }\n");
+        }
         MethodKind::StockContractCall => {
             let param = &method.params[0];
             writeln!(

@@ -309,6 +309,25 @@ pub mod streaming {
         StreamingClientBuilder,
     };
 
+    /// Pull-based columnar delivery — read the live stream as Apache Arrow
+    /// `RecordBatch` values instead of per-event callbacks.
+    ///
+    /// [`RecordBatchStream`] is a sibling to the per-event callback
+    /// registered through `client.stream().start_streaming(..)`: the same
+    /// subscriptions feed it, but market-data events arrive in columnar
+    /// batches under a fixed schema rather than one event at a time. Open it
+    /// with `client.stream().batches()`, tune `batch_size` / `linger` /
+    /// `backpressure` on the returned [`BatchReaderBuilder`], then pull
+    /// batches with the [`futures_core::Stream`] impl or the
+    /// [`RecordBatchStream::blocking`] iterator. See
+    /// [`crate::fpss::batch_schema::stream_batch_schema`] for the layout.
+    #[cfg(feature = "arrow")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
+    pub use crate::fpss::batch_reader::{
+        ArrowRecordBatchReader, Backpressure, BatchReaderBuilder, BlockingRecordBatchIter,
+        RecordBatchStream, DEFAULT_BATCH_SIZE, DEFAULT_LINGER, DEFAULT_QUEUE_DEPTH,
+    };
+
     /// Consumer wait strategies for the streaming ring.
     ///
     /// When the consumer drains the ring faster than events arrive, it

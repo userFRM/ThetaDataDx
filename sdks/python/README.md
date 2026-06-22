@@ -191,6 +191,15 @@ with client.streaming(on_event) as session:
 > exponential backoff with jitter, host failover, then a paced re-subscribe of
 > every active contract.
 
+Prefer columns? `client.stream.batches(...)` is a sibling to the callback — the same subscriptions, delivered as `pyarrow.RecordBatch` values under a fixed schema. The reader is iterable (sync, releasing the GIL on the blocking pull) and async-iterable, and closes on context-manager exit:
+
+```python
+client.stream.subscribe(Contract.stock("AAPL").trade())
+with client.stream.batches(batch_size=8192) as batches:
+    for batch in batches:        # or: async for batch in batches
+        print(batch.num_rows)
+```
+
 ## Greeks calculator
 
 A full Black-Scholes calculator — first- through third-order Greeks plus an implied-volatility solver — runs locally, no request required:

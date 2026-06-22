@@ -90,6 +90,44 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             out.push_str("        self.client.stream().is_streaming()\n");
             out.push_str("    }\n");
         }
+        MethodKind::Batches => {
+            // Thin entry: forward the optional tuning knobs to the
+            // hand-written `RecordBatchStreamHandle` constructor. The
+            // package's JS wrapper decodes the handle's Arrow IPC buffers
+            // with apache-arrow and presents the `AsyncIterable<RecordBatch>`
+            // + `Symbol.asyncDispose` surface; only this entry is generated
+            // so the cross-binding surface stays in lockstep. `async`
+            // because the FPSS connect runs on a blocking worker.
+            push_rust_doc_comment(
+                &mut out,
+                "    ",
+                "Open a pull-based columnar reader over the live stream.\n\
+                 \n\
+                 Returns a reader handle — a sibling to the per-event\n\
+                 `startStreaming(callback)`. The same subscriptions feed it,\n\
+                 but market-data events arrive as apache-arrow `RecordBatch`\n\
+                 values under a fixed schema, consumed with `for await`. The\n\
+                 reader closes (unsubscribes + tears down) on `close()` or\n\
+                 `Symbol.asyncDispose`. Subscribe on this same surface first,\n\
+                 then open the reader.\n\
+                 \n\
+                 `batchSize` rows per batch (default 65536); `lingerMs`\n\
+                 flushes a partial batch on a quiet stream (default 50);\n\
+                 `backpressure` is `\"block\"` (default, lossless) or\n\
+                 `\"dropOldest\"`; `capacity` bounds the drop-oldest buffer.",
+            );
+            writeln!(out, "    #[napi(js_name = \"batches\")]").unwrap();
+            writeln!(
+                out,
+                "    pub async fn {}(&self, batch_size: Option<u32>, linger_ms: Option<u32>, backpressure: Option<String>, capacity: Option<u32>) -> napi::Result<crate::streaming_batches::RecordBatchStreamHandle> {{",
+                method.name
+            )
+            .unwrap();
+            out.push_str(
+                "        crate::streaming_batches::open_handle(std::sync::Arc::clone(&self.client), batch_size, linger_ms, backpressure, capacity).await\n",
+            );
+            out.push_str("    }\n");
+        }
         MethodKind::StockContractCall => {
             let param = &method.params[0];
             let js_name = to_ts_camel_case(&method.name);
