@@ -46,6 +46,15 @@ pub struct ThetaDataDxFlatFileBytes {
     pub len: usize,
 }
 
+// Layout drift-guard: pin the LP64 `#[repr(C)]` size + alignment on the
+// Rust side, the same values `abi_struct_layout_asserts.hpp.inc` pins. A
+// field-width or member-order change that shifts the layout fails the build
+// here; the C++ static_asserts alone cannot catch a Rust-side change.
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxFlatFileBytes>() == 16);
+    assert!(core::mem::align_of::<ThetaDataDxFlatFileBytes>() == 8);
+};
+
 impl ThetaDataDxFlatFileBytes {
     fn from_vec(buf: Vec<u8>) -> Self {
         if buf.is_empty() {

@@ -2247,8 +2247,8 @@ public:
         // callback's storage must not alias a still-running previous
         // registration.
         if (callback_->slot->fn) {
-            thetadatadx_client_stop_streaming(handle_);
-            int drained = thetadatadx_client_await_drain(handle_, 5000);
+            thetadatadx_client_stop_streaming(handle_.get());
+            int drained = thetadatadx_client_await_drain(handle_.get(), 5000);
             if (drained == 0) {
                 // Drain barrier timed out: the previous consumer may still
                 // be invoking through the old node's `&fn`. We must NOT
@@ -2256,25 +2256,45 @@ public:
                 // by `shared_ptr`) to a helper thread that drops it only
                 // after the consumer is CONFIRMED quiesced, polling the same
                 // drain barrier rather than guessing a wall-clock window.
-                // The borrowed `handle_` outlives this view (the owning
-                // `Client` cannot be destroyed on this thread while it is
-                // inside `set_callback`, and a single-thread `slot`
-                // precondition rules out a concurrent teardown), so it stays
-                // valid for the poll. The node's `fn` is never touched in
-                // the meantime, so the still-firing consumer always reads a
-                // valid, unchanged function.
-                const ThetaDataDxClient* handle = handle_;
+                //
+                // The reclaimer takes SHARED ownership of both the handle
+                // and the callback state, matching the move-assign
+                // reclaimers above. This is the one path that can outlive
+                // this view AND an API-legal single-threaded `Client`
+                // destruction: once `set_callback` returns, nothing pins the
+                // borrowed handle, so a reclaimer holding only a raw pointer
+                // would poll the drain barrier (and the handle's `_free`
+                // would later read its own state) on freed memory. Holding a
+                // `shared_ptr` to the handle defers `thetadatadx_client_free`
+                // until the reclaimer also releases it; holding a
+                // `shared_ptr` to the callback state keeps the CURRENT node
+                // alive, so when that deferred free runs its drain barrier
+                // still observes a live registered `ctx`. `raw` is borrowed
+                // for the poll from the handle reference the `release`
+                // closure keeps alive for the reclaimer's whole life.
+                const ThetaDataDxClient* raw = handle_.get();
                 detail::reclaim_after_drain(
-                    [handle]() {
+                    [raw]() {
                         return thetadatadx_client_await_drain(
-                                   handle,
+                                   raw,
                                    static_cast<uint64_t>(
                                        detail::kReclaimPollStep.count())) == 1;
                     },
-                    [retired = callback_->slot]() mutable {
-                        // `retired` (the old node) destructs here, off this
-                        // path, once the consumer has confirmed quiescence.
+                    [retired = callback_->slot,
+                     retired_handle = handle_,
+                     retired_state = callback_]() mutable {
+                        // Confirmed quiescence. Drop the retired node first
+                        // (the old consumer has stopped firing through it).
+                        // Then release this reclaimer's handle reference: if
+                        // it is the last one, the unified deleter's drain
+                        // barrier runs here while the current node, held by
+                        // `retired_state`, is still alive. Drop the callback
+                        // state last so that barrier always sees a live
+                        // registered `ctx` — the handle-before-callback
+                        // ordering the member layout encodes.
                         retired.reset();
+                        retired_handle.reset();
+                        retired_state.reset();
                     });
             }
             // Install a fresh node so the new registration below gets a
@@ -2287,7 +2307,7 @@ public:
         // fixed `&fn` address as the dispatcher `ctx`. On failure the node's
         // `fn` is left cleared so no stale registration lingers.
         callback_->slot->fn = std::move(fn);
-        int rc = thetadatadx_client_set_callback(handle_, &Stream::callback_shim, &callback_->slot->fn);
+        int rc = thetadatadx_client_set_callback(handle_.get(), &Stream::callback_shim, &callback_->slot->fn);
         if (rc < 0) {
             callback_->slot->fn = nullptr;
             detail::throw_last_ffi_error();
@@ -2314,7 +2334,7 @@ public:
     /// captured state.
     void stop_streaming() {
         if (handle_) {
-            thetadatadx_client_stop_streaming(handle_);
+            thetadatadx_client_stop_streaming(handle_.get());
         }
     }
 
@@ -2322,7 +2342,7 @@ public:
     /// subscription. Throws on failure — the wrapped C ABI sets the
     /// last-error slot on `-1` return.
     void reconnect() {
-        int rc = thetadatadx_client_reconnect(handle_);
+        int rc = thetadatadx_client_reconnect(handle_.get());
         if (rc < 0) {
             detail::throw_last_ffi_error();
         }
@@ -2336,7 +2356,7 @@ public:
         const uint64_t ms = timeout.count() < 0
                                 ? 0
                                 : static_cast<uint64_t>(timeout.count());
-        return thetadatadx_client_await_drain(handle_, ms) == 1;
+        return thetadatadx_client_await_drain(handle_.get(), ms) == 1;
     }
 
     /// Cumulative count of streaming events the TLS reader could not
@@ -2344,7 +2364,7 @@ public:
     /// the ring was full. Returns 0 when no callback has been installed
     /// yet.
     uint64_t dropped_event_count() const {
-        return handle_ ? thetadatadx_client_dropped_events(handle_) : 0;
+        return handle_ ? thetadatadx_client_dropped_events(handle_.get()) : 0;
     }
 
     /// Point-in-time count of streaming events published into the event
@@ -2355,14 +2375,14 @@ public:
     /// safe from any thread. Returns 0 when no callback has been installed
     /// yet.
     uint64_t ring_occupancy() const {
-        return handle_ ? thetadatadx_client_ring_occupancy(handle_) : 0;
+        return handle_ ? thetadatadx_client_ring_occupancy(handle_.get()) : 0;
     }
 
     /// Configured capacity of the streaming event ring in slots (the
     /// streaming_ring_size setting, a power of two) — the fixed denominator for
     /// ring_occupancy(). Returns 0 when no callback has been installed yet.
     uint64_t ring_capacity() const {
-        return handle_ ? thetadatadx_client_ring_capacity(handle_) : 0;
+        return handle_ ? thetadatadx_client_ring_capacity(handle_.get()) : 0;
     }
 
     /** Milliseconds since the most recent inbound streaming frame of any
@@ -2370,14 +2390,14 @@ public:
      *  streaming has not started or no frame has been received yet, -1 on a
      *  null handle. */
     int32_t millis_since_last_event(uint64_t* out_ms) const {
-        return handle_ ? thetadatadx_client_millis_since_last_event(handle_, out_ms) : -1;
+        return handle_ ? thetadatadx_client_millis_since_last_event(handle_.get(), out_ms) : -1;
     }
 
     /** UNIX-nanosecond receive timestamp of the most recent inbound
      *  streaming frame. 0 when streaming has not started or no frame has
      *  arrived yet. */
     int64_t last_event_received_at_unix_nanos() const {
-        return handle_ ? thetadatadx_client_last_event_received_at_unix_nanos(handle_) : 0;
+        return handle_ ? thetadatadx_client_last_event_received_at_unix_nanos(handle_.get()) : 0;
     }
 
     /** Address (host:port) of the streaming server the current session is
@@ -2385,7 +2405,7 @@ public:
      *  when streaming has not started. */
     std::string last_connected_addr() const {
         if (!handle_) return {};
-        char* raw = thetadatadx_client_last_connected_addr(handle_);
+        char* raw = thetadatadx_client_last_connected_addr(handle_.get());
         if (!raw) return {};
         std::string out(raw);
         thetadatadx_string_free(raw);
@@ -2395,7 +2415,7 @@ public:
     /// `true` iff the streaming session is currently live (set_callback ran
     /// and stop_streaming / terminal close has not).
     bool is_streaming() const {
-        return handle_ && thetadatadx_client_is_streaming(handle_) == 1;
+        return handle_ && thetadatadx_client_is_streaming(handle_.get()) == 1;
     }
 
     /// `true` iff the live streaming session is currently authenticated.
@@ -2404,13 +2424,13 @@ public:
     /// `client.stream.is_authenticated` placement and the standalone
     /// `StreamingClient::is_authenticated()`.
     bool is_authenticated() const {
-        return handle_ && thetadatadx_client_is_authenticated(handle_) == 1;
+        return handle_ && thetadatadx_client_is_authenticated(handle_.get()) == 1;
     }
 
     /// Snapshot the currently-active per-contract subscriptions. Throws on
     /// FFI error.
     std::vector<Subscription> active_subscriptions() const {
-        ThetaDataDxSubscriptionArray* arr = thetadatadx_client_active_subscriptions(handle_);
+        ThetaDataDxSubscriptionArray* arr = thetadatadx_client_active_subscriptions(handle_.get());
         if (arr == nullptr) {
             detail::throw_last_ffi_error();
         }
@@ -2437,7 +2457,7 @@ public:
     /// yet. Safe to call from any thread without blocking. Mirrors the
     /// Python / TypeScript `client.stream.panic_count` placement.
     uint64_t panic_count() const {
-        return handle_ ? thetadatadx_client_panic_count(handle_) : 0;
+        return handle_ ? thetadatadx_client_panic_count(handle_.get()) : 0;
     }
 
     /// Set the slow-callback wall-clock threshold in microseconds. When a
@@ -2449,7 +2469,7 @@ public:
     /// placement.
     void set_slow_callback_threshold_us(uint64_t threshold_us) const {
         if (handle_) {
-            thetadatadx_client_set_slow_callback_threshold_us(handle_, threshold_us);
+            thetadatadx_client_set_slow_callback_threshold_us(handle_.get(), threshold_us);
         }
     }
 
@@ -2459,7 +2479,7 @@ public:
     /// Mirrors the Python / TypeScript `client.stream.slow_callback_count`
     /// placement.
     uint64_t slow_callback_count() const {
-        return handle_ ? thetadatadx_client_slow_callback_count(handle_) : 0;
+        return handle_ ? thetadatadx_client_slow_callback_count(handle_.get()) : 0;
     }
 
     /// Snapshot the currently-active full-stream subscriptions (the entire
@@ -2467,7 +2487,7 @@ public:
     /// contract). Throws on FFI error. Mirrors the Python / TypeScript
     /// `client.stream.active_full_subscriptions` placement.
     std::vector<FullSubscription> active_full_subscriptions() const {
-        ThetaDataDxSubscriptionArray* arr = thetadatadx_client_active_full_subscriptions(handle_);
+        ThetaDataDxSubscriptionArray* arr = thetadatadx_client_active_full_subscriptions(handle_.get());
         if (arr == nullptr) {
             detail::throw_last_ffi_error();
         }
@@ -2488,8 +2508,8 @@ public:
 
 private:
     friend class Client;
-    Stream(const ThetaDataDxClient* h, std::shared_ptr<CallbackState> callback)
-        : handle_(h), callback_(std::move(callback)) {}
+    Stream(std::shared_ptr<ThetaDataDxClient> h, std::shared_ptr<CallbackState> callback)
+        : handle_(std::move(h)), callback_(std::move(callback)) {}
 
     // Static-member shim that the dispatcher invokes. It keeps C++ language
     // linkage (a member cannot be `extern "C"`) but its signature matches the
@@ -2508,7 +2528,13 @@ private:
         }
     }
 
-    const ThetaDataDxClient* handle_;
+    // Shared ownership of the parent `Client`'s handle. Sharing (rather than
+    // borrowing a raw pointer) lets the drain-timeout reclaimer in
+    // `set_callback` keep the handle alive past this view and past a
+    // single-threaded `Client` destruction, so the reclaimer's drain-barrier
+    // poll never reads a freed handle. The unified deleter still frees the
+    // handle exactly once, when the last reference drops.
+    std::shared_ptr<ThetaDataDxClient> handle_;
     // Shared ownership of the parent `Client`'s callback state. The state
     // owns the currently-registered node, which lives at a fixed heap
     // address, so the registered dispatcher `ctx` (`&callback_->slot->fn`)
@@ -2681,7 +2707,7 @@ public:
     /// Lvalue-only: the accessor is ref-qualified to `&`, so calling it on
     /// a temporary is a compile error. Bind the client to a variable first;
     /// the view's borrowed handle then cannot outlive its client.
-    Stream stream() & { return Stream(handle_.get(), callback_); }
+    Stream stream() & { return Stream(handle_, callback_); }
 
     /// Raw handle for advanced consumers that want to call the C ABI
     /// directly. Ownership remains with this object.
@@ -2689,7 +2715,8 @@ public:
 
 private:
     explicit Client(ThetaDataDxClient* h)
-        : callback_(std::make_shared<CallbackState>()), handle_(h) {}
+        : callback_(std::make_shared<CallbackState>()),
+          handle_(h, UnifiedDeleter{}) {}
 
     // ── Member ordering invariant (do not reorder) ──
     //
@@ -2715,8 +2742,18 @@ private:
     // therefore stays valid across any move and for as long as any holder
     // lives. A callback replacement installs a fresh node into the shared
     // state, so a later move or destruction operates on the current node.
+    //
+    // The handle is held by `shared_ptr` (with the unified deleter) rather
+    // than `unique_ptr`: a `Stream` view and a drain-timeout reclaimer can
+    // hold their own references, so `thetadatadx_client_free` runs exactly
+    // once, when the LAST reference drops. When that last reference is this
+    // member during `~Client`, the deleter's drain barrier runs while
+    // `callback_` (the current node) is still alive — the ordering this
+    // member layout encodes. When instead a reclaimer outlives `~Client`,
+    // the reclaimer also holds a `callback_` reference, so the deferred free
+    // still observes a live current node (see `Stream::set_callback`).
     std::shared_ptr<CallbackState> callback_;
-    std::unique_ptr<ThetaDataDxClient, UnifiedDeleter> handle_;
+    std::shared_ptr<ThetaDataDxClient> handle_;
 };
 
 /// Fluent builder for `Client`, mirroring the Rust `ClientBuilder`.
@@ -3522,7 +3559,7 @@ inline ThetaDataDxSubscriptionRequest build_subscription_request(const FluentSub
 
 inline void Stream::subscribe(const FluentSubscription& sub) const {
     auto req = detail::build_subscription_request(sub);
-    if (thetadatadx_client_subscribe(handle_, &req) != 0) {
+    if (thetadatadx_client_subscribe(handle_.get(), &req) != 0) {
         detail::throw_last_ffi_error();
     }
 }
@@ -3534,7 +3571,7 @@ inline void Stream::subscribe_many(
 
 inline void Stream::unsubscribe(const FluentSubscription& sub) const {
     auto req = detail::build_subscription_request(sub);
-    if (thetadatadx_client_unsubscribe(handle_, &req) != 0) {
+    if (thetadatadx_client_unsubscribe(handle_.get(), &req) != 0) {
         detail::throw_last_ffi_error();
     }
 }
