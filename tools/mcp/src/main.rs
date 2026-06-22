@@ -211,16 +211,40 @@ const MAX_ERROR_LEN: usize = 200;
 /// sensitive data from error messages before sending them to MCP clients.
 ///
 /// Also truncates to [`MAX_ERROR_LEN`] chars to avoid leaking verbose
-/// backtraces or internal state.
+/// backtraces or internal state. The cap counts characters and always lands on
+/// a character boundary, so an upstream message bearing non-ASCII text (a
+/// localized server string or a symbol-bearing payload) is reproduced verbatim
+/// up to the limit rather than mangled or cut mid-character.
+///
+/// The redaction patterns (UUID, email, long hex token) are ASCII by
+/// construction and advance only over ASCII bytes, so byte-index detection
+/// always resumes on a character boundary; only the verbatim copy decodes and
+/// emits a full character at a time.
 pub(crate) fn sanitize_error(msg: &str) -> String {
+    /// Placeholder substituted for each redacted span. ASCII, so its character
+    /// and byte lengths coincide.
+    const REDACTION: &str = "[REDACTED]";
     let mut result = String::with_capacity(msg.len().min(MAX_ERROR_LEN + 16));
     let bytes = msg.as_bytes();
     let len = bytes.len();
+    // Decode the character beginning at byte index `pos`. The redaction
+    // branches advance only over ASCII bytes, so the verbatim branch is always
+    // entered on a character boundary and this never panics.
+    let char_at = |pos: usize| {
+        msg[pos..]
+            .chars()
+            .next()
+            .expect("verbatim copy resumes on a character boundary")
+    };
+    // Characters emitted so far. The cap is expressed in characters so a
+    // multi-byte character can never be split by truncation.
+    let mut emitted = 0usize;
     let mut i = 0;
     while i < len {
         // UUID pattern: 8-4-4-4-12 hex chars
         if i + 36 <= len && is_uuid_at(bytes, i) {
-            result.push_str("[REDACTED]");
+            result.push_str(REDACTION);
+            emitted += REDACTION.len();
             i += 36;
         // Email pattern: contains @ with word chars on both sides
         } else if bytes[i] == b'@' && i > 0 && is_email_boundary(&result, bytes, i, len) {
@@ -229,6 +253,7 @@ pub(crate) fn sanitize_error(msg: &str) -> String {
                 c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-' || c == '+'
             }) {
                 result.pop();
+                emitted -= 1;
             }
             // Skip forward past the domain part
             i += 1; // skip @
@@ -237,23 +262,27 @@ pub(crate) fn sanitize_error(msg: &str) -> String {
             {
                 i += 1;
             }
-            result.push_str("[REDACTED]");
+            result.push_str(REDACTION);
+            emitted += REDACTION.len();
         // Long hex token: 32+ consecutive hex chars (API keys, session tokens)
         } else if bytes[i].is_ascii_hexdigit() && is_hex_token_at(bytes, i) {
-            result.push_str("[REDACTED]");
-            let start = i;
+            result.push_str(REDACTION);
+            emitted += REDACTION.len();
             while i < len && bytes[i].is_ascii_hexdigit() {
                 i += 1;
             }
-            let _ = start; // consumed
         } else {
-            result.push(bytes[i] as char);
-            i += 1;
+            // Copy one whole character, preserving non-ASCII text intact.
+            let ch = char_at(i);
+            result.push(ch);
+            emitted += 1;
+            i += ch.len_utf8();
         }
 
-        // Truncate early if we've already exceeded the limit.
-        if result.len() >= MAX_ERROR_LEN {
-            result.truncate(MAX_ERROR_LEN);
+        // Truncate early once the character budget is spent. The cut sits on a
+        // character boundary because `result` only ever grows by whole
+        // characters or the ASCII `[REDACTED]` marker.
+        if emitted >= MAX_ERROR_LEN {
             result.push_str("...");
             return result;
         }
@@ -2158,5 +2187,63 @@ mod tests {
             reparsed, original,
             "finite-only payload must round-trip with all values preserved"
         );
+    }
+
+    #[test]
+    fn sanitize_error_does_not_panic_on_non_ascii_at_truncation_boundary() {
+        // An upstream message can carry arbitrary UTF-8 (a localized server
+        // string, a symbol-bearing payload). A byte-indexed truncation could
+        // land inside a multi-byte character and panic, taking down the server.
+        // Exercise every padding around the cap so a multi-byte character
+        // straddles the boundary at the lengths that historically split it.
+        for pad in (MAX_ERROR_LEN - 4)..=(MAX_ERROR_LEN + 4) {
+            let input = "z".repeat(pad) + "é€";
+            let out = sanitize_error(&input);
+            // Valid UTF-8 by virtue of being a `String`, but assert the cap and
+            // that the head is reproduced verbatim rather than mangled.
+            assert!(
+                out.chars().count() <= MAX_ERROR_LEN + 3,
+                "pad={pad}: sanitized output exceeds the character cap: {out:?}"
+            );
+            assert!(
+                out.starts_with(&"z".repeat(pad.min(MAX_ERROR_LEN))),
+                "pad={pad}: leading ASCII run was not reproduced verbatim: {out:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn sanitize_error_preserves_short_non_ascii_message_verbatim() {
+        // Below the cap, a non-ASCII message must survive intact rather than
+        // being rewritten byte-by-byte into mojibake.
+        let msg = "résolution échouée: symbole €";
+        assert_eq!(sanitize_error(msg), msg);
+    }
+
+    #[test]
+    fn sanitize_error_still_redacts_around_non_ascii_text() {
+        // Character iteration must not weaken the ASCII-pattern redaction.
+        let uuid = "550e8400-e29b-41d4-a716-446655440000";
+        let hex = "a".repeat(40);
+        let msg = format!("échec session {uuid} clé {hex} contact paul@example.com fin");
+        let out = sanitize_error(msg.as_str());
+        assert!(
+            !out.contains(uuid),
+            "UUID must be redacted even amid non-ASCII text: {out:?}"
+        );
+        assert!(
+            !out.contains(&hex),
+            "long hex token must be redacted: {out:?}"
+        );
+        assert!(
+            !out.contains("paul@example.com"),
+            "email must be redacted: {out:?}"
+        );
+        assert!(
+            out.contains("[REDACTED]"),
+            "redaction marker must be present: {out:?}"
+        );
+        // The surrounding non-ASCII prose is preserved.
+        assert!(out.contains("échec session"), "prose lost: {out:?}");
     }
 }

@@ -11,10 +11,12 @@
                 "created",
             ]);
             let user = resp.user.as_ref();
-            let redacted_session = if resp.session_id.len() >= 8 {
-                format!("{}...", &resp.session_id[..8])
-            } else {
-                resp.session_id.clone()
+            // Take the leading characters by character boundary, not byte
+            // index, so a session id bearing a multi-byte character cannot
+            // panic the slice.
+            let redacted_session = match resp.session_id.char_indices().nth(8) {
+                Some((boundary, _)) => format!("{}...", &resp.session_id[..boundary]),
+                None => resp.session_id.clone(),
             };
             td.push(vec![
                 redacted_session,
