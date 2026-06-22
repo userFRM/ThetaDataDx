@@ -2616,11 +2616,19 @@ def _check_core_streaming_method_rows(
 
 # Internal `#[pyfunction]`s that are NOT part of the public utility
 # surface: decode-bench hooks, the FPSS-method introspection helper, and
-# the offline streaming-saturation bench hook, all used by tests /
+# the offline streaming-saturation bench hooks (per-event baseline plus the
+# batched-delivery and Arrow-columnar throughput levers), all used by tests /
 # external benchmarking tooling. Excluded from the Python utility roster
 # so they are not mistaken for untracked utilities.
 PY_NON_UTILITY_PYFUNCTIONS: frozenset[str] = frozenset(
-    {"decode_response_bytes", "blocked_fpss_methods", "__bench_flood_events"}
+    {
+        "decode_response_bytes",
+        "blocked_fpss_methods",
+        "__bench_flood_events",
+        "__bench_flood_events_batched_calls",
+        "__bench_flood_events_batched_list",
+        "__bench_flood_events_arrow",
+    }
 )
 
 
@@ -2857,18 +2865,25 @@ def _is_ts_internal_free_fn(name: str) -> bool:
 
     The JS shim emits a `<tick>_tick_to_arrow_ipc` free function per tick
     type for the zero-copy Arrow boundary, plus small numeric-coercion
-    helpers (`bigint_to_i32`). The offline streaming-saturation bench hook
-    (`__bench_flood_events`, exported as `__benchFloodEvents`) pushes
-    synthetic events through the real tsfn path for benchmarking. None of
-    these are part of the standalone utility roster the `[[utility]]` rows
-    track, so they are excluded from the TypeScript utility surface — the
-    same carve-out the Python bench hooks get via
-    `PY_NON_UTILITY_PYFUNCTIONS`.
+    helpers (`bigint_to_i32`). The offline streaming-saturation bench hooks
+    (`__bench_flood_events` / `__bench_flood_events_batched` /
+    `__bench_flood_events_arrow_ipc`, exported as `__benchFloodEvents` /
+    `__benchFloodEventsBatched` / `__benchFloodEventsArrowIpc`) push synthetic
+    events through the real tsfn path for benchmarking. None of these are part
+    of the standalone utility roster the `[[utility]]` rows track, so they are
+    excluded from the TypeScript utility surface — the same carve-out the
+    Python bench hooks get via `PY_NON_UTILITY_PYFUNCTIONS`.
+
+    Note `*_to_arrow_ipc` already matches the `<tick>_tick_to_arrow_ipc`
+    family; `__bench_flood_events_arrow_ipc` is listed explicitly for clarity
+    even though the suffix rule would also catch it.
     """
     return (
         name.endswith("_to_arrow_ipc")
         or name == "bigint_to_i32"
         or name == "__bench_flood_events"
+        or name == "__bench_flood_events_batched"
+        or name == "__bench_flood_events_arrow_ipc"
     )
 
 

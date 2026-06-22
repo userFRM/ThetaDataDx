@@ -3058,6 +3058,58 @@ export declare class Util {
  */
 export declare function __benchFloodEvents(n: number, callback: ((arg: StreamEvent) => void)): Promise<number>
 
+/**
+ * LEVER 3 (TypeScript columnar bulk) — flood `n` synthetic trade events,
+ * accumulate `batch_size` of them as `TradeTick` rows, serialize ONE Arrow
+ * `RecordBatch` to an Arrow IPC byte buffer per batch (the same
+ * `TicksArrowExt::to_arrow` -> `StreamWriter` path the SDK's
+ * `tradeTickToArrowIpc` export uses), and cross the `ThreadsafeFunction`
+ * boundary ONCE per batch carrying that `Buffer` — NOT N JS objects.
+ *
+ * This bypasses the per-event `buffered_event_to_typed` JS-object
+ * construction entirely: the Node callback receives an Arrow IPC `Buffer`
+ * it decodes columnar via `apache-arrow` (`tableFromIPC`). DIFFERENT
+ * delivery model than the per-event / array-batch callbacks — Node gets a
+ * columnar Table, not typed event objects — so its number is the columnar
+ * bulk ceiling, the TypeScript analogue of the Python Arrow lever.
+ *
+ * Returns the count of `tsfn.call` invocations (batches) that returned a
+ * non-`Ok` status (tsfn-boundary drops; `0` on the healthy path). The
+ * caller asserts it AND verifies the Arrow row count summed across batches
+ * equals `n`.
+ *
+ * Bench-only. See the module doc for the parity-gate carve-out. `T` is a
+ * napi `Buffer`, which napi renders as `((arg: Buffer) => void)` in the
+ * generated `.d.ts`.
+ */
+export declare function __benchFloodEventsArrowIpc(n: number, batchSize: number, callback: ((arg: Buffer) => void)): Promise<number>
+
+/**
+ * LEVER 1 (batched delivery) — flood `n` synthetic events through the real
+ * `ThreadsafeFunction` path, but carrying `batch_size` events per
+ * `tsfn.call` hop (one `Array<StreamEvent>` per hop) instead of one event
+ * per hop. Amortizes the per-event threadsafe-function crossing + V8
+ * callback invocation over a whole batch.
+ *
+ * Same production marshal per event (`fpss_event_to_buffered` ->
+ * `buffered_event_to_typed`); the only change is that `batch_size` typed
+ * events are collected into a `Vec<StreamEvent>` (napi renders this as
+ * `Array<StreamEvent>`) and handed to the callback in one hop. Runs on a
+ * `spawn_blocking` worker, `Blocking` call mode, the same bounded queue.
+ *
+ * Returns the count of `tsfn.call` invocations (i.e. batches) that returned
+ * a non-`Ok` status (tsfn-boundary drops; `0` on the healthy path). The
+ * caller asserts it AND verifies the JS side received `n` events total
+ * across all batches.
+ *
+ * Bench-only. See the module doc for the parity-gate carve-out. The
+ * callback param uses the same INLINE `ThreadsafeFunction` spelling as the
+ * per-event export (here parameterized on `Vec<StreamEvent>`), so napi
+ * renders it as `((arg: Array<StreamEvent>) => void)` and the generated
+ * `.d.ts` stays valid + in sync (Gate 7).
+ */
+export declare function __benchFloodEventsBatched(n: number, batchSize: number, callback: ((arg: Array<StreamEvent>) => void)): Promise<number>
+
 /** Compute all 23 Black-Scholes Greeks + IV in one call. */
 export declare function allGreeks(spot: number, strike: number, rate: number, divYield: number, tte: number, optionPrice: number, right: string): AllGreeks
 
