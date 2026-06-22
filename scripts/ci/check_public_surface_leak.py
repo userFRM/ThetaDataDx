@@ -75,6 +75,14 @@ SCAN_GLOBS = (
     "sdks/typescript/index.js",
     "sdks/typescript/streaming-session.d.ts",
     "sdks/typescript/streaming-session.js",
+    # Per-SDK READMEs ship verbatim as the package long-description: the
+    # Python README becomes the PyPI page (`pyproject.toml` `readme =
+    # "README.md"`), the TypeScript README is packed into the npm tarball
+    # (npm always includes `README.md`), and the C++ README ships with the
+    # source SDK. They are as user-facing as the headers and stubs, so an
+    # internal-name leak in any of them reaches every reader of the
+    # package page.
+    "sdks/*/README.md",
 )
 
 
@@ -96,23 +104,45 @@ EXEMPT_PATH_FRAGMENTS = (
 
 
 # Internal-name tokens that must never appear in the shipped surface.
-# Matched case-sensitively on a word boundary so `mddS` vendor casing
-# and unrelated substrings do not trip. The list mirrors the standing
-# public-prose ban: internal Rust module names, runtime crates, and
-# dispatch primitives.
-FORBIDDEN_TOKENS = (
-    "tdbe",
-    "tokio",
-    "crossbeam",
-    "parking_lot",
-    "disruptor",
-    "block_on",
-    "os_pipe",
-    "allow_threads",
+# Matched case-insensitively on a word boundary, so a `Tokio` /
+# `Crossbeam` / `TDBE` capitalisation slips through no more than the
+# lower-case spelling does. The list mirrors the standing public-prose
+# ban: internal Rust module names, runtime crates, and dispatch
+# primitives. Single-token entries whose internal separator can be
+# spelled with a space, hyphen, or underscore (`parking_lot` /
+# `parking lot`, `block_on` / `block-on`, `os_pipe`, `crossbeam` /
+# `cross beam`) carry a flexible `[\s_-]?` separator so a reflowed or
+# re-hyphenated rendering cannot dodge the gate.
+#
+# Vendor terms (`fpss`, `mdds`) are deliberately ABSENT from this list
+# and never matched here — case-insensitivity is therefore safe for
+# them: there is no forbidden pattern a vendor word can satisfy. The
+# allow-list below is a second, belt-and-braces guard for the case where
+# an impl-IP token genuinely shares a line with a vendor name.
+FORBIDDEN_PATTERNS = (
+    r"tdbe",
+    r"tokio",
+    r"cross[\s_-]?beam",
+    r"parking[\s_-]?lot",
+    r"disruptor",
+    r"block[\s_-]?on",
+    r"os[\s_-]?pipe",
+    r"allow_threads",
+    r"Python::detach",
+    r"ingest[\s_-]?ring",
+    r"dispatch[\s_-]?consumer",
 )
 
+# Each pattern is wrapped in identifier-boundary guards so a token glued
+# to a surrounding identifier (`mytokio`, `tokiox`, `block_once`) does
+# not trip. `Python::detach` is bounded on both ends by the `Python`
+# prefix and the `detach` suffix; the literal `::` sits safely inside the
+# alternative, so the same boundary guards apply unchanged.
 FORBIDDEN_RE = re.compile(
-    r"(?<![A-Za-z0-9_])(" + "|".join(re.escape(t) for t in FORBIDDEN_TOKENS) + r")(?![A-Za-z0-9_])"
+    r"(?<![A-Za-z0-9_])("
+    + "|".join(f"(?:{p})" for p in FORBIDDEN_PATTERNS)
+    + r")(?![A-Za-z0-9_])",
+    re.IGNORECASE,
 )
 
 
@@ -150,17 +180,23 @@ def _iter_files(root: pathlib.Path) -> Iterable[pathlib.Path]:
             yield candidate
 
 
+_ALLOWLISTED_RE = re.compile(
+    "|".join(re.escape(name) for name in ALLOWLISTED_VENDOR_NAMES),
+    re.IGNORECASE,
+)
+
+
 def _strip_allowlisted(line: str) -> str:
     """Remove every allow-listed vendor name from `line`.
 
     Forbidden-token matching runs against the residue. A line whose only
     matches come from vendor names is thereby cleared, while a real leak
-    sharing a line with a vendor name still trips.
+    sharing a line with a vendor name still trips. The strip is
+    case-insensitive to match the case-insensitive forbidden scan: a
+    vendor name in any casing (`FPSS`, `Mdds`) is cleared just as the
+    lower-case spelling is.
     """
-    residue = line
-    for name in ALLOWLISTED_VENDOR_NAMES:
-        residue = residue.replace(name, " ")
-    return residue
+    return _ALLOWLISTED_RE.sub(" ", line)
 
 
 def _scan_line(line: str) -> list[str]:
@@ -187,11 +223,22 @@ def _scan(root: pathlib.Path) -> list[tuple[pathlib.Path, int, str, str]]:
 def _selftest() -> int:
     """Plant leaks in synthetic shipped stubs and confirm the gate fires.
 
-    Three cases:
+    Cases:
 
-    * A stub naming `tdbe` and `tokio` — must be flagged (2 hits).
+    * A header naming `tdbe` and `tokio` — must be flagged (2 hits).
     * A clean stub — must pass.
-    * A stub mentioning only allow-listed vendor names — must pass.
+    * A stub mentioning only allow-listed vendor names (in mixed casing)
+      — must pass.
+    * A header carrying mixed-case and separator-variant impl-IP tokens
+      (`Tokio`, `Crossbeam`, `Python::detach`, `TDBE`, `parking-lot`,
+      `block on`, `cross beam`, `os-pipe`, `ingest ring`,
+      `dispatch consumer`) — every one must be flagged, proving the
+      case-insensitive scan, the new phrases, and the flexible
+      separators all bite.
+    * A shipped README (`sdks/python/README.md`) naming an internal
+      runtime crate — must be flagged, proving `sdks/*/README.md` is in
+      the scan set (the PyPI / npm long-description leak that previously
+      went unscanned).
     """
     import tempfile
 
@@ -205,9 +252,31 @@ def _selftest() -> int:
         '    """Open a session against the Theta Terminal (fpss feed)."""\n'
         "    ...\n"
     )
+    # Vendor names in deliberately mixed casing: the case-insensitive
+    # allow-list strip must clear them so the line passes.
     vendor_only = (
-        "// The fpss and mdds feeds expose FIC / FIT data.\n"
+        "// The FPSS and Mdds feeds expose FIC / FIT data.\n"
         "// Interp3 curve interpolation is part of the public surface.\n"
+    )
+    # Each line carries exactly one impl-IP spelling the OLD gate let
+    # through: a capitalised token, a `::`-bearing token, or a token
+    # whose internal separator was respelled as a space or hyphen.
+    case_and_separator_variants = (
+        "/* dispatched on a Tokio runtime */\n"
+        "/* a Crossbeam channel feeds the consumer */\n"
+        "/* releases the GIL via Python::detach */\n"
+        "/* layout-compatible with the TDBE engine */\n"
+        "/* guarded by a parking-lot mutex */\n"
+        "/* the reader will block on the socket: block on it */\n"
+        "/* a cross beam queue */\n"
+        "/* drained through an os-pipe */\n"
+        "/* events arrive on the ingest ring */\n"
+        "/* serviced by the dispatch consumer */\n"
+    )
+    leaky_readme = (
+        "# thetadatadx (Python)\n"
+        "\n"
+        "Ticks are decoded on a tokio runtime and handed to Python.\n"
     )
 
     with tempfile.TemporaryDirectory() as td:
@@ -225,6 +294,14 @@ def _selftest() -> int:
         vendor.parent.mkdir(parents=True, exist_ok=True)
         vendor.write_text(vendor_only, encoding="utf-8")
 
+        variants = root / "sdks" / "cpp" / "include" / "variants.h"
+        variants.parent.mkdir(parents=True, exist_ok=True)
+        variants.write_text(case_and_separator_variants, encoding="utf-8")
+
+        readme = root / "sdks" / "python" / "README.md"
+        readme.parent.mkdir(parents=True, exist_ok=True)
+        readme.write_text(leaky_readme, encoding="utf-8")
+
         # A test file naming internals must be ignored even though it
         # lives under the SDK tree — proves the exclusion works.
         test_file = root / "sdks" / "python" / "tests" / "test_no_gil.py"
@@ -233,11 +310,13 @@ def _selftest() -> int:
 
         hits = _scan(root)
 
-        tokens = sorted(token for (_, _, token, _) in hits)
-        if tokens != ["tdbe", "tokio"]:
+        header_tokens = sorted(
+            token.lower() for (rel, _, token, _) in hits if rel.name == "leaky.h"
+        )
+        if header_tokens != ["tdbe", "tokio"]:
             print(
                 "selftest FAILED: expected exactly tdbe + tokio from the "
-                f"leaky header, got {tokens!r}"
+                f"leaky header, got {header_tokens!r}"
             )
             return 1
         if any("tests/" in rel.as_posix() for (rel, _, _, _) in hits):
@@ -248,6 +327,39 @@ def _selftest() -> int:
             return 1
         if any(rel.name == "index.d.ts" for (rel, _, _, _) in hits):
             print("selftest FAILED: a vendor-only stub was flagged")
+            return 1
+
+        # Every mixed-case / separator-variant spelling must be caught.
+        variant_tokens = {
+            re.sub(r"[\s_-]", "", token.lower())
+            for (rel, _, token, _) in hits
+            if rel.name == "variants.h"
+        }
+        expected_variants = {
+            "tokio",
+            "crossbeam",
+            "python::detach",
+            "tdbe",
+            "parkinglot",
+            "blockon",
+            "ospipe",
+            "ingestring",
+            "dispatchconsumer",
+        }
+        missing = expected_variants - variant_tokens
+        if missing:
+            print(
+                "selftest FAILED: case/separator-variant impl-IP tokens "
+                f"slipped through: {sorted(missing)!r}"
+            )
+            return 1
+
+        # The shipped README must be scanned and its leak flagged.
+        if not any(rel.name == "README.md" for (rel, _, _, _) in hits):
+            print(
+                "selftest FAILED: the impl-IP leak in the shipped "
+                "sdks/*/README.md long-description was not flagged"
+            )
             return 1
 
     print("selftest: ok")

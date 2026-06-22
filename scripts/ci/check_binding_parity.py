@@ -59,11 +59,20 @@ for agreement so a stale regenerated header is caught. This is the core
 
 Exits non-zero on any mismatch. Run from the repo root.
 
+The `.rs` / `.hpp` / `.h` / `.inc` collectors read source with C-style
+comments stripped first (`_read_source` / `_read_cpp_expanded`), so a
+symbol left behind only in a comment (a deleted-but-not-removed
+declaration) is not counted as present and cannot mask cross-binding
+drift. The one collector that intentionally harvests the documented
+label vocabulary FROM a doc comment
+(`_collect_ffi_subscription_kinds`) reads raw, and says so at its call.
+
 A `--selftest` switch runs an in-process synthetic-source matrix
 covering positive (all-bound) and negative (missing-on-TS,
 missing-on-C++, missing-on-FFI, undocumented-orphan, rust_only-
-without-issue) cases. The selftest is registered with the
-audit-protocol convention for CI gates.
+without-issue) cases, plus comment-stripping cases proving a
+commented-out declaration is ignored. The selftest is registered with
+the audit-protocol convention for CI gates.
 """
 
 from __future__ import annotations
@@ -224,12 +233,12 @@ def collect_python_classes(py_src: pathlib.Path) -> set[str]:
     would surface them."""
     out: set[str] = set()
     for rs in py_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         for m in PYCLASS_RE.finditer(text):
             out.add(_python_name(m.group(1), m.group(2)))
     errors_rs = py_src / "errors.rs"
     if errors_rs.is_file():
-        for m in re.finditer(r'm\.add\(\s*"(\w+)"\s*,', errors_rs.read_text(encoding="utf-8")):
+        for m in re.finditer(r'm\.add\(\s*"(\w+)"\s*,', _read_source(errors_rs)):
             out.add(m.group(1))
     return out
 
@@ -389,6 +398,34 @@ def _strip_js_comments(text: str) -> str:
     coarse comment strip is sufficient and cannot drop a tracked name.
     """
     return JS_LINE_COMMENT_RE.sub("", JS_BLOCK_COMMENT_RE.sub("", text))
+
+
+# Rust, C, and C++ share JavaScript's `//` line / `/* */` block comment
+# syntax (Rust `///` and `//!` doc comments and `/** */` are subsumed),
+# so the same coarse strip applies. Every symbol this gate reads from
+# those sources is a bare identifier in declaration position, never a
+# string-literal payload, so stripping comments before the symbol regexes
+# cannot drop a tracked name — but it DOES stop a deleted symbol left
+# behind in a comment (`// removed: historical()`) from reading as still
+# present, which would otherwise let real cross-binding drift pass.
+def _read_source(path: pathlib.Path) -> str:
+    """Read a Rust / C / C++ source file with comments stripped."""
+    return _strip_js_comments(path.read_text(encoding="utf-8"))
+
+
+def _read_cpp_expanded(cpp_hpp: pathlib.Path) -> str:
+    """Read a C++ wrapper header, inline its `.inc` includes, and strip
+    comments from the combined text.
+
+    The `.inc` fragments extend class bodies with generator-emitted
+    declarations; they must be inlined BEFORE the symbol scan and stripped
+    alongside the host header so a comment in either the header or an
+    included fragment cannot hide a member declaration.
+    """
+    expanded = _expand_cpp_includes(
+        cpp_hpp.read_text(encoding="utf-8"), cpp_hpp.parent
+    )
+    return _strip_js_comments(expanded)
 
 
 def _resolve_js_module(from_js: pathlib.Path, spec: str) -> pathlib.Path | None:
@@ -689,7 +726,7 @@ def collect_cpp_classes(cpp_hpp: pathlib.Path) -> set[str]:
     out: set[str] = set()
     if not cpp_hpp.is_file():
         return out
-    text = cpp_hpp.read_text(encoding="utf-8")
+    text = _read_source(cpp_hpp)
     for m in CPP_CLASS_RE.finditer(text):
         out.add(m.group(1))
     for m in CPP_USING_RE.finditer(text):
@@ -892,7 +929,7 @@ def _collect_python_setters(py_src: pathlib.Path) -> set[str]:
     if not py_src.is_dir():
         return setters
     for rs in py_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         for m in re.finditer(r"#\[setter\][^}]*?fn\s+(\w+)", text, re.DOTALL):
             name = m.group(1)
             if name.startswith("set_"):
@@ -937,7 +974,7 @@ def _collect_typescript_setters(ts_src: pathlib.Path) -> set[str]:
     if not ts_src.is_dir():
         return set()
     for rs in ts_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         # Scope to `impl Config { ... }` blocks so a `set<X>` napi method
         # on a non-Config class (e.g. the live `StreamView` streaming
         # knobs like `setSlowCallbackThresholdUs`) is not mistaken for a
@@ -973,7 +1010,7 @@ def _collect_cpp_setters(cpp_hpp: pathlib.Path, cpp_h: pathlib.Path) -> set[str]
     """
     cpp_setters: set[str] = set()
     if cpp_hpp.is_file():
-        text = cpp_hpp.read_text(encoding="utf-8")
+        text = _read_source(cpp_hpp)
         for m in re.finditer(r"\bvoid\s+set_(\w+)\s*\(", text):
             cpp_setters.add(m.group(1))
         # Some C++ setters return `int32_t` for status codes (the
@@ -982,7 +1019,7 @@ def _collect_cpp_setters(cpp_hpp: pathlib.Path, cpp_h: pathlib.Path) -> set[str]
             cpp_setters.add(m.group(1))
     h_setters: set[str] = set()
     if cpp_h.is_file():
-        text = cpp_h.read_text(encoding="utf-8")
+        text = _read_source(cpp_h)
         for m in re.finditer(r"\bthetadatadx_config_set_(\w+)\s*\(", text):
             h_setters.add(m.group(1))
     return cpp_setters & h_setters
@@ -998,7 +1035,7 @@ def _collect_ffi_setters(ffi_src: pathlib.Path) -> set[str]:
     if not ffi_src.is_dir():
         return setters
     for rs in ffi_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         for m in re.finditer(r"\bfn\s+thetadatadx_config_set_(\w+)\s*\(", text):
             setters.add(m.group(1))
     return setters
@@ -1056,7 +1093,7 @@ def _collect_python_getters(py_src: pathlib.Path) -> set[str]:
     if not py_src.is_dir():
         return getters
     for rs in py_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         for body in _iter_impl_config_bodies(text):
             for m in re.finditer(r"#\[getter\][^}]*?fn\s+(\w+)", body, re.DOTALL):
                 name = m.group(1)
@@ -1078,7 +1115,7 @@ def _collect_typescript_getters(ts_src: pathlib.Path) -> set[str]:
     if not ts_src.is_dir():
         return set()
     for rs in ts_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         for body in _iter_impl_config_bodies(text):
             for m in re.finditer(
                 r'#\[napi\([^)]*\bgetter\b[^)]*\bjs_name\s*=\s*"([a-zA-Z_]\w*)"[^)]*\)\]',
@@ -1103,7 +1140,7 @@ def _collect_cpp_getters(cpp_hpp: pathlib.Path) -> set[str]:
     getters: set[str] = set()
     if not cpp_hpp.is_file():
         return getters
-    text = _expand_cpp_includes(cpp_hpp.read_text(encoding="utf-8"), cpp_hpp.parent)
+    text = _read_cpp_expanded(cpp_hpp)
     m = re.search(r"^class\s+Config\s*(?::[^{]*)?\{", text, re.MULTILINE)
     if not m:
         return getters
@@ -1123,7 +1160,7 @@ def _collect_ffi_getters(ffi_src: pathlib.Path) -> set[str]:
     if not ffi_src.is_dir():
         return getters
     for rs in ffi_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         for m in re.finditer(r"\bfn\s+thetadatadx_config_get_(\w+)\s*\(", text):
             getters.add(m.group(1))
     return getters
@@ -1310,7 +1347,7 @@ def _collect_rust_client_builder_setters(client_builder_rs: pathlib.Path) -> set
     setters: set[str] = set()
     if not client_builder_rs.is_file():
         return setters
-    text = client_builder_rs.read_text(encoding="utf-8")
+    text = _read_source(client_builder_rs)
     for header in re.finditer(r"impl\s+ClientBuilder\s*\{", text):
         body = _balanced_body(text, header.end())
         for m in re.finditer(
@@ -1334,7 +1371,7 @@ def _collect_cpp_client_builder_setters(cpp_hpp: pathlib.Path) -> set[str]:
     setters: set[str] = set()
     if not cpp_hpp.is_file():
         return setters
-    text = _expand_cpp_includes(cpp_hpp.read_text(encoding="utf-8"), cpp_hpp.parent)
+    text = _read_cpp_expanded(cpp_hpp)
     m = re.search(r"^class\s+ClientBuilder\s*(?::[^{]*)?\{", text, re.MULTILINE)
     if not m:
         return setters
@@ -1417,7 +1454,7 @@ def _collect_typescript_connect_with_fields(ts_lib_rs: pathlib.Path) -> set[str]
     out: set[str] = set()
     if not ts_lib_rs.is_file():
         return out
-    text = ts_lib_rs.read_text(encoding="utf-8")
+    text = _read_source(ts_lib_rs)
     m = re.search(
         r"#\[napi\(object\)\]\s*pub\s+struct\s+ClientConnectOptions\s*\{",
         text,
@@ -1577,7 +1614,7 @@ def _collect_rust_pub_fields(config_dir: pathlib.Path) -> dict[str, set[str]]:
     if not config_dir.is_dir():
         return out
     for rs in config_dir.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         # Find every `pub struct X {` block and walk forward until the
         # closing brace. The structs in `crates/thetadatadx/src/config/`
         # never nest other struct definitions; a depth=1 brace counter
@@ -1693,7 +1730,7 @@ def _collect_python_class_methods(py_src: pathlib.Path) -> dict[str, set[str]]:
     )
     fn_re = re.compile(r"fn\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*[(<]")
     for rs in py_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         for header in impl_re.finditer(text):
             class_name = header.group(1)
             # Walk the impl block with a brace counter to bound the
@@ -1767,7 +1804,7 @@ def _collect_typescript_class_methods(
         r'(?:pub\s+)?(?:async\s+)?fn\s+([a-z_][a-z0-9_]*)\s*[(<]'
     )
     for rs in ts_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         for header in impl_re.finditer(text):
             class_name = header.group(1)
             # Walk the impl block with a brace counter to bound the
@@ -1881,7 +1918,7 @@ def _collect_cpp_class_methods(cpp_hpp: pathlib.Path) -> dict[str, set[str]]:
     out: dict[str, set[str]] = {}
     if not cpp_hpp.is_file():
         return out
-    text = _expand_cpp_includes(cpp_hpp.read_text(encoding="utf-8"), cpp_hpp.parent)
+    text = _read_cpp_expanded(cpp_hpp)
     # Limit to class bodies — struct bodies are POD-shaped value types
     # and irrelevant to the cross-binding method contract.
     class_header_re = re.compile(r"^class\s+(\w+)\s*(?::[^{]*)?\{", re.MULTILINE)
@@ -2070,7 +2107,7 @@ def _collect_rust_view_methods(client_rs: pathlib.Path) -> dict[str, set[str]]:
     out: dict[str, set[str]] = {}
     if not client_rs.is_file():
         return out
-    text = client_rs.read_text(encoding="utf-8")
+    text = _read_source(client_rs)
     # `pub fn <name>(` or `pub async fn <name>(`, capturing any leading
     # attribute lines so cfg/doc-hidden gating can be honoured.
     pub_fn_re = re.compile(
@@ -2507,7 +2544,7 @@ def _collect_core_streaming_observability_methods(
     for class_name, rs in sources:
         if not rs.is_file():
             continue
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         impl_re = re.compile(
             rf"impl\s+{class_name}\b[^{{]*\{{"
         )
@@ -2602,7 +2639,7 @@ def _collect_python_utility_functions(py_src: pathlib.Path) -> set[str]:
         return out
     fn_re = re.compile(r"#\[pyfunction\][^{}]*?fn\s+(\w+)\s*\(", re.DOTALL)
     for rs in py_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         for m in fn_re.finditer(text):
             out.add(m.group(1))
     return out - PY_NON_UTILITY_PYFUNCTIONS
@@ -2643,7 +2680,7 @@ def _collect_typescript_utility_functions(ts_src: pathlib.Path) -> set[str]:
         r"(?:pub\s+)?(?:async\s+)?fn\s+([a-z_][a-z0-9_]*)\s*[(<]"
     )
     for rs in ts_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         # Blank every impl body so method declarations inside them do not
         # masquerade as free functions. Walk with a brace counter.
         cleaned = []
@@ -2688,7 +2725,7 @@ def _collect_cpp_utility_functions(cpp_hpp: pathlib.Path) -> set[str]:
     out: set[str] = set()
     if not cpp_hpp.is_file():
         return out
-    text = _expand_cpp_includes(cpp_hpp.read_text(encoding="utf-8"), cpp_hpp.parent)
+    text = _read_cpp_expanded(cpp_hpp)
     # Blank class / struct bodies so only namespace-scope free functions
     # remain.
     type_re = re.compile(r"\b(?:class|struct)\s+\w+[^{;]*\{")
@@ -2736,7 +2773,7 @@ def _collect_ffi_utility_functions(ffi_src: pathlib.Path) -> set[str]:
     if not ffi_src.is_dir():
         return out
     for rs in ffi_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         for m in re.finditer(r"\bfn\s+thetadatadx_(\w+)\s*\(", text):
             out.add(m.group(1))
     return out
@@ -2970,7 +3007,7 @@ def _collect_rust_subscription_kinds(subscription_rs: pathlib.Path) -> set[str]:
     if not subscription_rs.is_file():
         return set()
     return _harvest_kind_labels(
-        subscription_rs.read_text(encoding="utf-8"),
+        _read_source(subscription_rs),
         ("fn kind_str", "fn full_kind_str"),
     )
 
@@ -2984,7 +3021,7 @@ def _collect_binding_subscription_kinds(fluent_rs: pathlib.Path) -> set[str]:
     if not fluent_rs.is_file():
         return set()
     return _harvest_kind_labels(
-        fluent_rs.read_text(encoding="utf-8"),
+        _read_source(fluent_rs),
         ("fn kind", "SubscriptionKind"),
     )
 
@@ -2999,7 +3036,7 @@ def _collect_cpp_subscription_kinds(cpp_hpp: pathlib.Path) -> set[str]:
     """
     if not cpp_hpp.is_file():
         return set()
-    text = cpp_hpp.read_text(encoding="utf-8")
+    text = _read_source(cpp_hpp)
     # Bound the harvest to the `kind_string()` body so an unrelated label
     # string elsewhere in the header cannot mask a divergence inside the
     # accessor.
@@ -3033,6 +3070,11 @@ def _collect_ffi_subscription_kinds(cpp_h: pathlib.Path) -> set[str]:
     """
     if not cpp_h.is_file():
         return set()
+    # NB: read RAW (comments intact). Unlike the symbol collectors, this
+    # harvest reads the canonical label vocabulary FROM the
+    # `ThetaDataDxSubscription` doc comment itself — the documented C
+    # contract lives in prose, so stripping comments here would erase
+    # exactly what must be checked.
     text = cpp_h.read_text(encoding="utf-8")
     # The kind label vocabulary appears in the `ThetaDataDxSubscription` struct
     # doc comment. Restrict the harvest to the lines mentioning the field
@@ -3167,7 +3209,7 @@ def _collect_python_error_leaves(py_errors_rs: pathlib.Path) -> set[str]:
     """
     if not py_errors_rs.is_file():
         return set()
-    text = py_errors_rs.read_text(encoding="utf-8")
+    text = _read_source(py_errors_rs)
     m = re.search(r"pub fn to_py_err\s*\([^)]*\)\s*->\s*PyErr\s*\{", text)
     if not m:
         return set()
@@ -3191,7 +3233,7 @@ def _collect_typescript_error_leaves(ts_lib_rs: pathlib.Path) -> set[str]:
     """
     if not ts_lib_rs.is_file():
         return set()
-    text = ts_lib_rs.read_text(encoding="utf-8")
+    text = _read_source(ts_lib_rs)
     m = re.search(r"fn leaf_class_for\s*\([^)]*\)\s*->\s*&'static str\s*\{", text)
     if not m:
         return set()
@@ -3211,7 +3253,7 @@ def _collect_cpp_error_leaves(cpp_hpp: pathlib.Path) -> set[str]:
     """
     if not cpp_hpp.is_file():
         return set()
-    text = cpp_hpp.read_text(encoding="utf-8")
+    text = _read_source(cpp_hpp)
     m = re.search(r"void\s+throw_for_code\s*\([^)]*\)\s*\{", text)
     if not m:
         return set()
@@ -3231,7 +3273,7 @@ def _collect_ffi_error_codes(ffi_error_rs: pathlib.Path) -> dict[str, int]:
     """
     if not ffi_error_rs.is_file():
         return {}
-    text = ffi_error_rs.read_text(encoding="utf-8")
+    text = _read_source(ffi_error_rs)
     out: dict[str, int] = {}
     for name, value in re.findall(
         r"pub const (THETADATADX_ERR_\w+)\s*:\s*i32\s*=\s*(\d+)\s*;", text
@@ -3248,7 +3290,7 @@ def _collect_ffi_error_codes_dispatched(ffi_error_rs: pathlib.Path) -> set[str]:
     """
     if not ffi_error_rs.is_file():
         return set()
-    text = ffi_error_rs.read_text(encoding="utf-8")
+    text = _read_source(ffi_error_rs)
     m = re.search(r"fn error_code_for\s*\([^)]*\)\s*->\s*i32\s*\{", text)
     if not m:
         return set()
@@ -3266,7 +3308,7 @@ def _collect_cpp_error_codes(cpp_h: pathlib.Path) -> dict[str, int]:
     """
     if not cpp_h.is_file():
         return {}
-    text = cpp_h.read_text(encoding="utf-8")
+    text = _read_source(cpp_h)
     out: dict[str, int] = {}
     for name, value in re.findall(r"#define\s+(THETADATADX_ERR_\w+)\s+(\d+)\b", text):
         out[name] = int(value)
@@ -3459,7 +3501,7 @@ def _collect_python_streaming_endpoints(py_src: pathlib.Path) -> set[str]:
         return out
     impl_re = re.compile(r"impl\s+(\w+)Builder\s*\{")
     for rs in py_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         for header in impl_re.finditer(text):
             stem = header.group(1)
             body_start = header.end()
@@ -3522,7 +3564,7 @@ def _collect_ffi_streaming_endpoints(ffi_src: pathlib.Path) -> set[str]:
         return out
     fn_re = re.compile(r"\bfn\s+thetadatadx_(\w+)_stream\s*\(")
     for rs in ffi_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         for m in fn_re.finditer(text):
             out.add(m.group(1))
     return out
@@ -3661,7 +3703,7 @@ def _collect_python_async_endpoints(py_src: pathlib.Path) -> set[str]:
         return out
     impl_re = re.compile(r"impl\s+(\w+)Builder\s*\{")
     for rs in py_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         for header in impl_re.finditer(text):
             stem = header.group(1)
             body_start = header.end()
@@ -3926,7 +3968,7 @@ def _collect_cabi_base_endpoints(with_options_inc: pathlib.Path) -> set[str]:
     out: set[str] = set()
     if not with_options_inc.is_file():
         return out
-    text = with_options_inc.read_text(encoding="utf-8")
+    text = _read_source(with_options_inc)
     for m in re.finditer(r"\bthetadatadx_(\w+)_with_options\s*\(", text):
         out.add(m.group(1))
     return out
@@ -3947,7 +3989,7 @@ def _collect_ffi_base_endpoints(ffi_src: pathlib.Path) -> set[str]:
         return out
     fn_re = re.compile(r"\bfn\s+thetadatadx_(\w+)_with_options\s*\(")
     for rs in ffi_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         for m in fn_re.finditer(text):
             out.add(m.group(1))
     return out
@@ -3986,7 +4028,7 @@ def _collect_python_buffered_endpoints(py_src: pathlib.Path) -> set[str]:
         return out
     impl_re = re.compile(r"impl\s+(\w+)Builder\s*\{")
     for rs in py_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         for header in impl_re.finditer(text):
             stem = header.group(1)
             body = _balanced_body(text, header.end())
@@ -4215,7 +4257,7 @@ def _collect_ffi_from_file_stems(ffi_src: pathlib.Path) -> set[str]:
         return out
     fn_re = re.compile(r"\bfn\s+thetadatadx_(\w+)_connect_from_file\s*\(")
     for rs in ffi_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         for m in fn_re.finditer(text):
             out.add(m.group(1))
     return out
@@ -4354,7 +4396,7 @@ def _collect_python_connect_classes(py_src: pathlib.Path) -> set[str]:
         r"impl\s+(?:[A-Za-z_][A-Za-z0-9_]*::)*([A-Za-z_][A-Za-z0-9_]*)\s*\{"
     )
     for rs in py_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         for header in impl_re.finditer(text):
             class_name = header.group(1)
             if class_name not in _CONNECT_GOVERNED:
@@ -4410,7 +4452,7 @@ def _collect_ffi_connect_stems(ffi_src: pathlib.Path) -> set[str]:
         return out
     fn_re = re.compile(r"\bfn\s+thetadatadx_(\w+?)_connect\s*\(")
     for rs in ffi_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         for m in fn_re.finditer(text):
             out.add(m.group(1))
     return out
@@ -4609,7 +4651,7 @@ def _collect_ffi_credentials_factories(ffi_src: pathlib.Path) -> set[str]:
         return out
     fn_re = re.compile(r"\bfn\s+thetadatadx_credentials_(\w+)\s*\(")
     for rs in ffi_src.rglob("*.rs"):
-        text = rs.read_text(encoding="utf-8")
+        text = _read_source(rs)
         for m in fn_re.finditer(text):
             tail = m.group(1)
             if tail == "free":
@@ -4871,7 +4913,7 @@ def _struct_field_type(src_dir: pathlib.Path, struct: str, field: str) -> str | 
         r"(?:#\[[^\]]*\]\s*)*pub\s+" + re.escape(field) + r"\s*:\s*([^,\n]+)",
     )
     for path in sorted(src_dir.rglob("*.rs")):
-        text = path.read_text(encoding="utf-8")
+        text = _read_source(path)
         for m in struct_re.finditer(text):
             fm = field_re.search(m.group(1))
             if fm:
@@ -4889,7 +4931,7 @@ def _cpp_struct_field_type(hpp: pathlib.Path, struct: str, field: str) -> str | 
     type this returns, closing the gap that let a C++ value struct
     surface a raw wire integer the other bindings decode.
     """
-    text = hpp.read_text(encoding="utf-8")
+    text = _read_source(hpp)
     struct_re = re.compile(
         r"struct\s+" + re.escape(struct) + r"\s*\{(.*?)\n\}",
         re.S,
@@ -4938,7 +4980,7 @@ def _c_abi_struct_field_type(inc: pathlib.Path, struct: str, field: str) -> str 
     """
     if not inc.is_file():
         return None
-    text = inc.read_text(encoding="utf-8")
+    text = _read_source(inc)
     struct_re = re.compile(
         r"typedef\s+struct\s*\{(.*?)\}\s*" + re.escape(struct) + r"\s*;",
         re.S,
@@ -5083,7 +5125,7 @@ def _collect_value_struct_fields(
     )
     field_re = re.compile(r"(?:#\[[^\]]*\]\s*)*pub\s+(\w+)\s*:", re.M)
     for path in sorted(src_dir.rglob("*.rs")):
-        text = path.read_text(encoding="utf-8")
+        text = _read_source(path)
         for m in struct_re.finditer(text):
             for fm in field_re.finditer(m.group(1)):
                 out.add(fm.group(1))
@@ -8725,6 +8767,97 @@ def _run_selftest() -> int:
     _case("utility — roster orphan (untracked util) trips", _case_utility_roster_orphan_trips)
     _case("utility — TS surface filters internal free fns", _case_ts_utility_surface_filters_internal)
     _case("utility — live roster complete", _case_utility_roster_live_complete)
+
+    # ── Source comment-stripping selftests ─────────────────────────
+    # The `.rs` / `.hpp` / `.h` / `.inc` collectors strip C-style
+    # comments before their symbol regexes run, so a symbol that survives
+    # only inside a comment (a deleted-but-not-removed declaration like
+    # `// removed: historical()`) no longer reads as present. Without the
+    # strip, a `DOTALL` collector regex spans the comment markers and a
+    # ghost symbol passes — masking real cross-binding drift.
+
+    def _case_strip_source_comments_helper() -> None:
+        """`_read_source` removes both line and block comments."""
+        raw = (
+            "pub fn live() {}\n"
+            "// pub fn ghost_line() {}\n"
+            "/* pub fn ghost_block() {} */\n"
+            "/// removed: historical()\n"
+        )
+        with tempfile.TemporaryDirectory() as td:
+            p = pathlib.Path(td) / "x.rs"
+            p.write_text(raw, encoding="utf-8")
+            stripped = _read_source(p)
+        assert "live" in stripped, "a live declaration must survive stripping"
+        for ghost in ("ghost_line", "ghost_block", "historical"):
+            assert ghost not in stripped, (
+                f"`{ghost}` survived only in a comment but was not stripped"
+            )
+
+    def _case_strip_pyclass_in_comment_ignored() -> None:
+        """A commented-out `#[pyclass]` is NOT collected, while a live one
+        is — the deleted-symbol-in-comment hole, proven end-to-end through
+        the real `collect_python_classes` collector.
+        """
+        src = (
+            "#[pyclass]\n"
+            "pub struct LiveClass {}\n"
+            "\n"
+            "// #[pyclass]\n"
+            "// pub struct GhostLineClass {}\n"
+            "\n"
+            "/* #[pyclass]\n"
+            "   pub struct GhostBlockClass {} */\n"
+        )
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            (root / "lib.rs").write_text(src, encoding="utf-8")
+            classes = collect_python_classes(root)
+        assert "LiveClass" in classes, (
+            f"a live #[pyclass] must be collected; got {sorted(classes)!r}"
+        )
+        assert "GhostLineClass" not in classes, (
+            "a #[pyclass] surviving only in a line comment was collected — "
+            f"the comment-strip hole is open; got {sorted(classes)!r}"
+        )
+        assert "GhostBlockClass" not in classes, (
+            "a #[pyclass] surviving only in a block comment was collected — "
+            f"the comment-strip hole is open; got {sorted(classes)!r}"
+        )
+
+    def _case_strip_cpp_includes_comments() -> None:
+        """`_read_cpp_expanded` inlines `.inc` fragments AND strips
+        comments from both the host header and the inlined fragment, so a
+        commented-out declaration in either is not seen.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            (root / "frag.inc").write_text(
+                "void thetadatadx_live_inc(void);\n"
+                "// void thetadatadx_ghost_inc(void);\n",
+                encoding="utf-8",
+            )
+            hpp = root / "header.hpp"
+            hpp.write_text(
+                '#include "frag.inc"\n'
+                "void thetadatadx_live_hpp(void);\n"
+                "/* void thetadatadx_ghost_hpp(void); */\n",
+                encoding="utf-8",
+            )
+            text = _read_cpp_expanded(hpp)
+        assert "thetadatadx_live_inc" in text and "thetadatadx_live_hpp" in text, (
+            "live declarations from the header and the inlined .inc must "
+            f"survive; got: {text!r}"
+        )
+        for ghost in ("thetadatadx_ghost_inc", "thetadatadx_ghost_hpp"):
+            assert ghost not in text, (
+                f"`{ghost}` survived only in a comment after include "
+                "expansion but was not stripped"
+            )
+
+    _case("comment-strip — _read_source drops line + block comments", _case_strip_source_comments_helper)
+    _case("comment-strip — commented-out #[pyclass] not collected", _case_strip_pyclass_in_comment_ignored)
+    _case("comment-strip — _read_cpp_expanded strips host + .inc comments", _case_strip_cpp_includes_comments)
 
     print(f"check_binding_parity --selftest: {n_pass} passed, {n_fail} failed")
     return 0 if n_fail == 0 else 1
