@@ -44,7 +44,7 @@ use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{StreamData, StreamEvent as CoreStreamEvent};
 use thetadatadx::Price;
 
-use crate::{buffered_event_to_typed, fpss_event_to_buffered, TsfnCallback};
+use crate::{buffered_event_to_typed, fpss_event_to_buffered};
 
 /// Build a synthetic `Trade` core event carrying a shared `Arc<Contract>`.
 /// Mirrors `make_event` in `crates/thetadatadx/benches/streaming_throughput.rs`
@@ -86,10 +86,26 @@ fn make_event(contract: &Arc<Contract>, idx: u64) -> CoreStreamEvent {
 /// count to reach `n` before reading timings.
 ///
 /// Bench-only. See the module doc for the parity-gate carve-out.
+//
+// The `callback` param is spelled with the same INLINE `ThreadsafeFunction`
+// type as the production `start_streaming` (it is exactly what `TsfnCallback`
+// aliases), not the `TsfnCallback` alias itself: napi-rs renders the inline
+// generic as the JS `((arg: StreamEvent) => void)` callback type in
+// `index.d.ts`, whereas it emits a type-alias name verbatim (an undeclared
+// `TsfnCallback` type). Matching `start_streaming`'s spelling keeps the
+// generated `.d.ts` valid and in sync with the committed stub (Gate 7).
 #[napi(js_name = "__benchFloodEvents")]
 pub async fn __bench_flood_events(
     n: u32,
-    callback: TsfnCallback,
+    callback: napi::threadsafe_function::ThreadsafeFunction<
+        crate::StreamEvent,
+        (),
+        crate::StreamEvent,
+        napi::Status,
+        false,
+        false,
+        { crate::STREAMING_CALLBACK_QUEUE_DEPTH },
+    >,
 ) -> napi::Result<f64> {
     let callback = Arc::new(callback);
     let n = n as u64;
