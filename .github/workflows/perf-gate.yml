@@ -12,12 +12,21 @@ name: Perf Gate
 # Kept in its own workflow file (not folded into `ci.yml`) so the gate's
 # bench step and baseline evolve without colliding with other in-flight
 # CI work.
-
+#
+# Heavy lane: the bench compile is slow, so this runs post-merge on main,
+# on the nightly schedule, on release tags, in the merge queue, and on a
+# PR only when the core or FFI sources changed or the `full-ci` label is
+# set. Never on draft PRs.
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+  merge_group:
+  schedule:
+    - cron: "23 6 * * *"
 
 permissions:
   contents: read
@@ -34,8 +43,35 @@ env:
   PERF_GATE_OUT_DIR: ${{ github.workspace }}/target/perf-gate
 
 jobs:
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      perf: ${{ steps.filter.outputs.perf }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            perf:
+              - 'crates/**'
+              - 'ffi/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'scripts/ci/check_perf_gate.py'
+              - '.github/workflows/perf-gate.yml'
+              - '.github/actions/**'
+
   decode-allocations:
     name: Decode allocations-per-row gate
+    needs: changes
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.draft == false &&
+       (needs.changes.outputs.perf == 'true' ||
+        contains(github.event.pull_request.labels.*.name, 'full-ci')))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

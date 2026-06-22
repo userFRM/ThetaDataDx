@@ -1,11 +1,25 @@
 name: CI
 
+# Tiered CI. The fast lane runs on every PR to main (drafts included)
+# and is the merge gate: format, a Linux clippy pass with warnings
+# denied, the core library tests, and every cheap script gate.
+# Cross-platform builds and the slow compile-heavy jobs run post-merge on
+# main, on a nightly schedule, on release tags, and on a PR only when
+# relevant paths change or the `full-ci` label is set. Draft PRs run the
+# fast lane only.
 on:
   push:
     branches: [main]
     tags: ["v*"]
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+  merge_group:
+  schedule:
+    # Off-peak, off-minute nightly run of the full heavy lane so the
+    # cross-platform builds, semver check, and bench gate are proven
+    # daily even when every PR that day skipped them on path grounds.
+    - cron: "23 6 * * *"
 
 permissions:
   contents: read
@@ -18,6 +32,63 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # ───────────────────────────────────────────────────────────────
+  # Path-relevance gate. Heavy jobs read these outputs to decide
+  # whether a pull_request touched code that warrants the expensive
+  # cross-platform / compile-heavy work. Non-PR events (push to main,
+  # schedule, tag, merge_group) ignore these outputs and always run the
+  # full heavy lane, so coverage is never lost.
+  # ───────────────────────────────────────────────────────────────
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      ffi: ${{ steps.filter.outputs.ffi }}
+      semver: ${{ steps.filter.outputs.semver }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            # The Rust core, FFI, every cargo manifest the workspace and
+            # the SDK crates pull in, plus the scripts the heavy Rust jobs
+            # drive. A docs-only or config-only PR matches none of these
+            # and skips the compile-heavy lane.
+            rust:
+              - 'crates/**'
+              - 'ffi/**'
+              - 'tools/**'
+              - 'sdks/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'scripts/ci/**'
+              - 'scripts/dev/**'
+              - '.github/workflows/ci.yml'
+              - '.github/actions/**'
+            ffi:
+              - 'crates/**'
+              - 'ffi/**'
+              - 'sdks/cpp/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/workflows/ci.yml'
+              - '.github/actions/**'
+            semver:
+              - 'crates/**'
+              - 'ffi/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/workflows/ci.yml'
+
+  # ═══════════════════════════════════════════════════════════════
+  # FAST LANE. Runs on every PR (drafts included), every push to main,
+  # and in the merge queue. This is the required merge gate. Linux-only,
+  # no cross-platform builds, targets well under ten minutes.
+  # ═══════════════════════════════════════════════════════════════
+
   fmt:
     name: Format
     runs-on: ubuntu-latest
@@ -28,6 +99,37 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy (ubuntu, stable)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/install-protoc
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+  core-test:
+    name: Core library tests (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-rust-deps
+      # The library unit tests for the core crate. This is the fast
+      # merge-gate slice: it builds the default feature set plus
+      # `config-file` so the TOML-config test module compiles, and runs
+      # the `--lib` unit tests without the heavy optional-dependency
+      # suites (arrow / polars / panic-boundary) or the full workspace
+      # build, which run in the heavy lane. `config-file` is enabled so
+      # the `#[cfg(feature = "config-file")]` config tests in
+      # `config/mod.rs` actually compile and run rather than silently
+      # skipping.
+      - run: cargo test -p thetadatadx --features config-file --lib --locked
 
   c-abi-completeness:
     name: C ABI completeness vs C header
@@ -44,7 +146,9 @@ jobs:
       # .so. A regex pass over source would miss macro-emitted symbols
       # (`tick_array_free!` etc.); the nm-based ground truth catches
       # every exported `thetadatadx_*` symbol the loader will actually expose.
-      - run: cargo build -p thetadatadx-ffi --release
+      # The cross-platform FFI builds live in the heavy lane; the fast
+      # lane builds the Linux .so this gate needs and nothing more.
+      - run: cargo build -p thetadatadx-ffi --release --locked
       - run: python3 scripts/ci/check_c_abi_completeness.py
 
   binding-parity:
@@ -68,7 +172,6 @@ jobs:
   wire-schema-drift:
     name: Wire schema drift (proto + FPSS + tick layouts)
     runs-on: ubuntu-latest
-    needs: check
     timeout-minutes: 20
     # Gate 5 (#548): every committed snapshot (gRPC proto codegen,
     # FPSS event class projections, tick-layout asserts, SDK surface
@@ -148,6 +251,28 @@ jobs:
           python3 scripts/ci/check_no_re_framing.py --selftest
           python3 scripts/ci/check_no_re_framing.py
 
+  docs-consistency:
+    name: Docs consistency
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python3 scripts/ci/check_docs_consistency.py
+
+  version-sync:
+    name: Version sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python3 scripts/ci/check_version_sync.py
+
   cargo-deny:
     name: Cargo deny
     runs-on: ubuntu-latest
@@ -161,16 +286,32 @@ jobs:
           # Policy lives in deny.toml at the repo root.
           arguments: --all-features
 
-  check:
+  # ═══════════════════════════════════════════════════════════════
+  # HEAVY LANE. Cross-platform builds and the slow compile-heavy jobs.
+  # Runs on push to main, on the nightly schedule, on release tags, in
+  # the merge queue, and on a PR only when relevant paths changed or the
+  # `full-ci` label is present. Never on draft PRs.
+  # ═══════════════════════════════════════════════════════════════
+
+  lint-matrix:
     name: Lint (${{ matrix.os }}, ${{ matrix.toolchain }})
+    needs: changes
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.draft == false &&
+       (needs.changes.outputs.rust == 'true' ||
+        contains(github.event.pull_request.labels.*.name, 'full-ci')))
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # The Linux stable clippy pass is the fast-lane `clippy` job; this
+        # matrix covers the cross-platform runners and the MSRV floor that
+        # do not belong on the per-push critical path.
+        os: [macos-latest, windows-latest]
         toolchain: [stable]
         include:
           # MSRV floor declared in `[workspace.package].rust-version`.
-          # Pin the Linux runner to the floor toolchain so a dependency
+          # Pin a Linux runner to the floor toolchain so a dependency
           # bump that pulls in a newer rustc requirement fails CI before
           # it reaches release.
           - os: ubuntu-latest
@@ -189,8 +330,13 @@ jobs:
 
   test:
     name: Test
+    needs: changes
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.draft == false &&
+       (needs.changes.outputs.rust == 'true' ||
+        contains(github.event.pull_request.labels.*.name, 'full-ci')))
     runs-on: ubuntu-latest
-    needs: check
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
@@ -224,8 +370,13 @@ jobs:
   # stacked target artifacts otherwise exhaust the runner's disk.
   feature-tests:
     name: Feature-gated tests (columnar + panic boundary)
+    needs: changes
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.draft == false &&
+       (needs.changes.outputs.rust == 'true' ||
+        contains(github.event.pull_request.labels.*.name, 'full-ci')))
     runs-on: ubuntu-latest
-    needs: check
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
@@ -246,8 +397,13 @@ jobs:
 
   rustdoc:
     name: Rustdoc — Gate 13 catches broken intra-doc links
+    needs: changes
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.draft == false &&
+       (needs.changes.outputs.rust == 'true' ||
+        contains(github.event.pull_request.labels.*.name, 'full-ci')))
     runs-on: ubuntu-latest
-    needs: check
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
@@ -270,8 +426,13 @@ jobs:
 
   bench:
     name: Bench regression gate
+    needs: changes
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.draft == false &&
+       (needs.changes.outputs.rust == 'true' ||
+        contains(github.event.pull_request.labels.*.name, 'full-ci')))
     runs-on: ubuntu-latest
-    needs: check
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
@@ -319,21 +480,29 @@ jobs:
 
   semver:
     name: Semver check
+    needs: changes
+    # cargo-semver-checks anchored at the last published release baseline.
+    # Runs in the heavy lane: on push to main and tags it compares against
+    # the published crates.io baseline (which catches a hotfix branch that
+    # rebased directly onto main); on a PR it runs only when the crate or
+    # FFI sources changed or the `full-ci` label is set, and never on a
+    # draft.
+    if: >-
+      (github.event_name != 'pull_request' &&
+       (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') ||
+        github.event_name == 'schedule' || github.event_name == 'merge_group')) ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.draft == false &&
+       (needs.changes.outputs.semver == 'true' ||
+        contains(github.event.pull_request.labels.*.name, 'full-ci')))
     runs-on: ubuntu-latest
-    needs: check
     timeout-minutes: 30
-    # Gate 9 (issue #552): every PR against main runs cargo-semver-checks
-    # so a silent breaking change to the `thetadatadx` public Rust API
-    # surface fails the build. Push-to-main and tag runs still execute
-    # the same check — the comparison is against the last published
-    # crates.io baseline, which catches the case where a hotfix branch
-    # rebases directly onto main.
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/install-protoc
       # cargo-semver-checks anchored at the last published release;
       # hard-fail on any public Rust API break the crate version does
@@ -348,8 +517,13 @@ jobs:
 
   surfaces:
     name: Extended Surfaces
+    needs: changes
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.draft == false &&
+       (needs.changes.outputs.rust == 'true' ||
+        contains(github.event.pull_request.labels.*.name, 'full-ci')))
     runs-on: ubuntu-latest
-    needs: check
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
@@ -364,8 +538,6 @@ jobs:
           node-version: "20"
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/install-protoc
-      - run: python3 scripts/ci/check_docs_consistency.py
-      - run: python3 scripts/ci/check_version_sync.py
       # Cross-Cargo.lock dependency-version drift on security-critical
       # (rustls, tokio, h2, reqwest, hyper) and SDK-owned (thetadatadx)
       # deps. A workspace bump must land in every binding lockfile or the
@@ -388,6 +560,60 @@ jobs:
           npm install
           npm run build
           npm test
+
+  build-ffi:
+    name: Build FFI (${{ matrix.os }})
+    needs: changes
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.draft == false &&
+       (needs.changes.outputs.ffi == 'true' ||
+        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            artifact-name: ffi-linux-x86_64
+            artifact-path: |
+              target/release/libthetadatadx_ffi.so
+              target/release/libthetadatadx_ffi.a
+          - os: macos-latest
+            artifact-name: ffi-macos-arm64
+            artifact-path: |
+              target/release/libthetadatadx_ffi.dylib
+              target/release/libthetadatadx_ffi.a
+          - os: windows-latest
+            artifact-name: ffi-windows-msvc-x86_64
+            artifact-path: |
+              target/release/thetadatadx_ffi.dll
+              target/release/thetadatadx_ffi.dll.lib
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-rust-deps
+      - if: runner.os == 'Windows'
+        shell: bash
+        run: rustup target add x86_64-pc-windows-gnu
+      - run: cargo build --release -p thetadatadx-ffi --locked
+      - if: runner.os == 'Windows'
+        shell: bash
+        env:
+          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: gcc
+        run: cargo build --release --target x86_64-pc-windows-gnu -p thetadatadx-ffi --locked
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.artifact-path }}
+      - if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ffi-windows-gnu-x86_64
+          path: |
+            target/x86_64-pc-windows-gnu/release/thetadatadx_ffi.dll
+            target/x86_64-pc-windows-gnu/release/libthetadatadx_ffi*.a
 
   sdk-bindings:
     name: SDK Bindings (${{ matrix.os }})
@@ -436,54 +662,10 @@ jobs:
       - name: Run offline subset
         run: ctest --test-dir build/cpp-tests --output-on-failure --no-tests=error
 
-  build-ffi:
-    name: Build FFI (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        include:
-          - os: ubuntu-latest
-            artifact-name: ffi-linux-x86_64
-            artifact-path: |
-              target/release/libthetadatadx_ffi.so
-              target/release/libthetadatadx_ffi.a
-          - os: macos-latest
-            artifact-name: ffi-macos-arm64
-            artifact-path: |
-              target/release/libthetadatadx_ffi.dylib
-              target/release/libthetadatadx_ffi.a
-          - os: windows-latest
-            artifact-name: ffi-windows-msvc-x86_64
-            artifact-path: |
-              target/release/thetadatadx_ffi.dll
-              target/release/thetadatadx_ffi.dll.lib
-    runs-on: ${{ matrix.os }}
-    needs: check
-    timeout-minutes: 75
-    steps:
-      - uses: actions/checkout@v6
-      - uses: ./.github/actions/setup-rust-deps
-      - if: runner.os == 'Windows'
-        shell: bash
-        run: rustup target add x86_64-pc-windows-gnu
-      - run: cargo build --release -p thetadatadx-ffi --locked
-      - if: runner.os == 'Windows'
-        shell: bash
-        env:
-          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER: gcc
-        run: cargo build --release --target x86_64-pc-windows-gnu -p thetadatadx-ffi --locked
-      - uses: actions/upload-artifact@v7
-        with:
-          name: ${{ matrix.artifact-name }}
-          path: ${{ matrix.artifact-path }}
-      - if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v7
-        with:
-          name: ffi-windows-gnu-x86_64
-          path: |
-            target/x86_64-pc-windows-gnu/release/thetadatadx_ffi.dll
-            target/x86_64-pc-windows-gnu/release/libthetadatadx_ffi*.a
+  # ═══════════════════════════════════════════════════════════════
+  # RELEASE LANE. Tag-triggered only. Unchanged: the full matrix has
+  # already run above on the same `v*` ref before these gate on it.
+  # ═══════════════════════════════════════════════════════════════
 
   publish-crate:
     name: Publish to crates.io

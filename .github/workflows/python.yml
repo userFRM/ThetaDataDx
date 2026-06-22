@@ -1,11 +1,21 @@
 name: Python SDK
 
+# Heavy lane. The wheel matrix and its smoke / stub / nogil gates build
+# across every supported OS and Python, so they run post-merge on main,
+# on the nightly schedule, on release tags, in the merge queue, and on a
+# PR only when the Python SDK, FFI, or core sources changed or the
+# `full-ci` label is set. Never on draft PRs. The fast PR merge gate
+# lives in ci.yml.
 on:
   push:
     branches: [main]
     tags: ["v*"]
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+  merge_group:
+  schedule:
+    - cron: "23 6 * * *"
   workflow_dispatch:
 
 permissions:
@@ -19,8 +29,39 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            python:
+              - 'sdks/python/**'
+              - 'ffi/**'
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/workflows/python.yml'
+              - '.github/actions/**'
+
+  # Single guard reused by every heavy job below. On any non-PR event
+  # (push to main, schedule, tag, merge_group) the matrix runs in full.
+  # On a PR it runs only for a non-draft whose changes touched the
+  # Python SDK / FFI / core, or that carries the `full-ci` label.
   build:
     name: Build wheel (${{ matrix.label }})
+    needs: changes
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.draft == false &&
+       (needs.changes.outputs.python == 'true' ||
+        contains(github.event.pull_request.labels.*.name, 'full-ci')))
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -165,7 +206,9 @@ jobs:
   # (`ubuntu-latest` → anything else) does NOT silently skip them.
   # A prior in-matrix `if: matrix.os == 'ubuntu-latest'` form depended
   # on the literal matrix value; lifting them out decouples the gate
-  # execution from the build-matrix label shape.
+  # execution from the build-matrix label shape. Each depends on the
+  # `build` job, so when `build` is skipped on a path-irrelevant PR
+  # these skip with it; on main / schedule / tag they always run.
   # ───────────────────────────────────────────────────────────────
 
   stubtest:
@@ -178,7 +221,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 10
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -212,7 +254,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 10
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -252,7 +293,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 10
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
       matrix:
@@ -293,7 +333,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs: build
     timeout-minutes: 15
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
       matrix:
@@ -326,7 +365,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 15
-    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
       matrix:
@@ -364,6 +402,12 @@ jobs:
 
   sdist:
     name: Build source distribution
+    needs: changes
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.draft == false &&
+       (needs.changes.outputs.python == 'true' ||
+        contains(github.event.pull_request.labels.*.name, 'full-ci')))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

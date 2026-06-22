@@ -1,11 +1,20 @@
 name: TypeScript SDK
 
+# Heavy lane. The native-addon build matrix spans Linux, macOS, and
+# Windows, so it runs post-merge on main, on the nightly schedule, on
+# release tags, in the merge queue, and on a PR only when the TypeScript
+# SDK, FFI, or core sources changed or the `full-ci` label is set. Never
+# on draft PRs. The fast PR merge gate lives in ci.yml.
 on:
   push:
     branches: [main]
     tags: ["v*"]
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+  merge_group:
+  schedule:
+    - cron: "23 6 * * *"
   workflow_dispatch:
 
 permissions:
@@ -20,8 +29,35 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      typescript: ${{ steps.filter.outputs.typescript }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            typescript:
+              - 'sdks/typescript/**'
+              - 'ffi/**'
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/workflows/typescript.yml'
+              - '.github/actions/**'
+
   build:
     name: Build (${{ matrix.target }})
+    needs: changes
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.draft == false &&
+       (needs.changes.outputs.typescript == 'true' ||
+        contains(github.event.pull_request.labels.*.name, 'full-ci')))
     timeout-minutes: 45
     strategy:
       fail-fast: false
