@@ -137,3 +137,79 @@ pub async fn __bench_flood_events(
 
     Ok(drops as f64)
 }
+
+/// LEVER 1 (batched delivery) — flood `n` synthetic events through the real
+/// `ThreadsafeFunction` path, but carrying `batch_size` events per
+/// `tsfn.call` hop (one `Array<StreamEvent>` per hop) instead of one event
+/// per hop. Amortizes the per-event threadsafe-function crossing + V8
+/// callback invocation over a whole batch.
+///
+/// Same production marshal per event (`fpss_event_to_buffered` ->
+/// `buffered_event_to_typed`); the only change is that `batch_size` typed
+/// events are collected into a `Vec<StreamEvent>` (napi renders this as
+/// `Array<StreamEvent>`) and handed to the callback in one hop. Runs on a
+/// `spawn_blocking` worker, `Blocking` call mode, the same bounded queue.
+///
+/// Returns the count of `tsfn.call` invocations (i.e. batches) that returned
+/// a non-`Ok` status (tsfn-boundary drops; `0` on the healthy path). The
+/// caller asserts it AND verifies the JS side received `n` events total
+/// across all batches.
+///
+/// Bench-only. See the module doc for the parity-gate carve-out. The
+/// callback param uses the same INLINE `ThreadsafeFunction` spelling as the
+/// per-event export (here parameterized on `Vec<StreamEvent>`), so napi
+/// renders it as `((arg: Array<StreamEvent>) => void)` and the generated
+/// `.d.ts` stays valid + in sync (Gate 7).
+#[napi(js_name = "__benchFloodEventsBatched")]
+pub async fn __bench_flood_events_batched(
+    n: u32,
+    batch_size: u32,
+    callback: napi::threadsafe_function::ThreadsafeFunction<
+        Vec<crate::StreamEvent>,
+        (),
+        Vec<crate::StreamEvent>,
+        napi::Status,
+        false,
+        false,
+        { crate::STREAMING_CALLBACK_QUEUE_DEPTH },
+    >,
+) -> napi::Result<f64> {
+    let callback = Arc::new(callback);
+    let n = n as u64;
+    let cap = batch_size.max(1) as usize;
+
+    let drops = tokio::task::spawn_blocking(move || {
+        let contract = Arc::new(Contract::stock("SPY"));
+        let mut drops: u64 = 0;
+        let mut batch: Vec<crate::StreamEvent> = Vec::with_capacity(cap);
+        for i in 0..n {
+            let core = make_event(&contract, i);
+            let buffered = fpss_event_to_buffered(&core);
+            batch.push(buffered_event_to_typed(buffered));
+            if batch.len() >= cap {
+                // One hop carrying the whole batch. `std::mem::take` swaps in
+                // a fresh empty Vec so the next batch fills without realloc
+                // churn fighting the in-flight one.
+                let payload = std::mem::replace(&mut batch, Vec::with_capacity(cap));
+                let status = callback.call(payload, ThreadsafeFunctionCallMode::Blocking);
+                if status != napi::Status::Ok {
+                    drops += 1;
+                }
+            }
+        }
+        // Flush the final partial batch.
+        if !batch.is_empty() {
+            let status = callback.call(batch, ThreadsafeFunctionCallMode::Blocking);
+            if status != napi::Status::Ok {
+                drops += 1;
+            }
+        }
+        drops
+    })
+    .await
+    .map_err(|e| {
+        napi::Error::from_reason(format!("__benchFloodEventsBatched worker panicked: {e}"))
+    })?;
+
+    Ok(drops as f64)
+}

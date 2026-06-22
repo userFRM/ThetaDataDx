@@ -604,6 +604,7 @@ module.exports.StreamView = nativeBinding.StreamView
 module.exports.Subscription = nativeBinding.Subscription
 module.exports.Util = nativeBinding.Util
 module.exports.__benchFloodEvents = nativeBinding.__benchFloodEvents
+module.exports.__benchFloodEventsBatched = nativeBinding.__benchFloodEventsBatched
 module.exports.allGreeks = nativeBinding.allGreeks
 module.exports.calendarDayToArrowIpc = nativeBinding.calendarDayToArrowIpc
 module.exports.eodTickToArrowIpc = nativeBinding.eodTickToArrowIpc
