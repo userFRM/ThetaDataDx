@@ -390,7 +390,6 @@ pub(crate) fn full_stream_sec_type_supported(sec_type: SecType) -> bool {
 /// let hosts = config.streaming_hosts();
 ///
 /// let client = StreamingClient::builder(&creds, hosts)
-///     .ring_size(8192)
 ///     .read_timeout_ms(15_000)
 ///     .build()?;
 /// # let _ = client;
@@ -470,11 +469,12 @@ impl<'a> StreamingClientBuilder<'a> {
 
     /// Event ring buffer size (events). Must be a power of two.
     ///
-    /// Default `4096`. Each slot stores one event (96 bytes on the
+    /// Default `131_072`. Each slot stores one event (96 bytes on the
     /// current 64-bit layout, validated by `assert_layout_compat`), so
-    /// `4096 × 96 ≈ 384 KiB` per client plus refcounted `Arc<Contract>`
-    /// storage on top. Tune upward (e.g. `16_384`) if you observe
-    /// sustained ring-overflow drops on bursty load.
+    /// `131_072 × 96 ≈ 12 MiB` per client plus refcounted `Arc<Contract>`
+    /// storage on top. Tune down (e.g. `16_384`) for a smaller per-client
+    /// footprint, or up for more overflow headroom on bursty load — a
+    /// larger ring absorbs longer consumer stalls before events drop.
     #[must_use]
     pub fn ring_size(mut self, n: usize) -> Self {
         self.ring_size = n;

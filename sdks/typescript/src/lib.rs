@@ -569,6 +569,23 @@ include!("_generated/fpss_event_classes.rs");
 
 include!("_generated/buffered_event.rs");
 
+// ── Offline streaming-saturation bench hook (no network) ──
+//
+// `__benchFloodEvents(n, callback)` pushes synthetic FPSS events through
+// the real `TsfnCallback` dispatch path (same bounded queue, same per-event
+// marshal) so the TypeScript streaming ceiling can be measured offline.
+// Bench-only; carved out of the parity utility roster via
+// `_is_ts_internal_free_fn` in `scripts/ci/check_binding_parity.py`.
+//
+// Gated `cfg(not(test))`: the node bench loads the release-built addon, so
+// the export is only ever reached from a non-test build. Under `cfg(test)`
+// the napi registration glue for the exported async fn is not emitted, which
+// would orphan the module's `make_event` helper and trip `-D dead_code` in
+// the `--all-targets` clippy lane. Excluding the module from test builds
+// removes that dead path at the root rather than `#[allow]`-suppressing it.
+#[cfg(not(test))]
+mod bench_streaming;
+
 // ── Offline Greeks calculator free functions (generated from sdk_surface.toml) ──
 //
 // Emits the `AllGreeks` `#[napi(object)]` plus the `allGreeks(...)` /

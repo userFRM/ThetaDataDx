@@ -100,9 +100,10 @@ use thetadatadx::fpss::__test_internals::{
 const EVENTS_PER_ITER: usize = 100_000;
 
 /// Disruptor ring size for the bench harness. Matches the production
-/// default (`FpssConnectArgs::ring_size = 4096`) so the bench numbers
-/// translate directly to the live SDK configuration.
-const RING_SIZE: usize = 4096;
+/// default (`FpssConfig::ring_size = 131_072`, see
+/// `crates/thetadatadx/src/config/fpss.rs`) so the bench numbers reflect
+/// the out-of-the-box live SDK configuration.
+const RING_SIZE: usize = 131_072;
 
 #[derive(Default)]
 struct RingSlot {

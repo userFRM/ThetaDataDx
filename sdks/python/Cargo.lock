@@ -2278,6 +2278,7 @@ name = "thetadatadx-py"
 version = "13.0.0-rc.5"
 dependencies = [
  "arrow",
+ "disruptor",
  "libc",
  "prost",
  "pyo3",
