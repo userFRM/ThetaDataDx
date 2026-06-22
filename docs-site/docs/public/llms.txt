@@ -19,12 +19,6 @@
 /articles/terminology — Terminology: The dozen terms the rest of this documentation assumes.
 /changelog — Changelog
 /cli — CLI: Query any endpoint from the command line with the thetadatadx binary.
-/examples/ — Query Builder: Build a working SDK snippet interactively — pick data type, asset, parameters, and language.
-/examples/at-time — Quotes At a Time of Day: Sample the same wall-clock moment across a date range in one request.
-/examples/bulk-backfill — Bulk Backfill: Pull months of tick data with bounded memory and full tier concurrency.
-/examples/dataframes — DataFrames: Convert any historical response to pandas, polars, or Arrow.
-/examples/option-chain — Option Chain Snapshot: Discover a chain and pull live Greeks for every contract on an expiration.
-/examples/streaming-watchlist — Streaming Watchlist: Subscribe a basket of symbols in one call and fan events out by symbol.
 /mcp — MCP Server: Give any Model Context Protocol client live access to every historical endpoint plus offline Greeks tools.
 /migration/v11-to-v12 — Migrating from v11 to v12
 /migration/v12-to-v13 — Migrating from v12 to v13
