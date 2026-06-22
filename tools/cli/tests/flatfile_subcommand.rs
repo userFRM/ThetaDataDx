@@ -7,18 +7,12 @@
 use std::process::Command;
 
 fn binary() -> std::path::PathBuf {
-    // CARGO_BIN_EXE_<name> points at the compiled `thetadatadx` binary at the
-    // location cargo built it for the test runner. Falls back to the
-    // typical workspace path when the env var is missing (e.g. when
-    // someone runs the test via `cargo test -p thetadatadx-cli` from
-    // a CI matrix that bypassed CARGO_BIN_EXE_*).
-    std::env::var_os("CARGO_BIN_EXE_tdx")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| {
-            let mut p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-            p.push("../../target/debug/thetadatadx");
-            p
-        })
+    // Cargo always sets `CARGO_BIN_EXE_<bin-name>` for same-crate integration
+    // tests, pointing at the binary it just built for the test runner. The bin
+    // is named `thetadatadx`, so the var is `CARGO_BIN_EXE_thetadatadx`; cargo
+    // honors `CARGO_TARGET_DIR` when computing the path, so this stays correct
+    // under a relocated target directory (CI matrices).
+    std::path::PathBuf::from(env!("CARGO_BIN_EXE_thetadatadx"))
 }
 
 #[test]
