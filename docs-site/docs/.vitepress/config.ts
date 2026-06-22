@@ -15,6 +15,11 @@ export default defineConfig({
   vite: {
     build: {
       chunkSizeWarningLimit: 1500,
+      // esbuild 0.28 no longer downlevels destructuring to the default
+      // browser baseline and errors instead. The docs site ships modern
+      // ESM and Vue 3 runtime that already require an evergreen browser,
+      // so target the current engines directly.
+      target: 'esnext',
     },
   },
 
