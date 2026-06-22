@@ -44,10 +44,11 @@ use thetadatadx::Price;
 
 use crate::fpss_event_to_typed;
 
-/// Disruptor ring size. Matches `FpssConnectArgs::ring_size = 4096` and the
-/// core Rust bench so the Python ceiling is measured against the live SDK
-/// ring configuration.
-const RING_SIZE: usize = 4096;
+/// Disruptor ring size. Matches the production default
+/// `FpssConfig::ring_size = 131_072` (see `crates/thetadatadx/src/config/fpss.rs`)
+/// and the core Rust bench, so the Python ceiling is measured against the
+/// out-of-the-box live SDK ring configuration.
+const RING_SIZE: usize = 131_072;
 
 /// One ring slot. Shape-compatible with the engine's `RingEvent`
 /// (`crates/thetadatadx/src/fpss/ring.rs`).

@@ -48,9 +48,13 @@ use thetadatadx::Price;
 /// thread reaches steady state.
 const EVENTS_PER_ITER: usize = 100_000;
 
-/// Disruptor ring size. Matches `FpssConnectArgs::ring_size = 4096` so
-/// these numbers translate directly to the live SDK configuration.
-const RING_SIZE: usize = 4096;
+/// Disruptor ring size. Matches the production default
+/// `FpssConfig::ring_size = 131_072` (see `crates/thetadatadx/src/config/fpss.rs`)
+/// so these numbers reflect the out-of-the-box live SDK configuration. With
+/// `EVENTS_PER_ITER` events fitting inside one ring, the producer publishes
+/// the whole batch without busy-spinning on a full ring, so the consumer
+/// keeps full CPU — the same steady state a live stream reaches.
+const RING_SIZE: usize = 131_072;
 
 #[derive(Default)]
 struct RingSlot {
