@@ -976,6 +976,17 @@ where
                 // already owns the per-reason delay decision and a
                 // separate counter would force the user to merge
                 // two attempt values to read total session pressure.
+                //
+                // Reset the consecutive-attempt counter after a stable
+                // session BEFORE incrementing, mirroring the `Auto` arm.
+                // Without this the counter grows monotonically for the
+                // whole session life, so the closure's `attempt` would
+                // not reflect the current consecutive burst and a
+                // closure that gives up past a threshold would do so
+                // earlier than intended after any prior reconnect.
+                // Custom carries no per-class budget, so the standard
+                // default stable window governs the reset cadence.
+                reconnect_state.maybe_reset_after_stable(&ReconnectAttemptLimits::default());
                 let attempt = reconnect_state.record(ReconnectAttemptClass::Transient);
                 let Some(d) = f(reason, attempt) else {
                     tracing::info!(reason = ?reason, "custom policy returned None -- not reconnecting");
@@ -985,6 +996,22 @@ where
                 (d, attempt)
             }
         };
+
+        // The just-dropped session's stable-window anchor has now been
+        // consumed by the reconnect decision above (`maybe_reset_after_stable`
+        // measured this session's uptime from it). Clear it here, once per
+        // drop, so it cannot be re-read on a subsequent failed-redial cycle:
+        // every redial that does not reach a fresh authenticated session
+        // (dial failure, transient login rejection, replay write failure)
+        // loops back to the reconnect decision with `pending_reason` carried,
+        // and a stale anchor whose `elapsed()` only grows would re-fire the
+        // stable-window reset on each such cycle — re-zeroing the per-class
+        // counter and the envelope anchor and so defeating both the attempt
+        // budget and the `max_elapsed` envelope (`ReconnectsExhausted` would
+        // never fire). The anchor re-arms on the FIRST frame of the next
+        // session via `note_data_received()`, so a redial that succeeds and
+        // then stays up past the stable window still earns its one reset.
+        reconnect_state.last_data_at = None;
 
         // Emit Reconnecting event before sleeping.
         let delay_ms = u64::try_from(delay.as_millis()).unwrap_or(u64::MAX);
@@ -1242,13 +1269,14 @@ where
         // connection always begins at a frame boundary.
         frame_state = FrameReadState::new();
 
-        // Fresh authenticated session: clear the stable-window anchor so
-        // it re-arms on the FIRST frame of THIS session. The check on the
-        // NEXT drop then measures uptime from this session's first frame,
-        // not the previous session's. Counters stay live (the budget was
-        // just decremented to permit this attempt); they reset only if
+        // Fresh authenticated session. The stable-window anchor was already
+        // cleared once at the reconnect decision (see `last_data_at = None`
+        // after the policy match), so it is `None` here and re-arms on the
+        // FIRST frame of THIS session via `note_data_received()`. The check
+        // on the NEXT drop then measures uptime from this session's first
+        // frame, not the previous session's. Counters stay live (the budget
+        // was just decremented to permit this attempt); they reset only if
         // the new session stays up past `stable_window`.
-        reconnect_state.last_data_at = None;
 
         // The session is NOT marked live yet. `authenticated` stays
         // `false` (the inner read loop cleared it on the drop that
@@ -2167,6 +2195,298 @@ mod tests {
         // A fresh sequence re-anchors.
         counters.record(ReconnectAttemptClass::ServerRestart);
         assert!(counters.burst_elapsed() < Duration::from_millis(10));
+    }
+
+    /// Drive one reconnect-decision cycle the way the `Auto` arm of the
+    /// I/O loop does, for the failed-redial case: try the stable-window
+    /// reset, record the attempt, then clear the stable-window anchor
+    /// (the post-decision `last_data_at = None` that fires once per drop).
+    /// A failed redial reaches the next cycle with no inbound frame, so
+    /// `note_data_received()` is deliberately NOT called here — that is the
+    /// shape that previously left a stale anchor re-firing the reset.
+    /// Returns `(attempt_number, reset_fired)`.
+    fn drive_failed_redial_cycle(
+        counters: &mut ReconnectCounters,
+        class: ReconnectAttemptClass,
+        limits: &ReconnectAttemptLimits,
+    ) -> (u32, bool) {
+        let reset_fired = counters.maybe_reset_after_stable(limits);
+        let attempt = counters.record(class);
+        // Post-decision anchor clear (Finding 1): the just-dropped
+        // session's anchor is consumed once and must not survive into the
+        // next failed-redial cycle.
+        counters.last_data_at = None;
+        (attempt, reset_fired)
+    }
+
+    /// Arm the stable-window anchor as if the dropped session had been up
+    /// for at least `stable_window`. The tests below run with a zero
+    /// `stable_window`, so an anchor of "now" already satisfies
+    /// `elapsed() >= stable_window` deterministically — no real sleep and
+    /// no dependence on the monotonic clock's absolute magnitude, which
+    /// keeps the timing-sensitive logic load-robust.
+    fn arm_stable_anchor(counters: &mut ReconnectCounters) {
+        counters.last_data_at = Some(Instant::now());
+    }
+
+    /// RateLimited budget honoured across FAILED redials. A genuinely
+    /// stable session drops (earning its one reset), then every redial
+    /// FAILS — the dial never reaches a fresh authenticated session, so no
+    /// inbound frame re-arms the anchor. The per-class attempt counter must
+    /// climb past `max_rate_limited_attempts` and `ReconnectsExhausted`
+    /// must eventually fire. RateLimited is the sharpest case: its
+    /// wall-clock envelope does not apply (`elapsed_budget_applies` is
+    /// false), so the attempt counter is the ONLY stop condition — if the
+    /// stale anchor re-fired the reset each cycle the counter would stay
+    /// pinned at 1 and the loop would reconnect forever.
+    #[test]
+    fn rate_limited_budget_honoured_across_failed_redials() {
+        let limits = ReconnectAttemptLimits {
+            max_rate_limited_attempts: 5,
+            // Zero window: an armed anchor is "stable" deterministically;
+            // an absent anchor (the failed-redial cycles) still never resets.
+            stable_window: Duration::ZERO,
+            ..ReconnectAttemptLimits::default()
+        };
+        let class = ReconnectAttemptClass::RateLimited;
+        let budget = limits.budget_for(class);
+        let mut counters = ReconnectCounters::new(test_schedule());
+
+        // A stable session that then drops: the anchor is armed, so the
+        // FIRST cycle's reset fires (the one legitimate one).
+        arm_stable_anchor(&mut counters);
+
+        let mut resets = 0;
+        let mut last_attempt = 0;
+        // Far more cycles than the budget: a per-cycle reset bug would pin
+        // the attempt at 1 forever and this loop would never exceed budget.
+        for cycle in 0..(budget * 4) {
+            let (attempt, reset_fired) = drive_failed_redial_cycle(&mut counters, class, &limits);
+            if reset_fired {
+                resets += 1;
+            }
+            if cycle == 0 {
+                assert!(
+                    reset_fired,
+                    "the first drop after a stable session earns one reset"
+                );
+                assert_eq!(
+                    attempt, 1,
+                    "the reset zeroes the counter; the record makes it attempt 1"
+                );
+            } else {
+                assert!(
+                    !reset_fired,
+                    "a failed redial must not re-fire the stable-window reset"
+                );
+            }
+            last_attempt = attempt;
+            // The I/O loop's stop condition for RateLimited: attempt count
+            // only (no wall-clock envelope).
+            if attempt > budget {
+                break;
+            }
+        }
+
+        assert_eq!(
+            resets, 1,
+            "exactly one reset across the whole failed-redial burst"
+        );
+        assert!(
+            last_attempt > budget,
+            "RateLimited attempts must exhaust the budget across failed redials \
+             (reached {last_attempt} against budget {budget}), not stay pinned at 1"
+        );
+    }
+
+    /// Transient budget honoured across FAILED redials: both the attempt
+    /// count climbs past `max_attempts` AND the wall-clock envelope keeps
+    /// accumulating. The previous bug re-fired the stable-window reset on
+    /// every failed redial, which also re-zeroed `burst_started_at` and so
+    /// made `burst_elapsed()` collapse to 0 each cycle — defeating
+    /// `max_elapsed` as well as `max_attempts`. Here the envelope anchor
+    /// from the first attempt must survive the whole burst.
+    #[test]
+    fn transient_budget_honoured_across_failed_redials() {
+        let limits = ReconnectAttemptLimits {
+            max_attempts: 5,
+            stable_window: Duration::ZERO,
+            ..ReconnectAttemptLimits::default()
+        };
+        let class = ReconnectAttemptClass::Transient;
+        let budget = limits.budget_for(class);
+        let mut counters = ReconnectCounters::new(test_schedule());
+        arm_stable_anchor(&mut counters);
+
+        let mut last_attempt = 0;
+        let mut resets = 0;
+        for cycle in 0..(budget * 4) {
+            let (attempt, reset_fired) = drive_failed_redial_cycle(&mut counters, class, &limits);
+            if reset_fired {
+                resets += 1;
+            }
+            if cycle > 0 {
+                assert!(!reset_fired, "a failed redial must not re-fire the reset");
+                // The envelope anchor set on attempt 1 must still be live —
+                // the reset (which clears `burst_started_at`) must not have
+                // re-fired and collapsed it.
+                assert!(
+                    counters.burst_started_at.is_some(),
+                    "the wall-clock envelope anchor must survive failed redials"
+                );
+            }
+            last_attempt = attempt;
+            if attempt > budget {
+                break;
+            }
+        }
+
+        assert_eq!(
+            resets, 1,
+            "exactly one reset across the failed-redial burst"
+        );
+        assert!(
+            last_attempt > budget,
+            "Transient attempts must exhaust the budget across failed redials \
+             (reached {last_attempt} against budget {budget})"
+        );
+    }
+
+    /// ServerRestart budget honoured across FAILED redials: same shape as
+    /// the Transient case. The attempt count must climb past
+    /// `max_server_restart_attempts` and the envelope anchor must persist.
+    #[test]
+    fn server_restart_budget_honoured_across_failed_redials() {
+        let limits = ReconnectAttemptLimits {
+            max_server_restart_attempts: 5,
+            stable_window: Duration::ZERO,
+            ..ReconnectAttemptLimits::default()
+        };
+        let class = ReconnectAttemptClass::ServerRestart;
+        let budget = limits.budget_for(class);
+        let mut counters = ReconnectCounters::new(test_schedule());
+        arm_stable_anchor(&mut counters);
+
+        let mut last_attempt = 0;
+        let mut resets = 0;
+        for cycle in 0..(budget * 4) {
+            let (attempt, reset_fired) = drive_failed_redial_cycle(&mut counters, class, &limits);
+            if reset_fired {
+                resets += 1;
+            }
+            if cycle > 0 {
+                assert!(!reset_fired, "a failed redial must not re-fire the reset");
+                assert!(
+                    counters.burst_started_at.is_some(),
+                    "the wall-clock envelope anchor must survive failed redials"
+                );
+            }
+            last_attempt = attempt;
+            if attempt > budget {
+                break;
+            }
+        }
+
+        assert_eq!(
+            resets, 1,
+            "exactly one reset across the failed-redial burst"
+        );
+        assert!(
+            last_attempt > budget,
+            "ServerRestart attempts must exhaust the budget across failed redials \
+             (reached {last_attempt} against budget {budget})"
+        );
+    }
+
+    /// Regression guard for the legitimate case the fix must preserve: a
+    /// single stable-session drop still earns exactly ONE reset, and a
+    /// redial that SUCCEEDS and then stays stable again earns a FRESH
+    /// reset (the next burst gets a clean budget). This is the case the
+    /// `burst_started_at.is_some()` gate alone would have broken: after a
+    /// successful redial the envelope anchor is still set, so gating on it
+    /// would suppress the second, legitimate reset — clearing the
+    /// stable-window anchor per drop does not.
+    #[test]
+    fn stable_drop_then_successful_redial_each_earn_a_reset() {
+        let limits = ReconnectAttemptLimits {
+            max_attempts: 30,
+            stable_window: Duration::ZERO,
+            ..ReconnectAttemptLimits::default()
+        };
+        let class = ReconnectAttemptClass::Transient;
+        let mut counters = ReconnectCounters::new(test_schedule());
+
+        // First stable session drops: one reset, attempt 1.
+        arm_stable_anchor(&mut counters);
+        let (attempt, reset_fired) = drive_failed_redial_cycle(&mut counters, class, &limits);
+        assert!(reset_fired, "first stable-session drop earns its reset");
+        assert_eq!(attempt, 1);
+
+        // The redial SUCCEEDS: the I/O loop reaches a fresh authenticated
+        // session, the new session's first frame re-arms the anchor, and
+        // the session then stays up past the stable window. Model that by
+        // arming the anchor past the window again. The envelope anchor
+        // (`burst_started_at`) is still set from the prior burst — the gate
+        // that keys off it would wrongly suppress the reset below.
+        assert!(
+            counters.burst_started_at.is_some(),
+            "the prior burst's envelope anchor is still live after a successful redial"
+        );
+        arm_stable_anchor(&mut counters);
+
+        // The newly-stable session drops: a fresh reset must fire.
+        let (attempt, reset_fired) = drive_failed_redial_cycle(&mut counters, class, &limits);
+        assert!(
+            reset_fired,
+            "a successful redial that stays stable past the window must earn a fresh reset"
+        );
+        assert_eq!(
+            attempt, 1,
+            "the fresh reset zeroes the counter so the next burst starts at attempt 1"
+        );
+    }
+
+    /// Custom-policy reset (Finding 2): a custom-policy session that
+    /// reconnects once, stays stable past the window, then drops again
+    /// sees `attempt == 1` (a fresh consecutive burst), not the running
+    /// session total. The Custom arm applies the same stable-window reset
+    /// as the Auto arm before recording (in production with the default
+    /// stable window, since Custom carries no per-class budget). This
+    /// drives the exact Custom-arm sequence — `maybe_reset_after_stable`
+    /// then `record(Transient)` with the per-drop anchor clear — using a
+    /// zero window so the reset gating is exercised deterministically.
+    #[test]
+    fn custom_policy_reset_reflects_current_burst() {
+        let limits = ReconnectAttemptLimits {
+            stable_window: Duration::ZERO,
+            ..ReconnectAttemptLimits::default()
+        };
+        let mut counters = ReconnectCounters::new(test_schedule());
+
+        // One reconnect early in the session (no frame arrived, so the
+        // anchor is unarmed and the reset cannot fire): the closure sees
+        // attempt 1, the counter advances.
+        let reset = counters.maybe_reset_after_stable(&limits);
+        let first = counters.record(ReconnectAttemptClass::Transient);
+        counters.last_data_at = None;
+        assert!(!reset, "an unarmed anchor never resets the custom counter");
+        assert_eq!(first, 1);
+
+        // The reconnect succeeds and the session runs cleanly past the
+        // stable window before dropping again (armed anchor).
+        arm_stable_anchor(&mut counters);
+        let reset = counters.maybe_reset_after_stable(&limits);
+        let after_stable = counters.record(ReconnectAttemptClass::Transient);
+        // (The post-drop anchor clear that the I/O loop performs next is
+        // omitted here — there is no further cycle to observe it.)
+        assert!(
+            reset,
+            "a session past the stable window resets the custom counter"
+        );
+        assert_eq!(
+            after_stable, 1,
+            "the custom closure must see a fresh attempt 1 for the new burst, not the session total"
+        );
     }
 
     /// The reconnect cooldown must wake promptly on shutdown: signal
