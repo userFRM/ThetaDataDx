@@ -338,6 +338,16 @@ pub struct ThetaDataDxArrowBytes {
     pub len: usize,
 }
 
+// Layout drift-guard: pin the LP64 `#[repr(C)]` size + alignment on the
+// Rust side, the same values the C++ `abi_struct_layout_asserts.hpp.inc`
+// pins. A field-width or member-order change that shifts the layout fails
+// the build here, before the C header and its C++ asserts can drift; the
+// C++ static_asserts alone cannot catch a Rust-side `#[repr(C)]` change.
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxArrowBytes>() == 16);
+    assert!(core::mem::align_of::<ThetaDataDxArrowBytes>() == 8);
+};
+
 impl ThetaDataDxArrowBytes {
     const EMPTY: Self = Self {
         data: ptr::null(),
@@ -530,6 +540,15 @@ pub struct ThetaDataDxOptionContract {
     pub right: u32,
 }
 
+// Layout drift-guard: pin the LP64 `#[repr(C)]` size + alignment on the
+// Rust side, matching `abi_struct_layout_asserts.hpp.inc`. `symbol` (ptr)
+// @0, `expiration` (i32) @8 + 4-byte pad, `strike` (f64) @16, `right`
+// (u32) @24 + 4-byte tail pad -> 32 bytes, align 8.
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxOptionContract>() == 32);
+    assert!(core::mem::align_of::<ThetaDataDxOptionContract>() == 8);
+};
+
 /// Array of FFI-safe option contracts.
 #[repr(C)]
 pub struct ThetaDataDxOptionContractArray {
@@ -538,6 +557,13 @@ pub struct ThetaDataDxOptionContractArray {
     /// Number of elements in the array.
     pub len: usize,
 }
+
+// Layout drift-guard: pin the LP64 `#[repr(C)]` size + alignment on the
+// Rust side, matching `abi_struct_layout_asserts.hpp.inc`.
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxOptionContractArray>() == 16);
+    assert!(core::mem::align_of::<ThetaDataDxOptionContractArray>() == 8);
+};
 
 impl ThetaDataDxOptionContractArray {
     pub(crate) fn from_vec(
@@ -618,6 +644,13 @@ pub struct ThetaDataDxStringArray {
     /// Number of strings in the array.
     pub len: usize,
 }
+
+// Layout drift-guard: pin the LP64 `#[repr(C)]` size + alignment on the
+// Rust side, matching `abi_struct_layout_asserts.hpp.inc`.
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxStringArray>() == 16);
+    assert!(core::mem::align_of::<ThetaDataDxStringArray>() == 8);
+};
 
 impl ThetaDataDxStringArray {
     pub(crate) fn from_vec(strings: Vec<String>) -> Result<Self, std::ffi::NulError> {

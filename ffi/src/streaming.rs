@@ -301,6 +301,16 @@ pub struct ThetaDataDxSubscription {
     pub contract: *const c_char,
 }
 
+// Layout drift-guard: pin the LP64 `#[repr(C)]` size + alignment on the
+// Rust side, the same values `abi_struct_layout_asserts.hpp.inc` pins. A
+// field-width or member-order change that shifts the layout fails the build
+// here, before the C header and its C++ asserts can drift; the C++
+// static_asserts alone cannot catch a Rust-side `#[repr(C)]` change.
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxSubscription>() == 16);
+    assert!(core::mem::align_of::<ThetaDataDxSubscription>() == 8);
+};
+
 /// Array of active subscriptions returned by `thetadatadx_client_active_subscriptions`
 /// and `thetadatadx_streaming_active_subscriptions`.
 #[repr(C)]
@@ -310,6 +320,13 @@ pub struct ThetaDataDxSubscriptionArray {
     /// Number of elements in the array.
     pub len: usize,
 }
+
+// Layout drift-guard: pin the LP64 `#[repr(C)]` size + alignment on the
+// Rust side, matching `abi_struct_layout_asserts.hpp.inc`.
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxSubscriptionArray>() == 16);
+    assert!(core::mem::align_of::<ThetaDataDxSubscriptionArray>() == 8);
+};
 
 /// Free both CString pointers on a `ThetaDataDxSubscription` if present.
 /// Centralises the `// SAFETY: produced by CString::into_raw …`
@@ -684,6 +701,15 @@ pub struct ThetaDataDxSubscriptionRequest {
     /// subscriptions. NULL for per-contract subscriptions.
     pub sec_type: *const c_char,
 }
+
+// Layout drift-guard: pin the LP64 `#[repr(C)]` size + alignment on the
+// Rust side, matching `abi_struct_layout_asserts.hpp.inc`. `scope` (i32)
+// @0, `kind` (i32) @4, then six pointer fields packed 8 bytes apart with no
+// interior padding -> 48 bytes, align 8.
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxSubscriptionRequest>() == 48);
+    assert!(core::mem::align_of::<ThetaDataDxSubscriptionRequest>() == 8);
+};
 
 /// Decode a `ThetaDataDxSubscriptionRequest` into a Rust [`Subscription`]. The
 /// helper sets `thetadatadx_last_error` on validation failure and returns
@@ -1873,11 +1899,19 @@ pub unsafe extern "C" fn thetadatadx_streaming_is_streaming(
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
-        let inner_guard = handle
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if inner_guard.as_ref().is_none() {
+        // Lock order is uniformly `dispatcher` -> `inner` across every
+        // lifecycle mutator (set_callback, reconnect, shutdown, free), so a
+        // status reader must never hold `inner` while taking `dispatcher`.
+        // Snapshot the one bit we need from `inner`, drop that guard, then
+        // take `dispatcher` -- the two locks are never held at once here.
+        let has_session = {
+            let inner_guard = handle
+                .inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            inner_guard.as_ref().is_some()
+        };
+        if !has_session {
             return 0;
         }
         let session = handle.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
@@ -1906,31 +1940,36 @@ pub unsafe extern "C" fn thetadatadx_streaming_is_authenticated(
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
-        let inner_guard = handle
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        match inner_guard.as_ref() {
-            // A panicked dispatcher folds back to `!authenticated` so
-            // status readers see a visible failed state instead of
-            // "authenticated with no callbacks".
-            Some(c) => {
-                let session = handle.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
-                let dispatcher_failed = if let FfpssDispatcherSession::Failed { reason } = &*session
-                {
-                    tracing::debug!(
-                        target: "thetadatadx::ffi",
-                        reason = %reason,
-                        "thetadatadx_streaming_is_authenticated: dispatcher failed",
-                    );
-                    true
-                } else {
-                    false
-                };
-                i32::from(c.is_authenticated() && !dispatcher_failed)
+        // Lock order is uniformly `dispatcher` -> `inner` across every
+        // lifecycle mutator, so snapshot the authentication bit from `inner`,
+        // drop that guard, THEN take `dispatcher`. Holding both at once in
+        // the opposite order is the lock-order inversion that can deadlock
+        // against a concurrent mutator.
+        let authenticated = {
+            let inner_guard = handle
+                .inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            match inner_guard.as_ref() {
+                Some(c) => c.is_authenticated(),
+                None => return 0,
             }
-            None => 0,
-        }
+        };
+        // A panicked dispatcher folds back to `!authenticated` so status
+        // readers see a visible failed state instead of "authenticated with
+        // no callbacks".
+        let session = handle.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+        let dispatcher_failed = if let FfpssDispatcherSession::Failed { reason } = &*session {
+            tracing::debug!(
+                target: "thetadatadx::ffi",
+                reason = %reason,
+                "thetadatadx_streaming_is_authenticated: dispatcher failed",
+            );
+            true
+        } else {
+            false
+        };
+        i32::from(authenticated && !dispatcher_failed)
     })
 }
 
@@ -2757,7 +2796,11 @@ pub unsafe extern "C" fn thetadatadx_streaming_await_drain(
             }
             guard.clone()
         };
-        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(timeout_ms);
+        // `checked_add` returns `None` on an extreme `timeout_ms` (near
+        // `u64::MAX`), which we treat as "effectively never": the wait
+        // proceeds without a deadline rather than panicking on overflow.
+        let timeout = std::time::Duration::from_millis(timeout_ms);
+        let deadline = std::time::Instant::now().checked_add(timeout);
         loop {
             // All flags drained?
             if initial
@@ -2775,7 +2818,9 @@ pub unsafe extern "C" fn thetadatadx_streaming_await_drain(
                 guard.retain(|f| !f.load(std::sync::atomic::Ordering::Acquire));
                 return 1;
             }
-            if std::time::Instant::now() >= deadline {
+            // A `None` deadline (overflow on an extreme timeout) never fires,
+            // matching the "effectively never" contract.
+            if deadline.is_some_and(|d| std::time::Instant::now() >= d) {
                 return 0;
             }
             std::thread::sleep(std::time::Duration::from_millis(1));
