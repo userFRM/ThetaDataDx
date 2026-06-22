@@ -94,20 +94,6 @@ One authentication, one connection. Historical queries work immediately; the str
 use thetadatadx::streaming::{StreamData, StreamEvent};
 use thetadatadx::prelude::*;
 
-fn format_contract(contract: &Contract) -> String {
-    let mut label = contract.symbol.to_string();
-    if let Some(expiration) = contract.expiration {
-        label.push_str(&format!(" {expiration}"));
-    }
-    if let Some(strike) = contract.strike_dollars() {
-        label.push_str(&format!(" {strike}"));
-    }
-    if let Some(right) = contract.right() {
-        label.push_str(&format!(" {}", right.as_char()));
-    }
-    label
-}
-
 client.stream().start_streaming(|event: &StreamEvent| {
     match event {
         StreamEvent::Data(StreamData::Trade {
@@ -121,8 +107,7 @@ client.stream().start_streaming(|event: &StreamEvent| {
             ..
         }) => {
             println!(
-                "{} trade price={price} size={size} exchange={exchange} ms_of_day={ms_of_day} sequence={sequence} condition={condition}",
-                format_contract(contract),
+                "{contract} trade price={price} size={size} exchange={exchange} ms_of_day={ms_of_day} sequence={sequence} condition={condition}",
             );
         }
         StreamEvent::Data(StreamData::Quote {
@@ -137,8 +122,7 @@ client.stream().start_streaming(|event: &StreamEvent| {
             ..
         }) => {
             println!(
-                "{} quote bid={bid} ask={ask} bid_size={bid_size} ask_size={ask_size} bid_exchange={bid_exchange} ask_exchange={ask_exchange} ms_of_day={ms_of_day}",
-                format_contract(contract),
+                "{contract} quote bid={bid} ask={ask} bid_size={bid_size} ask_size={ask_size} bid_exchange={bid_exchange} ask_exchange={ask_exchange} ms_of_day={ms_of_day}",
             );
         }
         _ => {}

@@ -114,19 +114,11 @@ int main() {
     auto config = thetadatadx::Config::production();
 
     thetadatadx::StreamingClient fpss(creds, config);
-    auto format_contract = [](const auto& contract) {
-        std::ostringstream out;
-        out << (contract.symbol ? contract.symbol : "<pending>");
-        if (contract.has_expiration) out << ' ' << contract.expiration;
-        if (auto strike = thetadatadx::strike(contract)) out << ' ' << *strike;
-        if (auto right = thetadatadx::right(contract)) out << ' ' << *right;
-        return out.str();
-    };
 
-    fpss.set_callback([format_contract](const thetadatadx::StreamEvent& event) {
+    fpss.set_callback([](const thetadatadx::StreamEvent& event) {
         switch (event.kind) {
             case THETADATADX_FPSS_TRADE:
-                std::cout << format_contract(event.trade.contract)
+                std::cout << event.trade.contract.symbol
                           << " trade price=" << event.trade.price
                           << " size=" << event.trade.size
                           << " exchange=" << event.trade.exchange
@@ -136,7 +128,7 @@ int main() {
                           << '\n';
                 break;
             case THETADATADX_FPSS_QUOTE:
-                std::cout << format_contract(event.quote.contract)
+                std::cout << event.quote.contract.symbol
                           << " quote bid=" << event.quote.bid
                           << " ask=" << event.quote.ask
                           << " bid_size=" << event.quote.bid_size

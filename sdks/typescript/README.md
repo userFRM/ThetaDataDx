@@ -83,26 +83,18 @@ Real-time quotes and trades flow through the same client. Register a callback wi
 import { Contract, Client } from 'thetadatadx';
 
 const client = await Client.connectWith({ apiKey: 'td1_...' });
-const formatContract = (contract: {
-  symbol: string;
-  expiration?: number;
-  strike?: number;
-  right?: string;
-}) => [contract.symbol, contract.expiration, contract.strike, contract.right]
-  .filter((value) => value != null)
-  .join(' ');
 
 await client.stream.startStreaming((event) => {
   if (event.kind === 'trade' && event.trade) {
     const { contract, price, size, exchange, msOfDay, sequence, condition } = event.trade;
     console.log(
-      `${formatContract(contract)} trade price=${price} size=${size} ` +
+      `${contract.symbol} ${contract.expiration} ${contract.strike} ${contract.right} trade price=${price} size=${size} ` +
       `exchange=${exchange} ms_of_day=${msOfDay} sequence=${sequence} condition=${condition}`,
     );
   } else if (event.kind === 'quote' && event.quote) {
     const { contract, bid, ask, bidSize, askSize, bidExchange, askExchange, msOfDay } = event.quote;
     console.log(
-      `${formatContract(contract)} quote bid=${bid} ask=${ask} ` +
+      `${contract.symbol} ${contract.expiration} ${contract.strike} ${contract.right} quote bid=${bid} ask=${ask} ` +
       `bid_size=${bidSize} ask_size=${askSize} bid_exchange=${bidExchange} ` +
       `ask_exchange=${askExchange} ms_of_day=${msOfDay}`,
     );

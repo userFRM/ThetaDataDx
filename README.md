@@ -85,26 +85,16 @@ typed event classes:
 import time
 from thetadatadx import Contract, Quote, Trade
 
-def format_contract(contract):
-    parts = [contract.symbol]
-    if contract.expiration is not None:
-        parts.append(str(contract.expiration))
-    if contract.strike is not None:
-        parts.append(f"{contract.strike:g}")
-    if contract.right is not None:
-        parts.append(contract.right)
-    return " ".join(parts)
-
 def on_event(event):
     match event:
         case Trade(price=px, size=sz, exchange=ex, ms_of_day=ms, sequence=seq, condition=cond, contract=c):
             print(
-                f"{format_contract(c)} trade price={px:.2f} size={sz} "
+                f"{c.symbol} {c.expiration} {c.strike:g} {c.right} trade price={px:.2f} size={sz} "
                 f"exchange={ex} ms_of_day={ms} sequence={seq} condition={cond}"
             )
         case Quote(bid=b, ask=a, bid_size=bs, ask_size=asz, bid_exchange=bx, ask_exchange=ax, ms_of_day=ms, contract=c):
             print(
-                f"{format_contract(c)} quote bid={b:.2f} ask={a:.2f} "
+                f"{c.symbol} {c.expiration} {c.strike:g} {c.right} quote bid={b:.2f} ask={a:.2f} "
                 f"bid_size={bs} ask_size={asz} bid_exchange={bx} "
                 f"ask_exchange={ax} ms_of_day={ms}"
             )
@@ -121,15 +111,6 @@ with client.streaming(on_event) as session:
 ```typescript
 import { Contract, Client } from 'thetadatadx';
 
-const formatContract = (contract: {
-  symbol: string;
-  expiration?: number;
-  strike?: number;
-  right?: string;
-}) => [contract.symbol, contract.expiration, contract.strike, contract.right]
-  .filter((value) => value != null)
-  .join(' ');
-
 async function main() {
   // Pass your API key directly. Add mddsType: "STAGE" to target staging.
   const client = await Client.connectWith({ apiKey: 'td1_...' });
@@ -138,13 +119,13 @@ async function main() {
     if (event.kind === 'trade' && event.trade) {
       const { contract, price, size, exchange, msOfDay, sequence, condition } = event.trade;
       console.log(
-        `${formatContract(contract)} trade price=${price} size=${size} ` +
+        `${contract.symbol} ${contract.expiration} ${contract.strike} ${contract.right} trade price=${price} size=${size} ` +
         `exchange=${exchange} ms_of_day=${msOfDay} sequence=${sequence} condition=${condition}`,
       );
     } else if (event.kind === 'quote' && event.quote) {
       const { contract, bid, ask, bidSize, askSize, bidExchange, askExchange, msOfDay } = event.quote;
       console.log(
-        `${formatContract(contract)} quote bid=${bid} ask=${ask} ` +
+        `${contract.symbol} ${contract.expiration} ${contract.strike} ${contract.right} quote bid=${bid} ask=${ask} ` +
         `bid_size=${bidSize} ask_size=${askSize} bid_exchange=${bidExchange} ` +
         `ask_exchange=${askExchange} ms_of_day=${msOfDay}`,
       );
