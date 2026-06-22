@@ -213,3 +213,152 @@ pub async fn __bench_flood_events_batched(
 
     Ok(drops as f64)
 }
+
+/// Project a synthetic `Trade` core event into the historical `TradeTick`
+/// row shape the Arrow builder consumes (stock trade: sentinel option
+/// fields, matching the Python Arrow lever's `trade_event_to_tick`).
+#[inline]
+fn trade_event_to_tick(event: &CoreStreamEvent) -> Option<thetadatadx::TradeTick> {
+    match event {
+        fpss::StreamEvent::Data(StreamData::Trade {
+            ms_of_day,
+            sequence,
+            ext_condition1,
+            ext_condition2,
+            ext_condition3,
+            ext_condition4,
+            condition,
+            size,
+            exchange,
+            price,
+            condition_flags,
+            price_flags,
+            volume_type,
+            records_back,
+            date,
+            ..
+        }) => Some(thetadatadx::TradeTick {
+            ms_of_day: *ms_of_day,
+            sequence: *sequence,
+            ext_condition1: *ext_condition1,
+            ext_condition2: *ext_condition2,
+            ext_condition3: *ext_condition3,
+            ext_condition4: *ext_condition4,
+            condition: *condition,
+            size: *size,
+            exchange: *exchange,
+            price: *price,
+            condition_flags: *condition_flags,
+            price_flags: *price_flags,
+            volume_type: *volume_type,
+            records_back: *records_back,
+            date: *date,
+            expiration: 0,
+            strike: 0.0,
+            right: '\0',
+        }),
+        _ => None,
+    }
+}
+
+/// Serialize a `TradeTick` slice to an Arrow IPC stream byte buffer via the
+/// SAME machinery the SDK's `tradeTickToArrowIpc` export uses
+/// (`TicksArrowExt::to_arrow` -> `arrow_ipc::writer::StreamWriter`).
+fn trade_ticks_to_arrow_ipc(rows: &[thetadatadx::TradeTick]) -> napi::Result<Vec<u8>> {
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(rows)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer =
+            arrow_ipc::writer::StreamWriter::try_new(std::io::Cursor::new(&mut buf), &batch.schema())
+                .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(&batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(buf)
+}
+
+/// LEVER 3 (TypeScript columnar bulk) — flood `n` synthetic trade events,
+/// accumulate `batch_size` of them as `TradeTick` rows, serialize ONE Arrow
+/// `RecordBatch` to an Arrow IPC byte buffer per batch (the same
+/// `TicksArrowExt::to_arrow` -> `StreamWriter` path the SDK's
+/// `tradeTickToArrowIpc` export uses), and cross the `ThreadsafeFunction`
+/// boundary ONCE per batch carrying that `Buffer` — NOT N JS objects.
+///
+/// This bypasses the per-event `buffered_event_to_typed` JS-object
+/// construction entirely: the Node callback receives an Arrow IPC `Buffer`
+/// it decodes columnar via `apache-arrow` (`tableFromIPC`). DIFFERENT
+/// delivery model than the per-event / array-batch callbacks — Node gets a
+/// columnar Table, not typed event objects — so its number is the columnar
+/// bulk ceiling, the TypeScript analogue of the Python Arrow lever.
+///
+/// Returns the count of `tsfn.call` invocations (batches) that returned a
+/// non-`Ok` status (tsfn-boundary drops; `0` on the healthy path). The
+/// caller asserts it AND verifies the Arrow row count summed across batches
+/// equals `n`.
+///
+/// Bench-only. See the module doc for the parity-gate carve-out. `T` is a
+/// napi `Buffer`, which napi renders as `((arg: Buffer) => void)` in the
+/// generated `.d.ts`.
+#[napi(js_name = "__benchFloodEventsArrowIpc")]
+pub async fn __bench_flood_events_arrow_ipc(
+    n: u32,
+    batch_size: u32,
+    callback: napi::threadsafe_function::ThreadsafeFunction<
+        napi::bindgen_prelude::Buffer,
+        (),
+        napi::bindgen_prelude::Buffer,
+        napi::Status,
+        false,
+        false,
+        { crate::STREAMING_CALLBACK_QUEUE_DEPTH },
+    >,
+) -> napi::Result<f64> {
+    let callback = Arc::new(callback);
+    let n = n as u64;
+    let cap = batch_size.max(1) as usize;
+
+    let drops = tokio::task::spawn_blocking(move || -> napi::Result<u64> {
+        let contract = Arc::new(Contract::stock("SPY"));
+        let mut drops: u64 = 0;
+        let mut rows: Vec<thetadatadx::TradeTick> = Vec::with_capacity(cap);
+        let flush = |rows: &mut Vec<thetadatadx::TradeTick>, drops: &mut u64| -> napi::Result<()> {
+            if rows.is_empty() {
+                return Ok(());
+            }
+            // Build + serialize one Arrow IPC buffer for the batch, hand it
+            // across the boundary in one hop.
+            let ipc = trade_ticks_to_arrow_ipc(rows)?;
+            let status = callback.call(
+                napi::bindgen_prelude::Buffer::from(ipc),
+                ThreadsafeFunctionCallMode::Blocking,
+            );
+            if status != napi::Status::Ok {
+                *drops += 1;
+            }
+            rows.clear();
+            Ok(())
+        };
+        for i in 0..n {
+            let core = make_event(&contract, i);
+            if let Some(tick) = trade_event_to_tick(&core) {
+                rows.push(tick);
+                if rows.len() >= cap {
+                    flush(&mut rows, &mut drops)?;
+                }
+            }
+        }
+        flush(&mut rows, &mut drops)?;
+        Ok(drops)
+    })
+    .await
+    .map_err(|e| {
+        napi::Error::from_reason(format!("__benchFloodEventsArrowIpc worker panicked: {e}"))
+    })??;
+
+    Ok(drops as f64)
+}

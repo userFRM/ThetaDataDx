@@ -3059,6 +3059,32 @@ export declare class Util {
 export declare function __benchFloodEvents(n: number, callback: ((arg: StreamEvent) => void)): Promise<number>
 
 /**
+ * LEVER 3 (TypeScript columnar bulk) — flood `n` synthetic trade events,
+ * accumulate `batch_size` of them as `TradeTick` rows, serialize ONE Arrow
+ * `RecordBatch` to an Arrow IPC byte buffer per batch (the same
+ * `TicksArrowExt::to_arrow` -> `StreamWriter` path the SDK's
+ * `tradeTickToArrowIpc` export uses), and cross the `ThreadsafeFunction`
+ * boundary ONCE per batch carrying that `Buffer` — NOT N JS objects.
+ *
+ * This bypasses the per-event `buffered_event_to_typed` JS-object
+ * construction entirely: the Node callback receives an Arrow IPC `Buffer`
+ * it decodes columnar via `apache-arrow` (`tableFromIPC`). DIFFERENT
+ * delivery model than the per-event / array-batch callbacks — Node gets a
+ * columnar Table, not typed event objects — so its number is the columnar
+ * bulk ceiling, the TypeScript analogue of the Python Arrow lever.
+ *
+ * Returns the count of `tsfn.call` invocations (batches) that returned a
+ * non-`Ok` status (tsfn-boundary drops; `0` on the healthy path). The
+ * caller asserts it AND verifies the Arrow row count summed across batches
+ * equals `n`.
+ *
+ * Bench-only. See the module doc for the parity-gate carve-out. `T` is a
+ * napi `Buffer`, which napi renders as `((arg: Buffer) => void)` in the
+ * generated `.d.ts`.
+ */
+export declare function __benchFloodEventsArrowIpc(n: number, batchSize: number, callback: ((arg: Buffer) => void)): Promise<number>
+
+/**
  * LEVER 1 (batched delivery) — flood `n` synthetic events through the real
  * `ThreadsafeFunction` path, but carrying `batch_size` events per
  * `tsfn.call` hop (one `Array<StreamEvent>` per hop) instead of one event
