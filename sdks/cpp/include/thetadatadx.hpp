@@ -2058,29 +2058,53 @@ private:
     const ThetaDataDxClient* handle_;
 };
 
-/// Stable, shared backing node for a unified client's push callback. The
+/// Backing node for a single push-callback registration. The
 /// `std::function` lives at a fixed heap address for the node's whole
-/// life, so the `void* ctx` registered with the dispatcher stays valid
-/// even when the owning `Client` is moved: a `Client` move transfers the
-/// `shared_ptr` (the node itself does not move), and a `Stream` view holds
-/// its own `shared_ptr` to the same node. The dispatcher's `ctx` is the
-/// address of `fn` inside this node, so it outlives both a `Client` move
-/// and any transient view.
+/// life, so the `void* ctx` registered with the dispatcher (`&fn`) stays
+/// valid for every consumer-thread invocation that captured it. A node is
+/// never mutated in place once registered: replacing a callback installs a
+/// FRESH node (see `CallbackState`) and registers the new node's distinct
+/// `&fn`, so a consumer thread still firing through an earlier
+/// registration always dereferences its own node's stable, unchanged `fn`.
 struct CallbackSlot {
     std::function<void(const StreamEvent&)> fn;
+};
+
+/// Shared indirection between a `Client` and the `Stream` views it hands
+/// out. Both reference one `CallbackState` by `shared_ptr`; the state owns
+/// the currently-registered `CallbackSlot`. The dispatcher `ctx` is the
+/// address of `fn` inside whichever node `slot` currently points at.
+///
+/// Why the extra level of indirection: when a callback is replaced while a
+/// previous consumer is still firing (the drain-timeout path of
+/// `Stream::set_callback`), the replacement must register a node at a
+/// DIFFERENT address than the one the still-running consumer captured, and
+/// the old node must stay alive and unmodified until that consumer
+/// quiesces. The replacement therefore installs a fresh node into `slot`
+/// (a new `&fn` for the new registration) and keeps the retired node alive
+/// off the replacement path. Because `Client` and `Stream` share the one
+/// `CallbackState`, both observe the new node afterward, so a later
+/// `Client` move or destruction operates on the right node. `slot` is only
+/// ever read or repointed on the owning (user) thread; the consumer thread
+/// holds the raw `&fn` it was registered with and never reads `slot`, so no
+/// synchronization on `slot` is required against the consumer.
+struct CallbackState {
+    std::shared_ptr<CallbackSlot> slot = std::make_shared<CallbackSlot>();
 };
 
 /// Real-time-streaming sub-namespace returned by `Client::stream()`.
 ///
 /// Borrows the unified `ThetaDataDxClient*` for the duration of the borrow
-/// and shares the parent `Client`'s callback node, so `set_callback` /
+/// and shares the parent `Client`'s `CallbackState`, so `set_callback` /
 /// `stop_streaming` / `reconnect` observe the same registration the
 /// unified client manages. The handle pointer is borrowed and must not
 /// outlive the parent `Client` (`Client::stream()` is lvalue-only, so the
-/// borrow cannot bind a temporary), but the callback node is held by
-/// shared ownership: it stays alive and at a fixed address while either
-/// the `Client` or this view references it, so a `Client` move never
-/// dangles the registered callback `ctx`.
+/// borrow cannot bind a temporary), but the callback state is held by
+/// shared ownership: the registered node stays alive and at a fixed
+/// address while either the `Client` or this view references it, so a
+/// `Client` move never dangles the registered callback `ctx`. Replacing
+/// the callback installs a fresh node in the shared state, so both the
+/// `Client` and this view observe the new registration.
 class Stream {
 public:
     Stream(const Stream&) = delete;
@@ -2096,16 +2120,17 @@ public:
      *
      *  ## Callback storage + thread affinity
      *
-     *  The parent `Client` and this view share a `CallbackSlot` node by
-     *  `shared_ptr`; the address of its `fn` member is the `void* ctx`
-     *  registered with the dispatcher. The node lives at a fixed heap
-     *  address while any holder lives, so the ctx stays valid across a
-     *  `Client` move and every consumer-thread invocation. Destruction
-     *  routes through `thetadatadx_client_free` on the parent, which performs the
-     *  shutdown + drain barrier internally, and replacement here calls
-     *  `thetadatadx_client_stop_streaming` followed by
-     *  `thetadatadx_client_await_drain(5000)` before clearing the slot, so no
-     *  thread can observe a dangling ctx.
+     *  The parent `Client` and this view share a `CallbackState` by
+     *  `shared_ptr`. The state owns the currently-registered `CallbackSlot`
+     *  node; the address of that node's `fn` member is the `void* ctx`
+     *  registered with the dispatcher. A registered node is never mutated
+     *  in place: it lives at a fixed heap address for its whole life, so the
+     *  ctx stays valid across a `Client` move and every consumer-thread
+     *  invocation. Destruction routes through `thetadatadx_client_free` on
+     *  the parent, which performs the shutdown + drain barrier internally,
+     *  and replacement here calls `thetadatadx_client_stop_streaming`
+     *  followed by `thetadatadx_client_await_drain(5000)` before retiring
+     *  the old node, so no thread can observe a dangling ctx.
      *
      *  ## Lifecycle contract (unified replace-allowed rule)
      *
@@ -2115,38 +2140,55 @@ public:
      *  `(callback, ctx)`. `reconnect()` is built on top of this. Calling
      *  `set_callback` on a live (running) session also replaces — the
      *  previous (callback, ctx) is drained out before the new one is wired
-     *  in, with the same `await_drain(5000)` budget. */
+     *  in, with the same `await_drain(5000)` budget.
+     *
+     *  A replacement always installs a FRESH node and registers that node's
+     *  distinct `&fn`; it never reuses or mutates the previously-registered
+     *  node's storage. If the drain barrier times out (a wedged previous
+     *  consumer still firing), the old node is kept alive off this path
+     *  until that consumer quiesces, so the still-firing consumer keeps
+     *  dereferencing its own node's stable, unchanged `fn` and never
+     *  observes a torn or null function. Because the new node is installed
+     *  into the shared `CallbackState`, both the `Client` and this view see
+     *  it afterward. */
     void set_callback(std::function<void(const StreamEvent&)> fn) {
-        // Drain the existing wiring first so the consumer thread stops
-        // invoking through the old callback storage before we release it.
-        // Matches the C ABI's replace-allowed contract: a successful
-        // replacement registration leaves the old `ctx` observable only
-        // inside the drain barrier window.
-        if (callback_->fn) {
+        // Replacing a live registration: stop the session and wait for the
+        // consumer thread to stop firing through the old node. Matches the
+        // C ABI's replace-allowed contract, which requires that a fresh
+        // callback's storage must not alias a still-running previous
+        // registration.
+        if (callback_->slot->fn) {
             thetadatadx_client_stop_streaming(handle_);
             int drained = thetadatadx_client_await_drain(handle_, 5000);
             if (drained == 0) {
-                // Drain barrier timed out: detach old storage to a helper
-                // thread for a 30 s grace window so destruction happens off
-                // the registration path; the consumer is bounded by its own
-                // ring drain and will quiesce well within that window. Move
-                // the old node aside and install a fresh one so the new
-                // registration below gets a stable, distinct `ctx`.
-                auto retired = std::make_shared<CallbackSlot>();
-                retired->fn = std::move(callback_->fn);
-                std::thread([cb = retired]() mutable {
+                // Drain barrier timed out: the previous consumer may still
+                // be invoking through the old node's `&fn`. We must NOT
+                // mutate or free that node here. Detach the retired node
+                // (held by `shared_ptr`) onto a helper thread for a 30 s
+                // grace window so its destruction happens off this path;
+                // the consumer is bounded by its own ring drain and
+                // quiesces well within that window, after which the node is
+                // freed with no leak. The node's `fn` is never touched in
+                // the meantime, so the still-firing consumer always reads a
+                // valid, unchanged function.
+                std::thread([retired = callback_->slot]() mutable {
                     std::this_thread::sleep_for(std::chrono::seconds(30));
+                    // `retired` (the old node) destructs here, off this path.
                 }).detach();
             }
-            callback_->fn = nullptr;
+            // Install a fresh node so the new registration below gets a
+            // distinct `&fn` the retired consumer never captured. On the
+            // drained path the old node has no live reader, so its
+            // `shared_ptr` simply drops here with no detach and no leak.
+            callback_->slot = std::make_shared<CallbackSlot>();
         }
-        // Stage the new callback into the stable shared node, then register
-        // its fixed `&fn` address as the dispatcher `ctx`. On failure the
-        // node's `fn` is left cleared so no stale registration lingers.
-        callback_->fn = std::move(fn);
-        int rc = thetadatadx_client_set_callback(handle_, &Stream::callback_shim, &callback_->fn);
+        // Stage the new callback into the fresh node, then register its
+        // fixed `&fn` address as the dispatcher `ctx`. On failure the node's
+        // `fn` is left cleared so no stale registration lingers.
+        callback_->slot->fn = std::move(fn);
+        int rc = thetadatadx_client_set_callback(handle_, &Stream::callback_shim, &callback_->slot->fn);
         if (rc < 0) {
-            callback_->fn = nullptr;
+            callback_->slot->fn = nullptr;
             detail::throw_last_ffi_error();
         }
     }
@@ -2345,7 +2387,7 @@ public:
 
 private:
     friend class Client;
-    Stream(const ThetaDataDxClient* h, std::shared_ptr<CallbackSlot> callback)
+    Stream(const ThetaDataDxClient* h, std::shared_ptr<CallbackState> callback)
         : handle_(h), callback_(std::move(callback)) {}
 
     // Static-member shim that the dispatcher invokes. It keeps C++ language
@@ -2366,11 +2408,13 @@ private:
     }
 
     const ThetaDataDxClient* handle_;
-    // Shared ownership of the parent `Client`'s callback node. The node is
-    // a fixed heap address shared with the `Client`, so the registered
-    // dispatcher `ctx` (`&callback_->fn`) stays valid across a `Client`
-    // move and for this view's whole lifetime.
-    std::shared_ptr<CallbackSlot> callback_;
+    // Shared ownership of the parent `Client`'s callback state. The state
+    // owns the currently-registered node, which lives at a fixed heap
+    // address, so the registered dispatcher `ctx` (`&callback_->slot->fn`)
+    // stays valid across a `Client` move and for this view's whole
+    // lifetime. A replacement installs a fresh node into the shared state,
+    // which both the `Client` and this view then observe.
+    std::shared_ptr<CallbackState> callback_;
 };
 
 /// Forward declaration for `Client::builder()`; defined immediately after
@@ -2516,7 +2560,7 @@ public:
 
 private:
     explicit Client(ThetaDataDxClient* h)
-        : callback_(std::make_shared<CallbackSlot>()), handle_(h) {}
+        : callback_(std::make_shared<CallbackState>()), handle_(h) {}
 
     // ── Member ordering invariant (do not reorder) ──
     //
@@ -2532,15 +2576,17 @@ private:
     // We therefore declare `handle_` AFTER `callback_`: reverse-order
     // destruction destroys `handle_` first → `thetadatadx_client_free` runs
     // and its drain barrier returns → this client's reference to the
-    // callback node is then released. Reordering these two members
-    // reintroduces the use-after-free.
+    // callback state (and the registered node it owns) is then released.
+    // Reordering these two members reintroduces the use-after-free.
     //
-    // The node is held by `shared_ptr` so it lives at a fixed address: a
-    // `Client` move transfers the reference without moving the node, and a
-    // `Stream` view holds its own reference. The registered `ctx`
-    // (`&CallbackSlot::fn`) therefore stays valid across any move and for
-    // as long as any holder lives.
-    std::shared_ptr<CallbackSlot> callback_;
+    // The state is held by `shared_ptr` and owns the registered node, which
+    // lives at a fixed address: a `Client` move transfers the reference
+    // without moving the node, and a `Stream` view holds its own reference
+    // to the same state. The registered `ctx` (`&CallbackSlot::fn`)
+    // therefore stays valid across any move and for as long as any holder
+    // lives. A callback replacement installs a fresh node into the shared
+    // state, so a later move or destruction operates on the current node.
+    std::shared_ptr<CallbackState> callback_;
     std::unique_ptr<ThetaDataDxClient, UnifiedDeleter> handle_;
 };
 
