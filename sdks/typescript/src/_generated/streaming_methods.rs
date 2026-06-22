@@ -10,14 +10,16 @@ impl StreamView {
     /// panics or throws is isolated and does not interrupt
     /// the stream.
     ///
-    /// Backpressure: a slow callback causes incoming events
-    /// to queue and, once the buffer is full, newly arriving
-    /// events are dropped. The dropped count is observable
-    /// via `droppedEventCount()`. The receive path is never
+    /// Backpressure: a slow callback first fills a bounded
+    /// delivery queue and then the event ring behind it, at
+    /// which point the oldest events are dropped and counted by
+    /// `droppedEventCount()` while `ringOccupancy()` reports the
+    /// in-flight depth. Watch those two signals to detect a
+    /// callback that cannot keep up. The receive path is never
     /// blocked by a slow callback, so the upstream connection
     /// stays healthy regardless of callback speed.
     #[napi(js_name = "startStreaming")]
-    pub async fn start_streaming(&self, callback: napi::threadsafe_function::ThreadsafeFunction<StreamEvent, (), StreamEvent, napi::Status, false>) -> napi::Result<()> {
+    pub async fn start_streaming(&self, callback: napi::threadsafe_function::ThreadsafeFunction<StreamEvent, (), StreamEvent, napi::Status, false, false, { crate::STREAMING_CALLBACK_QUEUE_DEPTH }>) -> napi::Result<()> {
         // Bind the callback behind a cheap `Arc` so the FPSS callback
         // closure (`Fn(&StreamEvent) + Send + 'static`) can clone the
         // handle into each per-event invocation. `ThreadsafeFunction`
@@ -69,22 +71,21 @@ impl StreamView {
                     // execute V8 (libuv invariant). The FPSS TLS reader
                     // thread itself never touches V8: the streaming ring
                     // sits between the reader and the consumer that runs
-                    // this closure, so a slow JS callback at most fills
-                    // the ring and bumps `droppedEventCount()` — it
-                    // cannot back-pressure the TLS reader and trigger a
-                    // vendor-side disconnect.
+                    // this closure.
                     let buffered = fpss_event_to_buffered(event);
                     let typed = buffered_event_to_typed(buffered);
-                    // `Blocking` so the dispatcher waits if the
-                    // napi tsfn queue is full instead of silently
-                    // discarding the event. The streaming ring already absorbs
-                    // FPSS-side bursts; the only path where the tsfn
-                    // queue fills is a stalled Node event loop, and a
-                    // bounded blocking back-pressure is preferable to a
-                    // double-drop (ring + tsfn).
+                    // `Blocking`, paired with the bounded
+                    // `STREAMING_CALLBACK_QUEUE_DEPTH` on `TsfnCallback`,
+                    // makes this consumer wait once the call queue is full
+                    // rather than parking an unbounded backlog of events
+                    // behind a slow JS callback. While the consumer waits it
+                    // stops draining the ring, so the ring fills and the FPSS
+                    // reader accounts the overflow on `droppedEventCount()`;
+                    // the reader itself is never blocked, so the upstream
+                    // connection stays healthy.
                     //
-                    // `ErrorStrategy::Fatal` (the `false` const generic on
-                    // `TsfnCallback`) means we pass `T` directly, not
+                    // `ErrorStrategy::Fatal` (the fifth `false` const generic
+                    // on `TsfnCallback`) means we pass `T` directly, not
                     // `Result<T, _>` — exceptions in the JS callback are
                     // the JS side's problem, surfaced through Node's own
                     // `uncaughtException`.

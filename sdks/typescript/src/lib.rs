@@ -582,14 +582,41 @@ include!("_generated/utility_functions.rs");
 
 // ── Unified Client client ──
 
+/// Bound on the number of `StreamEvent` deliveries that may sit in the
+/// napi callback queue between the streaming consumer thread and the Node
+/// main thread before the consumer is made to wait.
+///
+/// This queue is the second buffer on the delivery path. The first is the
+/// streaming event ring (the `streamingRingSize` setting, 65536 slots by
+/// default), drained by the consumer thread; the consumer hands each event
+/// to the callback queue here, and the registered JS function runs later on
+/// the Node main thread. A bound is required for the `Blocking` call mode to
+/// mean anything: with an unbounded queue the `call` never waits, so the
+/// consumer drains the ring as fast as it arrives and parks the backlog in
+/// this queue instead, where it is invisible to `ringOccupancy()` and
+/// `droppedEventCount()` and grows without limit behind a persistently slow
+/// JS callback. A finite bound makes a full queue block the consumer, which
+/// lets the ring fill and the I/O reader account the overflow on
+/// `droppedEventCount()`, the same observable back-pressure the bindings
+/// that run the callback directly on the consumer thread already have.
+///
+/// The depth matches the default ring size so a healthy callback has a full
+/// ring's worth of headroom before the consumer ever waits, while a wedged
+/// callback can pin at most this many in-flight events.
+pub(crate) const STREAMING_CALLBACK_QUEUE_DEPTH: usize = 65_536;
+
 /// `ThreadsafeFunction` that owns a JS callback reference and routes
 /// `StreamEvent` deliveries onto the Node main thread via napi-rs's
-/// internal `uv_async_t` queue. The const generic `false` selects
+/// internal `uv_async_t` queue. The fifth const generic `false` selects
 /// `ErrorStrategy::Fatal`, so the napi-rs `call` API takes the
 /// `StreamEvent` directly (not a `Result`) and the JS side relies on
-/// its own try/catch for user-callback failures. The two `StreamEvent`
-/// type parameters are the wire payload and the JS-call arg type
-/// respectively; both are the same concrete object here.
+/// its own try/catch for user-callback failures. The sixth (`false`) keeps
+/// the function strong, so a pending event holds the event loop open until
+/// it drains rather than being abandoned at shutdown. The seventh,
+/// [`STREAMING_CALLBACK_QUEUE_DEPTH`], bounds the call queue so the
+/// `Blocking` call mode applies real back-pressure (see that constant). The
+/// two `StreamEvent` type parameters are the wire payload and the JS-call
+/// arg type respectively; both are the same concrete object here.
 ///
 /// napi-rs is the only safe path: Node's libuv requires JS callbacks
 /// on the main thread, so calling V8 from any other thread is
@@ -602,6 +629,8 @@ pub(crate) type TsfnCallback = napi::threadsafe_function::ThreadsafeFunction<
     StreamEvent,
     napi::Status,
     false,
+    false,
+    STREAMING_CALLBACK_QUEUE_DEPTH,
 >;
 
 #[napi]
@@ -1177,6 +1206,66 @@ impl StreamView {
 }
 
 // `Client` is the public name (rename complete; no alias).
+
+#[cfg(test)]
+mod callback_queue_tests {
+    use super::*;
+
+    /// Recover the `MaxQueueSize` const generic from a concrete
+    /// `ThreadsafeFunction` type so the test reads the bound that is
+    /// actually compiled into [`TsfnCallback`], not a value re-typed by
+    /// hand. A change to the alias that drops the seventh generic (back to
+    /// the napi default of `0`, an unbounded queue) is observed here.
+    const fn max_queue_size<
+        T: 'static,
+        Return: 'static + napi::bindgen_prelude::FromNapiValue,
+        CallJsBackArgs: 'static + napi::bindgen_prelude::JsValuesTupleIntoVec,
+        ErrorStatus: AsRef<str> + From<napi::Status>,
+        const CALLEE_HANDLED: bool,
+        const WEAK: bool,
+        const MAX_QUEUE_SIZE: usize,
+    >(
+        _: std::marker::PhantomData<
+            napi::threadsafe_function::ThreadsafeFunction<
+                T,
+                Return,
+                CallJsBackArgs,
+                ErrorStatus,
+                CALLEE_HANDLED,
+                WEAK,
+                MAX_QUEUE_SIZE,
+            >,
+        >,
+    ) -> usize {
+        MAX_QUEUE_SIZE
+    }
+
+    /// The streaming callback queue must be bounded: a zero (unbounded)
+    /// queue lets the `Blocking` call mode return without ever waiting, so
+    /// a persistently slow JS callback grows the queue without limit while
+    /// `ringOccupancy()` and `droppedEventCount()` stay flat. A finite
+    /// bound is what couples a slow consumer back to the ring and the drop
+    /// counter.
+    #[test]
+    fn streaming_callback_queue_is_bounded() {
+        // Read the bound off the alias type rather than the bare constant
+        // so the check fails if the seventh generic is dropped, even if the
+        // constant itself is left untouched.
+        let alias_depth = max_queue_size(std::marker::PhantomData::<TsfnCallback>);
+        assert_eq!(
+            alias_depth, STREAMING_CALLBACK_QUEUE_DEPTH,
+            "TsfnCallback must carry STREAMING_CALLBACK_QUEUE_DEPTH as its MaxQueueSize"
+        );
+        assert_ne!(
+            alias_depth, 0,
+            "an unbounded (zero) queue defeats the Blocking back-pressure"
+        );
+        assert_eq!(
+            alias_depth, 65_536,
+            "the queue depth must match its documented value (one default ring)"
+        );
+    }
+}
 
 #[cfg(test)]
 mod connect_options_tests {

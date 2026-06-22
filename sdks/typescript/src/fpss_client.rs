@@ -323,12 +323,15 @@ impl StreamingClient {
                             // object on the dispatcher thread, then hand it
                             // to the `ThreadsafeFunction`, which routes the
                             // call onto the Node main thread (the only
-                            // thread allowed to execute V8). `Blocking`
-                            // applies bounded back-pressure when the tsfn
-                            // queue is full instead of dropping the event;
-                            // the FPSS TLS reader is never blocked, so a
-                            // slow JS callback at most fills the ring and
-                            // bumps `droppedEventCount()`.
+                            // thread allowed to execute V8). The call queue
+                            // is bounded (`STREAMING_CALLBACK_QUEUE_DEPTH`),
+                            // so `Blocking` makes this consumer wait once the
+                            // queue is full rather than parking an unbounded
+                            // backlog behind a slow JS callback. While the
+                            // consumer waits it stops draining the ring, so
+                            // the ring fills and the FPSS reader accounts the
+                            // overflow on `droppedEventCount()`. The reader
+                            // itself is never blocked.
                             let buffered = fpss_event_to_buffered(event);
                             let typed = buffered_event_to_typed(buffered);
                             dispatch_cb.call(
@@ -417,11 +420,13 @@ impl StreamingClient {
     /// thread, so the callback may use any JS API safely. A callback that
     /// panics or throws is isolated and does not interrupt the stream.
     ///
-    /// Backpressure: a slow callback causes incoming events to queue and,
-    /// once the buffer is full, newly arriving events are dropped, observable
-    /// via `droppedEventCount()`. The receive path is never blocked by a
-    /// slow callback, so the upstream connection stays healthy regardless
-    /// of callback speed.
+    /// Backpressure: a slow callback first fills a bounded delivery queue
+    /// and then the event ring behind it, at which point the oldest events
+    /// are dropped and counted by `droppedEventCount()` while
+    /// `ringOccupancy()` reports the in-flight depth. Watch those two
+    /// signals to detect a callback that cannot keep up. The receive path
+    /// is never blocked by a slow callback, so the upstream connection
+    /// stays healthy regardless of callback speed.
     #[napi(js_name = "startStreaming")]
     pub async fn start_streaming(
         &self,
@@ -430,13 +435,20 @@ impl StreamingClient {
         // `TsfnCallback` alias so napi-rs emits a typed
         // `(event: StreamEvent) => void` signature into `index.d.ts`. A bare
         // alias name would surface in the published types as an unresolved
-        // identifier, leaving the callback parameter untyped for callers.
+        // identifier, leaving the callback parameter untyped for callers. The
+        // const generics match `TsfnCallback` exactly so the value coerces
+        // into `Arc<TsfnCallback>` below; the seventh,
+        // `STREAMING_CALLBACK_QUEUE_DEPTH`, bounds the call queue so the
+        // `Blocking` mode on the dispatcher applies real back-pressure
+        // instead of letting a slow callback grow the queue without limit.
         callback: napi::threadsafe_function::ThreadsafeFunction<
             StreamEvent,
             (),
             StreamEvent,
             napi::Status,
             false,
+            false,
+            { crate::STREAMING_CALLBACK_QUEUE_DEPTH },
         >,
     ) -> napi::Result<()> {
         self.start_with_callback(Arc::new(callback)).await

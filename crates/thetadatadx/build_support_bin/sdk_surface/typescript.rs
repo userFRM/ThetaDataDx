@@ -46,10 +46,12 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                  panics or throws is isolated and does not interrupt\n\
                  the stream.\n\
                  \n\
-                 Backpressure: a slow callback causes incoming events\n\
-                 to queue and, once the buffer is full, newly arriving\n\
-                 events are dropped. The dropped count is observable\n\
-                 via `droppedEventCount()`. The receive path is never\n\
+                 Backpressure: a slow callback first fills a bounded\n\
+                 delivery queue and then the event ring behind it, at\n\
+                 which point the oldest events are dropped and counted by\n\
+                 `droppedEventCount()` while `ringOccupancy()` reports the\n\
+                 in-flight depth. Watch those two signals to detect a\n\
+                 callback that cannot keep up. The receive path is never\n\
                  blocked by a slow callback, so the upstream connection\n\
                  stays healthy regardless of callback speed.",
             );
@@ -63,9 +65,18 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             // `spawn_blocking` so the Node event loop is never frozen for
             // the handshake. napi-rs maps the `napi::Result<()>` on an
             // `async fn` to a `Promise<void>`.
+            // The callback parameter is spelled with the inline
+            // `ThreadsafeFunction<StreamEvent, …>` rather than the
+            // `TsfnCallback` alias so napi-rs emits a typed
+            // `(event: StreamEvent) => void` signature into `index.d.ts`. The
+            // const generics match `TsfnCallback` exactly so the value
+            // coerces into `Arc<TsfnCallback>` in the body; the seventh,
+            // `STREAMING_CALLBACK_QUEUE_DEPTH`, bounds the call queue so the
+            // `Blocking` mode on the dispatcher applies real back-pressure
+            // instead of letting a slow callback grow the queue without limit.
             writeln!(
                 out,
-                "    pub async fn {}(&self, callback: napi::threadsafe_function::ThreadsafeFunction<StreamEvent, (), StreamEvent, napi::Status, false>) -> napi::Result<()> {{",
+                "    pub async fn {}(&self, callback: napi::threadsafe_function::ThreadsafeFunction<StreamEvent, (), StreamEvent, napi::Status, false, false, {{ crate::STREAMING_CALLBACK_QUEUE_DEPTH }}>) -> napi::Result<()> {{",
                 method.name
             )
             .unwrap();

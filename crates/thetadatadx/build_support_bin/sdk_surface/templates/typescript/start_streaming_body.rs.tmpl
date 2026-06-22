@@ -49,22 +49,21 @@
                     // execute V8 (libuv invariant). The FPSS TLS reader
                     // thread itself never touches V8: the streaming ring
                     // sits between the reader and the consumer that runs
-                    // this closure, so a slow JS callback at most fills
-                    // the ring and bumps `droppedEventCount()` — it
-                    // cannot back-pressure the TLS reader and trigger a
-                    // vendor-side disconnect.
+                    // this closure.
                     let buffered = fpss_event_to_buffered(event);
                     let typed = buffered_event_to_typed(buffered);
-                    // `Blocking` so the dispatcher waits if the
-                    // napi tsfn queue is full instead of silently
-                    // discarding the event. The streaming ring already absorbs
-                    // FPSS-side bursts; the only path where the tsfn
-                    // queue fills is a stalled Node event loop, and a
-                    // bounded blocking back-pressure is preferable to a
-                    // double-drop (ring + tsfn).
+                    // `Blocking`, paired with the bounded
+                    // `STREAMING_CALLBACK_QUEUE_DEPTH` on `TsfnCallback`,
+                    // makes this consumer wait once the call queue is full
+                    // rather than parking an unbounded backlog of events
+                    // behind a slow JS callback. While the consumer waits it
+                    // stops draining the ring, so the ring fills and the FPSS
+                    // reader accounts the overflow on `droppedEventCount()`;
+                    // the reader itself is never blocked, so the upstream
+                    // connection stays healthy.
                     //
-                    // `ErrorStrategy::Fatal` (the `false` const generic on
-                    // `TsfnCallback`) means we pass `T` directly, not
+                    // `ErrorStrategy::Fatal` (the fifth `false` const generic
+                    // on `TsfnCallback`) means we pass `T` directly, not
                     // `Result<T, _>` — exceptions in the JS callback are
                     // the JS side's problem, surfaced through Node's own
                     // `uncaughtException`.
