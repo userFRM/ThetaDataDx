@@ -37,7 +37,7 @@ minute_mid = df.set_index("ts")["mid"].resample("1min").last()
 In Rust, the optional `frames` feature adds `.to_polars()` / `.to_arrow()` on tick slices:
 
 ```toml
-thetadatadx = { version = "13.0.0-rc.4", features = ["frames"] }
+thetadatadx = { version = "13.0.0-rc.5", features = ["frames"] }
 ```
 
 ```rust

@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.0.0-rc.5] - 2026-06-22
+
+### Fixed
+
+- **Authentication:** api-key and email/password resolution is unified across the server, the CLI, and the MCP tool under one precedence: the `--api-key` flag, then `THETADATA_API_KEY`, then `THETADATA_EMAIL` with `THETADATA_PASSWORD`, then the credentials file. The CLI and MCP previously had no api-key path, and the MCP read non-canonical variable names. Authentication errors now carry only the HTTP status and never the upstream response body, on both the success-parse and non-success paths, so a gateway that reflects the submitted request can never surface a credential through the error chain.
+- **Configuration:** host and environment selection is provenance-driven: an explicit host override (`THETADATA_HISTORICAL_HOST`, `THETADATA_STREAMING_HOST` / `_PORT`, a config-file host list, or a `.env` entry) is tracked as a typed override and survives `stage()`, `dev()`, and `with_environment()`, with the most recent override winning and a config-file host list winning outright. `dev` is now a first-class environment with its own cluster and a production-equivalent auth marker, so an override on a dev config keeps the dev cluster. The `.env` reader covers every selection key with no split between clusters, and blank or quoted-whitespace values are ignored. A streaming configuration that resolves to no usable host is rejected rather than dialing an empty target.
+- **Streaming:** the reconnect budget resets only after a stable connected window, so a flapping connection cannot reconnect indefinitely. A per-frame wall-clock deadline is persisted across resumed partial reads, so a peer that trickles bytes cannot hold a half-read frame open forever. Reconnect marks the session live only after replay succeeds, and the consumer-thread identity and CPU pin track the true drainer.
+- **Historical transport:** the connection carries a connect timeout, so a lazy reconnect dial fails fast and is classified retryable, a refused stream is retried, and list endpoints honor the request timeout and expose a deadline opt-out (a zero or disabled deadline) so a live-but-silent stream can no longer hang a list call indefinitely.
+- **Bindings:** C++ client view accessors are lvalue-only, so a view bound to a temporary client is a compile error, and a fresh callback node is installed on replace and released only on confirmed quiescence so callback state stays valid across a client move. The gRPC, MCP, and CLI error paths are char-boundary safe and no longer panic when upstream text is non-ASCII.
+- **Tools:** the published OpenAPI document matches the served `/v3` routes, drops a phantom document-wide auth scheme, and carries the correct server URL and version, and the flat-file surfaces expose only the served dataset matrix.
+
+### Internal
+
+- CI workflows are tiered into a fast lane and a heavy lane. The fast lane runs on every pull request, on every push to `main`, and in the merge queue: formatting, the workspace clippy gate, the core library unit tests, and the cheap script gates (C-ABI completeness, cross-binding parity, wire-schema drift, SAFETY-comment hygiene, public-surface leak, documented-config defaults, source-docs framing, docs consistency, version sync, and the dependency advisory gate). The cross-platform builds (the macOS, Windows, and MSRV lint matrix, the FFI builds, the Python wheels, the TypeScript native addon matrix, the full and feature-gated test runs, rustdoc, semver, and the benchmark and performance gates) run on push to `main`, on a nightly schedule, on release tags, in the merge queue, and on a pull request only when relevant paths change or a `full-ci` label is present. No check is removed; every check still runs at least nightly and at release.
+- The binding-parity and docs gates fail closed. The parity gate resolves the TypeScript entry from the package manifest and requires the runtime export rather than the type declaration alone, following only genuine re-export forms, and the docs gate derives the served route set and the flat-file and MCP tool inventories from source so a contract or tool that drifts from the code can no longer pass.
+
 ## [13.0.0-rc.4] - 2026-06-19
 
 ### Added
@@ -3775,7 +3791,8 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
 - FIT decoder uses i64 accumulator with i32 saturation (no silent overflow)
 - Price type range enforced with `assert!` in release builds
 
-[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.4...HEAD
+[Unreleased]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.5...HEAD
+[13.0.0-rc.5]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.4...v13.0.0-rc.5
 [13.0.0-rc.4]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.3...v13.0.0-rc.4
 [13.0.0-rc.3]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.2...v13.0.0-rc.3
 [13.0.0-rc.2]: https://github.com/userFRM/ThetaDataDx/compare/v13.0.0-rc.1...v13.0.0-rc.2
