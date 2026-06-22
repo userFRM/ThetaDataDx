@@ -50,7 +50,7 @@ jobs:
     outputs:
       perf: ${{ steps.filter.outputs.perf }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -75,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       # Same four-step Rust preamble every build job in this repo uses:
       # stable toolchain, Swatinem cache, protoc.
       - uses: ./.github/actions/setup-rust-deps
