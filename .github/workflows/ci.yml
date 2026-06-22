@@ -13,7 +13,7 @@ on:
     tags: ["v*"]
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened, ready_for_review, labeled]
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
   merge_group:
   schedule:
     # Off-peak, off-minute nightly run of the full heavy lane so the
@@ -43,6 +43,13 @@ jobs:
     name: Detect changed paths
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # paths-filter calls the GitHub REST API on pull_request events to
+    # diff the head against the base, which needs pull-requests: read.
+    # contents: read is restated so the workflow-level grant is not
+    # dropped when the job declares its own permission block.
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       rust: ${{ steps.filter.outputs.rust }}
       ffi: ${{ steps.filter.outputs.ffi }}
@@ -768,3 +775,73 @@ jobs:
           body_path: ${{ steps.release_notes.outputs.body_path }}
           files: |
             release-assets/*
+
+  # ═══════════════════════════════════════════════════════════════
+  # AGGREGATOR GATE. A single roll-up status that summarizes every job
+  # above. This is the one check branch protection should require: it
+  # runs with `if: always()`, depends on every other job, and fails
+  # unless every dependency finished `success` or `skipped`. A heavy
+  # job that legitimately skips on a path-irrelevant PR counts as a
+  # pass; a real `failure` or `cancelled` in any dependency fails the
+  # gate. Requiring this one job (instead of a hand-maintained list of
+  # per-job names) means a conditionally-skipped required check can no
+  # longer leave the merge gate permanently unsatisfiable, and a newly
+  # added job is covered the moment it appears in `needs` below.
+  # ═══════════════════════════════════════════════════════════════
+  ci-gate:
+    name: CI gate
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs:
+      - changes
+      - fmt
+      - clippy
+      - core-test
+      - c-abi-completeness
+      - binding-parity
+      - wire-schema-drift
+      - safety-comments
+      - public-surface-leak
+      - doc-defaults
+      - no-re-framing
+      - docs-consistency
+      - version-sync
+      - cargo-deny
+      - lint-matrix
+      - test
+      - feature-tests
+      - rustdoc
+      - bench
+      - semver
+      - surfaces
+      - build-ffi
+      - sdk-bindings
+      - cpp-tests
+      - publish-crate
+      - release
+    steps:
+      - name: Fail unless every dependency succeeded or was skipped
+        shell: bash
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          bad = sorted(
+              name
+              for name, data in needs.items()
+              if data.get("result") not in ("success", "skipped")
+          )
+          for name in sorted(needs):
+              print(f"{name}: {needs[name].get('result')}")
+          if bad:
+              joined = ", ".join(bad)
+              sys.exit(f"CI gate failed: {joined} did not succeed or skip")
+          print("CI gate passed: every dependency succeeded or was skipped")
+          PY

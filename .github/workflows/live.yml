@@ -113,7 +113,7 @@ jobs:
           cargo test --features live-tests --test flatfiles_byte_match -- --nocapture
   endpoint-validation:
     name: Full Endpoint Validation (${{ matrix.os }})
-    needs: smoke
+    needs: [preflight, smoke]
     if: ${{ needs.preflight.outputs.has_live_secrets == 'true' }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
@@ -157,7 +157,7 @@ jobs:
         run: ./build/cpp/thetadatadx_validate creds.txt
   release-validation:
     name: Full Release Validation
-    needs: endpoint-validation
+    needs: [preflight, endpoint-validation]
     if: ${{ needs.preflight.outputs.has_live_secrets == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -183,7 +183,7 @@ jobs:
 
   fpss-soak:
     name: FPSS Reconnect Soak
-    needs: release-validation
+    needs: [preflight, release-validation]
     if: ${{ needs.preflight.outputs.has_live_secrets == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
