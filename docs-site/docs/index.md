@@ -28,9 +28,4 @@ features:
     title: "Server & Tools"
     details: "A local HTTP/WebSocket server speaking the v3 route surface, a CLI, and an MCP server for LLM clients."
     link: /server/
-  - icon:
-      src: /icons/chart.svg
-    title: "Code Examples"
-    details: "An interactive query builder and copy-paste recipes for chains, DataFrames, backfills, and watchlists."
-    link: /examples/
 ---

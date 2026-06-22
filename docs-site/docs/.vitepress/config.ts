@@ -52,7 +52,6 @@ export default defineConfig({
           { text: 'MCP Server', link: '/mcp' },
         ],
       },
-      { text: 'Examples', link: '/examples/' },
       { text: 'ThetaData Docs', link: 'https://docs.thetadata.us/' },
     ],
 
@@ -107,18 +106,6 @@ export default defineConfig({
         items: [
           { text: 'CLI', link: '/cli' },
           { text: 'MCP Server', link: '/mcp' },
-        ],
-      },
-      {
-        text: 'Code Examples',
-        collapsed: true,
-        items: [
-          { text: 'Query Builder', link: '/examples/' },
-          { text: 'Option Chain Snapshot', link: '/examples/option-chain' },
-          { text: 'DataFrames', link: '/examples/dataframes' },
-          { text: 'Bulk Backfill', link: '/examples/bulk-backfill' },
-          { text: 'Streaming Watchlist', link: '/examples/streaming-watchlist' },
-          { text: 'Quotes At a Time of Day', link: '/examples/at-time' },
         ],
       },
       {
