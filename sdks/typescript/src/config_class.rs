@@ -1466,7 +1466,7 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.historical.host = host;
+        guard.set_historical_host(host);
         Ok(())
     }
 
@@ -1477,7 +1477,7 @@ impl Config {
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.historical.host.clone())
+        Ok(guard.historical_host().to_string())
     }
 
     /// Override the historical data port. Companion to `setHistoricalHost` —

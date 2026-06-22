@@ -48,8 +48,13 @@ pub enum TransportErrorKind {
     /// HTTP/2 session establishment failed over an already-connected
     /// transport.
     H2Handshake,
-    /// h2 stream-level error scoped to a single RPC.
+    /// h2 stream-level error scoped to a single RPC, with an undefined
+    /// outcome (a terminal `RST_STREAM` such as `CANCEL` /
+    /// `INTERNAL_ERROR`). Terminal for the retry shell.
     H2Stream,
+    /// h2 `REFUSED_STREAM`: the server did not process the stream, so the
+    /// RPC is safe to retry. Transient for the retry shell.
+    H2StreamRefused,
     /// Connection-level death (GOAWAY, IO failure, open-phase drop).
     ConnectionClosed,
     /// The request URI or `:path` for the RPC could not be built.
@@ -68,6 +73,7 @@ impl TransportErrorKind {
             Self::InvalidServerName => "invalid_server_name",
             Self::H2Handshake => "h2_handshake",
             Self::H2Stream => "h2_stream",
+            Self::H2StreamRefused => "h2_stream_refused",
             Self::ConnectionClosed => "connection_closed",
             Self::InvalidPath => "invalid_path",
         }
@@ -813,6 +819,7 @@ impl From<crate::grpc::ChannelError> for Error {
                     ChannelError::InvalidServerName { .. } => TransportErrorKind::InvalidServerName,
                     ChannelError::H2Handshake(_) => TransportErrorKind::H2Handshake,
                     ChannelError::H2Stream(_) => TransportErrorKind::H2Stream,
+                    ChannelError::H2StreamRefused(_) => TransportErrorKind::H2StreamRefused,
                     ChannelError::InvalidPath { .. } => TransportErrorKind::InvalidPath,
                     ChannelError::ConnectionClosed(_) => TransportErrorKind::ConnectionClosed,
                     // Rpc / DeadlineExceeded handled above — keep compiler
@@ -1229,6 +1236,10 @@ mod tests {
             (
                 ChannelError::H2Stream("e".into()),
                 TransportErrorKind::H2Stream,
+            ),
+            (
+                ChannelError::H2StreamRefused("e".into()),
+                TransportErrorKind::H2StreamRefused,
             ),
             (
                 ChannelError::InvalidPath {

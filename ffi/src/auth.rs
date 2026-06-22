@@ -413,12 +413,13 @@ pub unsafe extern "C" fn thetadatadx_config_get_flush_mode(
 
 /// Read the target server environment carried by the config.
 ///
-/// On success, returns a heap-owned NUL-terminated C string (`"PROD"` or
-/// `"STAGE"`) the caller MUST release with `thetadatadx_string_free`. The
-/// environment is set as a unit by `thetadatadx_direct_config_new` /
-/// the stage preset (and the `THETADATA_MDDS_TYPE` dotenv key); this is
-/// the readback of that selection. Returns null if `config` is null
-/// (the diagnostic is written to `thetadatadx_last_error()`).
+/// On success, returns a heap-owned NUL-terminated C string (`"PROD"`,
+/// `"STAGE"`, or `"DEV"`) the caller MUST release with
+/// `thetadatadx_string_free`. The environment is set as a unit by
+/// `thetadatadx_direct_config_new` / the stage / dev presets (and the
+/// `THETADATA_MDDS_TYPE` dotenv key); this is the readback of that
+/// selection. Returns null if `config` is null (the diagnostic is written
+/// to `thetadatadx_last_error()`).
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_config_get_environment(
     config: *const ThetaDataDxConfig,
@@ -1913,6 +1914,14 @@ pub unsafe extern "C" fn thetadatadx_config_get_flatfiles_jitter(
 /// Return the reconnect delay in milliseconds, or any negative value
 /// to stop reconnecting (the I/O loop then emits the terminal
 /// `ReconnectsExhausted` event and exits).
+///
+/// The callback runs under the C ABI and must not unwind across the
+/// boundary. A C++ `throw` or a C `longjmp` that escapes the callback into
+/// the calling Rust frame is undefined behavior. The I/O loop wraps each
+/// invocation in [`std::panic::catch_unwind`], but that contains only a Rust
+/// panic raised on our side of the boundary, not a foreign exception out of
+/// the callback. Catch and handle every exception inside the callback before
+/// returning a decision.
 pub type ThetaDataDxReconnectCallback =
     unsafe extern "C" fn(reason: i32, attempt: u32, user_data: *mut std::ffi::c_void) -> i64;
 
@@ -1965,12 +1974,16 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_callback(
         impl CallbackCtx {
             fn invoke(&self, reason: i32, attempt: u32) -> i64 {
                 // The decision callback runs on the streaming I/O thread,
-                // not on a `ffi_boundary!`-guarded entry point, so a panic
-                // here would unwind across the C ABI on a foreign thread.
-                // Catch it and fall back to the stop decision (`-1`), the
-                // same defence the stream dispatcher applies per
-                // invocation, so a panicking decision callback ends the
-                // reconnect loop instead of aborting the process.
+                // not on a `ffi_boundary!`-guarded entry point, so a Rust
+                // panic raised on this path would otherwise unwind across the
+                // C ABI on a foreign thread. Wrap the invocation in
+                // `catch_unwind` and fall back to the stop decision (`-1`),
+                // the same defence the stream dispatcher applies per
+                // invocation, so a panic from our own Rust code ends the
+                // reconnect loop instead of aborting the process. This does
+                // not contain a foreign exception thrown out of the callback;
+                // that no-unwind contract is documented on
+                // `ThetaDataDxReconnectCallback`.
                 let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     // SAFETY: `self.cb` is the caller-registered function pointer and `self.user_data` the matching context; the registration contract guarantees both stay valid and thread-safe while any client built from the config is alive.
                     unsafe { (self.cb)(reason, attempt, self.user_data) }
@@ -2724,7 +2737,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_historical_host(
         };
         // SAFETY: config is a non-null pointer returned by thetadatadx_config_* and not yet freed.
         let config = unsafe { &mut *config };
-        config.inner.historical.host = host.to_string();
+        config.inner.set_historical_host(host);
         0
     })
 }
@@ -2746,7 +2759,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_historical_host(
         }
         // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
-        match std::ffi::CString::new(config.inner.historical.host.as_str()) {
+        match std::ffi::CString::new(config.inner.historical_host()) {
             Ok(c) => c.into_raw(),
             Err(e) => {
                 set_error(&format!("historical_host contains an interior NUL: {e}"));
@@ -3888,19 +3901,24 @@ mod auth_metrics_setter_tests {
     #[test]
     fn environment_reads_back_the_selected_cluster_via_getter() {
         // The readback getter mirrored across the bindings: the stage
-        // preset reads back `"STAGE"`, the production preset `"PROD"`.
+        // preset reads back `"STAGE"`, the production preset `"PROD"`, and
+        // the dev preset `"DEV"`.
         let staged = super::thetadatadx_config_stage();
         let prod = super::thetadatadx_config_production();
-        // SAFETY: both handles were just returned by the config constructors.
+        let dev = super::thetadatadx_config_dev();
+        // SAFETY: all three handles were just returned by the config constructors.
         unsafe {
             let got = take_owned(super::thetadatadx_config_get_environment(staged));
             assert_eq!(got.as_deref(), Some("STAGE"));
             let got = take_owned(super::thetadatadx_config_get_environment(prod));
             assert_eq!(got.as_deref(), Some("PROD"));
+            let got = take_owned(super::thetadatadx_config_get_environment(dev));
+            assert_eq!(got.as_deref(), Some("DEV"));
             // A null handle yields null.
             assert!(super::thetadatadx_config_get_environment(std::ptr::null()).is_null());
             super::thetadatadx_config_free(staged);
             super::thetadatadx_config_free(prod);
+            super::thetadatadx_config_free(dev);
         }
     }
 

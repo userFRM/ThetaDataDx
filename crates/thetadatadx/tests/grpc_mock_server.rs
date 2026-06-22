@@ -1332,23 +1332,27 @@ async fn channel_pool_routes_around_saturated_channel() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn channel_classifies_per_stream_rst_as_stream_level() {
-    // Per-stream RST_STREAM with REFUSED_STREAM. The h2 connection
-    // itself is healthy — only this stream is killed. Classifying it
-    // as `ConnectionClosed` (per the previous behaviour, which mapped
-    // every `is_remote()` to ConnectionClosed) would force pool
-    // consumers to recycle a still-good channel and burn retry
-    // budgets. The fix surfaces `H2Stream` for per-stream resets and
-    // reserves `ConnectionClosed` for GOAWAY / IO failures.
+    // Per-stream RST_STREAM with a terminal reason (CANCEL). The h2
+    // connection itself is healthy — only this stream is killed.
+    // Classifying it as `ConnectionClosed` (per the older behaviour,
+    // which mapped every `is_remote()` to ConnectionClosed) would force
+    // pool consumers to recycle a still-good channel and burn retry
+    // budgets. The fix surfaces `H2Stream` for terminal per-stream resets
+    // and reserves `ConnectionClosed` for GOAWAY / IO failures.
+    //
+    // CANCEL is deliberately a NON-`REFUSED_STREAM` reason: a refused
+    // stream is retry-safe and routes to the distinct `H2StreamRefused`
+    // (see `channel_classifies_refused_stream_as_retry_safe`), whereas a
+    // CANCEL may have had server-side effect and stays terminal.
     //
     // HTTP/2 spec § 7 (Error Codes):
     //   <https://datatracker.ietf.org/doc/html/rfc9113#name-error-codes>
-    //   CANCEL / REFUSED_STREAM / INTERNAL_ERROR are stream-level.
     let mock = MockServer::spawn_with_behaviour(
         Vec::new(),
         0,
         String::new(),
         MockBehaviour {
-            stream_reset_reason: Some(h2::Reason::REFUSED_STREAM),
+            stream_reset_reason: Some(h2::Reason::CANCEL),
             ..MockBehaviour::default()
         },
     )
@@ -1378,12 +1382,74 @@ async fn channel_classifies_per_stream_rst_as_stream_level() {
 
     match final_err {
         ChannelError::H2Stream(_) => {
-            // expected — per-stream RST, connection still alive.
+            // expected — terminal per-stream RST, connection still alive.
         }
         ChannelError::ConnectionClosed(msg) => {
             panic!("per-stream RST_STREAM must classify as H2Stream, not ConnectionClosed ({msg})")
         }
         other => panic!("expected H2Stream, got {other:?}"),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn channel_classifies_refused_stream_as_retry_safe() {
+    // Finding 4: a per-stream RST_STREAM with reason `REFUSED_STREAM`
+    // means the server did not process the stream at all (RFC 7540
+    // § 8.1.4), so the RPC is safe to re-dispatch. It must surface as the
+    // distinct, retry-safe `H2StreamRefused` rather than the terminal
+    // `H2Stream` — otherwise a not-processed reset reaches the caller as a
+    // hard failure instead of being retried on the pool.
+    let mock = MockServer::spawn_with_behaviour(
+        Vec::new(),
+        0,
+        String::new(),
+        MockBehaviour {
+            stream_reset_reason: Some(h2::Reason::REFUSED_STREAM),
+            ..MockBehaviour::default()
+        },
+    )
+    .await;
+
+    let channel = Channel::connect_h2c("127.0.0.1", mock.addr.port())
+        .await
+        .expect("h2c connect");
+
+    let result = channel
+        .server_streaming::<DataValueList, ResponseData>(
+            "/BetaEndpoints.BetaThetaTerminal/GetStockListSymbols",
+            empty_request(),
+        )
+        .await;
+
+    let final_err = match result {
+        Err(e) => e,
+        Ok(stream) => match collect(stream).await {
+            Err(e) => e,
+            Ok(msgs) => panic!(
+                "expected H2StreamRefused for REFUSED_STREAM, got {} messages",
+                msgs.len()
+            ),
+        },
+    };
+
+    match final_err {
+        ChannelError::H2StreamRefused(_) => {
+            // expected — server never processed the stream; retry-safe.
+        }
+        other => panic!("REFUSED_STREAM must classify as H2StreamRefused, got {other:?}"),
+    }
+
+    // And the crate-level error it converts to must classify as transient
+    // for the retry shell — i.e. the RPC is actually retried, not surfaced
+    // terminally. The retry classifier is private; the public proxy is the
+    // typed `TransportErrorKind::H2StreamRefused` it routes through.
+    let err: thetadatadx::Error = final_err.into();
+    match err {
+        thetadatadx::Error::Transport {
+            kind: thetadatadx::error::TransportErrorKind::H2StreamRefused,
+            ..
+        } => {}
+        other => panic!("expected Transport(H2StreamRefused), got {other:?}"),
     }
 }
 

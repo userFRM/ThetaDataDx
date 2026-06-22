@@ -86,11 +86,12 @@ fn add_generated_utility_commands(mut app: Command) -> Command {
 async fn try_run_generated_utility(
     subcommand: Option<(&str, &ArgMatches)>,
     fmt: &OutputFormat,
+    api_key_flag: Option<&str>,
     creds_path: &str,
 ) -> Result<bool, thetadatadx::Error> {
     match subcommand {
         Some(("auth", _)) => {
-            let creds = thetadatadx::Credentials::from_file(creds_path)?;
+            let creds = resolve_credentials(api_key_flag, creds_path)?;
             let resp =
                 thetadatadx::auth::authenticate(&creds, thetadatadx::Environment::Prod).await?;
             let mut td = TabularData::new(vec![
@@ -103,10 +104,12 @@ async fn try_run_generated_utility(
                 "created",
             ]);
             let user = resp.user.as_ref();
-            let redacted_session = if resp.session_id.len() >= 8 {
-                format!("{}...", &resp.session_id[..8])
-            } else {
-                resp.session_id.clone()
+            // Take the leading characters by character boundary, not byte
+            // index, so a session id bearing a multi-byte character cannot
+            // panic the slice.
+            let redacted_session = match resp.session_id.char_indices().nth(8) {
+                Some((boundary, _)) => format!("{}...", &resp.session_id[..boundary]),
+                None => resp.session_id.clone(),
             };
             td.push(vec![
                 redacted_session,

@@ -96,11 +96,18 @@ impl AuthEnv {
     ///
     /// Production carries no marker: the server treats an absent
     /// `authEnv` as `PROD`, so omitting it keeps the production request
-    /// body byte-identical to the long-validated shape. Only the staging
-    /// environment serializes an explicit marker.
+    /// body byte-identical to the long-validated shape. Dev is a
+    /// streaming-only cluster with no server-side auth env of its own, so
+    /// it authenticates exactly as production — it too carries no marker,
+    /// keeping a dev session's auth body byte-identical to a production
+    /// one. Only the staging environment serializes an explicit marker.
+    ///
+    /// The environment selector is both a cluster selector and an auth
+    /// wire marker; this is the seam where the two diverge: `Dev` selects
+    /// a distinct streaming cluster but the *same* auth body as `Prod`.
     fn for_environment(env: Environment) -> Option<Self> {
         match env {
-            Environment::Prod => None,
+            Environment::Prod | Environment::Dev => None,
             Environment::Stage => Some(Self {
                 env_type: EnvType::Stage,
             }),
@@ -157,6 +164,22 @@ impl<'a> AuthRequest<'a> {
             }
         }
     }
+}
+
+/// Serialize the auth request body for `environment` using a fixed
+/// credential, returning the on-the-wire JSON.
+///
+/// Test-only seam so callers outside this module (notably the config-layer
+/// tests) can assert the auth wire body a given [`Environment`] produces —
+/// in particular that a dev config's body is byte-identical to production's
+/// — without `AuthRequest` leaving this module's private surface. The
+/// credential is irrelevant to the `authEnv` marker under test, so a fixed
+/// email/password pair is used.
+#[cfg(test)]
+pub(crate) fn auth_request_json_for_test(environment: Environment) -> serde_json::Value {
+    let creds = Credentials::new("user@example.com", "hunter2");
+    serde_json::to_value(AuthRequest::from_credentials(&creds, environment))
+        .expect("auth request serializes")
 }
 
 /// Successful authentication response from Nexus API.
@@ -397,6 +420,19 @@ fn server_error_message(status: reqwest::StatusCode) -> String {
     )
 }
 
+/// Fixed, body-free message for a malformed success (HTTP 200) response body.
+///
+/// A `serde_json` decode error can embed fragments of the input it failed to
+/// parse — including response-body token text — into its `Display`. On the 200
+/// path that body is the upstream auth payload, which can carry a session
+/// token, so interpolating the decoder error would reflect that material into
+/// the surfaced error and any caller log. The message is a constant with no
+/// decoder text, keeping the secret out of the error chain by construction
+/// (the same boundary [`server_error_message`] enforces for the non-200 path).
+fn malformed_success_body_message() -> &'static str {
+    "authentication response was malformed"
+}
+
 /// Authenticate against the Nexus API and return the session info.
 ///
 /// Identical to [`authenticate`] but accepts a caller-supplied URL.
@@ -536,9 +572,12 @@ pub async fn authenticate_at(
         });
     }
 
-    let auth: AuthResponse = resp.json().await.map_err(|e| Error::Auth {
+    let auth: AuthResponse = resp.json().await.map_err(|_| Error::Auth {
         kind: crate::error::AuthErrorKind::ServerError,
-        message: format!("failed to parse Nexus API response: {e}"),
+        // A 200 body that fails to decode must not echo the decoder error: it
+        // can embed body-token text (a session token rides this payload). Carry
+        // a fixed, body-free message — see `malformed_success_body_message`.
+        message: malformed_success_body_message().to_string(),
     })?;
 
     // Validate the session UUID is well-formed. The session id is a bearer
@@ -642,6 +681,36 @@ mod tests {
         assert_eq!(json["authEnv"], serde_json::json!({ "envType": "STAGE" }));
     }
 
+    /// The dev environment carries NO `authEnv` marker and produces an
+    /// auth body byte-identical to production: dev replay is a
+    /// streaming-only cluster with no server-side auth env of its own, so
+    /// a dev session authenticates exactly as a production session. This
+    /// locks the "dev auths as prod" invariant — the seam where the
+    /// cluster selector (dev streaming) diverges from the auth wire marker
+    /// (prod).
+    #[test]
+    fn auth_request_dev_auth_body_is_byte_identical_to_prod() {
+        for creds in [
+            Credentials::new("user@example.com", "hunter2"),
+            Credentials::api_key("secret-key-xyz"),
+        ] {
+            let dev: serde_json::Value =
+                serde_json::to_value(AuthRequest::from_credentials(&creds, Environment::Dev))
+                    .unwrap();
+            let prod: serde_json::Value =
+                serde_json::to_value(AuthRequest::from_credentials(&creds, Environment::Prod))
+                    .unwrap();
+            assert!(
+                dev.get("authEnv").is_none(),
+                "dev body must omit authEnv: {dev}"
+            );
+            assert_eq!(
+                dev, prod,
+                "dev auth body must be byte-identical to production"
+            );
+        }
+    }
+
     /// The full production body shape, pinned end to end: exactly the
     /// credential fields and nothing else — byte-identical to the
     /// validated production auth body, with no `authEnv` key.
@@ -708,6 +777,69 @@ mod tests {
                 "message must not carry body-derived text {leaked:?}: {msg}"
             );
         }
+    }
+
+    #[test]
+    fn malformed_success_body_message_is_fixed_and_body_free() {
+        // The 200-path parse-failure message must be a constant with no
+        // decoder/body text. A `serde_json` error can embed fragments of the
+        // body it failed to parse — and the success body carries a session
+        // token — so the surfaced error must never interpolate it.
+        let msg = malformed_success_body_message();
+        assert_eq!(msg, "authentication response was malformed");
+        // Stand-ins for a reflected token or any upstream body text that a
+        // decoder error might otherwise embed.
+        for leaked in [
+            "11111111-2222-3333-4444-555555555555",
+            "sessionId",
+            "session_id",
+            "td_secret_apikey",
+            "expected",
+            "column",
+            "line",
+        ] {
+            assert!(
+                !msg.contains(leaked),
+                "fixed message must not carry body-derived text {leaked:?}: {msg}"
+            );
+        }
+    }
+
+    #[test]
+    fn malformed_200_body_maps_to_fixed_message_without_body_content() {
+        // Exercise the exact mapping the 200 path applies: a malformed body
+        // that EMBEDS a session token fails to decode into `AuthResponse`, and
+        // the `map_err` must collapse it to the fixed body-free message — never
+        // the `serde_json` error text, which can quote the offending body.
+        let token = "11111111-2222-3333-4444-555555555555";
+        // Valid JSON shape-wise but wrong type for `session_id` (number, not
+        // string), so the decoder error references the token-bearing field.
+        let body = format!(r#"{{"sessionId": 12345, "leaked_token": "{token}"}}"#);
+        let parse_result: Result<AuthResponse, _> = serde_json::from_str(&body);
+        let raw_decoder_text = parse_result
+            .as_ref()
+            .err()
+            .map(std::string::ToString::to_string)
+            .unwrap_or_default();
+        let err = parse_result.map_err(|_| Error::Auth {
+            kind: crate::error::AuthErrorKind::ServerError,
+            message: malformed_success_body_message().to_string(),
+        });
+        let surfaced = err.expect_err("a malformed 200 body must fail to decode");
+        let surfaced_msg = surfaced.to_string();
+        assert!(
+            surfaced_msg.contains("authentication response was malformed"),
+            "surfaced error must carry the fixed message: {surfaced_msg}"
+        );
+        assert!(
+            !surfaced_msg.contains(token),
+            "surfaced error must not reflect the body token: {surfaced_msg}"
+        );
+        // Sanity: the discarded raw decoder text COULD have carried body
+        // material, which is exactly why the fixed message is used. (Skip the
+        // assertion if a given serde version happens not to quote the field —
+        // the load-bearing guarantee is the surfaced message above.)
+        let _ = raw_decoder_text;
     }
 
     #[test]

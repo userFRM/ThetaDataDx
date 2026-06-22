@@ -7,6 +7,10 @@
 //! in-flight RPC observes [`ChannelError::ConnectionClosed`] and the
 //! caller's retry shell (`crate::mdds::macros::classify_error`)
 //! re-dispatches onto the recovered connection or a sibling pool member.
+//! The endpoint carries a dial timeout (`connect_timeout`) so a
+//! reconnect dial to an unreachable or black-holed peer fails fast as a
+//! retryable transport fault rather than hanging the connection task
+//! once per-call deadlines are disabled.
 //!
 //! [`Channel::server_streaming`] sends a single server-streaming RPC and
 //! returns a [`ServerStreaming`] that yields decoded response messages.
@@ -119,13 +123,25 @@ pub enum ChannelError {
     #[error("h2 handshake: {0}")]
     H2Handshake(String),
     /// h2 stream-level error scoped to the specific stream this RPC
-    /// opened. Covers `RST_STREAM` from the peer (any reason code:
-    /// `CANCEL`, `REFUSED_STREAM`, `INTERNAL_ERROR`, etc.). The h2
-    /// connection itself is healthy and the next RPC on the same
-    /// channel can succeed. Connection-level death surfaces through
-    /// [`Self::ConnectionClosed`] instead.
+    /// opened. Covers a terminal `RST_STREAM` from the peer (a reason
+    /// code that may have had server-side effect: `CANCEL`,
+    /// `INTERNAL_ERROR`, etc.). The h2 connection itself is healthy and
+    /// the next RPC on the same channel can succeed, but this stream's
+    /// outcome is undefined, so the retry shell treats it as terminal.
+    /// Connection-level death surfaces through [`Self::ConnectionClosed`]
+    /// instead, and a not-processed `REFUSED_STREAM` through
+    /// [`Self::H2StreamRefused`].
     #[error("h2 stream: {0}")]
     H2Stream(String),
+    /// h2 `RST_STREAM` with reason `REFUSED_STREAM`: the server did not
+    /// process this stream at all (RFC 7540 § 8.1.4). The h2 connection
+    /// is healthy and, because no work was started, the RPC is safe to
+    /// re-dispatch — the retry shell classifies this as transient and
+    /// retries on the next pool pick. Kept distinct from the terminal
+    /// [`Self::H2Stream`] so a not-processed reset never surfaces to the
+    /// caller as a hard failure.
+    #[error("h2 stream refused: {0}")]
+    H2StreamRefused(String),
     /// Failed to build the request URI or `:path` for the RPC.
     #[error("invalid method path {path:?}: {message}")]
     InvalidPath {
@@ -237,12 +253,25 @@ impl Channel {
         port: u16,
         max_message_size: usize,
     ) -> Result<Self, ChannelError> {
-        Self::connect(host, port, None, max_message_size, ChannelTuning::default()).await
+        Self::connect(
+            host,
+            port,
+            None,
+            max_message_size,
+            ChannelTuning::default(),
+            None,
+        )
+        .await
     }
 
     /// Open a plaintext (h2c) connection with an explicit per-frame
     /// decode ceiling and HTTP/2 session tuning (flow-control windows,
     /// keepalive cadence), both threaded from `DirectConfig::mdds`.
+    ///
+    /// `connect_timeout` bounds every dial — the eager open AND each
+    /// lazy in-place reconnect — so a black-holed target fails fast as
+    /// a retryable transport fault instead of hanging the connection
+    /// task indefinitely.
     ///
     /// # Errors
     ///
@@ -253,8 +282,17 @@ impl Channel {
         port: u16,
         max_message_size: usize,
         tuning: ChannelTuning,
+        connect_timeout: Duration,
     ) -> Result<Self, ChannelError> {
-        Self::connect(host, port, None, max_message_size, tuning).await
+        Self::connect(
+            host,
+            port,
+            None,
+            max_message_size,
+            tuning,
+            Some(connect_timeout),
+        )
+        .await
     }
 
     /// Open a TLS-protected HTTP/2 connection to a gRPC server using
@@ -303,6 +341,7 @@ impl Channel {
             Some(tls),
             max_message_size,
             ChannelTuning::default(),
+            None,
         )
         .await
     }
@@ -316,6 +355,11 @@ impl Channel {
     /// ALPN, and session-resumption configuration land identically
     /// across connection cycles.
     ///
+    /// `connect_timeout` bounds every dial — the eager open AND each
+    /// lazy in-place reconnect — so a black-holed target fails fast as
+    /// a retryable transport fault instead of hanging the connection
+    /// task indefinitely.
+    ///
     /// # Errors
     ///
     /// Returns a [`ChannelError`] when the TCP connect, TLS handshake,
@@ -326,19 +370,40 @@ impl Channel {
         tls: Arc<rustls::ClientConfig>,
         max_message_size: usize,
         tuning: ChannelTuning,
+        connect_timeout: Duration,
     ) -> Result<Self, ChannelError> {
-        Self::connect(host, port, Some(tls), max_message_size, tuning).await
+        Self::connect(
+            host,
+            port,
+            Some(tls),
+            max_message_size,
+            tuning,
+            Some(connect_timeout),
+        )
+        .await
     }
 
     /// Shared connect path: build the endpoint, attach the custom
     /// TCP(+TLS) connector, and open the connection eagerly so a dead
     /// target fails the constructor rather than the first RPC.
+    ///
+    /// When `connect_timeout` is `Some`, it is applied to the
+    /// `Endpoint` so the dial timeout rides inside the channel's own
+    /// connection service. The eager open below is bounded by it, and
+    /// — crucially — so is every lazy reconnect tonic issues after a
+    /// dropped connection: without it a reconnect dial to a black-holed
+    /// peer would hang the connection task forever once per-call
+    /// deadlines are disabled, and the retry shell would never observe
+    /// a retryable transport fault. The caller may additionally wrap
+    /// the eager open in its own timeout; the two are complementary —
+    /// this one is the only bound that survives onto the reconnect path.
     async fn connect(
         host: &str,
         port: u16,
         tls: Option<Arc<rustls::ClientConfig>>,
         max_message_size: usize,
         tuning: ChannelTuning,
+        connect_timeout: Option<Duration>,
     ) -> Result<Self, ChannelError> {
         let scheme = if tls.is_some() {
             Scheme::HTTPS
@@ -346,21 +411,7 @@ impl Channel {
             Scheme::HTTP
         };
         let uri = format!("{scheme}://{host}:{port}");
-        let endpoint = tonic::transport::Endpoint::from_shared(uri.clone())
-            .map_err(|e| ChannelError::InvalidPath {
-                path: uri.clone(),
-                message: e.to_string(),
-            })?
-            .user_agent(format!("{USER_AGENT_PREFIX}/{}", env!("CARGO_PKG_VERSION")))
-            .map_err(|e| ChannelError::InvalidPath {
-                path: uri,
-                message: format!("user-agent: {e}"),
-            })?
-            .tcp_nodelay(true)
-            .initial_stream_window_size(tuning.initial_stream_window_size)
-            .initial_connection_window_size(tuning.initial_connection_window_size)
-            .http2_keep_alive_interval(tuning.keepalive_interval)
-            .keep_alive_timeout(tuning.keepalive_timeout);
+        let endpoint = build_endpoint(&uri, tuning, connect_timeout)?;
         let connector = GrpcConnector {
             host: Arc::from(host),
             port,
@@ -618,6 +669,49 @@ fn deadline_error(d: Duration) -> ChannelError {
     }
 }
 
+/// Build the `tonic::transport::Endpoint` for a channel: user-agent,
+/// `TCP_NODELAY`, the HTTP/2 flow-control windows and keepalive cadence
+/// from [`ChannelTuning`], and — when `connect_timeout` is `Some` — the
+/// dial timeout.
+///
+/// The dial timeout is applied to the endpoint itself rather than only
+/// wrapping the eager open: `connect_with_connector` lifts the
+/// endpoint's connect timeout into a `hyper_timeout::TimeoutConnector`
+/// around the custom connector, so the same bound governs every lazy
+/// in-place reconnect tonic issues after a dropped connection. Without
+/// it, a reconnect dial to a black-holed peer hangs the connection task
+/// forever once per-call deadlines are disabled, and the retry shell
+/// never observes a retryable transport fault.
+///
+/// Split out from [`Channel::connect`] so the timeout wiring is unit-
+/// testable through [`tonic::transport::Endpoint::get_connect_timeout`]
+/// without standing up a live dial.
+fn build_endpoint(
+    uri: &str,
+    tuning: ChannelTuning,
+    connect_timeout: Option<Duration>,
+) -> Result<tonic::transport::Endpoint, ChannelError> {
+    let endpoint = tonic::transport::Endpoint::from_shared(uri.to_string())
+        .map_err(|e| ChannelError::InvalidPath {
+            path: uri.to_string(),
+            message: e.to_string(),
+        })?
+        .user_agent(format!("{USER_AGENT_PREFIX}/{}", env!("CARGO_PKG_VERSION")))
+        .map_err(|e| ChannelError::InvalidPath {
+            path: uri.to_string(),
+            message: format!("user-agent: {e}"),
+        })?
+        .tcp_nodelay(true)
+        .initial_stream_window_size(tuning.initial_stream_window_size)
+        .initial_connection_window_size(tuning.initial_connection_window_size)
+        .http2_keep_alive_interval(tuning.keepalive_interval)
+        .keep_alive_timeout(tuning.keepalive_timeout);
+    Ok(match connect_timeout {
+        Some(dial_timeout) => endpoint.connect_timeout(dial_timeout),
+        None => endpoint,
+    })
+}
+
 // ─── Error classification ───────────────────────────────────────────
 
 /// Classify a `tonic::Status` observed at RPC open or mid-stream into
@@ -729,12 +823,18 @@ fn classify_dispatch_error(
 /// - The "inactive stream" user error — an operation targeted a stream
 ///   whose underlying connection already died.
 ///
-/// Per-stream `RST_STREAM` (`CANCEL`, `REFUSED_STREAM`,
-/// `INTERNAL_ERROR`, any reason code) is *stream-level*: only the
-/// offending stream is dead, the h2 connection itself is healthy and
-/// the next RPC on the same channel can succeed. Misclassifying these
-/// as connection-level would recycle a still-good connection. They
-/// surface as [`ChannelError::H2Stream`].
+/// Per-stream `RST_STREAM` is *stream-level*: only the offending stream
+/// is dead, the h2 connection itself is healthy and the next RPC on the
+/// same channel can succeed. Misclassifying these as connection-level
+/// would recycle a still-good connection. The reset reason decides
+/// retry-safety:
+///
+/// - `REFUSED_STREAM` means the server did not process the stream at all
+///   (RFC 7540 § 8.1.4), so the RPC is safe to re-dispatch — it surfaces
+///   as the transient [`ChannelError::H2StreamRefused`].
+/// - Every other reason (`CANCEL`, `INTERNAL_ERROR`, any other code) may
+///   have had server-side effect; the stream's outcome is undefined, so
+///   it surfaces as the terminal [`ChannelError::H2Stream`].
 fn classify_h2_error(e: &h2::Error) -> ChannelError {
     if e.is_go_away() || e.is_io() {
         return ChannelError::ConnectionClosed(e.to_string());
@@ -743,6 +843,11 @@ fn classify_h2_error(e: &h2::Error) -> ChannelError {
     if msg.contains("inactive stream") {
         return ChannelError::ConnectionClosed(msg);
     }
+    // A not-processed reset is retry-safe; only this reason code carries
+    // that guarantee, so every other reset stays terminal.
+    if e.reason() == Some(h2::Reason::REFUSED_STREAM) {
+        return ChannelError::H2StreamRefused(msg);
+    }
     ChannelError::H2Stream(msg)
 }
 
@@ -750,6 +855,18 @@ fn classify_h2_error(e: &h2::Error) -> ChannelError {
 /// fault precisely. The custom connector's [`ConnectorError`] carries
 /// the TCP / TLS / server-name distinction; anything after a
 /// successful connector dial is the HTTP/2 session establishment.
+///
+/// A dial that exceeded the endpoint's connect timeout surfaces here as
+/// a bare `std::io::Error` with `ErrorKind::TimedOut` (the
+/// `hyper_timeout::TimeoutConnector` tonic wraps the connector in once a
+/// connect timeout is configured). A timed-out dial means the target was
+/// unreachable or black-holed, which is the same retryable transport
+/// fault as a dropped connection — so it is classified
+/// [`ChannelError::ConnectionClosed`] (Transient for the retry shell),
+/// not the terminal [`ChannelError::Tcp`] a concrete connect refusal
+/// would carry. This also keeps the eager open in lockstep with the
+/// reconnect path, where [`classify_transport_error_chain`] already maps
+/// a timed-out reconnect dial to `ConnectionClosed`.
 fn classify_connect_error(host: &str, port: u16, err: &tonic::transport::Error) -> ChannelError {
     use std::error::Error as _;
     let mut source: Option<&(dyn std::error::Error + 'static)> = err.source();
@@ -761,6 +878,11 @@ fn classify_connect_error(host: &str, port: u16, err: &tonic::transport::Error) 
             return classify_h2_error(h2);
         }
         if let Some(io) = inner.downcast_ref::<std::io::Error>() {
+            if io.kind() == std::io::ErrorKind::TimedOut {
+                return ChannelError::ConnectionClosed(format!(
+                    "connect to {host}:{port} timed out: {io}"
+                ));
+            }
             return ChannelError::Tcp {
                 host: host.to_string(),
                 port,
@@ -1054,5 +1176,88 @@ mod tests {
             ChannelError::ConnectionClosed(_) => {}
             other => panic!("expected ConnectionClosed, got {other:?}"),
         }
+    }
+
+    /// A `REFUSED_STREAM` reset means the server never processed the
+    /// stream (RFC 7540 § 8.1.4), so it must classify as the retry-safe
+    /// [`ChannelError::H2StreamRefused`] — the retry shell re-dispatches
+    /// it instead of surfacing a terminal failure. Pinned because the
+    /// reason-code branch is the whole of the not-processed-reset fix.
+    #[test]
+    fn refused_stream_reset_classifies_as_h2_stream_refused() {
+        let refused: h2::Error = h2::Reason::REFUSED_STREAM.into();
+        match classify_h2_error(&refused) {
+            ChannelError::H2StreamRefused(_) => {}
+            other => panic!("REFUSED_STREAM must classify as H2StreamRefused, got {other:?}"),
+        }
+    }
+
+    /// Companion: a reset with a reason other than `REFUSED_STREAM`
+    /// (here `CANCEL`) may have had server-side effect, so it stays the
+    /// terminal [`ChannelError::H2Stream`]. Only the not-processed reason
+    /// is promoted to retry-safe; every other per-stream reset keeps its
+    /// undefined outcome.
+    #[test]
+    fn other_reset_reason_stays_terminal_h2_stream() {
+        for reason in [
+            h2::Reason::CANCEL,
+            h2::Reason::INTERNAL_ERROR,
+            h2::Reason::NO_ERROR,
+        ] {
+            let err: h2::Error = reason.into();
+            match classify_h2_error(&err) {
+                ChannelError::H2Stream(_) => {}
+                other => panic!("reset {reason:?} must stay terminal H2Stream, got {other:?}"),
+            }
+        }
+    }
+
+    /// End-to-end through the status classifier: a tonic status whose
+    /// source chain carries a `REFUSED_STREAM` h2 error must surface as
+    /// the retry-safe `H2StreamRefused`, so the path the dispatch layer
+    /// actually walks honours the not-processed reset.
+    #[test]
+    fn refused_stream_through_status_chain_is_retry_safe() {
+        let refused: h2::Error = h2::Reason::REFUSED_STREAM.into();
+        let status = tonic::Status::from_error(Box::new(refused));
+        match classify_status(status, None) {
+            ChannelError::H2StreamRefused(_) => {}
+            other => panic!("expected H2StreamRefused from the status chain, got {other:?}"),
+        }
+    }
+
+    /// The endpoint the production constructors build must carry the
+    /// configured connect timeout. `connect_with_connector` lifts the
+    /// endpoint's connect timeout onto the connector that drives both
+    /// the eager open AND every lazy in-place reconnect, so a reconnect
+    /// dial to a black-holed peer fails fast as a retryable transport
+    /// fault instead of hanging the connection task. Asserting on the
+    /// endpoint (rather than a live dial) pins the wiring directly and
+    /// hermetically.
+    #[test]
+    fn endpoint_carries_connect_timeout_for_reconnect_dials() {
+        let dial_timeout = Duration::from_secs(7);
+        let endpoint = build_endpoint(
+            "http://127.0.0.1:1",
+            ChannelTuning::default(),
+            Some(dial_timeout),
+        )
+        .expect("endpoint builds for a well-formed URI");
+        assert_eq!(
+            endpoint.get_connect_timeout(),
+            Some(dial_timeout),
+            "the dial timeout must ride on the Endpoint so it bounds reconnect dials, \
+             not just the initial open"
+        );
+    }
+
+    /// Companion: with no connect timeout the endpoint carries none, so
+    /// the test-helper constructors keep their prior unbounded-dial
+    /// behaviour and only the production `_tuned` path arms the bound.
+    #[test]
+    fn endpoint_without_connect_timeout_is_unbounded() {
+        let endpoint = build_endpoint("http://127.0.0.1:1", ChannelTuning::default(), None)
+            .expect("endpoint builds for a well-formed URI");
+        assert_eq!(endpoint.get_connect_timeout(), None);
     }
 }

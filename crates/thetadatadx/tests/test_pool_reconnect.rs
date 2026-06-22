@@ -156,7 +156,15 @@ async fn rpc_with_bounded_retry(channel: &Channel) -> Result<Vec<ResponseData>, 
     for _ in 0..8 {
         match one_rpc(channel).await {
             Ok(messages) => return Ok(messages),
-            Err(e @ (ChannelError::ConnectionClosed(_) | ChannelError::H2Stream(_))) => {
+            // Mirror the production retry classifier's transient set:
+            // connection-level death, a terminal per-stream reset that may
+            // resolve on a fresh pick, and a not-processed `REFUSED_STREAM`
+            // (retry-safe) all warrant a re-dispatch.
+            Err(
+                e @ (ChannelError::ConnectionClosed(_)
+                | ChannelError::H2Stream(_)
+                | ChannelError::H2StreamRefused(_)),
+            ) => {
                 last_err = Some(e);
                 tokio::time::sleep(Duration::from_millis(50)).await;
             }

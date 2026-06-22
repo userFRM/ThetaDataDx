@@ -495,12 +495,13 @@ where
     // (`TooManyRequests`, 130 s spacing) does not burn through the
     // generic transient budget meant for fast TimedOut / Unspecified
     // retries, and a `ServerRestarting` pool bounce gets its own
-    // evenly-paced window. Each counter resets to zero on a successful
-    // read; an additional time-based reset fires when the connection
+    // evenly-paced window. The counters reset only when the connection
     // has been running cleanly for at least
     // `ReconnectAttemptLimits::stable_window`, so a connection that
     // ran cleanly for a minute before dropping picks up the full
-    // budget again rather than inheriting the previous cycle's count.
+    // budget again rather than inheriting the previous cycle's count —
+    // while a connection that flaps after only a frame or two keeps
+    // consuming the budget instead of resetting it every short cycle.
     let mut reconnect_state = ReconnectCounters::new(BackoffSchedule::new(
         Duration::from_millis(wait_ms),
         Duration::from_millis(wait_max_ms),
@@ -587,12 +588,17 @@ where
                     Ok(Some((code, payload_len))) => {
                         last_frame_at = Instant::now();
                         last_event_at_ns.store(unix_nanos_now(), Ordering::Relaxed);
-                        // Reset reconnect counters on successful data reception
-                        // and mark "data did flow on this session" so the
-                        // stable-window check on the next drop knows whether
-                        // the connection ran long enough to deserve a fresh
-                        // retry budget.
-                        reconnect_state.reset_counters();
+                        // Anchor the stable-window clock on the FIRST frame
+                        // of this session (idempotent thereafter). The
+                        // per-class retry budget must NOT reset on every
+                        // inbound frame: a session that drops after even a
+                        // single heartbeat / control / data frame would
+                        // then reset its budget and a flapping connection
+                        // could reconnect forever. Instead the budget
+                        // resets only once the connection has been
+                        // continuously up for `reconnect_stable_window_secs`
+                        // — enforced by `maybe_reset_after_stable()` on the
+                        // next drop, which measures uptime from this anchor.
                         reconnect_state.note_data_received();
 
                         let (primary, secondary) = decode_frame(
@@ -970,6 +976,17 @@ where
                 // already owns the per-reason delay decision and a
                 // separate counter would force the user to merge
                 // two attempt values to read total session pressure.
+                //
+                // Reset the consecutive-attempt counter after a stable
+                // session BEFORE incrementing, mirroring the `Auto` arm.
+                // Without this the counter grows monotonically for the
+                // whole session life, so the closure's `attempt` would
+                // not reflect the current consecutive burst and a
+                // closure that gives up past a threshold would do so
+                // earlier than intended after any prior reconnect.
+                // Custom carries no per-class budget, so the standard
+                // default stable window governs the reset cadence.
+                reconnect_state.maybe_reset_after_stable(&ReconnectAttemptLimits::default());
                 let attempt = reconnect_state.record(ReconnectAttemptClass::Transient);
                 let Some(d) = f(reason, attempt) else {
                     tracing::info!(reason = ?reason, "custom policy returned None -- not reconnecting");
@@ -979,6 +996,22 @@ where
                 (d, attempt)
             }
         };
+
+        // The just-dropped session's stable-window anchor has now been
+        // consumed by the reconnect decision above (`maybe_reset_after_stable`
+        // measured this session's uptime from it). Clear it here, once per
+        // drop, so it cannot be re-read on a subsequent failed-redial cycle:
+        // every redial that does not reach a fresh authenticated session
+        // (dial failure, transient login rejection, replay write failure)
+        // loops back to the reconnect decision with `pending_reason` carried,
+        // and a stale anchor whose `elapsed()` only grows would re-fire the
+        // stable-window reset on each such cycle — re-zeroing the per-class
+        // counter and the envelope anchor and so defeating both the attempt
+        // budget and the `max_elapsed` envelope (`ReconnectsExhausted` would
+        // never fire). The anchor re-arms on the FIRST frame of the next
+        // session via `note_data_received()`, so a redial that succeeds and
+        // then stays up past the stable window still earns its one reset.
+        reconnect_state.last_data_at = None;
 
         // Emit Reconnecting event before sleeping.
         let delay_ms = u64::try_from(delay.as_millis()).unwrap_or(u64::MAX);
@@ -1236,67 +1269,30 @@ where
         // connection always begins at a frame boundary.
         frame_state = FrameReadState::new();
 
-        // Fresh authenticated session: start the data-flow marker from
-        // zero so the stable-window check on the NEXT drop uses the
-        // wall-clock of THIS session, not the previous one. Counters
-        // stay live (the budget was just decremented to permit this
-        // attempt); they reset when the new session delivers data.
-        reconnect_state.last_data_at = None;
+        // Fresh authenticated session. The stable-window anchor was already
+        // cleared once at the reconnect decision (see `last_data_at = None`
+        // after the policy match), so it is `None` here and re-arms on the
+        // FIRST frame of THIS session via `note_data_received()`. The check
+        // on the NEXT drop then measures uptime from this session's first
+        // frame, not the previous session's. Counters stay live (the budget
+        // was just decremented to permit this attempt); they reset only if
+        // the new session stays up past `stable_window`.
 
-        authenticated.store(true, Ordering::Release);
-        // The login handshake just exchanged frames — feed the
-        // staleness clock so `millis_since_last_event()` reflects the
-        // live session immediately.
-        last_event_at_ns.store(unix_nanos_now(), Ordering::Relaxed);
+        // The session is NOT marked live yet. `authenticated` stays
+        // `false` (the inner read loop cleared it on the drop that
+        // started this reconnect) until the replay below — re-subscribe
+        // plus the queued-command drain — is proven on the fresh socket.
+        // A reconnect dial can hand back a socket that accepts the login
+        // but breaks on the very next write; flipping `authenticated`
+        // here would let `decode_frame` and the command path treat that
+        // broken socket as live and accept commands until a later read
+        // timeout, instead of re-entering reconnect immediately. The
+        // reconnect-success events (`LoginSuccess` / `Reconnected`) are
+        // published from the same post-replay point so they never
+        // announce a session that the replay then proved dead.
 
-        // Publish reconnection events. Drain every handshake-time typed
-        // control frame (`Connected` / `Ping` / `ReconnectedServer` /
-        // `Restart`) in wire order before `LoginSuccess`, so the event
-        // order matches the fresh-session bootstrap above. Every
-        // publish is non-blocking so a saturated ring never wedges the
-        // io_loop's reconnect path.
-        for ctrl in reconnect_pending_control.drain(..) {
-            if producer
-                .try_publish(|slot| {
-                    slot.event = FpssEventInternal::Control(ctrl);
-                })
-                .is_err()
-            {
-                dropped.fetch_add(1, Ordering::Relaxed);
-                tracing::warn!(
-                    target: "thetadatadx::fpss::io_loop",
-                    "ring full while publishing post-reconnect control frame; dropped",
-                );
-            }
-        }
-        if producer
-            .try_publish(|slot| {
-                slot.event = FpssEventInternal::Control(StreamControl::LoginSuccess {
-                    permissions: new_permissions,
-                });
-            })
-            .is_err()
-        {
-            dropped.fetch_add(1, Ordering::Relaxed);
-            tracing::warn!(
-                target: "thetadatadx::fpss::io_loop",
-                "ring full while publishing post-reconnect LoginSuccess; dropped",
-            );
-        }
-        if producer
-            .try_publish(|slot| {
-                slot.event = FpssEventInternal::Control(StreamControl::Reconnected);
-            })
-            .is_err()
-        {
-            dropped.fetch_add(1, Ordering::Relaxed);
-            tracing::warn!(
-                target: "thetadatadx::fpss::io_loop",
-                "ring full while publishing Reconnected; dropped",
-            );
-        }
-
-        // Replace the reader with the new stream.
+        // Replace the reader with the new stream so the replay writes
+        // below target the fresh socket.
         reader = BufReader::new(new_stream);
 
         // Re-subscribe all active subscriptions on the new connection.
@@ -1354,6 +1350,12 @@ where
             // mid-replay I/O failure is, rather than swallowed in a warning.
             if let Err(e) = write_raw_frame_no_flush(writer, code, &payload) {
                 tracing::warn!(error = %e, contract = %contract, req_id, "re-subscribe write failed; treating socket as broken and reconnecting");
+                // The session is not live (`authenticated` was never set
+                // for this reconnect); carry the class so the next cycle
+                // re-enters reconnect on the right ladder instead of
+                // reading the broken socket and downgrading to a generic
+                // TimedOut.
+                pending_reason = Some(reason);
                 continue 'session;
             }
             pending_subs
@@ -1369,6 +1371,7 @@ where
             tracing::debug!(kind = ?kind, contract = %contract, req_id, "re-subscribed on auto-reconnect");
             if let Err(e) = pacer.frame_written(writer, &shutdown) {
                 tracing::warn!(error = %e, "re-subscribe burst flush failed; treating socket as broken and reconnecting");
+                pending_reason = Some(reason);
                 continue 'session;
             }
             if shutdown.load(Ordering::Relaxed) {
@@ -1381,6 +1384,7 @@ where
             let code = kind.subscribe_code();
             if let Err(e) = write_raw_frame_no_flush(writer, code, &payload) {
                 tracing::warn!(error = %e, sec_type = ?sec_type, req_id, "re-subscribe write failed; treating socket as broken and reconnecting");
+                pending_reason = Some(reason);
                 continue 'session;
             }
             pending_subs
@@ -1396,6 +1400,7 @@ where
             tracing::debug!(kind = ?kind, sec_type = ?sec_type, req_id, "re-subscribed full-type on auto-reconnect");
             if let Err(e) = pacer.frame_written(writer, &shutdown) {
                 tracing::warn!(error = %e, "re-subscribe burst flush failed; treating socket as broken and reconnecting");
+                pending_reason = Some(reason);
                 continue 'session;
             }
             if shutdown.load(Ordering::Relaxed) {
@@ -1409,6 +1414,7 @@ where
             // session whose replay never reached the server.
             if let Err(e) = writer.flush() {
                 tracing::warn!(error = %e, "re-subscribe batch flush failed; treating socket as broken and reconnecting");
+                pending_reason = Some(reason);
                 continue 'session;
             }
         }
@@ -1432,8 +1438,12 @@ where
                         // reconnect loop so recovery is driven the same way the
                         // re-subscribe replay above handles a mid-flush
                         // failure, rather than running a session whose queued
-                        // command never reached the server.
+                        // command never reached the server. `authenticated`
+                        // is still `false` here (it is set live only after
+                        // this drain succeeds), so the broken socket never
+                        // looks live.
                         tracing::warn!(error = %e, "queued-frame write failed on reconnect; treating socket as broken and reconnecting");
+                        pending_reason = Some(reason);
                         continue 'session;
                     }
                 }
@@ -1464,6 +1474,69 @@ where
 
         if shutdown.load(Ordering::Relaxed) {
             break 'session;
+        }
+
+        // Replay is proven on the fresh socket: re-subscribe and the
+        // queued-command drain both wrote and flushed without error. ONLY
+        // now is the session marked live and the success announced. Doing
+        // this here (rather than right after login) is the invariant that
+        // keeps a socket which accepted the login but broke on the next
+        // write from ever looking live: on any replay/drain failure above
+        // the code re-enters reconnect with `authenticated` still `false`,
+        // so `decode_frame` and the command path never treat the broken
+        // socket as authenticated, and no `LoginSuccess` / `Reconnected`
+        // is published for a session the replay disproved.
+        authenticated.store(true, Ordering::Release);
+        // The handshake + replay just exchanged frames — feed the
+        // staleness clock so `millis_since_last_event()` reflects the live
+        // session immediately.
+        last_event_at_ns.store(unix_nanos_now(), Ordering::Relaxed);
+
+        // Publish reconnection events. Drain every handshake-time typed
+        // control frame (`Connected` / `Ping` / `ReconnectedServer` /
+        // `Restart`) in wire order before `LoginSuccess`, so the event
+        // order matches the fresh-session bootstrap. Every publish is
+        // non-blocking so a saturated ring never wedges the io_loop's
+        // reconnect path.
+        for ctrl in reconnect_pending_control.drain(..) {
+            if producer
+                .try_publish(|slot| {
+                    slot.event = FpssEventInternal::Control(ctrl);
+                })
+                .is_err()
+            {
+                dropped.fetch_add(1, Ordering::Relaxed);
+                tracing::warn!(
+                    target: "thetadatadx::fpss::io_loop",
+                    "ring full while publishing post-reconnect control frame; dropped",
+                );
+            }
+        }
+        if producer
+            .try_publish(|slot| {
+                slot.event = FpssEventInternal::Control(StreamControl::LoginSuccess {
+                    permissions: new_permissions,
+                });
+            })
+            .is_err()
+        {
+            dropped.fetch_add(1, Ordering::Relaxed);
+            tracing::warn!(
+                target: "thetadatadx::fpss::io_loop",
+                "ring full while publishing post-reconnect LoginSuccess; dropped",
+            );
+        }
+        if producer
+            .try_publish(|slot| {
+                slot.event = FpssEventInternal::Control(StreamControl::Reconnected);
+            })
+            .is_err()
+        {
+            dropped.fetch_add(1, Ordering::Relaxed);
+            tracing::warn!(
+                target: "thetadatadx::fpss::io_loop",
+                "ring full while publishing Reconnected; dropped",
+            );
         }
 
         // Continue 'session loop: the inner read/write loop will run on the new stream.
@@ -1629,8 +1702,12 @@ struct ReconnectCounters {
     transient: u32,
     rate_limited: u32,
     server_restart: u32,
-    /// Wall-clock instant of the last successful frame read; `None`
-    /// until the first frame on the current session arrives.
+    /// Wall-clock instant of the FIRST successful frame read on the
+    /// current session; `None` until that frame arrives and reset to
+    /// `None` at the start of every new session. Anchors the
+    /// stable-window uptime measurement: `last_data_at.elapsed()` at the
+    /// next drop is how long the session ran, so the budget resets only
+    /// after a genuinely stable connection rather than on first data.
     last_data_at: Option<Instant>,
     /// Instant of the first attempt in the current
     /// consecutive-reconnect sequence; `None` outside a sequence.
@@ -1653,11 +1730,17 @@ impl ReconnectCounters {
         }
     }
 
-    /// Record a successful frame read. Marks "data did flow on this
-    /// session" so the stable-window check on next drop knows whether
-    /// to reset the counters.
+    /// Record the first successful frame read on the current session.
+    /// Idempotent within a session: only the FIRST frame arms the
+    /// anchor, so `last_data_at.elapsed()` measures continuous uptime
+    /// from the moment data began flowing — the quantity the
+    /// stable-window check compares against `stable_window`. Subsequent
+    /// frames do not push the anchor forward (that would make the check
+    /// measure inter-frame quiet time instead of uptime). The per-session
+    /// reset to `None` happens on the reconnect path before a new session
+    /// begins delivering data.
     fn note_data_received(&mut self) {
-        self.last_data_at = Some(Instant::now());
+        self.last_data_at.get_or_insert_with(Instant::now);
     }
 
     /// Zero every per-class counter and end the current reconnect
@@ -1672,7 +1755,13 @@ impl ReconnectCounters {
 
     /// Decide whether the connection that just disconnected ran long
     /// enough to be considered "stable" — if so, reset all counters
-    /// before scheduling the next attempt.
+    /// before scheduling the next attempt. "Stable" means the session
+    /// delivered at least one frame (so `last_data_at` is armed) and
+    /// then stayed up for at least `stable_window` measured from that
+    /// first frame. A session that drops sooner keeps the running
+    /// per-class count, so a connection that flaps after a single frame
+    /// continues to consume — and eventually exhausts — its retry budget
+    /// rather than resetting it on every short-lived cycle.
     fn maybe_reset_after_stable(&mut self, limits: &ReconnectAttemptLimits) -> bool {
         if let Some(t) = self.last_data_at {
             if t.elapsed() >= limits.stable_window {
@@ -1965,6 +2054,128 @@ mod tests {
         );
     }
 
+    /// A connection that flaps — drops after a single frame on every
+    /// cycle — must keep consuming its retry budget and eventually
+    /// EXHAUST it, never reconnecting forever. This reproduces the
+    /// per-cycle sequence the I/O loop runs: arm the stable-window anchor
+    /// on the session's first frame (`note_data_received`), then on the
+    /// drop try the stable-window reset (`maybe_reset_after_stable`) and
+    /// record the attempt (`record`), then clear the anchor for the next
+    /// session — exactly as the reconnect path does. Because each session
+    /// is far shorter than `stable_window`, the reset never fires and the
+    /// attempt count climbs monotonically until it crosses the budget.
+    ///
+    /// Before the fix the I/O loop reset the counters on every inbound
+    /// frame, so this flapping pattern reset its budget each cycle and
+    /// the loop would reconnect without bound.
+    #[test]
+    fn flapping_after_single_frame_exhausts_budget() {
+        // Stable window the flapping sessions never reach.
+        let limits = ReconnectAttemptLimits {
+            stable_window: Duration::from_secs(60),
+            max_attempts: 5,
+            ..ReconnectAttemptLimits::default()
+        };
+        let mut counters = ReconnectCounters::new(test_schedule());
+        let budget = limits.budget_for(ReconnectAttemptClass::Transient);
+
+        let mut last_attempt = 0;
+        // Many more cycles than the budget: if the per-frame reset bug
+        // were present every cycle would reset to attempt 1 and this loop
+        // would never exceed the budget.
+        for _ in 0..(budget * 3) {
+            // New session delivers one frame: anchor armed (idempotent),
+            // but no stable window elapses before the drop.
+            counters.note_data_received();
+            // Drop: the stable-window reset must NOT fire (session far
+            // shorter than the 60 s window), so the attempt count climbs.
+            assert!(
+                !counters.maybe_reset_after_stable(&limits),
+                "a sub-stable-window session must never reset the budget"
+            );
+            last_attempt = counters.record(ReconnectAttemptClass::Transient);
+            // Reconnect path clears the anchor for the next session.
+            counters.last_data_at = None;
+            if last_attempt > budget {
+                break;
+            }
+        }
+
+        assert!(
+            last_attempt > budget,
+            "a flapping connection must exhaust its retry budget (reached \
+             attempt {last_attempt} against budget {budget}), not reconnect forever"
+        );
+    }
+
+    /// A connection that stays up past `stable_window` before dropping
+    /// DOES earn a fresh budget: the stable-window reset fires on the
+    /// drop and zeroes the per-class counters. This is the counterpart
+    /// to the flapping case — the budget resets only for a genuinely
+    /// stable session, measured as uptime from the session's first frame.
+    #[test]
+    fn stable_session_past_window_resets_budget() {
+        let limits = ReconnectAttemptLimits {
+            stable_window: Duration::from_millis(10),
+            ..ReconnectAttemptLimits::default()
+        };
+        let mut counters = ReconnectCounters::new(test_schedule());
+        // Spend some budget on a prior unstable burst.
+        counters.record(ReconnectAttemptClass::Transient);
+        counters.record(ReconnectAttemptClass::Transient);
+        assert_eq!(counters.transient, 2);
+
+        // New session: first frame arms the anchor.
+        counters.last_data_at = None;
+        counters.note_data_received();
+        // The session stays up past the stable window.
+        std::thread::sleep(Duration::from_millis(15));
+        // Drop after a stable run: the reset fires and clears the budget.
+        assert!(
+            counters.maybe_reset_after_stable(&limits),
+            "a session up past the stable window must reset the budget"
+        );
+        assert_eq!(
+            counters.transient, 0,
+            "stable-window reset must zero the per-class counters"
+        );
+    }
+
+    /// The stable-window anchor measures UPTIME from the session's first
+    /// frame, not the quiet gap since the most recent frame: later frames
+    /// on the same session must not push the anchor forward. A long-lived
+    /// busy session (many frames) therefore still resets the budget on its
+    /// next drop even though its most recent frame was very recent.
+    #[test]
+    fn note_data_received_anchors_on_first_frame_only() {
+        let limits = ReconnectAttemptLimits {
+            stable_window: Duration::from_millis(10),
+            ..ReconnectAttemptLimits::default()
+        };
+        let mut counters = ReconnectCounters::new(test_schedule());
+        counters.record(ReconnectAttemptClass::Transient);
+
+        // First frame anchors the window.
+        counters.note_data_received();
+        let anchored_at = counters.last_data_at;
+        std::thread::sleep(Duration::from_millis(15));
+        // A fresh frame arrives late in the session: the anchor must NOT
+        // move (otherwise the window would measure inter-frame quiet time
+        // and a busy session would never look stable).
+        counters.note_data_received();
+        assert_eq!(
+            counters.last_data_at, anchored_at,
+            "subsequent frames must not push the stable-window anchor forward"
+        );
+        // The drop still sees >= stable_window of uptime → reset fires.
+        assert!(
+            counters.maybe_reset_after_stable(&limits),
+            "uptime measured from the first frame must satisfy the window \
+             even when the latest frame is recent"
+        );
+        assert_eq!(counters.transient, 0);
+    }
+
     /// The wall-clock envelope anchors at the FIRST attempt of a
     /// consecutive-reconnect sequence, accumulates while the sequence
     /// runs, and resets with the counters.
@@ -1984,6 +2195,298 @@ mod tests {
         // A fresh sequence re-anchors.
         counters.record(ReconnectAttemptClass::ServerRestart);
         assert!(counters.burst_elapsed() < Duration::from_millis(10));
+    }
+
+    /// Drive one reconnect-decision cycle the way the `Auto` arm of the
+    /// I/O loop does, for the failed-redial case: try the stable-window
+    /// reset, record the attempt, then clear the stable-window anchor
+    /// (the post-decision `last_data_at = None` that fires once per drop).
+    /// A failed redial reaches the next cycle with no inbound frame, so
+    /// `note_data_received()` is deliberately NOT called here — that is the
+    /// shape that previously left a stale anchor re-firing the reset.
+    /// Returns `(attempt_number, reset_fired)`.
+    fn drive_failed_redial_cycle(
+        counters: &mut ReconnectCounters,
+        class: ReconnectAttemptClass,
+        limits: &ReconnectAttemptLimits,
+    ) -> (u32, bool) {
+        let reset_fired = counters.maybe_reset_after_stable(limits);
+        let attempt = counters.record(class);
+        // Post-decision anchor clear (Finding 1): the just-dropped
+        // session's anchor is consumed once and must not survive into the
+        // next failed-redial cycle.
+        counters.last_data_at = None;
+        (attempt, reset_fired)
+    }
+
+    /// Arm the stable-window anchor as if the dropped session had been up
+    /// for at least `stable_window`. The tests below run with a zero
+    /// `stable_window`, so an anchor of "now" already satisfies
+    /// `elapsed() >= stable_window` deterministically — no real sleep and
+    /// no dependence on the monotonic clock's absolute magnitude, which
+    /// keeps the timing-sensitive logic load-robust.
+    fn arm_stable_anchor(counters: &mut ReconnectCounters) {
+        counters.last_data_at = Some(Instant::now());
+    }
+
+    /// RateLimited budget honoured across FAILED redials. A genuinely
+    /// stable session drops (earning its one reset), then every redial
+    /// FAILS — the dial never reaches a fresh authenticated session, so no
+    /// inbound frame re-arms the anchor. The per-class attempt counter must
+    /// climb past `max_rate_limited_attempts` and `ReconnectsExhausted`
+    /// must eventually fire. RateLimited is the sharpest case: its
+    /// wall-clock envelope does not apply (`elapsed_budget_applies` is
+    /// false), so the attempt counter is the ONLY stop condition — if the
+    /// stale anchor re-fired the reset each cycle the counter would stay
+    /// pinned at 1 and the loop would reconnect forever.
+    #[test]
+    fn rate_limited_budget_honoured_across_failed_redials() {
+        let limits = ReconnectAttemptLimits {
+            max_rate_limited_attempts: 5,
+            // Zero window: an armed anchor is "stable" deterministically;
+            // an absent anchor (the failed-redial cycles) still never resets.
+            stable_window: Duration::ZERO,
+            ..ReconnectAttemptLimits::default()
+        };
+        let class = ReconnectAttemptClass::RateLimited;
+        let budget = limits.budget_for(class);
+        let mut counters = ReconnectCounters::new(test_schedule());
+
+        // A stable session that then drops: the anchor is armed, so the
+        // FIRST cycle's reset fires (the one legitimate one).
+        arm_stable_anchor(&mut counters);
+
+        let mut resets = 0;
+        let mut last_attempt = 0;
+        // Far more cycles than the budget: a per-cycle reset bug would pin
+        // the attempt at 1 forever and this loop would never exceed budget.
+        for cycle in 0..(budget * 4) {
+            let (attempt, reset_fired) = drive_failed_redial_cycle(&mut counters, class, &limits);
+            if reset_fired {
+                resets += 1;
+            }
+            if cycle == 0 {
+                assert!(
+                    reset_fired,
+                    "the first drop after a stable session earns one reset"
+                );
+                assert_eq!(
+                    attempt, 1,
+                    "the reset zeroes the counter; the record makes it attempt 1"
+                );
+            } else {
+                assert!(
+                    !reset_fired,
+                    "a failed redial must not re-fire the stable-window reset"
+                );
+            }
+            last_attempt = attempt;
+            // The I/O loop's stop condition for RateLimited: attempt count
+            // only (no wall-clock envelope).
+            if attempt > budget {
+                break;
+            }
+        }
+
+        assert_eq!(
+            resets, 1,
+            "exactly one reset across the whole failed-redial burst"
+        );
+        assert!(
+            last_attempt > budget,
+            "RateLimited attempts must exhaust the budget across failed redials \
+             (reached {last_attempt} against budget {budget}), not stay pinned at 1"
+        );
+    }
+
+    /// Transient budget honoured across FAILED redials: both the attempt
+    /// count climbs past `max_attempts` AND the wall-clock envelope keeps
+    /// accumulating. The previous bug re-fired the stable-window reset on
+    /// every failed redial, which also re-zeroed `burst_started_at` and so
+    /// made `burst_elapsed()` collapse to 0 each cycle — defeating
+    /// `max_elapsed` as well as `max_attempts`. Here the envelope anchor
+    /// from the first attempt must survive the whole burst.
+    #[test]
+    fn transient_budget_honoured_across_failed_redials() {
+        let limits = ReconnectAttemptLimits {
+            max_attempts: 5,
+            stable_window: Duration::ZERO,
+            ..ReconnectAttemptLimits::default()
+        };
+        let class = ReconnectAttemptClass::Transient;
+        let budget = limits.budget_for(class);
+        let mut counters = ReconnectCounters::new(test_schedule());
+        arm_stable_anchor(&mut counters);
+
+        let mut last_attempt = 0;
+        let mut resets = 0;
+        for cycle in 0..(budget * 4) {
+            let (attempt, reset_fired) = drive_failed_redial_cycle(&mut counters, class, &limits);
+            if reset_fired {
+                resets += 1;
+            }
+            if cycle > 0 {
+                assert!(!reset_fired, "a failed redial must not re-fire the reset");
+                // The envelope anchor set on attempt 1 must still be live —
+                // the reset (which clears `burst_started_at`) must not have
+                // re-fired and collapsed it.
+                assert!(
+                    counters.burst_started_at.is_some(),
+                    "the wall-clock envelope anchor must survive failed redials"
+                );
+            }
+            last_attempt = attempt;
+            if attempt > budget {
+                break;
+            }
+        }
+
+        assert_eq!(
+            resets, 1,
+            "exactly one reset across the failed-redial burst"
+        );
+        assert!(
+            last_attempt > budget,
+            "Transient attempts must exhaust the budget across failed redials \
+             (reached {last_attempt} against budget {budget})"
+        );
+    }
+
+    /// ServerRestart budget honoured across FAILED redials: same shape as
+    /// the Transient case. The attempt count must climb past
+    /// `max_server_restart_attempts` and the envelope anchor must persist.
+    #[test]
+    fn server_restart_budget_honoured_across_failed_redials() {
+        let limits = ReconnectAttemptLimits {
+            max_server_restart_attempts: 5,
+            stable_window: Duration::ZERO,
+            ..ReconnectAttemptLimits::default()
+        };
+        let class = ReconnectAttemptClass::ServerRestart;
+        let budget = limits.budget_for(class);
+        let mut counters = ReconnectCounters::new(test_schedule());
+        arm_stable_anchor(&mut counters);
+
+        let mut last_attempt = 0;
+        let mut resets = 0;
+        for cycle in 0..(budget * 4) {
+            let (attempt, reset_fired) = drive_failed_redial_cycle(&mut counters, class, &limits);
+            if reset_fired {
+                resets += 1;
+            }
+            if cycle > 0 {
+                assert!(!reset_fired, "a failed redial must not re-fire the reset");
+                assert!(
+                    counters.burst_started_at.is_some(),
+                    "the wall-clock envelope anchor must survive failed redials"
+                );
+            }
+            last_attempt = attempt;
+            if attempt > budget {
+                break;
+            }
+        }
+
+        assert_eq!(
+            resets, 1,
+            "exactly one reset across the failed-redial burst"
+        );
+        assert!(
+            last_attempt > budget,
+            "ServerRestart attempts must exhaust the budget across failed redials \
+             (reached {last_attempt} against budget {budget})"
+        );
+    }
+
+    /// Regression guard for the legitimate case the fix must preserve: a
+    /// single stable-session drop still earns exactly ONE reset, and a
+    /// redial that SUCCEEDS and then stays stable again earns a FRESH
+    /// reset (the next burst gets a clean budget). This is the case the
+    /// `burst_started_at.is_some()` gate alone would have broken: after a
+    /// successful redial the envelope anchor is still set, so gating on it
+    /// would suppress the second, legitimate reset — clearing the
+    /// stable-window anchor per drop does not.
+    #[test]
+    fn stable_drop_then_successful_redial_each_earn_a_reset() {
+        let limits = ReconnectAttemptLimits {
+            max_attempts: 30,
+            stable_window: Duration::ZERO,
+            ..ReconnectAttemptLimits::default()
+        };
+        let class = ReconnectAttemptClass::Transient;
+        let mut counters = ReconnectCounters::new(test_schedule());
+
+        // First stable session drops: one reset, attempt 1.
+        arm_stable_anchor(&mut counters);
+        let (attempt, reset_fired) = drive_failed_redial_cycle(&mut counters, class, &limits);
+        assert!(reset_fired, "first stable-session drop earns its reset");
+        assert_eq!(attempt, 1);
+
+        // The redial SUCCEEDS: the I/O loop reaches a fresh authenticated
+        // session, the new session's first frame re-arms the anchor, and
+        // the session then stays up past the stable window. Model that by
+        // arming the anchor past the window again. The envelope anchor
+        // (`burst_started_at`) is still set from the prior burst — the gate
+        // that keys off it would wrongly suppress the reset below.
+        assert!(
+            counters.burst_started_at.is_some(),
+            "the prior burst's envelope anchor is still live after a successful redial"
+        );
+        arm_stable_anchor(&mut counters);
+
+        // The newly-stable session drops: a fresh reset must fire.
+        let (attempt, reset_fired) = drive_failed_redial_cycle(&mut counters, class, &limits);
+        assert!(
+            reset_fired,
+            "a successful redial that stays stable past the window must earn a fresh reset"
+        );
+        assert_eq!(
+            attempt, 1,
+            "the fresh reset zeroes the counter so the next burst starts at attempt 1"
+        );
+    }
+
+    /// Custom-policy reset (Finding 2): a custom-policy session that
+    /// reconnects once, stays stable past the window, then drops again
+    /// sees `attempt == 1` (a fresh consecutive burst), not the running
+    /// session total. The Custom arm applies the same stable-window reset
+    /// as the Auto arm before recording (in production with the default
+    /// stable window, since Custom carries no per-class budget). This
+    /// drives the exact Custom-arm sequence — `maybe_reset_after_stable`
+    /// then `record(Transient)` with the per-drop anchor clear — using a
+    /// zero window so the reset gating is exercised deterministically.
+    #[test]
+    fn custom_policy_reset_reflects_current_burst() {
+        let limits = ReconnectAttemptLimits {
+            stable_window: Duration::ZERO,
+            ..ReconnectAttemptLimits::default()
+        };
+        let mut counters = ReconnectCounters::new(test_schedule());
+
+        // One reconnect early in the session (no frame arrived, so the
+        // anchor is unarmed and the reset cannot fire): the closure sees
+        // attempt 1, the counter advances.
+        let reset = counters.maybe_reset_after_stable(&limits);
+        let first = counters.record(ReconnectAttemptClass::Transient);
+        counters.last_data_at = None;
+        assert!(!reset, "an unarmed anchor never resets the custom counter");
+        assert_eq!(first, 1);
+
+        // The reconnect succeeds and the session runs cleanly past the
+        // stable window before dropping again (armed anchor).
+        arm_stable_anchor(&mut counters);
+        let reset = counters.maybe_reset_after_stable(&limits);
+        let after_stable = counters.record(ReconnectAttemptClass::Transient);
+        // (The post-drop anchor clear that the I/O loop performs next is
+        // omitted here — there is no further cycle to observe it.)
+        assert!(
+            reset,
+            "a session past the stable window resets the custom counter"
+        );
+        assert_eq!(
+            after_stable, 1,
+            "the custom closure must see a fresh attempt 1 for the new burst, not the session total"
+        );
     }
 
     /// The reconnect cooldown must wake promptly on shutdown: signal
@@ -2486,6 +2989,287 @@ mod tests {
         assert!(
             !map.contains_key(&0),
             "the oldest entry must be the one dropped"
+        );
+    }
+
+    /// A writer that succeeds for the first `ok_writes` calls, then fails
+    /// every subsequent `write`/`flush`. Models a freshly reconnected
+    /// socket that accepts the login but breaks part-way through the
+    /// re-subscribe replay or the queued-command drain.
+    struct FailAfter {
+        ok_writes: usize,
+        writes: usize,
+    }
+
+    impl Write for FailAfter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if self.writes >= self.ok_writes {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::BrokenPipe,
+                    "reconnected socket broke mid-replay",
+                ));
+            }
+            self.writes += 1;
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            if self.writes >= self.ok_writes {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::BrokenPipe,
+                    "reconnected socket broke on flush",
+                ));
+            }
+            Ok(())
+        }
+    }
+
+    /// Faithful reproduction of the reconnect-path replay-then-mark-live
+    /// control flow the io_loop runs, parameterised by the writer so a
+    /// test can inject a mid-replay break. Returns the post-replay
+    /// `(authenticated, pending_reason_set, login_success_published)`
+    /// triple. Mirrors the production ordering exactly: `authenticated`
+    /// is flipped — and `LoginSuccess` published — ONLY after every
+    /// replay write and flush succeeds; any failure sets `pending_reason`
+    /// and bails with `authenticated` still `false`.
+    ///
+    /// Finding #3 invariant under test: a reconnect whose replay fails
+    /// must not report the session as authenticated/live.
+    fn run_reconnect_replay<W: Write>(
+        writer: &mut W,
+        subs: &[Contract],
+        reason: RemoveReason,
+        authenticated: &AtomicBool,
+        shutdown: &AtomicBool,
+    ) -> (bool, bool, bool) {
+        // Entry invariant the loop guarantees: the inner read loop cleared
+        // `authenticated` on the drop that started this reconnect.
+        authenticated.store(false, Ordering::Release);
+        let mut pending_reason: Option<RemoveReason> = None;
+        let mut pacer = ReplayPacer::new(4, 0);
+
+        // Re-subscribe replay: a write or burst-flush failure marks the
+        // session not-live + reconnect-pending, exactly like the loop.
+        let code = super::protocol::SubscriptionKind::Quote.subscribe_code();
+        let mut replay_ok = true;
+        for contract in subs {
+            let payload = match protocol::build_subscribe_payload(1, contract) {
+                Ok(p) => p,
+                Err(_) => continue,
+            };
+            if write_raw_frame_no_flush(writer, code, &payload).is_err() {
+                pending_reason = Some(reason);
+                replay_ok = false;
+                break;
+            }
+            if pacer.frame_written(writer, shutdown).is_err() {
+                pending_reason = Some(reason);
+                replay_ok = false;
+                break;
+            }
+        }
+        if replay_ok && !subs.is_empty() && writer.flush().is_err() {
+            pending_reason = Some(reason);
+            replay_ok = false;
+        }
+
+        if !replay_ok {
+            // Re-enter reconnect: authenticated is still false, no success
+            // event published.
+            return (
+                authenticated.load(Ordering::Acquire),
+                pending_reason.is_some(),
+                false,
+            );
+        }
+
+        // Replay proven: ONLY now is the session live + success announced.
+        authenticated.store(true, Ordering::Release);
+        let login_success_published = true;
+        (
+            authenticated.load(Ordering::Acquire),
+            pending_reason.is_some(),
+            login_success_published,
+        )
+    }
+
+    /// Finding #3: a reconnect whose re-subscribe replay fails part-way
+    /// must NOT mark the session authenticated/live, must set
+    /// `pending_reason` (so the next cycle re-enters reconnect on the
+    /// right ladder), and must NOT publish `LoginSuccess`. Before the fix
+    /// the loop flipped `authenticated` true right after login — so a
+    /// socket that broke during replay looked live and accepted commands
+    /// until a later read timeout.
+    #[test]
+    fn reconnect_replay_failure_does_not_mark_session_live() {
+        let authenticated = AtomicBool::new(false);
+        let shutdown = AtomicBool::new(false);
+        let subs = [
+            Contract::stock("AAAA"),
+            Contract::stock("BBBB"),
+            Contract::stock("CCCC"),
+        ];
+        // Accept the first write, then break — mid-replay socket death.
+        let mut writer = FailAfter {
+            ok_writes: 1,
+            writes: 0,
+        };
+
+        let (live, pending_set, login_published) = run_reconnect_replay(
+            &mut writer,
+            &subs,
+            RemoveReason::TooManyRequests,
+            &authenticated,
+            &shutdown,
+        );
+
+        assert!(
+            !live,
+            "a reconnect whose replay failed must NOT report the session as live"
+        );
+        assert!(
+            !authenticated.load(Ordering::Acquire),
+            "the shared `authenticated` flag must stay false on a failed replay"
+        );
+        assert!(
+            pending_set,
+            "a failed replay must set pending_reason so the next cycle re-enters \
+             reconnect on the originating class rather than re-reading the broken socket"
+        );
+        assert!(
+            !login_published,
+            "no LoginSuccess may be published for a session the replay disproved"
+        );
+    }
+
+    /// Companion success path: when every replay write and flush
+    /// succeeds, the session IS marked live and the success event is
+    /// published — the production behaviour the fix must preserve.
+    #[test]
+    fn reconnect_replay_success_marks_session_live() {
+        let authenticated = AtomicBool::new(false);
+        let shutdown = AtomicBool::new(false);
+        let subs = [Contract::stock("AAAA"), Contract::stock("BBBB")];
+        // Never fails.
+        let mut writer = FailAfter {
+            ok_writes: usize::MAX,
+            writes: 0,
+        };
+
+        let (live, pending_set, login_published) = run_reconnect_replay(
+            &mut writer,
+            &subs,
+            RemoveReason::TimedOut,
+            &authenticated,
+            &shutdown,
+        );
+
+        assert!(
+            live,
+            "a fully-replayed reconnect must mark the session live"
+        );
+        assert!(
+            authenticated.load(Ordering::Acquire),
+            "the shared `authenticated` flag must be true after a proven replay"
+        );
+        assert!(
+            !pending_set,
+            "a successful replay must not set pending_reason"
+        );
+        assert!(
+            login_published,
+            "LoginSuccess must be published once the replay is proven"
+        );
+    }
+
+    /// Finding #3 source guard: in the reconnect path the live-flip
+    /// (`authenticated.store(true, ...)`) and the post-reconnect
+    /// `LoginSuccess` publish must appear AFTER the re-subscribe replay
+    /// and the queued-command drain — never right after login. This pins
+    /// the ordering so a future edit cannot reintroduce the premature
+    /// flip that let a broken reconnected socket look live.
+    #[test]
+    fn reconnect_marks_live_only_after_replay_in_source() {
+        let src = include_str!("mod.rs");
+        let cfg_test_pos = src
+            .find("#[cfg(test)]\nmod tests")
+            .expect("test module marker present");
+        let prod = &src[..cfg_test_pos];
+
+        // Anchor on the reconnect path's reader swap — the replay writes
+        // target the stream installed here.
+        let reader_swap = prod
+            .find("Replace the reader with the new stream so the replay writes")
+            .expect("reconnect-path reader swap comment present");
+        let after_swap = &prod[reader_swap..];
+
+        let resubscribe_pos = after_swap
+            .find("Re-subscribe all active subscriptions on the new connection")
+            .expect("reconnect-path re-subscribe replay present");
+        let queued_drain_pos = after_swap
+            .find("Drain any commands that queued up during reconnection")
+            .expect("reconnect-path queued-command drain present");
+        let live_flip_pos = after_swap
+            .find("authenticated.store(true, Ordering::Release)")
+            .expect("reconnect-path live flip present");
+        let login_success_pos = after_swap
+            .find("StreamControl::LoginSuccess")
+            .expect("reconnect-path LoginSuccess publish present");
+
+        assert!(
+            resubscribe_pos < live_flip_pos,
+            "the live flip must come AFTER the re-subscribe replay starts"
+        );
+        assert!(
+            queued_drain_pos < live_flip_pos,
+            "the live flip must come AFTER the queued-command drain"
+        );
+        assert!(
+            queued_drain_pos < login_success_pos,
+            "the post-reconnect LoginSuccess must be published AFTER the queued-command drain"
+        );
+    }
+
+    /// Finding #3 source guard: every reconnect-path replay/drain failure
+    /// branch that re-enters the session loop must first set
+    /// `pending_reason`, so a broken reconnected socket re-enters
+    /// reconnect on the originating class instead of being re-read as a
+    /// generic timeout. Counts the `continue 'session` sites in the
+    /// replay/drain region and asserts each is immediately preceded by a
+    /// `pending_reason = Some(reason)` assignment.
+    #[test]
+    fn reconnect_replay_failures_set_pending_reason_before_continue() {
+        let src = include_str!("mod.rs");
+        let cfg_test_pos = src
+            .find("#[cfg(test)]\nmod tests")
+            .expect("test module marker present");
+        let prod = &src[..cfg_test_pos];
+
+        // Scope to the replay + queued-drain region: from the reader swap
+        // to the post-drain live flip.
+        let start = prod
+            .find("Replace the reader with the new stream so the replay writes")
+            .expect("reconnect-path reader swap present");
+        let end_rel = prod[start..]
+            .find("Replay is proven on the fresh socket")
+            .expect("post-drain live-flip comment present");
+        let region = &prod[start..start + end_rel];
+
+        // The `continue 'session` sites in this region are all
+        // socket-broke-mid-replay escalations; each must be reconnect-
+        // pending-marked. `break 'session` (shutdown) sites are exempt.
+        let continue_sites = region.matches("continue 'session;").count();
+        assert!(
+            continue_sites >= 5,
+            "expected the five replay/drain failure escalations; found {continue_sites}"
+        );
+        let pending_marks = region.matches("pending_reason = Some(reason);").count();
+        assert_eq!(
+            pending_marks, continue_sites,
+            "every replay/drain `continue 'session` must be preceded by a \
+             `pending_reason = Some(reason)` so the broken socket re-enters reconnect \
+             on the originating class; found {pending_marks} marks for {continue_sites} \
+             continue sites"
         );
     }
 }

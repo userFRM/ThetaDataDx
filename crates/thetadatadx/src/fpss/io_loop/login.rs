@@ -15,7 +15,7 @@ use crate::error::Error;
 
 use super::super::connection;
 use super::super::events::StreamControl;
-use super::super::framing::read_frame;
+use super::super::framing::{is_drain_yield, read_frame_into_with_stall_timeout, FrameReadState};
 use super::super::protocol::parse_disconnect_reason;
 
 /// Outcome of a single login handshake.
@@ -70,6 +70,7 @@ pub(in crate::fpss) fn wait_for_login(
         stream,
         pending_control,
         deadline,
+        read_timeout,
         MAX_HANDSHAKE_PENDING_CONTROL,
         Instant::now,
     )
@@ -85,10 +86,19 @@ pub(in crate::fpss) fn wait_for_login(
 /// streams control frames without ever completing the handshake: the
 /// per-read socket timeout alone cannot, because each frame resets it.
 /// `now` injects the clock so tests can drive the deadline deterministically.
+///
+/// The read is driven through the resumable
+/// [`read_frame_into_with_stall_timeout`] path with `stall_timeout` as the
+/// per-stall budget. A mid-frame drain-yield re-checks `deadline` before
+/// resuming, so the wall-clock cap bounds *mid-frame* reads too — a peer that
+/// dribbles a partial frame in slowly cannot hold the handshake past the cap
+/// (the previous `read_frame` wrapper looped on drain-yields internally without
+/// consulting the deadline, so a trickling partial frame could run far past it).
 fn wait_for_login_generic<R, C>(
     stream: &mut R,
     pending_control: &mut Vec<StreamControl>,
     deadline: Instant,
+    stall_timeout: Duration,
     max_pending_control: usize,
     mut now: C,
 ) -> Result<LoginResult, Error>
@@ -96,6 +106,11 @@ where
     R: std::io::Read,
     C: FnMut() -> Instant,
 {
+    // Reused across frames and across mid-frame drain-yield resumptions:
+    // `frame_state` preserves the exact byte offset of a partially-read frame
+    // so a resume after a deadline re-check does not lose or re-read bytes.
+    let mut frame_buf: Vec<u8> = Vec::new();
+    let mut frame_state = FrameReadState::new();
     loop {
         if now() >= deadline {
             return Err(Error::Fpss {
@@ -114,22 +129,39 @@ where
             });
         }
 
-        let frame = read_frame(stream)?.ok_or_else(|| Error::Fpss {
-            kind: crate::error::StreamErrorKind::Disconnected,
-            message: "connection closed during login handshake".to_string(),
-        })?;
+        let (code, payload_len) = match read_frame_into_with_stall_timeout(
+            stream,
+            &mut frame_buf,
+            &mut frame_state,
+            stall_timeout,
+        ) {
+            Ok(Some(frame)) => frame,
+            Ok(None) => {
+                return Err(Error::Fpss {
+                    kind: crate::error::StreamErrorKind::Disconnected,
+                    message: "connection closed during login handshake".to_string(),
+                })
+            }
+            // Mid-frame yield: the partial-frame bytes are preserved on
+            // `frame_state`. Loop back to re-check the wall-clock deadline
+            // BEFORE resuming, so a trickling partial frame is cut off at
+            // the cap instead of retrying indefinitely.
+            Err(ref e) if is_drain_yield(e) => continue,
+            Err(e) => return Err(e),
+        };
+        let payload = &frame_buf[..payload_len];
 
-        match frame.code {
+        match code {
             StreamMsgType::Metadata => {
-                let permissions = String::from_utf8_lossy(&frame.payload).to_string();
+                let permissions = String::from_utf8_lossy(payload).to_string();
                 return Ok(LoginResult::Success(permissions));
             }
             StreamMsgType::Disconnected => {
-                let reason = parse_disconnect_reason(&frame.payload);
+                let reason = parse_disconnect_reason(payload);
                 return Ok(LoginResult::Disconnected(reason));
             }
             StreamMsgType::Error => {
-                let msg = String::from_utf8_lossy(&frame.payload);
+                let msg = String::from_utf8_lossy(payload);
                 tracing::warn!(message = %msg, "server error during login");
                 return Err(Error::Fpss {
                     kind: crate::error::StreamErrorKind::ConnectionRefused,
@@ -149,7 +181,7 @@ where
                 // downstream diagnostics match the post-login dispatch
                 // path byte-for-byte.
                 pending_control.push(StreamControl::Ping {
-                    payload: frame.payload.clone(),
+                    payload: payload.to_vec(),
                 });
             }
             StreamMsgType::Reconnected => {
@@ -205,6 +237,7 @@ mod tests {
             stream,
             pending_control,
             deadline,
+            Duration::from_secs(10),
             MAX_HANDSHAKE_PENDING_CONTROL,
             Instant::now,
         )
@@ -448,6 +481,7 @@ mod tests {
             &mut cursor,
             &mut pending,
             deadline,
+            Duration::from_secs(10),
             MAX_HANDSHAKE_PENDING_CONTROL,
             clock,
         );
@@ -457,6 +491,91 @@ mod tests {
             }
             Err(other) => panic!("expected an Fpss timeout error, got {other:?}"),
             Ok(_) => panic!("a chatty no-METADATA peer must trip the handshake deadline"),
+        }
+    }
+
+    /// Reader that delivers a fixed prefix once, then stalls with
+    /// `WouldBlock` forever, sleeping briefly on each stall so the
+    /// mid-frame reader's real-time drain budget elapses. Models a peer
+    /// that dribbles in a partial frame and then goes quiet mid-frame.
+    struct PartialThenStallForever {
+        prefix: Vec<u8>,
+        pos: usize,
+        sleep_per_stall: Duration,
+    }
+
+    impl std::io::Read for PartialThenStallForever {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            if self.pos < self.prefix.len() {
+                let remaining = &self.prefix[self.pos..];
+                let n = remaining.len().min(buf.len());
+                buf[..n].copy_from_slice(&remaining[..n]);
+                self.pos += n;
+                return Ok(n);
+            }
+            std::thread::sleep(self.sleep_per_stall);
+            Err(std::io::Error::new(
+                std::io::ErrorKind::WouldBlock,
+                "mid-frame stall",
+            ))
+        }
+    }
+
+    /// Finding: the wall-clock handshake deadline must bound MID-FRAME reads,
+    /// not only the gaps between completed frames. A peer that dribbles a
+    /// partial frame (one header byte) and then stalls makes the resumable
+    /// reader drain-yield repeatedly; the handshake must re-check the deadline
+    /// on each resumption and cut the peer off at the cap, rather than looping
+    /// on drain-yields forever. The previous `read_frame` wrapper swallowed
+    /// drain-yields internally with no deadline check, so this peer could hold
+    /// login/reconnect far past the advertised cap.
+    #[test]
+    fn wait_for_login_partial_frame_stall_hits_deadline_mid_frame() {
+        // A complete header (LEN=4, CODE=Ping) and 2 of 4 payload bytes, then a
+        // permanent mid-payload stall: the frame can never complete. The
+        // mid-payload reader drain-yields after its budget, handing control
+        // back so the handshake can re-check the wall-clock deadline.
+        let mut reader = PartialThenStallForever {
+            prefix: vec![0x04, StreamMsgType::Ping as u8, 0x01, 0x02],
+            pos: 0,
+            sleep_per_stall: Duration::from_millis(5),
+        };
+
+        // Injected clock: report `start` until the reader has drain-yielded at
+        // least once (the partial byte landed, then the mid-frame budget
+        // elapsed), then jump past the deadline. This proves the deadline is
+        // consulted BETWEEN mid-frame resumptions — a long stall_timeout means
+        // the per-stall budget alone would never fire.
+        let start = Instant::now();
+        let deadline = start + Duration::from_secs(10);
+        let mut ticks = 0u32;
+        let clock = move || {
+            ticks += 1;
+            if ticks > 2 {
+                deadline + Duration::from_secs(1)
+            } else {
+                start
+            }
+        };
+
+        let mut pending: Vec<StreamControl> = Vec::new();
+        let result = wait_for_login_generic(
+            &mut reader,
+            &mut pending,
+            deadline,
+            // Long per-stall budget so only the wall-clock deadline (not the
+            // per-stall timeout) can end the handshake.
+            Duration::from_secs(30),
+            MAX_HANDSHAKE_PENDING_CONTROL,
+            clock,
+        );
+        match result {
+            Err(Error::Fpss { kind, .. }) => assert!(
+                matches!(kind, crate::error::StreamErrorKind::Timeout),
+                "a mid-frame trickle past the deadline must surface as a handshake timeout"
+            ),
+            Err(other) => panic!("expected an Fpss timeout error, got {other:?}"),
+            Ok(_) => panic!("a partial-frame stall past the deadline must trip the cap"),
         }
     }
 
@@ -476,7 +595,14 @@ mod tests {
         // Far-future deadline so the cap, not the clock, is what stops it.
         let deadline = Instant::now() + Duration::from_secs(3_600);
         let mut pending: Vec<StreamControl> = Vec::new();
-        let result = wait_for_login_generic(&mut cursor, &mut pending, deadline, cap, Instant::now);
+        let result = wait_for_login_generic(
+            &mut cursor,
+            &mut pending,
+            deadline,
+            Duration::from_secs(10),
+            cap,
+            Instant::now,
+        );
         match result {
             Err(Error::Fpss { kind, .. }) => {
                 assert!(matches!(kind, crate::error::StreamErrorKind::ProtocolError));

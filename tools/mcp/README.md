@@ -36,18 +36,23 @@ cargo build --release
 
 ### Credentials
 
-Provide ThetaData credentials via **environment variables** (preferred) or a **creds file**:
+Provide ThetaData credentials via an **API key**, **email + password environment variables** (preferred), or a **creds file**:
 
 ```bash
-# Environment variables (preferred)
-export THETA_EMAIL="you@example.com"
-export THETA_PASSWORD="your-password"
+# API key (environment variable or --api-key flag)
+export THETADATA_API_KEY="your-api-key"
+
+# Email + password environment variables (preferred)
+export THETADATA_EMAIL="you@example.com"
+export THETADATA_PASSWORD="your-password"
 
 # Or a creds.txt file (line 1: email, line 2: password)
 thetadatadx-mcp --creds ~/creds.txt
 ```
 
-If no credentials are provided, the server starts in **offline mode** - only `ping`, `all_greeks`, and `implied_volatility` tools are available.
+Credentials are resolved in this order, highest first: the `--api-key` flag, then `THETADATA_API_KEY`, then `THETADATA_EMAIL` + `THETADATA_PASSWORD`, then the `--creds` file. These are the same names the SDK and the server use.
+
+If no credentials are provided, the server starts in **offline mode**: only `ping`, `all_greeks`, and `implied_volatility` tools are available.
 
 ### Stdio MCP clients (config file)
 
@@ -59,8 +64,8 @@ Most MCP clients read an `mcpServers` block from a project-local or user-level s
     "thetadata": {
       "command": "thetadatadx-mcp",
       "env": {
-        "THETA_EMAIL": "you@example.com",
-        "THETA_PASSWORD": "your-password"
+        "THETADATA_EMAIL": "you@example.com",
+        "THETADATA_PASSWORD": "your-password"
       }
     }
   }
@@ -90,8 +95,8 @@ Add to Cursor MCP settings (`.cursor/mcp.json`):
     "thetadata": {
       "command": "thetadatadx-mcp",
       "env": {
-        "THETA_EMAIL": "you@example.com",
-        "THETA_PASSWORD": "your-password"
+        "THETADATA_EMAIL": "you@example.com",
+        "THETADATA_PASSWORD": "your-password"
       }
     }
   }
@@ -107,7 +112,7 @@ The server speaks standard MCP over stdio:
 
 ## Available Tools
 
-Every generated historical endpoint plus 3 offline tools (`ping`, `all_greeks`, `implied_volatility`).
+Every generated historical endpoint plus 3 offline tools (`ping`, `all_greeks`, `implied_volatility`) and, when connected, 6 flat-file tools.
 
 ### Offline (3 total: `ping`, `all_greeks`, `implied_volatility`)
 
@@ -155,6 +160,17 @@ This matches the current JVM terminal behavior. The v3 REST surface uses `*` for
 - `calendar_open_today`, `calendar_on_date`, `calendar_year`
 - `interest_rate_history_eod`
 
+### Flat Files (6 tools)
+
+Advertised only when a client is connected. Each pulls a whole-universe daily blob, writes it to disk as CSV or JSON Lines, and returns the written path.
+
+- `thetadatadx_flatfile_request` - generic flat-file request for a served `(sec_type, req_type)` pair; an unserved pair is rejected with a typed invalid-parameter error
+- `thetadatadx_flatfile_option_trade_quote` - option trade-quote flat file
+- `thetadatadx_flatfile_option_open_interest` - option open-interest flat file
+- `thetadatadx_flatfile_option_eod` - option end-of-day flat file
+- `thetadatadx_flatfile_stock_trade_quote` - stock trade-quote flat file
+- `thetadatadx_flatfile_stock_eod` - stock end-of-day flat file
+
 ## Example Tool Calls
 
 ### List tools
@@ -185,7 +201,7 @@ This returns a filtered bulk response across multiple strikes. If you change `st
 ### Compute Greeks offline
 
 ```json
-{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"all_greeks","arguments":{"spot":150.0,"strike":155.0,"rate":0.05,"dividend_yield":0.01,"time_to_expiry":0.25,"option_price":5.50,"is_call":true}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"all_greeks","arguments":{"spot":150.0,"strike":155.0,"rate":0.05,"dividend_yield":0.01,"time_to_expiry":0.25,"option_price":5.50,"right":"call"}}}
 ```
 
 Response:

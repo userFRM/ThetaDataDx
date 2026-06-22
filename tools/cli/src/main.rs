@@ -6,7 +6,10 @@
 //! hand-written `flatfile` group covers the whole-universe flat-file surface.
 //!
 //! ## Invocation contract
-//! - Credentials resolve from `--creds <path>` (default `creds.txt`: email on
+//! - Credentials resolve through one shared resolver with this precedence
+//!   (highest first): the `--api-key` flag, the `THETADATA_API_KEY`
+//!   environment variable, the `THETADATA_EMAIL` + `THETADATA_PASSWORD`
+//!   environment pair, then `--creds <path>` (default `creds.txt`: email on
 //!   line 1, password on line 2). `--config {production,dev}` selects the
 //!   server preset and `--format {table,json,json-raw,csv}` selects the output
 //!   encoding; results go to stdout and diagnostics to stderr.
@@ -45,6 +48,17 @@ fn build_cli() -> Command {
                 .global(true)
                 .default_value("creds.txt")
                 .help("Path to credentials file (email + password, one per line)"),
+        )
+        .arg(
+            Arg::new("api-key")
+                .long("api-key")
+                .global(true)
+                .help(
+                    "Authenticate with a ThetaData API key. Takes precedence over \
+                     THETADATA_API_KEY, the THETADATA_EMAIL + THETADATA_PASSWORD pair, \
+                     and the credentials file. May also be supplied via the \
+                     THETADATA_API_KEY environment variable.",
+                ),
         )
         .arg(
             Arg::new("config")
@@ -444,16 +458,131 @@ const NULL_SENTINEL: &str = "\x00NULL\x00";
 //  Client construction helper
 // ═══════════════════════════════════════════════════════════════════════════
 
-async fn connect(
+// ═══════════════════════════════════════════════════════════════════════════
+//  Credential resolution — single source for every networked path
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Every networked CLI path (endpoint calls, `flatfile`, `auth`) authenticates
+// through `resolve_credentials` so the precedence is identical across the whole
+// surface and matches the server binary and the SDK constructors. The API key
+// and the password are secrets: they are never logged or echoed.
+
+/// Environment variable that supplies a ThetaData API key.
+const API_KEY_ENV: &str = "THETADATA_API_KEY";
+/// Environment variable that supplies the account email.
+const EMAIL_ENV: &str = "THETADATA_EMAIL";
+/// Environment variable that supplies the account password.
+const PASSWORD_ENV: &str = "THETADATA_PASSWORD";
+
+/// Which authentication source the resolved flag and environment select,
+/// before any secret is constructed or any file is read.
+///
+/// Splitting the decision from the construction keeps the precedence rules
+/// pure and unit-testable: the decision is a total function of three presence
+/// booleans and never touches the filesystem.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CredentialSource {
+    /// An explicit `--api-key` flag was passed; use that key directly.
+    ApiKeyFlag,
+    /// No flag, but `THETADATA_API_KEY` is set; source the key from the
+    /// environment, falling back to the creds file when it is empty
+    /// (delegated to `Credentials::from_env_or_file`).
+    EnvApiKeyOrFile,
+    /// No flag and no `THETADATA_API_KEY`, but both `THETADATA_EMAIL` and
+    /// `THETADATA_PASSWORD` are present; build email/password credentials.
+    EnvEmailPassword,
+    /// None of the above; read the email/password creds file at `--creds`.
+    CredsFile,
+}
+
+/// Decide which credential source to use from the presence of the
+/// `--api-key` flag, the `THETADATA_API_KEY` variable, and the complete
+/// `THETADATA_EMAIL` + `THETADATA_PASSWORD` pair.
+///
+/// Precedence (highest first): explicit `--api-key` flag, then
+/// `THETADATA_API_KEY`, then the email/password environment pair, then the
+/// creds file. This mirrors the server binary and the SDK ordering, where an
+/// explicit constructor argument wins over the environment, which in turn
+/// wins over the creds file.
+pub(crate) fn select_credential_source(
+    api_key_flag: bool,
+    env_api_key_present: bool,
+    env_email_password_present: bool,
+) -> CredentialSource {
+    if api_key_flag {
+        CredentialSource::ApiKeyFlag
+    } else if env_api_key_present {
+        CredentialSource::EnvApiKeyOrFile
+    } else if env_email_password_present {
+        CredentialSource::EnvEmailPassword
+    } else {
+        CredentialSource::CredsFile
+    }
+}
+
+/// Whether `THETADATA_API_KEY` holds a non-empty (after trim) value.
+///
+/// An empty or whitespace-only variable is treated as absent so it does not
+/// shadow the lower-precedence sources, matching
+/// `Credentials::from_env_or_file`.
+fn env_api_key_present() -> bool {
+    std::env::var(API_KEY_ENV).is_ok_and(|v| !v.trim().is_empty())
+}
+
+/// Read a non-empty (after trim) environment variable, if present.
+fn non_empty_env(name: &str) -> Option<String> {
+    std::env::var(name).ok().filter(|v| !v.trim().is_empty())
+}
+
+/// Resolve credentials for every networked CLI path through one precedence.
+///
+/// See [`select_credential_source`] for the ordering. The resolved
+/// credential keeps the secret inside the SDK's own zeroized buffer; this
+/// function never logs or echoes the API key or the password.
+///
+/// # Errors
+///
+/// Propagates the underlying [`thetadatadx::Error`] when the selected source
+/// cannot produce a credential (for example a missing or malformed creds
+/// file).
+pub(crate) fn resolve_credentials(
+    api_key_flag: Option<&str>,
     creds_path: &str,
+) -> Result<thetadatadx::Credentials, thetadatadx::Error> {
+    let email_password = match (non_empty_env(EMAIL_ENV), non_empty_env(PASSWORD_ENV)) {
+        (Some(email), Some(password)) => Some((email, password)),
+        _ => None,
+    };
+    match select_credential_source(
+        api_key_flag.is_some(),
+        env_api_key_present(),
+        email_password.is_some(),
+    ) {
+        // The flag value comes from argv; the SDK constructor keeps its own
+        // zeroized copy. The key itself is never logged.
+        CredentialSource::ApiKeyFlag => Ok(thetadatadx::Credentials::api_key(
+            api_key_flag.expect("api_key flag is Some on this arm"),
+        )),
+        // `from_env_or_file` reads `THETADATA_API_KEY` (already known
+        // non-empty) into its own zeroized buffer; the key is never surfaced.
+        CredentialSource::EnvApiKeyOrFile => thetadatadx::Credentials::from_env_or_file(creds_path),
+        CredentialSource::EnvEmailPassword => {
+            let (email, password) = email_password.expect("pair is Some on this arm");
+            Ok(thetadatadx::Credentials::new(email, password))
+        }
+        CredentialSource::CredsFile => thetadatadx::Credentials::from_file(creds_path),
+    }
+}
+
+async fn connect(
+    creds: &thetadatadx::Credentials,
     preset: &str,
 ) -> Result<thetadatadx::Client, thetadatadx::Error> {
-    let creds = thetadatadx::Credentials::from_file(creds_path)?;
     let config = match preset {
         "dev" => thetadatadx::DirectConfig::dev(),
         _ => thetadatadx::DirectConfig::production(),
     };
-    thetadatadx::Client::connect(&creds, config).await
+    thetadatadx::Client::connect(creds, config).await
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1809,15 +1938,21 @@ async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
     let creds_path = matches
         .get_one::<String>("creds")
         .map_or("creds.txt", std::string::String::as_str);
+    let api_key_flag = matches
+        .get_one::<String>("api-key")
+        .map(std::string::String::as_str);
     let config_preset = matches
         .get_one::<String>("config")
         .map_or("production", std::string::String::as_str);
 
-    if try_run_generated_utility(matches.subcommand(), &fmt, creds_path).await? {
+    // Credentials resolve through the shared precedence at each networked
+    // site, not up front: the help branches (no subcommand, category with no
+    // endpoint) must keep working without any credential present.
+    if try_run_generated_utility(matches.subcommand(), &fmt, api_key_flag, creds_path).await? {
         return Ok(());
     }
 
-    if flatfile_commands::try_dispatch(&matches, creds_path).await? {
+    if flatfile_commands::try_dispatch(&matches, api_key_flag, creds_path).await? {
         return Ok(());
     }
 
@@ -1840,7 +1975,8 @@ async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
                     )
                 })?;
 
-                let client = connect(creds_path, config_preset).await?;
+                let creds = resolve_credentials(api_key_flag, creds_path)?;
+                let client = connect(&creds, config_preset).await?;
                 let mut args = build_endpoint_args(ep, sub_m)?;
                 if let Some(&ms) = matches.get_one::<u64>("timeout-ms") {
                     args = args.with_timeout_ms(ms);
@@ -1865,9 +2001,97 @@ async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
 #[cfg(test)]
 mod tests {
     use super::{
-        raw_date, raw_f64, raw_i32, raw_i64, raw_ms, raw_right_label, OutputFormat, TabularData,
+        raw_date, raw_f64, raw_i32, raw_i64, raw_ms, raw_right_label, resolve_credentials,
+        select_credential_source, CredentialSource, OutputFormat, TabularData,
     };
     use sonic_rs::JsonValueTrait;
+
+    // ── Credential resolution precedence ───────────────────────────────
+    //
+    // The precedence is exercised on the pure `select_credential_source`
+    // decision so the assertions never depend on process-global environment
+    // state, which would race across the parallel test runner. The decision
+    // is a total function of three presence booleans, mirroring the server
+    // binary's `select_credential_source`.
+
+    // An explicit `--api-key` flag wins over every other source, including the
+    // environment variable and the email/password pair.
+    #[test]
+    fn api_key_flag_takes_precedence() {
+        assert_eq!(
+            select_credential_source(true, true, true),
+            CredentialSource::ApiKeyFlag
+        );
+        assert_eq!(
+            select_credential_source(true, false, false),
+            CredentialSource::ApiKeyFlag
+        );
+    }
+
+    // With no flag but `THETADATA_API_KEY` present, the env-or-file path is
+    // selected, ahead of the email/password pair.
+    #[test]
+    fn env_api_key_beats_email_password() {
+        assert_eq!(
+            select_credential_source(false, true, true),
+            CredentialSource::EnvApiKeyOrFile
+        );
+    }
+
+    // With no flag and no API key, a complete email/password pair is used.
+    #[test]
+    fn env_email_password_beats_creds_file() {
+        assert_eq!(
+            select_credential_source(false, false, true),
+            CredentialSource::EnvEmailPassword
+        );
+    }
+
+    // With none of the higher-precedence sources present, the creds file is
+    // the source, so existing creds.txt invocations are unchanged.
+    #[test]
+    fn no_env_falls_back_to_creds_file() {
+        assert_eq!(
+            select_credential_source(false, false, false),
+            CredentialSource::CredsFile
+        );
+    }
+
+    // The `--api-key` flag arm constructs API-key credentials directly from
+    // the flag value without reading any file (the path given does not exist).
+    #[test]
+    fn resolve_with_flag_builds_api_key_credentials() {
+        let creds = resolve_credentials(Some("secret-key-123"), "/nonexistent/creds.txt")
+            .expect("flag resolves without touching the creds file");
+        assert!(creds.is_api_key());
+        assert_eq!(creds.api_key_secret(), Some("secret-key-123"));
+        assert_eq!(creds.password(), None);
+    }
+
+    // With no flag and (in a clean env) no relevant variables, the resolver
+    // falls back to the creds file; a missing file surfaces an error rather
+    // than silently authenticating. This guards the no-credential path.
+    #[test]
+    fn resolve_without_flag_uses_creds_file() {
+        // This test only asserts the file-backed arm is reached when no flag
+        // is supplied. To avoid racing the parallel runner on process-global
+        // environment state, it does not mutate the environment; it asserts
+        // that a missing creds file is reported as an error (the flag arm,
+        // which never reads a file, would have returned Ok).
+        if super::env_api_key_present()
+            || (super::non_empty_env(super::EMAIL_ENV).is_some()
+                && super::non_empty_env(super::PASSWORD_ENV).is_some())
+        {
+            // A developer machine with the variables exported takes a
+            // higher-precedence path; skip rather than assert a brittle shape.
+            return;
+        }
+        let err = resolve_credentials(None, "/nonexistent/creds.txt");
+        assert!(
+            err.is_err(),
+            "a missing creds file with no flag and no env must error"
+        );
+    }
 
     #[test]
     fn json_raw_format_parses_from_string() {

@@ -106,7 +106,8 @@ impl fmt::Display for ReqType {
 /// `INVALID_PARAMS:Invalid request type` rejection; this predicate lets
 /// the request entry points reject the pair locally, before any network
 /// round-trip, so callers see a typed invalid-parameter error instead.
-pub(crate) fn flat_file_serves(sec: SecType, req: ReqType) -> bool {
+#[must_use]
+pub fn flat_file_serves(sec: SecType, req: ReqType) -> bool {
     matches!(
         (sec, req),
         (
@@ -122,6 +123,24 @@ pub(crate) fn flat_file_serves(sec: SecType, req: ReqType) -> bool {
 pub(crate) fn req_dataset_name(req: ReqType) -> &'static str {
     req.as_str()
 }
+
+/// Every `(SecType, ReqType)` pair the flat-file distribution serves, in a
+/// stable order suitable for advertising on a tool surface.
+///
+/// This is the single enumeration backing [`flat_file_serves`]: the predicate
+/// answers membership, this constant lists the members. Tool surfaces (CLI
+/// `flatfile`, the MCP flat-file tools, the REST flat-file routes) derive their
+/// advertised `(sec_type, req_type)` combinations from this list so they can
+/// never offer a pair the service rejects. Adding a served dataset here — and
+/// to the `flat_file_serves` match — is the only change needed for every
+/// surface to expose it.
+pub const SERVED_DATASETS: &[(SecType, ReqType)] = &[
+    (SecType::Option, ReqType::TradeQuote),
+    (SecType::Option, ReqType::OpenInterest),
+    (SecType::Option, ReqType::Eod),
+    (SecType::Stock, ReqType::TradeQuote),
+    (SecType::Stock, ReqType::Eod),
+];
 
 /// Reason a [`Client::flatfile_request`](crate::Client::flatfile_request)
 /// call cannot return CSV.
@@ -250,6 +269,37 @@ mod tests {
             // The Rust variant identifier must never reach a client surface.
             assert_ne!(token, format!("{req:?}"), "{req:?}");
         }
+    }
+
+    /// `SERVED_DATASETS` and [`flat_file_serves`] are the list and the
+    /// membership predicate over the same set: every listed pair must be
+    /// served, and every served pair (over the full enum cross-product) must
+    /// be listed. A drift between the two would let a tool surface advertise a
+    /// pair the request layer rejects, or hide one it accepts.
+    #[test]
+    fn served_datasets_and_predicate_agree() {
+        let secs = [SecType::Option, SecType::Stock, SecType::Index];
+        let reqs = [
+            ReqType::Eod,
+            ReqType::Quote,
+            ReqType::OpenInterest,
+            ReqType::Ohlc,
+            ReqType::Trade,
+            ReqType::TradeQuote,
+        ];
+        for sec in secs {
+            for req in reqs {
+                let listed = SERVED_DATASETS.contains(&(sec, req));
+                assert_eq!(
+                    listed,
+                    flat_file_serves(sec, req),
+                    "SERVED_DATASETS and flat_file_serves disagree on {sec} {}",
+                    req.as_str()
+                );
+            }
+        }
+        // The served set is exactly the documented five datasets.
+        assert_eq!(SERVED_DATASETS.len(), 5);
     }
 
     /// Every security type maps to its exact upper-case wire token; the

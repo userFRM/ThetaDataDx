@@ -22,6 +22,7 @@ serde = { version = "1.0.228", features = ["derive"] }
 sonic-rs = "0.5.8"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+zeroize = "1.8.2"
 
 # Match the main workspace's strict bar. This crate is `[workspace.exclude]`d
 # in the root `Cargo.toml` (standalone manifest, not a member), so it can't

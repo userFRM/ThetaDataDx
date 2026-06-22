@@ -1,15 +1,36 @@
-// Smoke test: the MCP server's flatfile tools (issue #431) are
-// declared in the JSON-RPC `tools/list` response. The test pulls the
-// MCP binary, sends an `initialize` followed by `tools/list`, and
-// asserts the every flatfile tool name is present.
+// End-to-end check of the MCP server's offline `tools/list` gating. The
+// server advertises only the tools `tools/call` can serve in the current
+// connection state: with no credentials it stays in offline mode and must
+// advertise exactly the three connection-free tools (`ping`, `all_greeks`,
+// `implied_volatility`); the flat-file tools and registry historical
+// endpoints require a live client and must be withheld until one connects.
 //
 // We can't easily call into the MCP main.rs internals from a separate
-// integration test (the binary's modules are private), so we drive
-// the binary as a child process the same way a real MCP client would.
+// integration test (the binary's modules are private), nor connect to a
+// live upstream from CI, so the connected full-surface shape is asserted
+// by the in-crate unit tests. Here we drive the binary as a child process
+// the same way a real MCP client would and assert the offline shape.
 
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 use std::time::Duration;
+
+/// Tools the offline server must advertise — and the only ones, since every
+/// other tool requires a connected client. Mirrors `OFFLINE_TOOL_NAMES` in
+/// the binary and the offline-mode tools the README / banner promise.
+const OFFLINE_TOOLS: [&str; 3] = ["ping", "all_greeks", "implied_volatility"];
+
+/// Connection-only tools that must NOT appear while the server is offline:
+/// the flat-file tools and a representative registry historical endpoint.
+const CONNECTION_ONLY_TOOLS: [&str; 7] = [
+    "thetadatadx_flatfile_request",
+    "thetadatadx_flatfile_option_trade_quote",
+    "thetadatadx_flatfile_option_open_interest",
+    "thetadatadx_flatfile_option_eod",
+    "thetadatadx_flatfile_stock_trade_quote",
+    "thetadatadx_flatfile_stock_eod",
+    "option_history_greeks_eod",
+];
 
 fn binary() -> std::path::PathBuf {
     std::env::var_os("CARGO_BIN_EXE_thetadatadx-mcp")
@@ -22,7 +43,7 @@ fn binary() -> std::path::PathBuf {
 }
 
 #[test]
-fn tools_list_includes_flatfile_tools() {
+fn offline_tools_list_advertises_only_offline_tools() {
     let bin = binary();
     if !bin.exists() {
         eprintln!(
@@ -32,9 +53,19 @@ fn tools_list_includes_flatfile_tools() {
         return;
     }
 
-    // Launch the MCP server in offline mode (no THETA_EMAIL set so
-    // it stays in offline mode and answers `tools/list` immediately).
+    // Launch the MCP server in offline mode. The child must not inherit ANY
+    // credential the resolver honours, or it would connect to a live upstream
+    // and answer `tools/list` from the connected surface, turning this
+    // offline assertion into a false pass. The resolver reads the canonical
+    // `THETADATA_API_KEY`, `THETADATA_EMAIL`, and `THETADATA_PASSWORD` vars
+    // (see `resolve_credentials` in the binary); clear all three, plus the
+    // legacy `THETA_EMAIL` / `THETA_PASSWORD` names, so the child has no
+    // credential source regardless of the parent environment. With `--creds`
+    // never passed and no env credential, the server stays offline.
     let mut child = Command::new(&bin)
+        .env_remove("THETADATA_API_KEY")
+        .env_remove("THETADATA_EMAIL")
+        .env_remove("THETADATA_PASSWORD")
         .env_remove("THETA_EMAIL")
         .env_remove("THETA_PASSWORD")
         .stdin(Stdio::piped())
@@ -77,36 +108,24 @@ fn tools_list_includes_flatfile_tools() {
 
     let response = tools_response.expect("MCP server should respond to tools/list");
 
-    for tool in [
-        "thetadatadx_flatfile_request",
-        "thetadatadx_flatfile_option_trade_quote",
-        "thetadatadx_flatfile_option_open_interest",
-        "thetadatadx_flatfile_option_eod",
-        "thetadatadx_flatfile_stock_trade_quote",
-        "thetadatadx_flatfile_stock_eod",
-    ] {
+    // The three connection-free tools must be advertised offline.
+    for tool in OFFLINE_TOOLS {
+        let name_token = format!("\"name\":\"{tool}\"");
         assert!(
-            response.contains(tool),
-            "tools/list response should advertise `{tool}`; got: {response}"
+            response.contains(&name_token),
+            "offline tools/list must advertise `{tool}`; got: {response}"
         );
     }
 
-    // The datasets the flat-file distribution does not serve must not be
-    // advertised as convenience tools — they are reachable via the
-    // historical endpoints, not as flat files. Match the exact JSON name
-    // token so an unserved prefix (`..._option_trade`) cannot accidentally
-    // match a served suffix (`..._option_trade_quote`).
-    for tool in [
-        "thetadatadx_flatfile_option_quote",
-        "thetadatadx_flatfile_option_trade",
-        "thetadatadx_flatfile_option_ohlc",
-        "thetadatadx_flatfile_stock_quote",
-        "thetadatadx_flatfile_stock_trade",
-    ] {
+    // Every connection-only tool must be withheld while offline — `tools/call`
+    // would reject them for lack of a client, so they must not be advertised.
+    // Match the exact JSON name token so an unserved prefix can't accidentally
+    // match a served suffix.
+    for tool in CONNECTION_ONLY_TOOLS {
         let name_token = format!("\"name\":\"{tool}\"");
         assert!(
             !response.contains(&name_token),
-            "tools/list response must not advertise unserved tool `{tool}`; got: {response}"
+            "offline tools/list must not advertise connection-only tool `{tool}`; got: {response}"
         );
     }
 }

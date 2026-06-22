@@ -28,6 +28,7 @@ use serde::Serialize;
 use sonic_rs::{json, JsonContainerTrait, JsonValueMutTrait, JsonValueTrait, Value};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::OnceCell;
+use zeroize::Zeroizing;
 
 use thetadatadx::endpoint::{self, EndpointArgValue, EndpointArgs, EndpointError, EndpointOutput};
 use thetadatadx::{
@@ -210,16 +211,40 @@ const MAX_ERROR_LEN: usize = 200;
 /// sensitive data from error messages before sending them to MCP clients.
 ///
 /// Also truncates to [`MAX_ERROR_LEN`] chars to avoid leaking verbose
-/// backtraces or internal state.
+/// backtraces or internal state. The cap counts characters and always lands on
+/// a character boundary, so an upstream message bearing non-ASCII text (a
+/// localized server string or a symbol-bearing payload) is reproduced verbatim
+/// up to the limit rather than mangled or cut mid-character.
+///
+/// The redaction patterns (UUID, email, long hex token) are ASCII by
+/// construction and advance only over ASCII bytes, so byte-index detection
+/// always resumes on a character boundary; only the verbatim copy decodes and
+/// emits a full character at a time.
 pub(crate) fn sanitize_error(msg: &str) -> String {
+    /// Placeholder substituted for each redacted span. ASCII, so its character
+    /// and byte lengths coincide.
+    const REDACTION: &str = "[REDACTED]";
     let mut result = String::with_capacity(msg.len().min(MAX_ERROR_LEN + 16));
     let bytes = msg.as_bytes();
     let len = bytes.len();
+    // Decode the character beginning at byte index `pos`. The redaction
+    // branches advance only over ASCII bytes, so the verbatim branch is always
+    // entered on a character boundary and this never panics.
+    let char_at = |pos: usize| {
+        msg[pos..]
+            .chars()
+            .next()
+            .expect("verbatim copy resumes on a character boundary")
+    };
+    // Characters emitted so far. The cap is expressed in characters so a
+    // multi-byte character can never be split by truncation.
+    let mut emitted = 0usize;
     let mut i = 0;
     while i < len {
         // UUID pattern: 8-4-4-4-12 hex chars
         if i + 36 <= len && is_uuid_at(bytes, i) {
-            result.push_str("[REDACTED]");
+            result.push_str(REDACTION);
+            emitted += REDACTION.len();
             i += 36;
         // Email pattern: contains @ with word chars on both sides
         } else if bytes[i] == b'@' && i > 0 && is_email_boundary(&result, bytes, i, len) {
@@ -228,6 +253,7 @@ pub(crate) fn sanitize_error(msg: &str) -> String {
                 c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-' || c == '+'
             }) {
                 result.pop();
+                emitted -= 1;
             }
             // Skip forward past the domain part
             i += 1; // skip @
@@ -236,23 +262,27 @@ pub(crate) fn sanitize_error(msg: &str) -> String {
             {
                 i += 1;
             }
-            result.push_str("[REDACTED]");
+            result.push_str(REDACTION);
+            emitted += REDACTION.len();
         // Long hex token: 32+ consecutive hex chars (API keys, session tokens)
         } else if bytes[i].is_ascii_hexdigit() && is_hex_token_at(bytes, i) {
-            result.push_str("[REDACTED]");
-            let start = i;
+            result.push_str(REDACTION);
+            emitted += REDACTION.len();
             while i < len && bytes[i].is_ascii_hexdigit() {
                 i += 1;
             }
-            let _ = start; // consumed
         } else {
-            result.push(bytes[i] as char);
-            i += 1;
+            // Copy one whole character, preserving non-ASCII text intact.
+            let ch = char_at(i);
+            result.push(ch);
+            emitted += 1;
+            i += ch.len_utf8();
         }
 
-        // Truncate early if we've already exceeded the limit.
-        if result.len() >= MAX_ERROR_LEN {
-            result.truncate(MAX_ERROR_LEN);
+        // Truncate early once the character budget is spent. The cut sits on a
+        // character boundary because `result` only ever grows by whole
+        // characters or the ASCII `[REDACTED]` marker.
+        if emitted >= MAX_ERROR_LEN {
             result.push_str("...");
             return result;
         }
@@ -309,6 +339,35 @@ fn is_hex_token_at(bytes: &[u8], pos: usize) -> bool {
 // ═══════════════════════════════════════════════════════════════════════════
 //  Tool definitions — generated from endpoint registry + generated utilities
 // ═══════════════════════════════════════════════════════════════════════════
+
+/// Tools that run without a connected ThetaData client.
+///
+/// `ping` reports server status; `all_greeks` and `implied_volatility` are pure
+/// Black-Scholes computations that never touch an upstream server. When no
+/// client is connected the server advertises exactly these — the rest of the
+/// surface (registry historical endpoints, flat-file tools) requires a live
+/// connection and is withheld until one exists, so `tools/list` never offers a
+/// tool a `tools/call` would reject for lack of a client. The set must match
+/// the offline-mode tools the README and process banner promise.
+const OFFLINE_TOOL_NAMES: [&str; 3] = ["ping", "all_greeks", "implied_volatility"];
+
+/// Tool definitions to advertise given the current connection state.
+///
+/// Connected: the full surface. Disconnected: only [`OFFLINE_TOOL_NAMES`], so
+/// the advertised list matches what `tools/call` can actually serve offline.
+fn tool_definitions_for(connected: bool) -> Vec<Value> {
+    let all = tool_definitions();
+    if connected {
+        return all;
+    }
+    all.into_iter()
+        .filter(|tool| {
+            tool.get("name")
+                .and_then(|name: &Value| name.as_str())
+                .is_some_and(|name| OFFLINE_TOOL_NAMES.contains(&name))
+        })
+        .collect()
+}
 
 fn tool_definitions() -> Vec<Value> {
     let mut tools = Vec::with_capacity(ENDPOINTS.len() + 3);
@@ -1014,6 +1073,7 @@ fn convert_endpoint_args(args: &Value) -> Result<EndpointArgs, String> {
 
 /// Failure of a tool invocation, mapped to a JSON-RPC error code at the
 /// dispatch boundary.
+#[derive(Debug)]
 pub(crate) enum ToolError {
     /// -32602: Invalid params
     InvalidParams(String),
@@ -1048,7 +1108,7 @@ async fn execute_tool(
     // ── Online tools (require connected client) ─────────────────────
     let client = client.ok_or_else(|| {
         ToolError::ServerError(
-            "ThetaData client not connected. Set THETA_EMAIL + THETA_PASSWORD env vars or use --creds flag.".to_string(),
+            "ThetaData client not connected. Set THETADATA_API_KEY, or THETADATA_EMAIL + THETADATA_PASSWORD, or pass --api-key / --creds.".to_string(),
         )
     })?;
 
@@ -1109,7 +1169,11 @@ async fn handle_request(
         "notifications/initialized" => JsonRpcResponse::success(id, Value::new_null()),
 
         "tools/list" => {
-            let tools = tool_definitions();
+            // Advertise only what `tools/call` can serve in the current state:
+            // the full surface when a client is connected, otherwise just the
+            // offline tools. `client` is the lock-free `OnceCell::get` above,
+            // so presence reflects whether the background connect has landed.
+            let tools = tool_definitions_for(client.is_some());
             JsonRpcResponse::success(id, json!({ "tools": tools }))
         }
 
@@ -1177,18 +1241,154 @@ fn emit_response(stdout: &std::io::Stdout, resp: &JsonRpcResponse) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+//  Credential source selection
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Canonical environment variable names, shared with the SDK and every
+/// other binding so the same value authenticates everywhere without
+/// per-tool divergence.
+const API_KEY_ENV: &str = "THETADATA_API_KEY";
+const EMAIL_ENV: &str = "THETADATA_EMAIL";
+const PASSWORD_ENV: &str = "THETADATA_PASSWORD";
+
+/// Which authentication path the resolved arguments and environment select,
+/// decided before any credential value is constructed or any file is read.
+///
+/// Splitting the decision from the construction keeps the precedence rules
+/// pure and unit-testable: the decision takes plain presence flags, so a
+/// test can assert the ordering without a live upstream or a creds file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CredentialSource {
+    /// An explicit `--api-key` flag was passed; use that key directly.
+    ApiKeyFlag,
+    /// No flag, but `THETADATA_API_KEY` is set; source the key from the
+    /// environment.
+    EnvApiKey,
+    /// No api key anywhere, but both `THETADATA_EMAIL` and
+    /// `THETADATA_PASSWORD` are set; build email + password credentials
+    /// from the environment.
+    EnvEmailPassword,
+    /// None of the above; fall back to the `--creds` file if one was given,
+    /// otherwise start in offline mode.
+    CredsFileOrOffline,
+}
+
+/// Decide which credential source to use from plain presence flags.
+///
+/// Precedence (highest first): an explicit `--api-key` flag, then the
+/// `THETADATA_API_KEY` environment variable, then the
+/// `THETADATA_EMAIL` + `THETADATA_PASSWORD` environment pair, then the
+/// `--creds` file (or offline mode when no file is given). This mirrors the
+/// server binary and the SDK ordering, where an explicit argument wins over
+/// the environment, which in turn wins over the creds file.
+fn select_credential_source(
+    api_key_flag: bool,
+    env_api_key_present: bool,
+    env_email_password_present: bool,
+) -> CredentialSource {
+    if api_key_flag {
+        CredentialSource::ApiKeyFlag
+    } else if env_api_key_present {
+        CredentialSource::EnvApiKey
+    } else if env_email_password_present {
+        CredentialSource::EnvEmailPassword
+    } else {
+        CredentialSource::CredsFileOrOffline
+    }
+}
+
+/// Whether an environment variable is set to a non-empty (after trim) value.
+///
+/// An empty or whitespace-only variable is treated as absent so it does not
+/// shadow a lower-precedence credential source, matching the SDK's handling
+/// of `THETADATA_API_KEY`.
+fn env_var_present(name: &str) -> bool {
+    std::env::var(name).is_ok_and(|v| !v.trim().is_empty())
+}
+
+/// Resolve credentials by precedence, or `None` for offline mode.
+///
+/// The api key and password are secrets: neither is ever logged or echoed.
+/// The "loaded credentials" lines name the source generically and never
+/// interpolate a secret value. An argv-sourced `--api-key` is moved into a
+/// [`Zeroizing`] buffer so the raw allocation is scrubbed on drop;
+/// `Credentials::api_key` / `Credentials::new` keep their own zeroized copy.
+fn resolve_credentials(args: &mut Args) -> Option<Credentials> {
+    match select_credential_source(
+        args.api_key.is_some(),
+        env_var_present(API_KEY_ENV),
+        env_var_present(EMAIL_ENV) && env_var_present(PASSWORD_ENV),
+    ) {
+        CredentialSource::ApiKeyFlag => {
+            let raw_key = args.api_key.take().expect("api_key is Some on this arm");
+            let key = Zeroizing::new(raw_key);
+            tracing::info!("loaded credentials from --api-key flag");
+            Some(Credentials::api_key(key.trim()))
+        }
+        CredentialSource::EnvApiKey => {
+            // `from_env_or_file` reads `THETADATA_API_KEY` (already known
+            // non-empty) and keeps the key inside its own zeroized buffer;
+            // the key is never surfaced here. The file path is unused on
+            // this arm because the env var is present.
+            tracing::info!("loaded credentials from the THETADATA_API_KEY environment variable");
+            match Credentials::from_env_or_file(args.creds_path.as_deref().unwrap_or_default()) {
+                Ok(c) => Some(c),
+                Err(e) => {
+                    tracing::warn!(error = %e, "failed to source THETADATA_API_KEY, starting in offline mode");
+                    None
+                }
+            }
+        }
+        CredentialSource::EnvEmailPassword => {
+            // Both values are known non-empty. Move the password into a
+            // `Zeroizing` buffer so the env-sourced allocation is scrubbed
+            // on drop; `Credentials::new` keeps its own zeroized copy.
+            let email = std::env::var(EMAIL_ENV).unwrap_or_default();
+            let password = Zeroizing::new(std::env::var(PASSWORD_ENV).unwrap_or_default());
+            tracing::info!(
+                "loaded credentials from the THETADATA_EMAIL/THETADATA_PASSWORD environment variables"
+            );
+            Some(Credentials::new(email.trim(), password.trim()))
+        }
+        CredentialSource::CredsFileOrOffline => match args.creds_path.as_deref() {
+            Some(path) => match Credentials::from_file(path) {
+                Ok(c) => {
+                    tracing::info!(path = %path, "loaded credentials from file");
+                    Some(c)
+                }
+                Err(e) => {
+                    tracing::warn!(path = %path, error = %e, "failed to load credentials, starting in offline mode");
+                    None
+                }
+            },
+            None => {
+                tracing::info!("no credentials provided, starting in offline mode (ping, all_greeks, implied_volatility only)");
+                None
+            }
+        },
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 //  CLI argument parsing (minimal, no clap dependency)
 // ═══════════════════════════════════════════════════════════════════════════
 
 struct Args {
+    api_key: Option<String>,
     creds_path: Option<String>,
 }
 
 fn parse_args() -> Args {
-    let mut args = Args { creds_path: None };
+    let mut args = Args {
+        api_key: None,
+        creds_path: None,
+    };
     let mut argv = std::env::args().skip(1);
     while let Some(arg) = argv.next() {
         match arg.as_str() {
+            "--api-key" => {
+                args.api_key = argv.next();
+            }
             "--creds" => {
                 args.creds_path = argv.next();
             }
@@ -1200,16 +1400,22 @@ fn parse_args() -> Args {
                 eprintln!("  thetadatadx-mcp [OPTIONS]");
                 eprintln!();
                 eprintln!("OPTIONS:");
-                eprintln!("  --creds <PATH>  Path to creds.txt (email + password)");
-                eprintln!("  -h, --help      Print help");
+                eprintln!("  --api-key <KEY>  ThetaData API key (alternative to email + password)");
+                eprintln!(
+                    "  --creds <PATH>   Path to creds.txt (email on line 1, password on line 2)"
+                );
+                eprintln!("  -h, --help       Print help");
                 eprintln!();
                 eprintln!("ENVIRONMENT:");
-                eprintln!("  THETA_EMAIL     ThetaData account email");
-                eprintln!("  THETA_PASSWORD  ThetaData account password");
-                eprintln!("  RUST_LOG        Log level (default: info)");
+                eprintln!("  THETADATA_API_KEY   ThetaData API key");
+                eprintln!("  THETADATA_EMAIL     ThetaData account email");
+                eprintln!("  THETADATA_PASSWORD  ThetaData account password");
+                eprintln!("  RUST_LOG            Log level (default: info)");
                 eprintln!();
-                eprintln!("Credentials are read from env vars first, then --creds file.");
-                eprintln!("If neither is provided, the server starts in offline mode");
+                eprintln!("Credential precedence (highest first): --api-key flag,");
+                eprintln!("THETADATA_API_KEY, THETADATA_EMAIL + THETADATA_PASSWORD,");
+                eprintln!("then the --creds file.");
+                eprintln!("If none resolve, the server starts in offline mode");
                 eprintln!("(only ping, all_greeks, and implied_volatility tools work).");
                 std::process::exit(0);
             }
@@ -1242,31 +1448,15 @@ async fn main() {
         )
         .init();
 
-    let cli_args = parse_args();
+    let mut cli_args = parse_args();
     let start_time = std::time::Instant::now();
 
     // ── Resolve credentials ─────────────────────────────────────────
-    let creds = if let (Ok(email), Ok(password)) = (
-        std::env::var("THETA_EMAIL"),
-        std::env::var("THETA_PASSWORD"),
-    ) {
-        tracing::info!("using credentials from THETA_EMAIL/THETA_PASSWORD env vars");
-        Some(Credentials::new(email, password))
-    } else if let Some(path) = &cli_args.creds_path {
-        match Credentials::from_file(path) {
-            Ok(c) => {
-                tracing::info!(path = %path, "loaded credentials from file");
-                Some(c)
-            }
-            Err(e) => {
-                tracing::warn!(path = %path, error = %e, "failed to load credentials, starting in offline mode");
-                None
-            }
-        }
-    } else {
-        tracing::info!("no credentials provided, starting in offline mode (ping, all_greeks, implied_volatility only)");
-        None
-    };
+    // Precedence (highest first): --api-key flag, THETADATA_API_KEY,
+    // THETADATA_EMAIL + THETADATA_PASSWORD, then the --creds file. This
+    // mirrors the server binary and the SDK so the same credential
+    // authenticates everywhere. Secrets are never logged or echoed.
+    let creds = resolve_credentials(&mut cli_args);
 
     // ── Connect to ThetaData in the background ──────────────────────
     // We must NOT block here: MCP clients (e.g. Claude Code) send `initialize`
@@ -1477,6 +1667,140 @@ mod tests {
         assert!(
             strike_range.contains("does not expand a pinned strike"),
             "strike_range description should explain wildcard-only filtering semantics: {strike_range}"
+        );
+    }
+
+    fn tool_names(tools: &[Value]) -> HashSet<String> {
+        tools
+            .iter()
+            .filter_map(|tool| {
+                tool.get("name")
+                    .and_then(|name: &Value| name.as_str())
+                    .map(ToString::to_string)
+            })
+            .collect()
+    }
+
+    // ── Credential precedence ───────────────────────────────────────
+    //
+    // The decision function takes plain presence flags, so the precedence
+    // can be asserted without touching the process environment, a creds
+    // file, or a live upstream. Precedence (highest first): --api-key flag,
+    // THETADATA_API_KEY, THETADATA_EMAIL + THETADATA_PASSWORD, then the
+    // --creds file (or offline mode).
+
+    /// An explicit `--api-key` flag wins over every environment source.
+    #[test]
+    fn api_key_flag_takes_precedence_over_env() {
+        assert_eq!(
+            select_credential_source(true, true, true),
+            CredentialSource::ApiKeyFlag
+        );
+        assert_eq!(
+            select_credential_source(true, false, false),
+            CredentialSource::ApiKeyFlag
+        );
+    }
+
+    /// With no flag, `THETADATA_API_KEY` wins over the email/password env pair.
+    #[test]
+    fn env_api_key_takes_precedence_over_env_email_password() {
+        assert_eq!(
+            select_credential_source(false, true, true),
+            CredentialSource::EnvApiKey
+        );
+        assert_eq!(
+            select_credential_source(false, true, false),
+            CredentialSource::EnvApiKey
+        );
+    }
+
+    /// With neither an api key flag nor `THETADATA_API_KEY`, the canonical
+    /// `THETADATA_EMAIL` + `THETADATA_PASSWORD` env pair is selected.
+    #[test]
+    fn env_email_password_selected_when_no_api_key() {
+        assert_eq!(
+            select_credential_source(false, false, true),
+            CredentialSource::EnvEmailPassword
+        );
+    }
+
+    /// With no flag and no canonical env var, resolution falls back to the
+    /// `--creds` file (or offline mode when no file is given).
+    #[test]
+    fn no_credentials_falls_back_to_creds_file_or_offline() {
+        assert_eq!(
+            select_credential_source(false, false, false),
+            CredentialSource::CredsFileOrOffline
+        );
+    }
+
+    /// The selected source resolves to the expected credential *kind*: the
+    /// api-key arm builds API-key credentials, the email/password arm builds
+    /// password credentials. This pins what each canonical source constructs.
+    #[test]
+    fn selected_source_constructs_expected_credential_kind() {
+        let api = Credentials::api_key("secret-key");
+        assert!(api.is_api_key());
+        assert_eq!(api.api_key_secret(), Some("secret-key"));
+        assert_eq!(api.password(), None);
+
+        let pw = Credentials::new("you@example.com", "hunter2");
+        assert!(!pw.is_api_key());
+        assert_eq!(pw.password(), Some("hunter2"));
+        assert_eq!(pw.api_key_secret(), None);
+    }
+
+    /// Offline (`connected = false`), `tools/list` must advertise exactly the
+    /// three tools that run without an upstream connection — the same set the
+    /// README and process banner promise — and nothing that `tools/call` would
+    /// reject for lack of a client.
+    #[test]
+    fn offline_tools_list_advertises_only_the_offline_tools() {
+        let offline = tool_definitions_for(false);
+        let names = tool_names(&offline);
+
+        let expected: HashSet<String> =
+            OFFLINE_TOOL_NAMES.iter().map(ToString::to_string).collect();
+        assert_eq!(
+            names, expected,
+            "offline tools/list must advertise exactly {OFFLINE_TOOL_NAMES:?}"
+        );
+    }
+
+    /// Connected (`connected = true`), `tools/list` must advertise the full
+    /// surface: the offline tools plus the registry historical endpoints and
+    /// the flat-file tools that require a live client.
+    #[test]
+    fn connected_tools_list_advertises_the_full_surface() {
+        let connected = tool_definitions_for(true);
+        let names = tool_names(&connected);
+
+        for offline in OFFLINE_TOOL_NAMES {
+            assert!(
+                names.contains(offline),
+                "connected tools/list must still advertise the offline tool `{offline}`"
+            );
+        }
+        // A flat-file tool and a registry historical endpoint are connection-only
+        // and must appear only in the connected surface.
+        for online_only in [
+            "thetadatadx_flatfile_option_trade_quote",
+            "option_history_greeks_eod",
+        ] {
+            assert!(
+                names.contains(online_only),
+                "connected tools/list must advertise the connection-only tool `{online_only}`"
+            );
+            assert!(
+                !OFFLINE_TOOL_NAMES.contains(&online_only),
+                "test fixture `{online_only}` must be a connection-only tool"
+            );
+        }
+        assert_eq!(
+            connected.len(),
+            tool_definitions().len(),
+            "connected tools/list must advertise the complete tool surface"
         );
     }
 
@@ -1863,5 +2187,63 @@ mod tests {
             reparsed, original,
             "finite-only payload must round-trip with all values preserved"
         );
+    }
+
+    #[test]
+    fn sanitize_error_does_not_panic_on_non_ascii_at_truncation_boundary() {
+        // An upstream message can carry arbitrary UTF-8 (a localized server
+        // string, a symbol-bearing payload). A byte-indexed truncation could
+        // land inside a multi-byte character and panic, taking down the server.
+        // Exercise every padding around the cap so a multi-byte character
+        // straddles the boundary at the lengths that historically split it.
+        for pad in (MAX_ERROR_LEN - 4)..=(MAX_ERROR_LEN + 4) {
+            let input = "z".repeat(pad) + "é€";
+            let out = sanitize_error(&input);
+            // Valid UTF-8 by virtue of being a `String`, but assert the cap and
+            // that the head is reproduced verbatim rather than mangled.
+            assert!(
+                out.chars().count() <= MAX_ERROR_LEN + 3,
+                "pad={pad}: sanitized output exceeds the character cap: {out:?}"
+            );
+            assert!(
+                out.starts_with(&"z".repeat(pad.min(MAX_ERROR_LEN))),
+                "pad={pad}: leading ASCII run was not reproduced verbatim: {out:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn sanitize_error_preserves_short_non_ascii_message_verbatim() {
+        // Below the cap, a non-ASCII message must survive intact rather than
+        // being rewritten byte-by-byte into mojibake.
+        let msg = "résolution échouée: symbole €";
+        assert_eq!(sanitize_error(msg), msg);
+    }
+
+    #[test]
+    fn sanitize_error_still_redacts_around_non_ascii_text() {
+        // Character iteration must not weaken the ASCII-pattern redaction.
+        let uuid = "550e8400-e29b-41d4-a716-446655440000";
+        let hex = "a".repeat(40);
+        let msg = format!("échec session {uuid} clé {hex} contact paul@example.com fin");
+        let out = sanitize_error(msg.as_str());
+        assert!(
+            !out.contains(uuid),
+            "UUID must be redacted even amid non-ASCII text: {out:?}"
+        );
+        assert!(
+            !out.contains(&hex),
+            "long hex token must be redacted: {out:?}"
+        );
+        assert!(
+            !out.contains("paul@example.com"),
+            "email must be redacted: {out:?}"
+        );
+        assert!(
+            out.contains("[REDACTED]"),
+            "redaction marker must be present: {out:?}"
+        );
+        // The surrounding non-ASCII prose is preserved.
+        assert!(out.contains("échec session"), "prose lost: {out:?}");
     }
 }

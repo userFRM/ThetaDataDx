@@ -592,6 +592,71 @@ struct FfiString {
     bool ok() const { return ptr != nullptr; }
 };
 
+/// Poll cadence for the retired-callback reclaimer. Each step asks the FFI
+/// drain barrier to wait at most this long, so the loop re-checks the
+/// quiescence flag at roughly this interval. Small enough that a callback
+/// that finishes promptly is reclaimed within a few milliseconds of its
+/// last invocation.
+inline constexpr std::chrono::milliseconds kReclaimPollStep{50};
+
+/// Generous upper bound on how long the reclaimer waits for confirmed
+/// consumer quiescence before releasing the retired callback node anyway.
+///
+/// The reclaimer drops the retired node the instant the FFI drain barrier
+/// reports quiescence (typically single-digit milliseconds after the
+/// consumer's last invocation), so this cap is reached only by a
+/// pathologically stuck user callback that never returns. The cap is what
+/// bounds the reclaimer thread and the retired node: a wedged callback
+/// cannot leak either unboundedly. Releasing on the cap mirrors the C ABI
+/// free contract, which also proceeds with destruction after its own
+/// bounded drain wait when a callback will not return; in that case the
+/// node is released while the callback may still be running, which is the
+/// documented residual of a non-returning callback and not a regression
+/// from the previous fixed-timer behavior.
+inline constexpr std::chrono::seconds kReclaimQuiescenceCap{300};
+
+/// Release a retired push-callback node off the calling thread, gated on
+/// the consumer thread's confirmed quiescence rather than a wall-clock
+/// guess.
+///
+/// When a callback is replaced or a streaming-owning wrapper is move-assigned
+/// while the consumer thread may still be firing through the retired node's
+/// registered `&fn`, the node must outlive the consumer's last dereference
+/// of it. The ordering that establishes "the consumer has stopped firing"
+/// is the same FFI drain barrier `stop_streaming` / free rely on: it flips
+/// once the I/O and dispatch threads have joined and the user callback is
+/// guaranteed to have stopped. `is_drained` wraps that barrier (one of the
+/// `thetadatadx_*_await_drain` entry points bound to the retired session's
+/// handle) and returns true once quiescence is confirmed.
+///
+/// This detaches a helper thread that polls `is_drained` until it reports
+/// quiescence (or the bounded cap elapses) and only then runs `release`,
+/// which drops the retired node and, where the helper owns it, frees the
+/// retired handle. `release` therefore happens-after the consumer's final
+/// dereference, so the dropped node is never read after free. `is_drained`
+/// and `release` run on the detached helper, never on the consumer thread,
+/// so the barrier cannot wait on work it is itself blocking.
+///
+/// Both callables are moved into the helper so a move-only retained handle
+/// or storage can be carried in. The function returns immediately; the
+/// calling (move / replace) path never blocks on the drain.
+template <typename IsDrained, typename Release>
+inline void reclaim_after_drain(IsDrained is_drained, Release release) {
+    std::thread([is_drained = std::move(is_drained),
+                 release = std::move(release)]() mutable {
+        const auto deadline = std::chrono::steady_clock::now() + kReclaimQuiescenceCap;
+        while (!is_drained()) {
+            if (std::chrono::steady_clock::now() >= deadline) {
+                break;
+            }
+        }
+        // Confirmed quiescence (or the bounded cap): the consumer has
+        // finished its last dereference of the retired node, so dropping it
+        // now cannot be observed as a use-after-free.
+        release();
+    }).detach();
+}
+
 } // namespace detail
 
 // ── RAII deleters ──
@@ -1317,10 +1382,11 @@ public:
     }
 
     /** Target server environment carried by this configuration: `"PROD"`
-     *  for the production cluster, `"STAGE"` for staging. Set as a unit by
-     *  the production / stage presets (and the `THETADATA_MDDS_TYPE`
-     *  dotenv key); this is the readback of that selection. Returns an
-     *  empty string if the FFI getter returns null (null handle). */
+     *  for the production cluster, `"STAGE"` for staging, or `"DEV"` for
+     *  the dev cluster. Set as a unit by the production / stage / dev
+     *  presets (and the `THETADATA_MDDS_TYPE` dotenv key); this is the
+     *  readback of that selection. Returns an empty string if the FFI
+     *  getter returns null (null handle). */
     std::string get_environment() const {
         detail::FfiString s(thetadatadx_config_get_environment(handle_.get()));
         return s.str();
@@ -1643,12 +1709,14 @@ public:
      *
      *  Drain timeout (rare, indicates a wedged user callback): we MUST
      *  NOT reset `callback_` synchronously because a still-firing
-     *  consumer would invoke through a dangling ctx. Instead we detach
-     *  the callback storage onto a helper thread that holds it for an
-     *  extra 30 s grace window before dropping it. The internal detach
-     *  helper bounds the consumer's worst-case lifetime to its own
-     *  ring drain, so 30 s is a generous upper bound and lets the move
-     *  proceed without observable liveness loss to the caller. */
+     *  consumer would invoke through a dangling ctx. Nor may we free the
+     *  handle whose drain barrier that consumer rides. We hand BOTH the
+     *  retired handle and the retired callback storage to a helper thread
+     *  that polls the same drain barrier and releases them only once the
+     *  consumer is confirmed quiesced (handle first so its free-time
+     *  barrier still sees a live ctx, then the storage), with a bounded cap
+     *  so a wedged callback cannot leak either. The move proceeds without
+     *  observable liveness loss to the caller. */
     StreamingClient& operator=(StreamingClient&& other) noexcept {
         if (this != &other) {
             if (handle_) {
@@ -1657,17 +1725,32 @@ public:
                 // budget matches `thetadatadx_streaming_free`'s internal barrier.
                 int drained = thetadatadx_streaming_await_drain(handle_.get(), 5000);
                 if (drained == 0) {
-                    // Drain barrier timed out: the consumer may still
-                    // be firing through `callback_`'s storage. Detach
-                    // storage to a helper thread for a 30 s grace
-                    // window so destruction happens off the move
-                    // path; the consumer is bounded by its own ring
-                    // drain and will quiesce well within that window
-                    // even on a heavily backlogged ring.
-                    std::thread([cb = std::move(callback_)]() mutable {
-                        std::this_thread::sleep_for(std::chrono::seconds(30));
-                        // `cb` destructs here, off the move path.
-                    }).detach();
+                    // Drain barrier timed out: the consumer may still be
+                    // firing through `callback_`'s storage. Hand the retired
+                    // handle and storage to a reclaimer that drops them only
+                    // after the consumer is confirmed quiesced, polling the
+                    // same barrier rather than guessing a wall-clock window.
+                    // Borrow the raw handle for the poll; ownership stays with
+                    // `retired_handle` inside the reclaimer.
+                    const ThetaDataDxStreamHandle* raw = handle_.get();
+                    detail::reclaim_after_drain(
+                        [raw]() {
+                            return thetadatadx_streaming_await_drain(
+                                       raw,
+                                       static_cast<uint64_t>(
+                                           detail::kReclaimPollStep.count())) == 1;
+                        },
+                        [retired_handle = std::move(handle_),
+                         retired_cb = std::move(callback_)]() mutable {
+                            // Free the handle first so its internal drain
+                            // barrier still observes a live `ctx`, then drop
+                            // the storage. Mirrors the handle-before-callback
+                            // member destruction invariant.
+                            retired_handle.reset();
+                            retired_cb.reset();
+                        });
+                    // `handle_` and `callback_` are now empty; the reclaimer
+                    // owns the retired session.
                 } else {
                     callback_.reset();
                 }
@@ -2057,15 +2140,60 @@ private:
     const ThetaDataDxClient* handle_;
 };
 
+/// Backing node for a single push-callback registration. The
+/// `std::function` lives at a fixed heap address for the node's whole
+/// life, so the `void* ctx` registered with the dispatcher (`&fn`) stays
+/// valid for every consumer-thread invocation that captured it. A node is
+/// never mutated in place once registered: replacing a callback installs a
+/// FRESH node (see `CallbackState`) and registers the new node's distinct
+/// `&fn`, so a consumer thread still firing through an earlier
+/// registration always dereferences its own node's stable, unchanged `fn`.
+struct CallbackSlot {
+    std::function<void(const StreamEvent&)> fn;
+};
+
+/// Shared indirection between a `Client` and the `Stream` views it hands
+/// out. Both reference one `CallbackState` by `shared_ptr`; the state owns
+/// the currently-registered `CallbackSlot`. The dispatcher `ctx` is the
+/// address of `fn` inside whichever node `slot` currently points at.
+///
+/// Why the extra level of indirection: when a callback is replaced while a
+/// previous consumer is still firing (the drain-timeout path of
+/// `Stream::set_callback`), the replacement must register a node at a
+/// DIFFERENT address than the one the still-running consumer captured, and
+/// the old node must stay alive and unmodified until that consumer
+/// quiesces. The replacement therefore installs a fresh node into `slot`
+/// (a new `&fn` for the new registration) and keeps the retired node alive
+/// off the replacement path. Because `Client` and `Stream` share the one
+/// `CallbackState`, both observe the new node afterward, so a later
+/// `Client` move or destruction operates on the right node. `slot` is only
+/// ever read or repointed on the owning (user) thread; the consumer thread
+/// holds the raw `&fn` it was registered with and never reads `slot`, so no
+/// synchronization on `slot` is required against the consumer.
+///
+/// `slot` carries no synchronization against a SECOND owner thread either:
+/// the lifecycle surface is single-threaded per client, so calling
+/// `set_callback` concurrently from two `Stream` views over the same client
+/// is API misuse and a data race on `slot`. Drive the streaming lifecycle
+/// from one thread (the same precondition the C ABI states for its own
+/// register / stop / reconnect calls).
+struct CallbackState {
+    std::shared_ptr<CallbackSlot> slot = std::make_shared<CallbackSlot>();
+};
+
 /// Real-time-streaming sub-namespace returned by `Client::stream()`.
 ///
-/// Borrows the unified `ThetaDataDxClient*` and a pointer to the parent `Client`'s
-/// callback storage slot, so `set_callback` / `stop_streaming` /
-/// `reconnect` observe the same registration the unified client manages.
-/// The view is non-owning and transient: the callback `std::function`
-/// storage lives on the parent `Client` (whose destructor runs the C-ABI
-/// drain barrier), never on the view, so a `Stream` value may be created
-/// and discarded freely without disturbing the streaming session.
+/// Borrows the unified `ThetaDataDxClient*` for the duration of the borrow
+/// and shares the parent `Client`'s `CallbackState`, so `set_callback` /
+/// `stop_streaming` / `reconnect` observe the same registration the
+/// unified client manages. The handle pointer is borrowed and must not
+/// outlive the parent `Client` (`Client::stream()` is lvalue-only, so the
+/// borrow cannot bind a temporary), but the callback state is held by
+/// shared ownership: the registered node stays alive and at a fixed
+/// address while either the `Client` or this view references it, so a
+/// `Client` move never dangles the registered callback `ctx`. Replacing
+/// the callback installs a fresh node in the shared state, so both the
+/// `Client` and this view observe the new registration.
 class Stream {
 public:
     Stream(const Stream&) = delete;
@@ -2081,14 +2209,17 @@ public:
      *
      *  ## Callback storage + thread affinity
      *
-     *  The parent `Client` owns a `std::unique_ptr<std::function>` whose
-     *  address is the `void* ctx` registered with the dispatcher. That
-     *  address must outlive every consumer-thread invocation; destruction
-     *  routes through `thetadatadx_client_free` on the parent, which performs the
-     *  shutdown + drain barrier internally, and replacement here calls
-     *  `thetadatadx_client_stop_streaming` followed by
-     *  `thetadatadx_client_await_drain(5000)` before releasing the storage — so no
-     *  thread can observe a dangling ctx.
+     *  The parent `Client` and this view share a `CallbackState` by
+     *  `shared_ptr`. The state owns the currently-registered `CallbackSlot`
+     *  node; the address of that node's `fn` member is the `void* ctx`
+     *  registered with the dispatcher. A registered node is never mutated
+     *  in place: it lives at a fixed heap address for its whole life, so the
+     *  ctx stays valid across a `Client` move and every consumer-thread
+     *  invocation. Destruction routes through `thetadatadx_client_free` on
+     *  the parent, which performs the shutdown + drain barrier internally,
+     *  and replacement here calls `thetadatadx_client_stop_streaming`
+     *  followed by `thetadatadx_client_await_drain(5000)` before retiring
+     *  the old node, so no thread can observe a dangling ctx.
      *
      *  ## Lifecycle contract (unified replace-allowed rule)
      *
@@ -2098,34 +2229,69 @@ public:
      *  `(callback, ctx)`. `reconnect()` is built on top of this. Calling
      *  `set_callback` on a live (running) session also replaces — the
      *  previous (callback, ctx) is drained out before the new one is wired
-     *  in, with the same `await_drain(5000)` budget. */
+     *  in, with the same `await_drain(5000)` budget.
+     *
+     *  A replacement always installs a FRESH node and registers that node's
+     *  distinct `&fn`; it never reuses or mutates the previously-registered
+     *  node's storage. If the drain barrier times out (a wedged previous
+     *  consumer still firing), the old node is kept alive off this path
+     *  until that consumer quiesces, so the still-firing consumer keeps
+     *  dereferencing its own node's stable, unchanged `fn` and never
+     *  observes a torn or null function. Because the new node is installed
+     *  into the shared `CallbackState`, both the `Client` and this view see
+     *  it afterward. */
     void set_callback(std::function<void(const StreamEvent&)> fn) {
-        // Drain the existing wiring first so the consumer thread stops
-        // invoking through the old `*callback_` storage before we release
-        // it. Matches the C ABI's replace-allowed contract: a successful
-        // replacement registration leaves the old `ctx` observable only
-        // inside the drain barrier window.
-        if (*callback_) {
+        // Replacing a live registration: stop the session and wait for the
+        // consumer thread to stop firing through the old node. Matches the
+        // C ABI's replace-allowed contract, which requires that a fresh
+        // callback's storage must not alias a still-running previous
+        // registration.
+        if (callback_->slot->fn) {
             thetadatadx_client_stop_streaming(handle_);
             int drained = thetadatadx_client_await_drain(handle_, 5000);
             if (drained == 0) {
-                // Drain barrier timed out: detach old storage to a helper
-                // thread for a 30 s grace window so destruction happens off
-                // the registration path; the consumer is bounded by its own
-                // ring drain and will quiesce well within that window.
-                std::thread([cb = std::move(*callback_)]() mutable {
-                    std::this_thread::sleep_for(std::chrono::seconds(30));
-                }).detach();
-            } else {
-                callback_->reset();
+                // Drain barrier timed out: the previous consumer may still
+                // be invoking through the old node's `&fn`. We must NOT
+                // mutate or free that node here. Hand the retired node (held
+                // by `shared_ptr`) to a helper thread that drops it only
+                // after the consumer is CONFIRMED quiesced, polling the same
+                // drain barrier rather than guessing a wall-clock window.
+                // The borrowed `handle_` outlives this view (the owning
+                // `Client` cannot be destroyed on this thread while it is
+                // inside `set_callback`, and a single-thread `slot`
+                // precondition rules out a concurrent teardown), so it stays
+                // valid for the poll. The node's `fn` is never touched in
+                // the meantime, so the still-firing consumer always reads a
+                // valid, unchanged function.
+                const ThetaDataDxClient* handle = handle_;
+                detail::reclaim_after_drain(
+                    [handle]() {
+                        return thetadatadx_client_await_drain(
+                                   handle,
+                                   static_cast<uint64_t>(
+                                       detail::kReclaimPollStep.count())) == 1;
+                    },
+                    [retired = callback_->slot]() mutable {
+                        // `retired` (the old node) destructs here, off this
+                        // path, once the consumer has confirmed quiescence.
+                        retired.reset();
+                    });
             }
+            // Install a fresh node so the new registration below gets a
+            // distinct `&fn` the retired consumer never captured. On the
+            // drained path the old node has no live reader, so its
+            // `shared_ptr` simply drops here with no detach and no leak.
+            callback_->slot = std::make_shared<CallbackSlot>();
         }
-        auto staged = std::make_unique<std::function<void(const StreamEvent&)>>(std::move(fn));
-        int rc = thetadatadx_client_set_callback(handle_, &Stream::callback_shim, staged.get());
+        // Stage the new callback into the fresh node, then register its
+        // fixed `&fn` address as the dispatcher `ctx`. On failure the node's
+        // `fn` is left cleared so no stale registration lingers.
+        callback_->slot->fn = std::move(fn);
+        int rc = thetadatadx_client_set_callback(handle_, &Stream::callback_shim, &callback_->slot->fn);
         if (rc < 0) {
+            callback_->slot->fn = nullptr;
             detail::throw_last_ffi_error();
         }
-        *callback_ = std::move(staged);
     }
 
     /// Polymorphic subscribe — primary fluent entry point. Defined inline
@@ -2322,9 +2488,8 @@ public:
 
 private:
     friend class Client;
-    Stream(const ThetaDataDxClient* h,
-           std::unique_ptr<std::function<void(const StreamEvent&)>>* callback)
-        : handle_(h), callback_(callback) {}
+    Stream(const ThetaDataDxClient* h, std::shared_ptr<CallbackState> callback)
+        : handle_(h), callback_(std::move(callback)) {}
 
     // Static-member shim that the dispatcher invokes. It keeps C++ language
     // linkage (a member cannot be `extern "C"`) but its signature matches the
@@ -2344,10 +2509,13 @@ private:
     }
 
     const ThetaDataDxClient* handle_;
-    // Borrowed pointer to the parent `Client`'s callback storage slot. The
-    // parent outlives every transient `Stream` view, so the pointer is
-    // always valid for the view's lifetime.
-    std::unique_ptr<std::function<void(const StreamEvent&)>>* callback_;
+    // Shared ownership of the parent `Client`'s callback state. The state
+    // owns the currently-registered node, which lives at a fixed heap
+    // address, so the registered dispatcher `ctx` (`&callback_->slot->fn`)
+    // stays valid across a `Client` move and for this view's whole
+    // lifetime. A replacement installs a fresh node into the shared state,
+    // which both the `Client` and this view then observe.
+    std::shared_ptr<CallbackState> callback_;
 };
 
 /// Forward declaration for `Client::builder()`; defined immediately after
@@ -2427,26 +2595,53 @@ public:
         : callback_(std::move(other.callback_)),
           handle_(std::move(other.handle_)) {}
     /** Move-assign. The receiver may already hold a live streaming
-     *  session whose consumer thread is invoking through the
-     *  `callback_` storage. Drain the consumer before releasing the
-     *  storage — same discipline as `StreamingClient::operator=`. On drain
-     *  timeout, detach the callback storage onto a helper thread for a
-     *  30 s grace window so destruction happens off the move path. */
+     *  session whose consumer thread is invoking through the callback
+     *  node. Drain the consumer before releasing the node, the same
+     *  discipline as `StreamingClient::operator=`.
+     *
+     *  On drain timeout the consumer may still be firing through the
+     *  retired node's registered `ctx`, so neither the node nor the handle
+     *  backing the drain barrier may be released on this path. We hand BOTH
+     *  the retired handle and the retired callback state to a helper thread
+     *  that polls the same drain barrier and releases them only once the
+     *  consumer is confirmed quiesced (handle first so its free-time barrier
+     *  still sees a live ctx, then the node), with a bounded cap so a wedged
+     *  callback cannot leak either. The node is held by shared ownership, so
+     *  this keeps any outstanding `Stream` view's registered `ctx` valid for
+     *  the consumer's remaining invocations. */
     Client& operator=(Client&& other) noexcept {
         if (this != &other) {
             if (handle_) {
                 thetadatadx_client_stop_streaming(handle_.get());
                 int drained = thetadatadx_client_await_drain(handle_.get(), 5000);
                 if (drained == 0) {
-                    std::thread([cb = std::move(callback_)]() mutable {
-                        std::this_thread::sleep_for(std::chrono::seconds(30));
-                    }).detach();
-                } else {
-                    callback_.reset();
+                    // Borrow the raw handle for the quiescence poll; ownership
+                    // stays with `retired_handle` inside the reclaimer, which
+                    // frees it only after the consumer has stopped firing.
+                    const ThetaDataDxClient* raw = handle_.get();
+                    detail::reclaim_after_drain(
+                        [raw]() {
+                            return thetadatadx_client_await_drain(
+                                       raw,
+                                       static_cast<uint64_t>(
+                                           detail::kReclaimPollStep.count())) == 1;
+                        },
+                        [retired_handle = std::move(handle_),
+                         retired_cb = std::move(callback_)]() mutable {
+                            // Free the handle first so its internal drain
+                            // barrier still observes a live `ctx`, then drop
+                            // the callback state. Past confirmed quiescence
+                            // both are no-ops in ordering terms; on the cap
+                            // path this preserves the handle-before-callback
+                            // invariant the member declaration order encodes.
+                            retired_handle.reset();
+                            retired_cb.reset();
+                        });
+                    // `handle_` and `callback_` are now empty; the
+                    // reclaimer owns the retired session.
                 }
-            } else {
-                callback_.reset();
             }
+            callback_.reset();
             handle_ = std::move(other.handle_);
             callback_ = std::move(other.callback_);
         }
@@ -2454,33 +2649,47 @@ public:
     }
 
     /// Namespace handle for the FLATFILES surface. Cheap — borrows the
-    /// underlying C ABI handle, so the lifetime of the returned
-    /// `FlatFiles` value is bounded by `*this`.
-    FlatFiles flat_files() const { return FlatFiles(handle_.get()); }
+    /// underlying C ABI handle, so the returned `FlatFiles` value borrows
+    /// `*this` and must not outlive it.
+    ///
+    /// Lvalue-only: the accessor is ref-qualified to `const&`, so calling
+    /// it on a temporary is a compile error. Bind the client to a variable
+    /// first (`auto& c = ...; auto ff = c.flat_files();`); the view then
+    /// cannot outlive its client.
+    FlatFiles flat_files() const& { return FlatFiles(handle_.get()); }
 
     /// Historical-data sub-namespace: `client.historical().stock_history_eod(...)`.
     ///
     /// Returns a `Historical` view borrowing this client's handle. No auth
-    /// round-trip, no second connection; the view's lifetime is bounded by
-    /// `*this`.
-    Historical historical() const { return Historical(handle_.get()); }
+    /// round-trip, no second connection; the view borrows `*this` and must
+    /// not outlive it.
+    ///
+    /// Lvalue-only: the accessor is ref-qualified to `const&`, so calling
+    /// it on a temporary is a compile error. Bind the client to a variable
+    /// first; the view then cannot outlive its client.
+    Historical historical() const& { return Historical(handle_.get()); }
 
     /// Real-time-streaming sub-namespace: `client.stream().subscribe(...)`,
     /// `client.stream().set_callback(cb)`, …
     ///
-    /// Returns a `Stream` view borrowing this client's handle and a pointer
-    /// to this client's callback storage slot, so the streaming lifecycle
-    /// observed through the view is the one this client owns. The callback
-    /// `std::function` storage lives on `*this` (whose destructor runs the
-    /// C-ABI drain barrier), never on the transient view.
-    Stream stream() { return Stream(handle_.get(), &callback_); }
+    /// Returns a `Stream` view borrowing this client's handle and sharing
+    /// this client's callback node, so the streaming lifecycle observed
+    /// through the view is the one this client owns. The handle is borrowed
+    /// and must not outlive `*this`; the callback node is held by shared
+    /// ownership, so it survives a `Client` move.
+    ///
+    /// Lvalue-only: the accessor is ref-qualified to `&`, so calling it on
+    /// a temporary is a compile error. Bind the client to a variable first;
+    /// the view's borrowed handle then cannot outlive its client.
+    Stream stream() & { return Stream(handle_.get(), callback_); }
 
     /// Raw handle for advanced consumers that want to call the C ABI
     /// directly. Ownership remains with this object.
     const ThetaDataDxClient* get() const noexcept { return handle_.get(); }
 
 private:
-    explicit Client(ThetaDataDxClient* h) : handle_(h) {}
+    explicit Client(ThetaDataDxClient* h)
+        : callback_(std::make_shared<CallbackState>()), handle_(h) {}
 
     // ── Member ordering invariant (do not reorder) ──
     //
@@ -2495,10 +2704,18 @@ private:
     //
     // We therefore declare `handle_` AFTER `callback_`: reverse-order
     // destruction destroys `handle_` first → `thetadatadx_client_free` runs
-    // and its drain barrier returns → `callback_` storage is then
-    // released. Reordering these two members reintroduces the
-    // use-after-free.
-    std::unique_ptr<std::function<void(const StreamEvent&)>> callback_;
+    // and its drain barrier returns → this client's reference to the
+    // callback state (and the registered node it owns) is then released.
+    // Reordering these two members reintroduces the use-after-free.
+    //
+    // The state is held by `shared_ptr` and owns the registered node, which
+    // lives at a fixed address: a `Client` move transfers the reference
+    // without moving the node, and a `Stream` view holds its own reference
+    // to the same state. The registered `ctx` (`&CallbackSlot::fn`)
+    // therefore stays valid across any move and for as long as any holder
+    // lives. A callback replacement installs a fresh node into the shared
+    // state, so a later move or destruction operates on the current node.
+    std::shared_ptr<CallbackState> callback_;
     std::unique_ptr<ThetaDataDxClient, UnifiedDeleter> handle_;
 };
 

@@ -80,7 +80,7 @@ fn flatfile_request_rejects_unknown_sec_type() {
             "--sec-type",
             "bogus",
             "--req-type",
-            "quote",
+            "trade_quote",
             "--date",
             "20260428",
         ])
@@ -95,4 +95,38 @@ fn flatfile_request_rejects_unknown_sec_type() {
         stderr.contains("bogus") || stderr.contains("possible values"),
         "stderr should mention the rejected sec-type; got: {stderr}"
     );
+}
+
+#[test]
+fn flatfile_request_rejects_unserved_req_and_sec_types() {
+    // The generic `request` arm constrains both flags to the served matrix:
+    // `index` is not a served security type, and `quote` / `trade` / `ohlc`
+    // are not served as flat files. clap rejects each at parse time.
+    for (flag, value) in [
+        ("--sec-type", "index"),
+        ("--req-type", "quote"),
+        ("--req-type", "trade"),
+        ("--req-type", "ohlc"),
+    ] {
+        let other = if flag == "--sec-type" {
+            ["--req-type", "trade_quote"]
+        } else {
+            ["--sec-type", "option"]
+        };
+        let out = Command::new(binary())
+            .args([
+                "flatfile", "request", flag, value, other[0], other[1], "--date", "20260428",
+            ])
+            .output()
+            .expect("thetadatadx binary should exist");
+        assert!(
+            !out.status.success(),
+            "unserved {flag} {value} must fail at clap parse time"
+        );
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            stderr.contains(value) || stderr.contains("possible values"),
+            "stderr should reject `{value}`; got: {stderr}"
+        );
+    }
 }

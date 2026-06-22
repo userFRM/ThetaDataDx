@@ -408,32 +408,41 @@ async fn open_channel_pool(
                     tls_config.clone(),
                     max_message_size,
                     tuning,
+                    connect_timeout,
                 ),
             )
             .await
             .map_err(|_| {
-                Error::config_invalid(
-                    "historical.connect_timeout_secs",
-                    format!(
+                // A connect timeout means the server was unreachable or
+                // black-holed, not that the caller's config is wrong. Classify
+                // it as a transport fault (`ConnectionClosed`) so the retry
+                // shell treats it as transient/retryable like other transport
+                // faults, instead of a terminal `Config` misconfiguration.
+                Error::Transport {
+                    kind: crate::error::TransportErrorKind::ConnectionClosed,
+                    message: format!(
                         "tls connect to {host}:{port} timed out after {}s",
                         config.historical.connect_timeout_secs
                     ),
-                )
+                }
             })?
         } else {
             tokio::time::timeout(
                 connect_timeout,
-                Channel::connect_h2c_tuned(host, port, max_message_size, tuning),
+                Channel::connect_h2c_tuned(host, port, max_message_size, tuning, connect_timeout),
             )
             .await
             .map_err(|_| {
-                Error::config_invalid(
-                    "historical.connect_timeout_secs",
-                    format!(
+                // See the TLS branch above: a connect timeout is an
+                // unreachable-server transport fault, not a config error, so it
+                // is classified `ConnectionClosed` and stays retryable.
+                Error::Transport {
+                    kind: crate::error::TransportErrorKind::ConnectionClosed,
+                    message: format!(
                         "h2c connect to {host}:{port} timed out after {}s",
                         config.historical.connect_timeout_secs
                     ),
-                )
+                }
             })?
         }
         .map_err(|e| {
@@ -526,5 +535,75 @@ mod pool_size_tests {
             session_created: None,
         };
         assert_eq!(effective_pool_size(&auth), 4);
+    }
+}
+
+#[cfg(test)]
+mod connect_timeout_tests {
+    use super::open_channel_pool;
+    use crate::config::DirectConfig;
+    use crate::error::{Error, TransportErrorKind};
+
+    /// A connect that exceeds the configured timeout must surface as a
+    /// transport-class fault (`ConnectionClosed`), NOT a config error. The
+    /// retry shell classifies `Transport { ConnectionClosed }` as transient
+    /// (`crate::mdds::macros::classify_error`), so a black-holed / unreachable
+    /// server is retried instead of being misreported as caller
+    /// misconfiguration.
+    ///
+    /// The TLS path drives this deterministically: the client must receive the
+    /// server's `ServerHello` before `connect_tls_tuned` resolves, so a peer
+    /// that accepts the TCP connection but never speaks TLS holds the eager
+    /// connect open until the `tokio::time::timeout` in `open_channel_pool`
+    /// elapses. (An h2c connect cannot be used here: the hyper HTTP/2 client
+    /// handshake resolves as soon as it has sent its own preface, without
+    /// awaiting the server's SETTINGS, so a stalled h2c peer is reported ready.)
+    #[tokio::test]
+    async fn connect_timeout_is_transport_not_config() {
+        // Bind a listener that accepts connections and then stalls forever:
+        // the kernel completes the TCP handshake, but the server never sends a
+        // TLS `ServerHello`, so the gRPC TLS connect hangs until our 1 s
+        // deadline fires.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind loopback listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let accept = tokio::spawn(async move {
+            // Hold every accepted stream so the peer never closes the socket;
+            // the connect must time out rather than see a reset.
+            let mut held = Vec::new();
+            while let Ok((stream, _)) = listener.accept().await {
+                held.push(stream);
+            }
+        });
+
+        let mut config = DirectConfig::production_defaults();
+        // Short, deterministic deadline; TLS so the handshake blocks on the
+        // peer's first flight rather than resolving optimistically.
+        config.historical.connect_timeout_secs = 1;
+        config.historical.tls = true;
+
+        let result = open_channel_pool(&addr.ip().to_string(), addr.port(), true, 1, &config).await;
+
+        accept.abort();
+
+        match result {
+            Err(Error::Transport { kind, message }) => {
+                assert_eq!(
+                    kind,
+                    TransportErrorKind::ConnectionClosed,
+                    "a connect timeout must be a retryable transport fault; got message: {message}"
+                );
+                assert!(
+                    message.contains("timed out"),
+                    "message should describe the timeout: {message}"
+                );
+            }
+            Err(Error::Config { .. }) => {
+                panic!("connect timeout misreported as a (terminal) Config error")
+            }
+            Err(other) => panic!("expected Error::Transport(ConnectionClosed), got {other:?}"),
+            Ok(_) => panic!("connect to a stalled peer must not succeed"),
+        }
     }
 }

@@ -13,7 +13,7 @@ description: Query any endpoint from the command line with the thetadatadx binar
 cargo install thetadatadx-cli --git https://github.com/userFRM/ThetaDataDx
 ```
 
-Create `creds.txt` (email line 1, password line 2) in your working directory, or point at one with `--creds`.
+Sign in any of these ways: pass `--api-key <KEY>`, set `THETADATA_API_KEY` in the environment, set `THETADATA_EMAIL` + `THETADATA_PASSWORD` in the environment, or create `creds.txt` (email line 1, password line 2) in your working directory and point at it with `--creds`. They resolve in that order, highest first. These are the same names the SDK, the server, and the [MCP server](/mcp) read, so one login authenticates every tool.
 
 ## Usage
 
@@ -42,7 +42,8 @@ Commands mirror the endpoint names, and every parameter — required and optiona
 
 | Flag | Default | Description |
 |---|---|---|
-| `--creds <path>` | `creds.txt` | Credentials file. |
+| `--api-key <key>` | — | Authenticate with a ThetaData API key (or set `THETADATA_API_KEY`). Takes precedence over the environment variables and the email/password path. |
+| `--creds <path>` | `creds.txt` | Credentials file (email line 1, password line 2). Used when no API key and no `THETADATA_EMAIL` + `THETADATA_PASSWORD` pair is set. |
 | `--config <preset>` | `production` | `production` or `dev`. |
 | `--format <fmt>` | `table` | `table`, `json`, `json-raw`, or `csv`. `json-raw` emits dates as raw `YYYYMMDD` integers (and `ms_of_day` as raw milliseconds) instead of the ISO-formatted values `json` produces. |
 

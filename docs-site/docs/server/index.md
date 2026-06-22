@@ -33,7 +33,9 @@ chmod +x thetadatadx-server
 ./thetadatadx-server
 ```
 
-The cleaner way to sign in is an API key: generate one from your [ThetaData user portal](https://www.thetadata.net/) and pass it with `--api-key`, or set `THETADATA_API_KEY` in the environment and run the binary with no credential flag. Otherwise, on the first launch the server prompts for the email and password of your ThetaData login, then saves them to a local `creds.txt` file so the prompt does not repeat. Pass `--creds <path>` to use a different file, or supply `--email` / `--password` directly.
+The cleaner way to sign in is an API key: generate one from your [ThetaData user portal](https://www.thetadata.net/) and pass it with `--api-key`, or set `THETADATA_API_KEY` in the environment and run the binary with no credential flag. You can also sign in with your email and password: pass `--email` / `--password`, set `THETADATA_EMAIL` + `THETADATA_PASSWORD` in the environment, or use a `--creds <path>` file (email line 1, password line 2). Otherwise, on the first launch the server prompts for the email and password of your ThetaData login, then saves them to a local `creds.txt` file so the prompt does not repeat.
+
+Credentials resolve in this order, highest first: the `--api-key` flag, then `THETADATA_API_KEY`, then `THETADATA_EMAIL` + `THETADATA_PASSWORD`, then the `--creds` file (default `creds.txt`). These are the same names the SDK, the CLI, and the [MCP server](/mcp) read, so one login authenticates every tool.
 
 This starts:
 
@@ -62,9 +64,9 @@ thetadatadx-server --creds creds.txt
 
 | Flag | Default | Description |
 |---|---|---|
-| `--api-key <key>` | — | Authenticate with a ThetaData API key (or set `THETADATA_API_KEY`). Takes precedence over the environment variable and the email/password path. |
+| `--api-key <key>` | — | Authenticate with a ThetaData API key (or set `THETADATA_API_KEY`). Takes precedence over the environment variables and the email/password path. |
 | `--creds <path>` | `creds.txt` | Credentials file (email line 1, password line 2). |
-| `--email` / `--password` | — | Inline credentials, as an alternative to `--creds`. |
+| `--email` / `--password` | — | Inline credentials (or set `THETADATA_EMAIL` + `THETADATA_PASSWORD`, or use `--creds`). |
 | `--config <path>` | — | TOML [configuration](/articles/configuration) file. |
 | `--fpss-region <region>` | `production` | Streaming environment: `production`, `dev`, `stage`. |
 | `--http-port <port>` | `25503` | HTTP REST port. |
@@ -81,6 +83,8 @@ thetadatadx-server --creds creds.txt
 | Variable | Default | Description |
 |---|---|---|
 | `THETADATA_API_KEY` | — | API key used for authentication when `--api-key` is not passed. An explicit `--api-key` flag wins over this; both win over the email/password path. The key is never logged or echoed. |
+| `THETADATA_EMAIL` | — | Account email. With `THETADATA_PASSWORD`, authenticates the server when no API key is supplied. Outranked by `--api-key` and `THETADATA_API_KEY`; wins over the `--creds` file. |
+| `THETADATA_PASSWORD` | — | Account password, paired with `THETADATA_EMAIL`. Never logged or echoed. |
 | `THETADATADX_RATE_LIMIT_PER_SECOND` | — (off) | Opt into per-IP rate limiting at this many requests per second. Setting either rate-limit variable turns the limiter on; see [Security defaults](#security-defaults). |
 | `THETADATADX_RATE_LIMIT_BURST_SIZE` | — (off) | Burst size for the per-IP rate limiter. If you set only one of the two rate-limit variables, the other falls back to `20` req/s / `40` burst. |
 | `THETADATADX_WS_CLIENT_CAPACITY` | `4096` | Per-client WebSocket send-buffer capacity in events. A larger buffer trades memory for more headroom before a slow consumer starts dropping events; invalid or zero values keep the default. |

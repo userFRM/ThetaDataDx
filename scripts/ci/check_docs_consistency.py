@@ -54,13 +54,84 @@ OPENAPI_SERVER_URL = "http://localhost:25503"
 DOCS_SITE = ROOT / "docs-site/docs"
 OPENAPI_YAML = DOCS_SITE / "public/thetadatadx.yaml"
 
-# Paths exposed only by the thetadatadx-server binary (not by the upstream
-# ThetaData terminal). Allowlist these so the drift check focuses on
-# upstream-tracking endpoints. `/v3/system/shutdown` is a privileged
-# graceful-shutdown route gated by a per-startup UUID token — see
-# `tools/server/src/handler.rs::system_shutdown` and the hardening section
-# in `docs-site/docs/server/index.md`.
-SERVER_SPECIFIC_PATHS = {"/v3/system/shutdown"}
+# The Rust source that is the single source of truth for the flat-file served
+# matrix: the `(SecType, ReqType)` pairs the distribution serves
+# (`SERVED_DATASETS`), plus the client-facing tokens those variants render to
+# (`SecType::as_wire` lower-cased and `ReqType::as_str`). The OpenAPI flat-file
+# enums must match this matrix exactly, so the gate derives the expected matrix
+# from this file rather than carrying a hand-maintained copy that could drift.
+FLATFILE_TYPES_RS = ROOT / "crates/thetadatadx/src/flatfiles/types.rs"
+
+# The MCP server source is the single source of truth for the tool surface a
+# connected `tools/list` returns: the registry historical endpoints (one tool
+# per endpoint), the offline utilities (`OFFLINE_TOOL_NAMES` in `main.rs`), and
+# the flat-file tools advertised by `push_flatfile_tool_definitions` in
+# `flatfile_tools.rs`. The gate parses the non-registry tool names from these
+# files so a tool added in code but left out of the docs trips the gate rather
+# than the docs carrying a hand-maintained count that silently drifts.
+MCP_MAIN_RS = ROOT / "tools/mcp/src/main.rs"
+MCP_FLATFILE_TOOLS_RS = ROOT / "tools/mcp/src/flatfile_tools.rs"
+
+# Docs that must enumerate the connection-only MCP tools by name, each paired
+# with the `##` heading of the section that carries the tool listing. The
+# enumeration is checked inside that section only: a tool name mentioned in
+# unrelated prose elsewhere in the file (an intro blockquote, an example) must
+# not mask a missing entry in the actual tool list, so removing a tool from the
+# listing trips the gate even when the name survives elsewhere.
+MCP_DOC_TOOL_SECTIONS = (
+    (ROOT / "tools/mcp/README.md", "## Available Tools"),
+    (DOCS_SITE / "mcp.md", "## Tools"),
+)
+
+# Server source files that register the `/v3` HTTP routes. The server is the
+# source of truth for the served route set, so the gate parses the `.route(...)`
+# literals from these files rather than carrying a hand-maintained duplicate
+# list that could silently drift from what the binary actually serves.
+SERVER_ROUTER_FILES = (
+    ROOT / "tools/server/src/router.rs",
+    ROOT / "tools/server/src/flatfile_routes.rs",
+)
+
+# `.route("/v3/...")` literal. The path string may sit on the same line as
+# `.route(` or wrap onto the next, so `\s*` (which spans newlines) bridges the
+# two. Restricting the capture to `/v3/...` naturally excludes any non-served
+# test-only route (e.g. a `/probe` probe router under `#[cfg(test)]`).
+ROUTE_LITERAL_RE = re.compile(r"\.route\(\s*\"(/v3/[^\"]*)\"")
+
+
+def served_v3_routes() -> set[str]:
+    """The full `/v3` route set the server binary actually serves.
+
+    Parsed from the server router source (`SERVER_ROUTER_FILES`), so a route
+    added to or removed from the binary moves this set with it and the OpenAPI
+    path-set assertion below tracks the real surface with no edit to this gate.
+    Axum path params use `{name}` braces, matching the OpenAPI path templating.
+    """
+    routes: set[str] = set()
+    for path in SERVER_ROUTER_FILES:
+        routes |= set(ROUTE_LITERAL_RE.findall(path.read_text()))
+    return routes
+
+
+# Routes the server serves beyond the upstream-tracking registry endpoints:
+# the system status / lifecycle routes and the flat-file download routes. These
+# are documented in the OpenAPI contract (they are real served routes) but are
+# not in `REST_PATHS`. Derived, not hand-listed, so it cannot drift.
+SERVER_ONLY_PATHS = served_v3_routes() - REST_PATHS
+
+# operationIds for the server-only routes documented in the OpenAPI contract.
+# The upstream endpoints derive their operationId from the registry name; the
+# server-only routes carry hand-authored operationIds, pinned here so the
+# operationId-set equality below neither rejects them nor lets an unrelated id
+# slip in. `/v3/system/shutdown` carries no operationId (it never has), so it
+# contributes none.
+SERVER_ONLY_OPERATION_IDS = {
+    "systemStatus",
+    "systemMddsStatus",
+    "systemFpssStatus",
+    "flatfileGet",
+    "flatfileRequest",
+}
 BUILDER_PARAMS = {
     param["name"]
     for group in SURFACE["param_groups"].values()
@@ -95,7 +166,6 @@ def endpoint_kind(endpoint: dict) -> str:
 
 
 REGISTRY_ENDPOINTS = [ep for ep in ENDPOINTS if endpoint_kind(ep) != "stream"]
-EXPECTED_TOOL_COUNT = len(REGISTRY_ENDPOINTS) + 3
 
 
 def lower_camel(snake: str) -> str:
@@ -133,19 +203,24 @@ def check_static_docs() -> None:
     )
     expect_contains(
         ROOT / "tools/mcp/README.md",
-        "Every generated historical endpoint plus 3 offline tools (`ping`, `all_greeks`, `implied_volatility`).",
+        "Every generated historical endpoint plus 3 offline tools (`ping`, `all_greeks`, `implied_volatility`) and, when connected, 6 flat-file tools.",
     )
 
     expect_contains(
         DOCS_SITE / "mcp.md",
         "Every generated historical endpoint plus `ping`, `all_greeks`, and `implied_volatility`.",
     )
-    # Version strings in getting-started docs must match the workspace
-    # major; the version-sync gate (`scripts/ci/check_version_sync.py`)
-    # enforces this against `crates/thetadatadx/Cargo.toml` canonically.
+    # Version strings in getting-started docs must match the canonical
+    # workspace version; derive it from `crates/thetadatadx/Cargo.toml`
+    # so the pin tracks bumps automatically instead of pinning a literal
+    # that silently ages. The version-sync gate
+    # (`scripts/ci/check_version_sync.py`) enforces the major separately.
+    cargo_version = tomllib.loads(
+        (ROOT / "crates/thetadatadx/Cargo.toml").read_text()
+    )["package"]["version"]
     expect_contains(
         DOCS_SITE / "articles/getting-started.md",
-        'thetadatadx = "13.0.0-rc.1"',
+        f'thetadatadx = "{cargo_version}"',
     )
     expect_contains(
         DOCS_SITE / "mcp.md",
@@ -452,33 +527,56 @@ def check_openapi() -> None:
             f"HTTP server url {OPENAPI_SERVER_URL!r}; found {server_urls}"
         )
 
+    # OpenAPI path keys, including templated segments (`{sec_type}`): the brace
+    # characters must be in the class or the flat-file path is invisible to the
+    # gate, the gap that let a server-only route go undocumented.
     actual_paths = {
         match.group(1)
-        for match in re.finditer(r"^  (/[A-Za-z0-9_/-]+):\s*$", text, re.MULTILINE)
+        for match in re.finditer(r"^  (/[A-Za-z0-9_/{}-]+):\s*$", text, re.MULTILINE)
     }
-    # Server-specific paths are expected in our OpenAPI (they document
-    # functionality the thetadatadx-server binary exposes) but are NOT in
-    # the upstream endpoint registry. Filter them out before comparing to
-    # `REST_PATHS` so the drift check only fires on real upstream drift.
-    effective_actual_paths = actual_paths - SERVER_SPECIFIC_PATHS
-    if effective_actual_paths != REST_PATHS:
-        missing = sorted(REST_PATHS - effective_actual_paths)
-        extra = sorted(effective_actual_paths - REST_PATHS)
+    # The contract must document the FULL served route set: the upstream-tracking
+    # registry endpoints plus every server-only `/v3` route the binary serves
+    # (system status / lifecycle + flat-file downloads), derived from the server
+    # router source. A route the binary serves but the spec omits leaves a
+    # generated client unable to call it; a spec path the binary does not serve
+    # is a dangling contract. Either direction trips.
+    expected_paths = REST_PATHS | SERVER_ONLY_PATHS
+    if actual_paths != expected_paths:
+        missing = sorted(expected_paths - actual_paths)
+        extra = sorted(actual_paths - expected_paths)
         fail(
-            f"{OPENAPI_YAML.relative_to(ROOT)} path set drifted. "
-            f"missing={missing or '[]'} extra={extra or '[]'}"
+            f"{OPENAPI_YAML.relative_to(ROOT)} path set drifted from the served "
+            f"route set. missing={missing or '[]'} extra={extra or '[]'}"
         )
 
     actual_ops = {
         match.group(1) for match in re.finditer(r"^\s*operationId:\s*(\S+)", text, re.MULTILINE)
     }
-    expected_ops = {lower_camel(ep["name"]) for ep in REGISTRY_ENDPOINTS}
+    # Registry endpoints derive their operationId from the registry name; the
+    # server-only routes carry their pinned hand-authored ids. The full set must
+    # match exactly so neither a dropped endpoint id nor a stray id slips by.
+    expected_ops = {
+        lower_camel(ep["name"]) for ep in REGISTRY_ENDPOINTS
+    } | SERVER_ONLY_OPERATION_IDS
     if actual_ops != expected_ops:
         missing = sorted(expected_ops - actual_ops)
         extra = sorted(actual_ops - expected_ops)
         fail(
             f"{OPENAPI_YAML.relative_to(ROOT)} operationId set drifted. "
             f"missing={missing or '[]'} extra={extra or '[]'}"
+        )
+
+    # No global per-request security scheme. The server authenticates its
+    # upstream connection once at startup; request paths carry no per-request
+    # credential. The only allowed requirement is the route-scoped shutdown
+    # token on POST /v3/system/shutdown. A top-level `security:` block (a
+    # document-wide default applied to every operation) is a contract for a
+    # credential the server never reads, so it must not reappear.
+    if re.search(r"(?m)^security:\s*$", text):
+        fail(
+            f"{OPENAPI_YAML.relative_to(ROOT)} declares a global `security:` block. "
+            f"The server reads no per-request credential; keep only the "
+            f"route-scoped shutdown token on POST /v3/system/shutdown."
         )
 
 
@@ -488,6 +586,344 @@ def extract_struct_fields(path: Path, struct_pattern: str, field_pattern: str) -
     if not match:
         fail(f"{path.relative_to(ROOT)} missing expected struct pattern: {struct_pattern!r}")
     return set(re.findall(field_pattern, match.group(1), re.MULTILINE))
+
+
+def _rust_match_arm_map(body: str, lhs_variant: str) -> dict[str, str]:
+    """Parse `Self::Variant => "token",` arms into a `{Variant: token}` map.
+
+    `body` is the source slice holding the match arms (e.g. the body of a
+    `fn as_str` / `fn as_wire`). `lhs_variant` captures the variant identifier
+    after `Self::`. The result keys the Rust variant to the string literal it
+    renders to, so the gate maps `SERVED_DATASETS` entries to the client-facing
+    tokens the OpenAPI enums carry without hand-coding either side.
+    """
+    return {
+        m.group(1): m.group(2)
+        for m in re.finditer(
+            rf'Self::({lhs_variant})\s*=>\s*"([^"]+)"', body
+        )
+    }
+
+
+def flatfile_served_matrix() -> dict[str, set[str]]:
+    """Derive `{sec_type_token: {req_type_token, ...}}` from the Rust source.
+
+    Parses `SERVED_DATASETS` (the `(SecType::X, ReqType::Y)` pairs the flat-file
+    distribution serves) and the variant-to-token maps from `SecType::as_wire`
+    and `ReqType::as_str`, all in `FLATFILE_TYPES_RS`. The sec_type token is the
+    lower-cased `as_wire` value (`OPTION` -> `option`), matching the OpenAPI
+    flat-file path/enum spelling; the req_type token is the `as_str` value
+    verbatim. A single source means a served-matrix change in the Rust enum
+    moves the expected matrix here with no edit to this gate.
+    """
+    text = FLATFILE_TYPES_RS.read_text()
+
+    # Variant -> token maps from the two `as_*` methods. Restrict each search to
+    # the method body so unrelated `Self::X => ...` arms (e.g. Display) are not
+    # swept in.
+    sec_body = re.search(
+        r"fn as_wire\(self\) -> &'static str \{(.*?)\n    \}", text, re.DOTALL
+    )
+    req_body = re.search(
+        r"fn as_str\(self\) -> &'static str \{(.*?)\n    \}", text, re.DOTALL
+    )
+    if not sec_body or not req_body:
+        fail(
+            f"{FLATFILE_TYPES_RS.relative_to(ROOT)} missing SecType::as_wire / "
+            f"ReqType::as_str bodies the flat-file matrix gate parses"
+        )
+    sec_token = {
+        variant: wire.lower()
+        for variant, wire in _rust_match_arm_map(
+            sec_body.group(1), r"Option|Stock|Index"
+        ).items()
+    }
+    req_token = _rust_match_arm_map(
+        req_body.group(1), r"Eod|Quote|OpenInterest|Ohlc|Trade|TradeQuote"
+    )
+
+    # The served pairs themselves. `SERVED_DATASETS` is a `&[(SecType::_,
+    # ReqType::_)]` literal; capture each `(SecType::A, ReqType::B)` tuple.
+    served_block = re.search(
+        r"pub const SERVED_DATASETS:[^=]*=\s*&\[(.*?)\];", text, re.DOTALL
+    )
+    if not served_block:
+        fail(
+            f"{FLATFILE_TYPES_RS.relative_to(ROOT)} missing the SERVED_DATASETS "
+            f"slice the flat-file matrix gate parses"
+        )
+    pairs = re.findall(
+        r"\(\s*SecType::(\w+)\s*,\s*ReqType::(\w+)\s*\)", served_block.group(1)
+    )
+    if not pairs:
+        fail(
+            f"{FLATFILE_TYPES_RS.relative_to(ROOT)} SERVED_DATASETS parsed to no "
+            f"(SecType, ReqType) pairs"
+        )
+
+    matrix: dict[str, set[str]] = {}
+    for sec_variant, req_variant in pairs:
+        if sec_variant not in sec_token:
+            fail(f"SERVED_DATASETS names SecType::{sec_variant} with no as_wire token")
+        if req_variant not in req_token:
+            fail(f"SERVED_DATASETS names ReqType::{req_variant} with no as_str token")
+        matrix.setdefault(sec_token[sec_variant], set()).add(req_token[req_variant])
+    return matrix
+
+
+def _yaml_block(text: str, header_re: str, *, after: int = 0) -> tuple[str, int]:
+    """Return the indented body under the first `header_re` line at/after `after`.
+
+    The body runs from the header line to the next line indented at or below the
+    header's own indentation (or end of file). Used to scope an enum/oneOf parse
+    to a single OpenAPI node so a later same-named key cannot bleed in. Returns
+    the body text and the absolute offset where it ends.
+    """
+    m = re.search(header_re, text[after:], re.MULTILINE)
+    if not m:
+        return "", len(text)
+    start = after + m.start()
+    header_indent = len(m.group(0)) - len(m.group(0).lstrip())
+    lines = text[start:].splitlines(keepends=True)
+    out: list[str] = [lines[0]]
+    pos = start + len(lines[0])
+    for line in lines[1:]:
+        if line.strip() and (len(line) - len(line.lstrip())) <= header_indent:
+            break
+        out.append(line)
+        pos += len(line)
+    return "".join(out), pos
+
+
+def _enum_values(block: str) -> list[str]:
+    """The inline-list `enum: [a, b, c]` values in `block`, stripped of quotes."""
+    m = re.search(r"enum:\s*\[([^\]]*)\]", block)
+    if not m:
+        return []
+    return [v.strip().strip("'\"") for v in m.group(1).split(",") if v.strip()]
+
+
+def check_flatfile_matrix() -> None:
+    """OpenAPI flat-file enums must equal the `SERVED_DATASETS` served matrix.
+
+    The path form (`/v3/flatfile/{sec_type}/{req_type}`) takes the two segments
+    independently, so its `sec_type` enum must be the served security types and
+    its `req_type` enum the union of every served request type. The body form
+    (`POST /v3/flatfile/request`) constrains the served pairs per security type
+    through a `oneOf`, so each branch must pin one `sec_type` to exactly that
+    type's served request types. A served-matrix drift in the checked-in spec
+    in either direction fails the gate.
+    """
+    matrix = flatfile_served_matrix()
+    expected_secs = set(matrix)
+    expected_req_union = set().union(*matrix.values())
+
+    text = OPENAPI_YAML.read_text()
+
+    # --- Path form: /v3/flatfile/{sec_type}/{req_type} ----------------------
+    path_block, _ = _yaml_block(
+        text, r"^  /v3/flatfile/\{sec_type\}/\{req_type\}:\s*$"
+    )
+    if not path_block:
+        fail(
+            f"{OPENAPI_YAML.relative_to(ROOT)} missing the flat-file path "
+            f"/v3/flatfile/{{sec_type}}/{{req_type}}"
+        )
+    sec_param, _ = _yaml_block(path_block, r"^        - name: sec_type\s*$")
+    req_param, _ = _yaml_block(path_block, r"^        - name: req_type\s*$")
+    path_secs = set(_enum_values(sec_param))
+    path_reqs = set(_enum_values(req_param))
+    if path_secs != expected_secs:
+        fail(
+            f"{OPENAPI_YAML.relative_to(ROOT)} flat-file path sec_type enum "
+            f"{sorted(path_secs)} != served security types {sorted(expected_secs)}"
+        )
+    if path_reqs != expected_req_union:
+        fail(
+            f"{OPENAPI_YAML.relative_to(ROOT)} flat-file path req_type enum "
+            f"{sorted(path_reqs)} != union of served request types "
+            f"{sorted(expected_req_union)}"
+        )
+
+    # --- Body form: POST /v3/flatfile/request oneOf branches ----------------
+    req_path_block, _ = _yaml_block(text, r"^  /v3/flatfile/request:\s*$")
+    if not req_path_block:
+        fail(
+            f"{OPENAPI_YAML.relative_to(ROOT)} missing the flat-file body path "
+            f"/v3/flatfile/request"
+        )
+    oneof_block, _ = _yaml_block(req_path_block, r"^              oneOf:\s*$")
+    if not oneof_block:
+        fail(
+            f"{OPENAPI_YAML.relative_to(ROOT)} POST /v3/flatfile/request has no "
+            f"oneOf constraining the served (sec_type, req_type) pairs"
+        )
+    # Each branch begins at a `- title:` list item; split on those markers.
+    branch_starts = [m.start() for m in re.finditer(r"^                - ", oneof_block, re.MULTILINE)]
+    if not branch_starts:
+        fail(
+            f"{OPENAPI_YAML.relative_to(ROOT)} flat-file request oneOf has no "
+            f"branches"
+        )
+    branch_bounds = branch_starts + [len(oneof_block)]
+    body_matrix: dict[str, set[str]] = {}
+    for i in range(len(branch_starts)):
+        branch = oneof_block[branch_bounds[i] : branch_bounds[i + 1]]
+        sec_prop, _ = _yaml_block(branch, r"^                    sec_type:\s*$")
+        req_prop, _ = _yaml_block(branch, r"^                    req_type:\s*$")
+        secs = _enum_values(sec_prop)
+        reqs = set(_enum_values(req_prop))
+        if len(secs) != 1:
+            fail(
+                f"{OPENAPI_YAML.relative_to(ROOT)} flat-file request oneOf branch "
+                f"must pin exactly one sec_type; got {secs}"
+            )
+        sec = secs[0]
+        if sec in body_matrix:
+            fail(
+                f"{OPENAPI_YAML.relative_to(ROOT)} flat-file request oneOf has "
+                f"duplicate branch for sec_type {sec!r}"
+            )
+        body_matrix[sec] = reqs
+    if body_matrix != matrix:
+        fail(
+            f"{OPENAPI_YAML.relative_to(ROOT)} flat-file request oneOf matrix "
+            f"{ {k: sorted(v) for k, v in body_matrix.items()} } != served matrix "
+            f"{ {k: sorted(v) for k, v in matrix.items()} }"
+        )
+
+
+def _rust_str_array_items(text: str, const_name: str) -> list[str]:
+    """The string literals in a `const NAME: [...] = [ "a", "b", ... ];` array.
+
+    Used to read `OFFLINE_TOOL_NAMES` from the MCP `main.rs` so the offline tool
+    set tracks the source const rather than a copy in this gate.
+    """
+    m = re.search(rf"const {const_name}:[^=]*=\s*\[(.*?)\];", text, re.DOTALL)
+    if not m:
+        fail(f"{MCP_MAIN_RS.relative_to(ROOT)} missing the {const_name} array")
+    return re.findall(r'"([^"]+)"', m.group(1))
+
+
+def _rust_fn_body(text: str, fn_signature_re: str, path: Path) -> str:
+    """The brace-balanced body of the first `fn` matching `fn_signature_re`.
+
+    Scopes a literal scan to one function so an identically-spelled literal in a
+    sibling function (e.g. a temp-path format string, a test fixture) is never
+    swept in.
+    """
+    m = re.search(fn_signature_re, text)
+    if not m:
+        fail(f"{path.relative_to(ROOT)} missing fn matching {fn_signature_re!r}")
+    depth = 0
+    start = None
+    for i in range(m.start(), len(text)):
+        ch = text[i]
+        if ch == "{":
+            if depth == 0:
+                start = i + 1
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start:i]
+    fail(f"{path.relative_to(ROOT)} fn matching {fn_signature_re!r} has no closed body")
+    return ""  # unreachable; fail() raises
+
+
+def mcp_tool_inventory() -> dict[str, list[str]]:
+    """The connected `tools/list` surface, derived from the MCP server source.
+
+    Returns the tool names grouped by origin:
+
+    - ``registry``: one tool per non-stream registry endpoint (the historical
+      surface), named after the endpoint.
+    - ``offline``: the always-available utilities, read from
+      ``OFFLINE_TOOL_NAMES`` in ``main.rs``.
+    - ``flatfile``: the flat-file tools advertised by
+      ``push_flatfile_tool_definitions`` in ``flatfile_tools.rs``.
+
+    A connected `tools/list` returns the union; the docs gate asserts the docs
+    enumerate it, so a tool added in code but absent from the docs fails here.
+    """
+    registry = [ep["name"] for ep in REGISTRY_ENDPOINTS]
+
+    offline = _rust_str_array_items(MCP_MAIN_RS.read_text(), "OFFLINE_TOOL_NAMES")
+    if not offline:
+        fail(f"{MCP_MAIN_RS.relative_to(ROOT)} OFFLINE_TOOL_NAMES parsed to no tools")
+
+    flatfile_body = _rust_fn_body(
+        MCP_FLATFILE_TOOLS_RS.read_text(),
+        r"fn push_flatfile_tool_definitions\b",
+        MCP_FLATFILE_TOOLS_RS,
+    )
+    flatfile = sorted(set(re.findall(r'"(thetadatadx_flatfile_[a-z_]+)"', flatfile_body)))
+    if not flatfile:
+        fail(
+            f"{MCP_FLATFILE_TOOLS_RS.relative_to(ROOT)} push_flatfile_tool_definitions "
+            f"advertised no flat-file tools"
+        )
+
+    return {"registry": registry, "offline": offline, "flatfile": flatfile}
+
+
+def _markdown_section(text: str, heading: str, path: Path) -> str:
+    """The body under a `##` `heading` up to the next `##`-or-shallower heading.
+
+    Scopes a tool-enumeration scan to the doc's tool-listing section so a tool
+    name appearing in unrelated prose elsewhere in the file cannot satisfy the
+    check for a tool dropped from the listing itself.
+    """
+    lines = text.splitlines()
+    try:
+        start = next(i for i, line in enumerate(lines) if line.strip() == heading)
+    except StopIteration:
+        fail(f"{path.relative_to(ROOT)} missing the {heading!r} section the tool gate scans")
+    level = len(heading) - len(heading.lstrip("#"))
+    out: list[str] = []
+    for line in lines[start + 1 :]:
+        stripped = line.lstrip("#")
+        depth = len(line) - len(stripped)
+        if line.startswith("#") and stripped.startswith(" ") and depth <= level:
+            break
+        out.append(line)
+    return "\n".join(out)
+
+
+def check_mcp_tool_inventory() -> None:
+    """The MCP docs must enumerate the connected `tools/list` surface.
+
+    Every connection-only tool (the offline utilities plus the flat-file tools)
+    must appear by name in each MCP doc's tool-listing section. The flat-file
+    tools are the surface that previously had no doc-gate coverage: a flat-file
+    tool advertised by the server but missing from the listing trips this check.
+    The README also lists every registry historical endpoint by name in its tool
+    tables, so the full inventory is asserted against it; `mcp.md` defers the
+    per-endpoint listing to the generated reference pages, so only the
+    connection-only tools are pinned there.
+    """
+    inv = mcp_tool_inventory()
+    connection_only = inv["offline"] + inv["flatfile"]
+
+    for doc, heading in MCP_DOC_TOOL_SECTIONS:
+        section = _markdown_section(doc.read_text(), heading, doc)
+        missing = [name for name in connection_only if f"`{name}`" not in section]
+        if missing:
+            fail(
+                f"{doc.relative_to(ROOT)} {heading!r} section does not enumerate MCP "
+                f"tools that the connected tools/list advertises: {missing}. Document "
+                f"them so the docs match the server's tool surface."
+            )
+
+    readme, readme_heading = MCP_DOC_TOOL_SECTIONS[0]
+    readme_section = _markdown_section(readme.read_text(), readme_heading, readme)
+    missing_registry = [name for name in inv["registry"] if f"`{name}`" not in readme_section]
+    if missing_registry:
+        fail(
+            f"{readme.relative_to(ROOT)} {readme_heading!r} section does not list every "
+            f"registry MCP tool by name: {missing_registry}. The README tool tables must "
+            f"cover the full historical surface the connected tools/list advertises."
+        )
 
 
 def check_endpoint_option_surface() -> None:
@@ -566,6 +1002,8 @@ def main() -> None:
     check_reference_pages()
     check_llms_txt()
     check_openapi()
+    check_flatfile_matrix()
+    check_mcp_tool_inventory()
     check_endpoint_option_surface()
     check_tier_badges()
     print("docs consistency: ok")

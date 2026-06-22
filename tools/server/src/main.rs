@@ -57,11 +57,13 @@ struct Args {
     #[arg(long)]
     api_key: Option<String>,
 
-    /// Email for ThetaData authentication (alternative to --creds file).
+    /// Email for ThetaData authentication (or set THETADATA_EMAIL +
+    /// THETADATA_PASSWORD, or use a --creds file).
     #[arg(long)]
     email: Option<String>,
 
-    /// Password for ThetaData authentication (alternative to --creds file).
+    /// Password for ThetaData authentication (or set THETADATA_EMAIL +
+    /// THETADATA_PASSWORD, or use a --creds file).
     #[arg(long)]
     password: Option<String>,
 
@@ -110,12 +112,20 @@ struct Args {
     no_ohlcvc: bool,
 }
 
-/// Environment variable that supplies a ThetaData API key.
+/// Canonical environment variable names, shared with the SDK, the CLI, and
+/// the MCP server so the same value authenticates every tool without
+/// per-tool divergence.
 ///
-/// Matches the standard variable the SDKs read via
-/// `Credentials::from_env_or_file`, so the same value authenticates the
-/// server and every binding without per-tool divergence.
+/// `THETADATA_API_KEY` matches the standard variable the SDKs read via
+/// `Credentials::from_env_or_file`; `THETADATA_EMAIL` + `THETADATA_PASSWORD`
+/// match the pair `Credentials::from_dotenv` reads, so the same login works
+/// whether it is exported into the process environment or supplied by flag
+/// or creds file.
 const API_KEY_ENV: &str = "THETADATA_API_KEY";
+/// Environment variable that supplies the account email.
+const EMAIL_ENV: &str = "THETADATA_EMAIL";
+/// Environment variable that supplies the account password.
+const PASSWORD_ENV: &str = "THETADATA_PASSWORD";
 
 // ---------------------------------------------------------------------------
 //  Credential source selection
@@ -135,36 +145,49 @@ enum CredentialSource {
     /// No flag, but `THETADATA_API_KEY` is set; source the key from the
     /// environment, falling back to the creds file when the variable is
     /// empty (delegated to `Credentials::from_env_or_file`).
-    EnvOrFile,
-    /// Neither an API key flag nor the environment variable; use the
-    /// existing email/password path (`--email`/`--password`/`--creds`).
-    EmailPassword,
+    EnvApiKeyOrFile,
+    /// No api key anywhere, but both `THETADATA_EMAIL` and
+    /// `THETADATA_PASSWORD` are set; build email + password credentials
+    /// from the environment.
+    EnvEmailPassword,
+    /// None of the above; use the flag/file email/password path
+    /// (`--email`/`--password`/`--creds`/`creds.txt`).
+    EmailPasswordFlagOrFile,
 }
 
-/// Decide which credential source to use, given whether `--api-key` was
-/// passed and whether `THETADATA_API_KEY` holds a non-empty value.
+/// Decide which credential source to use from the presence of the
+/// `--api-key` flag, the `THETADATA_API_KEY` variable, and the complete
+/// `THETADATA_EMAIL` + `THETADATA_PASSWORD` pair.
 ///
 /// Precedence (highest first): explicit `--api-key` flag, then the
-/// `THETADATA_API_KEY` environment variable, then the email/password path.
-/// This matches the SDK ordering, where an explicit constructor argument
-/// wins over the environment, which in turn wins over the creds file.
-fn select_credential_source(api_key_flag: bool, env_api_key_present: bool) -> CredentialSource {
+/// `THETADATA_API_KEY` environment variable, then the
+/// `THETADATA_EMAIL` + `THETADATA_PASSWORD` environment pair, then the
+/// flag/file email/password path. This matches the CLI and MCP resolvers
+/// and the SDK ordering, where an explicit constructor argument wins over
+/// the environment, which in turn wins over the creds file.
+fn select_credential_source(
+    api_key_flag: bool,
+    env_api_key_present: bool,
+    env_email_password_present: bool,
+) -> CredentialSource {
     if api_key_flag {
         CredentialSource::ApiKeyFlag
     } else if env_api_key_present {
-        CredentialSource::EnvOrFile
+        CredentialSource::EnvApiKeyOrFile
+    } else if env_email_password_present {
+        CredentialSource::EnvEmailPassword
     } else {
-        CredentialSource::EmailPassword
+        CredentialSource::EmailPasswordFlagOrFile
     }
 }
 
-/// Whether `THETADATA_API_KEY` is set to a non-empty (after trim) value.
+/// Whether an environment variable is set to a non-empty (after trim) value.
 ///
-/// An empty or whitespace-only variable is treated as absent so it does
-/// not shadow the email/password path, mirroring
+/// An empty or whitespace-only variable is treated as absent so it does not
+/// shadow a lower-precedence credential source, mirroring
 /// `Credentials::from_env_or_file`.
-fn env_api_key_present() -> bool {
-    std::env::var(API_KEY_ENV).is_ok_and(|v| !v.trim().is_empty())
+fn env_var_present(name: &str) -> bool {
+    std::env::var(name).is_ok_and(|v| !v.trim().is_empty())
 }
 
 // ---------------------------------------------------------------------------
@@ -227,10 +250,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Step 1: Load credentials.
     //
     // Precedence (highest first): an explicit `--api-key` flag, then the
-    // `THETADATA_API_KEY` environment variable, then the existing
-    // email/password path (`--email`/`--password`/`--creds`/`creds.txt`).
-    // This mirrors the SDK ordering so the server and every binding accept
-    // the same credential without per-tool divergence.
+    // `THETADATA_API_KEY` environment variable, then the
+    // `THETADATA_EMAIL` + `THETADATA_PASSWORD` environment pair, then the
+    // flag/file email/password path (`--email`/`--password`/`--creds`/
+    // `creds.txt`). This mirrors the CLI and MCP resolvers and the SDK
+    // ordering so the server and every binding accept the same credential
+    // without per-tool divergence.
     //
     // The API key is a secret: it is never logged or echoed. The
     // "loaded credentials" lines below name the source generically ("api
@@ -254,7 +279,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // re-wrapped in `Credentials`'s own `Zeroizing<String>`. Our
     // `Zeroizing<String>` here guarantees that by the time this block
     // exits, the clap-produced allocation has been overwritten.
-    let creds = match select_credential_source(args.api_key.is_some(), env_api_key_present()) {
+    let creds = match select_credential_source(
+        args.api_key.is_some(),
+        env_var_present(API_KEY_ENV),
+        env_var_present(EMAIL_ENV) && env_var_present(PASSWORD_ENV),
+    ) {
         CredentialSource::ApiKeyFlag => {
             // Move the key out of the clap struct into `Zeroizing` so the
             // argv-sourced allocation is scrubbed when this scope exits.
@@ -267,14 +296,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             drop(key); // explicit for readers; `Zeroizing` scrubs on drop
             c
         }
-        CredentialSource::EnvOrFile => {
+        CredentialSource::EnvApiKeyOrFile => {
             // `from_env_or_file` reads `THETADATA_API_KEY` (already known
             // non-empty) and keeps the key inside its own `Zeroizing`
             // buffer; the key is never surfaced here.
             tracing::info!("loaded credentials from the THETADATA_API_KEY environment variable");
             Credentials::from_env_or_file(&args.creds)?
         }
-        CredentialSource::EmailPassword => {
+        CredentialSource::EnvEmailPassword => {
+            // Both values are known non-empty. Move the password into a
+            // `Zeroizing` buffer so the env-sourced allocation is scrubbed
+            // on drop; `Credentials::new` keeps its own zeroized copy.
+            let email = std::env::var(EMAIL_ENV).unwrap_or_default();
+            let password: Zeroizing<String> =
+                Zeroizing::new(std::env::var(PASSWORD_ENV).unwrap_or_default());
+            tracing::info!(
+                "loaded credentials from the THETADATA_EMAIL/THETADATA_PASSWORD environment variables"
+            );
+            let c = Credentials::new(email.trim(), password.trim());
+            drop(password); // explicit for readers; `Zeroizing` scrubs on drop
+            c
+        }
+        CredentialSource::EmailPasswordFlagOrFile => {
             if let Some(email) = args.email.as_ref() {
                 match args.password.take() {
                     Some(raw_password) => {
@@ -533,38 +576,56 @@ mod tests {
     use super::*;
 
     // Precedence: an explicit `--api-key` flag wins over everything else,
-    // including the environment variable.
+    // including the environment variable and the env email/password pair.
     #[test]
     fn api_key_flag_takes_precedence_over_env() {
-        assert_eq!(
-            select_credential_source(true, true),
-            CredentialSource::ApiKeyFlag
-        );
-        assert_eq!(
-            select_credential_source(true, false),
-            CredentialSource::ApiKeyFlag
-        );
+        for env_api_key in [true, false] {
+            for env_pair in [true, false] {
+                assert_eq!(
+                    select_credential_source(true, env_api_key, env_pair),
+                    CredentialSource::ApiKeyFlag,
+                    "flag must win (env_api_key={env_api_key}, env_pair={env_pair})"
+                );
+            }
+        }
     }
 
-    // With no flag but the environment variable present, the env-or-file
-    // path is selected so a user who sets only `THETADATA_API_KEY` (no
-    // flags, no creds.txt) still authenticates.
+    // With no flag but `THETADATA_API_KEY` present, the env-or-file path is
+    // selected so a user who sets only `THETADATA_API_KEY` (no flags, no
+    // creds.txt) still authenticates. The api key outranks the env pair.
     #[test]
     fn env_api_key_selects_env_or_file_when_no_flag() {
         assert_eq!(
-            select_credential_source(false, true),
-            CredentialSource::EnvOrFile
+            select_credential_source(false, true, false),
+            CredentialSource::EnvApiKeyOrFile
+        );
+        assert_eq!(
+            select_credential_source(false, true, true),
+            CredentialSource::EnvApiKeyOrFile,
+            "THETADATA_API_KEY must outrank the THETADATA_EMAIL/PASSWORD pair"
         );
     }
 
-    // With neither a flag nor the environment variable, the existing
+    // With no flag and no `THETADATA_API_KEY`, but the complete
+    // `THETADATA_EMAIL` + `THETADATA_PASSWORD` pair present, the bare
+    // process-env email/password path is selected, matching the CLI and
+    // MCP resolvers so the same exported login authenticates every tool.
+    #[test]
+    fn env_email_password_selects_env_pair_when_no_api_key() {
+        assert_eq!(
+            select_credential_source(false, false, true),
+            CredentialSource::EnvEmailPassword
+        );
+    }
+
+    // With no flag, no `THETADATA_API_KEY`, and no env pair, the flag/file
     // email/password path stays in force, so existing invocations are
     // unchanged.
     #[test]
-    fn no_api_key_falls_back_to_email_password() {
+    fn no_env_credentials_falls_back_to_flag_or_file() {
         assert_eq!(
-            select_credential_source(false, false),
-            CredentialSource::EmailPassword
+            select_credential_source(false, false, false),
+            CredentialSource::EmailPasswordFlagOrFile
         );
     }
 

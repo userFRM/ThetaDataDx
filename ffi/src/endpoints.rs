@@ -45,6 +45,13 @@ use crate::types::{
 ///
 /// `ctx` is the opaque user context registered alongside the callback; it is
 /// passed back unchanged on every invocation and never dereferenced by Rust.
+///
+/// The callback runs under the C ABI and must not unwind across the boundary.
+/// A C++ `throw` or a C `longjmp` that escapes the callback into the calling
+/// Rust frame is undefined behavior. The stream path wraps each invocation in
+/// [`std::panic::catch_unwind`], but that contains only a Rust panic raised on
+/// our side of the boundary, not a foreign exception out of the callback.
+/// Catch and handle every exception inside the callback before returning.
 pub type ThetaDataDxTickChunkCallback =
     extern "C" fn(rows: *const c_void, len: usize, ctx: *mut c_void);
 
@@ -72,11 +79,14 @@ impl TickChunkSink {
     ///
     /// The core wraps this handler in a `Mutex` and may drive it from a
     /// runtime worker thread (see the type doc), not on the
-    /// `ffi_boundary!`-guarded entry point, so a panic raised inside the
-    /// user callback would unwind across the C ABI on a foreign thread.
-    /// Catch it per invocation, the same defence the reconnect callback and
-    /// the stream dispatcher apply, so a panicking callback is contained at
-    /// the boundary instead of aborting the process.
+    /// `ffi_boundary!`-guarded entry point. A Rust panic raised on this path
+    /// would otherwise unwind across the C ABI on a foreign thread, so wrap
+    /// the invocation in `catch_unwind`, the same defence the reconnect
+    /// callback and the stream dispatcher apply. This contains a panic from
+    /// our own Rust code; it does not contain a foreign exception thrown out
+    /// of the user callback. The callback's no-unwind contract (an exception
+    /// or `longjmp` escaping it is undefined behavior) is documented on
+    /// `ThetaDataDxTickChunkCallback`.
     fn emit(&self, rows: *const c_void, len: usize) {
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             (self.callback)(rows, len, self.ctx);

@@ -85,7 +85,7 @@ impl FpssParams {
     /// and the C ABI (`ffi/src/streaming.rs::streaming_builder`) so the
     /// standalone client honours the full streaming and reconnect surface.
     fn builder(&self) -> fpss::StreamingClientBuilder<'_> {
-        fpss::StreamingClientBuilder::new(&self.creds, &self.streaming.hosts)
+        fpss::StreamingClientBuilder::new(&self.creds, self.streaming.hosts())
             .ring_size(self.streaming.ring_size)
             .flush_mode(self.streaming.flush_mode)
             .wait_strategy(self.streaming.wait_strategy)
@@ -273,7 +273,7 @@ impl StreamingClient {
             let guard = config.inner.lock().unwrap_or_else(|e| e.into_inner());
             guard.clone()
         };
-        if direct.streaming.hosts.is_empty() {
+        if direct.streaming_hosts().is_empty() {
             return Err(PyValueError::new_err(
                 "StreamingClient: config.streaming.hosts is empty (set THETADATA_STREAMING_HOSTS or use Config::production())",
             ));
@@ -328,7 +328,7 @@ impl StreamingClient {
         } else {
             "none"
         };
-        let hosts = self.params.streaming.hosts.len();
+        let hosts = self.params.streaming.hosts().len();
         format!("StreamingClient(streaming={streaming}, hosts={hosts})")
     }
 
@@ -925,7 +925,7 @@ mod tests {
         let mut config = DirectConfig::production();
 
         // Streaming: flip every knob away from its production default.
-        config.streaming.hosts = vec![("stream.example.com".to_owned(), 12345)];
+        config.set_streaming_hosts(vec![("stream.example.com".to_owned(), 12345)]);
         config.streaming.host_selection = HostSelectionPolicy::FixedOrder;
         config.streaming.host_shuffle_seed = Some(0xABCD_1234);
         config.streaming.timeout_ms = 111_111;
@@ -958,7 +958,7 @@ mod tests {
         let params = FpssParams::from_config(&creds, &config);
 
         let s = &params.streaming;
-        assert_eq!(s.hosts, config.streaming.hosts);
+        assert_eq!(s.hosts(), config.streaming_hosts());
         assert_eq!(s.host_selection, HostSelectionPolicy::FixedOrder);
         assert_eq!(s.host_shuffle_seed, Some(0xABCD_1234));
         assert_eq!(s.timeout_ms, 111_111);

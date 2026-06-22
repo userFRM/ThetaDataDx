@@ -165,7 +165,17 @@ pub struct StreamingConfig {
     /// The connection layer iterates through these on connection
     /// failure, in the order produced by [`Self::host_selection`].
     /// Default: ThetaData's NJ `FPSS_NJ_HOSTS`.
-    pub hosts: Vec<(String, u16)>,
+    ///
+    /// Set through [`DirectConfig::set_streaming_hosts`] so the write is
+    /// recorded as an explicit full-list override that survives environment
+    /// selection; read through [`DirectConfig::streaming_hosts`]. The field
+    /// is crate-private so the only way to point the streaming channel at a
+    /// host set is the tracked setter — there is no untracked direct-write
+    /// path for environment selection to second-guess.
+    ///
+    /// [`DirectConfig::set_streaming_hosts`]: crate::config::DirectConfig::set_streaming_hosts
+    /// [`DirectConfig::streaming_hosts`]: crate::config::DirectConfig::streaming_hosts
+    pub(crate) hosts: Vec<(String, u16)>,
 
     /// Per-client host ordering policy. Default
     /// [`HostSelectionPolicy::Shuffled`] — see the enum docs for the
@@ -332,6 +342,20 @@ pub struct StreamingConfig {
 }
 
 impl StreamingConfig {
+    /// Streaming host list.
+    ///
+    /// Read accessor for the crate-private [`Self::hosts`] field. The host
+    /// set is written through [`DirectConfig::set_streaming_hosts`] so a
+    /// caller-supplied list is recorded as a tracked override; this getter
+    /// is the supported way to read it back (including from the SDK
+    /// bindings, which snapshot a [`StreamingConfig`]).
+    ///
+    /// [`DirectConfig::set_streaming_hosts`]: crate::config::DirectConfig::set_streaming_hosts
+    #[must_use]
+    pub fn hosts(&self) -> &[(String, u16)] {
+        &self.hosts
+    }
+
     /// Production defaults for ThetaData's NJ datacenter.
     #[must_use]
     pub fn production_defaults() -> Self {

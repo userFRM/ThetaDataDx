@@ -48,6 +48,61 @@ pub enum EndpointArgValue {
     Bool(bool),
 }
 
+/// Per-call deadline state carried by [`EndpointArgs`].
+///
+/// A two-state `Option<u64>` cannot distinguish "the caller never set a
+/// deadline" from "the caller explicitly disabled the deadline" — both
+/// collapse to `None`. That ambiguity makes `with_timeout_ms(0)` silently
+/// fall back to the configured
+/// [`crate::config::HistoricalConfig::request_timeout_secs`] default instead
+/// of opting the call out of any deadline. This tri-state keeps the two
+/// intents distinct so the generated dispatch can honour each:
+///
+/// | Variant      | Source                  | Effect on the dispatched call                                  |
+/// |--------------|-------------------------|----------------------------------------------------------------|
+/// | `Unset`      | no `with_timeout_ms`    | fall back to the configured `request_timeout_secs` default     |
+/// | `Disabled`   | `with_timeout_ms(0)`    | no deadline — the call runs unbounded (the documented opt-out) |
+/// | `Millis(n)`  | `with_timeout_ms(n>0)`  | a per-call deadline of `n` milliseconds                        |
+///
+/// Only present when the `__internal` feature is enabled.
+#[cfg(feature = "__internal")]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum DeadlineSetting {
+    /// No per-call deadline was set; fall back to the configured default.
+    #[default]
+    Unset,
+    /// The deadline was explicitly disabled (`with_timeout_ms(0)`); the
+    /// call runs unbounded.
+    Disabled,
+    /// An explicit per-call deadline in milliseconds (`> 0`).
+    Millis(u64),
+}
+
+#[cfg(feature = "__internal")]
+impl DeadlineSetting {
+    /// Translate the tri-state into the optional `Duration` the generated
+    /// dispatch applies to an endpoint builder via `with_deadline` (or a
+    /// list `_with_deadline` overload).
+    ///
+    /// - [`Self::Unset`] → `None`: the dispatch must NOT call `with_deadline`,
+    ///   so the builder falls back to the configured `request_timeout_secs`
+    ///   default.
+    /// - [`Self::Disabled`] → `Some(Duration::ZERO)`: an explicit zero, which
+    ///   `with_deadline` carries through to
+    ///   [`crate::mdds::macros::effective_deadline`] where it disables the
+    ///   deadline entirely (the call runs unbounded).
+    /// - [`Self::Millis`] → `Some(Duration::from_millis(n))`: the explicit
+    ///   per-call bound.
+    #[must_use]
+    pub fn builder_deadline(self) -> Option<std::time::Duration> {
+        match self {
+            DeadlineSetting::Unset => None,
+            DeadlineSetting::Disabled => Some(std::time::Duration::ZERO),
+            DeadlineSetting::Millis(ms) => Some(std::time::Duration::from_millis(ms)),
+        }
+    }
+}
+
 /// Typed argument bag consumed by generated endpoint dispatch.
 ///
 /// Callers insert normalized values, then generated adapters use typed
@@ -61,7 +116,7 @@ pub enum EndpointArgValue {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct EndpointArgs {
     args: BTreeMap<String, EndpointArgValue>,
-    timeout_ms: Option<u64>,
+    deadline: DeadlineSetting,
 }
 
 #[cfg(feature = "__internal")]
@@ -80,35 +135,59 @@ impl EndpointArgs {
     /// `request_semaphore` permit and the tonic stream) and the call
     /// returns [`crate::Error::Timeout`].
     ///
-    /// `ms == 0` is normalized to "no deadline" (i.e. `None`). The
-    /// alternative — wrapping in `tokio::time::timeout(Duration::ZERO, ...)` —
-    /// would fire immediately on the first poll and never let the call
-    /// complete, which is almost certainly not what a caller passing 0
-    /// intended. The invariant is: `EndpointArgs::timeout_ms()` is `None` or
-    /// `Some(n)` with `n > 0`.
+    /// `ms == 0` is the deadline opt-out: it records
+    /// [`DeadlineSetting::Disabled`] so the dispatched call runs unbounded.
+    /// This is distinct from never calling `with_timeout_ms` at all
+    /// ([`DeadlineSetting::Unset`]), which falls back to the configured
+    /// [`crate::config::HistoricalConfig::request_timeout_secs`] default. A
+    /// positive `ms` records [`DeadlineSetting::Millis`].
     #[must_use]
     pub fn with_timeout_ms(mut self, ms: u64) -> Self {
-        self.timeout_ms = if ms == 0 { None } else { Some(ms) };
+        self.set_timeout_ms(ms);
         self
     }
 
     /// In-place equivalent of [`Self::with_timeout_ms`] for `&mut self` callers
     /// (FFI dispatch shims that already hold a `&mut EndpointArgs`).
     ///
-    /// `ms == 0` is normalized to "no deadline" — see [`Self::with_timeout_ms`].
+    /// `ms == 0` records [`DeadlineSetting::Disabled`] (the deadline opt-out)
+    /// — see [`Self::with_timeout_ms`].
     pub fn set_timeout_ms(&mut self, ms: u64) {
-        self.timeout_ms = if ms == 0 { None } else { Some(ms) };
+        self.deadline = if ms == 0 {
+            DeadlineSetting::Disabled
+        } else {
+            DeadlineSetting::Millis(ms)
+        };
     }
 
-    /// Configured per-call deadline in milliseconds, if any.
+    /// Configured per-call deadline in milliseconds.
+    ///
+    /// Returns `Some(n)` only for an explicit positive deadline
+    /// ([`DeadlineSetting::Millis`]); both [`DeadlineSetting::Unset`] and the
+    /// explicit-opt-out [`DeadlineSetting::Disabled`] return `None`. Callers
+    /// that must tell those two apart (the generated dispatch) read
+    /// [`Self::deadline_setting`] instead.
     #[must_use]
     pub fn timeout_ms(&self) -> Option<u64> {
-        self.timeout_ms
+        match self.deadline {
+            DeadlineSetting::Millis(ms) => Some(ms),
+            DeadlineSetting::Unset | DeadlineSetting::Disabled => None,
+        }
     }
 
-    /// Drop the per-call deadline.
+    /// Per-call deadline state, distinguishing "unset" (fall back to the
+    /// configured default) from "explicitly disabled" (run unbounded). The
+    /// generated dispatch reads this to honour `with_timeout_ms(0)` as the
+    /// documented opt-out rather than collapsing it into the default.
+    #[must_use]
+    pub fn deadline_setting(&self) -> DeadlineSetting {
+        self.deadline
+    }
+
+    /// Drop the per-call deadline, returning to [`DeadlineSetting::Unset`]
+    /// (the configured default applies on the next dispatch).
     pub fn clear_timeout(&mut self) {
-        self.timeout_ms = None;
+        self.deadline = DeadlineSetting::Unset;
     }
 
     /// Insert or replace a normalized endpoint argument value.
@@ -508,20 +587,26 @@ pub enum EndpointOutput {
 /// as a hook point for cross-cutting concerns (auth retry, metrics,
 /// rate limiting) without modifying generated code.
 ///
-/// When `args.timeout_ms()` is set, the entire dispatch future (and all
-/// futures it spawns: builder, gRPC call, `collect_stream`) is wrapped in
-/// [`tokio::time::timeout`]. On expiry the future is dropped — its locals
-/// (`_permit`, `tonic::Streaming`) drop with it, releasing the request
-/// semaphore and cancelling the in-flight gRPC stream — and the call
-/// returns `EndpointError::Server(Error::Timeout { duration_ms })`.
-/// Subsequent calls on the same `HistoricalClient` succeed.
+/// The per-call deadline is resolved inside the generated dispatch, which
+/// threads [`EndpointArgs::deadline_setting`] onto the endpoint builder via
+/// `with_deadline` (or the list `_with_deadline` overload). The builder is
+/// the single deadline authority, so the three deadline intents are honoured
+/// exactly: [`DeadlineSetting::Unset`] falls back to the configured
+/// [`crate::config::HistoricalConfig::request_timeout_secs`] default,
+/// [`DeadlineSetting::Disabled`] (`with_timeout_ms(0)`) runs unbounded, and
+/// [`DeadlineSetting::Millis`] applies the explicit per-call bound. On expiry
+/// the in-flight future is dropped — its locals (`_permit`,
+/// `tonic::Streaming`) drop with it, releasing the request semaphore and
+/// cancelling the in-flight gRPC stream — and the call returns
+/// `EndpointError::Server(Error::Timeout { duration_ms })`. Subsequent calls
+/// on the same `HistoricalClient` succeed.
 ///
 /// # Errors
 ///
 /// Returns [`EndpointError::UnknownEndpoint`] for an unrecognized `name`,
 /// [`EndpointError::InvalidParams`] for malformed `args`, and
 /// [`EndpointError::Server`] for transport, auth, or deadline failures
-/// (including `Error::Timeout` when `args.timeout_ms()` expires).
+/// (including `Error::Timeout` when an applied per-call deadline expires).
 ///
 /// Only present when the `__internal` feature is enabled.
 #[cfg(feature = "__internal")]
@@ -530,16 +615,7 @@ pub async fn invoke_endpoint(
     name: &str,
     args: &EndpointArgs,
 ) -> Result<EndpointOutput, EndpointError> {
-    let dispatch = invoke_generated_endpoint(client, name, args);
-    match args.timeout_ms() {
-        None => dispatch.await,
-        Some(ms) => {
-            match tokio::time::timeout(std::time::Duration::from_millis(ms), dispatch).await {
-                Ok(inner) => inner,
-                Err(_) => Err(EndpointError::Server(Error::Timeout { duration_ms: ms })),
-            }
-        }
-    }
+    invoke_generated_endpoint(client, name, args).await
 }
 
 /// Transport-neutral endpoint dispatch that drains the response
@@ -554,10 +630,14 @@ pub async fn invoke_endpoint(
 /// `#[repr(C)]` tick — the boundary the FFI layer rebuilds the typed pointer
 /// from without re-marshaling.
 ///
-/// `args.timeout_ms()` wraps the entire drain in [`tokio::time::timeout`]
-/// exactly as the buffered path does: on expiry the future is dropped, its
-/// locals (`_permit`, `tonic::Streaming`) drop with it, the in-flight gRPC
-/// stream is cancelled, and the call returns
+/// The per-call deadline is resolved inside the generated dispatch — the
+/// `.stream()` builder threads [`EndpointArgs::deadline_setting`] through
+/// `with_deadline` exactly as the buffered path does, so the same three
+/// intents ([`DeadlineSetting::Unset`] → configured default,
+/// [`DeadlineSetting::Disabled`] → unbounded, [`DeadlineSetting::Millis`] →
+/// explicit bound) are honoured. On expiry the future is dropped, its locals
+/// (`_permit`, `tonic::Streaming`) drop with it, the in-flight gRPC stream is
+/// cancelled, and the call returns
 /// `EndpointError::Server(Error::Timeout { duration_ms })`. The handler is
 /// guaranteed not to be invoked again once the deadline fires.
 ///
@@ -576,16 +656,7 @@ pub async fn invoke_endpoint_stream(
     args: &EndpointArgs,
     handler: impl FnMut(*const core::ffi::c_void, usize) + Send,
 ) -> Result<(), EndpointError> {
-    let dispatch = invoke_generated_endpoint_stream(client, name, args, handler);
-    match args.timeout_ms() {
-        None => dispatch.await,
-        Some(ms) => {
-            match tokio::time::timeout(std::time::Duration::from_millis(ms), dispatch).await {
-                Ok(inner) => inner,
-                Err(_) => Err(EndpointError::Server(Error::Timeout { duration_ms: ms })),
-            }
-        }
-    }
+    invoke_generated_endpoint_stream(client, name, args, handler).await
 }
 
 /// Parse a raw string value according to registry metadata into a typed endpoint arg.
@@ -659,12 +730,14 @@ mod tests {
     fn endpoint_args_default_has_no_timeout() {
         let args = EndpointArgs::new();
         assert_eq!(args.timeout_ms(), None);
+        assert_eq!(args.deadline_setting(), DeadlineSetting::Unset);
     }
 
     #[test]
     fn with_timeout_ms_attaches_deadline() {
         let args = EndpointArgs::new().with_timeout_ms(60_000);
         assert_eq!(args.timeout_ms(), Some(60_000));
+        assert_eq!(args.deadline_setting(), DeadlineSetting::Millis(60_000));
     }
 
     #[test]
@@ -672,24 +745,30 @@ mod tests {
         let mut args = EndpointArgs::new().with_timeout_ms(60_000);
         args.clear_timeout();
         assert_eq!(args.timeout_ms(), None);
+        // Clearing returns to "unset" — the configured default applies on
+        // the next dispatch, NOT the disabled (unbounded) state.
+        assert_eq!(args.deadline_setting(), DeadlineSetting::Unset);
     }
 
-    /// `timeout_ms == 0` is the sentinel for "no deadline" and is
-    /// normalised to `None`. Storing `Some(0)` would wrap the dispatch
-    /// in `tokio::time::timeout(Duration::ZERO, ...)`, which fires on
-    /// the first poll and prevents any call from completing.
+    /// `timeout_ms == 0` is the deadline opt-out: it records `Disabled`, a
+    /// state distinct from `Unset`. Both report `timeout_ms() == None`, but
+    /// the generated dispatch reads `deadline_setting()` to tell them apart —
+    /// `Disabled` runs the call unbounded while `Unset` falls back to the
+    /// configured `request_timeout_secs` default.
     #[test]
-    fn with_timeout_ms_zero_means_no_deadline() {
+    fn with_timeout_ms_zero_records_disabled() {
         let args = EndpointArgs::new().with_timeout_ms(0);
         assert_eq!(args.timeout_ms(), None);
+        assert_eq!(args.deadline_setting(), DeadlineSetting::Disabled);
     }
 
     /// `set_timeout_ms(0)` matches the same normalization as `with_timeout_ms`.
     #[test]
-    fn set_timeout_ms_zero_means_no_deadline() {
+    fn set_timeout_ms_zero_records_disabled() {
         let mut args = EndpointArgs::new().with_timeout_ms(60_000);
         args.set_timeout_ms(0);
         assert_eq!(args.timeout_ms(), None);
+        assert_eq!(args.deadline_setting(), DeadlineSetting::Disabled);
     }
 
     /// Positive timeout values pass through unchanged.
@@ -697,6 +776,43 @@ mod tests {
     fn with_timeout_ms_positive_value_stored() {
         let args = EndpointArgs::new().with_timeout_ms(1);
         assert_eq!(args.timeout_ms(), Some(1));
+        assert_eq!(args.deadline_setting(), DeadlineSetting::Millis(1));
+    }
+
+    /// The tri-state maps to the builder deadline the generated dispatch
+    /// applies. This is the crux of the registry/FFI opt-out fix: `Unset`
+    /// must NOT apply a deadline (the builder keeps the configured default),
+    /// `Disabled` must apply an explicit `Duration::ZERO` (which
+    /// `with_deadline` / `effective_deadline` resolve to "no deadline"), and
+    /// `Millis(n)` must apply that exact bound.
+    #[test]
+    fn deadline_setting_maps_to_builder_deadline() {
+        use std::time::Duration;
+        assert_eq!(DeadlineSetting::Unset.builder_deadline(), None);
+        assert_eq!(
+            DeadlineSetting::Disabled.builder_deadline(),
+            Some(Duration::ZERO)
+        );
+        assert_eq!(
+            DeadlineSetting::Millis(250).builder_deadline(),
+            Some(Duration::from_millis(250))
+        );
+        // The disabled builder deadline must route through effective_deadline
+        // to "no deadline" even against a positive configured default, so the
+        // opt-out actually holds end-to-end.
+        let disabled = DeadlineSetting::Disabled.builder_deadline();
+        assert_eq!(
+            crate::mdds::macros::effective_deadline(disabled, 300),
+            None,
+            "with_timeout_ms(0) must disable the deadline, not fall back to the default"
+        );
+        // Unset routes to the configured default.
+        let unset = DeadlineSetting::Unset.builder_deadline();
+        assert_eq!(
+            crate::mdds::macros::effective_deadline(unset, 300),
+            Some(Duration::from_secs(300)),
+            "an unset deadline must fall back to the configured default"
+        );
     }
 
     #[test]
