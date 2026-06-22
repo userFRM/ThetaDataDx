@@ -367,7 +367,7 @@ impl DirectConfig {
     ///
     /// This is the only supported way to point the historical (gRPC) channel
     /// at a host. The host is recorded as a tracked override, so it survives a
-    /// later [`Self::apply_environment`] (and therefore
+    /// later `apply_environment` (and therefore
     /// [`Self::with_environment`] / [`Self::stage`] / [`Self::dev`]): an
     /// explicit host wins over the environment's default — the precedence
     /// documented on the struct. The most recent call wins over any earlier
@@ -383,7 +383,7 @@ impl DirectConfig {
     ///
     /// This is the only supported way to replace the streaming channel's whole
     /// host set. The list is recorded as a full override that wins outright
-    /// over environment selection — [`Self::apply_environment`] does not touch
+    /// over environment selection: `apply_environment` does not touch
     /// the streaming hosts when it is set, and the list is honoured even when
     /// it happens to equal the selected environment's own host vector (it is
     /// kept by provenance, never dropped by a value match). The most recent
