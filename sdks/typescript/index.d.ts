@@ -2550,11 +2550,13 @@ export declare class StreamingClient {
    * thread, so the callback may use any JS API safely. A callback that
    * panics or throws is isolated and does not interrupt the stream.
    *
-   * Backpressure: a slow callback causes incoming events to queue and,
-   * once the buffer is full, newly arriving events are dropped, observable
-   * via `droppedEventCount()`. The receive path is never blocked by a
-   * slow callback, so the upstream connection stays healthy regardless
-   * of callback speed.
+   * Backpressure: a slow callback first fills a bounded delivery queue
+   * and then the event ring behind it, at which point the oldest events
+   * are dropped and counted by `droppedEventCount()` while
+   * `ringOccupancy()` reports the in-flight depth. Watch those two
+   * signals to detect a callback that cannot keep up. The receive path
+   * is never blocked by a slow callback, so the upstream connection
+   * stays healthy regardless of callback speed.
    */
   startStreaming(callback: ((arg: StreamEvent) => void)): Promise<void>
   /**
@@ -2848,10 +2850,12 @@ export declare class StreamView {
    * panics or throws is isolated and does not interrupt
    * the stream.
    *
-   * Backpressure: a slow callback causes incoming events
-   * to queue and, once the buffer is full, newly arriving
-   * events are dropped. The dropped count is observable
-   * via `droppedEventCount()`. The receive path is never
+   * Backpressure: a slow callback first fills a bounded
+   * delivery queue and then the event ring behind it, at
+   * which point the oldest events are dropped and counted by
+   * `droppedEventCount()` while `ringOccupancy()` reports the
+   * in-flight depth. Watch those two signals to detect a
+   * callback that cannot keep up. The receive path is never
    * blocked by a slow callback, so the upstream connection
    * stays healthy regardless of callback speed.
    */
