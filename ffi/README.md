@@ -41,7 +41,7 @@ Every historical endpoint is available as `thetadatadx_stock_*`, `thetadatadx_op
 
 | Function | Description |
 |----------|-------------|
-| `thetadatadx_client_set_callback` | Register the user callback on the unified handle. The streaming delivery thread invokes it for every typed FPSS event. Each invocation is wrapped in `catch_unwind`, which contains a Rust panic on the dispatch path; the callback itself must not unwind across the C ABI (see Panic boundary). |
+| `thetadatadx_client_set_callback` | Register the user callback on the unified handle. The streaming delivery thread invokes it for every typed FPSS event. Any Rust panic on the dispatch path is contained at the boundary; the callback itself must not unwind across the C ABI (see Panic boundary). |
 | `thetadatadx_client_subscribe` | Polymorphic subscribe — takes `ThetaDataDxSubscriptionRequest` (per-contract or full-stream) |
 | `thetadatadx_client_unsubscribe` | Polymorphic unsubscribe — takes `ThetaDataDxSubscriptionRequest` |
 | `thetadatadx_client_is_streaming` | Check if FPSS connection is live |
@@ -56,7 +56,7 @@ Every historical endpoint is available as `thetadatadx_stock_*`, `thetadatadx_op
 | Function | Description |
 |----------|-------------|
 | `thetadatadx_streaming_connect` | Connect standalone FPSS client |
-| `thetadatadx_streaming_set_callback` | Register the user callback. The streaming delivery thread invokes it for every typed FPSS event. Each invocation is wrapped in `catch_unwind`, which contains a Rust panic on the dispatch path; the callback itself must not unwind across the C ABI (see Panic boundary). |
+| `thetadatadx_streaming_set_callback` | Register the user callback. The streaming delivery thread invokes it for every typed FPSS event. Any Rust panic on the dispatch path is contained at the boundary; the callback itself must not unwind across the C ABI (see Panic boundary). |
 | `thetadatadx_streaming_subscribe` | Polymorphic subscribe — takes `ThetaDataDxSubscriptionRequest` |
 | `thetadatadx_streaming_unsubscribe` | Polymorphic unsubscribe — takes `ThetaDataDxSubscriptionRequest` |
 | `thetadatadx_streaming_is_authenticated` | Check if FPSS is authenticated |
@@ -88,8 +88,8 @@ All functions that can fail return null on error. Call `thetadatadx_last_error()
 
 ### Panic boundary
 
-Every `extern "C"` function (145 fns — 84 in `ffi/src/lib.rs` plus 61 generator-emitted in `ffi/src/endpoint_with_options.rs`) is wrapped in the `ffi_boundary!` macro, which `std::panic::catch_unwind(AssertUnwindSafe(|| { ... }))`s the body. Rust panics no longer cross the C ABI — the payload is downcast to `String`, routed through `tracing::error!` on target `thetadatadx::ffi::panic`, stored in the thread-local `LAST_ERROR` slot accessed by `thetadatadx_last_error()`, and the function returns the caller-declared default (`ptr::null_mut()` / `-1` / `0` / sentinel-empty-array). Before this wrapper every panic on Rust 1.81+ aborted the host process; pre-1.81 it was undefined behaviour.
+Every `extern "C"` function (all 145 of them) contains panics at the boundary. A Rust panic no longer crosses the C ABI: the panic message is recorded and retrievable via the C error API (`thetadatadx_last_error()`), and the function returns the caller-declared default (`ptr::null_mut()` / `-1` / `0` / sentinel-empty-array). Before this, every panic on Rust 1.81+ aborted the host process; pre-1.81 it was undefined behaviour.
 
-This boundary contains panics raised by our own Rust code. It does not contain a foreign exception that unwinds into a Rust frame from a caller-supplied callback. A C++ `throw` or a C `longjmp` that escapes a registered callback (a streaming event callback, a tick-chunk callback, or a reconnect-decision callback) across the C ABI is undefined behavior, the same as for any C library. `catch_unwind` cannot intercept it. The caller's contract is that a callback must not unwind across the boundary: catch and handle every exception inside the callback before it returns. The C++ wrapper's `set_callback` shim already does this for you (it is `noexcept` and swallows any exception its `std::function` raises). Each callback type documents this no-unwind contract.
+This boundary contains panics raised by our own Rust code. It does not contain a foreign exception that unwinds into a Rust frame from a caller-supplied callback. A C++ `throw` or a C `longjmp` that escapes a registered callback (a streaming event callback, a tick-chunk callback, or a reconnect-decision callback) across the C ABI is undefined behavior, the same as for any C library, and the boundary cannot intercept it. The caller's contract is that a callback must not unwind across the boundary: catch and handle every exception inside the callback before it returns. The C++ wrapper's `set_callback` shim already does this for you (it is `noexcept` and swallows any exception its `std::function` raises). Each callback type documents this no-unwind contract.
 
-Regression tests live at `ffi/tests/panic_boundary.rs`; the `thetadatadx_test_panic_{str,string}` symbols used for testing are gated behind a `testing-panic-boundary` cargo feature so the production `cdylib` never ships them.
+The boundary is covered by regression tests; the test-only panic symbols are gated behind a cargo feature so the production library never ships them.

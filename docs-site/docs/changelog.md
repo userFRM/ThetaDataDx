@@ -189,14 +189,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cross-binding exposure for the FPSS transport scalars that were previously tunable from Rust only: `fpss_timeout_ms`, `fpss_connect_timeout_ms`, `fpss_ping_interval_ms`, `fpss_ring_size`, plus the new `fpss_io_read_slice_ms`, `fpss_data_watchdog_ms`, keepalive trio, and host-selection pair — each as a Python property, TypeScript setter + getter, C-ABI `thetadatadx_config_set_*`/`get_*` pair, and C++ forwarder, with `sdks/parity.toml` rows. The reconnect budgets gain readback getters (policy selector, per-class attempt budgets, stable window) on the C ABI and C++ so operator dashboards can verify deployed configuration.
 - `FpssFlushMode` (Batched / Immediate) is exposed across every binding: Rust enum on the builder, C ABI `thetadatadx_config_set_flush_mode(int32_t mode) -> int32_t`, C++ `set_flush_mode(int)`, Python `cfg.flush_mode = "batched" | "immediate"` (case-insensitive setter, canonical-lowercase getter), TypeScript `cfg.setFlushMode("batched" | "immediate")` plus `cfg.flushMode` getter. `sdks/parity.toml` carries the matching method-level rows; `sdks/python/tests/test_config_flush_mode.py` and `sdks/typescript/__tests__/flush_mode.test.mjs` exercise the round-trip including the invalid-string `ValueError` path.
 - Per-callback panic isolation plus a unified `panic_count` counter — every user-callback invocation is panic-isolated on the Rust, C ABI, and Python event-delivery paths, so a panic in one callback can neither abort the process nor stall the feed. The Python binding routes `PyErr` through `write_unraisable` plus the binding-only `record_panic` shim so the same counter increments for Rust panics and Python exceptions. `panic_count()` is the public read-side accessor.
-- Queue-occupancy observability for the streaming event queue: `ring_occupancy()` (point-in-time count of events published but not yet drained into the callback — the leading back-pressure signal that predicts drops before `dropped_event_count()` moves) and `ring_capacity()` (the configured `fpss_ring_size`) on `StreamingClient` and `Client`, mirrored across every binding — Python `ring_occupancy()` / `ring_capacity()` on both client classes, TypeScript `ringOccupancy()` / `ringCapacity()` (`bigint`), C ABI `thetadatadx_client_ring_occupancy` / `thetadatadx_client_ring_capacity` and `thetadatadx_streaming_ring_occupancy` / `thetadatadx_streaming_ring_capacity`, C++ `ring_occupancy()` / `ring_capacity()` on `UnifiedClient` and `StreamingClient`, with `sdks/parity.toml` rows. The producer records each published queue sequence and the dispatcher records once per drained batch — two plain relaxed stores into cache-line-padded cursors, no read-modify-write on the hot path; sampling is two relaxed loads on the caller's thread and never blocks the feed.
-- One canonical streaming-session state machine replaces three duplicate per-binding state enums (formerly maintained separately on the Rust client, the C ABI, and the Python binding). The four prior synchronization primitives (two lifecycle locks, a panic flag, and a separate handle slot) collapse into a single lock-guarded session value, and the event-delivery thread's panic is observed by joining its handle rather than through a side-band atomic flag.
-- `Arc<OnceLock<bool>>` startup gate — the prior `StartupGate` (custom `Mutex + Condvar`) is replaced by `OnceLock` plumbing that signals install success or rollback before the first delivered event fires.
-- `docs-site/docs/migration/v11-to-v12.md` (new) walks the FPSS streaming reshape, the curated public Rust surface, the REST fallback removal, and the cross-binding default flips with before / after Python, TypeScript, C ABI, and C++ snippets. The historical migration page carries a one-line banner pointing at the latest guide.
+- Queue-occupancy observability for the streaming event queue: `ring_occupancy()` (point-in-time count of events published but not yet drained into the callback — the leading back-pressure signal that predicts drops before `dropped_event_count()` moves) and `ring_capacity()` (the configured `fpss_ring_size`) on `StreamingClient` and `Client`, mirrored across every binding — Python `ring_occupancy()` / `ring_capacity()` on both client classes, TypeScript `ringOccupancy()` / `ringCapacity()` (`bigint`), C ABI `thetadatadx_client_ring_occupancy` / `thetadatadx_client_ring_capacity` and `thetadatadx_streaming_ring_occupancy` / `thetadatadx_streaming_ring_capacity`, C++ `ring_occupancy()` / `ring_capacity()` on `UnifiedClient` and `StreamingClient`, with `sdks/parity.toml` rows. Occupancy is recorded as events are published and as they are drained, with no contention added to the hot path; sampling it never blocks the feed.
+- One canonical streaming-session state machine replaces three duplicate per-binding state machines (formerly maintained separately on the Rust client, the C ABI, and the Python binding), so streaming lifecycle behavior is identical across bindings and a delivery-thread failure is observed deterministically rather than through a racy side channel.
+- The streaming start-up handshake signals install success or rollback before the first event is delivered, closing a window where an event could fire against a half-installed session.
+- `docs-site/docs/migration/v11-to-v12.md` (new) walks the streaming reshape, the curated public Rust surface, the REST fallback removal, and the cross-binding default flips with before / after Python, TypeScript, C ABI, and C++ snippets. The historical migration page carries a one-line banner pointing at the latest guide.
 
 ### Changed
 
-- The generated `DataTable` tick parsers decode in two phases: the column layout is resolved once per table against the schema, then each column is bulk-extracted through a monomorphic accessor in cache-resident row blocks. Per-cell semantics are unchanged (null zero-fill, mixed `Price`/`Number` price columns, header aliases, strict accept-sets); a wire-shape mismatch now names the schema column and row in the diagnostic.
+- Tick decoding resolves the column layout once per response and then bulk-extracts each column, lowering per-row decode cost on large responses. Per-cell semantics are unchanged (null zero-fill, mixed `Price`/`Number` price columns, header aliases, strict accept-sets); a wire-shape mismatch now names the schema column and row in the diagnostic.
 - Resilience defaults flipped so an unattended client survives a multi-minute upstream pool outage instead of exiting within seconds. Streaming reconnect: `wait_ms` 2 000 → 250 (now the initial rung of an exponential ladder; previously a flat per-attempt delay), `max_attempts` 3 → 30, plus the new `wait_max_ms = 30_000`, `max_elapsed = 300 s`, `wait_server_restart_ms = 5_000`, `max_server_restart_attempts = 60`, `jitter = full`, `replay_burst_size = 50`, `replay_pace_ms = 5`. FPSS transport: `timeout_ms` 10 000 → 3 000 (the upstream heartbeats every ~100 ms, so three seconds of total silence is a dead link), `ping_interval_ms` 100 → 250 (the upstream heartbeat is the primary inbound liveness signal; the client ping mainly proves write-side health), the I/O read slice is now the validated `io_read_slice_ms` knob (default 25 ms, previously hardcoded 50 ms), and `data_watchdog_ms = 30_000` / keepalive 5 s/2 s/2 are on by default. Historical channel: `RetryPolicy::max_attempts` 5 → 20 with `max_elapsed = 300 s`, so the ladder actually reaches and rides its 30 s cap instead of exhausting in roughly eight seconds. Flatfiles: `max_attempts` 3 → 10, `max_backoff` 4 s → 30 s, jitter on (`max_attempts` validation widened to `[1, 100]`).
 - The streaming read deadline is enforced on a wall clock measured from the last received frame rather than by counting fixed-width timeout slices, so the configured `timeout_ms` holds exactly regardless of the read-slice size.
 - Reconnect cooldowns sleep in 100 ms slices and wake promptly on shutdown — previously a rate-limited 130 s cooldown was uninterruptible and a shutdown raised mid-cooldown waited it out in full. Commands queued against a dead session are discarded before the replacement dial (graceful shutdown is honoured), so stale heartbeats and duplicate subscribe frames never land on a fresh peer.
@@ -205,15 +205,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Error::Grpc` carries a new `retry_after: Option<Duration>` field (the decoded server backoff hint); exhaustive matches on the variant need the extra field or `..`.
 - TLS / crypto provider — `rustls`, its async and HTTP integration crates, and `rustls-platform-verifier` are pinned `default-features = false, features = ["ring", ...]` across every workspace in the tree (root, `tools/mcp`, `tools/server`, `sdks/python`, `sdks/typescript`). `aws-lc-rs` and its companion crates (`aws-lc-sys`, `cmake`, `dunce`, `fs_extra`) are absent from every Cargo.lock; `cargo tree --invert aws-lc-rs` reports no matches in any of the five workspaces. The binding-side crypto-provider install at module load is now the standard rustls 0.23 `install_default` call rather than a multi-provider tie-breaker.
 - `reqwest` is configured with `features = ["json", "query", "rustls-no-provider"], default-features = false` so the historical / Nexus auth path links into the same single rustls provider as the FPSS connect path.
-- `io_loop` is structurally simpler — single-producer wiring through `build_poller_producer`. The earlier `build_consumer_producer` (≈250 lines) and `push_with_block` queue helper are gone.
-- Connect path validates configuration up front and returns the fully-assembled `StreamingClient` directly; the prior tuple return shape is gone.
+- The streaming connect path is simpler internally, with the prior queue-handoff layer removed; behavior is unchanged.
+- Connect validates configuration up front and returns the fully-assembled `StreamingClient` directly; the prior tuple return shape is gone.
 - `ThetaDataDx::start_streaming` and `reconnect_streaming` serialise through a single-flight lifecycle lock; the FFI handle's lifecycle (`thetadatadx_streaming_set_callback` / `_reconnect` / `_shutdown` / `_free`) is fully serialised through the same per-handle mechanism.
-- `StreamingClient::record_panic` (and its delegating shim on `Client`) is gated behind the `__internal` Cargo feature plus `#[doc(hidden)]`. External crates.io consumers see only the read-side `panic_count()`; the three first-party bindings (`ffi`, `sdks/python`, `sdks/typescript`) already enable the `__internal` feature, so call sites compile unchanged.
+- The panic-recording write side is hidden from the public Rust surface; external crates.io consumers see only the read-side `panic_count()` accessor. The first-party bindings that need to record panics keep doing so unchanged.
 - `cargo-semver-checks` CI gate stays anchored on the `11.0.0` baseline; `[package.metadata.docs.rs]` continues to pin the rendered feature list (`arrow`, `polars`, `frames`, `config-file`) so docs.rs renders zero engine internals.
 - Generator templates emit `thetadatadx::*` paths so generated SDK code resolves against the single public crate.
 - `scripts/check_docs_consistency.py` now scans `docs-site/docs/.vitepress/theme/components/*.vue` for the same dead-API tokens it already blocks in `docs-site/docs/streaming/*.md`. The interactive query-builder live recipes (`live_quote_monitor`, `trade_tape`, `option_flow_scanner`, `live_option_chain`) are rewritten onto the push-callback shape so a paste-and-run of the generated Python lands on the supported API immediately on docs deploy.
 
-- The MDDS historical-data transport now rides a third-party gRPC stack (client-side channel transport only), replacing the in-house implementation. The closed-loop comparison measured the third-party stack at parity or ahead in every production-reachable cell — +17.6% throughput and -19% p50 at the 16-concurrent account ceiling on small frames, +3.2% throughput on 10 MiB frames, 2.4x lower allocation per small request — and the migration-time fan-in measurement (16 zstd chunks of ~640 KiB per RPC) closed the remaining open question the same way: inline per-chunk decode on the request task beats the dedicated decoder pool by +5.6% throughput and -11.6% p50 at the ceiling, so the prior two-stage decode pipeline and per-channel decoder pool are deleted without a replacement. The N-channel pool (one HTTP/2 connection per concurrent request, least-loaded picks) survives: a single multiplexed connection measured at roughly half the throughput at the 16-concurrent ceiling (79 027 vs 42 926 small-frame req/s; 872 vs 385 large-frame MB/s) because every stream shares one connection-level flow-control window. No transport type from the stack appears in any public signature: the third-party status converts once, inside the transport module, into the crate's own status type (code, message, decoded `google.rpc.RetryInfo` hint), and every transport fault keeps mapping into `Error::Transport { kind }` / `Error::Grpc { kind, retry_after }` at the crate boundary. Connection recycling after GOAWAY moves from the prior single-flight reconnect to the stack's built-in lazy reconnect with the same caller-visible contract (transient `ConnectionClosed`, next dispatch lands on a fresh connection). TLS rides a custom connector reusing the single-`ring`-provider rustls configuration verbatim; `aws-lc-rs` stays absent from every lockfile in all five workspaces.
+- The MDDS historical-data transport now rides a mature third-party gRPC stack, replacing the in-house implementation. The closed-loop comparison measured the third-party stack at parity or ahead in every production-reachable cell: +17.6% throughput and -19% p50 at the 16-concurrent account ceiling on small frames, +3.2% throughput on 10 MiB frames, and 2.4x lower allocation per small request. Decoding each response inline measured faster than the prior dedicated decode workers (+5.6% throughput and -11.6% p50 at the ceiling), so the separate decode stage is removed without a replacement. Concurrency still uses one connection per concurrent request: a single shared connection measured at roughly half the throughput at the 16-concurrent ceiling (79 027 vs 42 926 small-frame req/s; 872 vs 385 large-frame MB/s) because every stream then shares one flow-control window. No type from the third-party stack appears in any public signature: transport faults are converted at the crate boundary into the crate's own typed errors (`Error::Transport { kind }` / `Error::Grpc { kind, retry_after }`, carrying the decoded `google.rpc.RetryInfo` back-off hint where present). Recovery after a server-initiated connection close keeps the same caller-visible contract (a transient `ConnectionClosed`, with the next request landing on a fresh connection). TLS reuses the same single-provider configuration as the streaming connect path.
 - `MddsConfig::window_size_kb`, `connection_window_size_kb`, `keepalive_secs`, and `keepalive_timeout_secs` are load-bearing again: the transport threads them into the channel builder at connect time (HTTP/2 initial stream / connection windows, keepalive PING cadence and timeout). They had been accepted-but-ignored since the transport rewrite that landed in 10.0.0.
 - Intermediary HTTP 502 / 503 / 504 replies that carry no gRPC status (a proxy or load balancer answering in place of the server) now classify as the canonical retryable `Unavailable` status, so the retry shell re-dispatches them with backoff; previously they surfaced as a terminal transport error.
 - Response frames above `mdds.max_message_size` now surface as `Error::Grpc { kind: OutOfRange }` — the canonical gRPC over-limit status the decode layer emits — instead of `Error::Transport { kind: Codec }`. Both classifications are terminal for the retry shell; the configured ceiling remains load-bearing on every chunk.
@@ -225,10 +225,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The unused `AsyncIterator`, `Awaitable`, and `Iterator` imports in `sdks/python/python/thetadatadx/__init__.pyi`; the dead `StreamingIterSession` row in `scripts/check_binding_parity.py`'s `CPP_ALIASES` map.
 - The prior queue-path soak suite; workspace `cargo test` coverage replaces it.
 
-- The in-house gRPC transport internals: the hand-written HTTP/2 channel with its single-flight reconnect machinery, the length-prefix codec, the trailers parser, the two-stage decode pipeline, and the per-channel decoder pool (roughly 6.2K LOC), plus their dedicated benches (`grpc_channel`, `grpc_concurrent_burst`, `bench_decoder_pool`, `bench_stage_pipeline`) and reconnect-internals tests. `grpc_transport_comparison` stays in tree as the transport regression pin, now driving the production transport surface against the recorded baselines.
-- `MddsConfig::decode_threads`, `MddsConfig::decode_queue_depth`, and `MddsConfig::decoder_ring_size`, with their cross-binding setters and getters: Python `decode_threads` / `decode_queue_depth` / `decoder_ring_size` properties, TypeScript `setDecodeThreads` / `setDecodeQueueDepth` / `setDecoderRingSize` (+ getters), C ABI `thetadatadx_config_set_decode_threads[_explicit]` / `thetadatadx_config_set_decode_queue_depth[_explicit]` / `thetadatadx_config_set_decoder_ring_size` (+ getters), and the C++ forwarders. The two-stage decode pipeline these knobs tuned no longer exists — per-chunk decode runs inline on each request task, sized by `concurrent_requests` alone.
+- The in-house gRPC transport implementation (roughly 6.2K lines) and its dedicated benches and internal tests, now that the historical transport rides the third-party stack. The transport regression benchmark stays in tree, now driving the production transport against the recorded baselines.
+- `MddsConfig::decode_threads`, `MddsConfig::decode_queue_depth`, and `MddsConfig::decoder_ring_size`, with their cross-binding setters and getters: Python `decode_threads` / `decode_queue_depth` / `decoder_ring_size` properties, TypeScript `setDecodeThreads` / `setDecodeQueueDepth` / `setDecoderRingSize` (+ getters), C ABI `thetadatadx_config_set_decode_threads[_explicit]` / `thetadatadx_config_set_decode_queue_depth[_explicit]` / `thetadatadx_config_set_decoder_ring_size` (+ getters), and the C++ forwarders. The separate decode stage these knobs tuned no longer exists; decoding now runs inline on each request, sized by `concurrent_requests` alone.
 - `TransportErrorKind::{Codec, EmptyResponse, UnexpectedHttpStatus, DecoderPoisoned, DecoderReplyDropped}` — fault categories the transport can no longer produce (the underlying stack normalizes wire-shape violations into gRPC statuses; the decoder pool is gone). The enum keeps `Tcp`, `Tls`, `InvalidServerName`, `H2Handshake`, `H2Stream`, `ConnectionClosed`, and `InvalidPath`.
-- Direct dependencies: the bounded-channel crate (the decode pipeline's bounded MPSC queue) and `percent-encoding` (the hand-written `grpc-message` trailer decoder); both consumers were deleted with the in-house transport.
+- Direct dependencies: the bounded-channel crate and `percent-encoding`; both were used only by the in-house transport and were removed with it.
 
 ### Security
 
@@ -280,16 +280,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `RetryPolicy` per-field setters and getters bound across every binding. FFI: `thetadatadx_config_set_retry_initial_delay_ms(u64)` / `thetadatadx_config_get_retry_initial_delay_ms(*mut u64) -> i32` plus `_max_delay_ms`, `_max_attempts(u32)`, `_jitter(bool)`. C++: `thetadatadx::Config::set_retry_initial_delay_ms(uint64_t)` and matching getter plus the other three fields. Python: `Config.retry_initial_delay_ms`, `retry_max_delay_ms`, `retry_max_attempts`, `retry_jitter` getters and setters with `.pyi` rows. TypeScript napi: `Config.setRetryInitialDelayMs(bigint)` and `Config.retryInitialDelayMs` getter plus the other three fields. Method-shape helpers (`disabled()`, `delay_for_attempt()`, `capped_backoff()`) stay Rust-only.
 - `ReconnectConfig.wait_ms` and `ReconnectConfig.wait_rate_limited_ms` fully wired into the FPSS auto-reconnect path. Values flow from `DirectConfig.reconnect` through `FpssConnectArgs` into the `IoLoopArgs` and are consumed by the `ReconnectPolicy::Auto` arm via a new `fpss::reconnect_delay_for(reason, wait_ms, wait_rate_limited_ms)` helper. The prior `RECONNECT_DELAY_MS` / `TOO_MANY_REQUESTS_DELAY_MS` constants stay as the defaults but caller overrides now take effect. FFI: `thetadatadx_config_set_reconnect_wait_ms(*mut ThetaDataDxConfig, u64)` / `thetadatadx_config_get_reconnect_wait_ms(*const ThetaDataDxConfig, *mut u64) -> i32` plus the `_rate_limited_ms` pair. C++, Python, and TypeScript napi mirror the surface.
 - `RuntimeConfig` gains a worker-thread-count knob and a `RuntimeConfig::build_runtime()` helper that builds a multi-threaded async runtime honouring the configured worker count, with `Some(0)` clamped to `1`. The crate itself stays runtime-agnostic; the helper is the single source of truth that embedded bindings (FFI, Python, napi) consume when they own the runtime. Cross-binding surface mirrors the `MddsConfig::decode_threads_explicit` `(has_value, n)` shape so the `Some(0)` sentinel survives the C boundary.
-- `MddsConfig.warn_on_buffered_threshold_bytes` (Rust `usize`, default 100 MiB) bound across every binding. Buffered `.await` historical responses whose estimated size exceeds the threshold emit a single `tracing::warn!` event with `endpoint`, `row_count`, `bytes_est`, and `threshold_bytes` fields suggesting `.stream(handler)` for the workload. Fires once per request after the `Vec<Tick>` materialises; set to `0` to disable.
-- Two-stage MDDS decode pipeline. Stage 1 (per-channel decoder threads) runs only zstd decompression and pushes a `DecodedPayload { channel_id, request_id, payload: Bytes }` onto a shared bounded MPSC queue. Stage 2 (shared `Stage2Pool` worker pool) pulls jobs from the queue, runs the protobuf decode, and replies through the caller's reply channel. Worker count and queue depth are independently tunable via `MddsConfig::decode_threads: Option<usize>` (defaults to `available_parallelism()` when `None`) and `MddsConfig::decode_queue_depth: Option<usize>` (defaults to `pool_size * 64` when `None`); `Some(0)` clamps to 1 on both. Stage 1 parks on a full queue rather than dropping; park duration accumulates into `Stage2Counters::total_parked` (ns) and is debug-logged. `Stage2Counters` wraps three `AtomicU64`s in cache-line-padded cells so false-sharing across sockets cannot stall the pipeline under load. Panic containment: a stage-2 worker panic flips the shared `poisoned` flag, future jobs drain with `Error::Transport { kind: DecoderPoisoned, .. }`, stage-1 producers parked on a full queue observe the flip on their next push.
-- MDDS pool-sizing surface (`MddsConfig::concurrent_requests`, `decoder_threads`, `decoder_ring_size`) exposed on every binding. `concurrent_requests = 0` auto-detects from the resolved subscription tier; explicit values above the tier cap are clamped at connect time with a `tracing::warn!` and the per-request semaphore is sized off the resolved channel pool so the two stay strictly coupled. `decoder_threads = 0` auto-sizes to `max(available_parallelism / 2, 1)` independent of channel count. `decoder_ring_size` setters reject invalid sizes (zero, non-power-of-two, below 64) at the call site rather than at connect-time validate.
+- `MddsConfig.warn_on_buffered_threshold_bytes` (Rust `usize`, default 100 MiB) bound across every binding. A buffered historical response whose estimated size exceeds the threshold logs a single warning with `endpoint`, `row_count`, `bytes_est`, and `threshold_bytes` fields suggesting `.stream(handler)` for the workload. Fires once per request after the rows materialise; set to `0` to disable.
+- Two-stage MDDS decode pipeline that separates decompression from protobuf decode so the two scale independently under load. Worker count and queue depth are independently tunable via `MddsConfig::decode_threads: Option<usize>` (defaults to `available_parallelism()` when `None`) and `MddsConfig::decode_queue_depth: Option<usize>` (defaults to `pool_size * 64` when `None`); `Some(0)` clamps to 1 on both. The pipeline applies back-pressure rather than dropping when the queue is full, and a decode-worker panic is contained: subsequent decodes fail with `Error::Transport { kind: DecoderPoisoned, .. }` instead of wedging the pipeline. (This pipeline was later removed once inline decode measured faster.)
+- MDDS pool-sizing surface (`MddsConfig::concurrent_requests`, `decoder_threads`, `decoder_ring_size`) exposed on every binding. `concurrent_requests = 0` auto-detects from the resolved subscription tier; an explicit value above the tier cap is clamped at connect time with a logged warning, and request concurrency stays coupled to the resolved connection pool. `decoder_threads = 0` auto-sizes to `max(available_parallelism / 2, 1)` independent of connection count. `decoder_ring_size` setters reject invalid sizes (zero, non-power-of-two, below 64) at the call site rather than at connect-time validation.
 - Universal `.stream(handler)` method on every parsed historical builder. The buffered `.await -> Vec<T>` path held three live copies (HTTP/2 frames plus concatenated proto payload plus decoded `Vec<T>`) plus a `Vec::push` doubling transient, yielding 6x memory amplification on tick-interval responses. The new `.stream(handler)` decodes one chunk at a time, hands the slice to `handler`, then drops the chunk before the next is fetched. Peak resident memory drops to roughly one chunk regardless of total row count. The streaming variant is macro-emitted alongside the existing `IntoFuture` impl on every `parsed_endpoint!` builder. Python builders gain `.stream(handler)` / `.stream_async(handler)` terminals that hand each chunk to the user's callback as a typed `list[Tick]`; buffered `.await` / `.list()` / `.list_async()` paths remain unchanged for back-compat.
-- Zero-copy gRPC frame detach in `ServerStreaming::poll_next`. The previous accumulator-peek did `BytesMut::clone().freeze()` per poll (an O(polls x buf.len()) memory tax). Replaced with `peek_frame_length` (reads the 5-byte prefix in-place, no allocation) followed by `BytesMut::split_to(frame_len).freeze()` on the success branch (refcount-only). The codec invariant ("Err implies buf not consumed") is preserved end-to-end.
-- Asyncio-native streaming surface `ThetaDataDx.streaming_async()` / `StreamingClient.streaming_async()` (PEP 703). The session bridges the event-queue consumer thread to the asyncio loop and wakes the loop only when events arrive: zero polling cost during quiet periods, one OS wake per coalesced batch. Companion `streaming_async_batches()` yields `pyarrow.RecordBatch` whose column buffers alias the consumer's pre-grouped Arrow `RecordBatch` (no per-event Python object construction on the reader path). `queue_depth()` and `dropped_event_count()` getters expose the in-flight queue depth and dropped-event counters on both sessions.
+- Zero-copy frame handling on the historical streaming path. The previous design re-copied the receive buffer on every poll (an O(polls x buffer-size) memory tax); each frame is now detached without copying its bytes, cutting allocation and CPU on large server-streaming responses. Decode correctness is unchanged.
+- Asyncio-native streaming surface `ThetaDataDx.streaming_async()` / `StreamingClient.streaming_async()` (PEP 703). The session wakes the asyncio loop only when events arrive: zero polling cost during quiet periods, one OS wake per coalesced batch. Companion `streaming_async_batches()` yields `pyarrow.RecordBatch` whose column buffers alias the decoded data directly (no per-event Python object construction on the read path). `queue_depth()` and `dropped_event_count()` getters expose the in-flight queue depth and dropped-event counters on both sessions.
 - Free-threaded (PEP 703) wheels for CPython 3.13t and 3.14t. The extension keeps the GIL disabled after `import thetadatadx` on a free-threaded interpreter. Every blocking call on the unified client and on the FPSS / MDDS standalone pyclasses waits without holding the GIL, so compute threads run in parallel; the parallel-throughput gate asserts under 1.8x overhead under contention on the free-threaded matrix entries.
 - Hardened CI invariant suite. Gates cover: format, banned vocabulary, cross-binding parity (`sdks/parity.toml` matrix), extended-surfaces parity (`AuthConfig`, `MetricsConfig`), wire-schema validation, rustdoc, stubtest (`.pyi` against runtime), C-ABI bidirectional completeness, `cargo deny`, RustSec advisories, SAFETY-comment boilerplate detection, bench regression (threshold 25%), lockfile drift across the tracked Cargo.lock files for security-critical and SDK-owned crates, doc-consistency.
 - `cargo-semver-checks` CI gate hard-fails (`continue-on-error: false`) with the v11.0.0 baseline. `[package.metadata.docs.rs]` switched from `all-features = true` to an explicit feature list (`arrow`, `polars`, `frames`, `config-file`) so the rendered docs.rs page no longer surfaces bench-only or test-only symbols.
-- Channel-pool reconnect with `Arc<ArcSwap<SendRequest<Bytes>>>` and bounded exponential backoff. `crate::grpc::pool::ChannelPool` now reconnects channels on `ConnectionClosed` in-place rather than marking them permanently dead. Every transport-level fault (`GOAWAY`, IO failure, peer shutdown, open-phase drop) triggers a single-flight reconnect of the channel's inner `SendRequest<Bytes>` with bounded exponential backoff (50 ms initial, 30 s cap, 8 attempts). The caller's retry shell re-dispatches once and observes the fresh sender on the next pool pick.
+- In-place connection-pool reconnect with bounded exponential backoff, so a long-running historical client no longer cascades after a transport fault. Every transport-level fault (a server-initiated close, IO failure, peer shutdown, or open-phase drop) reconnects the affected connection in place with bounded backoff (50 ms initial, 30 s cap, 8 attempts) rather than marking it permanently dead; the retry path re-dispatches once onto the fresh connection.
 - Standalone `StreamingClient` and `HistoricalClient` pyclasses on the Python binding. `StreamingClient(creds, config)` opens only the FPSS TLS transport (no MDDS gRPC channel, no Nexus HTTP auth); `HistoricalClient(creds, config)` opens only the MDDS gRPC channel plus Nexus authentication and surfaces the historical / FLATFILES API while raising `AttributeError` on every FPSS-touching method. The bundled `Client` keeps its current behaviour; the new classes align the Python surface with the standalone clients already exposed by the C ABI (`thetadatadx_streaming_*` / `thetadatadx_client_*`) and the C++ wrapper (`thetadatadx::StreamingClient` / `thetadatadx::Client`).
 - gRPC `grpc-timeout` header emitted on every deadline-bearing RPC (`server_streaming_with_deadline`, `mdds_client.with_deadline(...)`). The header carries the smallest unit that fits the budget per the gRPC HTTP/2 spec (`n` / `u` / `m` / `S` / `M` / `H`) so the server can short-circuit on deadline elapse instead of completing work the client will discard.
 - `TransportErrorKind` exported from `thetadatadx::error` for binding consumers and retry classifiers.
@@ -304,12 +304,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `crate::grpc::pool::ChannelPool` reconnects channels on `ConnectionClosed` in-place rather than marking them permanently dead. Long-running clients no longer cascade after sustained load.
-- gRPC reconnect backoff gains decorrelated +/- 10% jitter keyed on `(host, port, attempt)` so a population of clients seeing the same `GOAWAY` no longer reconnects in lock-step.
-- METADATA-frame `permissions` and Nexus auth URL downgraded from `debug!` to `trace!` so production deployments do not record account subscription scope or auth-routing topology by default. `mdds::client::connect` `tracing::info!` no longer records the configured Nexus URL; the URL field is behind a `tracing::trace!` companion log matching the prior downgrade on `auth::nexus::authenticate_at`.
+- The historical connection pool reconnects in place on a transport close rather than marking connections permanently dead, so long-running clients no longer cascade after sustained load.
+- Historical reconnect backoff gains decorrelated +/- 10% jitter keyed on `(host, port, attempt)` so a population of clients seeing the same server-initiated close no longer reconnects in lock-step.
+- Account subscription scope and the auth-routing URL are no longer recorded at the default log level, so production deployments do not log account permissions or auth topology unless trace logging is explicitly enabled.
 - Vendor-neutral terminology across user-facing surfaces. C++ public headers (`thetadx.h`, `thetadx.hpp`) section banners and prose comments substituted internal protocol jargon ("FPSS client" / "FPSS handle" become "streaming client" / "streaming handle"; "MDDS retry policy" becomes "historical-channel retry policy"; ABI-locked symbol names stay unchanged). Python pyo3 docstrings rewritten analogously. The docs-site streaming pages (`docs-site/docs/streaming/{index,connection,events,latency,reconnection}.md`, `docs-site/docs/getting-started/streaming.md`, `docs-site/docs/migration/v9-to-v10.md`) substitute bare `FPSS` for `streaming`, bare `MDDS` for `historical channel`, and replace internal queue-implementation jargon with the neutral "bounded event queue" wording. Mermaid diagrams updated.
-- REST endpoint builders are now codegen-driven from `endpoint_surface.toml`. The four hand-written `option_history_*` builder structs, their `RestClient` constructor methods, and their `execute()` bodies (previously ~290 LoC of per-endpoint boilerplate) now live in a generated REST-endpoints module, emitted byte-identical by the new `build_support_bin/endpoints/sdk_render/rest_builder.rs` renderer. The endpoint model gains a `Transport` enum (`Grpc` / `Rest` / `Both`); flipping a TOML row to `transport = "both"` is now the only edit needed to add a fifth REST endpoint. Public API is unchanged.
-- Every `parsed_endpoint!` historical builder ships a "When to use `.await` vs `.stream(handler)`" decision matrix in rustdoc. Single source of truth lives in `build_support/endpoints/render/mdds.rs::AWAIT_VS_STREAM_DOC` and codegen attaches it after the per-endpoint description.
+- REST endpoint builders are now generated from `endpoint_surface.toml` rather than hand-written. Adding a REST endpoint is now a single TOML change (`transport = "both"`) instead of per-endpoint boilerplate. The generated builders are byte-identical to the previous hand-written ones and the public API is unchanged.
+- Every historical builder ships a "When to use `.await` vs `.stream(handler)`" decision matrix in its rustdoc, attached automatically after the per-endpoint description.
 - `crate::decode::row_date` accepts `Text` cells in addition to `Number` and `Timestamp`, routing them through `parse_iso_date`. Every existing call site is strictly more permissive; the new arm unblocks `InterestRateTick` decoding of the ISO `created` column.
 - `interest_rate_history_eod` rustdoc lists the 12 valid `symbol` values from upstream `RateType` (`SOFR`, `TREASURY_M1`, `TREASURY_M3`, `TREASURY_M6`, `TREASURY_Y1`, `TREASURY_Y2`, `TREASURY_Y3`, `TREASURY_Y5`, `TREASURY_Y7`, `TREASURY_Y10`, `TREASURY_Y20`, `TREASURY_Y30`). The wire signature stays `&str` so a future server-side maturity addition does not break SDK callers.
 - The lenient 6/11/12-field NBBO decoder is kept as a defensive measure: `find_header` plus `opt_number(row, None) -> 0` is good API design regardless of cause; a subset NBBO layout could surface from any upstream storage tier in the future. The test `quote_tick_decodes_legacy_six_field_shape_with_zero_fill` remains as a regression pin.
@@ -324,12 +324,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MDDS `extract_text_column`, `extract_number_column`, and `extract_price_column` resolve headers through the alias-aware `headers::find_header` helper. Upstream column renames (e.g. `symbol` to `root`, `timestamp` to `ms_of_day`) now resolve through `HEADER_ALIASES` instead of returning a silent empty `Vec`. A non-empty `DataTable` whose column cannot be resolved emits a `warn` log naming the requested header and the available set.
 - `HistoricalClient::open_channel_pool` routes `ChannelError -> Error` through the canonical `From<ChannelError> for Error` impl, dropping a hand-mapped duplicate `match` arm at the connect site. The channel-index context (`"channel {idx}: ..."`) is preserved on the `Transport`-shaped output.
 - Workspace clippy invocation widened to `cargo clippy --workspace --all-targets --locked -- -D warnings` so `[[bench]]` and `#[cfg(test)]` unsafe blocks travel through `clippy::undocumented_unsafe_blocks` on every PR.
-- Stage-1 to stage-2 backpressure send no longer parks indefinitely on the bounded channel's blocking send if every stage-2 worker panics while stage-1 is already blocked on a full queue. `Stage2PoolSender::send` parks in `POISON_CHECK_INTERVAL` (50 ms) slices via a timed send and re-reads the pool's poison flag between slices, so a worker panic mid-park surfaces as `Stage2SendError::Poisoned` within one slice instead of wedging stage-1 forever.
+- The decode pipeline's back-pressure path no longer hangs forever if every decode worker panics while the producer is already blocked on a full queue. The producer now wakes on a 50 ms cadence to re-check for a poisoned pool, so a worker panic mid-wait surfaces within one slice instead of wedging the pipeline.
 - The FPSS reader thread uses a non-blocking enqueue on every publish path (handshake control frames, login success, data frames, disconnect emission, reconnect control frames). A saturated queue no longer wedges the TLS reader; overflow increments the shared `dropped` counter and emits a `warn` log.
 - The FPSS auto-reconnect re-subscribe path allocates fresh `req_id` values from the shared `next_req_id` counter instead of emitting `-1`. Server-side `ReqResponse` events on the reconnected session now carry ids correlatable to the original subscribe.
 - `Contract::option(symbol, expiration, strike, right)` exposes the explicit four-argument signature; the wire-format integer-triple constructor is exposed as `Contract::option_raw(symbol, expiration, is_call, strike_raw)`. The `IntoOptionSpec` sealed trait is removed.
 - `FpssConfig` tuning knobs `timeout_ms`, `connect_timeout_ms`, and `ping_interval_ms` are wired into the runtime. Values flow through `FpssConnectArgs` to the connection (TCP `connect_timeout`), framing (mid-frame stall budget + I/O loop overall deadline), and ping-heartbeat layers, and validate their range at config-load time: `timeout_ms` `[100, 60_000]`, `connect_timeout_ms` `[1_000, 60_000]`, `ping_interval_ms` `[100, 300_000]`. `DirectConfig::validate` returns `Result<Self, Error>`; the production / dev / stage presets remain infallible by construction.
-- `HistoricalClient` REST-fallback shims downgrade per-call `start_date` / `end_date` logging from `tracing::debug!` to `tracing::trace!` so routine operator-visible logs no longer echo request date ranges.
+- The historical REST-fallback path no longer logs per-call `start_date` / `end_date` at the default log level, so routine operator logs no longer echo request date ranges.
 - `interval` millisecond-shorthand normalization realigned to the upstream preset vocabulary. The `"0"` sentinel now resolves to `"tick"` (every event) instead of the prior silent `"100ms"`, and the `1..=10` ms band resolves to `"10ms"` (previously folded into `"100ms"`). Callers that relied on `"0"` meaning `"100ms"` must pass an explicit preset.
 - Dynamic endpoint invocation (`EndpointArgs`, used by the CLI and MCP surfaces) strictly validates the `interval` argument against the upstream preset set (`tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`) or an all-digit millisecond shorthand. Non-preset strings such as `"1minute"` — previously accepted by the looser alphanumeric check — now surface a typed `EndpointError::InvalidParams` naming the accepted values before any request dispatches.
 - The `stock_list_symbols/in_house` benchmark is excluded from the hard bench-regression gate (it is a network-bound gRPC round-trip whose variance exceeds the threshold by construction); it still runs for information. CPU microbenches remain gated. (#614)
@@ -349,14 +349,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `InterestRateTick` schema corrected to two columns (`created` as ISO-date Text, `rate` as percent Number). The pre-v11 decoder errored `column 0: expected Number|Timestamp, got Text` on every `interest_rate_history_eod` call. Verified against the live server and `docs.thetadata.us/operations/interest_rate_history_eod.html`. Cross-binding regression coverage in `tests/test_interest_rate_schema.rs`, `sdks/python/tests/test_interest_rate.py`, `sdks/typescript/__tests__/interest_rate.test.mjs`, and `sdks/cpp/tests/interest_rate.cpp`.
 - `next_req_id` widened from `AtomicI32` to `AtomicI64` with a `wire_req_id` clamp at every wire-boundary call site. The previous 32-bit counter could wrap into the wire protocol's `-1` "uncorrelated" sentinel after roughly 2^31 allocations (~5 days at 5k subs/sec). The clamp masks the sign bit (`x & 0x7FFF_FFFF`) so wire ids stay strictly non-negative even past `i32::MAX`.
 - Per-frame `received_at_ns` cast uses saturating `u64::try_from` so the schema timestamp stops wrapping at the 2554 boundary.
-- `AuthUser::max_concurrent_requests` routes the subscription-tier shift through `SubscriptionTier::from_wire`. Out-of-range wire bytes (negative, `> 3`, `i32::MAX`) fold to `Free=1` and emit a `warn` instead of panicking on the old `1usize << tier` path.
-- Per-tick `metrics::counter!` lookup hoisted to `LazyLock<Counter>` handles on the FPSS decode hot path. Eight handles (4 event kinds x 2 metric names) replace the per-tick `(name, labels)` hashmap probe inside the global recorder, dropping the per-call observability cost from ~30 ns to ~5 ns.
-- Rate-limited the "no contract for ID" warning at 1024 emissions to match the existing slow-callback and clock-skew warn cadence. A server-side replay-boundary anomaly that ticked unrecognised ids previously flooded `tracing` with one line per tick and crowded out genuinely diagnostic warnings.
+- Out-of-range subscription-tier wire bytes (negative, `> 3`, `i32::MAX`) now fold to `Free` and log a warning instead of panicking.
+- Per-tick metric lookups on the FPSS decode hot path are cached rather than re-resolved per event, dropping the per-call observability cost from ~30 ns to ~5 ns.
+- Rate-limited the "no contract for ID" warning at 1024 emissions to match the existing slow-callback and clock-skew cadence. A server-side replay-boundary anomaly that ticked unrecognised ids previously logged one line per tick and crowded out genuinely diagnostic warnings.
 - Python `thetadatadx.__version__` resolves through `importlib.metadata.version("thetadatadx")` (PEP 396). The attribute was missing on the top-level package, breaking `pip show`, downstream version-pinning, and environment snapshot scripts.
-- `Channel::Drop` aborts the spawned HTTP/2 connection-driver `JoinHandle` as a belt-and-braces guard. The task was previously detached at `Channel::handshake`; under repeated connect/disconnect cycles a parked connection future could outlive the `Channel` for an unbounded interval. `.abort()` is idempotent on already-finished tasks.
-- The `unwrap_or(u32::MAX)` in `Codec::encode_response_for_test` becomes `.expect("...")` so a synthetic test response that ever outgrows the 32-bit length prefix surfaces a diagnostic failure instead of silently emitting `u32::MAX`.
-- `consecutive_timeouts * 50` in the FPSS `io_loop` becomes `consecutive_timeouts.saturating_mul(50_u64)` so a wild future bump to `max_consecutive_timeouts` past `u64::MAX / 50` cannot wrap the diagnostic on the warn line.
-- Per-disconnect metric label allocation: replaced `format!("{:?}", reason)` with `RemoveReason::as_str()` so the `reason` label points at a `&'static str` rather than allocating a `String` per disconnect.
+- A dropped historical connection now aborts its background connection-driver task, so under repeated connect/disconnect cycles a parked connection can no longer outlive its owner for an unbounded interval.
+- A timeout-backoff multiplier on the streaming path is now overflow-safe, so an extreme `max_consecutive_timeouts` setting cannot wrap the backoff diagnostic.
+- The per-disconnect metric label no longer allocates a string per disconnect.
 - `FpssConnectArgs::ring_size` doc comment corrected from "approx 552 bytes after the typed-StreamControl variants" to the actual `mem::size_of::<FpssEventInternal>() = 96` bytes on the current 64-bit layout; the per-`StreamingClient` event-queue footprint at the default `ring_size = 4096` is now documented as approx 384 KiB.
 - Python `StreamingAsyncSession.__aexit__` and `StreamingAsyncBatchesSession.__aexit__` close the asyncio read-end FD unconditionally even when `event_loop.remove_reader` raises (e.g. event loop closed mid-shutdown, FD already unregistered). The previous code propagated the `remove_reader` error via `?` before the close path, so a shutdown-race permanently leaked the pipe read-end because `self.closed` short-circuited re-entry. The error is now captured, the FD is reclaimed, and the captured error is re-raised so callers still see the underlying fault.
 - `tdbe::types::price::Price::Display` widens the mantissa to `i64` before negating, so formatting a `Price` whose `value` is `i32::MIN` no longer overflows. Debug builds previously raised `attempt to negate with overflow` and release builds wrapped silently; both now render the correct magnitude. Tracking: [#609](https://github.com/userFRM/ThetaDataDx/issues/609).
@@ -665,8 +664,8 @@ code does not change.
 - `thetadatadx_client_free` and `thetadatadx_streaming_free` now apply the drain barrier
   internally before destroying the handle. `_free` calls the equivalent
   of `stop_streaming` (or `shutdown` for FPSS) and then polls the
-  drain flag with a 5-second timeout; on overrun it logs a
-  `tracing::error!` and proceeds. Callers no longer need to call
+  drain flag with a 5-second timeout; on overrun it logs an
+  error and proceeds. Callers no longer need to call
   `_await_drain` before `_free` to keep the callback `ctx` alive.
   The C++ wrapper's `StreamingClient` move-assign now invokes
   `thetadatadx_streaming_await_drain` between `thetadatadx_streaming_shutdown` and releasing the
@@ -849,15 +848,12 @@ code does not change.
   affected method (`stop_streaming`, `shutdown`, `reconnect` on both
   bindings) so the explicit-handoff model is no longer surprising.
 - **`stop_streaming()` race that could resurrect streaming after
-  stop returned.** The `ArcSwap` slot accepted `Stopped → Live`, so
-  an in-flight `start_streaming*()` that began before
-  `stop_streaming()` could install a fresh `Live` slot AFTER stop
-  observed `Stopped`. Each `stop_streaming` now bumps an
-  `AtomicU64` generation counter; each `start_streaming*()`
-  snapshots the counter at entry, and the `install_live` rcu
-  closure refuses to install when the snapshot no longer matches.
-  Regression tests in the client module's test suite
-  pin both branches of the gate.
+  stop returned.** An in-flight `start_streaming*()` that began
+  before `stop_streaming()` could re-establish a live session after
+  stop had already taken effect. Each `stop_streaming` now
+  invalidates any concurrent start, so a start that raced a stop
+  refuses to install rather than reviving the stopped session.
+  Regression tests pin both branches of the race.
 - **MDDS `validate_date` accepted impossible Gregorian dates**
   (`00000000`, `20260230`, `19990431`, `21010101`). The shape-only
   check (length + ASCII digits) is now followed by a real calendar
@@ -871,17 +867,16 @@ code does not change.
   canonical Gregorian validator as MDDS, so dates like Feb 30,
   Apr 31, or `00000000` fail at construction with an explicit
   error naming the offending input.
-- **Silent `SystemTime::now()` failure in the FPSS frame decoder.**
-  A clock skew before `UNIX_EPOCH` used to silently produce
-  `received_at_ns = 0`; the path now logs a rate-limited
-  `tracing::warn!` (target `thetadatadx::fpss::decode`, every 1024
-  failures) and falls back to `0` only after surfacing the
-  condition to operators. Same treatment for the WS server's
-  `sonic_rs::to_string` failure path: a new
+- **Silent system-clock failure in the FPSS frame decoder.**
+  A clock skew before the Unix epoch used to silently produce
+  `received_at_ns = 0`; the path now logs a rate-limited warning
+  (every 1024 failures) and falls back to `0` only after surfacing
+  the condition to operators. The WS server's JSON-serialization
+  failure path gets the same treatment: a new
   `json_serialize_failures` counter is exposed alongside the
   existing `broadcast_dropped` counter on
-  `GET /v3/system/fpss/status`, and the failure path emits a
-  rate-limited `tracing::error!`.
+  `GET /v3/system/fpss/status`, and the failure path logs a
+  rate-limited error.
 - **Self-join deadlock when the user callback calls
   `stop_streaming()`.** With the consumer-thread dispatch in place, a
   callback that drops the last `Arc<StreamingClient>` (which is what
@@ -1017,8 +1012,7 @@ code does not change.
 - `ThetaDataDx::panic_count()` and `StreamingClient::panic_count()` — new
   public methods that snapshot the count of user-callback panics
   caught by the event-delivery thread's panic-isolation boundary. Each
-  panic is also surfaced via `tracing::error!` with target
-  `thetadatadx::fpss::io_loop`.
+  caught panic is also logged as an error.
 - `ThetaDataDx::await_drain(timeout)` — Rust quiescence barrier.
   Polls the previous streaming session's drain flag (set after the
   I/O thread and event-delivery thread have joined) and returns `true`
@@ -1068,14 +1062,14 @@ code does not change.
   reconnect-storm test (`tests/reconnect_storm.rs`), vendor schema-drift
   coverage (`tests/vendor_schema_drift.rs`), property-based frame-decoder
   fuzz target (`tests/decode_fuzz_property.rs`), callback-watchdog API
-  + slow-callback counter + rate-limited tracing warn
+  + slow-callback counter + rate-limited warning log
   (`tests/callback_watchdog.rs`).
 - `ThetaDataDx::set_slow_callback_threshold(Duration)` and
   `ThetaDataDx::slow_callback_count() -> u64` (mirrored on
   `StreamingClient`) — opt-in observability for user callbacks that exceed
   a wall-clock threshold. The event-delivery thread measures every
   callback's elapsed time and increments a counter when over budget;
-  a `tracing::warn!` fires rate-limited per 1024 over-budget events to
+  a warning is logged rate-limited per 1024 over-budget events to
   avoid log amplification. Observability only — Rust cannot safely
   cancel arbitrary user code, so the watchdog never kills the consumer.
   `Duration::ZERO` disables the timer path entirely.
@@ -1087,10 +1081,9 @@ code does not change.
   `.to_arrow_ipc()` (C++) terminals plus a generic `request(sec_type,
   req_type, date)` dispatcher and `flatfile_to_path` raw-bytes helper.
   The dynamic schema (columns determined at runtime by `(SecType,
-  ReqType)`) is implemented as hand-written thin wrappers over
-  the flatfiles `rows_to_arrow` builder rather
-  than through the SSOT codegen pipelines (`build_support/sdk_surface/`,
-  `build_support/endpoints/`), which target static-schema surfaces only.
+  ReqType)`) is implemented as thin hand-written wrappers over the
+  flat-file `rows_to_arrow` builder rather than through the codegen
+  pipeline, which targets static-schema surfaces only.
 
 ### Removed
 
@@ -1103,27 +1096,21 @@ code does not change.
   `StreamControl::ContractAssigned` event stream. The
   `fpss_event_schema.toml` SSOT bumps to `version = 5`; every
   generated binding regenerates without a `contract_id` field.
-- `StreamEvent::{RawData, Empty}` no longer in the public type. The
-  decoder filters truncated FIT payloads onto the
-  `thetadatadx.fpss.decode_failures` metric counter, and event-queue
-  pre-allocation slots use the crate-private `FpssEventInternal`
-  layout-compatible companion enum (`#[repr(C, u8)]` shared
-  discriminants — see `events::FpssEventInternal::as_public`). The
-  event-delivery thread reborrows `&StreamEvent` from
-  `&FpssEventInternal` zero-clone, so the H1-era hot-path cost is
-  preserved. `tools/server/AppState::contract_map` and the
-  `ws::contract_map` map-and-relookup pattern are deleted: the
-  contract `Arc` rides on the event itself, eliminating the
-  reconnect/market-close TOCTOU race on the WS bridge.
-- **Go SDK** (`sdks/go/`) deleted end-to-end. The previous half-state
-  (Go files shipped, but no CI / no live validation / not advertised
-  on the Rust core README badges) was SSOT drift; the C ABI in
-  `ffi/` remains the supported integration path for any third-party
-  C / C++ consumer. The unused `build_support/ticks/go.rs` generator
-  is also removed.
-- The FPSS `dispatcher` module and its public exports. Panic
-  isolation, drop counting, and consumer-thread invariants now
-  live on the event-delivery thread in the reader loop.
+- `StreamEvent::{RawData, Empty}` no longer in the public type. Truncated
+  FIT payloads are filtered out and counted on the
+  `thetadatadx.fpss.decode_failures` metric rather than surfaced as
+  events, with no added per-event cost on the delivery path. The
+  server's contract map-and-relookup is gone: the contract now rides on
+  the event itself, eliminating a reconnect / market-close race on the
+  WebSocket bridge.
+- **Go SDK deleted end-to-end.** The previous half-state (Go files
+  shipped, but no CI, no live validation, and not advertised) was a
+  drift hazard; the C ABI remains the supported integration path for
+  any third-party C / C++ consumer. Its generator support is removed
+  with it.
+- The internal streaming-dispatcher layer and its public exports.
+  Panic isolation, drop counting, and consumer-thread invariants now
+  live directly on the event-delivery path.
 - The bounded-channel runtime dependency on `thetadatadx`.
 - `expert-mode` and `test-harness` Cargo features on `thetadatadx`.
   The C ABI no longer exposes `thetadatadx_*_set_inline_callback`; the
@@ -1164,24 +1151,17 @@ code does not change.
 
 ### Performance
 
-- Per-event cost on the `start_streaming` path drops by removing the
-  `event.clone()` + intermediate-channel `try_send` + drain-thread
-  wakeup hop that previously sat between the event-delivery thread and
-  the user callback.
+- Per-event cost on the `start_streaming` path drops by removing an
+  event copy and an intermediate hand-off hop that previously sat
+  between the event-delivery thread and the user callback.
 
-  Microbenchmark methodology (`crates/thetadatadx/benches/streaming_channels.rs`):
-  each variant retries the non-blocking enqueue on overflow until
-  exactly `EVENTS_PER_ITER` (= 100_000) successful publishes have
-  landed per Criterion sample, and the consumer closure (or
-  trampoline) increments a `delivered_events: AtomicU64`. The
-  retry-on-overflow loop guarantees `delivered == EVENTS_PER_ITER`
-  by construction, so `Throughput::Elements(EVENTS_PER_ITER)` is
-  exact and the reported figures are per-DELIVERED-event cost.
-  Earlier revisions divided wall-clock by attempt count, which
-  silently understated cost when the consumer fell behind. A
-  `debug_assert_eq!(delivered, EVENTS_PER_ITER)` per iteration
-  cross-checks the invariant in debug builds (it is a no-op in
-  release-mode bench runs).
+  Microbenchmark methodology (the `streaming_channels` bench): each
+  variant publishes exactly 100,000 events per sample and counts only
+  events actually delivered to the callback, so the reported figures
+  are per-delivered-event cost. Earlier revisions divided wall-clock
+  by attempted publishes, which silently understated cost when the
+  consumer fell behind; the count of delivered events is now asserted
+  against the target so the figure cannot drift.
 
   Indicative numbers from `cargo bench --bench streaming_channels --
   --quick` on a recent x86-64 Linux laptop (Criterion median, native
@@ -1251,10 +1231,9 @@ code does not change.
 - Stripped 76 per-line internal provenance comments across the
   FPSS, MDDS, and config trees, consolidating the protocol-parity
   rationale into a single module-header note in each affected file.
-- Split the FPSS `io_loop.rs` module into
-  `io_loop/{mod.rs, login.rs, ping.rs}` so the login handshake and
-  ping heartbeat live next to the main I/O loop without sharing a
-  1,072-line file.
+- Reorganised the streaming I/O internals so the login handshake and
+  ping heartbeat live alongside the main loop instead of in one large
+  file. Internal-only; no behavior change.
 - Removed `docs/public-api-redesign.md`; v9.0.0 shipped the redesign
   it described, and a one-line note in `docs/architecture/README.md`
   records that the planning prose for shipped surfaces is intentionally
@@ -1421,27 +1400,18 @@ code does not change.
 
 ### Changed
 
-- **Streaming state machine collapsed into a single `ArcSwap<StreamingSlot>`.**
-  `Client`'s prior 3-field state (`Mutex<Option<StreamingClient>>`,
-  `Mutex<Option<StreamingDispatcher>>`, `AtomicBool was_streaming`) is
-  now one `ArcSwap` of an `Idle` / `Live` / `Stopped` enum. Read paths
-  (`is_streaming`, `connection_status`, `with_streaming`, every
-  per-subscription forwarder) collapse to one atomic load. Lifecycle
-  paths retain serial semantics through an rcu-CAS install and an
-  atomic swap-to-`Stopped`. Adds `arc-swap` 1.7 to runtime deps.
-- **Layout moves:**
-  - Top-level mdds-specific modules relocated under `mdds/`
-    (`endpoint.rs` → `mdds/endpoint_args.rs`, `macros.rs` →
-    `mdds/macros.rs`, `registry.rs` → `mdds/registry.rs`,
-    `validate.rs` merged into `mdds/validate.rs`,
-    `wire_semantics.rs` → `mdds/wire_semantics.rs`). Re-exports
-    preserved at crate root for back-compat
-    (`thetadatadx::endpoint::*`, `thetadatadx::EndpointMeta`,
-    `thetadatadx::ENDPOINTS`).
-  - `unified.rs` → `client.rs` (filename = primary type name).
-  - `frames.rs` + `frames_generated.rs` → `frames/{mod,generated}.rs`.
-  - `tdbe::types::*_generated.rs` segregated under
-    `tdbe::types::generated/`.
+- **Streaming state machine consolidated into a single lock-free slot.**
+  The client's prior three-field streaming state collapses into one
+  atomically-swapped `Idle` / `Live` / `Stopped` value, so every read
+  path (`is_streaming`, `connection_status`, `with_streaming`, every
+  per-subscription forwarder) is a single lock-free load while lifecycle
+  transitions keep serial semantics. Behavior is unchanged.
+- **Internal layout moves.** The MDDS-specific modules were relocated
+  under the `mdds` module tree and the generated-code files segregated
+  into their own submodules. The public re-exports
+  (`thetadatadx::endpoint::*`, `thetadatadx::EndpointMeta`,
+  `thetadatadx::ENDPOINTS`) are preserved at the crate root for
+  back-compat.
 
 ### Fixed
 
@@ -1485,13 +1455,11 @@ code does not change.
   etc still work). Field-write callers must migrate to nested form
   (`config.fpss.queue_depth = ...`). Adds `mdds.connect_timeout_secs`
   (default 10s, covers prior LOW finding).
-- **The `tdbe` conditions module (2749 LoC) refactored to TOML-driven
-  codegen.** Source-of-truth at `tdbe/data/{trade,quote}_conditions.toml`
-  (149 + 75 entries). `tdbe`'s `build.rs` reads the TOMLs and emits
-  the generated `conditions/tables_generated.rs` with compile-time
-  const arrays. Public surface unchanged; new `condition_tables_pin`
-  test pins 12 known entries against the const arrays for round-trip
-  protection.
+- **The `tdbe` conditions module refactored to TOML-driven codegen.**
+  The trade and quote condition tables (149 and 75 entries) are now
+  generated from TOML source into compile-time const arrays at build
+  time. Public surface unchanged; a new test pins 12 known entries
+  against the generated arrays for round-trip protection.
 
 ## [8.0.35] - 2026-05-07
 
@@ -1600,19 +1568,14 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
 ### Breaking
 
 - **Python `client.next_event(timeout_ms)` REMOVED.** Replaced with
-  `client.start_streaming(callback)`. The dispatcher thread acquires
-  the GIL via `Python::with_gil` to call the user's Python
-  callable. The internal `std::sync::mpsc` shim in
-  `sdks/python/src/streaming_methods.rs` and the wrapper's `rx` /
-  `EventRx` / closure-local `dropped_events` counter are gone; the
-  Python binding now wires straight through the SSOT
-  `StreamingDispatcher`. Drop counter is exposed via
-  `client.dropped_event_count()` (forwarded to
-  `thetadatadx::Client::dropped_event_count`). The Python
-  binding deliberately does NOT expose `start_streaming_inline`:
-  GIL acquisition can block, and a slow Python callback on the
-  FPSS reader thread would fill the kernel TCP receive buffer and
-  trigger a vendor-side disconnect.
+  `client.start_streaming(callback)`: events are now delivered to a
+  callback rather than pulled one at a time, and the binding wires
+  straight through the shared streaming delivery path. The drop
+  counter is exposed via `client.dropped_event_count()`. There is
+  deliberately no inline-on-the-reader-thread variant: a slow Python
+  callback running on the streaming reader thread would back up the
+  kernel TCP receive buffer and trigger a vendor-side disconnect, so
+  delivery always runs on a dedicated thread.
 
   Migration:
 
@@ -1649,9 +1612,9 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
   ```
 
   The `droppedEvents()` getter is renamed to `droppedEventCount()`
-  and now forwards to the SSOT `StreamingDispatcher` so the value
-  matches every other binding. `std::sync::mpsc` is gone from
-  `sdks/typescript/`. The TypeScript binding deliberately does NOT
+  and now forwards to the shared streaming delivery path so the value
+  matches every other binding. The old intermediate queue is gone from
+  the TypeScript binding. The TypeScript binding deliberately does NOT
   expose a `start_streaming_inline` opt-in: Node's libuv requires
   JS callbacks on the main thread, and `ThreadsafeFunction`'s
   internal `uv_async_t` queue is the only safe path.
@@ -1673,8 +1636,8 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
 
   `thetadatadx_streaming_connect` now defers the FPSS TLS connection until the first
   `set_callback` / `set_inline_callback` call (callback registration
-  and connect are atomic). All `std::sync::mpsc` usage and the
-  poll-based receive path have been removed from `ffi/src/streaming.rs`.
+  and connect are atomic). The old poll-based receive path is removed
+  from the FFI streaming surface.
 
 - **C++ wrapper**: the poll-based `thetadatadx::StreamingClient::next_event` and the
   owning `FpssEventPtr` / `FpssEventDeleter` types are gone. Event
@@ -1778,9 +1741,8 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
 ### Changed
 
 - Workspace 8.0.27 → 8.0.28, tdbe 0.12.7 → 0.12.8. The tdbe bump rides
-  the regenerated `OptionContract.symbol` field in
-  `tdbe`'s generated `tick_generated.rs`; every other change ships
-  as patch deltas off the existing v8 line per repo policy.
+  the regenerated `OptionContract.symbol` field; every other change
+  ships as patch deltas off the existing v8 line per repo policy.
 - `tools/cli` raw column header for `OptionContract` is `symbol`
   instead of `root`, sourced from `tick_schema.toml::field` so future
   schema renames flow through the CLI without a helper edit.
@@ -1789,12 +1751,8 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
 
 ### Changed
 
-- **polars 0.52 -> 0.53.** Adopts the new
-  `DataFrame::new(height: usize, columns: Vec<Column>)` signature in
-  `build_support/ticks/rust_frames.rs` (the existing
-  `n = self.len()` binding feeds the new `height` argument). Re-runs of
-  `generate_sdk_surfaces` produce `frames_generated.rs` with the
-  updated call form. Closes #464.
+- **polars 0.52 -> 0.53.** Adopts the new `DataFrame::new` signature in
+  the generated frame builders. Closes #464.
 
 ### Fixed
 
@@ -1864,21 +1822,18 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
 
 ### Changed
 
-- **Generated `tdbe::types::tick` struct definitions.**
-  `tdbe`'s generated `tick_generated.rs` is now emitted by
-  `generate_sdk_surfaces` from `tick_schema.toml`. The hand-written
-  `tick.rs` keeps `impl_contract_id!` macro applications, the
-  `TradeTick` flag helpers, and `OptionContract::is_call` /
-  `is_put` -- everything else flows from the schema. Adding a new tick
-  type means adding one `[types.X]` row.
-- **Schema-driven C++ layout asserts and Go FFI sizes.**
-  `sdks/cpp/include/tick_layout_asserts.hpp.inc` and
-  `sdks/go/tick_ffi_sizes_generated.go` now compute every struct's
-  size + alignment from the schema (via `tick_ffi_size_and_align`)
-  rather than each emitter dispatching on the type name. Adding a tick
-  type to `tick_schema.toml` produces the size/align pair, the C++
-  `static_assert`, and the Go `unsafe.Sizeof` test entry without any
-  `build_support/ticks/{cpp,go}.rs` edit.
+- **Generated `tdbe` tick struct definitions.** The tick struct
+  definitions are now generated from `tick_schema.toml`. The
+  hand-written code keeps the contract-id implementations, the
+  `TradeTick` flag helpers, and `OptionContract::is_call` / `is_put`;
+  everything else flows from the schema. Adding a new tick type means
+  adding one `[types.X]` row.
+- **Schema-driven C++ layout asserts and Go FFI sizes.** The generated
+  C++ layout asserts and Go FFI size checks now compute every struct's
+  size and alignment from the schema rather than dispatching on the
+  type name. Adding a tick type to `tick_schema.toml` produces the
+  size/align pair, the C++ `static_assert`, and the Go size test entry
+  with no per-language generator edit.
 - `OpenInterestTick` and `TradeQuoteTick` gained the missing `align = 64`
   directive in `tick_schema.toml`. The schema now matches the
   `#[repr(C, align(64))]` declared on the corresponding `tdbe` types --
@@ -1892,40 +1847,32 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
 ### Fixed
 
 - **`option_*_greeks_*_order` no longer spams `expected column header
-  not found` warnings.** The decode `find_header` helper
-  emitted a `tracing::warn!` every time a generated parser asked for an
-  optional column that was absent from the wire response. The Greeks
-  family splits the column set across the wire — `_greeks_first_order`
-  ships seven Greeks, `_greeks_second_order` ships five, and
-  `_greeks_third_order` ships four — but the shared `GreeksTick` schema
-  carries the full 23-Greek union. Calling
-  `option_snapshot_greeks_third_order` therefore produced eight warn
+  not found` warnings.** Decoding logged a warning every time a parser
+  asked for an optional column that was absent from the wire response.
+  The Greeks family splits the column set across the wire —
+  `_greeks_first_order` ships seven Greeks, `_greeks_second_order`
+  ships five, and `_greeks_third_order` ships four — but the shared
+  `GreeksTick` schema carries the full 23-Greek union. Calling
+  `option_snapshot_greeks_third_order` therefore produced eight warning
   lines per response (zomma, color, ultima, d1, d2, dual_delta,
-  dual_gamma, vera, …) before any user-visible decoding finished. The
-  warn is now a `tracing::trace!` so the diagnostic is still reachable
+  dual_gamma, vera, …) before any user-visible decoding finished. That
+  diagnostic is now emitted at trace level, so it is still reachable
   via `RUST_LOG=thetadatadx=trace` for genuine schema-drift
-  investigations, but stays out of stderr on routine subset calls.
+  investigations but stays out of stderr on routine subset calls.
   Required-column drift continues to surface as a typed
-  `Error::MissingRequiredHeader` from the generated parser. Closes #472.
+  `Error::MissingRequiredHeader`. Closes #472.
 
 ### Changed
 
-- **TOML-driven render map collapses 19 hand-coded helper match arms
-  into single-key lookups.** Every per-language binding name a renderer
-  needs for one tick type — Rust direct-client return type, generated
-  parser fn, Go struct + converter, FFI array struct + free fn + output
-  variant + header-return type, C++ value type, six Python converters
-  (dict, columnar, pyclass-list, pyclass-list-class, vec-to-pylist,
-  slice-arrow), TypeScript class + class-vec converter, and the Python
-  pyclass struct name — moves into `[types.X.render]` blocks in
-  `tick_schema.toml`. The 20 helper functions that
-  previously enumerated those names by hand
-  (`build_support/endpoints/helpers.rs::direct_return_type` and friends,
-  plus `build_support/ticks/mod.rs::pyclass_name`) become single
-  HashMap lookups against a `OnceLock`-cached load of the schema.
-  Adding a tick type now requires one TOML row -- no helper edits. The
-  generated SDK surfaces are byte-identical against `main` because the
-  TOML rows reproduce the names the helpers previously hardcoded.
+- **Per-tick-type binding names are TOML-driven instead of hand-coded.**
+  Every per-language name a tick type needs across the bindings (Rust
+  return type, generated parser, Go struct and converter, FFI array
+  struct and free function, C++ value type, the Python converters and
+  pyclass name, and the TypeScript class and converter) moves into
+  `[types.X.render]` blocks in `tick_schema.toml`. Adding a tick type
+  now requires one TOML row and no per-language edits. The generated
+  SDK surfaces are byte-identical against `main` because the TOML rows
+  reproduce the names that were previously hardcoded.
 - Per-endpoint vendor-schema column lists for the four Greeks families
   pinned and documented in `tick_schema.toml::GreeksTick` against the
   upstream OpenAPI capture in `scripts/upstream_openapi.yaml`. The
@@ -1935,14 +1882,13 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
   publishes, why the others zero-default, and where the per-endpoint
   vendor schema is captured. The codegen pickup is doc-only; no SDK
   surface drift.
-- Three new unit tests in the decode module's test suite
-  drive `parse_greeks_ticks` against the `_first_order`,
-  `_second_order`, and `_third_order` wire shapes (column lists pinned
-  to upstream OpenAPI). Each test asserts bit-exact decoded values for
-  the wire-present columns and `0.0` defaults for the documented gaps,
-  so a future regression of `find_header` back to `tracing::warn!` —
-  or any column-list drift in either direction — surfaces as a
-  behavioural test failure rather than as live log spam.
+- Three new unit tests drive Greeks decoding against the
+  `_first_order`, `_second_order`, and `_third_order` wire shapes
+  (column lists pinned to upstream OpenAPI). Each test asserts
+  bit-exact decoded values for the wire-present columns and `0.0`
+  defaults for the documented gaps, so a future regression back to
+  warning-level log spam — or any column-list drift in either
+  direction — surfaces as a behavioural test failure.
 - `tdbe` 0.12.6 → 0.12.7.
 
 ## [8.0.25] - 2026-05-05
@@ -1951,18 +1897,13 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
 
 - **Windows `ERROR_IO_PENDING` (os error 997) no longer trips a fatal
   FPSS read error.** On Windows the overlapped socket layer surfaces
-  in-flight reads as `ERROR_IO_PENDING` instead of `WSAEWOULDBLOCK`.
-  Rust `std` maps raw OS error 997 to `ErrorKind::Uncategorized`, so
-  the existing `WouldBlock | TimedOut` matches in
-  the FPSS `io_loop::is_read_timeout` helper and the
-  two retry arms in the FPSS `framing` module
-  (pre-header and mid-payload) treated it as fatal — Python users on
+  in-flight reads as `ERROR_IO_PENDING` instead of `WSAEWOULDBLOCK`,
+  which the streaming read path treated as fatal: Python users on
   Windows saw `FPSS read error error=IO error: Overlapped I/O
   operation is in progress. (os error 997)` spam followed by a
-  reconnect storm. A new `is_transient_read` helper in `framing.rs`
-  matches `WouldBlock`, `TimedOut`, and `raw_os_error() == Some(997)`;
-  all three sites delegate to it so the I/O loop drains queued
-  commands and retries the way it does on Linux and macOS.
+  reconnect storm. The read path now treats os error 997 as a
+  transient read alongside `WouldBlock` and `TimedOut`, so it drains
+  queued commands and retries the way it does on Linux and macOS.
   Closes #469.
 
 ### Changed
@@ -1979,8 +1920,8 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
 - `tdbe::greeks::compute_full_bundle_with_iv(s, x, v, r, q, t, is_call)`
   — full `GreeksResult` computation that skips the bisection IV solver
   and uses a caller-supplied volatility. Tier-0 intermediates are shared
-  across every Greek in the bundle; ~2× faster than 17+ individual
-  per-Greek calls. Typical use case is the IV-cache hot path. Takes
+  across every Greek in the bundle; ~2× faster than computing the
+  Greeks one at a time. Typical use case is the IV-cache hot path. Takes
   `is_call: bool` rather than `&str right` because callers in this
   path have already parsed the side; `all_greeks` and
   `implied_volatility` keep the `&str right` surface.
@@ -1994,36 +1935,31 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
 ### Fixed
 
 - **REST + MCP no longer return empty bodies on serialisation failure.**
-  `tools/server/src/handler.rs` and `tools/mcp/src/main.rs` previously
-  swallowed `sonic_rs::to_string` errors via `unwrap_or_default()`,
-  producing a `200 OK` with `""` (REST) or a successful but empty
+  Both previously swallowed a JSON-serialization error, producing a
+  `200 OK` with an empty body (REST) or a successful but empty
   `tools/call` result (MCP) when a tick payload contained a non-finite
   f64 cell. The REST handler now surfaces the failure as a structured
   `500` carrying the underlying error message in the existing JSON
   envelope, and the MCP handler returns a JSON-RPC `-32603` Internal
   Error. The cross-language non-finite f64 -> JSON `null`
-  canonicalisation rule (previously inlined in `tools/cli/src/main.rs`
-  as `raw_f64`) now lives in the new `json_canon` crate and is
-  shared by CLI, REST, and MCP so all three frontends produce
-  byte-identical output for the same payload.
-- **FPSS WebSocket broadcast queue is now bounded.**
-  `tools/server/src/ws/broadcast.rs` previously used
-  an unbounded channel, which could grow without bound
-  if the broadcast task lagged behind the event-delivery thread.
-  The channel is now bounded at 65_536 slots and the callback uses
-  `try_send` with explicit `Full` / `Closed` arms; drops are accounted
-  on a new `AppState::record_fpss_broadcast_drop` `AtomicU64` counter,
-  exposed via `GET /v3/system/fpss/status` as `broadcast_dropped`, and
-  warn-logged once per 1024 drops to surface back-pressure without
-  flooding stderr.
+  canonicalisation rule is now shared by the CLI, REST, and MCP
+  frontends so all three produce byte-identical output for the same
+  payload.
+- **FPSS WebSocket broadcast queue is now bounded.** The server's
+  broadcast queue was previously unbounded and could grow without
+  limit if the broadcast task lagged behind the feed. It is now
+  bounded at 65 536 slots; on overflow an event is dropped rather than
+  buffered indefinitely, drops are counted and exposed via
+  `GET /v3/system/fpss/status` as `broadcast_dropped`, and a warning is
+  logged once per 1024 drops to surface back-pressure without flooding
+  stderr.
 - **`ThetaDataDx::reconnect_streaming` now fails explicitly on partial
-  re-subscription.** The re-subscribe loop in the unified client
-  previously logged failures via
-  `tracing::warn!` and returned `Ok(())`, hiding partial reconnects
-  from programmatic callers. The loop now collects every failed
-  `(SubscriptionKind, Contract)` pair and, when the list is non-empty,
-  returns the new `Error::PartialReconnect { failed }` variant. The
-  per-failure `tracing::warn!` lines stay for operational visibility.
+  re-subscription.** On reconnect the unified client previously logged
+  re-subscribe failures and returned `Ok(())`, hiding partial
+  reconnects from programmatic callers. It now collects every failed
+  subscription and, when any failed, returns the new
+  `Error::PartialReconnect { failed }` variant. The per-failure
+  warning lines stay for operational visibility.
 - **Version metadata drift cleared.** `sdks/cpp/CMakeLists.txt`
   (`8.0.9` -> `8.0.23`) and the workspace comment in `Cargo.toml`
   (`7.x` -> `8.0.x`) now match the rest of the v8 line. Banned
@@ -2032,11 +1968,11 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
 
 ### Added
 
-- `json_canon` — a tiny shared crate exposing
+- `json_canon` — a small shared module exposing
   `finite_or_null`, `canonicalize`, and `canonicalize_and_serialize`
-  for non-finite f64 -> JSON `null` collapse plus surfaced
-  `sonic_rs::Error` on serialisation failure. Pulled in by
-  `tools/cli`, `tools/server`, and `tools/mcp`.
+  for non-finite f64 -> JSON `null` collapse, surfacing the
+  serialisation error rather than swallowing it. Shared by the CLI,
+  server, and MCP frontends.
 - New `Error::PartialReconnect { failed: Vec<(SubscriptionKind, Contract)> }`
   variant in `thetadatadx::error` and a new
   `Contract::full_type_marker(sec_type)` constructor used to encode a
@@ -2050,11 +1986,11 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
 
 ### Changed
 
-- `tools/cli/src/main.rs` `raw_f64` is now a thin delegation to
-  `json_canon::finite_or_null`.
-- `tools/server/src/format.rs` `render_csv_value` canonicalises before
-  serialising and emits a `<csv-render-error: …>` sentinel rather than
-  an empty cell on serialisation failure.
+- The CLI's f64-to-JSON rule now delegates to the shared
+  canonicalisation helper.
+- The server's CSV value rendering canonicalises before serialising and
+  emits a `<csv-render-error: …>` sentinel rather than an empty cell on
+  serialisation failure.
 - `tdbe` bumped to `0.12.4` to keep all member crates on a fresh
   patch line for the 8.0.23 release.
 
@@ -2098,13 +2034,12 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
 
 ### Fixed
 
-- **`fpss::accumulator::change_price_type` no longer overflows `i32` on
-  rescale.** Multiplications by `10^N` (up to `10^9`) widened to `i64`
-  mid-arithmetic; rescales whose result still does not fit `i32` return
-  the original price unchanged and emit a `tracing::warn!` event with
-  `(price, price_type, new_price_type)` rather than silently saturating
-  or panicking. A live BRK.A wire integer in cents (71_396_865)
-  rescaled to `price_type=4` is the canonical trigger.
+- **Price rescaling on the streaming feed no longer overflows `i32`.**
+  A rescale whose result does not fit `i32` now returns the original
+  price unchanged and logs a warning with the price and the source and
+  target price types, rather than silently saturating or panicking. A
+  live BRK.A wire integer in cents (71_396_865) rescaled to
+  `price_type=4` is the canonical trigger.
 - **`decode::row_number_i64` no longer routes `Price` cells through
   `f64`.** Large integer fields delivered as `Price` cells now decode
   with i64-native scaling (`checked_pow` / `checked_mul`), preserving
@@ -2399,8 +2334,8 @@ PR #489 (dispatcher core), #490 (C ABI), #492 (Python), #493
 - The `tdbe` enums module now includes generator-emitted
   endpoint-surface enums instead of hand-maintaining `Right`, `Venue`,
   `Interval`, `RateType`, `RequestType`, and `Version`.
-- `sdks/python/src/coerce.rs` now includes generator-emitted enum
-  pyclasses instead of hand-maintaining the `string_enum!` block.
+- The Python binding now includes generator-emitted enum pyclasses
+  instead of a hand-maintained enum block.
 - `sdks/go/tick_ffi_mirrors.go` no longer embeds hand-maintained expected
   sizes or FPSS offset literals; it consumes generator-owned constants and
   offset tables.
@@ -2645,15 +2580,15 @@ out of the default dep graph.
 
 ### Added
 
-- **Rust `frames` module — `TicksPolarsExt` / `TicksArrowExt` extension traits behind `polars` / `arrow` / `frames` Cargo features.** Chain `.to_polars()` / `.to_arrow()` off a decoder-owned `&[tick::T]` in Rust the same way Python users chain off `<TickName>List`. Per-tick-type impls are generator-emitted from `tick_schema.toml` into a new generated `frames_generated.rs` module, covering every entry — `CalendarDay`, `EodTick`, `GreeksTick`, `InterestRateTick`, `IvTick`, `MarketValueTick`, `OhlcTick`, `OpenInterestTick`, `OptionContract`, `PriceTick`, `QuoteTick`, `TradeQuoteTick`, `TradeTick`. Column-shape SSOT with the Python slice_arrow path: both generators read `tick_schema.toml` and apply the same field-type → Arrow-dtype mapping, so `ticks.as_slice().to_polars()?` in Rust produces the same DataFrame schema (column order, dtypes, the `QuoteTick.midpoint` virtual column, the contract-id `expiration` / `strike` / `right` tail, the `OptionContract.right` i32 → string projection) as `client.stock_history_eod(...).to_polars()` in Python. Dep footprint stays opt-in: `polars = ["dep:polars"]`, `arrow = ["dep:arrow-array", "dep:arrow-schema"]`, `frames = ["polars", "arrow"]`; polars pins to `0.46` with `default-features = false` (no lazy, no parquet, no SQL, no compute kernels) and `arrow-array` / `arrow-schema` pin to `58.1.0` matching `sdks/python/Cargo.toml` so the repo sees a single major version of the arrow family. Opt-in form: `thetadatadx = { version = "8", features = ["polars"] }`.
+- **Rust `frames` module — `TicksPolarsExt` / `TicksArrowExt` extension traits behind `polars` / `arrow` / `frames` Cargo features.** Chain `.to_polars()` / `.to_arrow()` off a decoder-owned `&[tick::T]` in Rust the same way Python users chain off `<TickName>List`. Per-tick-type impls are generated from `tick_schema.toml`, covering every entry — `CalendarDay`, `EodTick`, `GreeksTick`, `InterestRateTick`, `IvTick`, `MarketValueTick`, `OhlcTick`, `OpenInterestTick`, `OptionContract`, `PriceTick`, `QuoteTick`, `TradeQuoteTick`, `TradeTick`. Column-shape is shared with the Python path: both generators read `tick_schema.toml` and apply the same field-type → Arrow-dtype mapping, so `ticks.as_slice().to_polars()?` in Rust produces the same DataFrame schema (column order, dtypes, the `QuoteTick.midpoint` virtual column, the contract-id `expiration` / `strike` / `right` tail, the `OptionContract.right` i32 → string projection) as `client.stock_history_eod(...).to_polars()` in Python. Dep footprint stays opt-in: `polars = ["dep:polars"]`, `arrow = ["dep:arrow-array", "dep:arrow-schema"]`, `frames = ["polars", "arrow"]`; polars and the arrow crates are pinned with minimal features and aligned to a single major version across the repo. Opt-in form: `thetadatadx = { version = "8", features = ["polars"] }`.
 
 ### Changed
 
 - **Snapshot-kind endpoints now return plain `list[TickClass]` instead of the `<TickName>List` wrapper.** Applies to every endpoint with `subcategory = "snapshot"` or `"snapshot_greeks"` in `endpoint_surface.toml`, plus every `category = "calendar"` + `kind = "parsed"` entry — 20 endpoints total: 4 `stock_snapshot_*`, 11 `option_snapshot_*` (OHLC, trade, quote, open_interest, market_value, + 5 greeks variants + 1 IV variant), 3 `index_snapshot_*`, 3 `calendar_*`. The `<T>List` allocation cost was pure overhead on the latency-sensitive path — callers never chain `.to_polars()` on a 1-row calendar result. Classification is entirely TOML-driven via `helpers::is_snapshot_endpoint`; no hand-curated allowlist, so adding a new snapshot-kind endpoint to the TOML automatically opts it into the fast path on the next generator run. Return-type annotation changes (`list[CalendarDay]` instead of `CalendarDayList`); positional args and kwargs on the public pymethod signature are unchanged.
-- **Snapshot pymethods now dispatch via a new `run_blocking_snapshot` helper — a bounded 5-second deadline instead of the 100 ms signal-check ticker.** `run_blocking`'s signal-check poll loop taxed every sub-100 ms call with 1-5 ms of first-tick jitter in the worst case. `run_blocking_snapshot` drops the ticker entirely: it waits on the future under a 5-second deadline without holding the GIL. The 5-second upper bound is a liveness safeguard — every observed production snapshot call completes in <200 ms, so the bound adds zero steady-state cost. Ctrl+C is still honoured after the future resolves or the deadline fires. Emitted by the generator only when `is_snapshot_endpoint` is true; parsed / list / streaming endpoints keep the existing `run_blocking` path unchanged.
-- **`run_blocking` signal-check poll cadence reduced from 100 ms to 20 ms.** Drops the worst-case select-wait on short parsed-kind calls from ~100 ms to ~20 ms. `Python::check_signals()` is ~1 µs per call so driving the ticker 5× as often has negligible steady-state cost. Long-running endpoints see no behavioural change beyond a slightly finer-grained Ctrl+C cancellation window. One-line constant edit in `sdks/python/src/lib.rs`; the matching doc-comment is updated.
+- **Python snapshot calls drop the periodic signal-check tax for a bounded 5-second deadline.** The previous signal-check poll loop taxed every sub-100 ms call with 1-5 ms of first-tick jitter in the worst case. Snapshot calls now wait on the result under a 5-second deadline with the GIL released, so compute threads keep running during the wait. The 5-second upper bound is a liveness safeguard: every observed production snapshot call completes in under 200 ms, so the bound adds zero steady-state cost. Ctrl+C is still honoured once the result resolves or the deadline fires. Parsed / list / streaming endpoints keep the existing path unchanged.
+- **Ctrl+C latency on short Python historical calls tightened from ~100 ms to ~20 ms.** The signal-check cadence on parsed-kind calls is 5x finer; signal checks are about 1 microsecond each, so the steady-state cost is negligible. Long-running endpoints see no behavioural change beyond a slightly finer-grained Ctrl+C cancellation window.
 - **`README.md` / `sdks/python/README.md` — positioning refreshed.** Dropped the old small snapshot / calendar latency caveat now that the fast-path reduces overhead on every measured endpoint. Added a feature-gated Rust DataFrame quickstart example showing `thetadatadx = { version = "8", features = ["polars"] }` plus the chained `ticks.as_slice().to_polars()?` call site.
-- **Generator-emitted snapshot fast-path converters (`<tick>_vec_to_pylist`) in `sdks/python/src/tick_classes.rs`.** One helper per snapshot-return tick type (9 total: `calendar_days_vec_to_pylist`, `ohlc_ticks_vec_to_pylist`, `quote_ticks_vec_to_pylist`, `trade_ticks_vec_to_pylist`, `market_value_ticks_vec_to_pylist`, `open_interest_ticks_vec_to_pylist`, `iv_ticks_vec_to_pylist`, `greeks_ticks_vec_to_pylist`, `price_ticks_vec_to_pylist`); one helper per tick type that is NOT reached by any snapshot endpoint is suppressed at generation time to avoid dead-code. Emission is gated on a TOML-derived set computed by the new `endpoints::snapshot_return_types` helper — adding a snapshot endpoint of a new tick type to `endpoint_surface.toml` automatically opts its converter into emission on the next generator run. Row-building body reuses `pyclass_from_tick_expr` from the `<TickName>List.to_list()` path so both surfaces emit byte-identical pylist contents.
+- **Generated snapshot fast-path converters for the Python binding.** One converter per snapshot-return tick type (9 in total, covering calendar, OHLC, quote, trade, market-value, open-interest, IV, Greeks, and price ticks); a converter for a tick type not reached by any snapshot endpoint is suppressed at generation time to avoid dead code. The set is derived from `endpoint_surface.toml`, so adding a snapshot endpoint of a new tick type automatically opts its converter in on the next generator run. The converted Python list contents are byte-identical to the existing `to_list()` path.
 
 ## [8.0.5] - 2026-04-22
 
@@ -2666,7 +2601,7 @@ on the returned tick data, no signature changes on the SDK surface.
 
 ### Fixed
 
-- **`option_list_dates` — duplicate expiration field removed from the request wire shape.** The v3 `OptionListDatesRequestQuery` proto carries both a `ContractSpec` (whose `expiration` is the contract identity) and a top-level `string expiration` field (a vestigial wire field that predates `ContractSpec`). The generator was populating both with the same canonicalized date, which forced the server onto a per-contract enumeration path. Fixed in `build_support/endpoints/render/mdds.rs::mdds_query_field_expr`: when the query message also carries a `ContractSpec`, the top-level `expiration` field now emits `String::new()` to match the request contract. Same one-line generator rule covers every option query message that carries both fields; no hand-written per-endpoint edits.
+- **`option_list_dates` — duplicate expiration field removed from the request wire shape.** The v3 request carries both a `ContractSpec` (whose `expiration` is the contract identity) and a top-level `expiration` field that predates it. Populating both with the same date forced the server onto a slow per-contract enumeration path. The top-level field is now left empty when the request also carries a `ContractSpec`, across every option request that carries both fields, with no per-endpoint edits.
 - **`option_at_time_quote` — duplicate expiration field removed from the at-time quote path.** The same top-level `expiration` duplicate that bottlenecked `option_list_dates` also penalized the at-time-quote path on dense option chains. Same generator-level fix applies: `expiration` on `OptionAtTimeQuoteRequestQuery` now emits `String::new()`.
 - **`option_history_greeks_eod` — wire-shape parity restored on the wide-schema path.** Same fix as the two items above; greeks-EOD sent the duplicate `expiration` field through the same code path.
 - **`ContractSpec.strike` / `ContractSpec.right` — wildcard sentinels now marshal as literal `"*"` / `"both"` on the wire.** The previous `wire_strike_opt` / `wire_right_opt` mapping reinterpreted the SDK-surface wildcards (`""`, `"*"`, `"0"` for strike; `"both"` for right) as proto-unset optional fields. Upstream request examples populate these fields literally; the v3 server treats an **unset** optional as "enumerate every strike / right for this contract" (slow path) and an explicit `"*"` / `"both"` as "chain-wide lookup" (fast path). Both helpers now always return `Some(...)` with the canonical wildcard literal. No signature changes on the SDK surface; callers continue to pass `"*"` / `"both"` unchanged.
@@ -2674,7 +2609,7 @@ on the returned tick data, no signature changes on the SDK surface.
 ### Changed
 
 - **`README.md` / `sdks/python/README.md` — positioning corrected to measured v8.0.4 bench numbers.** Dropped legacy headline claims from v8.0.0-era measurements and replaced them with endpoint-specific, reproducible notes. Small snapshot / calendar calls are no longer described as speedups because network round-trip time dominates those calls.
-- **8.0.2 slice-direct Arrow narrative scoped to builder terminals.** The 8.0.2 changelog bullet ("`.arrow()` / `.pandas()` / `.polars()` feed decoder-owned `Vec<tick::T>` straight into Arrow column builders, peaking RSS at about the tick payload") described the builder-terminal path. The `<Type>List.to_polars()` non-builder terminal also reaches the slice-direct converter (`slice_arrow::<tick>_slice_to_arrow_table`), but the column-builder pass holds both the decoder-owned slice and the column vectors in memory simultaneously. The narrative in both `CHANGELOG.md` and `docs-site/docs/changelog.md` now scopes the memory note to the implementation path that provides it.
+- **8.0.2 slice-direct Arrow narrative scoped to builder terminals.** The 8.0.2 changelog bullet ("`.arrow()` / `.pandas()` / `.polars()` feed decoder-owned tick slices straight into Arrow column builders, peaking RSS at about the tick payload") described the builder-terminal path. The `<Type>List.to_polars()` non-builder terminal also reaches the slice-direct converter, but the column-builder pass holds both the decoder-owned slice and the column vectors in memory simultaneously. The narrative in both `CHANGELOG.md` and `docs-site/docs/changelog.md` now scopes the memory note to the implementation path that provides it.
 
 ## [8.0.4] - 2026-04-22
 
@@ -2687,10 +2622,10 @@ utility files the endpoint generator layers depend on.
 
 ### Fixed
 
-- **`sdks/python/src/chunking.rs` — `Ymd::from_yyyymmdd` accepted Gregorian-impossible dates.** The hand-rolled parser range-checked month `1..=12` and day `1..=31` independently, so `20230229` (Feb 29 in a non-leap year), `20240231` (Feb 31), `20240431` (Apr 31) and every other calendar-invalid combination slipped through. `to_ord` then silently normalized the bogus day to a neighbouring valid one, producing wrong chunk boundaries when the 365-day auto-chunk helper split a range starting or ending on an impossible date. The validator now delegates to `chrono::NaiveDate::parse_from_str(_, "%Y%m%d")`, which enforces leap-year and month-length rules from the canonical Gregorian tables. `chrono` is adopted as a new direct dep on `sdks/python/Cargo.toml` (pinned to `=0.4.44`, `default-features = false`, `alloc` only) and is already a transitive dep via the tzdb chain pulled in by `thetadatadx`, so the crate graph does not gain any new package. Covered by 12 new tests: Feb 29 in 2023/2024/1900/2000, Feb 30, Feb 31, Apr 31, Jun/Sep/Nov 31, month 0/13/99, day 0, and end-to-end rejection through `split_date_range`.
-- **`sdks/python/src/logging_bridge.rs` — Rust `tracing` targets were passed to `logging.getLogger` with `::` separators.** Rust `tracing` emits targets as `::`-separated module paths (`thetadatadx::auth::nexus`, `thetadatadx::fpss::io_loop`, …). Python's stdlib `logging` hierarchy is `.`-separated. Consequence: `logging.getLogger("thetadatadx").setLevel(logging.DEBUG)` did NOT propagate to `thetadatadx::auth::nexus` events — Python treated those as unrelated top-level loggers with no parent-level filtering. The v8.0.2 release notes' claim that parent-level `setLevel` filters Rust-side events was therefore false. Fixed by rewriting `target.replace("::", ".")` in the `Layer::on_event` hook before calling `logging.getLogger(...)`. Covered by one new test pinning the transformation on the canonical targets plus a Python-level test that exercises the full `getLogger → setLevel → isEnabledFor` hierarchy propagation with both the post-fix (normalized) and pre-fix (unnormalized) names.
-- **`sdks/python/src/async_runtime.rs` — `spawn_awaitable` ran the convert closure on an async runtime worker under GIL contention.** The helper's inner async block ran `convert` while holding the GIL directly on the awaitable's body, so heavy convert work (e.g. building a 955 237-row `QuoteTickList` pyclass) parked the runtime worker for the duration of the Python-object build. Two concurrent `*_async` calls on the same worker serialized end-to-end on the GIL even though the runtime had other workers free. Fixed by offloading the convert closure to a blocking-pool thread, the designated lane for synchronous / long-running work — the runtime worker is free to service other endpoints while the current call synthesizes its Python payload off the async path. Join-error handling routes panics to a `PyRuntimeError` so the shape of the awaitable's error surface is unchanged. The module-level docstring walks through why option A (return `T: IntoPyObject` and let the async-runtime bridge handle materialization) was rejected — the 122 generator-emitted callsites in `historical_methods.rs` and the matching templates in `build_support/endpoints/render/python.rs` all pass typed pyclass-wrapper helpers (`strings_to_string_list`, `trade_ticks_to_pyclass_list`, …) that aren't plain `IntoPyObject` impls on `Vec<T>`; routing the existing convert closures to the blocking pool resolves the contention with zero ripple to the helper surface. Covered by a new wall-clock test that fires two concurrent `spawn_awaitable` calls with 100 ms convert closures and asserts the combined elapsed time is less than 1.5× single-task (pre-fix serial behaviour would be ~ 2×).
-- **`sdks/python/src/logging_bridge.rs` — `Python::attach` could panic during interpreter finalization on Python 3.13+.** A background Rust thread emitting a `tracing` event during CPython teardown would call `Python::attach`, which panics when the interpreter is mid-finalization (documented pyo3 behaviour, sharpened on 3.13+). The panic took down the process before the layer's existing `Err(_) => return` guard could swallow the resulting logger error. Fixed by switching to `Python::try_attach` (pyo3 0.28 API), which returns `None` when the interpreter is unavailable (finalizing, not initialized, or mid-GC traversal) and lets us silently drop the event. Shutdown-time event loss is an acceptable tradeoff vs. a crash during interpreter exit. Covered by a new test asserting `try_attach` returns `Some` on the live-interpreter path (the regression guard — a revert to plain `attach` would lose the finalization-safety property) and by a documentation note in the module docstring's "Threading model" section.
+- **The Python binding's date chunking accepted Gregorian-impossible dates.** The hand-rolled parser range-checked month `1..=12` and day `1..=31` independently, so `20230229` (Feb 29 in a non-leap year), `20240231` (Feb 31), `20240431` (Apr 31) and every other calendar-invalid combination slipped through and was silently normalized to a neighbouring valid day, producing wrong chunk boundaries when the 365-day auto-chunk helper split a range starting or ending on an impossible date. The validator now enforces leap-year and month-length rules from the canonical Gregorian calendar, via a dependency that was already present transitively (no new crate in the build graph). Covered by 12 new tests across the leap-year and month-length edge cases plus end-to-end rejection through the range splitter.
+- **Python `logging` parent-level `setLevel` now filters Rust-side log events.** The Rust core emits log targets as `::`-separated module paths (`thetadatadx::auth::...`), but Python's `logging` hierarchy is `.`-separated, so `logging.getLogger("thetadatadx").setLevel(logging.DEBUG)` did NOT propagate to those events — Python treated them as unrelated top-level loggers with no parent-level filtering. The v8.0.2 release notes' claim that parent-level `setLevel` filters Rust-side events was therefore false. The logging bridge now normalizes target names to the dotted form before handing them to `logging.getLogger(...)`, so the full `getLogger -> setLevel -> isEnabledFor` hierarchy works. Covered by a new test on the canonical target names and a Python-level hierarchy-propagation test.
+- **Concurrent Python `*_async` calls no longer serialize on the GIL.** Building the Python result for an `_async` call (e.g. a 955 237-row quote-tick list) used to run while holding the GIL on the async path, so two concurrent `*_async` calls serialized end-to-end even when runtime workers were free. The result-building work now runs on the blocking pool, leaving the async runtime free to service other calls, with the awaitable's error surface unchanged. Covered by a new wall-clock test that fires two concurrent `_async` calls with 100 ms result-building work and asserts the combined elapsed time is under 1.5x single-task (the pre-fix serial behaviour was roughly 2x).
+- **Python could crash during interpreter shutdown on Python 3.13+.** A background thread emitting a log event while the interpreter was tearing down could abort the process before the logging layer could swallow the error. The logging path now detects when the interpreter is unavailable (finalizing, not yet initialized, or mid-GC) and silently drops the event instead. Losing a log event at shutdown is an acceptable tradeoff against a crash on interpreter exit. Covered by a regression test on the live-interpreter path and a note in the threading-model documentation.
 
 ## [8.0.3] - 2026-04-22
 
@@ -2710,7 +2645,7 @@ tick data into a DataFrame.
 
 ### Changed
 
-- **Generator-emitted `_async` methods delegate to a `spawn_awaitable` helper** mirroring the sync `run_blocking` pattern. One call per emit replaces the open-coded async-runtime-bridge + GIL-acquire + `map_err(to_py_err)` scaffolding that every `_async` method previously inlined. `sdks/python/src/historical_methods.rs` sheds ~599 lines of duplicated plumbing.
+- **Generated `_async` methods share one awaitable helper** instead of each inlining its own async-bridge scaffolding, shedding roughly 599 lines of duplicated plumbing. Internal-only; the async surface is unchanged.
 - **Docs-site restructure.** Deleted the standalone benchmark page, the migration-from-thetadata guide, the five per-language `quickstart/*.md` files, and the separate async-python narrative. Replaced with a unified code-group quickstart exposing Rust / Python / TypeScript / Go / C++ via language tabs so one page stays in sync across SDKs.
 
 ## [8.0.2] - 2026-04-21
@@ -2786,7 +2721,7 @@ Major release. Three headline groups land in one pass:
 - **Internal `docs/dev/` design notes removed** (no longer load-bearing).
 - **`DirectClient` renamed to `HistoricalClient`** (#383) — the historical-data gRPC client now carries the name of the service it actually speaks to (MDDS = Market Data Delivery Service). `use thetadatadx::DirectClient` call sites break; update to `use thetadatadx::HistoricalClient`. The `DirectConfig` associated config type keeps its name. High-level consumers of `Client` (Python / TypeScript / Go / C++ / Rust facade) are unaffected.
 - **The `direct.rs` module split into the `mdds/` module** (#383) — 732-line monolith broken into six concern-separated files (`client`, `endpoints`, `endpoint_arg_ext`, `normalize`, `validate`, `mod`). Pure move; wire behavior unchanged; all 304 workspace tests pass.
-- **The `external.proto` file renamed to `mdds.proto`** (#385) — the proto file described only MDDS (`BetaEndpoints`) messages; the filename now reflects that. The generated-protobuf include for `beta_endpoints` and every downstream Rust import resolve unchanged (package declaration drove the module name, not the filename). `build.rs`, `proto_parser`, generated-header strings, `MAINTENANCE.md`, `CONTRIBUTING.md`, `ROADMAP.md`, and every `docs/` reference updated (17 files, 51 lines).
+- **The historical-service proto file renamed to reflect MDDS** (#385) — the file described only MDDS messages, so the filename now matches. The generated protobuf include and every downstream Rust import resolve unchanged, because the package declaration (not the filename) drove the module name. The build, the proto tooling, the generated-header strings, and every doc reference were updated in the same sweep.
 - **`fpss_event_schema.toml` schema version bumped 2 → 3** (#389) — carries the new nested `Contract` column type for every data-event variant. Every SDK Contract type (Python pyclass, TypeScript `#[napi(object)]`, Go struct with `*int32`/`*bool` pointer optionals, C/C++ typedef with `has_*` tagged-optional flags, Rust FFI `#[repr(C)] ThetaDataDxContract` with `CString`-backed root pointer) is generator-emitted from the updated schema.
 
 ### Added
@@ -2801,7 +2736,7 @@ Major release. Three headline groups land in one pass:
 - **Generated `#[new]` constructors on every tick pyclass** (#379) — `EodTick(ms_of_day=1, volume=1_000_000, ...)`, `OhlcTick(...)`, `TradeTick(...)`, etc. All fields are keyword-only with zero / empty-string defaults, so test fixtures and user-side data construction are possible from Python (previously pyclass instances could only be produced by Rust endpoints).
 - **`AllGreeks` pyclass** (#378) — `all_greeks(...)` now returns a frozen `AllGreeks` pyclass with 22 `#[pyo3(get)]` f64 fields (value / iv / delta / gamma / theta / vega / rho plus every second- and third-order Greek) and a `__repr__` showing the six most-referenced values. Replaces the untyped 22-key `PyDict` that was the sole remaining dict-typed public return in the Python SDK.
 - **`__repr__` on every FPSS event pyclass** (#380) — `Ohlcvc`, `Quote`, `Trade`, `OpenInterest`, `Simple`, `RawData` now render up to six live field values at the Jupyter / print boundary (matching the pattern already on tick pyclasses). Opaque `Vec<u8>` payloads and `received_at_ns` skipped as noise.
-- **`dropped_events()` counter on every streaming SDK** (#377) — `Arc<AtomicU64>` hoisted onto `Client` survives reconnect and is exposed as `client.dropped_events() -> int` (Python), `client.droppedEvents(): bigint` (TypeScript), `client.DroppedEvents() uint64` (Go), `client.dropped_events() -> uint64_t` (C++), `thetadatadx_streaming_dropped_events(handle)` / `thetadatadx_client_dropped_events(handle)` (FFI). Previously silent `let _ = tx.send(buffered)` call-sites now bump the counter and emit `tracing::debug!` on target `thetadatadx::sdk::streaming`.
+- **`dropped_events()` counter on every streaming SDK** (#377) — a dropped-event counter that survives reconnect, exposed as `client.dropped_events() -> int` (Python), `client.droppedEvents(): bigint` (TypeScript), `client.DroppedEvents() uint64` (Go), `client.dropped_events() -> uint64_t` (C++), and `thetadatadx_streaming_dropped_events(handle)` / `thetadatadx_client_dropped_events(handle)` (FFI). Call sites that previously dropped a buffered event silently now bump the counter and log a debug event.
 - **`POST /v3/system/shutdown` endpoint on `thetadatadx-server`** (#377) — graceful shutdown over a privileged route gated by a per-startup random UUID `X-Shutdown-Token` header (constant-time compared via `subtle::ConstantTimeEq`). Prints the token to stderr at startup only; never into structured logs. Dedicated governor allows one attempt per hour, burst 3. Method is `POST` (not `GET`) so the action is neither cached nor prefetched.
 
 ### Changed
@@ -2817,7 +2752,7 @@ Major release. Three headline groups land in one pass:
   ```
 
   Single code path, single generator, single test surface — 100% SSOT restored on the Python DataFrame surface.
-- **Deleted** `sdks/python/src/tick_columnar.rs` (the old PyDict-based emission) (#379) — replaced end-to-end by the generator-emitted `sdks/python/src/tick_arrow.rs`. `pip install thetadatadx[pandas]` / `[polars]` now pull `pyarrow>=14.0` alongside the DataFrame library; `pip install thetadatadx[arrow]` is the pyarrow-only extras bundle.
+- **Deleted** the old PyDict-based columnar emission (#379) — replaced end-to-end by the generated Arrow path. `pip install thetadatadx[pandas]` / `[polars]` now pull `pyarrow>=14.0` alongside the DataFrame library; `pip install thetadatadx[arrow]` is the pyarrow-only extras bundle.
 
 ### Changed
 
@@ -2842,7 +2777,7 @@ Major release. Three headline groups land in one pass:
 
 ### Changed
 
-- **`thetadatadx::direct` module removed; replaced by `thetadatadx::mdds`** — the 732-line flat `src/direct.rs` is split into a concern-separated `src/mdds/` module that mirrors the existing `fpss/` layout: `client.rs` (struct + connect), `stream.rs` (gRPC response helpers), `validate.rs` (param validators), `normalize.rs` (wire-format canonicalizers + `contract_spec!` macro), `endpoints.rs` (generated `include!` sites). The generator module `build_support/endpoints/render/direct.rs` is renamed to `render/mdds.rs` and now emits `mdds_*_generated.rs` into `OUT_DIR`; the template directory `templates/direct/` is renamed to `templates/mdds/`. "MDDS" is the actual upstream gRPC service name — "direct" conveyed nothing.
+- **`thetadatadx::direct` module renamed to `thetadatadx::mdds`** and split into concern-separated submodules (connect, response helpers, validators, wire-format canonicalizers, generated endpoints). "MDDS" is the actual upstream service name; "direct" conveyed nothing.
 - **`DirectClient` renamed to `HistoricalClient`** — the struct inside the (now) `mdds/` module takes its module's name. Re-exported at the crate root as `thetadatadx::HistoricalClient`. `Client` still `Deref<Target = HistoricalClient>`s, so every historical endpoint method is reached unchanged via the unified client.
 
 ### Changed
@@ -2860,20 +2795,20 @@ Major release. Three headline groups land in one pass:
 
 ### Fixed
 
-- **FFI boundary catches Rust panics** (#380) — no panic isolation existed across the FFI crate before this change. A Rust panic crossing an `extern "C"` boundary on Rust 1.81+ aborts the host process — C / Go / Python / C++ callers died with no way to recover. The new `ffi_boundary!` macro panic-isolates every extern body. Panic payloads are downcast to `&'static str` then `String`, routed to `tracing::error!` on target `thetadatadx::ffi::panic`, written to the thread-local `LAST_ERROR` slot via the existing `set_error`, and the fn returns the caller-declared default (`ptr::null_mut()` / `-1` / `0` / sentinel-empty-array). **Coverage: 145 production `extern "C"` functions wrapped** — 84 in `ffi/src/lib.rs` plus 61 in the generated `ffi/src/endpoint_with_options.rs`. Generator-emitted so future regeneration preserves parity. Regression tests at `ffi/tests/panic_boundary.rs`.
-- **Python `next_event(timeout_ms)` honours Ctrl+C within 100 ms** (#380) — previously the generator emitted a single `recv_timeout(Duration::from_millis(timeout_ms))` with the GIL released for the full user-supplied timeout (up to 5 minutes), so Ctrl+C was swallowed for the duration of the wait. `build_support/sdk_surface.rs` now emits a 100 ms polling loop that calls `Python::check_signals()?` per iteration and returns on deadline.
+- **FFI boundary catches Rust panics** (#380) — no panic isolation existed across the FFI layer before this change. A Rust panic crossing the C ABI on Rust 1.81+ aborts the host process, so C / Go / Python / C++ callers died with no way to recover. Every `extern "C"` function now contains panics at the boundary: the panic message is recorded and retrievable via the C error API (`thetadatadx_last_error()`), and the function returns its declared default (`ptr::null_mut()` / `-1` / `0` / sentinel-empty-array). **Coverage: all 145 production `extern "C"` functions** (the hand-written and the generated entry points alike), with the wrapper generator-emitted so future regeneration preserves parity. Backed by regression tests.
+- **Python `next_event(timeout_ms)` honours Ctrl+C within 100 ms** (#380) — previously the call waited for the full user-supplied timeout (up to 5 minutes), so Ctrl+C was swallowed for the duration of the wait. The wait now checks for an interrupt every 100 ms and returns on the deadline.
 - **`ThetaDataDx::new` constructor is cancellable** (#380) — swapped the uninterruptible blocking-wait path for `run_blocking(py, async { connect(...).await })` so a TLS / auth handshake hang stays Ctrl+C-interruptible.
 - **FPSS TLS: SPKI pinning replaces `NoVerifier`** (#377) — `PinnedVerifier` parses the leaf cert via `x509-parser`, computes SHA-256 over the SubjectPublicKeyInfo DER bytes, and constant-time compares (`subtle::ConstantTimeEq`) against the captured `FPSS_SPKI_SHA256` (verified identical across prod `nj-a:20000` / `nj-b:20000`, dev `:20200`, stage `:20100` — single keypair across every FPSS environment). Rejects with `CertificateError::NotValidForName` on hostname mismatch (allowlist) or `RustlsError::General("FPSS SPKI pin mismatch: ...")` on pin mismatch. `verify_tls12_signature` / `verify_tls13_signature` delegate to rustls' proper signature verification. Previously any on-path attacker terminating TLS to `nj-a.thetadata.us:20000` could present any cert and harvest the plaintext `StreamMsgType::Credentials` frame.
-- **Password `Zeroizing<String>`** (#377) — `Credentials.password` wrapped in `zeroize::Zeroizing<String>`. Every clone (`Client`, `io_loop`, reconnect re-serialise) now wipes the backing buffer on drop. Core dump / `/proc/<pid>/mem` no longer recovers the password after `Credentials` drops. `Deref<Target = str>` means call-sites are unchanged.
+- **Password zeroized on drop** (#377) — `Credentials.password` and every internal copy of it wipe their backing buffer when dropped, so a core dump or `/proc/<pid>/mem` read no longer recovers the password once `Credentials` is gone. Call sites are unchanged.
 - **CSV formula injection defused on `thetadatadx-server` exports** (#377) — `escape_csv_field` now prefixes cells whose first byte is `=`, `+`, `-`, `@`, or `\t` with a single-quote `'` and encloses in CSV quotes. Defuses `=cmd|'/C calc'!A1`, `@SUM(A1:A10)`, `+1+cmd|...` etc from executing in Excel downloads. Regression test covers all five payload shapes.
-- **FPSS `io_loop`: JVM-terminal-parity mid-frame read retry with per-read deadline reset** (#370) — previously a mid-frame read timeout desynced the decoder. The client now retries transparently with the per-read deadline reset, matching the JVM terminal's reconnect behaviour.
+- **Streaming mid-frame read retry with per-read deadline reset** (#370) — previously a mid-frame read timeout desynced the decoder. The client now retries transparently with the per-read deadline reset, matching the JVM terminal's behaviour.
 - **WS subscribe strike / expiration use `i32::try_from`** (#377) — client-supplied expiration / strike no longer silently narrow via `as i32`. Returns `REQ_RESPONSE { response: "ERROR", ... }` with a descriptive message on overflow. Validates `exp` against `[19000101, 21000101]` YYYYMMDD bounds and `strike > 0` before building the FPSS frame (#378).
 - **`validate_generic_named` sanitises parameter names in error messages** (#377 / follow-up) — ANSI escape sequences / control chars in a user-supplied param name can no longer escape into terminal-rendered log output. Names are passed through `sanitize_param_name` (ASCII alphanumeric + `_` + `-`).
-- **Shutdown token constant-time compare** (#377) — `tools/server/src/state.rs::validate_shutdown_token` swapped `==` for `subtle::ConstantTimeEq::ct_eq`. Timing oracle on UUID prefix closed.
-- **Reconnect-path write errors are surfaced, not masked** (#377) — the FPSS reader loop had `let _ = write_raw_frame_no_flush(...)` silently dropping write failures on reconnect command-drain. Now `tracing::warn!` with `error = %e, frame_code = ?frame.code`.
-- **FFI reconnect paths surface resubscribe errors** (#378) — unified + FPSS reconnect paths previously silent-dropped resubscribe errors; now `tracing::warn!` with `error`, `kind`, and contract context.
+- **Shutdown token constant-time compare** (#377) — the server's shutdown-token check now uses a constant-time comparison instead of `==`, closing a timing oracle on the token prefix.
+- **Reconnect-path write errors are surfaced, not masked** (#377) — the FPSS reader loop silently dropped write failures while draining commands on reconnect. They are now logged as warnings with the error and the frame code.
+- **FFI reconnect paths surface resubscribe errors** (#378) — the unified and FPSS reconnect paths previously dropped resubscribe errors silently; they are now logged as warnings with the error, kind, and contract context.
 - **Python `Credentials.__repr__` redacts the email** (#377 / #378) — was `Credentials(email="user@example.com")`; email leaked into Jupyter, pytest output, and crash logs. Now `Credentials(email=<redacted>)`. Matches the redacted `Debug` impl on the Rust `Credentials` type.
-- **CSV headers union across rows** (#376) — `tools/server/src/format.rs` seeded column keys from the first row only; mixed-type queries (index rows without `expiration` / `strike` / `right` ahead of option rows with them) silently dropped those columns. Headers now union across every row via `BTreeSet` (sorted for free).
+- **CSV headers union across rows** (#376) — the server's CSV renderer seeded column keys from the first row only; mixed-type queries (index rows without `expiration` / `strike` / `right` ahead of option rows with them) silently dropped those columns. Headers now union across every row, sorted.
 - **FPSS `Simple` control events carry `event_type` + nullable `detail` / `id`** (#378) — OpenAPI `Control` variant was documenting the internal numeric `kind: int32`, which no SDK surfaces. Aligned to the client-facing shape (`kind: "simple"` + `event_type` enum + nullable `detail` / `id` + `received_at_ns`).
 - **Python `greeks.py` example + README quick-start use attribute access on `AllGreeks`** (#380) — `g['iv']` / `g['delta']` dict subscripts would have crashed at runtime because `AllGreeks` is a frozen pyclass without `__getitem__`. Rewritten to `g.iv`, `g.delta`, etc.
 - **Typed `list[TickClass]` examples across every endpoint page** (#378) — ~50 files under `docs-site/docs/historical/` had stale dict-key Python examples (subscript access on the old columnar shape). Switched to attribute access on the typed pyclass surface. `scripts/fpss_smoke.py` / `scripts/fpss_soak.py` likewise switched from dict subscript on streaming events to attribute access (both scripts are wired into live CI).
@@ -2890,15 +2825,10 @@ Major release. Three headline groups land in one pass:
 - **Full stale-data sweep + i64 widening across every doc surface** (#375 / #378) — `OhlcTick` / `EodTick` volume + count widened from `i32` to `i64` (#372 on the Rust side). Docs updated across `docs/api-reference.md`, `docs-site/docs/api-reference.md`, `docs-site/public/thetadatadx.yaml`, and every per-endpoint page. Stale `14 tick types` references corrected to 13. `[Unreleased]` compare link fixed from `v7.2.0...HEAD` to `v7.3.1...HEAD`; missing `v7.2.1` / `v7.3.0` / `v7.3.1` tag compares added.
 - **Toml crate metadata warning silenced** (#377) — `toml = "1.1.2+spec-1.1.0"` → `toml = "1.1.2"` in both `[dependencies]` and `[build-dependencies]`. Every `cargo build` invocation no longer warns about ignored semver metadata.
 - **Workspace manifest consolidated via `[workspace.package]` + `[workspace.lints]`** (#384) — duplicate `edition`/`license`/`authors`/`repository`/`homepage`/`rust-version` removed from every member `Cargo.toml` and hoisted to the workspace root; each member inherits via `x.workspace = true`. A new `[workspace.lints.rust]` table denies the rustc `warnings` group (matching CI's `-D warnings`) and promotes `unsafe_op_in_unsafe_fn` to deny alongside; `[workspace.lints.clippy]` denies `clippy::all`. Every member crate opts in via `[lints] workspace = true`. Versions intentionally stay per-crate because `tdbe` ships on a `0.x` track independent of the `7.x` SDK line.
-- **`tools/server/src/ws.rs` split into `tools/server/src/ws/` module** (#384) — 1044 lines reorganised into `upgrade` · `session` · `subscribe` · `broadcast` · `contract_map` · `format` · `mod`. Visibility tightened from `pub(crate)` to `pub(super)` where external visibility wasn't needed. Pure move; every server unit / integration test passes.
-- **`ffi/src/lib.rs` split into topic modules** (#384) — 4054 lines reorganised into `types` / `auth` / `historical` / `streaming` / `utility` / `error` / `panic`. The `ffi_boundary!` macro moves to `panic.rs` and is `#[macro_use]`'d from `lib.rs`. **ABI byte-for-byte identical**: `nm -D --defined-only` lists the same 211 `thetadatadx_*` symbols on both `cdylib` and `staticlib` before and after the split. Downstream C / C++ / Go / Node consumers see zero difference.
-- **Three largest code generators split by render target** (#384) — `build_support/endpoints/sdk_surface.rs` (2905 LoC), `ticks.rs` (2094 LoC), and `fpss_events.rs` (1551 LoC) broken into concern-separated sub-modules:
-  - `sdk_surface/{spec,common,python,typescript,go,cpp,mcp,cli}.rs`
-  - `ticks/{schema,parser,cli_headers,python_arrow,python_classes,typescript,go}.rs`
-  - `fpss_events/{schema,common,buffered,python,typescript,ffi_rust,ffi_c,go_structs}.rs`
-
-  A regen byte-identical harness (`tests/regen_byte_identical.sh`) hashes every generated artifact before + after a clean rebuild and fails on any drift. **Verified: 450 files, zero diff.**
-- **50 multi-line `format!(r#"..."#)` templates externalised into `.tmpl` files** (#386) — Rust generators no longer carry embedded Python / TypeScript / Go / C++ source as raw string literals. Templates loaded via `include_str!` and rendered through the existing `format!` machinery (named positional args). No new runtime dependency (no tera / handlebars / askama). LoC reductions on the offender files: `sdk_surface/cpp.rs` -35%, `fpss_events/ffi_rust.rs` -33%, `fpss_events/buffered.rs` -38%, `ticks/parser.rs` -33%. `.gitattributes` extended to pin every `.tmpl` to `eol=lf` so Windows checkouts can't leak CRLF into `include_str!` output. Regen byte-identical harness confirms zero drift across 49 generated artifacts.
+- **Server WebSocket module split into concern-separated submodules** (#384) — an internal-only reorganisation, with visibility tightened where external visibility wasn't needed. Pure move; every server unit and integration test passes.
+- **FFI layer reorganised into topic modules** (#384) -- an internal-only refactor. **ABI is byte-for-byte identical**: the same 211 `thetadatadx_*` symbols are exported on both the shared and static libraries before and after the change, so downstream C / C++ / Go / Node consumers see zero difference.
+- **Three largest code generators split by render target** (#384) — each broken into concern-separated sub-modules. A regen harness hashes every generated artifact before and after a clean rebuild and fails on any drift. **Verified: 450 files, zero diff.**
+- **Multi-line generator templates externalised into `.tmpl` files** (#386) — the Rust generators no longer carry embedded Python / TypeScript / Go / C++ source as raw string literals; templates are loaded from files and rendered through the existing machinery, with no new runtime dependency. Line-count reductions of roughly a third on the largest generator files. Every template is pinned to LF line endings so Windows checkouts cannot leak CRLF into the generated output, and the regen harness confirms zero drift.
 
 ## [7.3.1] - 2026-04-16
 
@@ -2910,18 +2840,18 @@ Major release. Three headline groups land in one pass:
 
 ### Added
 
-- **TypeScript/Node.js SDK via napi-rs** (#332) -- native addon exposing all 61 historical endpoints, 20+ streaming methods, and 13 tick types to Node.js 18+. Every method, type, and streaming dispatch is SSOT-generated from the same TOML surface that drives Python, Go, and C++. TypeScript type definitions included. CI builds and smoke-tests on every PR. npm publish workflow coming in a follow-up.
+- **TypeScript/Node.js SDK via napi-rs** (#332) -- native addon exposing all 61 historical endpoints, the streaming method surface, and 13 tick types to Node.js 18+. Every method, type, and streaming dispatch is SSOT-generated from the same TOML surface that drives Python, Go, and C++. TypeScript type definitions included. CI builds and smoke-tests on every PR. npm publish workflow coming in a follow-up.
 
 ### Fixed
 
-- **FPSS auto-reconnect now re-subscribes all active contracts** (#333) -- the `io_loop` reconnect path authenticated successfully but never re-sent subscription frames, so data stopped flowing after an involuntary disconnect. `active_subs` and `active_full_subs` are now shared via `Arc<Mutex<...>>` between the client and the I/O thread; after reconnect login, every active subscription is re-sent before draining the command channel.
+- **FPSS auto-reconnect now re-subscribes all active contracts** (#333) -- the reconnect path authenticated successfully but never re-sent subscription frames, so data stopped flowing after an involuntary disconnect. After reconnect login, every active subscription is now re-sent before the command channel is drained.
 - **Unrecognized FPSS frame codes now emitted as `UnknownFrame` with raw bytes** -- previously logged at trace level and silently dropped, so users had no visibility into unexpected server frames. Now surfaced as `StreamControl::UnknownFrame { code, payload }` with hex-encoded wire bytes in the Python and TypeScript SDKs.
 - **Python and TypeScript SDKs explicitly map `Reconnecting`, `Reconnected`, and `MarketClose` control events** -- these previously fell through to the catch-all `"unknown_control"` label, which was confusing in soak-test logs.
 - **FFI + Go SDK now expose `UnknownFrame` with raw payload bytes** -- the C FFI bridge maps `UnknownFrame` to kind 11 with the hex-encoded payload in the detail field (was kind 99 with no detail). Go SDK adds the `FpssCtrlUnknownFrame` constant and a complete control-kind enum for all 11 event types. All four SDKs (Python, TypeScript, Go, C++) now surface unrecognized server frames consistently.
 
 ### Changed
 
-- **`active_subs` / `active_full_subs` promoted to `Arc<Mutex<...>>`** (#333) -- subscription tables are now shared between the `StreamingClient` and the `io_loop` thread so the reconnect path can read them without a command-channel round-trip. Snapshots are cloned before writing frames to avoid holding the lock during I/O.
+- **Subscription state shared with the reconnect path** (#333) -- the active per-contract and full-stream subscription tables are now reachable by the reconnect path directly, without a command-channel round-trip, and a snapshot is taken before writing frames so no lock is held during I/O.
 
 ## [7.2.1] - 2026-04-16
 
@@ -2951,13 +2881,13 @@ Major release. Three headline groups land in one pass:
 
 ### Changed
 
-- **SDK surface is now fully declarative TOML** (#300) -- every generated method signature, optional-parameter shape, streaming dispatch, FFI wrapper, Python binding, Go function, and C++ method is projected from `sdk_surface.toml`, `endpoint_surface.toml`, and `tick_schema.toml`. Adding or changing a method is a TOML edit plus `generate_sdk_surfaces`, with no hand-editing of per-language glue.
+- **SDK surface is now fully declarative TOML** (#300) -- every generated method signature, optional-parameter shape, streaming dispatch, FFI wrapper, Python binding, Go function, and C++ method is projected from `sdk_surface.toml`, `endpoint_surface.toml`, and `tick_schema.toml`. Adding or changing a method is a TOML edit plus a regeneration step, with no hand-editing of per-language glue.
 - **`parse_*_ticks`, `parse_option_contracts_v3`, `parse_calendar_days_v3` now return `Result<Vec<T>, DecodeError>`** (#325) -- the generated and hand-written row-decoders previously returned `Vec<T>` and silently coalesced per-cell type mismatches to zero. Mismatches now propagate as `DecodeError::TypeMismatch { column, expected, observed }` which folds into `Error::Decode` at the `DirectClient` boundary. This is a Rust-caller-visible breaking change for anyone reaching past `DirectClient::*` into the free functions; the SDK `Result<Vec<T>, Error>` shape users actually call is unchanged, so no ABI / FFI / Python / Go / C++ contract moves.
 - **`Contract::option` now returns `Result`** (#324) -- constructing an option contract from user-supplied strings can now surface invalid `expiration` / `strike` / `right` input through `?` instead of panicking on malformed callers.
 - **FIT decoder exposes `FitRows`** (tdbe 0.10.0) -- bulk decode returns a dedicated type instead of `Vec<Vec<i32>>`. Callers who passed the old nested-vec shape into downstream helpers need to switch to `FitRows::row()` / `iter()`.
 - **`Error::Decode` display text now reads "Decode failed: ..."** (was "Protobuf decode failed: ...") -- the variant now carries both protobuf deserialization errors and post-decode per-cell type-mismatch failures, so the old label was misleading.
-- **`build_support/endpoints.rs` split into a focused module tree** (#294) -- what was one 2700-line file is now `helpers`, `model`, `modes`, `parser`, and `render/{build_out,cli_validate,cpp,direct,ffi,go,python}` under `build_support/endpoints/`. Public behavior is unchanged; discovering where a code-gen step lives is now a two-click navigation instead of a search.
-- **Generator templates moved to `include_str!`** (#296, #301) -- every remaining `push_str(...)` emitter in `build_support` is now an `include_str!` of a `.tmpl` file under `build_support/endpoints/render/templates/`. Each generated language has its own template directory (`cpp/`, `direct/`, `ffi/`, `go/`, `python/`). Editing a generated code shape no longer requires editing a Rust string literal with embedded Rust syntax.
+- **Endpoint code generator split into a focused module tree** (#294) -- what was one 2700-line file is now organized by concern. Public behavior is unchanged; finding where a code-gen step lives is now a two-click navigation instead of a search.
+- **Generator templates moved into files** (#296, #301) -- the generators no longer carry generated source as embedded Rust string literals; each generated language has its own template directory. Editing a generated code shape no longer means editing a Rust string literal with embedded foreign syntax.
 - **Test-mode fixtures now live in TOML** (#295) -- per-mode test-fixture values were previously a Rust match statement; they are now in `sdk_surface.toml` under `[test_modes.<mode>]`. The generator reads them and emits identical code.
 - **`scripts/check_tier_badges.py` live-fetches upstream `openapiv3.yaml`** (#280) -- removed `scripts/upstream_tiers.json` and pulls the authoritative `x-min-subscription` map at check time, with 4 retries + exponential backoff and fail-closed on exhaustion. Eliminates the manual snapshot-refresh drift vector.
 - **Validator tier gating is server-driven** -- the four live matrix validators no longer depend on a client-side `VALIDATOR_ACCOUNT_TIER` env var. Every cell is attempted; `PermissionDenied` / `subscription` errors from the server classify as `SKIP: tier-permission` with the declared min_tier echoed, and real bugs continue to surface as `FAIL`. Wildcard-expiration modes (`all_exps_one_strike`, `bulk_chain`, `legacy_zero_wildcard`) are suppressed on the 7 endpoints upstream binds to `expiration_no_star`, because the v3 server rejects `*` for those.
@@ -2984,16 +2914,16 @@ Major release. Three headline groups land in one pass:
 - **Option contract wildcard rejection** (#284) -- before this release the SDK had no working path to the server's bulk-chain mode: `*` was rejected client-side by `validate_expiration`, and `0` was rejected server-side. The SDK vocabulary now covers the full cross-product the server accepts.
 - **Validator tier detection drift** (#289) -- dropped the static tier gate that classified legitimate server responses as SKIP. The runtime permission fallback still catches drift between docs and the wire (for example, `interest_rate_history_eod` being labelled `free` on docs but gated higher by the server).
 - **CI unbroken on `main`** (#299) -- fixed a `timeout_ms` TOML field mismatch and made the Go pin-test CRLF-robust.
-- **FPSS internal visibility tightening** -- `active_subs` and `active_full_subs` are now `pub(in crate::fpss)` rather than `pub(super)`, keeping per-contract and full-stream subscription state visible only to the `fpss` module tree. The reconnect-delay tests also now assert against the `TOO_MANY_REQUESTS_DELAY_MS` / `RECONNECT_DELAY_MS` constants instead of hard-coded millisecond literals, so the tests cannot drift from the real protocol values.
+- **Streaming internal visibility tightening** -- subscription state is now scoped to the streaming module tree rather than left more broadly visible, and the reconnect-delay tests assert against the named delay constants instead of hard-coded millisecond literals so they cannot drift from the real values. Internal-only; no public surface change.
 
 ### Security
 
-- **Session token no longer leaks via `Debug`** (#324) -- `AuthResponse`'s `session_token` field is now redacted in its `Debug` impl. Previously a `tracing::debug!("{auth:?}")` would write the bearer token into logs. Credentials were already redacted; this closes the parallel leak on the response side.
+- **Session token no longer leaks via `Debug`** (#324) -- the auth response's `session_token` field is now redacted in its `Debug` output, so a debug log of the response no longer writes the bearer token into logs. Credentials were already redacted; this closes the parallel leak on the response side.
 
 ### Changed
 
-- **Generator bloat cleanup** (#302) -- stripped roughly 1,500 lines of ceremony, over-abstraction, and redundant tests across `build_support/` and the SDK layers. Behavior identical, surface identical, just less to read.
-- **`fpss/mod.rs` split into focused submodules** (#327) -- what was a 2,143-line single file is now `accumulator`, `decode`, `delta`, `events`, `io_loop`, `session`, and a slim `mod.rs` under `src/fpss/`. Each submodule owns one responsibility; public behavior is unchanged.
+- **Generator bloat cleanup** (#302) -- stripped roughly 1,500 lines of ceremony, over-abstraction, and redundant tests across the code generators and the SDK layers. Behavior identical, surface identical, just less to read.
+- **Streaming module split into focused submodules** (#327) -- what was a 2,143-line single file is now organized by responsibility (accumulator, decode, events, I/O loop, session). Internal-only; public behavior is unchanged.
 - **Per-cell rationale + redundancy audit in tests** (#297) -- generated test cells now carry a one-line rationale in the comment, so deleted or merged cells leave an obvious trail for reviewers.
 - **Consolidated CI workflow cleanup** (#323) -- shared the Rust-dep setup across jobs via a reusable composite action (`.github/actions/setup-rust-deps`), removed duplicated workflow steps, and narrowed `live` to manual dispatch so routine CI stays deterministic.
 - **Python abi3 smoke CI no longer rebuilds the wheel** (#304) -- the smoke job now reuses the wheel built earlier in the pipeline, cutting the job's runtime materially.
@@ -3033,7 +2963,7 @@ Major release. Three headline groups land in one pass:
 
 - **`SnapshotTradeTick` deleted from all layers** -- removed from Rust core, FFI, Python, Go, and C++ SDKs. Dead type that was never returned by any endpoint.
 - **FFI options use explicit `has_*` flags** -- replaced NaN/`-1` sentinel-based optional fields with `has_exclusive`, `has_max_dte`, `has_strike_range`, `has_annual_dividend`, etc. C, Go, and C++ consumers must check the companion `has_*` i32 flag (0 = unset, 1 = set) before reading the value.
-- **`generate_sdk_surfaces` restored as the checked-in surface authority** -- the standalone codegen binary is required again and is the canonical way to regenerate and verify generated SDK/FFI/tool surfaces from TOML.
+- **The checked-in code generator restored as the surface authority** -- the codegen step is required again and is the canonical way to regenerate and verify the generated SDK/FFI/tool surfaces from TOML.
 - **Streaming endpoints generated from TOML** -- hand-written streaming endpoint blocks in `direct.rs` replaced by TOML-driven codegen. Method signatures unchanged but internal dispatch is generated.
 - **Endpoint, utility, FPSS wrapper, and tick projection surfaces are spec-driven** -- Rust, FFI, Python, Go, C++, CLI, and MCP now project their generated public surfaces from `endpoint_surface.toml`, `sdk_surface.toml`, and `tick_schema.toml`.
 - Removed the misleading per-contract `subscribe_option_full_*` / `unsubscribe_option_full_*` FPSS methods from the C FFI, Go SDK, and C++ SDK. Per-contract streams use `subscribe_option_*`; full-stream subscriptions remain `subscribe_full_*` by security type.
@@ -3045,7 +2975,7 @@ Major release. Three headline groups land in one pass:
 - `public-api-redesign.md` and README reference.
 - `migration-from-rest-ws.md` and navigation/index references.
 - 1,134 lines of commented-out legacy Python methods.
-- obsolete claim that `generate_sdk_surfaces` had been removed.
+- obsolete claim that the checked-in code generator had been removed.
 
 ### Changed
 
@@ -3066,7 +2996,7 @@ Major release. Three headline groups land in one pass:
 - Windows Go FFI builds now use the correct GNU-targeted Rust artifacts when building with CGo on GitHub runners.
 - Docs and OpenAPI now reflect the real at-time contract and strike wildcard semantics.
 - Docs consistency checker no longer references deleted `migration-from-rest-ws.md`.
-- `cargo fmt` applied to `build_support/endpoints.rs`.
+- `cargo fmt` applied to the endpoint code generator.
 
 ## [6.0.1] - 2026-04-06
 
@@ -3101,7 +3031,7 @@ Major release. Three headline groups land in one pass:
 
 ### Changed
 
-- All 60+ endpoint pages updated: f64 fields, no `price_type`, no `_f64()` helpers.
+- All 61 endpoint pages updated: f64 fields, no `price_type`, no `_f64()` helpers.
 - All SDK READMEs updated (Rust, Python, Go, C++).
 - Streaming docs rewritten for f64 events.
 - OpenAPI spec purged of `price_type`.
@@ -3229,7 +3159,7 @@ Major release. Three headline groups land in one pass:
 - C++ SDK: `StreamingClient::next_event()` returns `FpssEventPtr` (RAII unique_ptr to `ThetaDataDxStreamEvent`).
 - Go SDK: `StreamingClient.NextEvent()` returns `*StreamEvent` with typed Go structs.
 - Streaming event prices are now raw integers with `price_type` (matching the wire format). Callers decode with `Price::new(value, price_type).to_f64()` or `thetadatadx::price_to_f64(value, price_type)`.
-- `serde_json` removed from FFI crate dependencies -- zero JSON crosses the FFI boundary.
+- The JSON dependency is removed from the FFI crate -- zero JSON crosses the FFI boundary.
 
 ### Added
 
@@ -3394,7 +3324,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 ### Added
 
 - **`tdbe` crate** -- pure data-format crate. Single dependency (`thiserror`). Contains:
-  - 14 hand-written tick structs (no build.rs codegen)
+  - 14 hand-written tick structs (no build-time codegen)
   - FIT/FIE nibble codecs
   - Price fixed-point encoding
   - 22 Black-Scholes Greeks + IV solver
@@ -3404,7 +3334,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
   - 6 criterion benchmarks
 - **Interactive Query Builder** on docs site -- 13 real-world recipes (GEX, vol surface, option chains, live trade tape, etc.) with symbol autocomplete, dynamic dates, and copy-paste code generation for Rust and Python
 - **Inline credential construction** -- all SDK examples now show both `from_file("creds.txt")` and `Credentials::new("email", "password")` patterns
-- **serde_json vs sonic_rs benchmark** (`bench_json`) -- criterion benchmark covering FPSS events, REST responses, DataTable serialization, and JSON parsing
+- **JSON serialization benchmark** -- covers FPSS events, REST responses, tick-table serialization, and JSON parsing
 
 ### Fixed
 
@@ -3414,7 +3344,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 
 - Tick types in `tdbe` are hand-written (no `include!()`, no `tick_schema.toml` codegen). IDE-navigable, visible in source.
 - Magic numbers in `TradeTick` impl replaced with `tdbe::flags::` named constants
-- Documentation updated across 17+ files for new import paths
+- Documentation updated across the affected files for new import paths
 
 ## [3.2.2] - 2026-03-30
 
@@ -3427,11 +3357,11 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 
 ### Added
 
-- **Fully typed returns for all 61 endpoints** - 9 new tick types (`TradeQuoteTick`, `OpenInterestTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`). All 31 endpoints that returned raw `proto::DataTable` now return typed `Vec<T>`. The `raw_endpoint!` macro has been removed entirely. Zero raw protobuf in the public API.
-- **TOML-driven codegen** - `tick_schema.toml` is the single source of truth for all tick type definitions and DataTable column schemas. `build.rs` generates Rust structs and parsers at compile time. Adding a new column = one line in the TOML.
-- **Proto maintenance guide** (`proto/MAINTENANCE.md`) - step-by-step instructions for ThetaData engineers to add columns, RPCs, or replace proto files.
-- 10 new parse functions in `decode.rs` (including `parse_eod_ticks` moved from inline in `direct.rs`)
-- All downstream consumers updated: FFI (9 new JSON converters), CLI (9 new renderers), Server (9 new sonic_rs serializers), MCP (9 new serializers), Python SDK (9 new dict converters)
+- **Fully typed returns for all 61 endpoints** - 9 new tick types (`TradeQuoteTick`, `OpenInterestTick`, `MarketValueTick`, `GreeksTick`, `IvTick`, `PriceTick`, `CalendarDay`, `InterestRateTick`, `OptionContract`). All 31 endpoints that previously returned a raw protobuf table now return typed `Vec<T>`. Zero raw protobuf in the public API.
+- **TOML-driven codegen** - `tick_schema.toml` is the single source of truth for all tick type definitions and tick-table column schemas. Rust structs and parsers are generated at compile time. Adding a new column = one line in the TOML.
+- **Proto maintenance guide** - step-by-step instructions for adding columns, RPCs, or replacing proto files.
+- 10 new parse functions on the decode path (including `parse_eod_ticks`)
+- All downstream consumers updated: FFI (9 new JSON converters), CLI (9 new renderers), Server (9 new serializers), MCP (9 new serializers), Python SDK (9 new dict converters)
 - The `thetadatadx` crate README and FFI README (`ffi/README.md`)
 - Python SDK: polars support documented (`pip install thetadatadx[polars]`)
 
@@ -3449,7 +3379,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 
 - **Go SDK: price encoding was fundamentally wrong** - `priceToFloat()` used a switch-case instead of `value * 10^(price_type - 10)`. Every price returned by the Go SDK was incorrect. Now matches Rust exactly.
 - **Python docs: streaming examples used wrong event key** - streaming-event dict access changed from the legacy `type` key to the canonical `kind` key across README and all docs-site pages.
-- **`Price::new()` no longer panics in release** - `assert!` replaced with `debug_assert!` + `clamp(0, 19)` with `tracing::warn!`. A corrupt frame no longer crashes production.
+- **`Price::new()` no longer panics in release** - an out-of-range price type is now clamped to the valid range and logged as a warning instead of panicking, so a corrupt frame no longer crashes production.
 - **C++ `StreamingClient`: added missing `unsubscribe_quotes()`** - was present in FFI but missing from C++ RAII wrapper.
 - **FFI FPSS: mutex poison safety** - all 12 `.lock().unwrap()` calls replaced with `.unwrap_or_else(|e| e.into_inner())`. Prevents undefined behavior (panic across `extern "C"`) on mutex poisoning.
 - **`Credentials.password` visibility** - changed from `pub` to `pub(crate)` with `password()` accessor. Prevents accidental credential logging by downstream code.
@@ -3494,7 +3424,7 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
   access to 64 tools (61 endpoints + ping + greeks + IV) over JSON-RPC stdio.
   Works with Cursor and every other MCP-compatible client.
 - **REST+WS Server** (`tools/server/`) — a local REST + WebSocket server exposing the same surface as the JVM terminal.
-  v3 API on port 25503, WebSocket on 25520 with real FPSS bridge. sonic-rs JSON.
+  v3 API on port 25503, WebSocket on 25520 with a real FPSS bridge, SIMD-accelerated JSON.
 - **VitePress documentation site** (`docs-site/`) — 33 pages covering API reference,
   guides, SDK docs, wire protocol internals. Deployed to GitHub Pages.
 
@@ -3511,8 +3441,8 @@ Interval format conversion (later superseded by shorthand normalization in v4.2.
 
 - **Endpoint registry** — auto-generated from proto at build time. Single source of
   truth consumed by CLI, MCP, server. 61 endpoints.
-- **Repo reorganization** — `tools/cli/`, `tools/mcp/`, `tools/server/` (was under the workspace crates directory)
-- **sonic-rs** — SIMD-accelerated JSON in CLI, MCP, and server (replaces serde_json)
+- **Repo reorganization** — the CLI, MCP, and server tools moved under a top-level `tools/` directory
+- **SIMD-accelerated JSON** — the CLI, MCP, and server now use a SIMD-accelerated JSON serializer
 - **Zero-alloc FPSS hot path** — reusable frame buffer, tuple return (no Vec per frame),
   pre-allocated decode buffer, wrapping_add for delta parity
 - **Full SDK parity** — all FPSS methods (subscribe_full_trades, contract_lookup,
@@ -3760,10 +3690,9 @@ See `TODO.md` (as of the 1.2.0 release) for the production readiness checklist a
   precomputed shared intermediates and edge-case guards (t=0, v=0)
 - **All tick types** — TradeTick, QuoteTick, OhlcTick, EodTick, OpenInterestTick,
   SnapshotTradeTick, TradeQuoteTick with fixed-point Price encoding
-- **80+ DataType enum codes** — quotes, trades, OHLC, all Greek orders, dividends,
+- **91 DataType enum codes** — quotes, trades, OHLC, all Greek orders, dividends,
   splits, fundamentals
-- **Proto definitions** — the v3 protocol surface (endpoints.proto +
-  v3_endpoints.proto)
+- **Proto definitions** — the full v3 protocol surface
 - **Runtime configuration** — `DirectConfig` with all JVM-equivalent tuning knobs
 - `contract_lookup(id)` on `StreamingClient` for single-entry hot-path lookup
 - `StreamEvent::Error` variant for surfacing protocol parse failures
