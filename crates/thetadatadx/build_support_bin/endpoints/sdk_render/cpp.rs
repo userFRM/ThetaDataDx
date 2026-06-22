@@ -215,7 +215,7 @@ fn render_cpp_async_overload(
     let mut captures = Vec::new();
     let mut forwards = Vec::new();
     for param in method_params(endpoint) {
-        let name = sdk_method_arg_name(&param);
+        let name = sdk_method_arg_name(param);
         if param.param_type == "Symbols" {
             if singular {
                 decls.push("std::string symbol".to_string());
