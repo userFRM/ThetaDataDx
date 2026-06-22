@@ -127,16 +127,35 @@ SELF_NAME = pathlib.Path(__file__).name
 # terminal" (allow-listed below), so an explicit "Java terminal" hit is
 # a drift signal, not a parity reference.
 FORBIDDEN_PATTERNS = (
-    re.compile(r"java[\s\-_]+terminal", re.IGNORECASE),
-    re.compile(r"\.toBytes\b"),
-    re.compile(r"\.fromBytes\b"),
-    re.compile(r"\bFITReader\.java\b"),
-    re.compile(r"\bFIE\.java\b"),
-    re.compile(r"\b\w+\.java\b"),
+    # `java`-then-`terminal` with any (or no) separator: catches
+    # `Java terminal`, `Java-terminal`, `java_terminal`, AND the
+    # separator-free camelCase `JavaTerminal`. The separator is
+    # zero-or-more (`*`) precisely so the glued camelCase spelling cannot
+    # dodge the gate. `JVM terminal` / `Theta Terminal` remain
+    # allow-listed and are stripped before matching.
+    re.compile(r"java[\s\-_]*terminal", re.IGNORECASE),
+    re.compile(r"\.toBytes\b", re.IGNORECASE),
+    re.compile(r"\.fromBytes\b", re.IGNORECASE),
+    re.compile(r"\bFITReader\.java\b", re.IGNORECASE),
+    re.compile(r"\bFIE\.java\b", re.IGNORECASE),
+    # Any `<identifier>.java` source reference, in any casing
+    # (`Contract.java`, `CONTRACT.JAVA`): a named Java source is
+    # provenance a reader could only have from decompilation.
+    re.compile(r"\b\w+\.java\b", re.IGNORECASE),
     re.compile(r"\bjavap\b", re.IGNORECASE),
     re.compile(r"decompil", re.IGNORECASE),
-    re.compile(r"reverse[- ]engineer", re.IGNORECASE),
-    re.compile(r"jar\s+build", re.IGNORECASE),
+    # The reverse-engineering vocabulary itself, with any separator
+    # (`reverse-engineer`, `reverse engineer`, `reverse_engineer`,
+    # `reversed engineering`). `revers(e|ed)` + separator(s) + `engineer`.
+    re.compile(r"revers(?:e|ed)[\s\-_]+engineer", re.IGNORECASE),
+    # The abbreviated form: `RE'd` / `RE-d` ("we RE'd the wire format").
+    # Bounded to the uppercase `RE` token followed by a straight or curly
+    # apostrophe or a hyphen and a trailing `d`, so ordinary contractions
+    # (`we're`, `they'd`) and words like `pre-d...` do not trip: the `RE`
+    # must stand alone (`(?<![A-Za-z])RE`) and the match must end on a
+    # word boundary.
+    re.compile(r"(?<![A-Za-z])RE['’\-]d\b"),
+    re.compile(r"jar[\s\-_]+build", re.IGNORECASE),
     re.compile(r"verified-live\s+against\s+terminal", re.IGNORECASE),
     # Jar-provenance: the act of citing the vendor jar, the terminal jar,
     # the local extraction path it was pulled from, or any bare `.jar`
@@ -251,10 +270,18 @@ def _selftest() -> int:
       catches the spelling variants the curated scan missed.
     * A C++ header (`sdks/cpp/include`) naming a decompiled `.java` source
       — must be flagged, proving non-Rust extensions are in scope.
+    * A file carrying the spelling variants the older patterns missed —
+      the separator-free camelCase `JavaTerminal`, the abbreviated `RE'd`
+      / `RE-d`, the `reversed engineering` conjugation, an uppercase
+      `.JAVA` source, and a hyphenated `jar-build` note — every one must
+      be flagged.
     * A clean file that names only the allow-listed "JVM terminal" /
       "Theta Terminal" parity reference — must pass.
     * A clean file whose factual wire description shares a line with the
       allow-listed parity reference — must pass.
+    * A clean file of ordinary contractions (`they'd`, `we're`,
+      `PRE-decode`, `CORE-d`) — must pass, proving the tuned `RE'd`
+      pattern does not false-positive.
     """
     import tempfile
 
@@ -278,6 +305,17 @@ def _selftest() -> int:
         "// Field order mirrors `Contract.java` from the decompiled layout.\n"
         "struct OhlcTick { double open; };\n"
     )
+    # Spelling variants the older patterns let through: the separator-free
+    # camelCase `JavaTerminal`, the abbreviated `RE'd` / `RE-d`, the
+    # `reversed engineering` conjugation, an uppercase `.JAVA` source, and
+    # the hyphenated `jar-build` provenance note. Each must trip.
+    leaky_variants = (
+        "/// Mirrors the JavaTerminal envelope layout.\n"
+        "/// We RE'd the framing, then RE-d the deadline handshake.\n"
+        "/// Layout reversed engineering notes for the OHLC packet.\n"
+        "/// Source: `Contract.JAVA` decompiled output.\n"
+        "/// Checked against the terminal jar-build `202605221`.\n"
+    )
     clean = (
         "//! Matches the JVM terminal byte-for-byte on the wire.\n"
         "/// Parity reference: the JVM terminal connects with a 2000 ms deadline.\n"
@@ -285,6 +323,13 @@ def _selftest() -> int:
     vendor_line = (
         "/// The wire format caps the encoded root at 16 bytes, matching the\n"
         "/// JVM terminal. Decoded against the Theta Terminal parity reference.\n"
+    )
+    # Ordinary English contractions and unrelated `RE`-adjacent text that
+    # must NOT trip the abbreviated `RE'd` pattern. Guards against the
+    # false-positive class the tuned boundary is designed to avoid.
+    clean_contractions = (
+        "/// They'd already cached the handshake; we're done before the deadline.\n"
+        "/// The PRE-decode buffer and a CORE-d helper stay untouched.\n"
     )
 
     with tempfile.TemporaryDirectory() as td:
@@ -313,6 +358,14 @@ def _selftest() -> int:
         vendor_path = root / "sdks" / "python" / "src" / "vendor.rs"
         vendor_path.parent.mkdir(parents=True, exist_ok=True)
         vendor_path.write_text(vendor_line, encoding="utf-8")
+
+        variants_path = root / "crates" / "thetadatadx" / "src" / "variants.rs"
+        variants_path.parent.mkdir(parents=True, exist_ok=True)
+        variants_path.write_text(leaky_variants, encoding="utf-8")
+
+        contractions_path = root / "ffi" / "src" / "contractions.rs"
+        contractions_path.parent.mkdir(parents=True, exist_ok=True)
+        contractions_path.write_text(clean_contractions, encoding="utf-8")
 
         hits = _scan(root)
 
@@ -345,6 +398,52 @@ def _selftest() -> int:
             return 1
         if any(rel.name == "vendor.rs" for (rel, _, _, _) in hits):
             print("selftest FAILED: an allow-listed parity-reference file was flagged")
+            return 1
+
+        # Spelling-variant coverage: every new variant must surface at
+        # least one hit on its own line.
+        variant_matches = {
+            m for (rel, _, m, _) in hits if rel.name == "variants.rs"
+        }
+        variant_checks = {
+            "JavaTerminal (camelCase, no separator)": any(
+                "javaterminal" in m.lower().replace(" ", "") for m in variant_matches
+            ),
+            "RE'd / RE-d abbreviation": any(
+                re.fullmatch(r"RE['’\-]d", m) for m in variant_matches
+            ),
+            "reversed engineering conjugation": any(
+                m.lower().startswith("reversed") and "engineer" in m.lower()
+                for m in variant_matches
+            ),
+            "uppercase .JAVA source": any(
+                m.lower().endswith(".java") for m in variant_matches
+            ),
+            "jar-build hyphenated provenance": any(
+                m.lower().startswith("jar") and "build" in m.lower()
+                for m in variant_matches
+            ),
+        }
+        unmet = [label for label, ok in variant_checks.items() if not ok]
+        if unmet:
+            print(
+                "selftest FAILED: these RE-framing spelling variants slipped "
+                f"through: {unmet!r} (matched: {sorted(variant_matches)!r})"
+            )
+            return 1
+
+        # The tuned `RE'd` pattern must NOT fire on ordinary contractions
+        # or `RE`-adjacent words.
+        if any(rel.name == "contractions.rs" for (rel, _, _, _) in hits):
+            bad = [
+                (m, line)
+                for (rel, _, m, line) in hits
+                if rel.name == "contractions.rs"
+            ]
+            print(
+                "selftest FAILED: the `RE'd` pattern false-positived on an "
+                f"ordinary contraction: {bad!r}"
+            )
             return 1
 
     print("selftest: ok")
