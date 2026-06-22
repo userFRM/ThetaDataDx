@@ -37,6 +37,15 @@ pyo3 = { version = "=0.29.0", features = ["abi3-py312", "multiple-pymethods"] }
 # spun up per call). Pin to the matching release for pyo3 0.29.
 pyo3-async-runtimes = { version = "=0.29.0", features = ["tokio-runtime"] }
 
+# LMAX Disruptor — the same single-producer/single-consumer ring the engine
+# crate drives for FPSS streaming. Used only by the offline streaming-saturation
+# bench hook (`bench_streaming.rs::__bench_flood_events`), which drives the real
+# pipeline + the production per-event GIL/marshal/callback path so the Python
+# streaming ceiling is measured against the live ring configuration. Already in
+# the dependency tree transitively via `thetadatadx`; named directly so the
+# bench hook can build the producer. Matches the engine crate's `disruptor` line.
+disruptor = "4.2.0"
+
 # Apache Arrow columnar pipeline for the DataFrame adapter. We enable the
 # `ffi` feature (the Arrow C Data / Stream Interface) rather than the
 # `pyarrow` feature, and drive the pyarrow handoff ourselves in

@@ -11,6 +11,7 @@ use thetadatadx::config;
 use thetadatadx::fpss;
 
 mod async_runtime;
+mod bench_streaming;
 mod chunking;
 mod coerce;
 mod errors;
@@ -2556,5 +2557,9 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Introspection helper for the offline `HistoricalClient` block-list
     // coverage test. Mirrors `mdds_client::FPSS_TOUCHING_METHODS`.
     m.add_function(wrap_pyfunction!(mdds_client::blocked_fpss_methods, m)?)?;
+    // Offline streaming-saturation bench hook (no network). Drives the real
+    // Disruptor pipeline + the production per-event GIL/marshal/callback path.
+    // Bench-only; enrolled in `PY_NON_UTILITY_PYFUNCTIONS` in the parity gate.
+    m.add_function(wrap_pyfunction!(bench_streaming::__bench_flood_events, m)?)?;
     Ok(())
 }

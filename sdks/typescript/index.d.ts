@@ -3040,6 +3040,24 @@ export declare class Util {
   static sequenceUnsignedToSigned(unsignedValue: bigint): bigint
 }
 
+/**
+ * Flood `n` synthetic FPSS `Trade` events through the real `TsfnCallback`
+ * dispatch path to `callback`, returning the count of tsfn-boundary drops
+ * (non-`Ok` `call` statuses) as an `f64` (JS `number`; `n` is bounded well
+ * under 2^53 in practice, and the count is `0` on the healthy path).
+ *
+ * The marshal + dispatch run on a blocking worker so the libuv main
+ * thread is free to drain the napi call queue and run the JS callback —
+ * the same threading split as `startStreaming`. The returned `Promise`
+ * resolves once all `n` events have been QUEUED (every `call` returned);
+ * the JS callback may still be draining the last queue-depth events when
+ * the promise resolves, so the caller waits for the JS-side received
+ * count to reach `n` before reading timings.
+ *
+ * Bench-only. See the module doc for the parity-gate carve-out.
+ */
+export declare function __benchFloodEvents(n: number, callback: ((arg: StreamEvent) => void)): Promise<number>
+
 /** Compute all 23 Black-Scholes Greeks + IV in one call. */
 export declare function allGreeks(spot: number, strike: number, rate: number, divYield: number, tte: number, optionPrice: number, right: string): AllGreeks
 
