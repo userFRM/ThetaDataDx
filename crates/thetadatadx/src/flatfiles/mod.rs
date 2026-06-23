@@ -1,4 +1,4 @@
-//! FLATFILES: whole-universe daily snapshots over the legacy historical
+//! FLATFILES: whole-universe daily snapshots over the legacy MDDS
 //! port. Pulls one INDEX + DATA blob per `(SecType, ReqType, date)`
 //! tuple and emits CSV, JSONL, or `Vec<FlatFileRow>`.
 //!

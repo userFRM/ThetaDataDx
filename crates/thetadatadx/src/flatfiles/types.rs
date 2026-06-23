@@ -211,7 +211,7 @@ impl FlatFilesUnavailableReason {
     }
 }
 
-/// Classify a `RemoveReason` ordinal received during historical legacy login
+/// Classify a `RemoveReason` ordinal received during MDDS legacy login
 /// as transient (retry on a fresh connection) vs terminal (no amount of
 /// retrying will fix it).
 ///

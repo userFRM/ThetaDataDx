@@ -15,13 +15,13 @@ pub(crate) const PYTHON_UNIFIED_FPSS_METHODS: &[&str] = &[
 
 #[pymethods]
 impl StreamView {
-    /// Start FPSS streaming and register a Python callback for incoming events.
+    /// Start streaming and register a Python callback for incoming events.
     ///
     /// The dispatcher thread acquires the GIL
     /// via `Python::attach` to call `callback(event)` for
-    /// every typed FPSS event, with each invocation wrapped
+    /// every typed streaming event, with each invocation wrapped
     /// in `catch_unwind`. `callback` must accept exactly one
-    /// positional argument — a typed FPSS event class
+    /// positional argument — a typed streaming event class
     /// (`Quote`, `Trade`, `Ohlcvc`, `OpenInterest`,
     /// `LoginSuccess`, `ContractAssigned`, `ReqResponse`,
     /// `MarketOpen`, `MarketClose`, `ServerError`,
@@ -32,7 +32,7 @@ impl StreamView {
     /// wire frames are filtered before the callback fires and
     /// accounted on the `thetadatadx.fpss.decode_failures` metric.
     ///
-    /// Events flow from the FPSS reader thread into the
+    /// Events flow from the streaming reader thread into the
     /// streaming ring (`Producer::try_publish`) and out
     /// to the consumer thread that runs `callback`. The
     /// reader never blocks on user code; if the callback
@@ -193,7 +193,7 @@ impl StreamView {
             .map_err(to_py_err)
     }
 
-    /// Reconnect FPSS streaming and re-register the previously installed callback.
+    /// Reconnect streaming and re-register the previously installed callback.
     ///
     /// Requires a prior `start_streaming(callback)`; raises
     /// `RuntimeError` if no callback is registered. All
@@ -299,7 +299,7 @@ impl StreamView {
         *guard = None;
     }
 
-    /// Shut down the FPSS streaming connection.
+    /// Shut down the streaming connection.
     ///
     /// On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as stopping the stream); reconnect will then fail until the caller starts streaming again with a freshly bound callback. The C++ binding preserves the underlying connection's behaviour.
     pub(crate) fn shutdown(&self, py: Python<'_>) {

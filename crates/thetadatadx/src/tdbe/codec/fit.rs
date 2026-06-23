@@ -1,6 +1,6 @@
-//! FIT nibble decoder, the core compression codec for streaming tick data.
+//! FIT nibble decoder — the core compression codec for FPSS tick data.
 //!
-//! FIT delta-decode codec for the streaming tick wire format.
+//! FIT delta-decode codec for the FPSS tick wire format.
 //!
 //! # Wire Format
 //!

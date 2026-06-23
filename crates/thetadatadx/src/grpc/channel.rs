@@ -48,7 +48,7 @@ use super::stream::ServerStreaming;
 /// its own product token after this prefix.
 const USER_AGENT_PREFIX: &str = "thetadatadx-grpc";
 
-/// HTTP/2 session tuning threaded from `DirectConfig::historical`,
+/// HTTP/2 session tuning threaded from `DirectConfig::mdds` —
 /// flow-control windows and keepalive cadence. The short channel
 /// constructors use [`ChannelTuning::default`] (the HTTP/2 spec
 /// windows, 30 s / 10 s keepalive — the values production config
@@ -188,7 +188,7 @@ pub struct Channel {
     /// shared connection); one clone is taken per dispatched RPC.
     inner: tonic::transport::Channel,
     /// Per-frame decode ceiling propagated to every RPC dispatched on
-    /// this channel. Mirrors `DirectConfig::historical.max_message_size`;
+    /// this channel. Mirrors `DirectConfig::mdds.max_message_size`;
     /// response frames above it are rejected by the decode layer
     /// before allocation.
     max_message_size: usize,
@@ -218,7 +218,7 @@ impl Channel {
     /// the default per-frame decode ceiling.
     ///
     /// Intended for local-mock and sidecar deployments where TLS is
-    /// terminated upstream. Production historical callers should use
+    /// terminated upstream. Production MDDS callers should use
     /// [`Channel::connect_tls_with_max_message_size`].
     ///
     /// # Errors
@@ -266,7 +266,7 @@ impl Channel {
 
     /// Open a plaintext (h2c) connection with an explicit per-frame
     /// decode ceiling and HTTP/2 session tuning (flow-control windows,
-    /// keepalive cadence), both threaded from `DirectConfig::historical`.
+    /// keepalive cadence), both threaded from `DirectConfig::mdds`.
     ///
     /// `connect_timeout` bounds every dial — the eager open AND each
     /// lazy in-place reconnect — so a black-holed target fails fast as
@@ -348,7 +348,7 @@ impl Channel {
 
     /// Open a TLS-protected connection with an explicit per-frame
     /// decode ceiling and HTTP/2 session tuning (flow-control windows,
-    /// keepalive cadence), both threaded from `DirectConfig::historical`.
+    /// keepalive cadence), both threaded from `DirectConfig::mdds`.
     ///
     /// The supplied `rustls::ClientConfig` is used verbatim for the
     /// initial connect and every in-place reconnect, so SPKI pinning,
@@ -442,7 +442,7 @@ impl Channel {
     }
 
     /// Per-frame decode ceiling honoured by every RPC dispatched on
-    /// this channel. Mirrors `DirectConfig::historical.max_message_size`.
+    /// this channel. Mirrors `DirectConfig::mdds.max_message_size`.
     ///
     /// Exposed under `__test-helpers` for integration tests that verify
     /// the configured ceiling propagates from `DirectConfig` to every

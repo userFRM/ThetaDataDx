@@ -3,8 +3,8 @@
 //! # thetadatadx
 //!
 //! Native Rust SDK for [ThetaData](https://thetadata.us) market data.
-//! Historical data via ThetaData's historical service, real-time streaming via
-//! ThetaData's streaming service, and bulk flat-file pulls, all through a single
+//! Historical data via ThetaData's MDDS service, real-time streaming via
+//! ThetaData's FPSS service, and bulk flat-file pulls — all through a single
 //! authenticated client, without a JVM, subprocess, or local proxy.
 //!
 //! Requires a valid ThetaData subscription.
@@ -84,8 +84,8 @@
 //!
 //! ## Data delivery
 //!
-//! Historical data arrives over ThetaData's historical service; real-time
-//! ticks arrive over ThetaData's streaming service. Both are decoded
+//! Historical data arrives over ThetaData's MDDS service; real-time
+//! ticks arrive over ThetaData's FPSS service. Both are decoded
 //! inside the crate — consumers see typed tick rows on the historical side
 //! and a typed [`streaming::StreamEvent`] stream on the streaming side.
 
@@ -524,7 +524,7 @@ pub use crate::tdbe::time;
 #[doc(hidden)]
 pub use crate::tdbe::json_canon;
 
-/// FIT/FIE 4-bit nibble codecs for streaming tick compression.
+/// FIT/FIE 4-bit nibble codecs for FPSS tick compression.
 ///
 /// Only available when the `__internal` feature is enabled. NOT a stable
 /// public surface — for workspace tools and bindings only.

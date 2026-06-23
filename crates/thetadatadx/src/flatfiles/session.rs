@@ -1,4 +1,4 @@
-//! TLS connection setup + auth handshake against a single historical legacy host.
+//! TLS connection setup + auth handshake against a single MDDS legacy host.
 //!
 //! Splits cleanly into:
 //! - [`connect_tls`] — async TCP + TLS handshake using SPKI pinning.
@@ -28,7 +28,7 @@ use crate::flatfiles::mdds_spki::MddsSpkiVerifier;
 use crate::flatfiles::types::FlatFilesUnavailableReason;
 use crate::fpss::protocol::build_login_payload;
 
-/// Established, authenticated historical connection.
+/// Established, authenticated MDDS connection.
 pub(crate) struct AuthedSession {
     /// Authenticated TLS stream, ready to carry FLAT_FILE request/response
     /// frames.
@@ -45,7 +45,7 @@ pub(crate) struct MddsHost<'a> {
     pub port: u16,
 }
 
-/// Open a TLS connection to a single historical host with SPKI pinning.
+/// Open a TLS connection to a single MDDS host with SPKI pinning.
 pub(crate) async fn connect_tls(target: MddsHost<'_>) -> Result<TlsStream<TcpStream>, Error> {
     // Build the config with an explicit ring provider so the handshake needs
     // no process-global default. ring is the sole provider in the dep graph.
@@ -84,7 +84,7 @@ fn build_version_payload() -> Vec<u8> {
     buf
 }
 
-/// Maximum number of frames consumed during the legacy historical handshake
+/// Maximum number of frames consumed during the legacy MDDS handshake
 /// before we surface an `Auth(Timeout)` failure. The server sends at
 /// most 4 frames on a successful login (SESSION_TOKEN, METADATA,
 /// optional CONNECTED, optional PING) plus a slack of 2 to absorb any
@@ -169,7 +169,7 @@ pub(crate) async fn login(
 /// Retries only on transient connect-layer failures (TCP, TLS, I/O). A
 /// semantic server rejection — the credentials were rejected, the auth
 /// frame was malformed, the server emitted a `DISCONNECTED` — is
-/// short-circuited: replaying it across every historical host is pointless,
+/// short-circuited: replaying it across every MDDS host is pointless,
 /// risks rate-limiting the account, and the original error already
 /// describes what the server objected to.
 ///

@@ -3,7 +3,7 @@
 //! Given a `(SecType, ReqType, date)` tuple plus an output path, this module
 //! drives one full request/response round-trip:
 //!
-//! 1. Open a TLS connection to the first reachable historical legacy host.
+//! 1. Open a TLS connection to the first reachable MDDS legacy host.
 //! 2. Authenticate (CREDENTIALS + VERSION).
 //! 3. Send a FLAT_FILE request frame.
 //! 4. Stream every chunk to a local file until FLAT_FILE_END.
@@ -90,7 +90,7 @@ fn validate_dataset(sec: SecType, req: ReqType) -> Result<(), Error> {
 /// Validate that `date` is exactly 8 ASCII digits AND a real Gregorian
 /// calendar date. Rejects shape-only matches like `"00000000"` or
 /// `"20260230"` via the canonical `crate::tdbe::time::is_valid_yyyymmdd`
-/// validator shared with historical + streaming.
+/// validator shared with MDDS + FPSS.
 fn validate_date(date: &str) -> Result<(), Error> {
     if date.len() != 8 || !date.bytes().all(|b| b.is_ascii_digit()) {
         return Err(Error::config_invalid(
@@ -171,7 +171,7 @@ pub async fn flatfile_request_raw(
 /// `max_backoff`, full-jittered when [`FlatFilesConfig::jitter`] is set
 /// — see [`FlatFilesConfig::delay_for_attempt`]. A `tracing::warn!`
 /// is emitted before each sleep so operators can observe sustained
-/// transient pressure on the legacy historical hosts.
+/// transient pressure on the legacy MDDS hosts.
 pub async fn flatfile_request_raw_with_config(
     creds: &Credentials,
     sec: SecType,

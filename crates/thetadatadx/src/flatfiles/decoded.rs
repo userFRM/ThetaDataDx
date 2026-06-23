@@ -81,7 +81,7 @@ pub async fn flatfile_request_with_config(
     // Step 2-3: decode + write. The decoder reads + parses the entire
     // blob synchronously and the writer hits the filesystem in tight
     // loops; do that on the blocking pool so we don't stall any other
-    // tokio task (streaming, historical) on the same runtime.
+    // tokio task (FPSS streaming, MDDS historical) on the same runtime.
     let raw_for_decode = raw_path.clone();
     let final_for_decode = final_path.clone();
     tokio::task::spawn_blocking(move || {
@@ -102,7 +102,7 @@ pub async fn flatfile_request_with_config(
 ///
 /// Splits out from [`flatfile_request`] so the byte-match integration
 /// test can re-run the decoder against a saved blob without burning
-/// another live historical call.
+/// another live MDDS call.
 pub(crate) fn decode_to_file(
     raw_path: &Path,
     sec: SecType,

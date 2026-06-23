@@ -38,9 +38,9 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             push_rust_doc_comment(
                 &mut out,
                 "    ",
-                "Start FPSS streaming and register a JS callback for incoming events.\n\
+                "Start streaming and register a JS callback for incoming events.\n\
                  \n\
-                 Each typed FPSS event is delivered to your\n\
+                 Each typed streaming event is delivered to your\n\
                  `callback(event)` on the Node main thread, so the\n\
                  callback may use any JS API safely. A callback that\n\
                  panics or throws is isolated and does not interrupt\n\
@@ -234,7 +234,7 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             push_rust_doc_comment(
                 &mut out,
                 "    ",
-                "Reconnect FPSS streaming and re-register the previously installed callback.\n\
+                "Reconnect streaming and re-register the previously installed callback.\n\
                  \n\
                  Requires a prior `startStreaming(callback)`; throws if\n\
                  no callback is registered. All active subscriptions are\n\

@@ -1,4 +1,4 @@
-//! Wire-to-application latency computation for streaming events.
+//! Wire-to-application latency computation for FPSS events.
 //!
 //! Converts the exchange-side `ms_of_day` (Eastern Time) and `event_date`
 //! (YYYYMMDD) into epoch nanoseconds, then subtracts from the local
@@ -7,7 +7,7 @@
 //! Civil-date / DST primitives live in [`crate::tdbe::time`]; this module is a
 //! thin wrapper that adds the YYYYMMDD-and-`ms_of_day` decomposition.
 //!
-//! Data-layer API retained for the streaming latency surface; it has no
+//! Data-layer API retained for the FPSS latency surface; it has no
 //! in-crate caller in the current build, so the module allows dead code.
 
 #![allow(dead_code)]

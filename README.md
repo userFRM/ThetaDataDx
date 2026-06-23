@@ -52,7 +52,7 @@ C++ ships as a header plus a small implementation file over a prebuilt library (
 ```python
 from thetadatadx import Client
 
-# Pass your API key directly. Use mdds_type="STAGE" to target staging.
+# Pass your API key directly. Use historical_type="STAGE" to target staging.
 client = Client(api_key="td1_...")
 
 # First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
@@ -112,7 +112,7 @@ with client.streaming(on_event) as session:
 import { Contract, Client } from 'thetadatadx';
 
 async function main() {
-  // Pass your API key directly. Add mddsType: "STAGE" to target staging.
+  // Pass your API key directly. Add historicalType: "STAGE" to target staging.
   const client = await Client.connectWith({ apiKey: 'td1_...' });
 
   await client.stream.startStreaming((event) => {

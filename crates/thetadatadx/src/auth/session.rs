@@ -1,4 +1,4 @@
-//! Shared, mutable session UUID used by historical requests.
+//! Shared, mutable session UUID used by MDDS requests.
 //!
 //! The session UUID is obtained from Nexus auth and embedded in every
 //! `QueryInfo.auth_token.session_uuid`. If the server returns

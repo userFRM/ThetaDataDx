@@ -1,6 +1,6 @@
-//! FIE string-to-nibble encoder, used for building streaming request lines.
+//! FIE string-to-nibble encoder — used for building FPSS request lines.
 //!
-//! Packs request strings into the FIE nibble wire format the streaming protocol expects.
+//! Packs request strings into the FIE nibble wire format the FPSS protocol expects.
 //!
 //! # Character-to-Nibble Mapping
 //!
@@ -71,7 +71,7 @@ pub const fn nibble_to_char(n: u8) -> Option<u8> {
     }
 }
 
-/// Encode a string into a FIE byte line for streaming request building.
+/// Encode a string into a FIE byte line for FPSS request building.
 ///
 /// The input must contain only characters in the FIE alphabet
 /// (`'0'-'9'`, `'.'`, `','`, `'/'`, `'n'`, `'-'`, `'e'`).
@@ -336,7 +336,7 @@ mod tests {
 
     #[test]
     fn realistic_fpss_request() {
-        // Typical streaming subscribe request: "21,0,1,AAPL,0,20240315,C,15000"
+        // Typical FPSS subscribe request: "21,0,1,AAPL,0,20240315,C,15000"
         // But FIE only handles the 16-char alphabet, so the actual protocol
         // probably encodes numeric fields. Let's test a pure-numeric line:
         // "21,0,1,0,20240315,0,15000"

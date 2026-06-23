@@ -5,14 +5,14 @@
 //! (see [`crate::flatfiles::datatype`]). This module turns one such block
 //! into an iterator of decoded `i32` rows ready for the format writers.
 //!
-//! Two streaming-side facts hold here as well:
+//! Two FPSS-side facts hold here as well:
 //! - The first row in a block is **absolute**; subsequent rows carry
 //!   delta-compressed field updates.
 //! - A leading `0xCE` byte in any row is a `DATE` marker — the row has no
 //!   user-visible data and its end-nibble must be skipped.
 //!
 //! The FIT codec itself (`crate::tdbe::codec::fit::FitReader` +
-//! `crate::tdbe::codec::fit::apply_deltas`) is shared with the streaming surface so
+//! `crate::tdbe::codec::fit::apply_deltas`) is shared with the FPSS surface so
 //! we get exact wire-format parity for free.
 
 use crate::tdbe::codec::fit::{apply_deltas, FitReader};

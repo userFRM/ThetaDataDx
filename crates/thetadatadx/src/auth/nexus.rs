@@ -184,12 +184,12 @@ pub(crate) fn auth_request_json_for_test(environment: HistoricalEnvironment) -> 
 /// via `#[serde(deny_unknown_fields)]` being absent.
 ///
 /// `Debug` is implemented manually so `session_id` (a bearer token used in
-/// every historical request) is never written to logs.
+/// every MDDS request) is never written to logs.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct AuthResponse {
-    /// Session UUID, the primary auth token for historical requests.
+    /// Session UUID — the primary auth token for MDDS requests.
     pub session_id: String,
 
     /// User details (subscription level, etc.).

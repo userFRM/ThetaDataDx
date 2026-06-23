@@ -23,7 +23,7 @@
 //! lock the caller holds); a `1` return means clean end of stream.
 //! `..._close` signals shutdown through a shared reference, so it is safe to
 //! call from another thread WHILE a `..._next_ipc` pull is parked: it wakes
-//! the pull (which then returns end of stream) and tears the streaming session
+//! the pull (which then returns end of stream) and tears the FPSS session
 //! down without taking exclusive ownership. `..._free` releases the handle.
 //! Every entry point is wrapped in the panic boundary so no Rust panic
 //! crosses `extern "C"`.
@@ -83,7 +83,7 @@ pub struct ThetaDataDxRecordBatchStream {
 ///
 /// Subscriptions are managed on the same surface as the callback path
 /// (`thetadatadx_client_*` subscribe entry points); subscribe first, then
-/// open the reader. Starts the streaming session, so this is an alternative to
+/// open the reader. Starts the FPSS session, so this is an alternative to
 /// `thetadatadx_client_set_callback`, not a concurrent consumer.
 ///
 /// `batch_size` rows per batch (`0` is clamped to 1). `linger_ms` is the
@@ -291,7 +291,7 @@ pub unsafe extern "C" fn thetadatadx_record_batch_stream_dropped(
     })
 }
 
-/// Stop the reader: unsubscribe and tear the streaming session down, WITHOUT
+/// Stop the reader: unsubscribe and tear the FPSS session down, WITHOUT
 /// freeing the handle.
 ///
 /// Signals shutdown through a shared reference, so it is safe to call from a
@@ -385,7 +385,7 @@ mod tests {
     /// teardown never deallocates the reader out from under an in-flight pull)
     /// is held by the `Arc` ownership here and proven in the core
     /// `fpss::batch_reader` tests (`close_from_another_handle_unblocks_a_parked_pull`);
-    /// it needs a live streaming connection, so it is exercised there rather than
+    /// it needs a live FPSS connection, so it is exercised there rather than
     /// reconstructed against a mock in this layer.
     #[test]
     fn null_handle_is_a_safe_no_op_on_every_entry_point() {

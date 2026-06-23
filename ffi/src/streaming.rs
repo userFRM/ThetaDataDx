@@ -1,7 +1,7 @@
-//! Streaming and unified client surface.
+//! FPSS streaming and unified client surface.
 //!
 //! Contains the streaming-specific handles (`ThetaDataDxClient`, `ThetaDataDxStreamHandle`),
-//! the `#[repr(C)]` streaming event types (generated, `include!`'d), the tagged
+//! the `#[repr(C)]` FPSS event types (generated — `include!`'d), the tagged
 //! subscription / contract-map arrays, and every `thetadatadx_client_*` /
 //! `thetadatadx_streaming_*` `extern "C" fn`.
 //!
@@ -39,7 +39,7 @@ use thetadatadx::DispatcherSession as FfpssDispatcherSession;
 
 // ── Callback C ABI types ──
 
-/// User callback signature: invoked once per streaming event delivered to the
+/// User callback signature: invoked once per FPSS event delivered to the
 /// FFI layer. The `event` pointer is valid only for the duration of the
 /// call; copy any fields the caller wants to outlive the callback.
 ///
@@ -97,7 +97,7 @@ impl FfiCallback {
     }
 }
 
-// ── Unified + streaming handles ──
+// ── Unified + FPSS handles ──
 
 /// Opaque unified client handle — wraps both historical and streaming.
 pub struct ThetaDataDxClient {
@@ -115,9 +115,9 @@ pub struct ThetaDataDxClient {
 // definitions (client.rs / streaming.rs / fpss_client.rs) are consolidated
 // there to eliminate drift risk.
 
-/// Streaming handle lifecycle state, see [`ThetaDataDxStreamHandle::state`].
+/// FPSS handle lifecycle state — see [`ThetaDataDxStreamHandle::state`].
 ///
-/// The C ABI documents a strict three-state machine on every streaming
+/// The C ABI documents a strict three-state machine on every FPSS
 /// handle. `thetadatadx_streaming_set_callback` and `_reconnect` enforce the
 /// transitions; `thetadatadx_streaming_shutdown` is terminal (no further
 /// registration / reconnect / shutdown calls succeed).
@@ -125,10 +125,10 @@ const FPSS_STATE_FRESH: u8 = 0;
 const FPSS_STATE_ACTIVE: u8 = 1;
 const FPSS_STATE_SHUTDOWN: u8 = 2;
 
-/// Opaque streaming client handle.
+/// Opaque FPSS streaming client handle.
 ///
 /// `thetadatadx_streaming_connect` allocates the handle and stores connection
-/// parameters; the actual streaming TLS connection is opened on the first
+/// parameters; the actual FPSS TLS connection is opened on the first
 /// call to `thetadatadx_streaming_set_callback`. This mirrors the unified handle's
 /// lifecycle (`connect` then `set_callback`).
 ///
@@ -153,7 +153,7 @@ pub struct ThetaDataDxStreamHandle {
     connect_params: StreamingConnectParams,
     /// User callback recorded at `thetadatadx_streaming_set_callback` time. Stored
     /// on the handle so `thetadatadx_streaming_reconnect` can re-register the same
-    /// callback on the new streaming connection without forcing the caller
+    /// callback on the new FPSS connection without forcing the caller
     /// to re-supply it.
     callback: Mutex<Option<FfiCallback>>,
     /// Permanent lifecycle state — separate from `inner` so that a
@@ -163,7 +163,7 @@ pub struct ThetaDataDxStreamHandle {
     /// inner `Mutex`es around the actual resources; `state` is purely
     /// observational from the perspective of the C ABI fast paths.
     state: AtomicU8,
-    /// Quiescence flags for every superseded streaming session that has
+    /// Quiescence flags for every superseded FPSS session that has
     /// not yet drained, captured during `thetadatadx_streaming_reconnect` /
     /// `thetadatadx_streaming_shutdown` before the previous client is dropped.
     /// `thetadatadx_streaming_await_drain` waits for ALL flags to flip so callers
@@ -184,7 +184,7 @@ pub struct ThetaDataDxStreamHandle {
     dispatcher: Mutex<FfpssDispatcherSession>,
 }
 
-/// Saved streaming connection parameters for FFI-safe (re)connection.
+/// Saved FPSS connection parameters for FFI-safe (re)connection.
 struct StreamingConnectParams {
     creds: thetadatadx::Credentials,
     /// Snapshot of `DirectConfig.streaming` at handle-construction time —
@@ -237,7 +237,7 @@ fn streaming_builder(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  #[repr(C)] streaming event types — zero-copy across FFI
+//  #[repr(C)] FPSS streaming event types — zero-copy across FFI
 //
 //  All of the kind-enum / per-variant struct / ZERO_* const definitions
 //  are generated from `crates/thetadatadx/fpss_event_schema.toml`. The
@@ -254,7 +254,7 @@ include!("fpss_event_structs.rs");
 
 /// Internal buffered event — owns heap data that backs the `ThetaDataDxStreamEvent`.
 ///
-/// Constructed once per delivered streaming event inside the user-callback
+/// Constructed once per delivered FPSS event inside the user-callback
 /// boundary (see `FfiCallback::invoke`); lives only for the duration of
 /// the user's `extern "C" fn` call and is dropped immediately after.
 ///
@@ -286,7 +286,7 @@ pub(crate) struct FfiBufferedEvent {
 include!("fpss_event_converter.rs");
 
 // ═══════════════════════════════════════════════════════════════════════
-//  Subscription types — used by both unified and streaming active_subscriptions
+//  Subscription types — used by both unified and FPSS active_subscriptions
 // ═══════════════════════════════════════════════════════════════════════
 
 /// A single active subscription entry.
@@ -437,10 +437,10 @@ pub unsafe extern "C" fn thetadatadx_subscription_array_free(
 //  Unified client — historical + streaming through one handle
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Connect to `ThetaData` (historical only, streaming is NOT started).
+/// Connect to `ThetaData` (historical only — FPSS streaming is NOT started).
 ///
 /// Authenticates once, opens gRPC channel. Call `thetadatadx_client_set_callback()`
-/// later to start streaming. Historical endpoints are available immediately.
+/// later to start FPSS. Historical endpoints are available immediately.
 ///
 /// Returns null on connection/auth failure (check `thetadatadx_last_error()`).
 #[no_mangle]
@@ -514,10 +514,10 @@ pub unsafe extern "C" fn thetadatadx_client_connect_from_file(
     })
 }
 
-/// Register a queued streaming callback on the unified client and start streaming.
+/// Register a queued FPSS callback on the unified client and start streaming.
 ///
 /// `callback` is invoked from the LMAX event-dispatch consumer thread for
-/// every streaming event the reader pulls off the wire. Each invocation is
+/// every FPSS event the reader pulls off the wire. Each invocation is
 /// wrapped in [`std::panic::catch_unwind`], which contains a panic raised by
 /// our own Rust code on the dispatch path so it does not kill the consumer.
 /// `callback` itself runs under the C ABI and must not unwind across the
@@ -550,7 +550,7 @@ pub unsafe extern "C" fn thetadatadx_client_connect_from_file(
 ///
 /// Pass NULL if the callback does not need a context.
 ///
-/// `ctx` is accessed from the event-dispatch consumer thread (NOT the streaming
+/// `ctx` is accessed from the event-dispatch consumer thread (NOT the FPSS
 /// TLS reader thread). The consumer invokes `callback(event, ctx)`
 /// serially on a single thread, so the user does not need internal
 /// locks for callback-private state. Freeing `ctx` early — including
@@ -568,7 +568,7 @@ pub unsafe extern "C" fn thetadatadx_client_connect_from_file(
 /// After `thetadatadx_client_stop_streaming` the unified client accepts a
 /// fresh `thetadatadx_client_set_callback`; the new `(callback, ctx)` REPLACES
 /// the saved registration. This is intentionally different from the
-/// streaming-handle one-shot rule: the unified path is the high-level API,
+/// FPSS-handle one-shot rule: the unified path is the high-level API,
 /// where stop+restart is a normal user flow (`thetadatadx_client_reconnect`
 /// is built on top of it).
 ///
@@ -601,7 +601,7 @@ pub unsafe extern "C" fn thetadatadx_client_set_callback(
         };
         let cb = FfiCallback { callback, ctx };
         // Hold `callback` across the gate, the store, and `start_streaming`
-        // so registration is serialised the same way the streaming path holds
+        // so registration is serialised the same way the FPSS path holds
         // `dispatcher` across `reject_if_not_fresh` + `open_fpss`. Two racing
         // self-calls take this lock in turn: the first installs and starts,
         // the second observes the now-`Live` slot and is rejected, so the
@@ -713,7 +713,7 @@ const _: () = {
 
 /// Decode a `ThetaDataDxSubscriptionRequest` into a Rust [`Subscription`]. The
 /// helper sets `thetadatadx_last_error` on validation failure and returns
-/// `None`. Used by both the unified and standalone-streaming C ABI entry
+/// `None`. Used by both the unified and standalone-FPSS C ABI entry
 /// points.
 unsafe fn coerce_subscription(
     req: *const ThetaDataDxSubscriptionRequest,
@@ -934,7 +934,7 @@ pub unsafe extern "C" fn thetadatadx_client_reconnect(handle: *const ThetaDataDx
         };
 
         // Look up the previously-registered callback so we can re-attach
-        // it on the new streaming connection. `thetadatadx_client_reconnect` requires
+        // it on the new FPSS connection. `thetadatadx_client_reconnect` requires
         // a prior `set_callback` — without one there is no destination
         // for the new stream's events.
         let cb = {
@@ -954,7 +954,7 @@ pub unsafe extern "C" fn thetadatadx_client_reconnect(handle: *const ThetaDataDx
             }
         };
 
-        // Initiate teardown of the streaming reader and Disruptor consumer
+        // Initiate teardown of the FPSS reader and Disruptor consumer
         // for the current session. This swaps the streaming slot to
         // `Stopped` and signals the I/O thread; the consumer keeps
         // firing the old C callback until its exit path joins.
@@ -1148,7 +1148,7 @@ pub unsafe extern "C" fn thetadatadx_client_historical(
 
 /// Stop streaming on the unified client. Historical remains available.
 ///
-/// Initiates teardown of the streaming event-dispatch consumer thread and the
+/// Initiates teardown of the FPSS event-dispatch consumer thread and the
 /// underlying TLS reader, but returns immediately after the streaming
 /// state cell is swapped to `Stopped`. The old consumer continues
 /// firing the previously-registered C callback for any events still
@@ -1271,7 +1271,7 @@ pub unsafe extern "C" fn thetadatadx_client_last_connected_addr(
 }
 
 /// Cumulative count of `Producer::try_publish` failures on this
-/// unified handle since the current stream started: events the streaming
+/// unified handle since the current stream started: events the FPSS
 /// TLS reader could not enqueue into the LMAX Disruptor ring because
 /// the consumer had fallen behind and the ring was full.
 ///
@@ -1426,7 +1426,7 @@ pub unsafe extern "C" fn thetadatadx_client_slow_callback_count(
 ///
 /// # Lifecycle restriction
 ///
-/// MUST be called from a thread other than the streaming Disruptor
+/// MUST be called from a thread other than the FPSS Disruptor
 /// consumer thread. Calling it from inside the user callback would
 /// block the very thread the helper is waiting on and the call would
 /// always return `0` after `timeout_ms` elapses.
@@ -1540,12 +1540,12 @@ pub unsafe extern "C" fn thetadatadx_client_free(handle: *mut ThetaDataDxClient)
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  Real-time streaming client
+//  FPSS — Real-time streaming client
 // ═══════════════════════════════════════════════════════════════════════
 
 /// Allocate a streaming handle and stash the connection parameters.
 ///
-/// **Does NOT open the streaming TLS connection**, connection is deferred
+/// **Does NOT open the FPSS TLS connection** — connection is deferred
 /// until the caller installs a callback via `thetadatadx_streaming_set_callback`.
 /// This is required because `StreamingClient::connect` registers its event
 /// handler at connect time; deferring the connect until callback
@@ -1573,7 +1573,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_connect(
         let config = unsafe { &*config };
 
         // Seed the process-global async runtime from this client's config so
-        // `worker_threads` is honored when a standalone streaming client is the
+        // `worker_threads` is honored when a standalone FPSS client is the
         // first client created in the process; the worker pool is built once.
         crate::runtime_from_config(&config.inner.runtime);
 
@@ -1598,7 +1598,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_connect(
 /// One-call equivalent of `thetadatadx_credentials_from_file` followed by
 /// `thetadatadx_streaming_connect`: the credentials are opened from `path`, consumed
 /// for the connect, and freed internally. As with `thetadatadx_streaming_connect`
-/// this does NOT open the streaming TLS connection, connection is deferred
+/// this does NOT open the FPSS TLS connection — connection is deferred
 /// until `thetadatadx_streaming_set_callback`. The returned handle and its ownership
 /// / free convention are identical to `thetadatadx_streaming_connect` (free with
 /// `thetadatadx_streaming_free`).
@@ -1670,7 +1670,7 @@ fn reject_if_shutdown(handle: &ThetaDataDxStreamHandle) -> bool {
     }
 }
 
-/// Open the streaming connection if not already open.
+/// Open the FPSS connection if not already open.
 ///
 /// Internal helper used by `thetadatadx_streaming_set_callback`. The caller supplies
 /// a Rust closure that consumes `StreamEvent` references; this is the
@@ -1781,10 +1781,10 @@ where
     }
 }
 
-/// Register a queued streaming callback and open the streaming connection.
+/// Register a queued FPSS callback and open the FPSS connection.
 ///
 /// `callback` is invoked from the LMAX event-dispatch consumer thread for
-/// every streaming event the reader pulls off the wire, with each invocation
+/// every FPSS event the reader pulls off the wire, with each invocation
 /// wrapped in [`std::panic::catch_unwind`]. That wrapper contains a panic
 /// raised by our own Rust code on the dispatch path so it does not kill the
 /// consumer; `callback` itself runs under the C ABI and must not unwind
@@ -1814,7 +1814,7 @@ where
 /// race destruction. The event-dispatch consumer thread accesses `ctx` on
 /// every event and on every `thetadatadx_streaming_reconnect`.
 ///
-/// # Lifecycle contract (streaming one-shot rule)
+/// # Lifecycle contract (FPSS one-shot rule)
 ///
 /// May only be called ONCE per handle, and ONLY before
 /// `thetadatadx_streaming_shutdown`. Subsequent calls — including any call after
@@ -1827,7 +1827,7 @@ where
 ///
 /// This is intentionally stricter than the unified C ABI's
 /// `thetadatadx_client_set_callback`, which supports stop-then-re-register as
-/// a normal user flow. The streaming handle is the low-level surface; the
+/// a normal user flow. The FPSS handle is the low-level surface; the
 /// unified handle is the high-level surface. See
 /// [`thetadatadx_client_set_callback`] for the replacement contract.
 ///
@@ -1887,7 +1887,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_set_callback(
     })
 }
 
-/// Check if the standalone streaming connection is currently open.
+/// Check if the standalone FPSS streaming connection is currently open.
 ///
 /// Distinct from `thetadatadx_streaming_is_authenticated`: the connection
 /// can be open yet briefly unauthenticated mid-reconnect. A panicked
@@ -1932,7 +1932,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_is_streaming(
     })
 }
 
-/// Check if the streaming client is currently authenticated.
+/// Check if the FPSS client is currently authenticated.
 ///
 /// Returns 1 if authenticated, 0 if not (or if handle is null).
 #[no_mangle]
@@ -2053,10 +2053,10 @@ pub unsafe extern "C" fn thetadatadx_streaming_active_full_subscriptions(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  Standalone streaming — polymorphic subscribe / unsubscribe
+//  Standalone FPSS — polymorphic subscribe / unsubscribe
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Polymorphic subscribe on the standalone streaming client. Mirrors the
+/// Polymorphic subscribe on the standalone FPSS client. Mirrors the
 /// Rust `StreamingClient::subscribe(Subscription)` shape.
 ///
 /// Returns 0 on success, or -1 on error (check `thetadatadx_last_error()`).
@@ -2099,7 +2099,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_subscribe(
     })
 }
 
-/// Polymorphic unsubscribe on the standalone streaming client.
+/// Polymorphic unsubscribe on the standalone FPSS client.
 ///
 /// Returns 0 on success, or -1 on error (check `thetadatadx_last_error()`).
 #[no_mangle]
@@ -2142,10 +2142,10 @@ pub unsafe extern "C" fn thetadatadx_streaming_unsubscribe(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  Streaming — reconnect (Gap 3)
+//  FPSS — reconnect (Gap 3)
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Reconnect the streaming client, re-subscribing all previous subscriptions.
+/// Reconnect the FPSS streaming client, re-subscribing all previous subscriptions.
 ///
 /// Reuses the credentials/config saved at `thetadatadx_streaming_connect` time and
 /// the C callback registered via the most recent `thetadatadx_streaming_set_callback`.
@@ -2303,7 +2303,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
         // / `_set_callback` are already serialised against this
         // function by `handle.dispatcher` (held by the caller for
         // the whole `thetadatadx_streaming_reconnect` body). The spawned dispatcher
-        // iterates the streaming client poller via its own internal mutex
+        // iterates the FPSS client poller via its own internal mutex
         // and never touches `handle.inner`, so the held guard does
         // NOT deadlock the dispatcher.
         let spawn_result = {
@@ -2427,7 +2427,7 @@ fn downcast_ffi_panic_payload(payload: Box<dyn std::any::Any + Send>) -> String 
 }
 
 /// Milliseconds since the most recent inbound streaming frame of any
-/// kind on this streaming handle. Same contract as
+/// kind on this FPSS handle. Same contract as
 /// `thetadatadx_client_millis_since_last_event`: returns `0` on success with
 /// the value in `*out_ms`, `1` when no session is live or no frame
 /// has been received yet, `-1` on a null pointer.
@@ -2470,7 +2470,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_millis_since_last_event(
 }
 
 /// UNIX-nanosecond receive timestamp of the most recent inbound
-/// streaming frame of any kind on this streaming handle. Returns `0` when
+/// streaming frame of any kind on this FPSS handle. Returns `0` when
 /// the handle is null, no session is live, or no frame has been
 /// received yet.
 #[no_mangle]
@@ -2493,7 +2493,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_last_event_received_at_unix_nanos
     })
 }
 
-/// Address (`host:port`) of the streaming server the current streaming
+/// Address (`host:port`) of the streaming server the current FPSS
 /// session is connected to, following the session across
 /// auto-reconnects. Returns a heap-owned C string the caller must
 /// release with `thetadatadx_string_free`, or null when no session is live.
@@ -2528,7 +2528,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_last_connected_addr(
     })
 }
 
-/// Cumulative count of streaming events the TLS reader could not publish
+/// Cumulative count of FPSS events the TLS reader could not publish
 /// into the Disruptor ring because the consumer fell behind and the
 /// ring was full (`Producer::try_publish` returned `RingBufferFull`).
 ///
@@ -2552,7 +2552,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_dropped_events(
     })
 }
 
-/// Point-in-time count of streaming events published into the event ring
+/// Point-in-time count of FPSS events published into the event ring
 /// but not yet drained into the registered callback — the in-flight
 /// depth between the I/O thread and the dispatcher.
 ///
@@ -2581,7 +2581,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_ring_occupancy(
     })
 }
 
-/// Configured capacity of the streaming event ring in slots (the
+/// Configured capacity of the FPSS event ring in slots (the
 /// `streaming_ring_size` setting, a power of two), the fixed denominator
 /// for `thetadatadx_streaming_ring_occupancy`. When the occupancy sample
 /// approaches this value the ring is saturating and further events
@@ -2607,7 +2607,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_ring_capacity(
 }
 
 /// Cumulative count of user-callback panics caught by the per-invocation
-/// `catch_unwind` boundary on this streaming handle since the current stream
+/// `catch_unwind` boundary on this FPSS handle since the current stream
 /// started.
 ///
 /// Each caught panic is also surfaced via `tracing::error!` with target
@@ -2635,7 +2635,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_panic_count(
 }
 
 /// Set the slow-callback wall-clock threshold in microseconds on this
-/// streaming handle.
+/// FPSS handle.
 ///
 /// When a user-callback invocation runs longer than `threshold_us`,
 /// `thetadatadx_streaming_slow_callback_count` increments and a
@@ -2668,7 +2668,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_set_slow_callback_threshold_us(
 
 /// Cumulative count of user-callback invocations whose wall-clock
 /// duration exceeded the threshold set by
-/// `thetadatadx_streaming_set_slow_callback_threshold_us` on this streaming
+/// `thetadatadx_streaming_set_slow_callback_threshold_us` on this FPSS
 /// handle.
 ///
 /// Returns 0 when the watchdog is disabled (threshold 0), the handle is
@@ -2692,7 +2692,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_slow_callback_count(
     })
 }
 
-/// Shut down the streaming client, stopping all background threads.
+/// Shut down the FPSS client, stopping all background threads.
 ///
 /// # Lifecycle contract (terminal)
 ///
@@ -2757,7 +2757,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_shutdown(handle: *const ThetaData
     })
 }
 
-/// Wait for every superseded streaming session to quiesce.
+/// Wait for every superseded FPSS session to quiesce.
 ///
 /// Returns `1` once **all** prior `thetadatadx_streaming_reconnect` /
 /// `thetadatadx_streaming_shutdown` sessions' Disruptor consumers have finished
@@ -2777,7 +2777,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_shutdown(handle: *const ThetaData
 ///
 /// # Lifecycle restriction
 ///
-/// MUST be called from a thread other than the streaming Disruptor
+/// MUST be called from a thread other than the FPSS Disruptor
 /// consumer thread. Calling it from inside the user callback would
 /// block the helper the consumer is waiting on and always time out.
 #[no_mangle]
@@ -2838,7 +2838,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_await_drain(
     })
 }
 
-/// Free a streaming handle.
+/// Free a FPSS handle.
 ///
 /// # Lifecycle contract
 ///
@@ -2850,7 +2850,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_await_drain(
 ///   superseded session's Disruptor consumer has finished firing the
 ///   registered callback.
 /// - **Not yet shut down**: `_free` performs the equivalent of
-///   `thetadatadx_streaming_shutdown` first (drops the streaming client, captures the
+///   `thetadatadx_streaming_shutdown` first (drops the FPSS client, captures the
 ///   drain flag, marks the state terminal) and then polls the same
 ///   barrier.
 ///

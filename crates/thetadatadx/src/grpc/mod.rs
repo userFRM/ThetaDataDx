@@ -1,8 +1,8 @@
-//! Historical gRPC transport over the reference Rust gRPC stack (tonic).
+//! MDDS gRPC transport over the reference Rust gRPC stack (tonic).
 //!
 //! # Shape
 //!
-//! The historical code path is server-streaming gRPC over HTTP/2 + TLS with
+//! The MDDS code path is server-streaming gRPC over HTTP/2 + TLS with
 //! prost-encoded protobuf payloads. This module is a thin wrapper over
 //! `tonic::transport::Channel` + `tonic::client::Grpc`:
 //!

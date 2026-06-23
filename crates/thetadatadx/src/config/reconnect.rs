@@ -1,4 +1,4 @@
-//! Streaming reconnection sub-configuration.
+//! FPSS reconnection sub-configuration.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -19,7 +19,7 @@ use crate::backoff::JitterMode;
 /// at exactly `floor`.
 pub const RATE_LIMITED_JITTER_WINDOW: Duration = Duration::from_secs(30);
 
-/// Controls streaming reconnection behavior after a disconnect.
+/// Controls FPSS reconnection behavior after a disconnect.
 ///
 /// # Default
 ///
@@ -85,7 +85,7 @@ impl Default for ReconnectPolicy {
 }
 
 /// Per-failure-class attempt budgets the [`ReconnectPolicy::Auto`] driver
-/// enforces in the streaming I/O loop.
+/// enforces in the FPSS I/O loop.
 ///
 /// Splitting the cap by failure class keeps the long-patient
 /// rate-limited budget (`TooManyRequests`, 130 s spacing) independent
@@ -226,7 +226,7 @@ impl std::fmt::Debug for ReconnectPolicy {
     }
 }
 
-/// Streaming auto-reconnection cadence + policy.
+/// FPSS auto-reconnection cadence + policy.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct ReconnectConfig {
@@ -236,7 +236,7 @@ pub struct ReconnectConfig {
     /// attempt up to [`Self::wait_max_ms`], then applies
     /// [`Self::jitter`]. Default `250`.
     ///
-    /// Plumbed into the streaming I/O loop through
+    /// Plumbed into the FPSS I/O loop through
     /// [`crate::fpss::StreamingClientBuilder::reconnect_wait_ms`] at
     /// [`crate::StreamSurface::start_streaming`] /
     /// [`crate::StreamSurface::reconnect_streaming`] connect time.
@@ -281,14 +281,14 @@ pub struct ReconnectConfig {
     /// clients does not flush replay bursts in phase.
     pub replay_pace_ms: u64,
 
-    /// Controls streaming auto-reconnection behavior after involuntary disconnect.
+    /// Controls FPSS auto-reconnection behavior after involuntary disconnect.
     ///
     /// Default: [`ReconnectPolicy::Auto`].
     pub policy: ReconnectPolicy,
 }
 
 impl ReconnectConfig {
-    /// Production defaults for ThetaData's streaming reconnect cadence.
+    /// Production defaults for ThetaData's FPSS reconnect cadence.
     #[must_use]
     pub fn production_defaults() -> Self {
         Self {
