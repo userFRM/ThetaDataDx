@@ -140,13 +140,19 @@ const drained = await client.stream.awaitDrain(5000);
 > backoff with jitter, host failover, then a paced re-subscribe of every active
 > contract.
 
-Prefer columns? `client.stream.batches(...)` is a sibling to the callback — the same subscriptions, delivered as apache-arrow `RecordBatch` values under a fixed schema, consumed with `for await`. It closes (unsubscribe + tear down) on `Symbol.asyncDispose` or `close()`:
+Prefer columns? `client.stream.batches(...)` is a sibling to the callback: the same subscriptions, delivered as apache-arrow `RecordBatch` values under a fixed schema, consumed with `for await`. It closes (unsubscribe + tear down) on `close()`, or on `Symbol.asyncDispose` via `await using` where your runtime supports explicit resource management:
 
 ```typescript
+import { Contract } from 'thetadatadx';
+
 client.stream.subscribe(Contract.stock('AAPL').trade());
-await using batches = await client.stream.batches({ batchSize: 8192 });
-for await (const batch of batches) {
-  console.log(batch.numRows);
+const batches = await client.stream.batches({ batchSize: 8192 });
+try {
+  for await (const batch of batches) {
+    console.log(batch.numRows);
+  }
+} finally {
+  batches.close();
 }
 ```
 
