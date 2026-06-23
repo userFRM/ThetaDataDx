@@ -159,7 +159,111 @@ Three knobs tune it:
 - **`linger`**: the maximum time a partial batch waits before being emitted, so a quiet stream still delivers.
 - **`backpressure`**: what happens when the reader falls behind. `Block` (the default, lossless: the wire is paced) or `DropOldest` (a bounded buffer of `capacity` batches that drops, and counts, the oldest on overflow).
 
-The minimal per-language example is in each SDK README; the field set is the fixed streaming schema shared across bindings.
+The field set is the fixed streaming schema, shared across bindings.
+
+<SdkTabs>
+
+<template #rust>
+
+```rust
+use thetadatadx::streaming::Contract;
+use thetadatadx::{Credentials, DirectConfig, Client};
+use futures::StreamExt;
+
+#[tokio::main]
+async fn main() -> Result<(), thetadatadx::Error> {
+    let creds = Credentials::from_file("creds.txt")?;
+    let client = Client::connect(&creds, DirectConfig::production()).await?;
+
+    // `batches()` starts the session, so open the reader first, then subscribe.
+    let mut batches = client.stream().batches().batch_size(8_192).build()?;
+    client.stream().subscribe(Contract::stock("AAPL").trade())?;
+
+    while let Some(batch) = batches.next().await {
+        println!("{} rows", batch?.num_rows());
+    }
+    Ok(())
+}
+```
+
+`build()` returns a `RecordBatchStream` that implements `futures::Stream`; call `.blocking()` for a synchronous `Iterator` instead. Dropping it (or `close()`) tears the session down.
+
+</template>
+
+<template #python>
+
+```python
+from thetadatadx import Config, Contract, Credentials, Client
+
+creds = Credentials.from_file("creds.txt")
+client = Client(creds, Config.production())
+
+# `batches(...)` starts the session, so open the reader first, then subscribe.
+with client.stream.batches(batch_size=8192) as batches:
+    client.stream.subscribe(Contract.stock("AAPL").trade())
+    for batch in batches:        # pyarrow.RecordBatch; or: async for batch in batches
+        print(batch.num_rows)
+```
+
+</template>
+
+<template #typescript>
+
+```typescript
+import { Contract, Client } from 'thetadatadx';
+
+const client = await Client.connectFromFile('creds.txt');
+
+// `batches(...)` starts the session, so open the reader first, then subscribe.
+const batches = await client.stream.batches({ batchSize: 8192 });
+try {
+  client.stream.subscribe(Contract.stock('AAPL').trade());
+  for await (const batch of batches) {
+    console.log(batch.numRows);
+  }
+} finally {
+  batches.close();
+}
+```
+
+Decoding the batches needs `apache-arrow` installed alongside the SDK.
+
+</template>
+
+<template #cpp>
+
+```cpp
+#include "thetadatadx.hpp"
+#include <arrow/api.h>
+#include <cstdio>
+
+int main() {
+    auto creds = thetadatadx::Credentials::from_file("creds.txt");
+    auto client = thetadatadx::Client::connect(creds, thetadatadx::Config::production());
+
+    // `batches(...)` starts the session, so open the reader first, then subscribe.
+    auto reader = client.stream().batches(/*batch_size=*/8192);
+    client.stream().subscribe(thetadatadx::Contract::stock("AAPL").trade());
+
+    std::shared_ptr<arrow::RecordBatch> batch;
+    while (reader->ReadNext(&batch).ok() && batch != nullptr) {
+        std::printf("%lld rows\n", static_cast<long long>(batch->num_rows()));
+    }
+    // RAII: `reader` closes when the last reference drops.
+}
+```
+
+Build the SDK with `-DTHETADATADX_CPP_ARROW=ON` (links arrow-cpp) to enable the reader.
+
+</template>
+
+<template #http>
+
+The columnar reader is an in-process SDK surface and is not bridged over the [server binary](/server/)'s WebSocket; use the per-event stream there ([WebSocket Streaming](/server/websocket)).
+
+</template>
+
+</SdkTabs>
 
 ## Lifecycle
 
