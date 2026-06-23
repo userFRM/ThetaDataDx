@@ -121,9 +121,9 @@ pub struct ThetaDataDxClient {
 /// handle. `thetadatadx_streaming_set_callback` and `_reconnect` enforce the
 /// transitions; `thetadatadx_streaming_shutdown` is terminal (no further
 /// registration / reconnect / shutdown calls succeed).
-const FPSS_STATE_FRESH: u8 = 0;
-const FPSS_STATE_ACTIVE: u8 = 1;
-const FPSS_STATE_SHUTDOWN: u8 = 2;
+const STREAM_STATE_FRESH: u8 = 0;
+const STREAM_STATE_ACTIVE: u8 = 1;
+const STREAM_STATE_SHUTDOWN: u8 = 2;
 
 /// Opaque FPSS streaming client handle.
 ///
@@ -136,15 +136,15 @@ const FPSS_STATE_SHUTDOWN: u8 = 2;
 ///
 /// `state` enforces the public C ABI contract:
 ///
-/// - `FPSS_STATE_FRESH`  -> `FPSS_STATE_ACTIVE` on the first successful
+/// - `STREAM_STATE_FRESH`  -> `STREAM_STATE_ACTIVE` on the first successful
 ///   `thetadatadx_streaming_set_callback`. A second registration on an already-
 ///   `ACTIVE` handle returns -1 with "streaming callback already installed
 ///   -- only one set_callback call is permitted per handle".
-/// - `FPSS_STATE_ACTIVE` -> `FPSS_STATE_SHUTDOWN` on
+/// - `STREAM_STATE_ACTIVE` -> `STREAM_STATE_SHUTDOWN` on
 ///   `thetadatadx_streaming_shutdown`. Shutdown is terminal: every subsequent
 ///   register / reconnect / shutdown call returns -1 with
 ///   "streaming handle has already been shut down -- this is terminal".
-/// - `FPSS_STATE_FRESH` directly to `FPSS_STATE_SHUTDOWN` is allowed
+/// - `STREAM_STATE_FRESH` directly to `STREAM_STATE_SHUTDOWN` is allowed
 ///   (caller shut down a handle before installing a callback).
 pub struct ThetaDataDxStreamHandle {
     inner: Arc<Mutex<Option<Arc<thetadatadx::fpss::StreamingClient>>>>,
@@ -1585,7 +1585,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_connect(
                 reconnect: config.inner.reconnect.clone(),
             },
             callback: Mutex::new(None),
-            state: AtomicU8::new(FPSS_STATE_FRESH),
+            state: AtomicU8::new(STREAM_STATE_FRESH),
             prev_drained: Mutex::new(Vec::new()),
             dispatcher: Mutex::new(FfpssDispatcherSession::Idle),
         }))
@@ -1638,14 +1638,14 @@ pub unsafe extern "C" fn thetadatadx_streaming_connect_from_file(
 /// registration and the terminal-shutdown rule.
 fn reject_if_not_fresh(handle: &ThetaDataDxStreamHandle) -> bool {
     match handle.state.load(AtomicOrdering::Relaxed) {
-        FPSS_STATE_FRESH => true,
-        FPSS_STATE_ACTIVE => {
+        STREAM_STATE_FRESH => true,
+        STREAM_STATE_ACTIVE => {
             set_error(
                 "streaming callback already installed -- only one set_callback call is permitted per handle",
             );
             false
         }
-        FPSS_STATE_SHUTDOWN => {
+        STREAM_STATE_SHUTDOWN => {
             set_error("streaming handle has already been shut down -- this is terminal");
             false
         }
@@ -1662,7 +1662,7 @@ fn reject_if_not_fresh(handle: &ThetaDataDxStreamHandle) -> bool {
 /// `thetadatadx_streaming_reconnect` and `thetadatadx_streaming_shutdown` (the latter to make
 /// double-shutdown a clean error rather than silently no-op).
 fn reject_if_shutdown(handle: &ThetaDataDxStreamHandle) -> bool {
-    if handle.state.load(AtomicOrdering::Relaxed) == FPSS_STATE_SHUTDOWN {
+    if handle.state.load(AtomicOrdering::Relaxed) == STREAM_STATE_SHUTDOWN {
         set_error("streaming handle has already been shut down -- this is terminal");
         false
     } else {
@@ -1729,7 +1729,7 @@ where
             }
             handle
                 .state
-                .store(FPSS_STATE_ACTIVE, AtomicOrdering::Relaxed);
+                .store(STREAM_STATE_ACTIVE, AtomicOrdering::Relaxed);
 
             let dispatcher_client = std::sync::Arc::clone(&client_arc);
             let spawn_result = std::thread::Builder::new()
@@ -1760,7 +1760,7 @@ where
                     let taken = guard.take();
                     handle
                         .state
-                        .store(FPSS_STATE_FRESH, AtomicOrdering::Relaxed);
+                        .store(STREAM_STATE_FRESH, AtomicOrdering::Relaxed);
                     if let Some(client) = taken {
                         client.shutdown();
                         drop(client);
@@ -2753,7 +2753,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_shutdown(handle: *const ThetaData
         // torn-down handle.
         handle
             .state
-            .store(FPSS_STATE_SHUTDOWN, AtomicOrdering::Relaxed);
+            .store(STREAM_STATE_SHUTDOWN, AtomicOrdering::Relaxed);
     })
 }
 
@@ -2900,10 +2900,10 @@ pub unsafe extern "C" fn thetadatadx_streaming_free(handle: *mut ThetaDataDxStre
             // mid-publish when we destroy the handle. The lock is held
             // for the duration of the teardown sequence (including the
             // 5 s drain wait); concurrent installs serialise behind it
-            // and observe `FPSS_STATE_SHUTDOWN`, so they bail out before
+            // and observe `STREAM_STATE_SHUTDOWN`, so they bail out before
             // touching freed memory.
             let mut disp_guard = h.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
-            if h.state.load(AtomicOrdering::Relaxed) != FPSS_STATE_SHUTDOWN {
+            if h.state.load(AtomicOrdering::Relaxed) != STREAM_STATE_SHUTDOWN {
                 let taken_client = h
                     .inner
                     .lock()
@@ -2918,7 +2918,8 @@ pub unsafe extern "C" fn thetadatadx_streaming_free(handle: *mut ThetaDataDxStre
                     drop(client);
                 }
                 join_dispatcher_session(&mut disp_guard);
-                h.state.store(FPSS_STATE_SHUTDOWN, AtomicOrdering::Relaxed);
+                h.state
+                    .store(STREAM_STATE_SHUTDOWN, AtomicOrdering::Relaxed);
             }
 
             // Wait for every superseded session's consumer thread to
