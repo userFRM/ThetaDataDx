@@ -3459,7 +3459,9 @@ dependencies = [
 name = "thetadatadx-ffi"
 version = "13.0.0-rc.5"
 dependencies = [
+ "arrow-array",
  "arrow-ipc",
+ "arrow-schema",
  "disruptor",
  "thetadatadx",
  "tokio",

@@ -33,8 +33,24 @@ const pkgRoot = resolve(here, "..");
 const dtsPath = resolve(pkgRoot, "index.d.ts");
 const readmePath = resolve(pkgRoot, "README.md");
 
+// The module specifier examples import (`thetadatadx`) must resolve to the
+// package's published type entry, not the raw napi `index.d.ts`. The entry
+// (`package.json` `types`) is the wrapper's `streaming-session.d.ts`, which
+// re-exports the whole napi surface AND layers the wrapper augmentations on
+// top (e.g. `StreamView.batches(...)` returns the async-iterable
+// `RecordBatchStream`, not the bare napi `RecordBatchStreamHandle`). Checking
+// against `index.d.ts` alone would miss those augmentations, so a documented
+// example of a wrapper-only surface could never type-check. Resolve the entry
+// from `package.json` so this tracks the published `types` automatically.
+const pkgTypesEntry = JSON.parse(
+  readFileSync(resolve(pkgRoot, "package.json"), "utf-8")
+).types;
+const typesEntryPath = resolve(pkgRoot, pkgTypesEntry ?? "index.d.ts");
+
 // Module specifier that resolves the local declarations.
-const LOCAL_MODULE = dtsPath.replace(/\\/g, "/").replace(/\.d\.ts$/, "");
+const LOCAL_MODULE = typesEntryPath
+  .replace(/\\/g, "/")
+  .replace(/\.d\.ts$/, "");
 
 const FENCE_RE = /```(?:ts|typescript|javascript|js)\n([\s\S]*?)\n```/g;
 

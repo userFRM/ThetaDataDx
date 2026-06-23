@@ -59,6 +59,13 @@ set(THETADATADX_CPP_TEST_SOURCES
     arrow_ipc.cpp
 )
 
+# The pull-based Arrow RecordBatch reader test needs the native arrow-cpp
+# reader, so it is built only when that optional feature is on. It mirrors
+# the header-side `#ifdef THETADATADX_CPP_ARROW` gate on the reader itself.
+if(THETADATADX_CPP_ARROW)
+    list(APPEND THETADATADX_CPP_TEST_SOURCES streaming_batches.cpp)
+endif()
+
 add_executable(thetadatadx_cpp_tests ${THETADATADX_CPP_TEST_SOURCES})
 target_link_libraries(thetadatadx_cpp_tests
     PRIVATE

@@ -59,6 +59,25 @@ if(UNIX AND NOT APPLE)
     target_link_libraries(thetadatadx_cpp PUBLIC pthread dl m)
 endif()
 
+# ── Optional: native arrow-cpp RecordBatch reader ──
+#
+# The pull-based columnar streaming reader (`client.stream().batches(..)`
+# returning an `arrow::RecordBatchReader`) requires arrow-cpp. It is gated so
+# the SDK still builds for users who do not link arrow-cpp; the rest of the
+# surface (including the per-tick `*_to_arrow_ipc` byte-buffer terminals) is
+# unaffected. Enable with `-DTHETADATADX_CPP_ARROW=ON` and ensure arrow-cpp is
+# discoverable by `find_package(Arrow)`.
+option(THETADATADX_CPP_ARROW "Enable the native arrow-cpp RecordBatch streaming reader" OFF)
+if(THETADATADX_CPP_ARROW)
+    find_package(Arrow REQUIRED)
+    target_compile_definitions(thetadatadx_cpp PUBLIC THETADATADX_CPP_ARROW)
+    if(TARGET Arrow::arrow_shared)
+        target_link_libraries(thetadatadx_cpp PUBLIC Arrow::arrow_shared)
+    else()
+        target_link_libraries(thetadatadx_cpp PUBLIC Arrow::arrow_static)
+    endif()
+endif()
+
 # ── Example ──
 
 add_executable(thetadatadx_example examples/main.cpp)

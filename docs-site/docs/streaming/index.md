@@ -11,6 +11,15 @@ Streaming requires a Standard subscription or higher on the matching asset class
 
 Streaming authenticates the same way as historical requests. An API key works here too: set `THETADATA_API_KEY` and build credentials with `from_env_or_file` (or the api-key constructor) in place of `from_file`. See [Authenticate](/articles/getting-started#_2-authenticate).
 
+## Delivery modes
+
+The same subscriptions can be consumed two ways:
+
+- **Per-event callback** (`start_streaming`): each event is pushed to a callback you register, one at a time. Reach for it when you react to events as they arrive and want the lowest per-event latency.
+- **Columnar pull** (`batches`): events are pulled as Apache Arrow `RecordBatch` values under a fixed schema. Reach for it when you want bulk, columnar throughput into pandas, polars, or DuckDB.
+
+The callback path is documented below; the pull reader is covered under [Columnar batches](#columnar-batches). Pick one per session, not both.
+
 ## Connect, subscribe, receive
 
 <SdkTabs>
@@ -139,6 +148,18 @@ Build a typed subscription from a `Contract` (per-contract scope) or a `SecType`
 - `subscribe_many([...])` installs a batch in one call; `active_subscriptions()` snapshots what is installed.
 
 The per-stream-type pages in the sidebar carry the exact subscribe code, the event fields, and the unsubscribe call for each stream.
+
+## Columnar batches
+
+`client.stream().batches(...)` opens a pull reader that delivers the same subscriptions as Apache Arrow `RecordBatch` values under a fixed schema, a sibling to the per-event callback. The reader is iterable in each binding (synchronous and async), yields batches you concatenate freely, and tears the session down on close (context-manager exit, `Symbol.asyncDispose`, or the destructor). Open the reader first, since it starts the session, then subscribe.
+
+Three knobs tune it:
+
+- **`batch_size`**: rows per batch. A batch is emitted when it fills or when `linger` elapses, whichever comes first.
+- **`linger`**: the maximum time a partial batch waits before being emitted, so a quiet stream still delivers.
+- **`backpressure`**: what happens when the reader falls behind. `Block` (the default, lossless: the wire is paced) or `DropOldest` (a bounded buffer of `capacity` batches that drops, and counts, the oldest on overflow).
+
+The minimal per-language example is in each SDK README; the field set is the fixed streaming schema shared across bindings.
 
 ## Lifecycle
 

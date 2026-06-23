@@ -197,7 +197,7 @@ impl Drop for StreamingClient {
             client.shutdown();
         }
         drop(taken_client);
-        if let DispatcherSession::Running { handle } = prev_session {
+        if let DispatcherSession::Running { handle, .. } = prev_session {
             if handle.thread().id() != std::thread::current().id() {
                 let _ = handle.join();
             }
@@ -345,7 +345,12 @@ impl StreamingClient {
             });
         match dispatcher {
             Ok(h) => {
-                *self.lock_dispatcher() = DispatcherSession::Running { handle: h };
+                // The callback dispatcher parks only on the event ring, which
+                // the client shutdown signals on teardown, so no wake hook.
+                *self.lock_dispatcher() = DispatcherSession::Running {
+                    handle: h,
+                    on_teardown: None,
+                };
                 Ok(())
             }
             Err(e) => {
@@ -701,7 +706,7 @@ impl StreamingClient {
                 .push(client.drained_flag());
             client.shutdown();
             drop(client);
-            if let DispatcherSession::Running { handle } = prev_session {
+            if let DispatcherSession::Running { handle, .. } = prev_session {
                 if handle.thread().id() != std::thread::current().id() {
                     if let Err(payload) = handle.join() {
                         // Record the panic reason so `isStreaming()` /

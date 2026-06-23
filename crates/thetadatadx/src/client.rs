@@ -148,6 +148,27 @@ pub struct Client {
     /// so subsequent `DirectConfig` mutations cannot retroactively change
     /// retry behavior for already-issued requests.
     flatfiles_config: crate::config::FlatFilesConfig,
+    /// Streaming lifecycle state, held behind an `Arc` so a teardown that
+    /// outlives the borrowed [`StreamSurface`] — notably the pull-based
+    /// [`crate::fpss::batch_reader::RecordBatchStream`], whose `close` / drop
+    /// fire after the `&Client` borrow has ended — can quiesce the same state
+    /// cells [`Self::stop_streaming`] does, through a [`std::sync::Weak`]. The
+    /// callback path reaches it through `&self`; both routes funnel through
+    /// [`StreamingState::quiesce`], so the two delivery modes leave the client
+    /// in the same truthful, reusable state.
+    streaming: Arc<StreamingState>,
+}
+
+/// The streaming lifecycle state of a [`Client`].
+///
+/// Factored out of [`Client`] so it can be shared (via `Arc`) with a
+/// pull-based reader whose teardown outlives the `&Client` borrow that opened
+/// it. Both [`Client::stop_streaming`] and the batch reader's close drive
+/// [`Self::quiesce`], the single transition that swaps the slot to `Stopped`,
+/// retires the dispatcher session, and records the drain flag — so streaming
+/// status stays truthful and the client stays reusable regardless of which
+/// delivery mode (callback or columnar pull) ran.
+pub(crate) struct StreamingState {
     /// Streaming-side state machine. See [`StreamingSlot`] for the
     /// `Idle → Live → Stopped` lifecycle. The
     /// [`ArcSwap`] makes `is_streaming` / `connection_status` /
@@ -155,9 +176,9 @@ pub struct Client {
     /// took two `Mutex` locks plus an `AtomicBool` for the same answer.
     state: ArcSwap<StreamingSlot>,
     /// Quiescence flags of every superseded streaming session that has
-    /// not yet drained, captured during [`Self::stop_streaming`] /
-    /// [`Self::reconnect_streaming`] before the `Live → Stopped` swap
-    /// drops the previous `Arc<StreamingClient>`. [`Self::await_drain`]
+    /// not yet drained, captured during [`Client::stop_streaming`] /
+    /// [`Client::reconnect_streaming`] before the `Live → Stopped` swap
+    /// drops the previous `Arc<StreamingClient>`. [`Client::await_drain`]
     /// waits for **every** entry to flip to `true` before reporting
     /// quiescence; completed flags are GC'd lazily on each poll.
     ///
@@ -172,7 +193,7 @@ pub struct Client {
     /// FFI `ctx`. The Vec preserves every retired generation until its
     /// own flag is observed `true`.
     prev_drained: Mutex<Vec<Arc<AtomicBool>>>,
-    /// Monotonic counter incremented by every [`Self::stop_streaming`].
+    /// Monotonic counter incremented by every [`Client::stop_streaming`].
     ///
     /// Each `start_streaming*()` snapshots this value at entry and
     /// re-checks it after the FPSS connect completes. If the snapshot
@@ -193,6 +214,277 @@ pub struct Client {
     /// from `JoinHandle::join()` returning `Err(_)` rather than a
     /// separate atomic flag.
     dispatcher: Mutex<DispatcherSession>,
+}
+
+/// The deferred, lock-free part of a teardown, extracted under the dispatcher
+/// lock by [`StreamingState::extract_for_teardown_locked`] and finished by
+/// [`StreamingState::run_teardown`] with no lock held.
+struct TeardownWork {
+    /// The retired session's live client, to shut down (drains its threads and
+    /// ring). `None` when the slot was not `Live`.
+    client: Option<Arc<StreamingClient>>,
+    /// The retired dispatcher session, to wake (columnar) and join.
+    session: DispatcherSession,
+}
+
+/// Whether a retiring dispatcher session should register its drain flag for
+/// [`StreamingState::await_drain`].
+///
+/// `await_drain` waits for an in-flight per-event user CALLBACK to finish
+/// firing. Only the callback session has such a callback, so only it registers
+/// a flag. The columnar (batches) pull session has no callback — and its
+/// `drained` flag stays unset until the reader's `Arc<StreamingClient>` is
+/// dropped rather than merely closed — so registering it would make a manual
+/// `await_drain` time out spuriously while a closed-but-not-dropped columnar
+/// reader is alive. The columnar session is distinguished by being the only
+/// session that installs a teardown wake hook (to release a producer parked on
+/// the batch queue); the callback session installs none. A non-`Running`
+/// session has nothing to wait on.
+fn session_registers_drain_flag(session: &DispatcherSession) -> bool {
+    match session {
+        // Callback session: a wake hook is never installed -> register.
+        // Columnar session: a wake hook IS installed -> do not register.
+        DispatcherSession::Running { on_teardown, .. } => on_teardown.is_none(),
+        DispatcherSession::Idle | DispatcherSession::Failed { .. } => false,
+    }
+}
+
+impl StreamingState {
+    /// A fresh, never-started streaming state.
+    fn new() -> Self {
+        Self {
+            state: ArcSwap::from_pointee(StreamingSlot::Idle),
+            prev_drained: Mutex::new(Vec::new()),
+            stop_generation: AtomicU64::new(0),
+            dispatcher: Mutex::new(DispatcherSession::Idle),
+        }
+    }
+
+    /// Quiesce the streaming session: swap the slot to `Stopped`, retire the
+    /// dispatcher session, and record the previous generation's drain flag.
+    ///
+    /// This is the single teardown both delivery modes share —
+    /// [`Client::stop_streaming`] (callback path) and the pull reader's close
+    /// (columnar path) both call it — so after either one the slot is
+    /// `Stopped`, the dispatcher is `Idle` (or `Failed` if it panicked), and
+    /// `is_streaming` / `connection_status` report the truth. Idempotent:
+    /// calling it on an already-`Stopped` state bumps the generation and
+    /// no-ops the rest.
+    pub(crate) fn quiesce(&self) {
+        // Direct teardown (stop_streaming / reconnect / Client drop): retire
+        // whatever session is currently live, unconditionally.
+        if let Some(work) = self.extract_for_teardown_locked(None) {
+            self.run_teardown(work);
+        }
+    }
+
+    /// Retire the live session ONLY if the live stop-generation still equals
+    /// `expected_gen`, atomically with the generation re-check.
+    ///
+    /// This is the columnar reader's close gate. The generation re-check, the
+    /// generation bump, the slot swap, and the dispatcher-session extraction
+    /// all happen under the one dispatcher lock that also serialises
+    /// `start_dispatcher`'s install and the bump in
+    /// [`Self::extract_for_teardown_locked`], so a racing `stop_streaming` +
+    /// `start_streaming` either fully precedes this locked section (the
+    /// generation has advanced, so the re-check fails and this is a no-op,
+    /// leaving the newer session to its owner) or fully follows it (this
+    /// reader's session is already retired). A bare compare on the generation
+    /// atomic alone would not close the window between the reader's earlier
+    /// read and the teardown; guarding the check and the extraction together
+    /// does. The slow part (client shutdown + dispatcher join) runs AFTER the
+    /// lock is released, so it never holds the lock a callback might need.
+    #[cfg(any(feature = "arrow", test))]
+    pub(crate) fn quiesce_if_owned(&self, expected_gen: u64) {
+        if let Some(work) = self.extract_for_teardown_locked(Some(expected_gen)) {
+            self.run_teardown(work);
+        }
+    }
+
+    /// The atomic part of teardown, run under the dispatcher lock: optionally
+    /// gate on `expected_gen`, bump the generation, swap the slot to `Stopped`,
+    /// and extract the previous live client and dispatcher session. Returns the
+    /// extracted work for [`Self::run_teardown`] to finish OUTSIDE the lock, or
+    /// `None` when the generation gate did not match.
+    ///
+    /// Only the bump + swap + extraction are under the lock — exactly the part
+    /// that must be atomic with the generation gate and with
+    /// `start_dispatcher`. The client shutdown and the dispatcher join, which
+    /// can block while the dispatcher drains already-buffered events through
+    /// user callbacks, are deliberately NOT done here: a callback may call
+    /// `is_streaming` / `connection_status` / `stop_streaming`, which take this
+    /// same lock, so holding it across the join would deadlock.
+    fn extract_for_teardown_locked(&self, expected_gen: Option<u64>) -> Option<TeardownWork> {
+        let mut guard = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+        // The columnar reader-close gate: only retire while this reader's
+        // session is still the live one. Checked under the lock so it is atomic
+        // with the bump + swap + extraction below.
+        if let Some(expected) = expected_gen {
+            if self.stop_generation.load(Ordering::Acquire) != expected {
+                return None;
+            }
+        }
+        // Bump the stop generation BEFORE the slot swap so any in-flight
+        // `start_streaming*()` that snapshotted the previous value will fail
+        // its install check and not resurrect the slot to `Live` after this
+        // returns. AcqRel because the ordering relative to the `state.swap`
+        // below is what closes the resurrection race. The bump is under the
+        // dispatcher lock, so it is also mutually exclusive with
+        // `start_dispatcher`'s generation snapshot and the reader-close gate.
+        self.stop_generation.fetch_add(1, Ordering::AcqRel);
+        // Whether the session being retired should register its drain flag for
+        // `await_drain`. `await_drain` exists to wait for a user CALLBACK to
+        // finish firing; the columnar (batches) pull session has no callback,
+        // so its flag must NOT be registered (see the push below).
+        let register_drain_flag = session_registers_drain_flag(&guard);
+        // Atomically swap to `Stopped`; whichever caller wins the swap owns the
+        // previous `Arc<StreamingSlot>` and is the one that runs the shutdown
+        // sequence.
+        let prev = self.state.swap(Arc::new(StreamingSlot::Stopped));
+        let client = match &*prev {
+            StreamingSlot::Live { client } => {
+                // Register the drain flag for `await_drain` ONLY for a callback
+                // session. `await_drain` waits for in-flight user callbacks to
+                // finish; the columnar session has no callback, and its
+                // `drained` flag stays unset until the reader's
+                // `Arc<StreamingClient>` is dropped (not merely closed), so
+                // registering it would make a manual `await_drain` while a
+                // closed-but-not-dropped columnar reader is alive time out
+                // spuriously. Skipping it leaves the callback path's
+                // `await_drain` unchanged.
+                //
+                // For a callback session: capture the drain flag BEFORE the
+                // shutdown signal and PUSH it onto the retired-generations list
+                // (rather than overwriting a single slot). Stacked
+                // stop/start/stop cycles layer multiple in-flight generations
+                // on top of each other; an earlier still-firing session's flag
+                // must NOT be lost when a later session retires before the
+                // earlier one has drained. `await_drain()` waits for ALL
+                // entries, and lazily GCs flags that have flipped to `true`, so
+                // a long-lived handle does not accumulate `Arc<AtomicBool>`
+                // entries past their useful lifetime.
+                if register_drain_flag {
+                    self.prev_drained
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .push(client.drained_flag());
+                }
+                Some(Arc::clone(client))
+            }
+            StreamingSlot::Idle | StreamingSlot::Stopped => None,
+        };
+        // Extract the dispatcher session so the join runs outside the lock.
+        let session = std::mem::replace(&mut *guard, DispatcherSession::Idle);
+        Some(TeardownWork { client, session })
+    }
+
+    /// The slow part of teardown, run with NO lock held: shut the live client,
+    /// wake a parked columnar dispatcher, and join the dispatcher thread.
+    ///
+    /// Holding no lock here is what keeps the teardown deadlock-free: while the
+    /// client is shut down it keeps draining already-ring-buffered events
+    /// through user callbacks until it observes the shutdown, and such a
+    /// callback may call `is_streaming` / `connection_status` /
+    /// `stop_streaming`, all of which take the dispatcher lock. With the lock
+    /// released, those calls proceed, the dispatcher reaches its shutdown exit,
+    /// and the join below returns.
+    fn run_teardown(&self, work: TeardownWork) {
+        let TeardownWork { client, session } = work;
+        // Shut the FPSS client signal so its reader thread + event ring
+        // consumer drain and exit.
+        if let Some(client) = client {
+            client.shutdown();
+        }
+        if let DispatcherSession::Running {
+            handle,
+            on_teardown,
+        } = session
+        {
+            // Wake a dispatcher parked on its own backpressure primitive BEFORE
+            // joining it. The per-event callback dispatcher parks only on the
+            // event ring, which `client.shutdown()` above already signalled, so
+            // it installs no hook. The columnar pull dispatcher can be parked in
+            // its bounded-queue `flush` wait, which the FPSS shutdown does NOT
+            // touch; its hook stores `closed` (under the queue lock) and
+            // notifies, so the parked flush returns and the join below completes
+            // instead of hanging. The hook runs the SAME wakeup the reader's own
+            // close path runs, so every teardown route converges on it.
+            if let Some(wake) = on_teardown {
+                wake();
+            }
+            // Avoid blocking the consumer thread joining itself when a callback
+            // (or, for the pull reader, a dispatcher-thread drop) called this.
+            // Detach in that case; `await_drain` still observes quiescence via
+            // the `prev_drained` flags.
+            //
+            // Dispatcher panic state is derived from `JoinHandle::join()`:
+            // `Err(_)` means the dispatcher thread panicked in the
+            // event-iteration machinery (distinct from user-callback panics
+            // caught by `poll_batch`'s per-invocation `catch_unwind`). Record as
+            // `DispatcherSession::Failed` so `is_streaming` / `connection_status`
+            // see the failure even though the slot is now `Stopped`. The Failed
+            // state is published by RE-ACQUIRING the lock, which is safe now
+            // that the join has completed and the lock is free.
+            if handle.thread().id() != std::thread::current().id() {
+                if let Err(payload) = handle.join() {
+                    let reason = downcast_panic_payload(payload);
+                    tracing::error!(
+                        target: "thetadatadx::client",
+                        reason = %reason,
+                        "thetadatadx-fpss-dispatcher panicked; session marked as failed",
+                    );
+                    // Record `Failed` ONLY if no newer session was installed
+                    // since the extract left the slot `Idle`. The lock was
+                    // released across the join, so a `start_dispatcher` may have
+                    // installed a fresh `Running` session in that window; the
+                    // panic belongs to the now-superseded OLD session, so
+                    // overwriting the slot unconditionally would clobber the new
+                    // session's `JoinHandle` (orphaning its thread) and falsely
+                    // report a healthy live session as failed. Writing `Failed`
+                    // only while the slot is still `Idle` records the panic for
+                    // the common no-race case and leaves any newer session
+                    // untouched.
+                    let mut guard = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+                    if matches!(*guard, DispatcherSession::Idle) {
+                        *guard = DispatcherSession::Failed { reason };
+                    }
+                }
+            }
+        }
+    }
+
+    /// The current stop generation.
+    ///
+    /// Bumped by every teardown. The columnar reader captures the value its
+    /// session was installed at (returned from the start path) and passes it
+    /// to [`Self::quiesce_if_owned`] on close, so it retires only its own
+    /// session. This read accessor exists for tests; the live close path
+    /// compares the generation internally inside `quiesce_if_owned`.
+    #[cfg(test)]
+    fn stop_generation(&self) -> u64 {
+        self.stop_generation.load(Ordering::Acquire)
+    }
+
+    /// Test-only: the current streaming-slot variant as a static label, so a
+    /// test can assert the `Idle → Live → Stopped` transition `quiesce` drives
+    /// without naming the private `Arc<StreamingClient>` payload.
+    #[cfg(test)]
+    fn slot_label(&self) -> &'static str {
+        match &**self.state.load() {
+            StreamingSlot::Idle => "Idle",
+            StreamingSlot::Live { .. } => "Live",
+            StreamingSlot::Stopped => "Stopped",
+        }
+    }
+
+    /// Test-only: whether the dispatcher session is currently `Idle`.
+    #[cfg(test)]
+    fn dispatcher_is_idle(&self) -> bool {
+        matches!(
+            *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()),
+            DispatcherSession::Idle
+        )
+    }
 }
 
 impl Client {
@@ -263,10 +555,7 @@ impl Client {
             historical,
             creds: creds.clone(),
             flatfiles_config,
-            state: ArcSwap::from_pointee(StreamingSlot::Idle),
-            prev_drained: Mutex::new(Vec::new()),
-            stop_generation: AtomicU64::new(0),
-            dispatcher: Mutex::new(DispatcherSession::Idle),
+            streaming: Arc::new(StreamingState::new()),
         })
     }
 
@@ -355,6 +644,63 @@ impl Client {
         F: FnMut(&StreamEvent) + Send + 'static,
         S: FnMut(&mut dyn FnMut() -> crate::PollOutcome) -> crate::PollOutcome + Send + 'static,
     {
+        // The callback path's dispatcher body drives the scoped drain with
+        // the user handler. The connect / spawn / install / rollback
+        // sequence is shared with the columnar `batches()` path via
+        // `start_dispatcher`; only the per-thread consumer body differs.
+        let mut scope = scope;
+        // The callback dispatcher parks only on the event ring, which the
+        // client shutdown signals during teardown, so it needs no extra wake
+        // hook.
+        self.start_dispatcher(
+            move |client| {
+                client.for_each_scoped(|event| handler(event), &mut scope);
+            },
+            None,
+        )
+        .map(|(_client, _generation)| ())
+    }
+
+    /// Start FPSS streaming with a custom dispatcher consumer body.
+    ///
+    /// Factors the connect / spawn / install / rollback sequence shared by
+    /// the per-event callback path ([`Self::start_streaming_scoped`]) and
+    /// the columnar pull path ([`Self::start_streaming_batches`]). The
+    /// `dispatcher_body` closure runs on the dispatcher thread once the
+    /// streaming slot is installed; it owns the consumer loop (typically
+    /// [`crate::fpss::StreamingClient::for_each_scoped`]) and returns when
+    /// the ring shuts down. The single-flight gate, startup gate, install,
+    /// and failure rollback are identical across both consumers, so they
+    /// live here once.
+    ///
+    /// `on_teardown` is the optional dispatcher wakeup hook (see
+    /// [`DispatcherSession::Running`]). The callback path passes `None`; the
+    /// columnar path passes a hook that releases a dispatcher parked on the
+    /// batch queue so a direct `stop_streaming` / drop can join it. It is
+    /// installed atomically with the `Running` transition under the dispatcher
+    /// lock, so a teardown racing the start never sees a `Running` session
+    /// without its hook.
+    ///
+    /// On success returns the live client and the stop-generation the session
+    /// was installed at. The columnar reader stamps that generation so its
+    /// close tears down only the session it started, never a later session
+    /// that replaced it (see [`crate::fpss::batch_reader::RecordBatchStream`]).
+    /// The value is the generation the install was validated against, so it
+    /// identifies this session even if a teardown bumps the generation right
+    /// after the install commits.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure, or
+    /// when a stream is already active on this client.
+    pub(crate) fn start_dispatcher<B>(
+        &self,
+        dispatcher_body: B,
+        on_teardown: Option<Box<dyn FnOnce() + Send>>,
+    ) -> Result<(Arc<StreamingClient>, u64), Error>
+    where
+        B: FnOnce(Arc<StreamingClient>) + Send + 'static,
+    {
         // Single-flight gate: `dispatcher` mutex serialises the entire
         // connect-spawn-install sequence so two concurrent starts cannot
         // each spawn a dispatcher and race to overwrite the Running
@@ -362,10 +708,14 @@ impl Client {
         // (typically tens of milliseconds); a second concurrent start
         // is rejected upfront by the `is_streaming` fast path or by
         // `install_live` once it observes a `Live` slot.
-        let mut dispatcher_guard = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+        let mut dispatcher_guard = self
+            .streaming
+            .dispatcher
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
 
         // Reject a second concurrent start before paying the connect cost.
-        if matches!(&**self.state.load(), StreamingSlot::Live { .. }) {
+        if matches!(&**self.streaming.state.load(), StreamingSlot::Live { .. }) {
             return Err(Self::already_streaming());
         }
 
@@ -373,7 +723,7 @@ impl Client {
         // thread calls `stop_streaming()` between this load and the
         // post-connect `install_live`, the install path observes the
         // mismatch and refuses to resurrect the slot to `Live`.
-        let gen_at_entry = self.stop_generation.load(Ordering::Acquire);
+        let gen_at_entry = self.streaming.stop_generation.load(Ordering::Acquire);
 
         let config = self.historical.config();
         let client = StreamingClient::builder(&self.creds, &config.streaming.hosts)
@@ -409,8 +759,8 @@ impl Client {
             .map_err(crate::error::Error::from)?;
         let client_arc = Arc::new(client);
 
-        // Spawn the dispatcher behind a startup gate so the callback
-        // does not fire until the streaming slot is installed. This
+        // Spawn the dispatcher behind a startup gate so the consumer body
+        // does not run until the streaming slot is installed. This
         // closes two windows simultaneously:
         //
         //   1. `is_streaming()` / `connection_status()` cannot observe
@@ -423,8 +773,8 @@ impl Client {
         //      first event.
         //
         // The gate also lets the install-failure rollback signal the
-        // dispatcher to fall through without ever invoking the user
-        // callback.
+        // dispatcher to fall through without ever running the consumer
+        // body.
         //
         // `OnceLock::wait()` (stable since Rust 1.87, below our 1.88 MSRV) blocks the
         // dispatcher until the spawn site calls `.set(true)` (go) or
@@ -432,25 +782,22 @@ impl Client {
         let gate: Arc<OnceLock<bool>> = Arc::new(OnceLock::new());
         let gate_for_dispatcher = Arc::clone(&gate);
         let dispatcher_client = Arc::clone(&client_arc);
-        let mut scope = scope;
         let dispatcher_handle = std::thread::Builder::new()
             .name("thetadatadx-fpss-dispatcher".into())
             .spawn(move || {
                 if !*gate_for_dispatcher.wait() {
                     return;
                 }
-                // `StreamingClient::for_each_scoped` drives `poll_batch`, which
-                // wraps each callback invocation in its own
-                // `catch_unwind`.  A panic in the handler is caught,
-                // recorded via `panic_count()`, and does not stop event
-                // delivery for subsequent events.  The outer
+                // The consumer body drives `StreamingClient::for_each_scoped`,
+                // which drives `poll_batch`, which wraps each callback
+                // invocation in its own `catch_unwind`.  A panic in the
+                // handler is caught, recorded via `panic_count()`, and does
+                // not stop event delivery for subsequent events.  The outer
                 // `catch_unwind` below guards only the event-iteration
                 // machinery itself (ring mutex poison, OOM in the polling
-                // path, etc.) — not user-callback panics. `scope` brackets
-                // each batch drain; for the identity scope it is a direct
-                // call, identical to `for_each`.
+                // path, etc.) — not user-callback panics.
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    dispatcher_client.for_each_scoped(|event| handler(event), &mut scope);
+                    dispatcher_body(dispatcher_client);
                 }));
                 if outcome.is_err() {
                     tracing::error!(
@@ -497,12 +844,16 @@ impl Client {
             Ok(()) => {
                 // Publish the Running variant before opening the gate so
                 // `stop_streaming` finds the JoinHandle regardless of how
-                // quickly the dispatcher thread starts executing.
+                // quickly the dispatcher thread starts executing. The teardown
+                // wake hook is installed in the same transition, so a quiesce
+                // racing this start never observes a `Running` session lacking
+                // its hook.
                 *dispatcher_guard = DispatcherSession::Running {
                     handle: dispatcher_handle,
+                    on_teardown,
                 };
                 let _ = gate.set(true);
-                Ok(())
+                Ok((client_arc, gen_at_entry))
             }
             Err(install_err) => {
                 // Shut down the client so the dispatcher sees a clean
@@ -518,6 +869,86 @@ impl Client {
                 Err(install_err)
             }
         }
+    }
+
+    /// Start FPSS streaming in columnar pull mode, routing decoded
+    /// market-data events into the Arrow batch sink behind `shared`.
+    ///
+    /// Reuses the connect / install / dispatcher machinery via
+    /// [`Self::start_dispatcher`]; the dispatcher thread owns a
+    /// [`crate::fpss::batch_reader::BatchSink`] and drives the scoped drain
+    /// with it instead of a user callback. The sink appends one row per data
+    /// event, flushes on `batch_size` / `linger` / shutdown, and publishes a
+    /// terminal marker when the drain loop returns. The returned
+    /// [`crate::fpss::batch_reader::RecordBatchStream`] reads finished
+    /// batches off the same `shared` queue.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure, or
+    /// when a stream is already active on this client.
+    /// On success returns the live client and the stop-generation the columnar
+    /// session was installed at, so the reader can stamp the session it owns
+    /// and refuse to tear down a later session that replaced it.
+    #[cfg(feature = "arrow")]
+    pub(crate) fn start_streaming_batches(
+        &self,
+        shared: Arc<crate::fpss::batch_reader::Shared>,
+        batch_size: usize,
+        linger: std::time::Duration,
+        backpressure: crate::fpss::batch_reader::Backpressure,
+    ) -> Result<(Arc<StreamingClient>, u64), Error> {
+        // Teardown wake hook: a `Block` dispatcher can be parked in the batch
+        // queue's `flush` wait, which the FPSS shutdown does not touch. Any
+        // teardown that runs `quiesce` directly (a `Client` drop /
+        // `stop_streaming` / `reconnect_streaming`, not just the reader's own
+        // close) invokes this just before joining the dispatcher, so the parked
+        // flush is released and the join completes. It runs the SAME wakeup the
+        // reader's `close_shared` runs, so the two routes converge; it is
+        // idempotent, so a close that already woke is harmless.
+        let wake_shared = Arc::clone(&shared);
+        let on_teardown: Box<dyn FnOnce() + Send> = Box::new(move || wake_shared.close_and_wake());
+        self.start_dispatcher(
+            move |client| {
+                let sink = crate::fpss::batch_reader::BatchSink::new(
+                    shared,
+                    batch_size,
+                    linger,
+                    backpressure,
+                );
+                // The handler and the scope each take a short, non-overlapping
+                // lock on the sink's accumulator (see `BatchSink`), so cloning
+                // the sink (an `Arc` bundle) into both closures plus the
+                // post-loop finish is sound and the drain path stays lock-free
+                // between events.
+                let handler_sink = sink.clone();
+                let scope_sink = sink.clone();
+                client.for_each_scoped(
+                    move |event| handler_sink.on_event(event),
+                    move |drain| scope_sink.scope_drain(drain),
+                );
+                // The drain loop returned: the stream shut down. Flush the final
+                // partial batch and publish the terminal end-of-stream marker so
+                // the reader sees `finished` after consuming every queued batch.
+                sink.finish();
+            },
+            Some(on_teardown),
+        )
+    }
+
+    /// A weak handle to this client's streaming lifecycle state, for the
+    /// pull-based [`crate::fpss::batch_reader::RecordBatchStream`] to quiesce
+    /// the session on close.
+    ///
+    /// Weak (not strong) so the reader never keeps the client's streaming
+    /// state alive past the client itself: if the client is dropped first, its
+    /// own `Drop` quiesces and the reader's later close finds nothing to
+    /// upgrade and is a no-op; in the common order (reader closed first) the
+    /// upgrade succeeds and resets the slot to `Stopped`, making
+    /// `is_streaming` / `connection_status` truthful and the client reusable.
+    #[cfg(feature = "arrow")]
+    pub(crate) fn streaming_state_weak(&self) -> std::sync::Weak<StreamingState> {
+        Arc::downgrade(&self.streaming)
     }
 
     /// Atomically swap the slot to a fresh `Live` state.
@@ -545,8 +976,8 @@ impl Client {
         // `&Arc<T>` directly for non-Eq T; we instead read, decide,
         // and rcu the state. The `rcu` closure is retried until the
         // swap is observed atomically.
-        let stop_gen = &self.stop_generation;
-        let prev = self.state.rcu(|current| match &**current {
+        let stop_gen = &self.streaming.stop_generation;
+        let prev = self.streaming.state.rcu(|current| match &**current {
             StreamingSlot::Live { .. } => Arc::clone(current),
             _ => {
                 // Re-check the stop generation INSIDE the rcu closure.
@@ -570,7 +1001,7 @@ impl Client {
         // mismatch, the cell was left at its current value (Stopped or
         // Idle). Distinguish from "successful install" by re-reading
         // the cell — if it does not point to our `new`, we lost.
-        if !Arc::ptr_eq(&self.state.load_full(), &new) {
+        if !Arc::ptr_eq(&self.streaming.state.load_full(), &new) {
             return Err(Self::stopped_during_start());
         }
         Ok(())
@@ -585,7 +1016,7 @@ impl Client {
     /// per-drop log would amplify under sustained overflow.
     #[must_use]
     pub(crate) fn dropped_event_count(&self) -> u64 {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.dropped_count(),
             StreamingSlot::Idle | StreamingSlot::Stopped => 0,
@@ -606,7 +1037,7 @@ impl Client {
     /// from your own monitoring thread at any cadence.
     #[must_use]
     pub(crate) fn ring_occupancy(&self) -> usize {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.ring_occupancy(),
             StreamingSlot::Idle | StreamingSlot::Stopped => 0,
@@ -623,7 +1054,7 @@ impl Client {
     /// [`Self::dropped_event_count`]).
     #[must_use]
     pub(crate) fn ring_capacity(&self) -> usize {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.ring_capacity(),
             StreamingSlot::Idle | StreamingSlot::Stopped => 0,
@@ -641,7 +1072,7 @@ impl Client {
     /// connection.
     #[must_use]
     pub(crate) fn millis_since_last_event(&self) -> Option<u64> {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.millis_since_last_event(),
             StreamingSlot::Idle | StreamingSlot::Stopped => None,
@@ -655,7 +1086,7 @@ impl Client {
     /// correlating against their own pipeline timestamps.
     #[must_use]
     pub(crate) fn last_event_received_at_unix_nanos(&self) -> i64 {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.last_event_received_at_unix_nanos(),
             StreamingSlot::Idle | StreamingSlot::Stopped => 0,
@@ -667,7 +1098,7 @@ impl Client {
     /// auto-reconnects. Returns `None` when streaming has not started.
     #[must_use]
     pub(crate) fn last_connected_addr(&self) -> Option<String> {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => Some(client.last_connected_addr()),
             StreamingSlot::Idle | StreamingSlot::Stopped => None,
@@ -683,7 +1114,7 @@ impl Client {
     /// instead of this counter. Returns `0` when streaming has not started.
     #[must_use]
     pub(crate) fn panic_count(&self) -> u64 {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.panic_count(),
             StreamingSlot::Idle | StreamingSlot::Stopped => 0,
@@ -698,7 +1129,7 @@ impl Client {
     #[cfg(feature = "__internal")]
     #[doc(hidden)]
     pub(crate) fn record_panic(&self) {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         if let StreamingSlot::Live { client } = &**snap {
             client.record_panic();
         }
@@ -720,7 +1151,7 @@ impl Client {
     /// [`Self::start_streaming`] the threshold defaults back to
     /// disabled (callers must re-arm).
     pub(crate) fn set_slow_callback_threshold(&self, threshold: Duration) {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         if let StreamingSlot::Live { client } = &**snap {
             client.set_slow_callback_threshold(threshold);
         }
@@ -732,7 +1163,7 @@ impl Client {
     /// watchdog is disabled or when streaming has not started.
     #[must_use]
     pub(crate) fn slow_callback_count(&self) -> u64 {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.slow_callback_count(),
             StreamingSlot::Idle | StreamingSlot::Stopped => 0,
@@ -754,9 +1185,13 @@ impl Client {
     /// context, replacing the callback closure, or asserting the old
     /// consumer thread has joined.
     pub(crate) fn is_streaming(&self) -> bool {
-        match &**self.state.load() {
+        match &**self.streaming.state.load() {
             StreamingSlot::Live { .. } => {
-                let session = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+                let session = self
+                    .streaming
+                    .dispatcher
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
                 !matches!(*session, DispatcherSession::Failed { .. })
             }
             StreamingSlot::Idle | StreamingSlot::Stopped => false,
@@ -773,9 +1208,13 @@ impl Client {
     /// reporting "authenticated with no deliveries". Returns `false`
     /// before streaming starts and after it stops.
     pub(crate) fn is_authenticated(&self) -> bool {
-        match &**self.state.load() {
+        match &**self.streaming.state.load() {
             StreamingSlot::Live { client } => {
-                let session = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+                let session = self
+                    .streaming
+                    .dispatcher
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
                 client.is_authenticated() && !matches!(*session, DispatcherSession::Failed { .. })
             }
             StreamingSlot::Idle | StreamingSlot::Stopped => false,
@@ -812,7 +1251,7 @@ impl Client {
     /// does not leak `Arc<AtomicBool>` entries.
     #[must_use]
     pub(crate) fn prev_drained_is_set(&self) -> bool {
-        match self.prev_drained.try_lock() {
+        match self.streaming.prev_drained.try_lock() {
             Ok(mut guard) => {
                 guard.retain(|f| !f.load(Ordering::Acquire));
                 !guard.is_empty()
@@ -833,6 +1272,12 @@ impl Client {
 
     /// Wait for **every** retired streaming session to drain.
     ///
+    /// Pertains to the per-event callback surface: it waits for in-flight user
+    /// callbacks of retired sessions to finish firing. The columnar (batches)
+    /// pull path has no callback and registers nothing here, so `await_drain`
+    /// is a no-op (returns immediately) for a columnar-only client; the
+    /// columnar reader's own close / drop is its teardown barrier.
+    ///
     /// Stacked `stop → start → stop` cycles layer multiple in-flight
     /// generations on top of each other before any one of them drains;
     /// this loop waits for ALL of them, not just the most-recent. On
@@ -850,6 +1295,7 @@ impl Client {
         loop {
             let all_drained = {
                 let mut guard = self
+                    .streaming
                     .prev_drained
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -875,7 +1321,7 @@ impl Client {
         &self,
         f: impl FnOnce(&StreamingClient) -> Result<R, Error>,
     ) -> Result<R, Error> {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => f(client.as_ref()),
             StreamingSlot::Idle | StreamingSlot::Stopped => Err(Error::Fpss {
@@ -998,77 +1444,11 @@ impl Client {
     /// callback closure, or otherwise rely on the old user callback
     /// having stopped firing.
     pub(crate) fn stop_streaming(&self) {
-        // Bump the stop generation BEFORE the slot swap so any
-        // in-flight `start_streaming*()` that snapshotted the previous
-        // value will fail its install check and not resurrect the
-        // slot to `Live` after this returns. AcqRel because the
-        // ordering relative to the `state.swap` below is what closes
-        // the resurrection race.
-        self.stop_generation.fetch_add(1, Ordering::AcqRel);
-        // Atomically swap to `Stopped`; whichever caller wins the swap
-        // owns the previous `Arc<StreamingSlot>` and is the one that
-        // runs the shutdown sequence.
-        let prev = self.state.swap(Arc::new(StreamingSlot::Stopped));
-
-        // Drop the FPSS client signal so its reader thread + event ring
-        // consumer drain and exit. The actual join happens in
-        // `StreamingClient::Drop` when the last `Arc<StreamingClient>` is dropped
-        // (typically with `prev` going out of scope at end of scope).
-        if let StreamingSlot::Live { client } = &*prev {
-            // Capture the drain flag BEFORE the shutdown signal and
-            // PUSH it onto the retired-generations list (rather than
-            // overwriting a single slot). Stacked stop/start/stop
-            // cycles layer multiple in-flight generations on top of
-            // each other; an earlier still-firing session's flag must
-            // NOT be lost when a later session retires before the
-            // earlier one has drained. `await_drain()` waits for ALL
-            // entries, and lazily GCs flags that have flipped to
-            // `true`, so a long-lived handle does not accumulate
-            // `Arc<AtomicBool>` entries past their useful lifetime.
-            self.prev_drained
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .push(client.drained_flag());
-            client.shutdown();
-        }
-
-        // Join the dispatcher thread (if any) after the producer-drop
-        // signal has propagated through the ring shutdown to the
-        // poller, letting the iterator's `for ... in &client` loop see
-        // a clean `Ok(None)` and exit. Joining here closes the race
-        // where a callback could still fire after `is_streaming()`
-        // observed `false`.
-        //
-        // Dispatcher panic state is derived from `JoinHandle::join()`:
-        // `Err(_)` means the dispatcher thread panicked in the
-        // event-iteration machinery (distinct from user-callback panics
-        // caught by `poll_batch`'s per-invocation `catch_unwind`).
-        // Record as `DispatcherSession::Failed` so `is_streaming` /
-        // `connection_status` see the failure even though the slot is
-        // now `Stopped`.
-        let prev_session = std::mem::replace(
-            &mut *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()),
-            DispatcherSession::Idle,
-        );
-        if let DispatcherSession::Running { handle } = prev_session {
-            // Avoid blocking the consumer thread joining itself when a
-            // callback called `stop_streaming()`. Detach in that case;
-            // `await_drain` still observes quiescence via the
-            // `prev_drained` flags.
-            if handle.thread().id() != std::thread::current().id() {
-                let join_result = handle.join();
-                if let Err(payload) = join_result {
-                    let reason = downcast_panic_payload(payload);
-                    tracing::error!(
-                        target: "thetadatadx::client",
-                        reason = %reason,
-                        "thetadatadx-fpss-dispatcher panicked; session marked as failed",
-                    );
-                    *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) =
-                        DispatcherSession::Failed { reason };
-                }
-            }
-        }
+        // Single shared teardown: swap the slot to `Stopped`, retire the
+        // dispatcher session, record the drain flag. The pull reader's close
+        // drives the same [`StreamingState::quiesce`], so the callback and
+        // columnar paths leave the client identically truthful and reusable.
+        self.streaming.quiesce();
     }
 
     /// Reconnect the streaming connection, re-subscribing all previous subscriptions.
@@ -1127,7 +1507,7 @@ impl Client {
     {
         metrics::counter!("thetadatadx.fpss.reconnects").increment(1);
         // 1. Save active subscriptions before stopping
-        let saved_subs = match &**self.state.load() {
+        let saved_subs = match &**self.streaming.state.load() {
             StreamingSlot::Live { client } => (
                 client.active_subscriptions(),
                 client.active_full_subscriptions(),
@@ -1214,7 +1594,7 @@ impl Client {
 
     /// Get the current streaming connection status.
     pub(crate) fn connection_status(&self) -> ConnectionStatus {
-        match &**self.state.load() {
+        match &**self.streaming.state.load() {
             StreamingSlot::Idle => ConnectionStatus::NotStarted,
             StreamingSlot::Stopped => ConnectionStatus::Disconnected,
             StreamingSlot::Live { client } => {
@@ -1225,7 +1605,11 @@ impl Client {
                 // see a visible failed state instead of "Connected
                 // with no deliveries".
                 let failed_reason: Option<String> = {
-                    let session = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+                    let session = self
+                        .streaming
+                        .dispatcher
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner());
                     match &*session {
                         DispatcherSession::Failed { reason } => Some(reason.clone()),
                         _ => None,
@@ -1803,6 +2187,42 @@ impl StreamSurface<'_> {
         self.0.unsubscribe_many(subs)
     }
 
+    /// Open a pull-based columnar reader over the live stream — a sibling to
+    /// the per-event [`Self::start_streaming`] callback.
+    ///
+    /// Returns a [`BatchReaderBuilder`](crate::streaming::BatchReaderBuilder)
+    /// to tune `batch_size` / `linger` / `backpressure`; call
+    /// [`build`](crate::streaming::BatchReaderBuilder::build) to start FPSS
+    /// and obtain a
+    /// [`RecordBatchStream`](crate::streaming::RecordBatchStream) of Apache
+    /// Arrow `RecordBatch` values. Subscriptions are managed on this same
+    /// surface ([`Self::subscribe`] / [`Self::subscribe_many`]); subscribe
+    /// first, then open the reader. The batch schema is fixed for the
+    /// subscription and identical across every batch.
+    ///
+    /// Like the callback path, FPSS connects when the reader is built, so
+    /// this is an alternative to [`Self::start_streaming`], not a concurrent
+    /// consumer of the same session.
+    ///
+    /// ```rust,no_run
+    /// # use thetadatadx::Client;
+    /// # use thetadatadx::fpss::protocol::Contract;
+    /// # use futures::StreamExt;
+    /// # async fn doc(client: &Client) -> Result<(), thetadatadx::Error> {
+    /// client.stream().subscribe(Contract::stock("AAPL").trade())?;
+    /// let mut batches = client.stream().batches().batch_size(8_192).build()?;
+    /// while let Some(batch) = batches.next().await {
+    ///     let batch = batch?;
+    ///     println!("{} rows", batch.num_rows());
+    /// }
+    /// # Ok(()) }
+    /// ```
+    #[cfg(feature = "arrow")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
+    pub fn batches(&self) -> crate::streaming::BatchReaderBuilder<'_> {
+        crate::streaming::BatchReaderBuilder::new(self.0)
+    }
+
     /// Get all active per-contract subscriptions.
     ///
     /// # Errors
@@ -2231,6 +2651,568 @@ mod tests {
         let prev = cell.swap(Arc::new(SlotMarker::Stopped));
         assert!(matches!(&*prev, SlotMarker::Live(2)));
         assert_eq!(variant(&cell.load()), "Stopped");
+    }
+
+    /// [`StreamingState::quiesce`] is the single teardown both delivery modes
+    /// share. From a never-started state it leaves the slot `Stopped`, the
+    /// dispatcher `Idle`, and bumps the stop generation (the resurrection
+    /// guard). This is the state the pull reader's close now lands the client
+    /// in — truthful and reusable — instead of leaving a stale `Live` slot and
+    /// a `Running` dispatcher with an exited thread. The `Live`-slot shutdown
+    /// branch shares its body with the callback path's `stop_streaming`, which
+    /// the FPSS integration tests exercise against a real connection.
+    #[test]
+    fn quiesce_from_idle_lands_stopped_and_idle() {
+        let state = StreamingState::new();
+        assert_eq!(state.slot_label(), "Idle");
+        assert!(state.dispatcher_is_idle());
+        let gen0 = state.stop_generation();
+
+        state.quiesce();
+
+        assert_eq!(
+            state.slot_label(),
+            "Stopped",
+            "quiesce must swap the slot to Stopped"
+        );
+        assert!(
+            state.dispatcher_is_idle(),
+            "quiesce must leave the dispatcher Idle"
+        );
+        assert!(
+            state.stop_generation() > gen0,
+            "quiesce must bump the stop generation (resurrection guard)"
+        );
+
+        // Idempotent: a second close (e.g. binding close() then the core Drop)
+        // is a harmless no-op beyond bumping the generation again.
+        let gen1 = state.stop_generation();
+        state.quiesce();
+        assert_eq!(state.slot_label(), "Stopped");
+        assert!(state.dispatcher_is_idle());
+        assert!(state.stop_generation() > gen1);
+    }
+
+    /// `quiesce` retires a `Running` dispatcher session — joining its thread
+    /// and resetting it to `Idle` — which is what makes the client reusable
+    /// after a pull reader closes: a later `start_streaming*` / `batches()`
+    /// installs a fresh dispatcher instead of finding a stale `Running` one
+    /// behind an exited thread. Driven with a real (immediately-exiting)
+    /// thread and the slot left out of `Live` so the join branch is what is
+    /// under test, deterministically and without a network.
+    #[test]
+    fn quiesce_retires_a_running_dispatcher() {
+        let state = StreamingState::new();
+        let handle = std::thread::spawn(|| { /* exits immediately */ });
+        *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
+            handle,
+            on_teardown: None,
+        };
+        assert!(
+            !state.dispatcher_is_idle(),
+            "precondition: Running installed"
+        );
+
+        state.quiesce();
+
+        assert!(
+            state.dispatcher_is_idle(),
+            "quiesce must join the dispatcher thread and reset the session to \
+             Idle so the client is reusable"
+        );
+    }
+
+    /// quiesce must not deadlock joining a columnar dispatcher parked in its
+    /// bounded-queue `Block` flush wait on a teardown that bypasses the
+    /// reader's own close (a `Client` drop / `stop_streaming` /
+    /// `reconnect_streaming`, which call quiesce DIRECTLY). The FPSS shutdown
+    /// signals the event ring but not the batch queue, so the only thing that
+    /// releases the parked flush is the wake hook quiesce runs before the join.
+    ///
+    /// This builds the exact deadlock geometry without a network: a real
+    /// producer thread fills a depth-1 `Block` queue and parks in `flush`, that
+    /// thread is installed as the `Running` dispatcher with the columnar wake
+    /// hook (`Shared::close_and_wake`), and quiesce is driven on a side thread
+    /// under a watchdog. With the hook the parked flush is woken, the producer
+    /// thread exits, and the join completes well within the deadline; without
+    /// it (the pre-fix `on_teardown: None`) the producer stays parked and the
+    /// join hangs past the watchdog, failing the test instead of wedging the
+    /// suite.
+    #[cfg(feature = "arrow")]
+    #[test]
+    fn quiesce_does_not_deadlock_on_a_parked_block_dispatcher() {
+        use crate::fpss::batch_reader::test_harness::{harness, trade};
+        use crate::fpss::batch_reader::Backpressure;
+        use crate::fpss::protocol::Contract;
+        use std::sync::atomic::{AtomicBool, Ordering as O};
+
+        // Depth-1 Block queue, no reader: the producer fills it then parks.
+        let (producer, reader) =
+            harness(1, std::time::Duration::from_millis(50), Backpressure::Block);
+        let shared = reader.shared_handle();
+        let contract = Arc::new(Contract::stock("SPY"));
+
+        // Producer thread: floods the queue and parks in `flush`. After the
+        // wake hook fires it returns promptly (post-close flushes drop and
+        // return), so the join can complete.
+        let feeder = std::thread::spawn(move || {
+            for i in 0..256 {
+                producer.feed(&trade(&contract, i));
+            }
+        });
+        // Let the producer fill the depth-1 queue and park in the Block wait.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        // Install that real thread as the columnar dispatcher session, WITH the
+        // wake hook the live columnar path installs.
+        let state = Arc::new(StreamingState::new());
+        let wake_shared = Arc::clone(&shared);
+        *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
+            handle: feeder,
+            on_teardown: Some(Box::new(move || wake_shared.close_and_wake())),
+        };
+
+        // Drive quiesce on a side thread so a hung join is caught by the
+        // watchdog rather than wedging the whole test binary.
+        let done = Arc::new(AtomicBool::new(false));
+        let done_t = Arc::clone(&done);
+        let state_t = Arc::clone(&state);
+        let quiescer = std::thread::spawn(move || {
+            state_t.quiesce();
+            done_t.store(true, O::Release);
+        });
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !done.load(O::Acquire) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "quiesce deadlocked joining a parked Block dispatcher: the \
+                 teardown wake hook did not release the parked flush"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        quiescer.join().expect("quiescer thread");
+        assert!(
+            state.dispatcher_is_idle(),
+            "after quiesce the dispatcher session is retired to Idle"
+        );
+    }
+
+    /// Teardown must not deadlock when a user callback firing during the
+    /// post-shutdown drain calls into the client (e.g. `is_streaming()`), which
+    /// takes the dispatcher lock. The client shutdown keeps draining
+    /// already-buffered events through callbacks until the shutdown is observed;
+    /// if the teardown held the dispatcher lock across the dispatcher join, such
+    /// a callback would block on the lock forever, the dispatcher would never
+    /// exit, and the join would never return.
+    ///
+    /// This models that exactly without a network: the dispatcher thread, once
+    /// the teardown signals it (via the wake hook, standing in for the shutdown
+    /// being observed), calls `dispatcher_is_idle()` — which acquires and
+    /// releases the dispatcher lock, exactly as `is_streaming()` does — and only
+    /// then exits. The teardown runs on a side thread under a watchdog and must
+    /// COMPLETE: with shutdown + join OUTSIDE the lock the callback acquires the
+    /// free lock, the thread exits, and the join returns. If the join held the
+    /// lock (the pre-fix regression) the callback would block and the watchdog
+    /// would fire.
+    #[test]
+    fn teardown_does_not_deadlock_when_a_callback_takes_the_dispatcher_lock() {
+        use std::sync::atomic::{AtomicBool, Ordering as O};
+
+        let state = Arc::new(StreamingState::new());
+
+        // The wake hook stands in for `client.shutdown()` being observed by the
+        // dispatcher: it releases the dispatcher thread to run its "callback".
+        let released = Arc::new(AtomicBool::new(false));
+
+        // Dispatcher thread: wait until teardown releases it, then do exactly
+        // what an `is_streaming()` call in a user callback does — take and drop
+        // the dispatcher lock — before exiting. If teardown still holds the lock
+        // at that point, this blocks forever.
+        let dispatcher = {
+            let state = Arc::clone(&state);
+            let released = Arc::clone(&released);
+            std::thread::spawn(move || {
+                while !released.load(O::Acquire) {
+                    std::hint::spin_loop();
+                }
+                // Acquires + releases the dispatcher lock, like is_streaming().
+                let _ = state.dispatcher_is_idle();
+            })
+        };
+
+        let wake_released = Arc::clone(&released);
+        *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
+            handle: dispatcher,
+            on_teardown: Some(Box::new(move || wake_released.store(true, O::Release))),
+        };
+
+        // Drive teardown on a side thread so a hung join is caught by the
+        // watchdog rather than wedging the suite.
+        let done = Arc::new(AtomicBool::new(false));
+        let done_t = Arc::clone(&done);
+        let state_t = Arc::clone(&state);
+        let teardown = std::thread::spawn(move || {
+            state_t.quiesce();
+            done_t.store(true, O::Release);
+        });
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !done.load(O::Acquire) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "teardown deadlocked: it held the dispatcher lock across the \
+                 dispatcher join while a callback was blocked acquiring that lock"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        teardown.join().expect("teardown thread");
+        assert!(state.dispatcher_is_idle());
+    }
+
+    /// A join panic on the OLD dispatcher must not clobber a NEWER session
+    /// installed during the lock-free join window. `run_teardown` releases the
+    /// dispatcher lock across the join, so a `start_dispatcher` can install a
+    /// fresh `Running` session before the join returns. If the old dispatcher
+    /// then panics, the `Failed` write must NOT overwrite that newer session —
+    /// it would orphan the new session's `JoinHandle` and report a healthy live
+    /// session as failed. The write is now conditional on the slot still being
+    /// `Idle` (the state extract left it), so a newer session is left alone.
+    ///
+    /// Modeled deterministically: build a `TeardownWork` whose `Running`
+    /// session's handle panics only after a NEW session has been installed,
+    /// then run the teardown; the new session must still be `Running`
+    /// afterward.
+    #[test]
+    fn join_panic_does_not_clobber_a_newer_session() {
+        use std::sync::atomic::{AtomicBool, Ordering as O};
+
+        let state = Arc::new(StreamingState::new());
+
+        // The teardown wake hook fires just before the join; the test uses it
+        // as the signal that the join window has opened.
+        let join_window_open = Arc::new(AtomicBool::new(false));
+        // Set by the test once the NEW session is installed; the old handle
+        // waits for it, then panics, so the new session is guaranteed in place
+        // before the join returns and the conditional `Failed` write runs.
+        let new_installed = Arc::new(AtomicBool::new(false));
+
+        // OLD dispatcher handle: wait until the new session is installed, then
+        // panic so `handle.join()` returns Err.
+        let old_handle = {
+            let new_installed = Arc::clone(&new_installed);
+            std::thread::spawn(move || {
+                while !new_installed.load(O::Acquire) {
+                    std::hint::spin_loop();
+                }
+                panic!("old dispatcher panicked in event-iteration machinery");
+            })
+        };
+        let work = TeardownWork {
+            client: None,
+            session: DispatcherSession::Running {
+                handle: old_handle,
+                on_teardown: Some({
+                    let join_window_open = Arc::clone(&join_window_open);
+                    Box::new(move || join_window_open.store(true, O::Release))
+                }),
+            },
+        };
+
+        // Run the teardown on a side thread (its join blocks until the old
+        // handle panics, which the test gates below).
+        let done = Arc::new(AtomicBool::new(false));
+        let teardown = {
+            let state = Arc::clone(&state);
+            let done = Arc::clone(&done);
+            std::thread::spawn(move || {
+                state.run_teardown(work);
+                done.store(true, O::Release);
+            })
+        };
+
+        // Wait until the teardown opens the join window (wake hook fired), then
+        // install a NEW Running session into the slot the extract left Idle,
+        // exactly as a racing `start_dispatcher` would.
+        while !join_window_open.load(O::Acquire) {
+            std::hint::spin_loop();
+        }
+        let new_handle = std::thread::spawn(|| {});
+        *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
+            handle: new_handle,
+            on_teardown: None,
+        };
+        // Release the old handle to panic; the join now returns Err and the
+        // conditional `Failed` write runs against the slot holding the NEW
+        // Running session.
+        new_installed.store(true, O::Release);
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !done.load(O::Acquire) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "teardown did not complete"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        teardown.join().expect("teardown thread");
+
+        // The newer session must survive: a join panic on the superseded old
+        // session must not flip the live session to Failed.
+        let guard = state.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+        assert!(
+            matches!(*guard, DispatcherSession::Running { .. }),
+            "a newer session installed during the join window must not be \
+             clobbered by the old dispatcher's join-panic Failed write"
+        );
+        drop(guard);
+        // Tidy: retire the surviving session so its thread is joined.
+        state.quiesce();
+    }
+
+    /// `await_drain` must not be made to time out spuriously by the columnar
+    /// path: a retiring columnar session has no user callback to wait for, so
+    /// it must NOT register a drain flag, whereas a callback session MUST. This
+    /// pins `session_registers_drain_flag` (the single decision the teardown
+    /// uses) for both session shapes, and models the `await_drain` consequence
+    /// on the retired-generations Vec (the production `await_drain` runs the
+    /// same `retain` + `is_empty` cadence over it; building a real Live session
+    /// needs a network credential, so the Vec is exercised directly, as the
+    /// other `await_drain` tests do).
+    #[test]
+    fn columnar_session_does_not_register_a_drain_flag() {
+        // The decision itself: columnar (has wake hook) does not register;
+        // callback (no wake hook) does.
+        let columnar = DispatcherSession::Running {
+            handle: std::thread::spawn(|| {}),
+            on_teardown: Some(Box::new(|| {})),
+        };
+        let callback = DispatcherSession::Running {
+            handle: std::thread::spawn(|| {}),
+            on_teardown: None,
+        };
+        assert!(
+            !session_registers_drain_flag(&columnar),
+            "a columnar session has no callback to drain-wait for"
+        );
+        assert!(
+            session_registers_drain_flag(&callback),
+            "a callback session must register its drain flag for await_drain"
+        );
+        // A non-Running session has nothing to wait on.
+        assert!(!session_registers_drain_flag(&DispatcherSession::Idle));
+
+        // The await_drain consequence, modeled on the retired-generations Vec.
+        // Columnar teardown registers nothing, so await_drain (retain +
+        // is_empty) reports drained immediately — no spurious timeout while a
+        // closed-but-not-dropped columnar reader is alive.
+        let prev_drained: Mutex<Vec<Arc<AtomicBool>>> = Mutex::new(Vec::new());
+        if session_registers_drain_flag(&columnar) {
+            prev_drained
+                .lock()
+                .unwrap()
+                .push(Arc::new(AtomicBool::new(false)));
+        }
+        {
+            let mut g = prev_drained.lock().unwrap();
+            g.retain(|f| !f.load(Ordering::Acquire));
+            assert!(
+                g.is_empty(),
+                "columnar teardown must leave nothing for await_drain to block on"
+            );
+        }
+
+        // Callback teardown registers a still-unflipped flag, so await_drain
+        // correctly does NOT report drained until the callback finishes (no
+        // regression to the callback path).
+        if session_registers_drain_flag(&callback) {
+            prev_drained
+                .lock()
+                .unwrap()
+                .push(Arc::new(AtomicBool::new(false)));
+        }
+        {
+            let mut g = prev_drained.lock().unwrap();
+            g.retain(|f| !f.load(Ordering::Acquire));
+            assert_eq!(
+                g.len(),
+                1,
+                "callback teardown registers a flag await_drain must wait on"
+            );
+        }
+
+        // Detach the trivial threads.
+        for s in [columnar, callback] {
+            if let DispatcherSession::Running { handle, .. } = s {
+                let _ = handle.join();
+            }
+        }
+    }
+
+    /// A columnar reader's close must tear down ONLY the session it started.
+    /// `RecordBatchStream::close_shared` calls
+    /// `state.quiesce_if_owned(self.owned_generation)`; this exercises that
+    /// method directly against the mixed-mode supersession sequence.
+    ///
+    /// Sequence modeled: reader R starts its session and stamps the generation
+    /// it owns; R's session is then retired (a `stop_streaming`, which advances
+    /// the generation); a NEW session is installed on the same state (the
+    /// callback session a caller can legitimately start once the slot is no
+    /// longer `Live`). When R is finally dropped, its stamp no longer matches
+    /// the live generation, so `quiesce_if_owned` must NOT retire the newer
+    /// session.
+    #[test]
+    fn stale_generation_reader_does_not_tear_down_a_newer_session() {
+        let state = StreamingState::new();
+
+        // R installs its session and stamps the generation it owns.
+        let r_handle = std::thread::spawn(|| {});
+        *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
+            handle: r_handle,
+            on_teardown: None,
+        };
+        let r_owned_generation = state.stop_generation();
+
+        // R's session is retired by a stop (advances the generation).
+        state.quiesce();
+        assert!(state.dispatcher_is_idle());
+        assert_ne!(
+            state.stop_generation(),
+            r_owned_generation,
+            "the stop must advance the generation past R's stamp"
+        );
+
+        // A NEW session is installed on the same client (e.g. a callback
+        // session, valid now that the slot is no longer Live).
+        let newer_handle = std::thread::spawn(|| {});
+        *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
+            handle: newer_handle,
+            on_teardown: None,
+        };
+
+        // R's drop runs its close gate against its stale stamp: it must leave
+        // the newer session alone.
+        state.quiesce_if_owned(r_owned_generation);
+        assert!(
+            !state.dispatcher_is_idle(),
+            "R's stale close must leave the newer session Running, not retire it"
+        );
+
+        // Tidy up the still-Running newer session so its thread is joined.
+        state.quiesce();
+    }
+
+    /// The matching-generation reader (the normal single-reader close) DOES
+    /// retire: when no teardown has advanced the generation, the live session
+    /// is still the one this reader started, so `quiesce_if_owned` retires it.
+    /// Guards against the stamp over-suppressing the common path.
+    #[test]
+    fn matching_generation_reader_quiesces_its_own_session() {
+        let state = StreamingState::new();
+        let handle = std::thread::spawn(|| {});
+        *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
+            handle,
+            on_teardown: None,
+        };
+        let owned_generation = state.stop_generation();
+
+        // Nothing advanced the generation, so the reader's stamp still matches
+        // and its close retires its own session.
+        state.quiesce_if_owned(owned_generation);
+        assert!(
+            state.dispatcher_is_idle(),
+            "the matching-generation close retires its own session"
+        );
+    }
+
+    /// The reader-close gate does its generation re-check and its teardown
+    /// under the SAME dispatcher-lock acquisition, so they are atomic against a
+    /// racing stop + start. A non-atomic check-then-act (read the generation,
+    /// release, then separately retire) could read a still-matching generation,
+    /// have a `stop_streaming` + `start_streaming` install a newer session in
+    /// the gap, then retire that newer session it does not own.
+    ///
+    /// A cross-thread interleaving in that ~2-op gap is too narrow to hit
+    /// reliably, so this asserts the structural guarantee directly (the same
+    /// approach the lost-wakeup test uses): while the test holds the dispatcher
+    /// lock, a concurrent `quiesce_if_owned` cannot even reach its generation
+    /// check (it blocks on the lock); and when the test advances the generation
+    /// under that held lock and then releases, the gate observes the advanced
+    /// generation and no-ops. The re-check and the retire therefore cannot
+    /// straddle a teardown: any teardown is either fully before (gate sees the
+    /// new generation, no-op) or fully after (gate already ran) the gate's
+    /// single locked section.
+    #[test]
+    fn quiesce_if_owned_rechecks_generation_under_the_dispatcher_lock() {
+        use std::sync::atomic::{AtomicBool, Ordering as O};
+
+        let state = Arc::new(StreamingState::new());
+
+        // R's session at generation G, stamped by R.
+        let r_handle = std::thread::spawn(|| {});
+        *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
+            handle: r_handle,
+            on_teardown: None,
+        };
+        let r_owned_generation = state.stop_generation();
+
+        let gate_returned = Arc::new(AtomicBool::new(false));
+
+        // Hold the dispatcher lock for the whole observation window. A correct
+        // `quiesce_if_owned` cannot reach its generation check or its retire
+        // while this is held.
+        let mut guard = state.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+
+        let gate = {
+            let state = Arc::clone(&state);
+            let gate_returned = Arc::clone(&gate_returned);
+            std::thread::spawn(move || {
+                // Blocks on the dispatcher lock until the test releases it.
+                state.quiesce_if_owned(r_owned_generation);
+                gate_returned.store(true, O::Release);
+            })
+        };
+
+        // Give the gate thread time to park on the lock. With the check under
+        // the lock it cannot have returned.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        assert!(
+            !gate_returned.load(O::Acquire),
+            "quiesce_if_owned must block on the dispatcher lock before its \
+             generation check; it cannot check-then-act outside the lock"
+        );
+
+        // Under the held lock, model a stop + start that advanced past R's
+        // stamp and installed a NEWER session. Advancing the generation here is
+        // exactly what a `stop_streaming` does; doing it under the lock the gate
+        // is waiting on is what makes the gate's later re-check see the new
+        // value atomically.
+        state
+            .stop_generation
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        let newer = std::thread::spawn(|| {});
+        *guard = DispatcherSession::Running {
+            handle: newer,
+            on_teardown: None,
+        };
+        assert_ne!(
+            state
+                .stop_generation
+                .load(std::sync::atomic::Ordering::Acquire),
+            r_owned_generation,
+            "the modeled stop advanced the generation past R's stamp"
+        );
+
+        // Release the lock: the gate now acquires it, re-checks the generation
+        // (advanced -> mismatch), and must NOT retire the newer session.
+        drop(guard);
+        gate.join().expect("gate thread");
+        assert!(
+            !state.dispatcher_is_idle(),
+            "after R's stale gate ran, the newer session must still be Running"
+        );
+
+        state.quiesce(); // tidy the surviving session's thread
     }
 
     /// Concurrent `start` race: only one caller observes the install,

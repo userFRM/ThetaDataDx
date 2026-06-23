@@ -309,6 +309,42 @@ pub mod streaming {
         StreamingClientBuilder,
     };
 
+    /// Pull-based columnar delivery — read the live stream as Apache Arrow
+    /// `RecordBatch` values instead of per-event callbacks.
+    ///
+    /// [`RecordBatchStream`] is a sibling to the per-event callback
+    /// registered through `client.stream().start_streaming(..)`: the same
+    /// subscriptions feed it, but market-data events arrive in columnar
+    /// batches under a fixed schema rather than one event at a time. Open it
+    /// with `client.stream().batches()`, tune `batch_size` / `linger` /
+    /// `backpressure` on the returned [`BatchReaderBuilder`], then pull
+    /// batches with the [`futures_core::Stream`] impl or the
+    /// [`RecordBatchStream::blocking`] iterator. See
+    /// [`crate::fpss::batch_schema::stream_batch_schema`] for the layout.
+    #[cfg(feature = "arrow")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
+    pub use crate::fpss::batch_reader::{
+        ArrowRecordBatchReader, Backpressure, BatchReaderBuilder, BlockingRecordBatchIter,
+        RecordBatchStream, DEFAULT_BATCH_SIZE, DEFAULT_LINGER, DEFAULT_QUEUE_DEPTH,
+    };
+
+    /// Estimated Arrow IPC stream size, in bytes, for a single batch of
+    /// `num_rows` rows under the fixed streaming schema. A buffer-sizing hint
+    /// for the binding batch encoders so they seed their output `Vec` from the
+    /// USED size (keyed on `num_rows`) rather than the builder's preallocated
+    /// column capacity. Hidden: an internal hint shared with the bindings, not
+    /// part of the supported surface.
+    #[cfg(feature = "arrow")]
+    #[doc(hidden)]
+    pub use crate::fpss::batch_schema::estimated_ipc_len;
+
+    /// The fixed streaming-batch Arrow schema. Hidden: shared with the binding
+    /// layers (and their tests) so they describe a streaming batch without
+    /// reconstructing the column list.
+    #[cfg(feature = "arrow")]
+    #[doc(hidden)]
+    pub use crate::fpss::batch_schema::stream_batch_schema;
+
     /// Consumer wait strategies for the streaming ring.
     ///
     /// When the consumer drains the ring faster than events arrive, it

@@ -77,6 +77,7 @@ pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
     "shutdown",
     "reconnect",
     "is_streaming",
+    "batches",
     "await_drain",
     "subscribe",
     "subscribe_many",

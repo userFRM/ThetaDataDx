@@ -190,7 +190,7 @@ impl Drop for StreamingClient {
             PyFpssDispatcherSession::Idle,
         );
         let taken_handle = match prev_session {
-            PyFpssDispatcherSession::Running { handle } => Some(handle),
+            PyFpssDispatcherSession::Running { handle, .. } => Some(handle),
             _ => None,
         };
         if taken_client.is_some() || taken_handle.is_some() {
@@ -449,8 +449,13 @@ impl StreamingClient {
             });
         match dispatcher {
             Ok(h) => {
+                // The callback dispatcher parks only on the event ring, which
+                // the client shutdown signals on teardown, so no wake hook.
                 *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) =
-                    PyFpssDispatcherSession::Running { handle: h };
+                    PyFpssDispatcherSession::Running {
+                        handle: h,
+                        on_teardown: None,
+                    };
             }
             Err(e) => {
                 let taken = self.lock_inner().take();
@@ -748,7 +753,7 @@ impl StreamingClient {
             let dispatcher_ref = &self.dispatcher;
             py.detach(move || {
                 drop(client);
-                if let PyFpssDispatcherSession::Running { handle } = prev_session {
+                if let PyFpssDispatcherSession::Running { handle, .. } = prev_session {
                     if handle.thread().id() != std::thread::current().id() {
                         if let Err(payload) = handle.join() {
                             let reason = if let Some(s) = payload.downcast_ref::<&str>() {

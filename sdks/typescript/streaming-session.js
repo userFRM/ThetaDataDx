@@ -198,6 +198,104 @@ const EXIT_DRAIN_TIMEOUT_MS = 5000;
 // finds the wrapper's dispose, not anything on the native binding.
 const WRAPPER_OWN = new Set(['_client', 'constructor']);
 
+// apache-arrow is loaded lazily so it is only required by callers that
+// actually consume the columnar `batches()` reader. The per-tick
+// `*ToArrowIpc` exports likewise hand back raw IPC buffers and leave the
+// apache-arrow decode to the caller; the reader decodes here so the user
+// sees native apache-arrow `RecordBatch` values straight from `for await`.
+let _arrow = null;
+function loadArrow() {
+  if (_arrow === null) {
+    try {
+      // eslint-disable-next-line global-require
+      _arrow = require('apache-arrow');
+    } catch (e) {
+      throw new Error(
+        "the streaming `batches()` reader decodes Arrow IPC with apache-arrow; " +
+          "install it as a peer dependency (`npm install apache-arrow`). " +
+          `Underlying error: ${e && e.message ? e.message : e}`,
+      );
+    }
+  }
+  return _arrow;
+}
+
+/**
+ * Pull-based columnar reader over the live stream — a sibling to the
+ * per-event `startStreaming(callback)`.
+ *
+ * `for await (const batch of reader)` yields apache-arrow `RecordBatch`
+ * values under a fixed schema (concatenate them freely). The reader is an
+ * `AsyncIterable` and a TC39 async-disposable: `await using reader = ...`
+ * closes it (unsubscribe + tear down) on scope exit, or call `close()`.
+ *
+ * Wraps the native `RecordBatchStreamHandle`, which crosses the napi
+ * boundary as Arrow IPC buffers; this class decodes each with
+ * `apache-arrow.tableFromIPC` so the public `RecordBatch` type is the
+ * native apache-arrow one.
+ */
+class RecordBatchStream {
+  constructor(handle) {
+    this._handle = handle;
+    this._schema = undefined;
+  }
+
+  /**
+   * The fixed Arrow schema every yielded batch carries, as an
+   * apache-arrow `Schema`. Decoded once from the schema-only IPC buffer.
+   */
+  get schema() {
+    if (this._schema === undefined) {
+      const arrow = loadArrow();
+      const ipc = this._handle.schemaIpc();
+      // A schema-only IPC stream decodes to a zero-batch Table whose
+      // `.schema` is the fixed schema.
+      this._schema = arrow.tableFromIPC(ipc).schema;
+    }
+    return this._schema;
+  }
+
+  /** Batches dropped so far under the `dropOldest` policy; `0` under `block`. */
+  get dropped() {
+    return this._handle.dropped;
+  }
+
+  /**
+   * Close the reader: unsubscribe and tear the FPSS session down.
+   * Idempotent; further iteration ends.
+   */
+  close() {
+    this._handle.close();
+  }
+
+  async *[Symbol.asyncIterator]() {
+    const arrow = loadArrow();
+    try {
+      for (;;) {
+        // eslint-disable-next-line no-await-in-loop
+        const ipc = await this._handle.nextIpc();
+        if (ipc === null || ipc === undefined) {
+          return;
+        }
+        // One batch per IPC buffer (the reader writes exactly one). Decode
+        // to a Table and yield its single RecordBatch.
+        const table = arrow.tableFromIPC(ipc);
+        for (const batch of table.batches) {
+          yield batch;
+        }
+      }
+    } finally {
+      // Iteration ended (consumed, broke out, or threw): release the
+      // session deterministically, mirroring the `await using` dispose.
+      this._handle.close();
+    }
+  }
+
+  async [Symbol.asyncDispose]() {
+    this._handle.close();
+  }
+}
+
 class StreamingSession {
   /**
    * Construct a session bound to a `Client` instance. Returns a
@@ -432,6 +530,33 @@ for (const name of Object.getOwnPropertyNames(native)) {
   exportedClasses[name] = wrapped;
 }
 
+// Present `StreamView.batches(...)` as the columnar `AsyncIterable`
+// reader: the native method returns a `RecordBatchStreamHandle` (Arrow IPC
+// transport); wrap it in the JS `RecordBatchStream` so the user gets
+// `for await (const batch of reader)` over apache-arrow `RecordBatch`
+// values plus `close()` / `Symbol.asyncDispose`. Done here, after the
+// generic typed-error wrapping above, so the handle's errors still
+// reclassify. The native method stays `async`, so the patched method
+// awaits and re-wraps.
+//
+// The wrap is a named function (not an inline closure) so the test suite
+// can drive this exact forwarding logic against a stub native method —
+// proving the single options object reaches `batches(options)` verbatim,
+// with no positional explosion, and the native handle is re-wrapped — on
+// the real code path rather than a reimplementation that could drift.
+function wrapStreamViewBatches(nativeBatches) {
+  return async function batches(...args) {
+    const handle = await nativeBatches.apply(this, args);
+    return new RecordBatchStream(handle);
+  };
+}
+if (native.StreamView && native.StreamView.prototype) {
+  const nativeBatches = native.StreamView.prototype.batches;
+  if (typeof nativeBatches === 'function') {
+    native.StreamView.prototype.batches = wrapStreamViewBatches(nativeBatches);
+  }
+}
+
 // Free functions (e.g. `calendarDayToArrowIpc`, `eodTickToArrowIpc`)
 // are exported directly on the native binding, not on a class. Wrap
 // every own function-valued export that is not a class so a
@@ -460,6 +585,12 @@ for (const name of Object.getOwnPropertyNames(native)) {
 // the docs without a second pyclass.
 module.exports = Object.assign({}, native, exportedClasses, exportedFreeFns, {
   StreamingSession,
+  // The JS-side columnar reader returned by `client.stream.batches(...)`.
+  RecordBatchStream,
+  // The forwarder installed onto `StreamView.prototype.batches`. Exported
+  // so the test suite can drive the real options-object -> native call shape
+  // and the handle re-wrap against a stub native method (no live server).
+  wrapStreamViewBatches,
   // The documented `Contract` name resolves to the same static-wrapped
   // export as `ContractRef`, so `Contract.option(...)` reclassifies too.
   Contract: exportedClasses.ContractRef ?? native.ContractRef,

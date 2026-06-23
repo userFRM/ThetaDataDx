@@ -19,6 +19,10 @@ thetadatadx = { path = "../../crates/thetadatadx", features = ["arrow", "__inter
 
 napi = { version = "3.8.5", features = ["async", "serde-json", "napi6", "chrono_date"] }
 arrow-ipc = "59.0.0"
+# RecordBatch / Schema types for the streaming `RecordBatch` reader's Arrow
+# IPC boundary. Pinned to the same major as `arrow-ipc` and the parent crate.
+arrow-array = "59.0.0"
+arrow-schema = "59.0.0"
 napi-derive = "3.5.4"
 chrono = { version = "=0.4.44", default-features = false, features = ["alloc", "clock"] }
 

@@ -35,6 +35,24 @@
 #include <span>
 #endif
 
+// The pull-based Arrow `RecordBatch` reader (`Stream::batches(..)`) returns a
+// native `arrow::RecordBatchReader`, so it requires arrow-cpp. Gate it behind
+// `THETADATADX_CPP_ARROW` (set by the CMake `THETADATADX_CPP_ARROW` option) so
+// the rest of the SDK still builds for users who do not link arrow-cpp — the
+// per-tick `*_to_arrow_ipc` terminals already hand back raw IPC bytes for that
+// audience.
+#ifdef THETADATADX_CPP_ARROW
+#include <cstring>
+#include <arrow/array.h>
+#include <arrow/buffer.h>
+#include <arrow/io/memory.h>
+#include <arrow/ipc/reader.h>
+#include <arrow/record_batch.h>
+#include <arrow/result.h>
+#include <arrow/status.h>
+#include <arrow/type.h>
+#endif
+
 namespace thetadatadx {
 
 // ── Chunk view for the server-stream callbacks ──
@@ -2181,6 +2199,186 @@ struct CallbackState {
     std::shared_ptr<CallbackSlot> slot = std::make_shared<CallbackSlot>();
 };
 
+/// Backpressure policy for the pull-based Arrow `RecordBatch` reader
+/// (`Stream::batches(..)`).
+///
+/// `Block` (default) is lossless and applies backpressure to the wire;
+/// `DropOldest` keeps a bounded buffer and drops the oldest batch on
+/// overflow, counted by `RecordBatchStream::dropped()`.
+enum class Backpressure {
+    /// Lossless: block until the reader catches up. The default.
+    Block,
+    /// Bounded buffer: drop the oldest batch on overflow, count it.
+    DropOldest,
+};
+
+#ifdef THETADATADX_CPP_ARROW
+/// Pull-based columnar reader over the live stream — a sibling to the
+/// per-event `Stream::set_callback`.
+///
+/// A concrete `arrow::RecordBatchReader`: `ReadNext(&batch)` yields the next
+/// batch (and sets `batch` to `nullptr` at clean end of stream), `schema()`
+/// reports the fixed schema, and `dropped()` reports the drop-oldest count.
+/// Held by `std::shared_ptr` (see `Stream::batches`); the reader closes —
+/// unsubscribing and tearing the FPSS session down — when the last reference
+/// drops (RAII). Every batch carries the identical schema, so batches are
+/// concat-safe.
+///
+/// Each batch crosses the C ABI as an Arrow IPC stream and is decoded here
+/// with arrow-cpp's IPC reader, the same wire format the per-tick
+/// `*_to_arrow_ipc` terminals use.
+///
+/// Thread-safety: `ReadNext` is the single blocking consumer and is not
+/// itself re-entrant, but `close()` and destruction are safe to call from a
+/// different thread while a `ReadNext` is parked: the underlying reader is
+/// reference-counted across the C ABI, so a teardown wakes the parked pull
+/// (which returns clean end of stream) and the reader is not torn down until
+/// the in-flight pull completes. This matches the standard
+/// `arrow::RecordBatchReader` handoff where a worker drains the reader while
+/// the owner may release the last `shared_ptr` or call `close()`.
+class RecordBatchStream : public arrow::RecordBatchReader {
+public:
+    RecordBatchStream(const RecordBatchStream&) = delete;
+    RecordBatchStream& operator=(const RecordBatchStream&) = delete;
+
+    ~RecordBatchStream() override {
+        if (handle_ != nullptr) {
+            thetadatadx_record_batch_stream_free(handle_);
+            handle_ = nullptr;
+        }
+    }
+
+    /// The fixed Arrow schema every batch carries. Decoded once from the
+    /// schema-only IPC buffer and cached. Never null after construction.
+    std::shared_ptr<arrow::Schema> schema() const override {
+        return schema_;
+    }
+
+    /// Read the next batch. Sets `*batch` to the next `RecordBatch`, or to
+    /// `nullptr` at clean end of stream. Returns a non-OK status on error.
+    arrow::Status ReadNext(std::shared_ptr<arrow::RecordBatch>* batch) override {
+        if (batch == nullptr) {
+            return arrow::Status::Invalid("ReadNext: null out-parameter");
+        }
+        *batch = nullptr;
+        if (handle_ == nullptr) {
+            return arrow::Status::OK(); // closed -> end of stream
+        }
+        ThetaDataDxArrowBytes bytes{};
+        const int32_t rc = thetadatadx_record_batch_stream_next_ipc(handle_, &bytes);
+        if (rc == 1) {
+            return arrow::Status::OK(); // clean end of stream
+        }
+        if (rc < 0) {
+            const char* err = thetadatadx_last_error();
+            return arrow::Status::IOError(err != nullptr ? err
+                                                         : "record batch stream pull failed");
+        }
+        // rc == 0: decode the one batch carried by this IPC buffer.
+        arrow::Status status = decode_one(bytes, batch);
+        thetadatadx_arrow_bytes_free(bytes);
+        return status;
+    }
+
+    /// Number of batches dropped so far under the `DropOldest` policy. Always
+    /// 0 under `Block`.
+    uint64_t dropped() const {
+        return handle_ != nullptr ? thetadatadx_record_batch_stream_dropped(handle_) : 0;
+    }
+
+    /// Stop the reader: unsubscribe and tear the FPSS session down.
+    /// Idempotent; subsequent reads return end of stream.
+    ///
+    /// Safe to call from another thread while a `ReadNext` is in flight: it
+    /// signals close through the reference-counted C ABI (waking the parked
+    /// pull, which then returns clean end of stream) without freeing the
+    /// handle. The handle is released by the destructor, so a `close()` here
+    /// followed by destruction frees exactly once.
+    void close() {
+        if (handle_ != nullptr) {
+            thetadatadx_record_batch_stream_close(handle_);
+        }
+    }
+
+private:
+    friend class Stream;
+
+    /// Build a reader over an owned C ABI handle, decoding the fixed schema
+    /// up front. Throws on a schema-decode failure (and frees the handle).
+    static std::shared_ptr<RecordBatchStream> create(ThetaDataDxRecordBatchStream* handle) {
+        ThetaDataDxArrowBytes schema_bytes{};
+        const int32_t rc = thetadatadx_record_batch_stream_schema_ipc(handle, &schema_bytes);
+        if (rc < 0) {
+            thetadatadx_record_batch_stream_free(handle);
+            detail::throw_last_ffi_error();
+        }
+        std::shared_ptr<arrow::Schema> schema;
+        arrow::Status status = decode_schema(schema_bytes, &schema);
+        thetadatadx_arrow_bytes_free(schema_bytes);
+        if (!status.ok()) {
+            thetadatadx_record_batch_stream_free(handle);
+            throw std::runtime_error("failed to decode streaming schema: " + status.ToString());
+        }
+        return std::shared_ptr<RecordBatchStream>(new RecordBatchStream(handle, std::move(schema)));
+    }
+
+    RecordBatchStream(ThetaDataDxRecordBatchStream* handle, std::shared_ptr<arrow::Schema> schema)
+        : handle_(handle), schema_(std::move(schema)) {}
+
+    /// Decode a single-batch Arrow IPC buffer into `*batch`.
+    ///
+    /// Called only for a `next_ipc` return of 0, which promises one batch in
+    /// the buffer. A null batch from the IPC reader (a truncated or malformed
+    /// frame) is therefore a decode error, not end of stream: surfacing it as
+    /// an error avoids silently truncating a live stream, since the
+    /// `arrow::RecordBatchReader` contract reads a null batch with an OK
+    /// status as end of stream.
+    static arrow::Status decode_one(const ThetaDataDxArrowBytes& bytes,
+                                    std::shared_ptr<arrow::RecordBatch>* batch) {
+        ARROW_ASSIGN_OR_RAISE(auto reader, open_ipc(bytes));
+        ARROW_ASSIGN_OR_RAISE(*batch, reader->Next());
+        if (*batch == nullptr) {
+            return arrow::Status::IOError(
+                "streaming batch IPC buffer contained no record batch");
+        }
+        return arrow::Status::OK();
+    }
+
+    /// Decode the schema from a schema-only Arrow IPC buffer.
+    static arrow::Status decode_schema(const ThetaDataDxArrowBytes& bytes,
+                                       std::shared_ptr<arrow::Schema>* schema) {
+        ARROW_ASSIGN_OR_RAISE(auto reader, open_ipc(bytes));
+        *schema = reader->schema();
+        return arrow::Status::OK();
+    }
+
+    /// Open an arrow-cpp IPC stream reader over a COPY of the FFI byte
+    /// buffer.
+    ///
+    /// The copy is deliberate: the decoded `RecordBatch` can alias the input
+    /// buffer's memory zero-copy, but the FFI buffer (`bytes`) is freed by
+    /// the caller as soon as decode returns. Copying into an arrow-owned
+    /// buffer hands the batch a lifetime tied to the arrow buffer's
+    /// refcount, not to the FFI allocation, so the returned batch stays valid
+    /// after the FFI buffer is freed. A per-batch copy is the correct,
+    /// leak-free ownership boundary here.
+    static arrow::Result<std::shared_ptr<arrow::ipc::RecordBatchStreamReader>> open_ipc(
+        const ThetaDataDxArrowBytes& bytes) {
+        ARROW_ASSIGN_OR_RAISE(auto buffer,
+                              arrow::AllocateBuffer(static_cast<int64_t>(bytes.len)));
+        if (bytes.len > 0 && bytes.data != nullptr) {
+            std::memcpy(buffer->mutable_data(), bytes.data, bytes.len);
+        }
+        std::shared_ptr<arrow::Buffer> shared_buffer = std::move(buffer);
+        auto input = std::make_shared<arrow::io::BufferReader>(shared_buffer);
+        return arrow::ipc::RecordBatchStreamReader::Open(input);
+    }
+
+    ThetaDataDxRecordBatchStream* handle_;
+    std::shared_ptr<arrow::Schema> schema_;
+};
+#endif // THETADATADX_CPP_ARROW
+
 /// Real-time-streaming sub-namespace returned by `Client::stream()`.
 ///
 /// Borrows the unified `ThetaDataDxClient*` for the duration of the borrow
@@ -2505,6 +2703,45 @@ public:
         thetadatadx_subscription_array_free(arr);
         return out;
     }
+
+#ifdef THETADATADX_CPP_ARROW
+    /// Open a pull-based columnar reader over the live stream — a sibling to
+    /// the per-event `set_callback`.
+    ///
+    /// Returns a `std::shared_ptr<arrow::RecordBatchReader>` (a
+    /// `RecordBatchStream`): `ReadNext(&batch)` yields the next batch and
+    /// sets `batch` to `nullptr` at clean end of stream, `schema()` reports
+    /// the fixed schema, and `dropped()` (on the concrete
+    /// `thetadatadx::RecordBatchStream`) reports the drop-oldest count. The
+    /// reader closes (unsubscribe + tear down) when the last reference drops
+    /// (RAII). The same subscriptions feed it; subscribe first, then open.
+    ///
+    /// `batch_size` rows per batch (default 65536). `linger` flushes a
+    /// partial batch on a quiet stream (default 50 ms). `backpressure`
+    /// selects lossless block (default) or bounded drop-oldest with
+    /// `capacity` buffered batches.
+    ///
+    /// Only available when the SDK is built with `THETADATADX_CPP_ARROW`
+    /// (which links arrow-cpp). Throws on a connect / start failure.
+    std::shared_ptr<RecordBatchStream> batches(
+        std::size_t batch_size = 65536,
+        std::chrono::milliseconds linger = std::chrono::milliseconds(50),
+        Backpressure backpressure = Backpressure::Block,
+        std::size_t capacity = 4) const {
+        const int32_t bp = backpressure == Backpressure::DropOldest
+                               ? THETADATADX_BACKPRESSURE_DROP_OLDEST
+                               : THETADATADX_BACKPRESSURE_BLOCK;
+        const uint64_t linger_ms = linger.count() < 0
+                                       ? 0
+                                       : static_cast<uint64_t>(linger.count());
+        ThetaDataDxRecordBatchStream* raw = thetadatadx_client_batches_open(
+            handle_.get(), batch_size, linger_ms, bp, capacity);
+        if (raw == nullptr) {
+            detail::throw_last_ffi_error();
+        }
+        return RecordBatchStream::create(raw);
+    }
+#endif // THETADATADX_CPP_ARROW
 
 private:
     friend class Client;

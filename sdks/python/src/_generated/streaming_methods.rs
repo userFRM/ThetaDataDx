@@ -5,6 +5,7 @@
 pub(crate) const PYTHON_UNIFIED_FPSS_METHODS: &[&str] = &[
     "start_streaming",
     "is_streaming",
+    "batches",
     "active_subscriptions",
     "reconnect",
     "stop_streaming",
@@ -147,6 +148,34 @@ impl StreamView {
     /// Whether the streaming connection is active.
     fn is_streaming(&self) -> bool {
         self.client.stream().is_streaming()
+    }
+
+    /// Open a pull-based columnar reader over the live stream, a sibling to the per-event callback. Returns a reader of Apache Arrow record batches under a fixed schema; the same subscriptions feed it. Tune batch_size, linger, and backpressure on the returned builder/reader.
+    /// Open a pull-based columnar reader over the live stream.
+    ///
+    /// Returns a `RecordBatchStream` — a sibling to the per-event
+    /// `start_streaming(callback)`. The same subscriptions feed it,
+    /// but market-data events arrive as `pyarrow.RecordBatch`
+    /// values under a fixed schema. The reader is both a
+    /// synchronous `Iterable` (the blocking pull releases the GIL)
+    /// and an `AsyncIterable` (`async for`), and a sync / async
+    /// context manager that closes the stream on exit. Subscribe on
+    /// this same surface first, then open the reader.
+    ///
+    /// `batch_size` rows per batch (default 65536); `linger_ms`
+    /// flushes a partial batch on a quiet stream (default 50);
+    /// `backpressure` is `"block"` (default, lossless) or
+    /// `"drop_oldest"`; `capacity` bounds the drop-oldest buffer.
+    #[pyo3(signature = (*, batch_size=None, linger_ms=None, backpressure=None, capacity=None))]
+    fn batches(
+        &self,
+        py: Python<'_>,
+        batch_size: Option<usize>,
+        linger_ms: Option<u64>,
+        backpressure: Option<&str>,
+        capacity: Option<usize>,
+    ) -> PyResult<crate::streaming_batches::RecordBatchStream> {
+        crate::streaming_batches::open_reader(py, &self.client, batch_size, linger_ms, backpressure, capacity)
     }
 
     /// Get a snapshot of currently active subscriptions.
