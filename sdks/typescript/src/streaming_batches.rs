@@ -21,14 +21,34 @@ use thetadatadx::streaming::{Backpressure, RecordBatchStream};
 
 use crate::to_napi_err;
 
+/// Validate a tuning value the caller passed as a JS `number`, rejecting a
+/// negative the way the Python binding's `usize` parameters do (a JS `-1` would
+/// otherwise coerce silently to a huge unsigned value). A non-negative value is
+/// returned as `usize`; the core upper-clamps it (see
+/// `thetadatadx::streaming::MAX_BATCH_SIZE` / `MAX_QUEUE_DEPTH`), so no upper
+/// check is needed here. Keeps TS and Python input handling consistent:
+/// negative is an error in both, oversized is clamped in both.
+fn checked_tuning(value: i64, field: &str) -> napi::Result<usize> {
+    if value < 0 {
+        return Err(napi::Error::from_reason(format!(
+            "{field} must be non-negative, got {value}"
+        )));
+    }
+    Ok(value as usize)
+}
+
 /// Map the optional `backpressure` string to the core enum. `"block"`
 /// (default) or `"dropOldest"` / `"drop_oldest"` (needs a `capacity`).
-fn parse_backpressure(kind: Option<String>, capacity: Option<u32>) -> napi::Result<Backpressure> {
+fn parse_backpressure(kind: Option<String>, capacity: Option<i64>) -> napi::Result<Backpressure> {
     match kind.as_deref().map(str::to_ascii_lowercase).as_deref() {
         None | Some("block") => Ok(Backpressure::Block),
-        Some("dropoldest") | Some("drop_oldest") => Ok(Backpressure::DropOldest {
-            capacity: capacity.unwrap_or(4).max(1) as usize,
-        }),
+        Some("dropoldest") | Some("drop_oldest") => {
+            let capacity = match capacity {
+                Some(c) => checked_tuning(c, "capacity")?.max(1),
+                None => 4,
+            };
+            Ok(Backpressure::DropOldest { capacity })
+        }
         Some(other) => Err(napi::Error::from_reason(format!(
             "unknown backpressure {other:?}; expected \"block\" or \"dropOldest\""
         ))),
@@ -85,10 +105,10 @@ fn schema_to_ipc(schema: &Arc<arrow_schema::Schema>) -> napi::Result<Vec<u8>> {
 #[napi(object)]
 #[derive(Default)]
 pub struct BatchesOptions {
-    pub batch_size: Option<u32>,
-    pub linger_ms: Option<u32>,
+    pub batch_size: Option<i64>,
+    pub linger_ms: Option<i64>,
     pub backpressure: Option<String>,
-    pub capacity: Option<u32>,
+    pub capacity: Option<i64>,
 }
 
 /// Open a [`RecordBatchStreamHandle`] over the unified client's stream.
@@ -97,22 +117,31 @@ pub struct BatchesOptions {
 /// on a blocking worker so the Node event loop is never frozen.
 pub(crate) async fn open_handle(
     client: Arc<thetadatadx::Client>,
-    batch_size: Option<u32>,
-    linger_ms: Option<u32>,
+    batch_size: Option<i64>,
+    linger_ms: Option<i64>,
     backpressure: Option<String>,
-    capacity: Option<u32>,
+    capacity: Option<i64>,
 ) -> napi::Result<RecordBatchStreamHandle> {
     let backpressure = parse_backpressure(backpressure, capacity)?;
+    // Validate the numeric knobs at the boundary, rejecting negatives the way
+    // the Python binding does, before handing off to the blocking worker. The
+    // core upper-clamps the magnitude, so only the sign is checked here.
+    let batch_size = batch_size
+        .map(|v| checked_tuning(v, "batchSize"))
+        .transpose()?;
+    let linger_ms = linger_ms
+        .map(|v| checked_tuning(v, "lingerMs"))
+        .transpose()?;
     let stream = tokio::task::spawn_blocking(move || {
         // Bind the `StreamSurface` so the borrowed `BatchReaderBuilder`
         // outlives the chained configuration calls.
         let stream_surface = client.stream();
         let mut builder = stream_surface.batches();
         if let Some(rows) = batch_size {
-            builder = builder.batch_size(rows as usize);
+            builder = builder.batch_size(rows);
         }
         if let Some(ms) = linger_ms {
-            builder = builder.linger(std::time::Duration::from_millis(u64::from(ms)));
+            builder = builder.linger(std::time::Duration::from_millis(ms as u64));
         }
         builder.backpressure(backpressure).build()
     })

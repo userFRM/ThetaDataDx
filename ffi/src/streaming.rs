@@ -1874,7 +1874,12 @@ pub unsafe extern "C" fn thetadatadx_streaming_set_callback(
             },
         ) {
             Ok(h) => {
-                *dispatcher_guard = FfpssDispatcherSession::Running { handle: h };
+                // The callback dispatcher parks only on the event ring, which
+                // the client shutdown signals on teardown, so no wake hook.
+                *dispatcher_guard = FfpssDispatcherSession::Running {
+                    handle: h,
+                    on_teardown: None,
+                };
                 0
             }
             Err(()) => -1,
@@ -2345,7 +2350,12 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
         };
         match spawn_result {
             Ok(h) => {
-                *dispatcher_guard = FfpssDispatcherSession::Running { handle: h };
+                // The callback dispatcher parks only on the event ring, which
+                // the client shutdown signals on teardown, so no wake hook.
+                *dispatcher_guard = FfpssDispatcherSession::Running {
+                    handle: h,
+                    on_teardown: None,
+                };
             }
             Err(e) => {
                 set_error(&format!("failed to spawn FPSS dispatcher thread: {e}"));
@@ -2385,7 +2395,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
 /// to `Failed` with the downcasted payload string.
 fn join_dispatcher_session(session: &mut FfpssDispatcherSession) {
     let prev = std::mem::replace(session, FfpssDispatcherSession::Idle);
-    if let FfpssDispatcherSession::Running { handle } = prev {
+    if let FfpssDispatcherSession::Running { handle, .. } = prev {
         if handle.thread().id() != std::thread::current().id() {
             match handle.join() {
                 Ok(()) => {}

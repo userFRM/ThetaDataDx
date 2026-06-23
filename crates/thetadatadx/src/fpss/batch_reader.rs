@@ -78,6 +78,32 @@ pub const DEFAULT_LINGER: Duration = Duration::from_millis(50);
 /// stall the dispatcher.
 pub const DEFAULT_QUEUE_DEPTH: usize = 4;
 
+/// Upper bound on [`BatchReaderBuilder::batch_size`].
+///
+/// The batch builder preallocates every column of the fixed schema to the
+/// batch size up front, so the prealloc scales linearly with this value
+/// (roughly a few hundred bytes per row across the schema's columns). The
+/// bound caps a single batch's prealloc to a few hundred megabytes — recoverable
+/// rather than an out-of-memory abort — while sitting far above any realistic
+/// streaming batch (it is 16x the default and over a million rows). A larger
+/// request is clamped here rather than honored, which matters because a binding
+/// can hand the core a value an unsigned conversion has wrapped to near the
+/// integer maximum; without this clamp that wrap would drive a multi-hundred-
+/// gigabyte prealloc.
+pub const MAX_BATCH_SIZE: usize = 1_048_576;
+
+/// Upper bound on the bounded-queue depth (the `capacity` of
+/// [`Backpressure::DropOldest`], and the Block-mode queue depth).
+///
+/// The queue preallocates its backing to this many batch slots, and under
+/// `DropOldest` it can hold this many finished batches at once, so the buffered
+/// memory is `capacity * batch_size`. Capping the depth keeps that product
+/// bounded; the default is 4 and any realistic reader needs only a handful of
+/// slots of slack, so this bound is generous while still defending against a
+/// wrapped or fat-fingered value that would otherwise preallocate a deque of
+/// billions of slots.
+pub const MAX_QUEUE_DEPTH: usize = 4_096;
+
 /// What happens when the reader falls behind and the bounded batch queue
 /// fills.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -94,6 +120,30 @@ pub enum Backpressure {
         /// dropped. Must be at least 1; a `0` is treated as 1.
         capacity: usize,
     },
+}
+
+impl Backpressure {
+    /// The bounded-queue depth this policy resolves to, clamped to
+    /// `[1, MAX_QUEUE_DEPTH]`. `Block` uses [`DEFAULT_QUEUE_DEPTH`];
+    /// `DropOldest` uses its `capacity`. Clamping here is the single chokepoint
+    /// every caller (the live reader and the offline test harness) shares, so a
+    /// wrapped or oversized `capacity` from any binding cannot preallocate a
+    /// runaway deque.
+    fn resolved_capacity(self) -> usize {
+        let requested = match self {
+            Backpressure::Block => DEFAULT_QUEUE_DEPTH,
+            Backpressure::DropOldest { capacity } => capacity,
+        };
+        requested.clamp(1, MAX_QUEUE_DEPTH)
+    }
+}
+
+/// Clamp a requested rows-per-batch to `[1, MAX_BATCH_SIZE]`. The single
+/// chokepoint the builder setter and [`RecordBatchStream::start`] share, so a
+/// value any binding produced (including one an unsigned conversion wrapped to
+/// near the integer maximum) cannot drive a catastrophic per-column prealloc.
+fn clamp_batch_size(rows: usize) -> usize {
+    rows.clamp(1, MAX_BATCH_SIZE)
 }
 
 /// Builder for a [`RecordBatchStream`].
@@ -125,9 +175,12 @@ impl<'a> BatchReaderBuilder<'a> {
 
     /// Rows per batch. A batch flushes when it reaches this many rows or
     /// when [`Self::linger`] elapses, whichever comes first. Defaults to
-    /// [`DEFAULT_BATCH_SIZE`]. A `0` is clamped to `1`.
+    /// [`DEFAULT_BATCH_SIZE`]. A `0` is clamped to `1`; a value above
+    /// [`MAX_BATCH_SIZE`] is clamped down to it, so a binding that wrapped an
+    /// out-of-range request into a huge unsigned value cannot drive a
+    /// catastrophic column prealloc.
     pub fn batch_size(mut self, rows: usize) -> Self {
-        self.batch_size = rows.max(1);
+        self.batch_size = clamp_batch_size(rows);
         self
     }
 
@@ -179,6 +232,43 @@ pub(crate) struct Shared {
     /// The fixed schema every batch carries. Cloned to callers via
     /// [`RecordBatchStream::schema`] without locking.
     schema: Arc<Schema>,
+}
+
+impl Shared {
+    /// Signal teardown to the dispatcher and any parked waiter: set `closed`
+    /// (under `inner`, per the lost-wakeup discipline) and wake the queue
+    /// condvar plus any registered async waker.
+    ///
+    /// This is the one place the `closed` predicate is published, so every
+    /// teardown route shares the same wakeup guarantee:
+    ///
+    /// * the reader's own [`RecordBatchStream::close_shared`] calls it, and
+    /// * a teardown that bypasses the reader (a `Client` drop /
+    ///   `stop_streaming` / `reconnect_streaming`, which run
+    ///   `StreamingState::quiesce` directly) calls it through the wake hook the
+    ///   columnar dispatcher installs, BEFORE quiesce joins the dispatcher
+    ///   thread.
+    ///
+    /// Without this hook the latter routes would shut only the FPSS side and
+    /// never the batch queue, so a Block-mode dispatcher parked in `flush` on a
+    /// full queue would wait on `closed` forever and quiesce's join would hang.
+    ///
+    /// Idempotent: storing `closed` again and notifying an empty condvar are
+    /// both no-ops, so it is safe to call from several teardown paths.
+    pub(crate) fn close_and_wake(&self) {
+        // Store under `inner` so it serialises with a waiter's under-lock
+        // check-then-park in `flush` / `next_blocking` (see those sites). A
+        // store outside the lock opens a lost-wakeup window.
+        let waker = {
+            let mut guard = lock(&self.inner);
+            self.closed.store(true, Ordering::Release);
+            guard.waker.take()
+        };
+        self.cv.notify_all();
+        if let Some(w) = waker {
+            w.wake();
+        }
+    }
 }
 
 struct Queue {
@@ -426,10 +516,11 @@ impl RecordBatchStream {
         linger: Duration,
         backpressure: Backpressure,
     ) -> Result<Self, crate::error::Error> {
-        let capacity = match backpressure {
-            Backpressure::Block => DEFAULT_QUEUE_DEPTH.max(1),
-            Backpressure::DropOldest { capacity } => capacity.max(1),
-        };
+        // Clamp both memory-scaling knobs here as well as in the builder, so a
+        // caller that reaches `start` by any path (including a binding that
+        // constructed the values directly) cannot preallocate past the bounds.
+        let batch_size = clamp_batch_size(batch_size);
+        let capacity = backpressure.resolved_capacity();
         let shared = Arc::new(Shared {
             inner: Mutex::new(Queue {
                 batches: VecDeque::with_capacity(capacity),
@@ -506,26 +597,15 @@ impl RecordBatchStream {
     /// pull may be blocked: it never needs exclusive ownership, so it cannot
     /// deadlock against the in-flight pull the way a `&mut` close would.
     pub fn close_shared(&self) {
-        // Set `closed` and wake a Block-mode dispatcher parked on a full
-        // queue BEFORE shutting the client, so a parked flush re-checks
-        // `closed`, stops pushing, and lets the dispatcher reach the
-        // ring-shutdown exit. Idempotent at the atomic + `shutdown` level.
-        //
-        // The store MUST happen while holding `inner`. A Block-mode producer
-        // in `flush` and a blocked consumer in `next_blocking` each check
-        // `closed` under this lock and then park on `cv` (which atomically
-        // releases the lock as it parks). Storing `closed` under the same lock
-        // serialises the store with that check-then-park: the store either
-        // lands before the waiter's check (it observes `closed` and does not
-        // park) or after the waiter has parked (the `notify_all` below wakes
-        // it). Storing without the lock opens a lost-wakeup window — the store
-        // and notify can fall between a waiter's check and its park, leaving
-        // it parked forever.
-        {
-            let _guard = lock(&self.shared.inner);
-            self.shared.closed.store(true, Ordering::Release);
-        }
-        self.shared.cv.notify_all();
+        // Set `closed` and wake a Block-mode dispatcher parked on a full queue
+        // (and any parked consumer) BEFORE shutting the client, so a parked
+        // flush re-checks `closed`, stops pushing, and lets the dispatcher
+        // reach the ring-shutdown exit. `close_and_wake` stores `closed` under
+        // `inner` (the lost-wakeup discipline) and notifies. The very same call
+        // is the wake hook the columnar dispatcher installs, so the
+        // quiesce-direct teardown paths get the identical wakeup; see
+        // `Shared::close_and_wake`.
+        self.shared.close_and_wake();
         // Authoritative teardown, run exactly once. Reset the owning client's
         // streaming state through the SAME `StreamingState::quiesce` the
         // callback surface's `stop_streaming` uses: swap the slot to `Stopped`,
@@ -784,10 +864,7 @@ pub(crate) mod test_harness {
         linger: Duration,
         backpressure: Backpressure,
     ) -> (Producer, Reader) {
-        let capacity = match backpressure {
-            Backpressure::Block => super::DEFAULT_QUEUE_DEPTH.max(1),
-            Backpressure::DropOldest { capacity } => capacity.max(1),
-        };
+        let capacity = backpressure.resolved_capacity();
         let shared = Arc::new(Shared {
             inner: Mutex::new(Queue {
                 batches: VecDeque::with_capacity(capacity),
@@ -813,6 +890,13 @@ pub(crate) mod test_harness {
     }
 
     impl Reader {
+        /// The shared queue handle, so a test outside this module can build the
+        /// teardown wake hook (`shared.close_and_wake`) the columnar dispatcher
+        /// installs and assert quiesce drives it.
+        pub(crate) fn shared_handle(&self) -> Arc<Shared> {
+            Arc::clone(&self.shared)
+        }
+
         /// A second reader handle over the SAME shared queue, modelling two
         /// binding handles (`close()` and `next()`) racing on one core
         /// stream.
@@ -1225,6 +1309,74 @@ mod tests {
         assert!(
             reader_a.is_closed(),
             "after the lock is released, close stores `closed`"
+        );
+    }
+
+    /// (g) batch_size is clamped to `[1, MAX_BATCH_SIZE]`. The builder
+    /// preallocates every column to the batch size, so an unbounded value
+    /// (e.g. a binding wrapping a negative request to a near-maximum unsigned)
+    /// would otherwise drive a multi-hundred-gigabyte prealloc and abort. The
+    /// clamp is the single chokepoint both the builder setter and `start` use.
+    #[test]
+    fn batch_size_is_clamped_to_the_bound() {
+        use super::{clamp_batch_size, MAX_BATCH_SIZE};
+        assert_eq!(clamp_batch_size(0), 1, "zero clamps up to 1");
+        assert_eq!(clamp_batch_size(1), 1);
+        assert_eq!(clamp_batch_size(4_096), 4_096, "an in-range value is kept");
+        assert_eq!(
+            clamp_batch_size(MAX_BATCH_SIZE),
+            MAX_BATCH_SIZE,
+            "the bound itself is kept"
+        );
+        assert_eq!(
+            clamp_batch_size(MAX_BATCH_SIZE + 1),
+            MAX_BATCH_SIZE,
+            "just past the bound clamps down"
+        );
+        assert_eq!(
+            clamp_batch_size(usize::MAX),
+            MAX_BATCH_SIZE,
+            "a wrapped near-maximum value clamps to the bound, not a ruinous alloc"
+        );
+    }
+
+    /// (g) the bounded-queue depth is clamped to `[1, MAX_QUEUE_DEPTH]` for
+    /// both modes. `DropOldest` can hold `capacity` finished batches at once and
+    /// the deque preallocates that many slots, so an unbounded `capacity` would
+    /// preallocate a runaway deque; `Block` resolves to the default depth.
+    #[test]
+    fn capacity_is_clamped_to_the_bound() {
+        use super::{Backpressure, DEFAULT_QUEUE_DEPTH, MAX_QUEUE_DEPTH};
+        assert_eq!(
+            Backpressure::Block.resolved_capacity(),
+            DEFAULT_QUEUE_DEPTH,
+            "Block uses the default depth"
+        );
+        assert_eq!(
+            Backpressure::DropOldest { capacity: 0 }.resolved_capacity(),
+            1,
+            "zero capacity clamps up to 1"
+        );
+        assert_eq!(
+            Backpressure::DropOldest { capacity: 8 }.resolved_capacity(),
+            8,
+            "an in-range capacity is kept"
+        );
+        assert_eq!(
+            Backpressure::DropOldest {
+                capacity: MAX_QUEUE_DEPTH
+            }
+            .resolved_capacity(),
+            MAX_QUEUE_DEPTH,
+            "the bound itself is kept"
+        );
+        assert_eq!(
+            Backpressure::DropOldest {
+                capacity: usize::MAX
+            }
+            .resolved_capacity(),
+            MAX_QUEUE_DEPTH,
+            "a wrapped near-maximum capacity clamps to the bound"
         );
     }
 }

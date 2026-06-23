@@ -286,7 +286,24 @@ impl StreamingState {
             &mut *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()),
             DispatcherSession::Idle,
         );
-        if let DispatcherSession::Running { handle } = prev_session {
+        if let DispatcherSession::Running {
+            handle,
+            on_teardown,
+        } = prev_session
+        {
+            // Wake a dispatcher parked on its own backpressure primitive BEFORE
+            // joining it. The per-event callback dispatcher parks only on the
+            // event ring, which `client.shutdown()` above already signalled, so
+            // it installs no hook. The columnar pull dispatcher can be parked in
+            // its bounded-queue `flush` wait, which the FPSS shutdown does NOT
+            // touch; its hook stores `closed` (under the queue lock) and
+            // notifies, so the parked flush returns and the join below completes
+            // instead of hanging. The hook runs the SAME wakeup the reader's own
+            // close path runs, so every teardown route converges on it. No lock
+            // is held here, so the wake cannot invert against the dispatcher.
+            if let Some(wake) = on_teardown {
+                wake();
+            }
             // Avoid blocking the consumer thread joining itself when a callback
             // (or, for the pull reader, a dispatcher-thread drop) called this.
             // Detach in that case; `await_drain` still observes quiescence via
@@ -497,9 +514,15 @@ impl Client {
         // sequence is shared with the columnar `batches()` path via
         // `start_dispatcher`; only the per-thread consumer body differs.
         let mut scope = scope;
-        self.start_dispatcher(move |client| {
-            client.for_each_scoped(|event| handler(event), &mut scope);
-        })
+        // The callback dispatcher parks only on the event ring, which the
+        // client shutdown signals during teardown, so it needs no extra wake
+        // hook.
+        self.start_dispatcher(
+            move |client| {
+                client.for_each_scoped(|event| handler(event), &mut scope);
+            },
+            None,
+        )
         .map(|_client| ())
     }
 
@@ -515,6 +538,14 @@ impl Client {
     /// and failure rollback are identical across both consumers, so they
     /// live here once.
     ///
+    /// `on_teardown` is the optional dispatcher wakeup hook (see
+    /// [`DispatcherSession::Running`]). The callback path passes `None`; the
+    /// columnar path passes a hook that releases a dispatcher parked on the
+    /// batch queue so a direct `stop_streaming` / drop can join it. It is
+    /// installed atomically with the `Running` transition under the dispatcher
+    /// lock, so a teardown racing the start never sees a `Running` session
+    /// without its hook.
+    ///
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure, or
@@ -522,6 +553,7 @@ impl Client {
     pub(crate) fn start_dispatcher<B>(
         &self,
         dispatcher_body: B,
+        on_teardown: Option<Box<dyn FnOnce() + Send>>,
     ) -> Result<Arc<StreamingClient>, Error>
     where
         B: FnOnce(Arc<StreamingClient>) + Send + 'static,
@@ -669,9 +701,13 @@ impl Client {
             Ok(()) => {
                 // Publish the Running variant before opening the gate so
                 // `stop_streaming` finds the JoinHandle regardless of how
-                // quickly the dispatcher thread starts executing.
+                // quickly the dispatcher thread starts executing. The teardown
+                // wake hook is installed in the same transition, so a quiesce
+                // racing this start never observes a `Running` session lacking
+                // its hook.
                 *dispatcher_guard = DispatcherSession::Running {
                     handle: dispatcher_handle,
+                    on_teardown,
                 };
                 let _ = gate.set(true);
                 Ok(client_arc)
@@ -716,25 +752,42 @@ impl Client {
         linger: std::time::Duration,
         backpressure: crate::fpss::batch_reader::Backpressure,
     ) -> Result<Arc<StreamingClient>, Error> {
-        self.start_dispatcher(move |client| {
-            let sink =
-                crate::fpss::batch_reader::BatchSink::new(shared, batch_size, linger, backpressure);
-            // The handler and the scope each take a short, non-overlapping
-            // lock on the sink's accumulator (see `BatchSink`), so cloning
-            // the sink (an `Arc` bundle) into both closures plus the
-            // post-loop finish is sound and the drain path stays lock-free
-            // between events.
-            let handler_sink = sink.clone();
-            let scope_sink = sink.clone();
-            client.for_each_scoped(
-                move |event| handler_sink.on_event(event),
-                move |drain| scope_sink.scope_drain(drain),
-            );
-            // The drain loop returned: the stream shut down. Flush the final
-            // partial batch and publish the terminal end-of-stream marker so
-            // the reader sees `finished` after consuming every queued batch.
-            sink.finish();
-        })
+        // Teardown wake hook: a `Block` dispatcher can be parked in the batch
+        // queue's `flush` wait, which the FPSS shutdown does not touch. Any
+        // teardown that runs `quiesce` directly (a `Client` drop /
+        // `stop_streaming` / `reconnect_streaming`, not just the reader's own
+        // close) invokes this just before joining the dispatcher, so the parked
+        // flush is released and the join completes. It runs the SAME wakeup the
+        // reader's `close_shared` runs, so the two routes converge; it is
+        // idempotent, so a close that already woke is harmless.
+        let wake_shared = Arc::clone(&shared);
+        let on_teardown: Box<dyn FnOnce() + Send> = Box::new(move || wake_shared.close_and_wake());
+        self.start_dispatcher(
+            move |client| {
+                let sink = crate::fpss::batch_reader::BatchSink::new(
+                    shared,
+                    batch_size,
+                    linger,
+                    backpressure,
+                );
+                // The handler and the scope each take a short, non-overlapping
+                // lock on the sink's accumulator (see `BatchSink`), so cloning
+                // the sink (an `Arc` bundle) into both closures plus the
+                // post-loop finish is sound and the drain path stays lock-free
+                // between events.
+                let handler_sink = sink.clone();
+                let scope_sink = sink.clone();
+                client.for_each_scoped(
+                    move |event| handler_sink.on_event(event),
+                    move |drain| scope_sink.scope_drain(drain),
+                );
+                // The drain loop returned: the stream shut down. Flush the final
+                // partial batch and publish the terminal end-of-stream marker so
+                // the reader sees `finished` after consuming every queued batch.
+                sink.finish();
+            },
+            Some(on_teardown),
+        )
     }
 
     /// A weak handle to this client's streaming lifecycle state, for the
@@ -2499,8 +2552,10 @@ mod tests {
     fn quiesce_retires_a_running_dispatcher() {
         let state = StreamingState::new();
         let handle = std::thread::spawn(|| { /* exits immediately */ });
-        *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) =
-            DispatcherSession::Running { handle };
+        *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
+            handle,
+            on_teardown: None,
+        };
         assert!(
             !state.dispatcher_is_idle(),
             "precondition: Running installed"
@@ -2512,6 +2567,82 @@ mod tests {
             state.dispatcher_is_idle(),
             "quiesce must join the dispatcher thread and reset the session to \
              Idle so the client is reusable"
+        );
+    }
+
+    /// quiesce must not deadlock joining a columnar dispatcher parked in its
+    /// bounded-queue `Block` flush wait on a teardown that bypasses the
+    /// reader's own close (a `Client` drop / `stop_streaming` /
+    /// `reconnect_streaming`, which call quiesce DIRECTLY). The FPSS shutdown
+    /// signals the event ring but not the batch queue, so the only thing that
+    /// releases the parked flush is the wake hook quiesce runs before the join.
+    ///
+    /// This builds the exact deadlock geometry without a network: a real
+    /// producer thread fills a depth-1 `Block` queue and parks in `flush`, that
+    /// thread is installed as the `Running` dispatcher with the columnar wake
+    /// hook (`Shared::close_and_wake`), and quiesce is driven on a side thread
+    /// under a watchdog. With the hook the parked flush is woken, the producer
+    /// thread exits, and the join completes well within the deadline; without
+    /// it (the pre-fix `on_teardown: None`) the producer stays parked and the
+    /// join hangs past the watchdog, failing the test instead of wedging the
+    /// suite.
+    #[cfg(feature = "arrow")]
+    #[test]
+    fn quiesce_does_not_deadlock_on_a_parked_block_dispatcher() {
+        use crate::fpss::batch_reader::test_harness::{harness, trade};
+        use crate::fpss::batch_reader::Backpressure;
+        use crate::fpss::protocol::Contract;
+        use std::sync::atomic::{AtomicBool, Ordering as O};
+
+        // Depth-1 Block queue, no reader: the producer fills it then parks.
+        let (producer, reader) =
+            harness(1, std::time::Duration::from_millis(50), Backpressure::Block);
+        let shared = reader.shared_handle();
+        let contract = Arc::new(Contract::stock("SPY"));
+
+        // Producer thread: floods the queue and parks in `flush`. After the
+        // wake hook fires it returns promptly (post-close flushes drop and
+        // return), so the join can complete.
+        let feeder = std::thread::spawn(move || {
+            for i in 0..256 {
+                producer.feed(&trade(&contract, i));
+            }
+        });
+        // Let the producer fill the depth-1 queue and park in the Block wait.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        // Install that real thread as the columnar dispatcher session, WITH the
+        // wake hook the live columnar path installs.
+        let state = Arc::new(StreamingState::new());
+        let wake_shared = Arc::clone(&shared);
+        *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
+            handle: feeder,
+            on_teardown: Some(Box::new(move || wake_shared.close_and_wake())),
+        };
+
+        // Drive quiesce on a side thread so a hung join is caught by the
+        // watchdog rather than wedging the whole test binary.
+        let done = Arc::new(AtomicBool::new(false));
+        let done_t = Arc::clone(&done);
+        let state_t = Arc::clone(&state);
+        let quiescer = std::thread::spawn(move || {
+            state_t.quiesce();
+            done_t.store(true, O::Release);
+        });
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !done.load(O::Acquire) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "quiesce deadlocked joining a parked Block dispatcher: the \
+                 teardown wake hook did not release the parked flush"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        quiescer.join().expect("quiescer thread");
+        assert!(
+            state.dispatcher_is_idle(),
+            "after quiesce the dispatcher session is retired to Idle"
         );
     }
 
