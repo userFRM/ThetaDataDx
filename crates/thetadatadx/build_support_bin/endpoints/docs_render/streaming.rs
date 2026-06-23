@@ -408,22 +408,22 @@ fn typescript_tab(spec: &StreamSpec) -> String {
 fn cpp_tab(spec: &StreamSpec) -> String {
     let (kind, payload, print) = match spec.event {
         "Quote" => (
-            "THETADATADX_FPSS_QUOTE",
+            "THETADATADX_STREAM_QUOTE",
             "quote",
             "std::cout << e.contract.symbol << \" bid=\" << e.bid << \" ask=\" << e.ask << \"\\n\";",
         ),
         "Trade" => (
-            "THETADATADX_FPSS_TRADE",
+            "THETADATADX_STREAM_TRADE",
             "trade",
             "std::cout << e.contract.symbol << \" price=\" << e.price << \" size=\" << e.size << \"\\n\";",
         ),
         "OpenInterest" => (
-            "THETADATADX_FPSS_OPEN_INTEREST",
+            "THETADATADX_STREAM_OPEN_INTEREST",
             "open_interest",
             "std::cout << e.contract.symbol << \" oi=\" << e.open_interest << \"\\n\";",
         ),
         "MarketValue" => (
-            "THETADATADX_FPSS_MARKET_VALUE",
+            "THETADATADX_STREAM_MARKET_VALUE",
             "market_value",
             "std::cout << e.contract.symbol << \" market_price=\" << e.market_price << \"\\n\";",
         ),

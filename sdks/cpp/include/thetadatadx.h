@@ -2315,9 +2315,9 @@ int32_t thetadatadx_sequence_unsigned_to_signed(uint64_t unsigned_value, int64_t
  * `event->kind` and read the matching `event-><variant>` payload —
  * for example
  *
- *   if (event->kind == THETADATADX_FPSS_LOGIN_SUCCESS)
+ *   if (event->kind == THETADATADX_STREAM_LOGIN_SUCCESS)
  *       printf("perms=%s\n", event->login_success.permissions);
- *   if (event->kind == THETADATADX_FPSS_DISCONNECTED)
+ *   if (event->kind == THETADATADX_STREAM_DISCONNECTED)
  *       printf("reason=%d\n", event->disconnected.reason);
  *
  * Borrowed pointers (`Contract.symbol`, `LoginSuccess.permissions`,

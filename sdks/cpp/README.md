@@ -117,7 +117,7 @@ int main() {
 
     streaming.set_callback([](const thetadatadx::StreamEvent& event) {
         switch (event.kind) {
-            case THETADATADX_FPSS_TRADE:
+            case THETADATADX_STREAM_TRADE:
                 std::cout << event.trade.contract.symbol
                           << " trade price=" << event.trade.price
                           << " size=" << event.trade.size
@@ -127,7 +127,7 @@ int main() {
                           << " condition=" << event.trade.condition
                           << '\n';
                 break;
-            case THETADATADX_FPSS_QUOTE:
+            case THETADATADX_STREAM_QUOTE:
                 std::cout << event.quote.contract.symbol
                           << " quote bid=" << event.quote.bid
                           << " ask=" << event.quote.ask

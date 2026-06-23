@@ -262,7 +262,7 @@ pub(crate) fn connect_to_servers(
         }
     }
 
-    Err(last_err.unwrap_or_else(|| crate::error::Error::Streaming {
+    Err(last_err.unwrap_or_else(|| crate::error::Error::Stream {
         kind: crate::error::StreamErrorKind::ConnectionRefused,
         message: "no servers configured".to_string(),
     }))
@@ -345,12 +345,12 @@ fn try_connect(
     // accepts numeric IP addresses and would fail for DNS hostnames.
     let sock_addr = addr
         .to_socket_addrs()
-        .map_err(|e| crate::error::Error::Streaming {
+        .map_err(|e| crate::error::Error::Stream {
             kind: crate::error::StreamErrorKind::ConnectionRefused,
             message: format!("DNS resolution failed for '{addr}': {e}"),
         })?
         .next()
-        .ok_or_else(|| crate::error::Error::Streaming {
+        .ok_or_else(|| crate::error::Error::Stream {
             kind: crate::error::StreamErrorKind::ConnectionRefused,
             message: format!("DNS resolution returned no addresses for '{addr}'"),
         })?;
@@ -382,13 +382,13 @@ fn try_connect(
 
     // TLS handshake (blocking) using rustls with webpki root certificates.
     let server_name =
-        ServerName::try_from(host.to_owned()).map_err(|e| crate::error::Error::Streaming {
+        ServerName::try_from(host.to_owned()).map_err(|e| crate::error::Error::Stream {
             kind: crate::error::StreamErrorKind::ConnectionRefused,
             message: format!("invalid TLS server name '{host}': {e}"),
         })?;
 
     let tls_conn = ClientConnection::new(tls_client_config()?, server_name).map_err(|e| {
-        crate::error::Error::Streaming {
+        crate::error::Error::Stream {
             kind: crate::error::StreamErrorKind::ConnectionRefused,
             message: format!("TLS setup for {addr} failed: {e}"),
         }

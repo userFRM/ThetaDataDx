@@ -251,7 +251,7 @@ pub fn to_py_err(e: thetadatadx::Error) -> PyErr {
                 ConfigError::new_err(e.to_string())
             }
         }
-        thetadatadx::Error::Streaming { kind, .. } => match kind {
+        thetadatadx::Error::Stream { kind, .. } => match kind {
             StreamErrorKind::TooManyRequests => rate_limit_err(&e),
             StreamErrorKind::Timeout => DeadlineExceededError::new_err(e.to_string()),
             StreamErrorKind::ConnectionRefused | StreamErrorKind::Disconnected => {
@@ -452,7 +452,7 @@ mod tests {
     fn fpss_too_many_requests_maps_to_rate_limit() {
         Python::initialize();
         Python::attach(|py| {
-            let err = to_py_err(thetadatadx::Error::Streaming {
+            let err = to_py_err(thetadatadx::Error::Stream {
                 kind: StreamErrorKind::TooManyRequests,
                 message: "back off".into(),
             });
@@ -464,7 +464,7 @@ mod tests {
     fn fpss_protocol_error_maps_to_stream_error() {
         Python::initialize();
         Python::attach(|py| {
-            let err = to_py_err(thetadatadx::Error::Streaming {
+            let err = to_py_err(thetadatadx::Error::Stream {
                 kind: StreamErrorKind::ProtocolError,
                 message: "bad frame".into(),
             });

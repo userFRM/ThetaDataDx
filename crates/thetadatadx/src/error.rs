@@ -440,9 +440,9 @@ pub enum Error {
         message: String,
     },
 
-    /// Streaming error.
-    #[error("streaming error ({kind}): {message}")]
-    Streaming {
+    /// Stream error.
+    #[error("stream error ({kind}): {message}")]
+    Stream {
         /// Concrete streaming failure category.
         kind: StreamErrorKind,
         /// Human-readable detail for logs and `Display`.

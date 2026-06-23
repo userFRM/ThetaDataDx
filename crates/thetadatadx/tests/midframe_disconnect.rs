@@ -11,7 +11,7 @@
 //! - The reader does NOT panic.
 //! - The reader does NOT block on a stuck Read source.
 //! - The reader returns `Ok(None)` on clean pre-header EOF, or a typed
-//!   `Error::Fpss { kind: ProtocolError }` on truncation.
+//!   `Error::Stream { kind: ProtocolError }` on truncation.
 //! - `FrameReadState` resets cleanly between attempts so the next
 //!   reconnect-cycle reader does not desync on stale partial bytes.
 

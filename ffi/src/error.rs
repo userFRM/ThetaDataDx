@@ -164,7 +164,7 @@ pub(crate) fn error_code_for(err: &thetadatadx::Error) -> i32 {
                 THETADATADX_ERR_CONFIG
             }
         }
-        Error::Streaming { kind, .. } => match kind {
+        Error::Stream { kind, .. } => match kind {
             StreamErrorKind::TooManyRequests => THETADATADX_ERR_RATE_LIMIT,
             StreamErrorKind::Timeout => THETADATADX_ERR_DEADLINE_EXCEEDED,
             StreamErrorKind::ConnectionRefused | StreamErrorKind::Disconnected => {
@@ -362,7 +362,7 @@ mod tests {
     }
 
     fn fpss(kind: StreamErrorKind) -> thetadatadx::Error {
-        thetadatadx::Error::Streaming {
+        thetadatadx::Error::Stream {
             kind,
             message: String::new(),
         }

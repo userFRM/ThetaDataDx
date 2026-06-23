@@ -496,7 +496,7 @@ fn leaf_class_for(e: &thetadatadx::Error) -> &'static str {
                 "ConfigError"
             }
         }
-        thetadatadx::Error::Streaming { kind, .. } => match kind {
+        thetadatadx::Error::Stream { kind, .. } => match kind {
             StreamErrorKind::TooManyRequests => "RateLimitError",
             StreamErrorKind::Timeout => "DeadlineExceededError",
             StreamErrorKind::ConnectionRefused | StreamErrorKind::Disconnected => "NetworkError",

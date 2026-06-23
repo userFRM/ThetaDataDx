@@ -79,7 +79,7 @@ client.stream.unsubscribe(sub);
 
 ```cpp
 client.stream().set_callback([](const thetadatadx::StreamEvent& event) {
-    if (event.kind == THETADATADX_FPSS_MARKET_VALUE) {
+    if (event.kind == THETADATADX_STREAM_MARKET_VALUE) {
         auto& e = event.market_value;
         std::cout << e.contract.symbol << " market_price=" << e.market_price << "\n";
     }

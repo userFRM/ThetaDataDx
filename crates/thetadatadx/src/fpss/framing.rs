@@ -269,7 +269,7 @@ fn read_header_with_timeout<R: Read>(
         match reader.read(&mut state.header_buf[n..]) {
             Ok(0) if n == 0 => return Ok(None),
             Ok(0) => {
-                return Err(crate::error::Error::Streaming {
+                return Err(crate::error::Error::Stream {
                     kind: crate::error::StreamErrorKind::ProtocolError,
                     message: format!("truncated FPSS header: got {n} byte(s), expected 2"),
                 })
@@ -294,7 +294,7 @@ fn read_header_with_timeout<R: Read>(
             }
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof && n == 0 => return Ok(None),
             Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                return Err(crate::error::Error::Streaming {
+                return Err(crate::error::Error::Stream {
                     kind: crate::error::StreamErrorKind::ProtocolError,
                     message: format!("truncated FPSS header: got {n} byte(s), expected 2"),
                 })
@@ -314,7 +314,7 @@ fn read_header_with_timeout<R: Read>(
                 // the cap instead of resuming it forever.
                 if let Some(fd) = state.frame_deadline {
                     if now >= fd {
-                        return Err(crate::error::Error::Streaming {
+                        return Err(crate::error::Error::Stream {
                             kind: crate::error::StreamErrorKind::ProtocolError,
                             message: format!(
                                 "mid-header frame deadline exceeded after {n} of 2 byte(s) \
@@ -326,7 +326,7 @@ fn read_header_with_timeout<R: Read>(
                 }
                 if let Some(db) = drain_deadline {
                     if now >= db {
-                        return Err(crate::error::Error::Streaming {
+                        return Err(crate::error::Error::Stream {
                             kind: crate::error::StreamErrorKind::ProtocolError,
                             message: format!(
                                 "{DRAIN_YIELD_MARKER}: mid-header after {n} of 2 byte(s) \
@@ -338,7 +338,7 @@ fn read_header_with_timeout<R: Read>(
                 }
                 let deadline = *stall_deadline.get_or_insert(now + stall_timeout);
                 if now >= deadline {
-                    return Err(crate::error::Error::Streaming {
+                    return Err(crate::error::Error::Stream {
                         kind: crate::error::StreamErrorKind::ProtocolError,
                         message: format!(
                             "mid-header read timeout after {n} of 2 byte(s) without progress for {} ms: {e}",
@@ -436,7 +436,7 @@ fn read_exact_payload_with_timeout<R: Read>(
         let n = state.payload_read;
         match reader.read(&mut buf[n..]) {
             Ok(0) => {
-                return Err(crate::error::Error::Streaming {
+                return Err(crate::error::Error::Stream {
                     kind: crate::error::StreamErrorKind::ProtocolError,
                     message: format!("EOF mid-payload: got {n} of {} bytes", buf.len()),
                 })
@@ -460,7 +460,7 @@ fn read_exact_payload_with_timeout<R: Read>(
                 // down by the I/O loop's reconnect/watchdog once the whole
                 // frame exceeds the cap instead of resuming forever.
                 if now >= frame_deadline {
-                    return Err(crate::error::Error::Streaming {
+                    return Err(crate::error::Error::Stream {
                         kind: crate::error::StreamErrorKind::ProtocolError,
                         message: format!(
                             "mid-payload frame deadline exceeded after {n} of {} byte(s) \
@@ -471,7 +471,7 @@ fn read_exact_payload_with_timeout<R: Read>(
                     });
                 }
                 if now >= drain_deadline {
-                    return Err(crate::error::Error::Streaming {
+                    return Err(crate::error::Error::Stream {
                         kind: crate::error::StreamErrorKind::ProtocolError,
                         message: format!(
                             "{DRAIN_YIELD_MARKER}: mid-payload after {n} of {} byte(s) \
@@ -483,7 +483,7 @@ fn read_exact_payload_with_timeout<R: Read>(
                 }
                 let deadline = *stall_deadline.get_or_insert(now + stall_timeout);
                 if now >= deadline {
-                    return Err(crate::error::Error::Streaming {
+                    return Err(crate::error::Error::Stream {
                         kind: crate::error::StreamErrorKind::ProtocolError,
                         message: format!(
                             "mid-payload read timeout after {n} of {} byte(s) without progress for {} ms: {e}",
@@ -604,7 +604,7 @@ pub fn read_frame_into_with_stall_timeout<R: Read>(
         }
         let new_consecutive = consecutive_unknown + 1;
         if new_consecutive >= MAX_CONSECUTIVE_UNKNOWN_CODES {
-            return Err(crate::error::Error::Streaming {
+            return Err(crate::error::Error::Stream {
                 kind: crate::error::StreamErrorKind::ProtocolError,
                 message: format!(
                     "framing corruption: {new_consecutive} consecutive \
@@ -667,7 +667,7 @@ pub fn read_frame<R: Read>(reader: &mut R) -> Result<Option<Frame>, crate::error
 pub fn is_drain_yield(err: &crate::error::Error) -> bool {
     matches!(
         err,
-        crate::error::Error::Streaming {
+        crate::error::Error::Stream {
             kind: crate::error::StreamErrorKind::ProtocolError,
             message,
         } if message.contains(DRAIN_YIELD_MARKER)
@@ -686,7 +686,7 @@ pub fn is_drain_yield(err: &crate::error::Error) -> bool {
 /// Returns an error on network, authentication, or parsing failure.
 pub fn write_frame<W: Write>(writer: &mut W, frame: &Frame) -> Result<(), crate::error::Error> {
     if frame.payload.len() > MAX_PAYLOAD_LEN {
-        return Err(crate::error::Error::Streaming {
+        return Err(crate::error::Error::Stream {
             kind: crate::error::StreamErrorKind::ProtocolError,
             message: format!(
                 "frame payload too large: {} bytes (max {})",
@@ -697,11 +697,10 @@ pub fn write_frame<W: Write>(writer: &mut W, frame: &Frame) -> Result<(), crate:
     }
 
     // Length already validated <= MAX_PAYLOAD_LEN (255); code is a StreamMsgType u8 repr.
-    let len_byte =
-        u8::try_from(frame.payload.len()).map_err(|_| crate::error::Error::Streaming {
-            kind: crate::error::StreamErrorKind::ProtocolError,
-            message: format!("frame payload length overflow: {}", frame.payload.len()),
-        })?;
+    let len_byte = u8::try_from(frame.payload.len()).map_err(|_| crate::error::Error::Stream {
+        kind: crate::error::StreamErrorKind::ProtocolError,
+        message: format!("frame payload length overflow: {}", frame.payload.len()),
+    })?;
     let header = [len_byte, frame.code as u8];
     writer.write_all(&header)?;
     if !frame.payload.is_empty() {
@@ -745,7 +744,7 @@ pub fn write_raw_frame_no_flush<W: Write>(
     payload: &[u8],
 ) -> Result<(), crate::error::Error> {
     if payload.len() > MAX_PAYLOAD_LEN {
-        return Err(crate::error::Error::Streaming {
+        return Err(crate::error::Error::Stream {
             kind: crate::error::StreamErrorKind::ProtocolError,
             message: format!(
                 "frame payload too large: {} bytes (max {})",
@@ -756,7 +755,7 @@ pub fn write_raw_frame_no_flush<W: Write>(
     }
 
     // Length already validated <= MAX_PAYLOAD_LEN (255).
-    let len_byte = u8::try_from(payload.len()).map_err(|_| crate::error::Error::Streaming {
+    let len_byte = u8::try_from(payload.len()).map_err(|_| crate::error::Error::Stream {
         kind: crate::error::StreamErrorKind::ProtocolError,
         message: format!("frame payload length overflow: {}", payload.len()),
     })?;
@@ -1085,7 +1084,7 @@ mod tests {
         )
         .unwrap_err();
         match err {
-            crate::error::Error::Streaming { kind, message } => {
+            crate::error::Error::Stream { kind, message } => {
                 assert_eq!(kind, crate::error::StreamErrorKind::ProtocolError);
                 assert!(
                     message.contains("mid-payload")
@@ -1220,7 +1219,7 @@ mod tests {
         )
         .unwrap_err();
         match err {
-            crate::error::Error::Streaming { kind, message } => {
+            crate::error::Error::Stream { kind, message } => {
                 assert_eq!(kind, crate::error::StreamErrorKind::ProtocolError);
                 assert!(message.contains("mid-payload"), "got: {message}");
             }
@@ -1248,7 +1247,7 @@ mod tests {
         )
         .unwrap_err();
         match err {
-            crate::error::Error::Streaming { kind, message } => {
+            crate::error::Error::Stream { kind, message } => {
                 assert_eq!(kind, crate::error::StreamErrorKind::ProtocolError);
                 assert!(
                     message.contains("mid-header")
@@ -1299,7 +1298,7 @@ mod tests {
         let elapsed = started.elapsed();
 
         match &err {
-            crate::error::Error::Streaming { kind, message } => {
+            crate::error::Error::Stream { kind, message } => {
                 assert_eq!(*kind, crate::error::StreamErrorKind::ProtocolError);
                 assert!(
                     message.contains(DRAIN_YIELD_MARKER),
@@ -1425,7 +1424,7 @@ mod tests {
         let mut cursor = Cursor::new(data);
         let err = read_frame(&mut cursor).unwrap_err();
         match err {
-            crate::error::Error::Streaming { kind, message } => {
+            crate::error::Error::Stream { kind, message } => {
                 assert_eq!(kind, crate::error::StreamErrorKind::ProtocolError);
                 assert!(message.contains("truncated FPSS header"));
             }
@@ -1550,7 +1549,7 @@ mod tests {
 
         // The error must be a drain-yield, not a per-stall fatal.
         match &err {
-            crate::error::Error::Streaming { kind, message } => {
+            crate::error::Error::Stream { kind, message } => {
                 assert_eq!(*kind, crate::error::StreamErrorKind::ProtocolError);
                 assert!(
                     message.contains(DRAIN_YIELD_MARKER),
@@ -1828,7 +1827,7 @@ mod tests {
             "the cut-off must be a fatal read, not a recoverable drain-yield"
         );
         match &fatal {
-            crate::error::Error::Streaming { kind, message } => {
+            crate::error::Error::Stream { kind, message } => {
                 assert_eq!(*kind, crate::error::StreamErrorKind::ProtocolError);
                 assert!(
                     message.contains("frame deadline exceeded") && message.contains("mid-payload"),
@@ -1903,7 +1902,7 @@ mod tests {
             "header cut-off must be fatal, not a drain-yield"
         );
         match &fatal {
-            crate::error::Error::Streaming { kind, message } => {
+            crate::error::Error::Stream { kind, message } => {
                 assert_eq!(*kind, crate::error::StreamErrorKind::ProtocolError);
                 assert!(
                     message.contains("frame deadline exceeded") && message.contains("mid-header"),
@@ -1930,14 +1929,14 @@ mod tests {
     #[test]
     fn is_drain_yield_classifier_is_precise() {
         // Drain-yield with the expected marker -> true.
-        let dy = crate::error::Error::Streaming {
+        let dy = crate::error::Error::Stream {
             kind: crate::error::StreamErrorKind::ProtocolError,
             message: format!("{DRAIN_YIELD_MARKER}: mid-payload after 3 of 8 byte(s)"),
         };
         assert!(is_drain_yield(&dy));
 
         // Unrelated protocol error -> false.
-        let other = crate::error::Error::Streaming {
+        let other = crate::error::Error::Stream {
             kind: crate::error::StreamErrorKind::ProtocolError,
             message: "truncated FPSS header: got 1 byte(s), expected 2".to_string(),
         };

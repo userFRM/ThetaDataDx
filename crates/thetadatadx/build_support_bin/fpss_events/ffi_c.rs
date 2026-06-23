@@ -17,16 +17,16 @@ use super::schema::{
 fn render_kind_enum_c(schema: &Schema) -> String {
     let mut out = String::new();
     out.push_str(
-        "/* FPSS event kind tag. Schema-driven from fpss_event_schema.toml.\n\
+        "/* Stream event kind tag. Schema-driven from fpss_event_schema.toml.\n\
  * Check `event.kind` then read the matching `event.<variant>` field on\n\
  * `ThetaDataDxStreamEvent`. Values are stable across the current C ABI but may\n\
  * renumber on a future major bump. */\n",
     );
     out.push_str("typedef enum {\n");
     for (idx, name) in sorted_event_names(schema).iter().enumerate() {
-        // C-side identifier: `THETADATADX_FPSS_<SCREAMING_SNAKE>`.
+        // C-side identifier: `THETADATADX_STREAM_<SCREAMING_SNAKE>`.
         let upper = snake_case(name).to_uppercase();
-        writeln!(out, "    THETADATADX_FPSS_{upper} = {idx},").unwrap();
+        writeln!(out, "    THETADATADX_STREAM_{upper} = {idx},").unwrap();
     }
     out.push_str("} ThetaDataDxStreamEventKind;\n\n");
     out
