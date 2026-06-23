@@ -502,6 +502,14 @@ pub struct RecordBatchStream {
     /// upgrade fails and the reset is a no-op (the client's own `Drop` already
     /// quiesced).
     owner: Weak<StreamingState>,
+    /// The owning client's stop-generation at the instant this reader's
+    /// session was installed. On close the reader quiesces only if the live
+    /// generation still matches: it identifies the session THIS reader
+    /// started, so a reader whose session was already superseded (by a
+    /// `stop_streaming` / `reconnect_streaming` / a later session on the same
+    /// client) leaves the current session to its owner rather than tearing
+    /// down one it does not own.
+    owned_generation: u64,
     /// Runs the owner-state reset exactly once, even though `close_shared` is
     /// `&self` and a binding may call it from several paths (explicit close,
     /// then free, then the core `Drop`) and from different threads.
@@ -541,7 +549,7 @@ impl RecordBatchStream {
         // is rolled back by the shared start path, so `shared` simply drops
         // here with no thread left behind. On success we hold the live
         // client `Arc` so close / drop can shut the session deterministically.
-        let live = client.start_streaming_batches(
+        let (live, owned_generation) = client.start_streaming_batches(
             Arc::clone(&shared),
             batch_size,
             linger,
@@ -549,13 +557,16 @@ impl RecordBatchStream {
         )?;
         // Capture the owner-state handle only after a successful start, so a
         // failed build leaves no reference behind. Weak, so the reader's later
-        // close never resurrects or outlives the client's state.
+        // close never resurrects or outlives the client's state. The
+        // `owned_generation` stamps the session this reader started so close
+        // only tears that session down, never a later one that replaced it.
         let owner = client.streaming_state_weak();
 
         Ok(Self {
             shared,
             client: live,
             owner,
+            owned_generation,
             quiesce_once: Once::new(),
             closed: false,
         })
@@ -596,29 +607,48 @@ impl RecordBatchStream {
     /// `close()` / context-manager exit, where the reader is shared and a
     /// pull may be blocked: it never needs exclusive ownership, so it cannot
     /// deadlock against the in-flight pull the way a `&mut` close would.
+    ///
+    /// Invariant: this tears down only the session this reader started. If the
+    /// owning client has since moved on to a different session (a
+    /// `stop_streaming` / `reconnect_streaming`, or a later session on the same
+    /// client), that session is left to its current owner.
     pub fn close_shared(&self) {
-        // Set `closed` and wake a Block-mode dispatcher parked on a full queue
-        // (and any parked consumer) BEFORE shutting the client, so a parked
-        // flush re-checks `closed`, stops pushing, and lets the dispatcher
-        // reach the ring-shutdown exit. `close_and_wake` stores `closed` under
-        // `inner` (the lost-wakeup discipline) and notifies. The very same call
-        // is the wake hook the columnar dispatcher installs, so the
-        // quiesce-direct teardown paths get the identical wakeup; see
-        // `Shared::close_and_wake`.
+        // Always signal THIS reader's own queue: set `closed` and wake a
+        // Block-mode dispatcher parked on a full queue (and any parked
+        // consumer), so a parked flush re-checks `closed`, stops pushing, and
+        // the dispatcher reaches the ring-shutdown exit. `close_and_wake`
+        // stores `closed` under `inner` (the lost-wakeup discipline) and
+        // notifies. This same call is the wake hook the columnar dispatcher
+        // installs, so the quiesce-direct teardown paths get the identical
+        // wakeup; see `Shared::close_and_wake`. It acts on this reader's own
+        // `Shared`, so it is correct regardless of which session is now live.
         self.shared.close_and_wake();
         // Authoritative teardown, run exactly once. Reset the owning client's
         // streaming state through the SAME `StreamingState::quiesce` the
         // callback surface's `stop_streaming` uses: swap the slot to `Stopped`,
         // shut the live client (stop the I/O + ping threads, close the socket,
-        // shut the ring), and retire the dispatcher session. After this the
-        // client is truthful (`is_streaming` / `connection_status` report a
-        // stopped session) and reusable (a later `start_streaming*` /
-        // `batches()` no longer sees a stale `Live` slot). If the client has
-        // already been dropped the weak upgrade fails — its own `Drop` already
-        // quiesced — so fall back to shutting our own client `Arc` directly,
-        // which is all that remains to do.
+        // shut the ring), and retire the dispatcher session, leaving the client
+        // truthful (`is_streaming` / `connection_status` report a stopped
+        // session) and reusable.
+        //
+        // But quiesce only when the live generation still matches the one this
+        // reader's session was installed at. Once a teardown has advanced the
+        // generation, the live session is no longer this reader's — quiescing
+        // it would tear down a session this reader does not own (e.g. a
+        // callback session started after this reader was stopped). In that case
+        // the predecessor teardown already retired this reader's session, so
+        // there is nothing left for this reader to do.
+        //
+        // If the client has already been dropped the weak upgrade fails (its
+        // own `Drop` already quiesced); fall back to shutting our own client
+        // `Arc` directly, which is all that remains and only touches this
+        // reader's session.
         self.quiesce_once.call_once(|| match self.owner.upgrade() {
-            Some(state) => state.quiesce(),
+            Some(state) => {
+                if state.stop_generation() == self.owned_generation {
+                    state.quiesce();
+                }
+            }
             None => self.client.shutdown(),
         });
     }

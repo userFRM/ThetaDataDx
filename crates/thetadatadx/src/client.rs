@@ -324,6 +324,18 @@ impl StreamingState {
         }
     }
 
+    /// The current stop generation.
+    ///
+    /// Bumped by every [`Self::quiesce`]. The columnar reader captures the
+    /// value its session was installed at and compares it here on close, so it
+    /// quiesces only while its own session is still the live one; once a
+    /// teardown (a stop / reconnect / another reader) has advanced the
+    /// generation, the reader's close no longer matches and leaves the current
+    /// session to its owner.
+    pub(crate) fn stop_generation(&self) -> u64 {
+        self.stop_generation.load(Ordering::Acquire)
+    }
+
     /// Test-only: the current streaming-slot variant as a static label, so a
     /// test can assert the `Idle → Live → Stopped` transition `quiesce` drives
     /// without naming the private `Arc<StreamingClient>` payload.
@@ -343,12 +355,6 @@ impl StreamingState {
             *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()),
             DispatcherSession::Idle
         )
-    }
-
-    /// Test-only: the current stop generation.
-    #[cfg(test)]
-    fn stop_generation_value(&self) -> u64 {
-        self.stop_generation.load(Ordering::Acquire)
     }
 }
 
@@ -523,7 +529,7 @@ impl Client {
             },
             None,
         )
-        .map(|_client| ())
+        .map(|(_client, _generation)| ())
     }
 
     /// Start FPSS streaming with a custom dispatcher consumer body.
@@ -546,6 +552,14 @@ impl Client {
     /// lock, so a teardown racing the start never sees a `Running` session
     /// without its hook.
     ///
+    /// On success returns the live client and the stop-generation the session
+    /// was installed at. The columnar reader stamps that generation so its
+    /// close tears down only the session it started, never a later session
+    /// that replaced it (see [`crate::fpss::batch_reader::RecordBatchStream`]).
+    /// The value is the generation the install was validated against, so it
+    /// identifies this session even if a teardown bumps the generation right
+    /// after the install commits.
+    ///
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure, or
@@ -554,7 +568,7 @@ impl Client {
         &self,
         dispatcher_body: B,
         on_teardown: Option<Box<dyn FnOnce() + Send>>,
-    ) -> Result<Arc<StreamingClient>, Error>
+    ) -> Result<(Arc<StreamingClient>, u64), Error>
     where
         B: FnOnce(Arc<StreamingClient>) + Send + 'static,
     {
@@ -710,7 +724,7 @@ impl Client {
                     on_teardown,
                 };
                 let _ = gate.set(true);
-                Ok(client_arc)
+                Ok((client_arc, gen_at_entry))
             }
             Err(install_err) => {
                 // Shut down the client so the dispatcher sees a clean
@@ -744,6 +758,9 @@ impl Client {
     ///
     /// Returns an error on network, authentication, or parsing failure, or
     /// when a stream is already active on this client.
+    /// On success returns the live client and the stop-generation the columnar
+    /// session was installed at, so the reader can stamp the session it owns
+    /// and refuse to tear down a later session that replaced it.
     #[cfg(feature = "arrow")]
     pub(crate) fn start_streaming_batches(
         &self,
@@ -751,7 +768,7 @@ impl Client {
         batch_size: usize,
         linger: std::time::Duration,
         backpressure: crate::fpss::batch_reader::Backpressure,
-    ) -> Result<Arc<StreamingClient>, Error> {
+    ) -> Result<(Arc<StreamingClient>, u64), Error> {
         // Teardown wake hook: a `Block` dispatcher can be parked in the batch
         // queue's `flush` wait, which the FPSS shutdown does not touch. Any
         // teardown that runs `quiesce` directly (a `Client` drop /
@@ -2514,7 +2531,7 @@ mod tests {
         let state = StreamingState::new();
         assert_eq!(state.slot_label(), "Idle");
         assert!(state.dispatcher_is_idle());
-        let gen0 = state.stop_generation_value();
+        let gen0 = state.stop_generation();
 
         state.quiesce();
 
@@ -2528,17 +2545,17 @@ mod tests {
             "quiesce must leave the dispatcher Idle"
         );
         assert!(
-            state.stop_generation_value() > gen0,
+            state.stop_generation() > gen0,
             "quiesce must bump the stop generation (resurrection guard)"
         );
 
         // Idempotent: a second close (e.g. binding close() then the core Drop)
         // is a harmless no-op beyond bumping the generation again.
-        let gen1 = state.stop_generation_value();
+        let gen1 = state.stop_generation();
         state.quiesce();
         assert_eq!(state.slot_label(), "Stopped");
         assert!(state.dispatcher_is_idle());
-        assert!(state.stop_generation_value() > gen1);
+        assert!(state.stop_generation() > gen1);
     }
 
     /// `quiesce` retires a `Running` dispatcher session — joining its thread
@@ -2643,6 +2660,94 @@ mod tests {
         assert!(
             state.dispatcher_is_idle(),
             "after quiesce the dispatcher session is retired to Idle"
+        );
+    }
+
+    /// A columnar reader's close must tear down ONLY the session it started.
+    /// `RecordBatchStream::close_shared` quiesces the owning state only when
+    /// `state.stop_generation() == self.owned_generation`; this exercises that
+    /// guard directly against the mixed-mode supersession sequence.
+    ///
+    /// Sequence modeled: reader R starts its session and stamps the generation
+    /// it owns; R's session is then retired (a `stop_streaming`, which advances
+    /// the generation); a NEW session is installed on the same state (the
+    /// callback session a caller can legitimately start once the slot is no
+    /// longer `Live`). When R is finally dropped, its stamp no longer matches
+    /// the live generation, so its close must NOT retire the newer session.
+    #[test]
+    fn stale_generation_reader_does_not_tear_down_a_newer_session() {
+        let state = StreamingState::new();
+
+        // R installs its session and stamps the generation it owns.
+        let r_handle = std::thread::spawn(|| {});
+        *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
+            handle: r_handle,
+            on_teardown: None,
+        };
+        let r_owned_generation = state.stop_generation();
+
+        // R's session is retired by a stop (advances the generation).
+        state.quiesce();
+        assert!(state.dispatcher_is_idle());
+        assert_ne!(
+            state.stop_generation(),
+            r_owned_generation,
+            "the stop must advance the generation past R's stamp"
+        );
+
+        // A NEW session is installed on the same client (e.g. a callback
+        // session, valid now that the slot is no longer Live).
+        let newer_handle = std::thread::spawn(|| {});
+        *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
+            handle: newer_handle,
+            on_teardown: None,
+        };
+
+        // R is dropped now. Its close guard: quiesce ONLY if the live
+        // generation still matches R's stamp. It does not, so R must leave the
+        // newer session alone.
+        let r_close_would_quiesce = state.stop_generation() == r_owned_generation;
+        assert!(
+            !r_close_would_quiesce,
+            "a stale-generation reader must not quiesce"
+        );
+        if r_close_would_quiesce {
+            state.quiesce();
+        }
+        assert!(
+            !state.dispatcher_is_idle(),
+            "R's stale close must leave the newer session Running, not retire it"
+        );
+
+        // Tidy up the still-Running newer session so its thread is joined.
+        state.quiesce();
+    }
+
+    /// The matching-generation reader (the normal single-reader close) DOES
+    /// quiesce: when no teardown has advanced the generation, the live session
+    /// is still the one this reader started, so its close retires it. Guards
+    /// against the stamp over-suppressing the common path.
+    #[test]
+    fn matching_generation_reader_quiesces_its_own_session() {
+        let state = StreamingState::new();
+        let handle = std::thread::spawn(|| {});
+        *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
+            handle,
+            on_teardown: None,
+        };
+        let owned_generation = state.stop_generation();
+
+        // Nothing advanced the generation, so the reader's close guard matches
+        // and quiesces its own session.
+        let close_would_quiesce = state.stop_generation() == owned_generation;
+        assert!(
+            close_would_quiesce,
+            "an un-superseded reader's stamp must still match the live generation"
+        );
+        state.quiesce();
+        assert!(
+            state.dispatcher_is_idle(),
+            "the matching-generation close retires its own session"
         );
     }
 
