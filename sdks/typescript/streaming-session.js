@@ -538,13 +538,22 @@ for (const name of Object.getOwnPropertyNames(native)) {
 // generic typed-error wrapping above, so the handle's errors still
 // reclassify. The native method stays `async`, so the patched method
 // awaits and re-wraps.
+//
+// The wrap is a named function (not an inline closure) so the test suite
+// can drive this exact forwarding logic against a stub native method —
+// proving the single options object reaches `batches(options)` verbatim,
+// with no positional explosion, and the native handle is re-wrapped — on
+// the real code path rather than a reimplementation that could drift.
+function wrapStreamViewBatches(nativeBatches) {
+  return async function batches(...args) {
+    const handle = await nativeBatches.apply(this, args);
+    return new RecordBatchStream(handle);
+  };
+}
 if (native.StreamView && native.StreamView.prototype) {
   const nativeBatches = native.StreamView.prototype.batches;
   if (typeof nativeBatches === 'function') {
-    native.StreamView.prototype.batches = async function batches(...args) {
-      const handle = await nativeBatches.apply(this, args);
-      return new RecordBatchStream(handle);
-    };
+    native.StreamView.prototype.batches = wrapStreamViewBatches(nativeBatches);
   }
 }
 
@@ -578,6 +587,10 @@ module.exports = Object.assign({}, native, exportedClasses, exportedFreeFns, {
   StreamingSession,
   // The JS-side columnar reader returned by `client.stream.batches(...)`.
   RecordBatchStream,
+  // The forwarder installed onto `StreamView.prototype.batches`. Exported
+  // so the test suite can drive the real options-object -> native call shape
+  // and the handle re-wrap against a stub native method (no live server).
+  wrapStreamViewBatches,
   // The documented `Contract` name resolves to the same static-wrapped
   // export as `ContractRef`, so `Contract.option(...)` reclassifies too.
   Contract: exportedClasses.ContractRef ?? native.ContractRef,
