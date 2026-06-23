@@ -77,6 +77,20 @@ fn schema_to_ipc(schema: &Arc<arrow_schema::Schema>) -> napi::Result<Vec<u8>> {
     Ok(buf)
 }
 
+/// Tuning knobs for `StreamView.batches(options?)`. Each field maps to a
+/// builder setter; `None` keeps the production default. napi renders this as
+/// a TypeScript object `{ batchSize?, lingerMs?, backpressure?, capacity? }`,
+/// which is the documented call form. The prior positional parameters threw a
+/// coercion error when a caller passed that documented options object.
+#[napi(object)]
+#[derive(Default)]
+pub struct BatchesOptions {
+    pub batch_size: Option<u32>,
+    pub linger_ms: Option<u32>,
+    pub backpressure: Option<String>,
+    pub capacity: Option<u32>,
+}
+
 /// Open a [`RecordBatchStreamHandle`] over the unified client's stream.
 ///
 /// Called by the generated `StreamView.batches(..)` entry. The connect runs

@@ -2917,7 +2917,7 @@ export declare class StreamView {
    * `backpressure` is `"block"` (default, lossless) or
    * `"dropOldest"`; `capacity` bounds the drop-oldest buffer.
    */
-  batches(batchSize?: number | undefined | null, lingerMs?: number | undefined | null, backpressure?: string | undefined | null, capacity?: number | undefined | null): Promise<RecordBatchStreamHandle>
+  batches(options?: BatchesOptions | undefined | null): Promise<RecordBatchStreamHandle>
   /** Get a snapshot of currently active subscriptions. */
   activeSubscriptions(): any
   /**
@@ -3197,6 +3197,20 @@ export interface AllGreeks {
   dualGamma: number
   epsilon: number
   lambda: number
+}
+
+/**
+ * Tuning knobs for `StreamView.batches(options?)`. Each field maps to a
+ * builder setter; `None` keeps the production default. napi renders this as
+ * a TypeScript object `{ batchSize?, lingerMs?, backpressure?, capacity? }`,
+ * which is the documented call form. The prior positional parameters threw a
+ * coercion error when a caller passed that documented options object.
+ */
+export interface BatchesOptions {
+  batchSize?: number
+  lingerMs?: number
+  backpressure?: string
+  capacity?: number
 }
 
 /** Calendar day. Market open/close schedule. */

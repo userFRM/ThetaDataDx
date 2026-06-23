@@ -142,8 +142,9 @@ impl StreamView {
     /// `backpressure` is `"block"` (default, lossless) or
     /// `"dropOldest"`; `capacity` bounds the drop-oldest buffer.
     #[napi(js_name = "batches")]
-    pub async fn batches(&self, batch_size: Option<u32>, linger_ms: Option<u32>, backpressure: Option<String>, capacity: Option<u32>) -> napi::Result<crate::streaming_batches::RecordBatchStreamHandle> {
-        crate::streaming_batches::open_handle(std::sync::Arc::clone(&self.client), batch_size, linger_ms, backpressure, capacity).await
+    pub async fn batches(&self, options: Option<crate::streaming_batches::BatchesOptions>) -> napi::Result<crate::streaming_batches::RecordBatchStreamHandle> {
+        let options = options.unwrap_or_default();
+        crate::streaming_batches::open_handle(std::sync::Arc::clone(&self.client), options.batch_size, options.linger_ms, options.backpressure, options.capacity).await
     }
 
     /// Get a snapshot of currently active subscriptions.

@@ -119,12 +119,13 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             writeln!(out, "    #[napi(js_name = \"batches\")]").unwrap();
             writeln!(
                 out,
-                "    pub async fn {}(&self, batch_size: Option<u32>, linger_ms: Option<u32>, backpressure: Option<String>, capacity: Option<u32>) -> napi::Result<crate::streaming_batches::RecordBatchStreamHandle> {{",
+                "    pub async fn {}(&self, options: Option<crate::streaming_batches::BatchesOptions>) -> napi::Result<crate::streaming_batches::RecordBatchStreamHandle> {{",
                 method.name
             )
             .unwrap();
+            out.push_str("        let options = options.unwrap_or_default();\n");
             out.push_str(
-                "        crate::streaming_batches::open_handle(std::sync::Arc::clone(&self.client), batch_size, linger_ms, backpressure, capacity).await\n",
+                "        crate::streaming_batches::open_handle(std::sync::Arc::clone(&self.client), options.batch_size, options.linger_ms, options.backpressure, options.capacity).await\n",
             );
             out.push_str("    }\n");
         }
