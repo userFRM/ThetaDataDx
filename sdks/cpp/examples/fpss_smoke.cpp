@@ -1,4 +1,4 @@
-// fpss_smoke.cpp -- C++ FPSS smoke test driven by the callback C ABI.
+// fpss_smoke.cpp -- C++ streaming smoke test driven by the callback C ABI.
 //
 // Subscribes to a stock and an option contract, registers a queued
 // callback, prints every event for a few seconds, then exits cleanly.
@@ -75,13 +75,13 @@ int main(int argc, char** argv) {
         auto creds = thetadatadx::Credentials::from_file(creds_path);
         auto config = thetadatadx::Config::production();
 
-        thetadatadx::StreamingClient fpss(creds, config);
+        thetadatadx::StreamingClient streaming(creds, config);
 
         std::atomic<int> total_events{0};
         std::atomic<int> data_events{0};
         std::mutex print_mtx;
 
-        fpss.set_callback([&](const thetadatadx::StreamEvent& event) {
+        streaming.set_callback([&](const thetadatadx::StreamEvent& event) {
             const int seq = total_events.fetch_add(1, std::memory_order_relaxed);
             if (!is_control_kind(event.kind)) {
                 data_events.fetch_add(1, std::memory_order_relaxed);
@@ -172,24 +172,24 @@ int main(int argc, char** argv) {
         auto stock = thetadatadx::Contract::stock(kSymbol);
         auto option = thetadatadx::Contract::option(
             kOptionSymbol, {.expiration = kExpiration, .strike = kStrike, .right = kRight});
-        fpss.subscribe(stock.quote());
-        fpss.subscribe(stock.trade());
-        fpss.subscribe(option.quote());
+        streaming.subscribe(stock.quote());
+        streaming.subscribe(stock.trade());
+        streaming.subscribe(option.quote());
 
         std::this_thread::sleep_for(kCollectFor);
 
         const int total = total_events.load(std::memory_order_relaxed);
         const int data = data_events.load(std::memory_order_relaxed);
-        const uint64_t dropped = fpss.dropped_event_count();
+        const uint64_t dropped = streaming.dropped_event_count();
 
         std::cout << "summary: total=" << total
                   << " data=" << data
                   << " dropped=" << dropped << std::endl;
 
-        fpss.shutdown();
+        streaming.shutdown();
         return data > 0 ? 0 : 1;
     } catch (const std::exception& e) {
-        std::cerr << "fpss_smoke error: " << e.what() << std::endl;
+        std::cerr << "streaming smoke error: " << e.what() << std::endl;
         return 2;
     }
 }
