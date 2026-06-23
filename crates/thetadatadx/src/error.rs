@@ -86,11 +86,11 @@ impl std::fmt::Display for TransportErrorKind {
     }
 }
 
-/// Classification of FPSS streaming failures.
+/// Classification of streaming failures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum StreamErrorKind {
-    /// Could not connect to any FPSS server.
+    /// Could not connect to any streaming server.
     ConnectionRefused,
     /// Operation timed out.
     Timeout,
@@ -440,10 +440,10 @@ pub enum Error {
         message: String,
     },
 
-    /// FPSS streaming error.
-    #[error("FPSS error ({kind}): {message}")]
-    Fpss {
-        /// Concrete FPSS streaming failure category.
+    /// Streaming error.
+    #[error("streaming error ({kind}): {message}")]
+    Streaming {
+        /// Concrete streaming failure category.
         kind: StreamErrorKind,
         /// Human-readable detail for logs and `Display`.
         message: String,
@@ -953,7 +953,7 @@ mod tests {
 
     #[test]
     fn config_out_of_range_roundtrip() {
-        let err = Error::config_out_of_range("fpss.timeout_ms", 0, 100, 60_000);
+        let err = Error::config_out_of_range("streaming.timeout_ms", 0, 100, 60_000);
         match err {
             Error::Config {
                 kind:
@@ -965,7 +965,7 @@ mod tests {
                     },
                 ..
             } => {
-                assert_eq!(field, "fpss.timeout_ms");
+                assert_eq!(field, "streaming.timeout_ms");
                 assert_eq!(value, 0);
                 assert_eq!(min, 100);
                 assert_eq!(max, 60_000);
@@ -976,7 +976,7 @@ mod tests {
 
     #[test]
     fn config_invalid_kind_carried() {
-        let err = Error::config_invalid("mdds.uri", "not a URI");
+        let err = Error::config_invalid("historical.uri", "not a URI");
         assert!(matches!(
             err,
             Error::Config {
@@ -1099,7 +1099,7 @@ mod tests {
     fn config_kind_invalid_parameter_partition() {
         // User-input rejections are invalid-parameter kinds.
         assert!(ConfigErrorKind::OutOfRange {
-            field: "fpss.timeout_ms".into(),
+            field: "streaming.timeout_ms".into(),
             value: 0,
             min: 100,
             max: 60_000,
@@ -1107,7 +1107,7 @@ mod tests {
         .is_invalid_parameter());
         assert!(ConfigErrorKind::MissingField("auth.email".into()).is_invalid_parameter());
         assert!(ConfigErrorKind::InvalidValue {
-            field: "mdds.uri".into(),
+            field: "historical.uri".into(),
             message: "not a URI".into(),
         }
         .is_invalid_parameter());

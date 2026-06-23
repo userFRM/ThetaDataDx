@@ -18,7 +18,7 @@ One error model spans the SDK: the Rust core classifies every failure once, and 
 | Per-request deadline elapsed | `Timeout` | `TimeoutError` | `thetadatadx::Error` with `kind == Timeout` |
 | Connection / TLS / protocol fault | `Transport` | `NetworkError` | `thetadatadx::NetworkError` |
 | Response shape unexpected | `Decode` | `SchemaMismatchError` | `thetadatadx::SchemaMismatchError` |
-| Streaming session fault | `Fpss` | `StreamError` | `thetadatadx::StreamError` |
+| Streaming session fault | `Streaming` | `StreamError` | `thetadatadx::StreamError` |
 | Invalid parameters / configuration | `Config` | `ThetaDataError` | `thetadatadx::ThetaDataError` |
 
 - **Python** exceptions all derive from `ThetaDataError`, so `except ThetaDataError` is the catch-all.

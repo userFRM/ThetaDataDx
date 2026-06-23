@@ -561,7 +561,7 @@ impl Client {
     /// Helper: error returned when `start_streaming*` is called while
     /// the slot is already [`StreamingSlot::Live`].
     fn already_streaming() -> Error {
-        Error::Fpss {
+        Error::Streaming {
             kind: crate::error::StreamErrorKind::ConnectionRefused,
             message: "streaming already started".into(),
         }
@@ -572,7 +572,7 @@ impl Client {
     /// streaming after the caller observed it stopped. The freshly built
     /// [`StreamingClient`] is dropped before this returns.
     fn stopped_during_start() -> Error {
-        Error::Fpss {
+        Error::Streaming {
             kind: crate::error::StreamErrorKind::Disconnected,
             message: "stop_streaming() raced ahead of start_streaming(); start refused".into(),
         }
@@ -805,7 +805,7 @@ impl Client {
                     );
                 }
             })
-            .map_err(|e| Error::Fpss {
+            .map_err(|e| Error::Streaming {
                 kind: crate::error::StreamErrorKind::ConnectionRefused,
                 message: format!("failed to spawn streaming dispatcher thread: {e}"),
             })?;
@@ -1323,7 +1323,7 @@ impl Client {
         let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => f(client.as_ref()),
-            StreamingSlot::Idle | StreamingSlot::Stopped => Err(Error::Fpss {
+            StreamingSlot::Idle | StreamingSlot::Stopped => Err(Error::Streaming {
                 kind: crate::error::StreamErrorKind::Disconnected,
                 message: "streaming not started -- call start_streaming() first".into(),
             }),
@@ -1407,7 +1407,7 @@ impl Client {
     /// Get all active per-contract subscriptions.
     /// # Errors
     ///
-    /// Returns [`Error::Fpss`] when streaming has not been started.
+    /// Returns [`Error::Streaming`] when streaming has not been started.
     pub(crate) fn active_subscriptions(&self) -> Result<Vec<(SubscriptionKind, Contract)>, Error> {
         self.with_streaming(|s| Ok(s.active_subscriptions()))
     }
@@ -1415,7 +1415,7 @@ impl Client {
     /// Get all active full-type (full-stream) subscriptions.
     /// # Errors
     ///
-    /// Returns [`Error::Fpss`] when streaming has not been started.
+    /// Returns [`Error::Streaming`] when streaming has not been started.
     pub(crate) fn active_full_subscriptions(
         &self,
     ) -> Result<Vec<(SubscriptionKind, SecType)>, Error> {
@@ -1467,7 +1467,7 @@ impl Client {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Fpss`], [`Error::Auth`], etc. when the underlying
+    /// Returns [`Error::Streaming`], [`Error::Auth`], etc. when the underlying
     /// streaming session cannot be re-established (steps 1–3).
     ///
     /// Returns [`Error::PartialReconnect`] when the streaming session was
@@ -2225,7 +2225,7 @@ impl StreamSurface<'_> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Fpss`] when streaming has not been started.
+    /// Returns [`Error::Streaming`] when streaming has not been started.
     pub fn active_subscriptions(&self) -> Result<Vec<(SubscriptionKind, Contract)>, Error> {
         self.0.active_subscriptions()
     }
@@ -2234,7 +2234,7 @@ impl StreamSurface<'_> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Fpss`] when streaming has not been started.
+    /// Returns [`Error::Streaming`] when streaming has not been started.
     pub fn active_full_subscriptions(&self) -> Result<Vec<(SubscriptionKind, SecType)>, Error> {
         self.0.active_full_subscriptions()
     }
@@ -3261,7 +3261,7 @@ mod tests {
             ReplayPacing::unpaced(),
             |_kind, contract| {
                 if &*contract.symbol == "MSFT" {
-                    Err(Error::Fpss {
+                    Err(Error::Streaming {
                         kind: crate::error::StreamErrorKind::Disconnected,
                         message: "injected: MSFT subscribe rejected".to_string(),
                     })
@@ -3311,7 +3311,7 @@ mod tests {
             ReplayPacing::unpaced(),
             |_, _| Ok(()),
             |_, _| {
-                Some(Err(Error::Fpss {
+                Some(Err(Error::Streaming {
                     kind: crate::error::StreamErrorKind::TooManyRequests,
                     message: "injected: full-type subscribe rate-limited".to_string(),
                 }))
@@ -3344,7 +3344,7 @@ mod tests {
             &full_type,
             ReplayPacing::unpaced(),
             |_, _| {
-                Err(Error::Fpss {
+                Err(Error::Streaming {
                     kind: crate::error::StreamErrorKind::Disconnected,
                     message: "injected".to_string(),
                 })
