@@ -59,7 +59,7 @@ export declare class Client {
    * field.
    *
    * ```js
-   * const staged = await Client.connectWith({ apiKey: "td1_...", mddsType: "STAGE" });
+   * const staged = await Client.connectWith({ apiKey: "td1_...", historicalType: "STAGE" });
    * const withLogin = await Client.connectWith({ email: "u@e.com", password: "secret" });
    * const fromEnv = await Client.connectWith({ apiKeyFromEnv: true });
    * ```
@@ -67,9 +67,9 @@ export declare class Client {
    * Exactly one authentication field must be set: `apiKey`,
    * `apiKeyFromEnv`, `apiKeyFromDotenv`, the `email` + `password` pair,
    * or `credentialsFile`. Passing none, or two different ones, rejects
-   * with a `ConfigError` before any network round-trip. `mddsType`
+   * with a `ConfigError` before any network round-trip. `historicalType`
    * (`"PROD"` / `"STAGE"`, case-insensitive) selects the historical
-   * environment and `fpssType` (`"PROD"` / `"DEV"`, case-insensitive)
+   * environment and `streamingType` (`"PROD"` / `"DEV"`, case-insensitive)
    * the streaming environment, independently. For a pre-built full
    * `Config` (or a pre-built `Credentials` handle), use
    * [`Client::connect`], which takes both.
@@ -117,7 +117,7 @@ export declare class Config {
    * Source the target environment from a `.env`-format file.
    *
    * Starts from the production config and applies the cluster keys
-   * carried by the file: `THETADATA_MDDS_TYPE` (`PROD` / `STAGE`,
+   * carried by the file: `THETADATA_HISTORICAL_TYPE` (`PROD` / `STAGE`,
    * case-insensitive) selects the environment, and the optional
    * `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` keys
    * override the hosts (an explicit host wins over the environment
@@ -125,7 +125,7 @@ export declare class Config {
    *
    * Reads the same file format and keys as `Credentials.fromDotenv`, so
    * a single `.env` file can carry both `THETADATA_API_KEY` and
-   * `THETADATA_MDDS_TYPE`.
+   * `THETADATA_HISTORICAL_TYPE`.
    */
   static fromDotenv(path: string): Config
   /**
@@ -570,9 +570,9 @@ export declare class Config {
    * `"PROD"` for the production cluster or `"STAGE"` for staging. The
    * historical and streaming channels are selected independently;
    * `Config.production()` / `Config.stage()` (and the
-   * `THETADATA_MDDS_TYPE` key on `Config.fromDotenv`) set the historical
+   * `THETADATA_HISTORICAL_TYPE` key on `Config.fromDotenv`) set the historical
    * channel, and this is the readback of that selection. Mirrors the
-   * `mddsType` string the inline `Client.connectWith` factory accepts.
+   * `historicalType` string the inline `Client.connectWith` factory accepts.
    */
   get historicalEnvironment(): string
   /**
@@ -580,9 +580,9 @@ export declare class Config {
    * `"PROD"` for the production cluster or `"DEV"` for the dev cluster.
    * The streaming and historical channels are selected independently;
    * `Config.production()` / `Config.dev()` (and the
-   * `THETADATA_FPSS_TYPE` key on `Config.fromDotenv`) set the streaming
+   * `THETADATA_STREAMING_TYPE` key on `Config.fromDotenv`) set the streaming
    * channel, and this is the readback of that selection. Mirrors the
-   * `fpssType` string the inline `Client.connectWith` factory accepts.
+   * `streamingType` string the inline `Client.connectWith` factory accepts.
    */
   get streamingEnvironment(): string
   /**
@@ -3331,13 +3331,13 @@ export interface ClientConnectOptions {
    * streaming channels are selected independently. For full host-level
    * control, build a `Config` and use `Client.connect(creds, config)`.
    */
-  mddsType?: string
+  historicalType?: string
   /**
    * Streaming (FPSS) environment selector (`"PROD"` / `"DEV"`,
    * case-insensitive). Defaults to production. Selected independently of
    * the historical channel.
    */
-  fpssType?: string
+  streamingType?: string
 }
 
 /** FPSS server connection ack (wire code 4). Carries no payload. */

@@ -4,14 +4,14 @@
 //!
 //! `ThetaData` runs two server types in their NJ datacenter:
 //!
-//! ## Historical — Market Data Distribution Server (historical data)
+//! ## Historical service (historical data)
 //!
 //! Historical requests connect to a single endpoint over TLS:
 //! ```text
 //! mdds-01.thetadata.us:443
 //! ```
 //!
-//! ## Streaming — Feed Processing Stream Server (real-time streaming)
+//! ## Streaming service (real-time streaming)
 //!
 //! Streaming uses a multi-host config with round-robin failover:
 //! ```text
@@ -51,8 +51,8 @@ use crate::error::Error;
 
 pub use auth::{AuthConfig, DEFAULT_CLIENT_TYPE, DEFAULT_NEXUS_URL};
 pub use env::{
-    ENV_CLIENT_TYPE, ENV_FPSS_TYPE, ENV_HISTORICAL_HOST, ENV_HISTORICAL_PORT, ENV_MDDS_TYPE,
-    ENV_NEXUS_URL, ENV_STREAMING_HOST, ENV_STREAMING_PORT,
+    ENV_CLIENT_TYPE, ENV_HISTORICAL_HOST, ENV_HISTORICAL_PORT, ENV_HISTORICAL_TYPE, ENV_NEXUS_URL,
+    ENV_STREAMING_HOST, ENV_STREAMING_PORT, ENV_STREAMING_TYPE,
 };
 pub use environment::{HistoricalEnvironment, StreamingEnvironment};
 pub use flatfiles::{bounds as flatfiles_bounds, FlatFilesConfig};
@@ -92,8 +92,8 @@ pub use crate::backoff::JitterMode;
 ///
 /// | Variable | Type | Effect |
 /// |---|---|---|
-/// | `THETADATA_MDDS_TYPE` | `PROD`/`STAGE` | selects the historical (MDDS) environment + auth marker. Case-insensitive. |
-/// | `THETADATA_FPSS_TYPE` | `PROD`/`DEV` | selects the streaming (FPSS) environment. Case-insensitive. |
+/// | `THETADATA_HISTORICAL_TYPE` | `PROD`/`STAGE` | selects the historical environment + auth marker. Case-insensitive. |
+/// | `THETADATA_STREAMING_TYPE` | `PROD`/`DEV` | selects the streaming environment. Case-insensitive. |
 /// | `THETADATA_HISTORICAL_HOST` | host | overrides `historical.host` |
 /// | `THETADATA_HISTORICAL_PORT` | u16  | overrides `historical.port` |
 /// | `THETADATA_NEXUS_URL` | url  | overrides the Nexus auth URL |
@@ -103,9 +103,9 @@ pub use crate::backoff::JitterMode;
 /// | `THETADATA_EMAIL`       | str | credential helper ([`crate::auth`]) |
 /// | `THETADATA_PASSWORD`    | str | credential helper ([`crate::auth`]) |
 ///
-/// The historical (MDDS) and streaming (FPSS) channels are selected
-/// independently: `THETADATA_MDDS_TYPE` chooses the historical cluster and the
-/// auth marker (production or staging), `THETADATA_FPSS_TYPE` chooses the
+/// The historical and streaming channels are selected
+/// independently: `THETADATA_HISTORICAL_TYPE` chooses the historical cluster and the
+/// auth marker (production or staging), `THETADATA_STREAMING_TYPE` chooses the
 /// streaming cluster (production or dev), and neither affects the other. The
 /// typed [`DirectConfig::with_historical_environment`] /
 /// [`DirectConfig::with_streaming_environment`] are the programmatic
@@ -152,8 +152,8 @@ pub use crate::backoff::JitterMode;
 /// A malformed `THETADATA_HISTORICAL_PORT` / `THETADATA_STREAMING_PORT` (a
 /// non-integer) is ignored with a `tracing::warn!`, keeping the current value.
 /// An unrecognized environment selector, by contrast, FAILS LOUD: a
-/// `THETADATA_MDDS_TYPE` that is not `PROD` / `STAGE` (including the now-removed
-/// `DEV`) or a `THETADATA_FPSS_TYPE` that is not `PROD` / `DEV` (including
+/// `THETADATA_HISTORICAL_TYPE` that is not `PROD` / `STAGE` (including the now-removed
+/// `DEV`) or a `THETADATA_STREAMING_TYPE` that is not `PROD` / `DEV` (including
 /// `STAGE`) is a hard error naming the valid set, never a silent fallback, so a
 /// stale or cross-channel selector cannot quietly route to the wrong cluster.
 #[derive(Debug, Clone, Default)]
@@ -175,7 +175,7 @@ pub struct DirectConfig {
     pub metrics: MetricsConfig,
     /// Async runtime tuning.
     pub runtime: RuntimeConfig,
-    /// Target historical (MDDS) environment (production or staging). Defaults
+    /// Target historical environment (production or staging). Defaults
     /// to [`HistoricalEnvironment::Prod`]; [`DirectConfig::stage`] selects
     /// [`HistoricalEnvironment::Stage`]. Selects the cluster the historical
     /// channel dials and the auth wire marker carried on the auth request
@@ -183,7 +183,7 @@ pub struct DirectConfig {
     /// streaming channel is selected independently via
     /// [`Self::streaming_environment`].
     pub historical_environment: HistoricalEnvironment,
-    /// Target streaming (FPSS) environment (production or dev). Defaults to
+    /// Target streaming environment (production or dev). Defaults to
     /// [`StreamingEnvironment::Prod`]; [`DirectConfig::dev`] selects
     /// [`StreamingEnvironment::Dev`]. Selects the cluster the streaming
     /// channel dials and nothing else — it never affects auth, so a dev
@@ -239,13 +239,14 @@ impl DirectConfig {
     #[must_use]
     pub fn production() -> Self {
         let mut config = Self::production_defaults();
-        // An unrecognized `THETADATA_MDDS_TYPE` / `THETADATA_FPSS_TYPE` fails
+        // An unrecognized `THETADATA_HISTORICAL_TYPE` / `THETADATA_STREAMING_TYPE` fails
         // loud here rather than silently keeping production: a stale or
         // mistyped selector (including a cross-channel value such as
-        // `MDDS_TYPE=DEV`) must surface, never quietly route to the wrong
+        // `DEV` on `THETADATA_HISTORICAL_TYPE`) must surface, never quietly route to the wrong
         // cluster. The message names the valid set for that channel.
-        env::apply_env_overrides(&mut config)
-            .expect("THETADATA_MDDS_TYPE / THETADATA_FPSS_TYPE must name a valid environment");
+        env::apply_env_overrides(&mut config).expect(
+            "THETADATA_HISTORICAL_TYPE / THETADATA_STREAMING_TYPE must name a valid environment",
+        );
         config
             .validate()
             .expect("production defaults are within validated bounds")
@@ -496,9 +497,9 @@ impl DirectConfig {
         self.set_streaming_hosts(hosts);
     }
 
-    /// Select the historical (MDDS) environment, returning the updated config.
+    /// Select the historical environment, returning the updated config.
     ///
-    /// The programmatic equivalent of the `THETADATA_MDDS_TYPE`
+    /// The programmatic equivalent of the `THETADATA_HISTORICAL_TYPE`
     /// (`PROD` / `STAGE`) env var: it points the historical host and the auth
     /// wire marker at the chosen environment. The streaming channel is
     /// unaffected — select it independently with
@@ -522,9 +523,9 @@ impl DirectConfig {
             .expect("environment switch leaves tuning knobs unchanged")
     }
 
-    /// Select the streaming (FPSS) environment, returning the updated config.
+    /// Select the streaming environment, returning the updated config.
     ///
-    /// The programmatic equivalent of the `THETADATA_FPSS_TYPE`
+    /// The programmatic equivalent of the `THETADATA_STREAMING_TYPE`
     /// (`PROD` / `DEV`) env var: it points the streaming hosts at the chosen
     /// environment and nothing else. Auth and the historical channel are
     /// unaffected — a dev session authenticates byte-identically to a
@@ -551,15 +552,15 @@ impl DirectConfig {
     /// Starts from the hardcoded production defaults and applies the cluster
     /// keys carried by the file:
     ///
-    /// - `THETADATA_MDDS_TYPE` (`PROD` / `STAGE`, case-insensitive) selects the
+    /// - `THETADATA_HISTORICAL_TYPE` (`PROD` / `STAGE`, case-insensitive) selects the
     ///   historical environment via [`HistoricalEnvironment::parse`], pointing
     ///   the historical host and the auth marker at the chosen cluster — the
-    ///   file-sourced equivalent of the [`THETADATA_MDDS_TYPE`](Self::production)
+    ///   file-sourced equivalent of the [`THETADATA_HISTORICAL_TYPE`](Self::production)
     ///   env var and of [`Self::with_historical_environment`].
-    /// - `THETADATA_FPSS_TYPE` (`PROD` / `DEV`, case-insensitive) selects the
+    /// - `THETADATA_STREAMING_TYPE` (`PROD` / `DEV`, case-insensitive) selects the
     ///   streaming environment via [`StreamingEnvironment::parse`], pointing the
     ///   streaming hosts at the chosen cluster — the file-sourced equivalent of
-    ///   the [`THETADATA_FPSS_TYPE`](Self::production) env var and of
+    ///   the [`THETADATA_STREAMING_TYPE`](Self::production) env var and of
     ///   [`Self::with_streaming_environment`]. The two channels are selected
     ///   independently and neither affects the other.
     /// - `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST`, when
@@ -573,15 +574,16 @@ impl DirectConfig {
     /// optional matching quotes). It is the **same** file format and the same
     /// keys that [`crate::auth::Credentials::from_dotenv`] reads for the
     /// credential, so a single `.env` can carry both `THETADATA_API_KEY` and
-    /// `THETADATA_MDDS_TYPE`: the credential reader picks up the secret keys
+    /// `THETADATA_HISTORICAL_TYPE`: the credential reader picks up the secret keys
     /// and this reader picks up the cluster keys.
     ///
     /// An empty selector reads as unset (the production default is kept), and a
     /// file that carries only a credential key (for example just
     /// `THETADATA_API_KEY`) yields the production configuration without error.
-    /// An *unrecognized* `THETADATA_MDDS_TYPE` / `THETADATA_FPSS_TYPE` (including
-    /// a cross-channel value such as `MDDS_TYPE=DEV` or `FPSS_TYPE=STAGE`) is a
-    /// returned error naming the valid set, never a silent fallback.
+    /// An *unrecognized* `THETADATA_HISTORICAL_TYPE` / `THETADATA_STREAMING_TYPE` (including
+    /// a cross-channel value such as `DEV` on `THETADATA_HISTORICAL_TYPE` or `STAGE` on
+    /// `THETADATA_STREAMING_TYPE`) is a returned error naming the valid set, never a
+    /// silent fallback.
     ///
     /// # Errors
     ///
@@ -593,7 +595,7 @@ impl DirectConfig {
         // [`Self::production`]: a file-sourced config must be deterministic
         // from its defaults plus the file, so the ambient process env never
         // leaks in. A `.env` that selects `PROD` must yield the prod cluster
-        // even when the shell has `THETADATA_MDDS_TYPE=STAGE` (or a stray
+        // even when the shell has `THETADATA_HISTORICAL_TYPE=STAGE` (or a stray
         // `THETADATA_HISTORICAL_HOST`) left over. `with_dotenv` layers only
         // the parsed file pairs via `apply_dotenv_overrides`, which reads the
         // file, never the process env.
@@ -630,7 +632,7 @@ impl DirectConfig {
                 source: Some(Box::new(e)),
             })?);
         let pairs = crate::auth::dotenv::parse(&contents);
-        // An unrecognized `THETADATA_MDDS_TYPE` / `THETADATA_FPSS_TYPE` in the
+        // An unrecognized `THETADATA_HISTORICAL_TYPE` / `THETADATA_STREAMING_TYPE` in the
         // file is a returned error naming the valid set, not a silent fallback.
         env::apply_dotenv_overrides(&mut self, &pairs)?;
         self.validate()
@@ -687,10 +689,10 @@ impl DirectConfig {
     /// A thin delegate to [`StreamingEnvironment::Dev`]'s hosts — the single
     /// source of truth lives on the streaming environment, so production code
     /// reads the dev cluster through [`StreamingEnvironment::hosts`]. Retained
-    /// so the FPSS allowlist coverage test and the config regression tests can
+    /// so the streaming allowlist coverage test and the config regression tests can
     /// name the dev host set directly; a new dev host added to
     /// [`StreamingEnvironment::hosts`] flows through here so it can never drift
-    /// out of the FPSS hostname allowlist.
+    /// out of the streaming hostname allowlist.
     #[cfg(test)]
     #[must_use]
     pub(crate) fn dev_streaming_hosts() -> Vec<(String, u16)> {
@@ -721,7 +723,7 @@ impl DirectConfig {
     pub fn stage() -> Self {
         let mut config = Self::production();
         // Select historical-staging (host + auth marker) only; streaming stays
-        // on production since FPSS has no staging cluster.
+        // on production since streaming has no staging cluster.
         config.apply_historical_environment(HistoricalEnvironment::Stage);
         config
             .validate()
@@ -1259,13 +1261,13 @@ impl DirectConfig {
         self.runtime.tokio_worker_threads
     }
 
-    /// Target historical (MDDS) environment (production or staging).
+    /// Target historical environment (production or staging).
     #[must_use]
     pub fn historical_environment(&self) -> HistoricalEnvironment {
         self.historical_environment
     }
 
-    /// Target streaming (FPSS) environment (production or dev).
+    /// Target streaming environment (production or dev).
     #[must_use]
     pub fn streaming_environment(&self) -> StreamingEnvironment {
         self.streaming_environment
@@ -2717,8 +2719,8 @@ mod tests {
         // thread reads or writes the environment concurrently — the
         // mutex provides exactly that.
         unsafe {
-            std::env::remove_var(ENV_MDDS_TYPE);
-            std::env::remove_var(ENV_FPSS_TYPE);
+            std::env::remove_var(ENV_HISTORICAL_TYPE);
+            std::env::remove_var(ENV_STREAMING_TYPE);
             std::env::remove_var(ENV_HISTORICAL_HOST);
             std::env::remove_var(ENV_HISTORICAL_PORT);
             std::env::remove_var(ENV_NEXUS_URL);
@@ -2729,17 +2731,17 @@ mod tests {
     }
 
     #[test]
-    fn mdds_type_env_stage_selects_stage_cluster() {
+    fn historical_type_env_stage_selects_stage_cluster() {
         let _guard = env_test_guard();
         clear_env_matrix();
         // SAFETY: `_guard` holds the process-global env-var mutex for the
         // body of this test, so no other thread observes or mutates the
         // environment while this write lands.
         unsafe {
-            std::env::set_var(ENV_MDDS_TYPE, "STAGE");
+            std::env::set_var(ENV_HISTORICAL_TYPE, "STAGE");
         }
         let config = DirectConfig::production();
-        // THETADATA_MDDS_TYPE=STAGE yields the historical staging cluster +
+        // THETADATA_HISTORICAL_TYPE=STAGE yields the historical staging cluster +
         // Stage marker, identical to the `stage()` preset. Streaming stays on
         // production (no streaming staging cluster).
         let staged = DirectConfig::stage();
@@ -2751,10 +2753,10 @@ mod tests {
     }
 
     #[test]
-    fn mdds_type_env_dev_panics_as_cross_channel_value() {
+    fn historical_type_env_dev_panics_as_cross_channel_value() {
         // DEV is no longer a historical environment — it belongs to the
-        // streaming channel (`THETADATA_FPSS_TYPE`). A cross-channel
-        // `THETADATA_MDDS_TYPE=DEV` must FAIL LOUD via `production()`'s
+        // streaming channel (`THETADATA_STREAMING_TYPE`). A cross-channel
+        // `THETADATA_HISTORICAL_TYPE=DEV` must FAIL LOUD via `production()`'s
         // `.expect`, never silently route the historical channel anywhere.
         let _guard = env_test_guard();
         clear_env_matrix();
@@ -2762,7 +2764,7 @@ mod tests {
         // of this test, so no other thread observes or mutates the environment
         // while this write lands.
         unsafe {
-            std::env::set_var(ENV_MDDS_TYPE, "DEV");
+            std::env::set_var(ENV_HISTORICAL_TYPE, "DEV");
         }
         // `production()` panics on the invalid selector; catch the unwind so the
         // env matrix is still cleared even though the panic skips the tail.
@@ -2770,20 +2772,20 @@ mod tests {
         clear_env_matrix();
         assert!(
             panicked,
-            "THETADATA_MDDS_TYPE=DEV (a streaming-only value) must panic, not fall back"
+            "THETADATA_HISTORICAL_TYPE=DEV (a streaming-only value) must panic, not fall back"
         );
     }
 
     #[test]
-    fn fpss_type_env_dev_selects_dev_streaming_cluster() {
-        // The positive streaming counterpart: `THETADATA_FPSS_TYPE=DEV` selects
+    fn streaming_type_env_dev_selects_dev_streaming_cluster() {
+        // The positive streaming counterpart: `THETADATA_STREAMING_TYPE=DEV` selects
         // the dev replay streaming cluster and nothing else — historical stays
         // on production, identical to the `dev()` preset.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `mdds_type_env_dev_panics_as_cross_channel_value`.
+        // SAFETY: see `historical_type_env_dev_panics_as_cross_channel_value`.
         unsafe {
-            std::env::set_var(ENV_FPSS_TYPE, "DEV");
+            std::env::set_var(ENV_STREAMING_TYPE, "DEV");
         }
         let config = DirectConfig::production();
         let dev = DirectConfig::dev();
@@ -2796,31 +2798,31 @@ mod tests {
     }
 
     #[test]
-    fn fpss_type_env_stage_panics_as_cross_channel_value() {
+    fn streaming_type_env_stage_panics_as_cross_channel_value() {
         // The mirror negative: STAGE is a historical-only value, so a
-        // cross-channel `THETADATA_FPSS_TYPE=STAGE` must FAIL LOUD via
+        // cross-channel `THETADATA_STREAMING_TYPE=STAGE` must FAIL LOUD via
         // `production()`'s `.expect`, never silently keep production streaming.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `mdds_type_env_dev_panics_as_cross_channel_value`.
+        // SAFETY: see `historical_type_env_dev_panics_as_cross_channel_value`.
         unsafe {
-            std::env::set_var(ENV_FPSS_TYPE, "STAGE");
+            std::env::set_var(ENV_STREAMING_TYPE, "STAGE");
         }
         let panicked = std::panic::catch_unwind(DirectConfig::production).is_err();
         clear_env_matrix();
         assert!(
             panicked,
-            "THETADATA_FPSS_TYPE=STAGE (a historical-only value) must panic, not fall back"
+            "THETADATA_STREAMING_TYPE=STAGE (a historical-only value) must panic, not fall back"
         );
     }
 
     #[test]
-    fn mdds_type_env_is_case_insensitive() {
+    fn historical_type_env_is_case_insensitive() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
         unsafe {
-            std::env::set_var(ENV_MDDS_TYPE, "  stage  ");
+            std::env::set_var(ENV_HISTORICAL_TYPE, "  stage  ");
         }
         let config = DirectConfig::production();
         assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
@@ -2828,12 +2830,12 @@ mod tests {
     }
 
     #[test]
-    fn mdds_type_env_unrecognized_panics() {
+    fn historical_type_env_unrecognized_panics() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `mdds_type_env_dev_panics_as_cross_channel_value`.
+        // SAFETY: see `historical_type_env_dev_panics_as_cross_channel_value`.
         unsafe {
-            std::env::set_var(ENV_MDDS_TYPE, "bogus");
+            std::env::set_var(ENV_HISTORICAL_TYPE, "bogus");
         }
         // FAIL LOUD: an unrecognized selector is a hard error, so `production()`
         // panics via its `.expect` rather than silently keeping production.
@@ -2841,17 +2843,17 @@ mod tests {
         clear_env_matrix();
         assert!(
             panicked,
-            "an unrecognized THETADATA_MDDS_TYPE must panic, not fall back to production"
+            "an unrecognized THETADATA_HISTORICAL_TYPE must panic, not fall back to production"
         );
     }
 
     #[test]
-    fn explicit_historical_host_wins_over_mdds_type_default() {
+    fn explicit_historical_host_wins_over_historical_type_default() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
         unsafe {
-            std::env::set_var(ENV_MDDS_TYPE, "STAGE");
+            std::env::set_var(ENV_HISTORICAL_TYPE, "STAGE");
             std::env::set_var(ENV_HISTORICAL_HOST, "custom.example.com");
         }
         let config = DirectConfig::production();
@@ -2870,7 +2872,7 @@ mod tests {
         // Streaming stays on production — there is no streaming staging cluster.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
         unsafe {
             std::env::set_var(ENV_HISTORICAL_HOST, "myhost");
         }
@@ -2896,7 +2898,7 @@ mod tests {
         // untouched and stays on production.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
         unsafe {
             std::env::set_var(ENV_HISTORICAL_HOST, "myhost");
         }
@@ -3125,7 +3127,7 @@ mod tests {
         // the stage host.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
         unsafe {
             std::env::set_var(ENV_STREAMING_HOST, "stream.example.com");
         }
@@ -3210,7 +3212,7 @@ mod tests {
         // rewrite.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
         unsafe {
             std::env::set_var(ENV_STREAMING_HOST, "myhost");
         }
@@ -3242,7 +3244,7 @@ mod tests {
         // suppressed the host rebuild entirely.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
         unsafe {
             std::env::set_var(ENV_STREAMING_PORT, "9999");
         }
@@ -3272,7 +3274,7 @@ mod tests {
         // failover under Prod) while the overridden primary host persists.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
         unsafe {
             std::env::set_var(ENV_STREAMING_HOST, "sticky.example.com");
         }
@@ -3302,7 +3304,7 @@ mod tests {
         // channel while the streaming channel stays on the dev replay hosts.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
         unsafe {
             std::env::set_var(ENV_HISTORICAL_HOST, "hist.example.com");
         }
@@ -3327,7 +3329,7 @@ mod tests {
         // `dev()` no longer clobbers the override.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
         unsafe {
             std::env::set_var(ENV_STREAMING_HOST, "devstream.example.com");
         }
@@ -3349,7 +3351,7 @@ mod tests {
         // never the dev preset.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
         unsafe {
             std::env::set_var(ENV_STREAMING_HOST, "sticky.example.com");
         }
@@ -3423,7 +3425,7 @@ mod tests {
         // most recent setter must win over the stale env override.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
         unsafe {
             std::env::set_var(ENV_HISTORICAL_HOST, "recorded.example.com");
         }
@@ -3448,7 +3450,7 @@ mod tests {
         // the latest full list wins and the stale primary patch is dropped.
         let _guard = env_test_guard();
         clear_env_matrix();
-        // SAFETY: see `mdds_type_env_stage_selects_stage_cluster`.
+        // SAFETY: see `historical_type_env_stage_selects_stage_cluster`.
         unsafe {
             std::env::set_var(ENV_STREAMING_HOST, "recorded-stream.example.com");
         }
@@ -3712,10 +3714,13 @@ mod tests {
     }
 
     #[test]
-    fn from_dotenv_mdds_type_stage_selects_stage_cluster() {
+    fn from_dotenv_historical_type_stage_selects_stage_cluster() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        let path = write_temp_dotenv("stage.env", "# select staging\nTHETADATA_MDDS_TYPE=STAGE\n");
+        let path = write_temp_dotenv(
+            "stage.env",
+            "# select staging\nTHETADATA_HISTORICAL_TYPE=STAGE\n",
+        );
         let config = DirectConfig::from_dotenv(&path).expect(".env mdds-type must source");
         let staged = DirectConfig::stage();
         assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
@@ -3725,22 +3730,22 @@ mod tests {
     }
 
     #[test]
-    fn from_dotenv_mdds_type_is_case_insensitive_and_quoted() {
+    fn from_dotenv_historical_type_is_case_insensitive_and_quoted() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        let path = write_temp_dotenv("ci.env", "export THETADATA_MDDS_TYPE=\"stage\"\n");
+        let path = write_temp_dotenv("ci.env", "export THETADATA_HISTORICAL_TYPE=\"stage\"\n");
         let config = DirectConfig::from_dotenv(&path).expect(".env mdds-type must source");
         assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
         std::fs::remove_file(&path).ok();
     }
 
     #[test]
-    fn from_dotenv_explicit_historical_host_wins_over_mdds_type() {
+    fn from_dotenv_explicit_historical_host_wins_over_historical_type() {
         let _guard = env_test_guard();
         clear_env_matrix();
         let path = write_temp_dotenv(
             "hostwins.env",
-            "THETADATA_MDDS_TYPE=STAGE\nTHETADATA_HISTORICAL_HOST=custom.example.com\n",
+            "THETADATA_HISTORICAL_TYPE=STAGE\nTHETADATA_HISTORICAL_HOST=custom.example.com\n",
         );
         let config = DirectConfig::from_dotenv(&path).expect(".env must source");
         // The historical marker still flips to Stage, but an explicit host
@@ -3765,33 +3770,33 @@ mod tests {
     }
 
     #[test]
-    fn from_dotenv_malformed_mdds_type_returns_error() {
+    fn from_dotenv_malformed_historical_type_returns_error() {
         let _guard = env_test_guard();
         clear_env_matrix();
         // FAIL LOUD: an unrecognized mdds-type in a `.env` is a returned error
         // naming the valid set, never a silent fallback to production.
-        let path = write_temp_dotenv("bogus.env", "THETADATA_MDDS_TYPE=bogus\n");
+        let path = write_temp_dotenv("bogus.env", "THETADATA_HISTORICAL_TYPE=bogus\n");
         let err = DirectConfig::from_dotenv(&path)
-            .expect_err("an unrecognized THETADATA_MDDS_TYPE must return an error");
+            .expect_err("an unrecognized THETADATA_HISTORICAL_TYPE must return an error");
         assert!(
-            err.to_string().contains("THETADATA_MDDS_TYPE"),
+            err.to_string().contains("THETADATA_HISTORICAL_TYPE"),
             "the error must name the offending selector, got: {err}"
         );
         std::fs::remove_file(&path).ok();
     }
 
     #[test]
-    fn from_dotenv_cross_channel_fpss_type_returns_error() {
+    fn from_dotenv_cross_channel_streaming_type_returns_error() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // The streaming companion: a cross-channel `THETADATA_FPSS_TYPE=STAGE`
+        // The streaming companion: a cross-channel `THETADATA_STREAMING_TYPE=STAGE`
         // (STAGE is historical-only) is a returned error, never a silent
         // fallback.
-        let path = write_temp_dotenv("fpss-stage.env", "THETADATA_FPSS_TYPE=STAGE\n");
+        let path = write_temp_dotenv("fpss-stage.env", "THETADATA_STREAMING_TYPE=STAGE\n");
         let err = DirectConfig::from_dotenv(&path)
-            .expect_err("a cross-channel THETADATA_FPSS_TYPE must return an error");
+            .expect_err("a cross-channel THETADATA_STREAMING_TYPE must return an error");
         assert!(
-            err.to_string().contains("THETADATA_FPSS_TYPE"),
+            err.to_string().contains("THETADATA_STREAMING_TYPE"),
             "the error must name the offending selector, got: {err}"
         );
         std::fs::remove_file(&path).ok();
@@ -3803,7 +3808,7 @@ mod tests {
         clear_env_matrix();
         let path = write_temp_dotenv(
             "streamhost.env",
-            "THETADATA_MDDS_TYPE=STAGE\nTHETADATA_STREAMING_HOST=stream.example.com\n",
+            "THETADATA_HISTORICAL_TYPE=STAGE\nTHETADATA_STREAMING_HOST=stream.example.com\n",
         );
         let config = DirectConfig::from_dotenv(&path).expect(".env must source");
         assert_eq!(config.streaming.hosts[0].0, "stream.example.com");
@@ -3826,7 +3831,7 @@ mod tests {
         // MDDS_TYPE=STAGE flips only historical, so streaming stays production.
         let path = write_temp_dotenv(
             "streamport.env",
-            "THETADATA_MDDS_TYPE=STAGE\nTHETADATA_STREAMING_PORT=9999\n",
+            "THETADATA_HISTORICAL_TYPE=STAGE\nTHETADATA_STREAMING_PORT=9999\n",
         );
         let config = DirectConfig::from_dotenv(&path).expect(".env must source");
         let prod_hosts = StreamingConfig::production_defaults().hosts;
@@ -3850,7 +3855,7 @@ mod tests {
             "nexus-stage.env",
             &format!(
                 "THETADATA_API_KEY=td_example_key\n\
-                 THETADATA_MDDS_TYPE=STAGE\n\
+                 THETADATA_HISTORICAL_TYPE=STAGE\n\
                  THETADATA_NEXUS_URL={staging_nexus}\n"
             ),
         );
@@ -3934,13 +3939,13 @@ mod tests {
     }
 
     #[test]
-    fn from_dotenv_fpss_type_dev_selects_dev_cluster() {
-        // `THETADATA_FPSS_TYPE=DEV` in a `.env` selects the dev streaming
+    fn from_dotenv_streaming_type_dev_selects_dev_cluster() {
+        // `THETADATA_STREAMING_TYPE=DEV` in a `.env` selects the dev streaming
         // environment: streaming on the dev replay cluster, historical on
         // production.
         let _guard = env_test_guard();
         clear_env_matrix();
-        let path = write_temp_dotenv("devtype.env", "THETADATA_FPSS_TYPE=dev\n");
+        let path = write_temp_dotenv("devtype.env", "THETADATA_STREAMING_TYPE=dev\n");
         let config = DirectConfig::from_dotenv(&path).expect(".env fpss-type must source");
         let dev = DirectConfig::dev();
         assert_eq!(config.streaming_environment, StreamingEnvironment::Dev);
@@ -3962,10 +3967,10 @@ mod tests {
         // of this test, so no other thread observes or mutates the environment
         // while these writes land.
         unsafe {
-            std::env::set_var(ENV_MDDS_TYPE, "STAGE");
+            std::env::set_var(ENV_HISTORICAL_TYPE, "STAGE");
             std::env::set_var(ENV_HISTORICAL_HOST, "mdds-stage.thetadata.us");
         }
-        let path = write_temp_dotenv("prodfile.env", "THETADATA_MDDS_TYPE=PROD\n");
+        let path = write_temp_dotenv("prodfile.env", "THETADATA_HISTORICAL_TYPE=PROD\n");
         let config = DirectConfig::from_dotenv(&path).expect(".env mdds-type must source");
         // The file says PROD, so the prod cluster wins over the ambient STAGE.
         assert_eq!(config.historical_environment, HistoricalEnvironment::Prod);
@@ -3984,7 +3989,7 @@ mod tests {
         // env: it sources from defaults plus the file, never the shell.
         // SAFETY: see `from_dotenv_prod_ignores_ambient_stage_env`.
         unsafe {
-            std::env::set_var(ENV_MDDS_TYPE, "STAGE");
+            std::env::set_var(ENV_HISTORICAL_TYPE, "STAGE");
             std::env::set_var(ENV_HISTORICAL_HOST, "mdds-stage.thetadata.us");
         }
         let path = write_temp_dotenv("nocluster.env", "THETADATA_API_KEY=td_example_key\n");
@@ -4006,7 +4011,7 @@ mod tests {
         // cluster.
         // SAFETY: see `from_dotenv_prod_ignores_ambient_stage_env`.
         unsafe {
-            std::env::set_var(ENV_MDDS_TYPE, "STAGE");
+            std::env::set_var(ENV_HISTORICAL_TYPE, "STAGE");
         }
         let config = DirectConfig::dev();
         assert_eq!(config.streaming_environment, StreamingEnvironment::Dev);
@@ -4028,7 +4033,7 @@ mod tests {
         // inconsistent state.
         // SAFETY: see `from_dotenv_prod_ignores_ambient_stage_env`.
         unsafe {
-            std::env::set_var(ENV_MDDS_TYPE, "PROD");
+            std::env::set_var(ENV_HISTORICAL_TYPE, "PROD");
         }
         let config = DirectConfig::stage();
         assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
@@ -4048,7 +4053,7 @@ mod tests {
         clear_env_matrix();
         // `with_dotenv` keeps tuning knobs the caller already set and only
         // layers the `.env`'s cluster overrides on top.
-        let path = write_temp_dotenv("layer.env", "THETADATA_MDDS_TYPE=STAGE\n");
+        let path = write_temp_dotenv("layer.env", "THETADATA_HISTORICAL_TYPE=STAGE\n");
         let base = DirectConfig::production().with_metrics_port(9100);
         let config = base.with_dotenv(&path).expect(".env must layer cleanly");
         assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);

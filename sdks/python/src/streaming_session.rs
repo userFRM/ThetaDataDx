@@ -1,5 +1,5 @@
 //! Hand-written Python context manager that mirrors the C++ RAII
-//! lifecycle for FPSS streaming.
+//! lifecycle for streaming.
 //!
 //! `with client.streaming(callback) as session:` enters by calling
 //! `start_streaming(callback)` and exits by calling `stop_streaming()`
@@ -244,7 +244,7 @@ impl crate::Client {
         )
     }
 
-    /// Current MDDS session UUID. Reads through the shared session
+    /// Current historical session UUID. Reads through the shared session
     /// token so the returned value reflects any mid-session refresh.
     ///
     /// Backs the `session_uuid` entry on `AsyncClient`'s

@@ -1,6 +1,6 @@
 # thetadatadx-server
 
-Runs a local HTTP REST server and WebSocket server that expose the ThetaData `/v3/*` route surface, backed by Rust gRPC (MDDS) and TCP (FPSS) connections to ThetaData's upstream servers.
+Runs a local HTTP REST server and WebSocket server that expose the ThetaData `/v3/*` route surface, backed by Rust gRPC (historical) and TCP (streaming) connections to ThetaData's upstream servers.
 
 Existing clients using the current `/v3/*` local terminal routes can point at this binary on the same port.
 
@@ -29,8 +29,9 @@ thetadatadx-server --creds creds.txt
 # With a TOML config file
 thetadatadx-server --email you@example.com --password YOUR_PASSWORD --config config.toml
 
-# With a specific FPSS region
-thetadatadx-server --email you@example.com --password YOUR_PASSWORD --fpss-region dev
+# With a specific streaming region (the historical region is selected the same
+# way with --historical-region)
+thetadatadx-server --email you@example.com --password YOUR_PASSWORD --streaming-region dev
 ```
 
 The server starts:
@@ -46,7 +47,8 @@ The server starts:
 | `--password` | | ThetaData password (or set `THETADATA_EMAIL` + `THETADATA_PASSWORD`, or use `--creds`) |
 | `--creds` | `creds.txt` | Path to credentials file (email line 1, password line 2) |
 | `--config` | | Path to TOML config file |
-| `--fpss-region` | `production` | FPSS region: `production`, `dev`, `stage` |
+| `--historical-region` | `production` | Historical region: `production` or `stage` |
+| `--streaming-region` | `production` | Streaming region: `production` or `dev` |
 | `--http-port` | `25503` | HTTP REST API port |
 | `--ws-port` | `25520` | WebSocket server port |
 | `--bind` | `127.0.0.1` | Bind address |
@@ -54,7 +56,7 @@ The server starts:
 | `--log-file` | | Also write logs to `<path>.YYYY-MM-DD`, rotated daily |
 | `--log-format` | `text` | Log line format: `text`, `json`, or `legacy` (`[YYYY-MM-DD HH:MM:SS] LEVEL: message`, UTC) |
 | `--no-streaming` | | Skip the streaming connection at startup |
-| `--no-ohlcvc` | | Disable OHLCVC bar derivation from trades on the FPSS stream |
+| `--no-ohlcvc` | | Disable OHLCVC bar derivation from trades on the streaming feed |
 
 Every request emits one `INFO` access-log line (method, URI, status, latency) by default. The startup banner prints `thetadatadx-server v<version>`.
 
@@ -141,8 +143,8 @@ Connect to `ws://127.0.0.1:25520/v1/events` to receive streaming events.
 One client at a time: a second connection replaces the first — the existing client receives a Close frame (code 1000, reason `replaced by a new client connection`) and the new client takes over the stream, matching the legacy terminal.
 
 The server sends:
-- `STATUS` messages every second with FPSS connection state
-- `QUOTE`, `TRADE`, `OHLC` events when FPSS is connected and subscriptions are active
+- `STATUS` messages every second with the streaming connection state
+- `QUOTE`, `TRADE`, `OHLC` events when the streaming feed is connected and subscriptions are active
 
 Send JSON commands to manage subscriptions:
 
@@ -164,7 +166,7 @@ Send JSON commands to manage subscriptions:
 - **256 concurrent in-flight requests** — requests past the cap queue on the layer's semaphore (they are not rejected), then queue again on the SDK's tier-sized request semaphore that matches the upstream concurrency cap. Bursts absorb as latency, not errors; see the Concurrency Model section in `docs-site/docs/server/http.md`. Upstream capacity rejections that survive the SDK's retry budget surface as `503` + `Retry-After`, not 500. **64 KiB body limit**, **4 KiB WebSocket `Message::Text` cap**.
 - **`BoundedQuery<32>` extractor** counts `&`-delimited query-string pairs BEFORE `serde_urlencoded` runs, so a `?a=1&b=2&...` flood is rejected at parse time rather than after HashMap rehashing allocates MB+.
 - **CSV output defuses formula injection** — cells whose first byte is `=` / `+` / `-` / `@` / `\t` are prefixed with a single-quote `'` and CSV-quoted.
-- **FPSS TLS** verifies every peer against a captured SubjectPublicKeyInfo pin (`PinnedVerifier`, constant-time SHA-256 compare); MITM presenting any other cert is rejected even if it chains to a trusted CA. See `docs-site/docs/streaming/index.md`.
+- **Streaming TLS** verifies every peer against a captured SubjectPublicKeyInfo pin (`PinnedVerifier`, constant-time SHA-256 compare); MITM presenting any other cert is rejected even if it chains to a trusted CA. See `docs-site/docs/streaming/index.md`.
 - **Dropped-events observability** — per-client mpsc channels surface a monotonic `AtomicU64` counter through every SDK (`client.dropped_events()` Python, `droppedEvents(): bigint` TS, `thetadatadx_streaming_dropped_events` / `thetadatadx_client_dropped_events` FFI) plus `tracing::debug!` on `thetadatadx::sdk::streaming`.
 
 Example — initiating a graceful shutdown from the same machine:
@@ -187,7 +189,7 @@ External apps (Python, Excel, browsers)
     |
 thetadatadx-server (Rust binary)
     |
-    |--- ThetaDataDx (MDDS + FPSS)
+    |--- ThetaDataDx (historical + streaming)
     |    historical data + real-time streaming
     |
 ThetaData upstream servers (NJ datacenter)

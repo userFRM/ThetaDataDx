@@ -1,6 +1,6 @@
 //! Offline saturation bench hook for the TypeScript streaming callback path.
 //!
-//! `__benchFloodEvents(n, callback)` pushes `n` synthetic FPSS events
+//! `__benchFloodEvents(n, callback)` pushes `n` synthetic streaming events
 //! through the REAL `ThreadsafeFunction` dispatch path — the same
 //! `TsfnCallback` type, the same bounded `STREAMING_CALLBACK_QUEUE_DEPTH`
 //! call queue, and the same per-event marshal (`fpss_event_to_buffered`
@@ -17,7 +17,7 @@
 //!   makes the worker WAIT rather than silently dropping; under correct
 //!   back-pressure no event is lost at the tsfn boundary.
 //! - Each synthetic event is a `Trade` carrying an `Arc<Contract>` cloned
-//!   per event (refcount bump only), identical to the live FPSS decode
+//!   per event (refcount bump only), identical to the live streaming decode
 //!   path and to the Rust / Python benches.
 //!
 //! Return value: the number of `tsfn.call` invocations that returned a
@@ -72,7 +72,7 @@ fn make_event(contract: &Arc<Contract>, idx: u64) -> CoreStreamEvent {
     })
 }
 
-/// Flood `n` synthetic FPSS `Trade` events through the real `TsfnCallback`
+/// Flood `n` synthetic streaming `Trade` events through the real `TsfnCallback`
 /// dispatch path to `callback`, returning the count of tsfn-boundary drops
 /// (non-`Ok` `call` statuses) as an `f64` (JS `number`; `n` is bounded well
 /// under 2^53 in practice, and the count is `0` on the healthy path).
@@ -112,7 +112,7 @@ pub async fn __bench_flood_events(
 
     let drops = tokio::task::spawn_blocking(move || {
         // Allocate the contract once; clone the Arc per event (refcount
-        // bump only), same as the FPSS contract cache hands out.
+        // bump only), same as the streaming contract cache hands out.
         let contract = Arc::new(Contract::stock("SPY"));
         let mut drops: u64 = 0;
         for i in 0..n {

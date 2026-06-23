@@ -1,4 +1,4 @@
-//! Endpoint methods for MDDS historical queries.
+//! Endpoint methods for historical queries.
 //!
 //! The hand-written `stock_list_symbols` helper here is the
 //! foundation example. The full RPC surface is emitted into
@@ -114,7 +114,7 @@ pub async fn collect_stream(
     })
 }
 
-/// Bench-only helpers that issue representative MDDS RPCs through the
+/// Bench-only helpers that issue representative historical RPCs through the
 /// transport without going through the macro-generated `HistoricalClient`
 /// surface. Exists so the transport benches can drive 1–2 endpoints
 /// without re-implementing the full `HistoricalClient::connect` auth

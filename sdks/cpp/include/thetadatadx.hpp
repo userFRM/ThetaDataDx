@@ -136,7 +136,7 @@ using TradeQuoteTick = ThetaDataDxTradeQuoteTick;
 // precomputed fields from the same schema rows.
 #include "tick_flag_accessors.hpp.inc"
 
-// ── FPSS event struct layout guards ──
+// ── streaming event struct layout guards ──
 //
 // Field-level offsetof guards. The `ThetaDataDxStreamEvent` data-variant field
 // order is generated from `fpss_event_schema.toml` — the same schema
@@ -164,7 +164,7 @@ using TradeQuoteTick = ThetaDataDxTradeQuoteTick;
 // struct layout under `-O2` with the generated `fpss_event_structs.h.inc`
 // types on an LP64 host; CI re-validates the asserts on every build.
 
-// Generated layout guards for the FPSS event C mirror structs.
+// Generated layout guards for the streaming event C mirror structs.
 #include "fpss_layout_asserts.hpp.inc"
 
 // Layout guards for the hand-written ABI structs (option contract,
@@ -182,7 +182,7 @@ struct OptionContract {
     char right;
 };
 
-/// Active FPSS subscription descriptor.
+/// Active streaming subscription descriptor.
 struct Subscription {
     std::string kind;
     std::string contract;
@@ -370,7 +370,7 @@ public:
     using ThetaDataError::ThetaDataError;
 };
 
-/// FPSS streaming protocol / state-machine failure.
+/// Streaming protocol / state-machine failure.
 class StreamError : public ThetaDataError {
 public:
     using ThetaDataError::ThetaDataError;
@@ -785,22 +785,22 @@ public:
      *  @return An owning `Config` holder seeded with dev defaults. */
     static Config dev();
 
-    /** Build the historical-staging configuration (MDDS staging cluster +
+    /** Build the historical-staging configuration (historical staging cluster +
      *  auth marker; streaming stays on production). Testing, unstable.
      *  @return An owning `Config` holder seeded with stage defaults. */
     static Config stage();
 
     /** Source a configuration from a `.env`-format file.
      *  Starts from the production configuration and applies the cluster
-     *  keys carried by the file: `THETADATA_MDDS_TYPE` (`PROD` / `STAGE`)
-     *  selects the historical environment and `THETADATA_FPSS_TYPE`
+     *  keys carried by the file: `THETADATA_HISTORICAL_TYPE` (`PROD` / `STAGE`)
+     *  selects the historical environment and `THETADATA_STREAMING_TYPE`
      *  (`PROD` / `DEV`) selects the streaming environment (both
      *  case-insensitive, selected independently), and the optional
      *  `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` keys
      *  override the hosts (an explicit host wins over the environment
      *  default). This reads the same file format and keys as
      *  `Credentials::from_dotenv`, so one `.env` can carry
-     *  `THETADATA_API_KEY`, `THETADATA_MDDS_TYPE`, and `THETADATA_FPSS_TYPE`.
+     *  `THETADATA_API_KEY`, `THETADATA_HISTORICAL_TYPE`, and `THETADATA_STREAMING_TYPE`.
      *  @param path Path to the `.env` file.
      *  @return An owning `Config` holder.
      *  @throws thetadatadx::ThetaDataError if the file is unreadable. */
@@ -1401,10 +1401,10 @@ public:
         return mode;
     }
 
-    /** Target historical (MDDS) environment carried by this configuration:
+    /** Target historical environment carried by this configuration:
      *  `"PROD"` for the production cluster or `"STAGE"` for staging. The
      *  historical and streaming environments are selected independently;
-     *  the production / stage / dev presets (and the `THETADATA_MDDS_TYPE`
+     *  the production / stage / dev presets (and the `THETADATA_HISTORICAL_TYPE`
      *  dotenv key) set the historical channel, and this is the readback of
      *  that selection. Returns an empty string if the FFI getter returns
      *  null (null handle). */
@@ -1413,11 +1413,11 @@ public:
         return s.str();
     }
 
-    /** Target streaming (FPSS) environment carried by this configuration:
+    /** Target streaming environment carried by this configuration:
      *  `"PROD"` for the production cluster or `"DEV"` for the dev cluster.
      *  The streaming and historical environments are selected
      *  independently; the production / stage / dev presets (and the
-     *  `THETADATA_FPSS_TYPE` dotenv key) set the streaming channel, and
+     *  `THETADATA_STREAMING_TYPE` dotenv key) set the streaming channel, and
      *  this is the readback of that selection. Returns an empty string if
      *  the FFI getter returns null (null handle). */
     std::string get_streaming_environment() const {
@@ -1654,7 +1654,7 @@ private:
     std::unique_ptr<ThetaDataDxHistoricalClient, HistoricalClientDeleter> handle_;
 };
 
-// ── FPSS event types (re-exported from thetadatadx.h) ──
+// ── streaming event types (re-exported from thetadatadx.h) ──
 //
 // Each control variant has its own typed C struct rather than a single
 // flat `{ kind, id, detail }` envelope. Consumers dispatch via
@@ -2235,7 +2235,7 @@ enum class Backpressure {
 /// batch (and sets `batch` to `nullptr` at clean end of stream), `schema()`
 /// reports the fixed schema, and `dropped()` reports the drop-oldest count.
 /// Held by `std::shared_ptr` (see `Stream::batches`); the reader closes —
-/// unsubscribing and tearing the FPSS session down — when the last reference
+/// unsubscribing and tearing the streaming session down — when the last reference
 /// drops (RAII). Every batch carries the identical schema, so batches are
 /// concat-safe.
 ///
@@ -2301,7 +2301,7 @@ public:
         return handle_ != nullptr ? thetadatadx_record_batch_stream_dropped(handle_) : 0;
     }
 
-    /// Stop the reader: unsubscribe and tear the FPSS session down.
+    /// Stop the reader: unsubscribe and tear the streaming session down.
     /// Idempotent; subsequent reads return end of stream.
     ///
     /// Safe to call from another thread while a `ReadNext` is in flight: it
@@ -2801,8 +2801,8 @@ private:
 class ClientBuilder;
 
 /// RAII wrapper around a unified client handle (`ThetaDataDxClient*`).
-/// The unified handle owns both the historical (gRPC/MDDS) and
-/// streaming (FPSS) sub-clients. Historical queries are reached through
+/// The unified handle owns both the historical (gRPC) and
+/// streaming sub-clients. Historical queries are reached through
 /// `client.historical()` (the `Historical` view) and the real-time
 /// streaming surface through `client.stream()` (the `Stream` view); the
 /// FLATFILES surface stays on the client directly via `flat_files()`. For
@@ -3139,7 +3139,7 @@ public:
         return std::move(*this);
     }
 
-    /// Select the historical (MDDS) environment by its binding label
+    /// Select the historical environment by its binding label
     /// (`"PROD"` or `"STAGE"`, case-insensitive). The historical and
     /// streaming channels are chosen independently, so this composes with a
     /// streaming selection — `.streaming_environment(..).historical_environment(..)`
@@ -3153,7 +3153,7 @@ public:
         return std::move(*this);
     }
 
-    /// Select the streaming (FPSS) environment by its binding label
+    /// Select the streaming environment by its binding label
     /// (`"PROD"` or `"DEV"`, case-insensitive). Composes with a historical
     /// selection.
     ClientBuilder& streaming_environment(const std::string& environment) & {
@@ -3216,7 +3216,7 @@ public:
     /// Source both the credential and the target environment from a
     /// `.env`-format file. Reuses `Credentials::from_dotenv` and
     /// `Config::from_dotenv`, so one file can carry both
-    /// `THETADATA_API_KEY` and `THETADATA_MDDS_TYPE`.
+    /// `THETADATA_API_KEY` and `THETADATA_HISTORICAL_TYPE`.
     ClientBuilder& from_dotenv(const std::string& path) & {
         set_auth(AuthKind::Dotenv, path, std::string(),
                  "api_key_from_dotenv / from_dotenv");
@@ -3297,7 +3297,7 @@ private:
     enum class EnvKind { Preset, Config, Dotenv };
 
     /// Per-channel preset selections, mirroring the independent historical
-    /// (MDDS) and streaming (FPSS) channels. Both default to production.
+    /// and streaming channels. Both default to production.
     enum class HistoricalKind { Production, Stage };
     enum class StreamingKind { Production, Dev };
 
@@ -3332,7 +3332,7 @@ private:
         config_ = std::make_shared<Config>(std::move(cfg));
     }
 
-    /// Select the historical (MDDS) channel by its string label
+    /// Select the historical channel by its string label
     /// (`"PROD"` / `"STAGE"`), rejecting anything else as a
     /// client-construction config error. The streaming channel is left
     /// untouched.
@@ -3340,7 +3340,7 @@ private:
         select_historical(parse_historical_kind(environment));
     }
 
-    /// Select the streaming (FPSS) channel by its string label
+    /// Select the streaming channel by its string label
     /// (`"PROD"` / `"DEV"`), rejecting anything else as a
     /// client-construction config error. The historical channel is left
     /// untouched.
@@ -3397,7 +3397,7 @@ private:
         return normalized;
     }
 
-    /// Parse a historical (MDDS) channel label (`"PROD"` / `"STAGE"`).
+    /// Parse a historical channel label (`"PROD"` / `"STAGE"`).
     static HistoricalKind parse_historical_kind(const std::string& environment) {
         const std::string normalized = normalize_label(environment);
         if (normalized == "PROD") {
@@ -3410,7 +3410,7 @@ private:
             "historical environment must be PROD or STAGE; got \"" + environment + "\"");
     }
 
-    /// Parse a streaming (FPSS) channel label (`"PROD"` / `"DEV"`).
+    /// Parse a streaming channel label (`"PROD"` / `"DEV"`).
     static StreamingKind parse_streaming_kind(const std::string& environment) {
         const std::string normalized = normalize_label(environment);
         if (normalized == "PROD") {
@@ -3613,7 +3613,7 @@ public:
     std::string kind_string() const {
         if (scope_ == Scope::Full) {
             // Only Trade and OpenInterest have a full-stream broadcast on
-            // the FPSS wire; Quote and MarketValue are per-contract only.
+            // the streaming wire; Quote and MarketValue are per-contract only.
             // A full-stream `FluentSubscription` is therefore only ever
             // built for those two kinds (see `FluentSecType::full_trades`
             // / `full_open_interest`), and the label set is the same two

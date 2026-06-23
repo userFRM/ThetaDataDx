@@ -1,4 +1,4 @@
-//! Packet-stream wire framing for the MDDS legacy port.
+//! Packet-stream wire framing for the historical legacy port.
 //!
 //! Frame layout (all big-endian):
 //!

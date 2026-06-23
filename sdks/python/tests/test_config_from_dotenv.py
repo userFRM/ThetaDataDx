@@ -21,7 +21,7 @@ def _write_dotenv(tmp_path, name: str, body: str) -> str:
 
 
 def test_from_dotenv_stage_selects_staging_host(tmp_path):
-    path = _write_dotenv(tmp_path, "stage.env", "# select staging\nTHETADATA_MDDS_TYPE=STAGE\n")
+    path = _write_dotenv(tmp_path, "stage.env", "# select staging\nTHETADATA_HISTORICAL_TYPE=STAGE\n")
     cfg = client.Config.from_dotenv(path)
     # A staging `.env` resolves to the staging historical host, distinct
     # from the production host a prod `.env` yields.
@@ -37,8 +37,8 @@ def test_from_dotenv_api_key_only_keeps_production_host(tmp_path):
 
 
 def test_from_dotenv_prod_and_stage_differ(tmp_path):
-    prod_path = _write_dotenv(tmp_path, "prod.env", "THETADATA_MDDS_TYPE=PROD\n")
-    stage_path = _write_dotenv(tmp_path, "stage2.env", "THETADATA_MDDS_TYPE=STAGE\n")
+    prod_path = _write_dotenv(tmp_path, "prod.env", "THETADATA_HISTORICAL_TYPE=PROD\n")
+    stage_path = _write_dotenv(tmp_path, "stage2.env", "THETADATA_HISTORICAL_TYPE=STAGE\n")
     prod = client.Config.from_dotenv(prod_path)
     stage = client.Config.from_dotenv(stage_path)
     assert prod.historical_host != stage.historical_host

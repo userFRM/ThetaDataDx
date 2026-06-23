@@ -1,11 +1,11 @@
 //! Standalone Python `HistoricalClient` pyclass.
 //!
-//! Opens ONLY the MDDS channel and the Nexus HTTP authentication
-//! flow — no FPSS TLS connection, no event ring, no streaming
+//! Opens ONLY the historical channel and the Nexus HTTP authentication
+//! flow, no streaming TLS connection, no event ring, no streaming
 //! state machine. Mirrors the standalone C ABI entry points
 //! (`thetadatadx_client_*` in `ffi/src/auth.rs`) and the C++ `thetadatadx::Client`
 //! pattern, letting Python users run a historical-only session
-//! alongside a parallel FPSS process without the bundled
+//! alongside a parallel streaming process without the bundled
 //! [`crate::Client`] preempting the parallel work at the
 //! Nexus session layer.
 //!
@@ -28,9 +28,9 @@
 //! and forwards historical / list / snapshot / at-time / FLATFILES
 //! endpoint calls through PyO3 attribute lookup against an internally
 //! held [`crate::Client`] pyclass instance. The bundled
-//! client opens MDDS + Nexus at construction time and never
-//! opens FPSS unless `start_streaming` is called — by construction
-//! and by allowlist enforcement here, no FPSS-touching method is
+//! client opens the historical channel + Nexus at construction time and never
+//! opens streaming unless `start_streaming` is called. By construction
+//! and by allowlist enforcement here, no streaming-touching method is
 //! reachable through `HistoricalClient`.
 //!
 //! This is the same delegation pattern [`crate::AsyncClient`]
@@ -43,10 +43,10 @@ use pyo3::prelude::*;
 use crate::{Client, Config, Credentials};
 
 /// Methods on the `client.stream` [`crate::StreamView`] surface (plus
-/// the `stream` accessor itself) that touch the FPSS transport. Reaching
+/// the `stream` accessor itself) that touch the streaming transport. Reaching
 /// for any of these through `HistoricalClient` raises `AttributeError` so
-/// callers who chose the MDDS-only surface cannot accidentally open an
-/// FPSS connection that would conflict with a parallel FPSS process.
+/// callers who chose the historical-only surface cannot accidentally open a
+/// streaming connection that would conflict with a parallel streaming process.
 ///
 /// The block-list approach (vs. the inverted `AsyncClient`
 /// allowlist) keeps the historical / FLATFILES surface — which is
@@ -58,9 +58,9 @@ use crate::{Client, Config, Credentials};
 /// Drift guard: the compile-time assertion below pins the generator-emitted
 /// streaming surface (`PYTHON_UNIFIED_FPSS_METHODS`, generated from
 /// `crates/thetadatadx/sdk_surface.toml`) as a strict subset of
-/// `FPSS_TOUCHING_METHODS`. Adding a new generator-emitted FPSS method
+/// `FPSS_TOUCHING_METHODS`. Adding a new generator-emitted streaming method
 /// without also extending this list fails the build, so the block-list
-/// cannot silently fall behind. Hand-written FPSS methods on the unified
+/// cannot silently fall behind. Hand-written streaming methods on the unified
 /// pyclass (`subscribe`, `streaming`, …) are
 /// covered by the offline coverage test in
 /// `tests/test_standalone_clients.py::test_mdds_client_block_list_offline`,
@@ -70,7 +70,7 @@ pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
     // Generator-emitted streaming methods (declared in
     // `crates/thetadatadx/sdk_surface.toml`). The compile-time guard
     // below asserts every name in `PYTHON_UNIFIED_FPSS_METHODS` is
-    // present here — adding a new generator-emitted FPSS method
+    // present here — adding a new generator-emitted streaming method
     // without extending this list fails the build.
     "start_streaming",
     "stop_streaming",
@@ -92,8 +92,8 @@ pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
     // Hand-written `#[pymethods]` entries on `Client` /
     // sibling streaming pyclasses. These factories return a
     // streaming-session pyclass (sync, sync-iter, or asyncio) — the
-    // session itself transitively opens the FPSS surface, so an
-    // MDDS-only handle must refuse access. Drift guard: the offline
+    // session itself transitively opens the streaming surface, so a
+    // historical-only handle must refuse access. Drift guard: the offline
     // coverage test in
     // `tests/test_standalone_clients.py::test_mdds_client_block_list_offline`
     // pairs every name here with the
@@ -101,7 +101,7 @@ pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
     "streaming",
     // The `client.stream` sub-namespace accessor — blocking the
     // accessor itself closes the transitive path
-    // `mdds.stream.subscribe(...)` that would otherwise reach the FPSS
+    // `mdds.stream.subscribe(...)` that would otherwise reach the streaming
     // surface around the per-method block-list.
     "stream",
 ];
@@ -126,7 +126,7 @@ const fn const_bytes_eq(a: &[u8], b: &[u8]) -> bool {
 /// `PYTHON_UNIFIED_FPSS_METHODS` (emitted by
 /// `crates/thetadatadx/build_support_bin/sdk_surface/python.rs` from
 /// `sdk_surface.toml`) must appear in `FPSS_TOUCHING_METHODS`. Adding
-/// a new generator-emitted FPSS method without extending the
+/// a new generator-emitted streaming method without extending the
 /// hand-written block-list above fails the build.
 const _: () = {
     let mut i = 0;
@@ -145,20 +145,20 @@ const _: () = {
             found,
             "PYTHON_UNIFIED_FPSS_METHODS contains a name not in \
              `mdds_client::FPSS_TOUCHING_METHODS` — extend the \
-             block-list (and the offline-coverage test) so the MDDS \
-             surface stays FPSS-free."
+             block-list (and the offline-coverage test) so the historical \
+             surface stays streaming-free."
         );
         i += 1;
     }
 };
 
-/// Standalone MDDS-only historical client.
+/// Standalone historical-only client.
 ///
-/// Opens ONLY the MDDS channel — no FPSS TLS connection.
+/// Opens ONLY the historical channel, no streaming TLS connection.
 /// Authenticates once against Nexus at construction time. Use when a
-/// parallel FPSS process is already running in the same environment
+/// parallel streaming process is already running in the same environment
 /// and you need to test historical / FLATFILES endpoints without the
-/// bundled [`crate::Client`] also opening an FPSS slot.
+/// bundled [`crate::Client`] also opening a streaming slot.
 ///
 /// ```python
 /// from thetadatadx import HistoricalClient, Credentials, Config
@@ -171,7 +171,7 @@ const _: () = {
 /// ```
 ///
 /// Calling streaming / subscribe methods on this pyclass raises
-/// `AttributeError` — use the standalone [`crate::StreamingClient`] or the
+/// `AttributeError`; use the standalone [`crate::StreamingClient`] or the
 /// bundled [`crate::Client`] when you need both surfaces.
 // `frozen` — every `#[pymethods]` entry takes `&self` (never
 // `&mut self`). The wrapped `inner: Py<Client>` carries its
@@ -180,9 +180,9 @@ const _: () = {
 // than slipping silently.
 #[pyclass(module = "thetadatadx", name = "HistoricalClient", frozen)]
 pub(crate) struct HistoricalClient {
-    /// Hidden inner unified client. Opens MDDS + Nexus at
-    /// `connect` time and lazily opens FPSS only on `start_streaming*`
-    /// — neither of which we surface through this pyclass, so no FPSS
+    /// Hidden inner unified client. Opens the historical channel + Nexus at
+    /// `connect` time and lazily opens streaming only on `start_streaming*`
+    /// (neither of which we surface through this pyclass), so no streaming
     /// TLS slot is ever opened for a session that lives entirely
     /// through `HistoricalClient`.
     inner: Py<Client>,
@@ -190,12 +190,12 @@ pub(crate) struct HistoricalClient {
 
 #[pymethods]
 impl HistoricalClient {
-    /// Connect to ThetaData and open the MDDS channel.
+    /// Connect to ThetaData and open the historical channel.
     ///
     /// Authenticates against Nexus once and opens the in-house gRPC
     /// channel pool — same first-step behaviour as
-    /// [`crate::Client`] but the FPSS streaming slot is
-    /// never entered. A parallel FPSS process running under the same
+    /// [`crate::Client`] but the streaming slot is
+    /// never entered. A parallel streaming process running under the same
     /// credentials is unaffected by this constructor's authentication
     /// (the Nexus-side parallel-session behaviour is the user's
     /// environment concern; see the module-level docstring).
@@ -228,16 +228,16 @@ impl HistoricalClient {
     /// Forward unknown attribute access to the wrapped
     /// [`crate::Client`].
     ///
-    /// Block-list applied first: every FPSS-touching method raises
-    /// `AttributeError` so an MDDS-only handle cannot accidentally
-    /// race a parallel FPSS process. Everything else (historical
+    /// Block-list applied first: every streaming-touching method raises
+    /// `AttributeError` so a historical-only handle cannot accidentally
+    /// race a parallel streaming process. Everything else (historical
     /// endpoints, FLATFILES, snapshot / list / at-time builders,
     /// `flat_files` namespace) reaches the unified client transparently.
     fn __getattr__(&self, py: Python<'_>, name: &str) -> PyResult<Py<PyAny>> {
         if FPSS_TOUCHING_METHODS.contains(&name) {
             return Err(PyAttributeError::new_err(format!(
                 "HistoricalClient is the standalone historical surface and does not expose `{name}`. \
-                 Use StreamingClient(creds, config) for FPSS streaming, or Client(creds, config) \
+                 Use StreamingClient(creds, config) for streaming, or Client(creds, config) \
                  for the unified handle."
             )));
         }
@@ -256,8 +256,8 @@ impl HistoricalClient {
     }
 
     fn __repr__(&self) -> String {
-        // Drop the inherited-then-rewritten `streaming=` slot. MDDS-only
-        // surface never opens the FPSS TLS transport, so reporting a
+        // Drop the inherited-then-rewritten `streaming=` slot. The historical-only
+        // surface never opens the streaming TLS transport, so reporting a
         // streaming state at all is misleading. The historical channel
         // is always connected by construction (the constructor errored
         // out otherwise).

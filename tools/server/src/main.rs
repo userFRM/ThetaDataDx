@@ -76,14 +76,14 @@ struct Args {
     /// Selects the streaming channel independently of the historical
     /// channel; an invalid value is rejected at parse time.
     #[arg(long, default_value = "production", value_parser = ["production", "dev"])]
-    fpss_region: String,
+    streaming_region: String,
 
     /// Historical (MDDS) environment: "production" (default) or "stage".
     /// Selects the historical channel independently of the streaming
     /// channel and also drives the authentication marker; an invalid
     /// value is rejected at parse time.
     #[arg(long, default_value = "production", value_parser = ["production", "stage"])]
-    mdds_region: String,
+    historical_region: String,
 
     /// HTTP REST API port (default matches JVM terminal: 25503).
     #[arg(long, default_value_t = 25503)]
@@ -235,7 +235,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("thetadatadx-server v{version}");
     eprintln!(
         "Configuration: Historical: {}, Streaming: {}",
-        args.mdds_region, args.fpss_region
+        args.historical_region, args.streaming_region
     );
     eprintln!("REST API: http://{}:{}/", args.bind, args.http_port);
     eprintln!("WebSocket: ws://{}:{}/v1/events", args.bind, args.ws_port);
@@ -349,13 +349,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Step 2: Load config -- prefer --config file, then compose the two
-    // per-channel environments from --mdds-region and --fpss-region.
+    // per-channel environments from --historical-region and --streaming-region.
     //
     // The historical (MDDS) and streaming (FPSS) channels select their
     // environment independently, so we start from the all-production config
     // and apply each axis with its own setter. Composing this way (rather
     // than reaching for the `stage()` / `dev()` whole-config presets, which
-    // each move only one axis) means `--mdds-region stage --fpss-region dev`
+    // each move only one axis) means `--historical-region stage --streaming-region dev`
     // yields historical-staging plus streaming-dev, and every other
     // combination resolves correctly too. The arg parser has already
     // rejected any value outside each channel's allowed set, so the matches
@@ -365,10 +365,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         DirectConfig::from_file(config_path)?
     } else {
         let mut config = DirectConfig::production();
-        if args.mdds_region == "stage" {
+        if args.historical_region == "stage" {
             config = config.with_historical_environment(HistoricalEnvironment::Stage);
         }
-        if args.fpss_region == "dev" {
+        if args.streaming_region == "dev" {
             config = config.with_streaming_environment(StreamingEnvironment::Dev);
         }
         config

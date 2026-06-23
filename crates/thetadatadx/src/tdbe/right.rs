@@ -1,6 +1,6 @@
 //! Canonical parser for the option `right` parameter.
 //!
-//! Every user-facing input boundary (MDDS endpoints, FPSS contracts, CLI,
+//! Every user-facing input boundary (historical endpoints, streaming contracts, CLI,
 //! SDK surfaces, the Greeks utilities) funnels `right` strings through
 //! [`parse_right`] so that the accepted vocabulary and validation rules
 //! live in exactly one place.
@@ -50,7 +50,7 @@ pub enum ParsedRight {
 }
 
 impl ParsedRight {
-    /// Lowercase string expected by the MDDS gRPC server
+    /// Lowercase string expected by the historical gRPC server
     /// (`"call"` / `"put"` / `"both"`).
     #[must_use]
     pub fn as_mdds_str(self) -> &'static str {
@@ -76,8 +76,8 @@ impl ParsedRight {
         }
     }
 
-    /// Boolean used by the FPSS wire protocol (`true` = call, `false` = put).
-    /// `Both` is not representable on the FPSS wire and returns `None`.
+    /// Boolean used by the streaming wire protocol (`true` = call, `false` = put).
+    /// `Both` is not representable on the streaming wire and returns `None`.
     #[must_use]
     pub fn as_is_call(self) -> Option<bool> {
         match self {
@@ -87,8 +87,8 @@ impl ParsedRight {
         }
     }
 
-    /// Raw FPSS wire-format byte (`67` = ASCII `'C'`, `80` = ASCII `'P'`).
-    /// `Both` is not representable on the FPSS wire and returns `None`.
+    /// Raw streaming wire-format byte (`67` = ASCII `'C'`, `80` = ASCII `'P'`).
+    /// `Both` is not representable on the streaming wire and returns `None`.
     #[must_use]
     pub fn as_wire_byte(self) -> Option<i32> {
         match self {
@@ -98,7 +98,7 @@ impl ParsedRight {
         }
     }
 
-    /// Decode an FPSS wire byte (`67` for `'C'`, `80` for `'P'`) into
+    /// Decode a streaming wire byte (`67` for `'C'`, `80` for `'P'`) into
     /// a typed [`ParsedRight`]. Returns [`None`] for any other byte
     /// so callers can lift the soft-skip / hard-error decision into
     /// their own error type.
@@ -174,7 +174,7 @@ pub fn parse_right(input: &str) -> Result<ParsedRight, Error> {
 ///
 /// Returns [`crate::greeks::Error::Config`] if the input parses
 /// to [`ParsedRight::Both`]. Use this for endpoints where the wildcard is not
-/// meaningful (e.g. FPSS per-contract subscriptions, Greeks utilities).
+/// meaningful (e.g. streaming per-contract subscriptions, Greeks utilities).
 ///
 /// # Errors
 ///
@@ -259,7 +259,7 @@ mod tests {
 
     #[test]
     fn fpss_wire_byte_projection() {
-        // 'C' = 67, 'P' = 80 -- ASCII codes for the FPSS wire format.
+        // 'C' = 67, 'P' = 80 -- ASCII codes for the streaming wire format.
         assert_eq!(parse_right("call").unwrap().as_wire_byte(), Some(67));
         assert_eq!(parse_right("put").unwrap().as_wire_byte(), Some(80));
         assert_eq!(parse_right("*").unwrap().as_wire_byte(), None);
@@ -324,8 +324,8 @@ mod tests {
                     );
                 }
                 None => {
-                    // `Both` returns None on the forward direction —
-                    // there is no FPSS byte to invert from.
+                    // `Both` returns None on the forward direction,
+                    // there is no streaming byte to invert from.
                     assert_eq!(variant, ParsedRight::Both);
                 }
             }

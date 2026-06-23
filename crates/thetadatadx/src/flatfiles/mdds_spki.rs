@@ -1,15 +1,13 @@
 //! Server identity verification for the MDDS legacy port.
 //!
 //! The MDDS endpoints (`nj-{a,b}.thetadata.us:12000-12001`) present a TLS
-//! certificate whose chain has been expired since `2024-01-12`. Standard
-//! webpki validation fails. The vendor terminal works around this by trusting
-//! a single bundled cert from `client.jks`. We work around it by pinning the
+//! certificate whose chain has been expired since `2024-01-12`, so standard
+//! webpki chain validation fails. We anchor trust instead by pinning the
 //! SubjectPublicKeyInfo (SPKI) of the leaf certificate — the same approach
-//! the FPSS module already uses (see [`crate::fpss::pinning`]). Live
-//! observation on `2026-04-29` confirms the same SPKI is served by both the
-//! FPSS port (20000) and the MDDS port (12000) — ThetaData runs one keypair
-//! across the two backends. We therefore reuse the FPSS pin constant rather
-//! than maintaining a parallel one.
+//! the FPSS module already uses (see [`crate::fpss::pinning`]). The same SPKI
+//! is served by both the FPSS port (20000) and the MDDS port (12000) — one
+//! keypair backs both — so we reuse the FPSS pin constant rather than
+//! maintaining a parallel one.
 
 use std::sync::Arc;
 

@@ -1,16 +1,15 @@
-//! TLS connection setup + auth handshake against a single MDDS legacy host.
+//! TLS connection setup + auth handshake against a single historical legacy host.
 //!
 //! Splits cleanly into:
 //! - [`connect_tls`] — async TCP + TLS handshake using SPKI pinning.
 //! - [`login`] — CREDENTIALS + VERSION write, plus reading the
 //!   SESSION_TOKEN + METADATA confirmation pair.
 //!
-//! The auth flow does **not** wait for a `CONNECTED` (msg=4) frame: live
-//! observation shows the production server only emits SESSION_TOKEN +
-//! METADATA on success and never the explicit CONNECTED frame. Treating
-//! receipt of either pair as auth-success matches the vendor terminal's
-//! own log line `[MDDS] CONNECTED: ..., Bundle: ...` which is constructed
-//! from the METADATA payload.
+//! The auth flow does **not** wait for a `CONNECTED` (msg=4) frame: the
+//! production server only emits SESSION_TOKEN +
+//! METADATA on success and never the explicit CONNECTED frame, so receipt
+//! of either pair is treated as auth-success. The `[MDDS] CONNECTED: ...,
+//! Bundle: ...` status line is constructed from the METADATA payload.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -29,7 +28,7 @@ use crate::flatfiles::mdds_spki::MddsSpkiVerifier;
 use crate::flatfiles::types::FlatFilesUnavailableReason;
 use crate::fpss::protocol::build_login_payload;
 
-/// Established, authenticated MDDS connection.
+/// Established, authenticated historical connection.
 pub(crate) struct AuthedSession {
     /// Authenticated TLS stream, ready to carry FLAT_FILE request/response
     /// frames.
@@ -46,7 +45,7 @@ pub(crate) struct MddsHost<'a> {
     pub port: u16,
 }
 
-/// Open a TLS connection to a single MDDS host with SPKI pinning.
+/// Open a TLS connection to a single historical host with SPKI pinning.
 pub(crate) async fn connect_tls(target: MddsHost<'_>) -> Result<TlsStream<TcpStream>, Error> {
     // Build the config with an explicit ring provider so the handshake needs
     // no process-global default. ring is the sole provider in the dep graph.
@@ -85,7 +84,7 @@ fn build_version_payload() -> Vec<u8> {
     buf
 }
 
-/// Maximum number of frames consumed during the legacy MDDS handshake
+/// Maximum number of frames consumed during the legacy historical handshake
 /// before we surface an `Auth(Timeout)` failure. The server sends at
 /// most 4 frames on a successful login (SESSION_TOKEN, METADATA,
 /// optional CONNECTED, optional PING) plus a slack of 2 to absorb any
@@ -142,7 +141,7 @@ pub(crate) async fn login(
                 return Err(Error::Auth {
                     kind: AuthErrorKind::ServerError,
                     message: format!(
-                        "unexpected MDDS frame during login: msg={other} size={}",
+                        "unexpected historical frame during login: msg={other} size={}",
                         frame.payload.len()
                     ),
                 });
@@ -154,12 +153,12 @@ pub(crate) async fn login(
     }
     let bundle = bundle.ok_or_else(|| Error::Auth {
         kind: AuthErrorKind::ServerError,
-        message: "MDDS auth did not return METADATA bundle".into(),
+        message: "historical auth did not return METADATA bundle".into(),
     })?;
     if !session_token_seen {
         return Err(Error::Auth {
             kind: AuthErrorKind::ServerError,
-            message: "MDDS auth did not return SESSION_TOKEN".into(),
+            message: "historical auth did not return SESSION_TOKEN".into(),
         });
     }
     Ok(bundle)
@@ -170,7 +169,7 @@ pub(crate) async fn login(
 /// Retries only on transient connect-layer failures (TCP, TLS, I/O). A
 /// semantic server rejection — the credentials were rejected, the auth
 /// frame was malformed, the server emitted a `DISCONNECTED` — is
-/// short-circuited: replaying it across every MDDS host is pointless,
+/// short-circuited: replaying it across every historical host is pointless,
 /// risks rate-limiting the account, and the original error already
 /// describes what the server objected to.
 ///
@@ -207,7 +206,7 @@ pub(crate) async fn connect_and_login<'a>(
                 last_err = Some(Error::Io(std::io::Error::new(
                     std::io::ErrorKind::TimedOut,
                     format!(
-                        "MDDS connect/login to {}:{} timed out after {}s",
+                        "historical connect/login to {}:{} timed out after {}s",
                         host.host,
                         host.port,
                         connect_timeout.as_secs()

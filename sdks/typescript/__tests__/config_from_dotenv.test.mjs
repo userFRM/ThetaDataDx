@@ -30,7 +30,7 @@ function withDotenv(name, body, fn) {
 
 describe('Config.fromDotenv', () => {
   it('selects the staging environment from a .env file', () => {
-    withDotenv('stage.env', '# select staging\nTHETADATA_MDDS_TYPE=STAGE\n', (path) => {
+    withDotenv('stage.env', '# select staging\nTHETADATA_HISTORICAL_TYPE=STAGE\n', (path) => {
       const cfg = mod.Config.fromDotenv(path);
       assert.ok(cfg, 'fromDotenv should return a Config handle');
       assert.equal(cfg.historicalHost, 'mdds-stage.thetadata.us');
@@ -45,8 +45,8 @@ describe('Config.fromDotenv', () => {
   });
 
   it('yields a different host for a stage .env than for a prod .env', () => {
-    withDotenv('prod.env', 'THETADATA_MDDS_TYPE=PROD\n', (prodPath) => {
-      withDotenv('stage2.env', 'THETADATA_MDDS_TYPE=STAGE\n', (stagePath) => {
+    withDotenv('prod.env', 'THETADATA_HISTORICAL_TYPE=PROD\n', (prodPath) => {
+      withDotenv('stage2.env', 'THETADATA_HISTORICAL_TYPE=STAGE\n', (stagePath) => {
         const prod = mod.Config.fromDotenv(prodPath);
         const stage = mod.Config.fromDotenv(stagePath);
         assert.notEqual(prod.historicalHost, stage.historicalHost);

@@ -301,7 +301,7 @@ impl Config {
         Self::from_direct(config::DirectConfig::dev())
     }
 
-    /// Historical-staging configuration (MDDS staging cluster + auth marker;
+    /// Historical-staging configuration (historical staging cluster + auth marker;
     /// streaming stays on production). Testing, unstable.
     #[staticmethod]
     fn stage() -> Self {
@@ -311,7 +311,7 @@ impl Config {
     /// Source the target environment from a ``.env``-format file.
     ///
     /// Starts from the production configuration and applies the cluster
-    /// keys carried by the file: ``THETADATA_MDDS_TYPE`` (``PROD`` /
+    /// keys carried by the file: ``THETADATA_HISTORICAL_TYPE`` (``PROD`` /
     /// ``STAGE``, case-insensitive) selects the environment, and the
     /// optional ``THETADATA_HISTORICAL_HOST`` / ``THETADATA_STREAMING_HOST``
     /// keys override the hosts (an explicit host wins over the environment
@@ -319,7 +319,7 @@ impl Config {
     ///
     /// This reads the same file format and keys as
     /// :meth:`Credentials.from_dotenv`, so a single ``.env`` file can carry
-    /// both ``THETADATA_API_KEY`` and ``THETADATA_MDDS_TYPE``.
+    /// both ``THETADATA_API_KEY`` and ``THETADATA_HISTORICAL_TYPE``.
     #[staticmethod]
     fn from_dotenv(path: &str) -> PyResult<Self> {
         let inner = config::DirectConfig::from_dotenv(path).map_err(to_py_err)?;
@@ -1195,13 +1195,13 @@ impl Config {
         }
     }
 
-    /// Target historical (MDDS) environment carried by this configuration:
+    /// Target historical environment carried by this configuration:
     /// ``"PROD"`` for the production cluster or ``"STAGE"`` for staging.
     /// The historical and streaming channels are selected independently;
     /// :meth:`Config.production` / :meth:`Config.stage` (and the
-    /// ``THETADATA_MDDS_TYPE`` key on :meth:`Config.from_dotenv`) set the
+    /// ``THETADATA_HISTORICAL_TYPE`` key on :meth:`Config.from_dotenv`) set the
     /// historical channel, and this is the readback of that selection.
-    /// Mirrors the ``mdds_type`` string the inline ``Client`` constructor
+    /// Mirrors the ``historical_type`` string the inline ``Client`` constructor
     /// accepts.
     #[getter]
     fn get_historical_environment(&self) -> &'static str {
@@ -1209,13 +1209,13 @@ impl Config {
         guard.historical_environment().as_str()
     }
 
-    /// Target streaming (FPSS) environment carried by this configuration:
+    /// Target streaming environment carried by this configuration:
     /// ``"PROD"`` for the production cluster or ``"DEV"`` for the dev
     /// cluster. The streaming and historical channels are selected
     /// independently; :meth:`Config.production` / :meth:`Config.dev` (and
-    /// the ``THETADATA_FPSS_TYPE`` key on :meth:`Config.from_dotenv`) set
+    /// the ``THETADATA_STREAMING_TYPE`` key on :meth:`Config.from_dotenv`) set
     /// the streaming channel, and this is the readback of that selection.
-    /// Mirrors the ``fpss_type`` string the inline ``Client`` constructor
+    /// Mirrors the ``streaming_type`` string the inline ``Client`` constructor
     /// accepts.
     #[getter]
     fn get_streaming_environment(&self) -> &'static str {
@@ -1426,7 +1426,7 @@ include!("_generated/tick_arrow.rs");
 
 include!("_generated/utility_functions.rs");
 
-// ── FPSS streaming client ──
+// ── Streaming client ──
 
 // ── Unified Client client ──
 
@@ -1512,17 +1512,17 @@ fn resolve_credentials(
 /// Resolve the environment selection into a [`config::DirectConfig`].
 ///
 /// A full `config` handle wins (its environments and hosts are taken
-/// verbatim). Otherwise the historical (MDDS) and streaming (FPSS)
+/// verbatim). Otherwise the historical and streaming
 /// channels are selected independently on top of the production defaults:
-/// `mdds_type` (`"PROD"` / `"STAGE"`, case-insensitive) selects the
-/// historical channel and `fpss_type` (`"PROD"` / `"DEV"`,
+/// `historical_type` (`"PROD"` / `"STAGE"`, case-insensitive) selects the
+/// historical channel and `streaming_type` (`"PROD"` / `"DEV"`,
 /// case-insensitive) the streaming channel. Either absent keeps that
 /// channel on production. An unrecognized value raises ``ValueError``
 /// naming the valid set, never a silent fallback.
 fn resolve_direct_config(
     config: Option<&Config>,
-    mdds_type: Option<&str>,
-    fpss_type: Option<&str>,
+    historical_type: Option<&str>,
+    streaming_type: Option<&str>,
 ) -> PyResult<config::DirectConfig> {
     if let Some(cfg) = config {
         // Snapshot under the mutex — connect() takes ownership and the
@@ -1531,18 +1531,18 @@ fn resolve_direct_config(
         return Ok(guard.clone());
     }
     let mut direct = config::DirectConfig::production();
-    if let Some(raw) = mdds_type {
+    if let Some(raw) = historical_type {
         let environment = config::HistoricalEnvironment::parse(raw).ok_or_else(|| {
             config_err(format!(
-                "mdds_type must be \"PROD\" or \"STAGE\" (case-insensitive); got {raw:?}"
+                "historical_type must be \"PROD\" or \"STAGE\" (case-insensitive); got {raw:?}"
             ))
         })?;
         direct = direct.with_historical_environment(environment);
     }
-    if let Some(raw) = fpss_type {
+    if let Some(raw) = streaming_type {
         let environment = config::StreamingEnvironment::parse(raw).ok_or_else(|| {
             config_err(format!(
-                "fpss_type must be \"PROD\" or \"DEV\" (case-insensitive); got {raw:?}"
+                "streaming_type must be \"PROD\" or \"DEV\" (case-insensitive); got {raw:?}"
             ))
         })?;
         direct = direct.with_streaming_environment(environment);
@@ -1563,7 +1563,7 @@ struct Client {
     ///
     /// Shutdown contract: when the pyclass auto-drops while the GIL is
     /// held, the final `Arc::drop` may trigger the core
-    /// `Client::Drop` chain, which joins the FPSS dispatcher
+    /// `Client::Drop` chain, which joins the streaming dispatcher
     /// thread that itself re-acquires the GIL via `Python::attach`.
     /// Holding the GIL across that join would deadlock. Callers MUST
     /// invoke `stop_streaming()` (the generated method uses `py.detach`
@@ -1637,7 +1637,7 @@ struct HistoricalView {
 /// `Arc<Mutex<Option<Py<PyAny>>>>` callback slot, so `start_streaming`,
 /// `stop_streaming`, `reconnect`, and the subscription methods observe the
 /// same registration the unified client does. Constructing it is a pair of
-/// `Arc::clone`s — no auth round-trip, no FPSS state mutation.
+/// `Arc::clone`s — no auth round-trip, no streaming state mutation.
 #[pyclass(frozen)]
 struct StreamView {
     client: std::sync::Arc<thetadatadx::Client>,
@@ -1663,7 +1663,7 @@ impl Client {
     ///
     /// The API key is a first-class, directly-passed argument:
     /// ``Client(api_key="td1_...")`` and ``Client(api_key="td1_...",
-    /// mdds_type="STAGE")`` select the credential and the environment
+    /// historical_type="STAGE")`` select the credential and the environment
     /// inline. Email + password is the parallel method:
     /// ``Client(email="user@example.com", password="secret")``. The
     /// lower-level typed path stays a clean superset:
@@ -1673,9 +1673,9 @@ impl Client {
     /// Exactly one authentication argument must be given — ``api_key``,
     /// the ``email`` + ``password`` pair, or ``credentials``. Passing
     /// none, or two different ones, raises ``ConfigError`` before any
-    /// network round-trip. ``mdds_type`` (``"PROD"`` / ``"STAGE"``,
+    /// network round-trip. ``historical_type`` (``"PROD"`` / ``"STAGE"``,
     /// case-insensitive) selects the historical environment and
-    /// ``fpss_type`` (``"PROD"`` / ``"DEV"``, case-insensitive) the
+    /// ``streaming_type`` (``"PROD"`` / ``"DEV"``, case-insensitive) the
     /// streaming environment, independently; ``config`` supplies a full
     /// :class:`Config` whose environments and hosts win.
     #[new]
@@ -1686,8 +1686,8 @@ impl Client {
         api_key=None,
         email=None,
         password=None,
-        mdds_type=None,
-        fpss_type=None,
+        historical_type=None,
+        streaming_type=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -1697,11 +1697,11 @@ impl Client {
         api_key: Option<String>,
         email: Option<String>,
         password: Option<String>,
-        mdds_type: Option<&str>,
-        fpss_type: Option<&str>,
+        historical_type: Option<&str>,
+        streaming_type: Option<&str>,
     ) -> PyResult<Self> {
         let creds = resolve_credentials(credentials, api_key, email, password)?;
-        let direct_config = resolve_direct_config(config, mdds_type, fpss_type)?;
+        let direct_config = resolve_direct_config(config, historical_type, streaming_type)?;
         Self::connect_blocking(py, creds, direct_config)
     }
 
@@ -1716,21 +1716,21 @@ impl Client {
     /// env-or-file convenience read a ``.env`` file with
     /// :meth:`from_dotenv` instead.
     ///
-    /// ``mdds_type`` selects the historical environment (``"PROD"`` /
-    /// ``"STAGE"``) and ``fpss_type`` the streaming environment (``"PROD"``
+    /// ``historical_type`` selects the historical environment (``"PROD"`` /
+    /// ``"STAGE"``) and ``streaming_type`` the streaming environment (``"PROD"``
     /// / ``"DEV"``), independently; ``config`` supplies a full
     /// :class:`Config` whose environments and hosts win. The key is read
     /// once, immediately before the network round-trip.
     #[staticmethod]
-    #[pyo3(signature = (config=None, *, mdds_type=None, fpss_type=None))]
+    #[pyo3(signature = (config=None, *, historical_type=None, streaming_type=None))]
     fn from_env(
         py: Python<'_>,
         config: Option<&Config>,
-        mdds_type: Option<&str>,
-        fpss_type: Option<&str>,
+        historical_type: Option<&str>,
+        streaming_type: Option<&str>,
     ) -> PyResult<Self> {
         let creds = auth::Credentials::from_env().map_err(to_py_err)?;
-        let direct_config = resolve_direct_config(config, mdds_type, fpss_type)?;
+        let direct_config = resolve_direct_config(config, historical_type, streaming_type)?;
         Self::connect_blocking(py, creds, direct_config)
     }
 
@@ -1740,26 +1740,26 @@ impl Client {
     /// ``THETADATA_API_KEY`` selects an API key; otherwise
     /// ``THETADATA_EMAIL`` + ``THETADATA_PASSWORD`` build email +
     /// password credentials. When ``config`` is omitted the same file is
-    /// also read for ``THETADATA_MDDS_TYPE`` and ``THETADATA_FPSS_TYPE``,
+    /// also read for ``THETADATA_HISTORICAL_TYPE`` and ``THETADATA_STREAMING_TYPE``,
     /// so one ``.env`` can carry both the credential and the
-    /// environments. An explicit ``config``, ``mdds_type``, or
-    /// ``fpss_type`` overrides the file's environment selection.
+    /// environments. An explicit ``config``, ``historical_type``, or
+    /// ``streaming_type`` overrides the file's environment selection.
     #[staticmethod]
-    #[pyo3(signature = (path, config=None, *, mdds_type=None, fpss_type=None))]
+    #[pyo3(signature = (path, config=None, *, historical_type=None, streaming_type=None))]
     fn from_dotenv(
         py: Python<'_>,
         path: &str,
         config: Option<&Config>,
-        mdds_type: Option<&str>,
-        fpss_type: Option<&str>,
+        historical_type: Option<&str>,
+        streaming_type: Option<&str>,
     ) -> PyResult<Self> {
         let creds = auth::Credentials::from_dotenv(path).map_err(to_py_err)?;
-        // With no explicit config / mdds_type / fpss_type, read both
+        // With no explicit config / historical_type / streaming_type, read both
         // environment selectors from the same file; otherwise honour the
         // explicit override.
-        let direct_config = match (config, mdds_type, fpss_type) {
+        let direct_config = match (config, historical_type, streaming_type) {
             (None, None, None) => config::DirectConfig::from_dotenv(path).map_err(to_py_err)?,
-            _ => resolve_direct_config(config, mdds_type, fpss_type)?,
+            _ => resolve_direct_config(config, historical_type, streaming_type)?,
         };
         Self::connect_blocking(py, creds, direct_config)
     }
@@ -1887,7 +1887,7 @@ impl StreamView {
     }
 
     /// Configured capacity of the streaming event ring in slots (the
-    /// ``fpss_ring_size`` setting, a power of two).
+    /// ``streaming_ring_size`` setting, a power of two).
     ///
     /// The fixed denominator for :meth:`ring_occupancy`: when the
     /// occupancy sample approaches this value the ring is saturating
@@ -1931,7 +1931,7 @@ impl StreamView {
     ///
     /// Returns the same typed `Subscription` values the caller passes
     /// to `subscribe()`. Quote is never a valid full-stream kind on
-    /// the FPSS wire, so any such row from the core is dropped from
+    /// the streaming wire, so any such row from the core is dropped from
     /// the projection. Empty list when streaming has not started.
     ///
     /// Mirrors the cross-binding contract on the C++
@@ -2422,9 +2422,9 @@ impl AsyncClient {
     }
 }
 
-// ── Typed-pyclass FPSS event path ─────────────────────────────────────────
+// ── Typed-pyclass streaming event path ─────────────────────────────────────────
 //
-// All FPSS `#[pyclass]` definitions and the `fpss_event_to_typed`
+// All streaming `#[pyclass]` definitions and the `fpss_event_to_typed`
 // dispatcher (borrowed `&StreamEvent` → pyclass, single pass, no
 // intermediate) live in a generated file whose SSOT is
 // `crates/thetadatadx/fpss_event_schema.toml`. The generator is

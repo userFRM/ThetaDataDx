@@ -104,7 +104,7 @@ where
     }
 
     /// Per-frame ceiling configured on this stream's source channel.
-    /// Mirrors `DirectConfig::mdds.max_message_size` and is propagated
+    /// Mirrors `DirectConfig::historical.max_message_size` and is propagated
     /// to the decompression layer so a hostile
     /// `ResponseData.original_size` cannot trigger a runaway
     /// allocation past this bound (see

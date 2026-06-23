@@ -36,7 +36,7 @@
 //! Calling `rows_to_arrow(&[])` returns an `arrow_array::RecordBatch`
 //! with zero columns and zero rows. The caller cannot recover a schema from this
 //! — they must inspect their own request to know what shape was
-//! expected. This is consistent with how empty MDDS responses surface
+//! expected. This is consistent with how empty historical responses surface
 //! through the Python `<TickName>List` wrappers.
 
 use std::sync::Arc;

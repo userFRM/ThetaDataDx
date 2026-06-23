@@ -94,7 +94,7 @@ struct AuthEnv {
 impl AuthEnv {
     /// Build the `authEnv` marker for the target HISTORICAL environment.
     ///
-    /// The auth marker is driven by the historical (MDDS) environment only;
+    /// The auth marker is driven by the historical environment only;
     /// the streaming environment never reaches auth. Production carries no
     /// marker: the server treats an absent `authEnv` as `PROD`, so omitting it
     /// keeps the production request body byte-identical to the long-validated
@@ -184,12 +184,12 @@ pub(crate) fn auth_request_json_for_test(environment: HistoricalEnvironment) -> 
 /// via `#[serde(deny_unknown_fields)]` being absent.
 ///
 /// `Debug` is implemented manually so `session_id` (a bearer token used in
-/// every MDDS request) is never written to logs.
+/// every historical request) is never written to logs.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct AuthResponse {
-    /// Session UUID — the primary auth token for MDDS requests.
+    /// Session UUID, the primary auth token for historical requests.
     pub session_id: String,
 
     /// User details (subscription level, etc.).

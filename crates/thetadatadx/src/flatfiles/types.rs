@@ -211,7 +211,7 @@ impl FlatFilesUnavailableReason {
     }
 }
 
-/// Classify a `RemoveReason` ordinal received during MDDS legacy login
+/// Classify a `RemoveReason` ordinal received during historical legacy login
 /// as transient (retry on a fresh connection) vs terminal (no amount of
 /// retrying will fix it).
 ///
@@ -233,7 +233,10 @@ impl fmt::Display for FlatFilesUnavailableReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::AuthRejected { reason_code } => {
-                write!(f, "MDDS auth rejected (RemoveReason ord={reason_code})")
+                write!(
+                    f,
+                    "historical auth rejected (RemoveReason ord={reason_code})"
+                )
             }
             Self::RequestRejected { server_message } => {
                 write!(f, "FLAT_FILE request rejected: {server_message}")

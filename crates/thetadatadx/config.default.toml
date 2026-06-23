@@ -85,17 +85,17 @@ consumer_cpu = -1
 # passed to the client constructor. They are not part of this tuning config.
 
 # ── Environment selection ────────────────────────────────────────────────────
-# The historical (MDDS) and streaming (FPSS) channels are selected
-# independently via environment variables, each PROD by default:
-#   THETADATA_MDDS_TYPE = "prod" | "stage"  — historical cluster + auth marker
-#   THETADATA_FPSS_TYPE = "prod" | "dev"    — streaming cluster only
+# The historical and streaming channels are selected independently via
+# environment variables, each PROD by default:
+#   THETADATA_HISTORICAL_TYPE = "prod" | "stage"  — historical cluster + auth marker
+#   THETADATA_STREAMING_TYPE  = "prod" | "dev"    — streaming cluster only
 # There is no streaming staging cluster; historical staging leaves streaming on
 # production. `stage` (historical) is less stable than production and reboots
 # often.
 
 # ── Alternate Server Regions ─────────────────────────────────────────────────
 # Dev streaming servers (frequent reboots, replays historical data). Selected
-# with THETADATA_FPSS_TYPE=dev; uncomment to pin the dev hosts in this file.
+# with THETADATA_STREAMING_TYPE=dev; uncomment to pin the dev hosts in this file.
 # [streaming]
 # hosts = [
 #     "nj-a.thetadata.us:20200",

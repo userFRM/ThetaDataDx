@@ -1,4 +1,4 @@
-//! FLATFILES legacy-MDDS sub-configuration.
+//! FLATFILES legacy historical sub-configuration.
 //!
 //! The flatfile driver runs one TLS round-trip per request — connect to
 //! a host from `ALLOWED_MDDS_HOSTS`, send credentials, send the request,

@@ -42,7 +42,7 @@ fn parse_backpressure(kind: Option<&str>, capacity: Option<usize>) -> PyResult<B
 
 /// Open a [`RecordBatchStream`] over the unified client's stream.
 ///
-/// Called by the generated `StreamView.batches(..)` entry. Starts FPSS with
+/// Called by the generated `StreamView.batches(..)` entry. Starts streaming with
 /// a batching dispatcher and returns the reader pyclass.
 pub(crate) fn open_reader(
     py: Python<'_>,
@@ -64,7 +64,7 @@ pub(crate) fn open_reader(
         builder = builder.linger(std::time::Duration::from_millis(ms));
     }
     builder = builder.backpressure(backpressure);
-    // Never hold the GIL across the blocking FPSS connect the builder
+    // Never hold the GIL across the blocking streaming connect the builder
     // performs; a sibling Python thread keeps running while the handshake is
     // in flight. The build path and its `Result` are pure Rust — no Python
     // object is touched inside the detached region.
@@ -74,7 +74,7 @@ pub(crate) fn open_reader(
     })
 }
 
-/// A pull reader of `pyarrow.RecordBatch` values off the live FPSS stream.
+/// A pull reader of `pyarrow.RecordBatch` values off the live streaming session.
 ///
 /// Both a synchronous `Iterable` (the blocking `__next__` releases the GIL
 /// so other Python threads run while it waits) and an `AsyncIterable`
@@ -187,7 +187,7 @@ impl RecordBatchStream {
             .map(pyo3::Bound::into_any)
     }
 
-    /// Close the stream: unsubscribe and tear the FPSS session down.
+    /// Close the stream: unsubscribe and tear the streaming session down.
     /// Idempotent; further pulls return end-of-iteration.
     fn close(&self, py: Python<'_>) {
         // Signal shutdown through the core's shared-reference close, with the

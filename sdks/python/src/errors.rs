@@ -100,7 +100,7 @@ create_exception!(thetadatadx, DeadlineExceededError, ThetaDataError);
 // bindings (`NotFoundError` in TypeScript / C++ / the C ABI codes).
 create_exception!(thetadatadx, NotFoundError, ThetaDataError);
 
-// FPSS streaming protocol / state-machine failures.
+// Streaming protocol / state-machine failures.
 create_exception!(thetadatadx, StreamError, ThetaDataError);
 
 // Environmental configuration fault — a config-file read failure, a
@@ -199,7 +199,7 @@ fn rate_limit_err(e: &thetadatadx::Error) -> PyErr {
 /// Raise a `ConfigError` for a malformed client-construction argument.
 ///
 /// Used by the inline client constructor when the authentication kwargs
-/// conflict, are absent, or carry an unparseable `mdds_type` — a local,
+/// conflict, are absent, or carry an unparseable `historical_type` — a local,
 /// pre-network configuration fault distinct from a server-side auth
 /// rejection.
 pub fn config_err(message: impl Into<String>) -> PyErr {

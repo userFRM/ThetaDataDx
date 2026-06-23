@@ -1,4 +1,4 @@
-//! Wire data types for the FPSS data layer: tick structs, protocol enums, and
+//! Wire data types for the streaming data layer: tick structs, protocol enums, and
 //! the fixed-point [`price::Price`].
 //!
 //! Splits into three leaves — [`enums`] (wire enum taxonomy), [`price`]

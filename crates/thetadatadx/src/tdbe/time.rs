@@ -1,6 +1,6 @@
 //! Eastern Time + DST primitives.
 //!
-//! Canonical Eastern-time conversion module reused by `thetadatadx` (mdds
+//! Canonical Eastern-time conversion module reused by `thetadatadx` (historical
 //! decode + flatfiles) and the `tdbe` latency path. No external timezone
 //! crate dependencies — pure civil-date arithmetic with the documented US
 //! DST rules.
@@ -31,7 +31,7 @@
 ///   leap-year rule for February.
 ///
 /// Used by [`crate::tdbe::time::is_valid_yyyymmdd`] and by the
-/// `thetadatadx` MDDS + FPSS validators to reject impossible
+/// `thetadatadx` historical + streaming validators to reject impossible
 /// expirations (`00000000`, `20260230`, `19990431`, …) on every
 /// public user input. Internal sentinel uses (e.g. an
 /// implementation-detail "unset" date written to the wire) live

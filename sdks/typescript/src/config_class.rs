@@ -79,7 +79,7 @@ impl Config {
         }
     }
 
-    /// Historical-staging config (MDDS staging cluster + auth marker; streaming
+    /// Historical-staging config (historical staging cluster + auth marker; streaming
     /// stays on production). Unstable testing servers.
     #[napi(factory)]
     pub fn stage() -> Self {
@@ -91,7 +91,7 @@ impl Config {
     /// Source the target environment from a `.env`-format file.
     ///
     /// Starts from the production config and applies the cluster keys
-    /// carried by the file: `THETADATA_MDDS_TYPE` (`PROD` / `STAGE`,
+    /// carried by the file: `THETADATA_HISTORICAL_TYPE` (`PROD` / `STAGE`,
     /// case-insensitive) selects the environment, and the optional
     /// `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` keys
     /// override the hosts (an explicit host wins over the environment
@@ -99,7 +99,7 @@ impl Config {
     ///
     /// Reads the same file format and keys as `Credentials.fromDotenv`, so
     /// a single `.env` file can carry both `THETADATA_API_KEY` and
-    /// `THETADATA_MDDS_TYPE`.
+    /// `THETADATA_HISTORICAL_TYPE`.
     #[napi(factory, js_name = "fromDotenv")]
     pub fn from_dotenv(path: String) -> napi::Result<Self> {
         let inner = config::DirectConfig::from_dotenv(&path).map_err(crate::to_napi_err)?;
@@ -1583,13 +1583,13 @@ impl Config {
         })
     }
 
-    /// Target historical (MDDS) environment carried by this configuration:
+    /// Target historical environment carried by this configuration:
     /// `"PROD"` for the production cluster or `"STAGE"` for staging. The
     /// historical and streaming channels are selected independently;
     /// `Config.production()` / `Config.stage()` (and the
-    /// `THETADATA_MDDS_TYPE` key on `Config.fromDotenv`) set the historical
+    /// `THETADATA_HISTORICAL_TYPE` key on `Config.fromDotenv`) set the historical
     /// channel, and this is the readback of that selection. Mirrors the
-    /// `mddsType` string the inline `Client.connectWith` factory accepts.
+    /// `historicalType` string the inline `Client.connectWith` factory accepts.
     #[napi(getter, js_name = "historicalEnvironment")]
     pub fn historical_environment(&self) -> napi::Result<&'static str> {
         let guard = self
@@ -1599,13 +1599,13 @@ impl Config {
         Ok(guard.historical_environment().as_str())
     }
 
-    /// Target streaming (FPSS) environment carried by this configuration:
+    /// Target streaming environment carried by this configuration:
     /// `"PROD"` for the production cluster or `"DEV"` for the dev cluster.
     /// The streaming and historical channels are selected independently;
     /// `Config.production()` / `Config.dev()` (and the
-    /// `THETADATA_FPSS_TYPE` key on `Config.fromDotenv`) set the streaming
+    /// `THETADATA_STREAMING_TYPE` key on `Config.fromDotenv`) set the streaming
     /// channel, and this is the readback of that selection. Mirrors the
-    /// `fpssType` string the inline `Client.connectWith` factory accepts.
+    /// `streamingType` string the inline `Client.connectWith` factory accepts.
     #[napi(getter, js_name = "streamingEnvironment")]
     pub fn streaming_environment(&self) -> napi::Result<&'static str> {
         let guard = self

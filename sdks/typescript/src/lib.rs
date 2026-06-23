@@ -199,7 +199,7 @@ pub(crate) fn config_or_production(config: Option<&Config>) -> config::DirectCon
 
 /// Build a napi `Error` tagged as a `ConfigError` for a malformed
 /// client-construction option (conflicting or absent auth fields, an
-/// unparseable `mddsType`). Matches the `[ConfigError]` prefix the JS
+/// unparseable `historicalType`). Matches the `[ConfigError]` prefix the JS
 /// shim re-throws as a typed `ConfigError`, so the failure surfaces the
 /// same branded class the other bindings raise.
 fn config_option_err(message: impl AsRef<str>) -> napi::Error {
@@ -231,15 +231,15 @@ pub struct ClientConnectOptions {
     /// Path to a two-line `creds.txt` file (line 1 = email, line 2 =
     /// password).
     pub credentials_file: Option<String>,
-    /// Historical (MDDS) environment selector (`"PROD"` / `"STAGE"`,
+    /// Historical environment selector (`"PROD"` / `"STAGE"`,
     /// case-insensitive). Defaults to production. The historical and
     /// streaming channels are selected independently. For full host-level
     /// control, build a `Config` and use `Client.connect(creds, config)`.
-    pub mdds_type: Option<String>,
-    /// Streaming (FPSS) environment selector (`"PROD"` / `"DEV"`,
+    pub historical_type: Option<String>,
+    /// Streaming environment selector (`"PROD"` / `"DEV"`,
     /// case-insensitive). Defaults to production. Selected independently of
     /// the historical channel.
-    pub fpss_type: Option<String>,
+    pub streaming_type: Option<String>,
 }
 
 impl ClientConnectOptions {
@@ -253,8 +253,8 @@ impl ClientConnectOptions {
             email,
             password,
             credentials_file,
-            mdds_type,
-            fpss_type,
+            historical_type,
+            streaming_type,
         } = self;
 
         // Count the distinct auth methods. `email` + `password` together
@@ -309,23 +309,23 @@ impl ClientConnectOptions {
             return Err(config_option_err("no authentication field set"));
         };
 
-        // The historical (MDDS) and streaming (FPSS) channels are selected
+        // The historical and streaming channels are selected
         // independently on top of the production defaults; either absent
         // keeps that channel on production. An unrecognized value is a
         // config error naming the valid set, never a silent fallback.
         let mut cfg = config::DirectConfig::production();
-        if let Some(raw) = mdds_type.as_deref() {
+        if let Some(raw) = historical_type.as_deref() {
             let environment = config::HistoricalEnvironment::parse(raw).ok_or_else(|| {
                 config_option_err(format!(
-                    "mddsType must be \"PROD\" or \"STAGE\" (case-insensitive); got {raw:?}"
+                    "historicalType must be \"PROD\" or \"STAGE\" (case-insensitive); got {raw:?}"
                 ))
             })?;
             cfg = cfg.with_historical_environment(environment);
         }
-        if let Some(raw) = fpss_type.as_deref() {
+        if let Some(raw) = streaming_type.as_deref() {
             let environment = config::StreamingEnvironment::parse(raw).ok_or_else(|| {
                 config_option_err(format!(
-                    "fpssType must be \"PROD\" or \"DEV\" (case-insensitive); got {raw:?}"
+                    "streamingType must be \"PROD\" or \"DEV\" (case-insensitive); got {raw:?}"
                 ))
             })?;
             cfg = cfg.with_streaming_environment(environment);
@@ -572,11 +572,11 @@ include!("_generated/enums_generated.rs");
 
 include!("_generated/tick_classes.rs");
 
-// ── Typed FPSS event classes (generated from fpss_event_schema.toml) ──
+// ── Typed streaming event classes (generated from fpss_event_schema.toml) ──
 
 include!("_generated/fpss_event_classes.rs");
 
-// ── Buffered FPSS events ──
+// ── Buffered streaming events ──
 
 //
 // Generator-emitted from `fpss_event_schema.toml`. Same file content as
@@ -587,7 +587,7 @@ include!("_generated/buffered_event.rs");
 
 // ── Offline streaming-saturation bench hook (no network) ──
 //
-// `__benchFloodEvents(n, callback)` pushes synthetic FPSS events through
+// `__benchFloodEvents(n, callback)` pushes synthetic streaming events through
 // the real `TsfnCallback` dispatch path (same bounded queue, same per-event
 // marshal) so the TypeScript streaming ceiling can be measured offline.
 // Bench-only; carved out of the parity utility roster via
@@ -671,7 +671,7 @@ pub struct Client {
     /// Wrapped in `Arc` so async napi methods (e.g. `awaitDrain`) can
     /// clone a cheap handle into a `tokio::task::spawn_blocking` future
     /// without violating the `Send + 'static` bound. The inner
-    /// `thetadatadx::Client` is not `Clone` -- its FPSS mutex and
+    /// `thetadatadx::Client` is not `Clone` -- its streaming mutex and
     /// subscription-tier state forbid that -- so the outer `Arc` is the
     /// only way to hand a borrow off the napi main thread.
     client: Arc<thetadatadx::Client>,
@@ -762,7 +762,7 @@ impl Client {
     /// optional `Config` (`dev` / `stage` / `production`, plus any
     /// tuned setters) to override the production-default endpoint.
     /// Historical only; call `client.stream.startStreaming(...)` to
-    /// begin FPSS real-time data.
+    /// begin streaming real-time data.
     ///
     /// The config is snapshot at connect time: the `Config` handle may be
     /// reused or mutated afterward without affecting this client.
@@ -829,7 +829,7 @@ impl Client {
     /// field.
     ///
     /// ```js
-    /// const staged = await Client.connectWith({ apiKey: "td1_...", mddsType: "STAGE" });
+    /// const staged = await Client.connectWith({ apiKey: "td1_...", historicalType: "STAGE" });
     /// const withLogin = await Client.connectWith({ email: "u@e.com", password: "secret" });
     /// const fromEnv = await Client.connectWith({ apiKeyFromEnv: true });
     /// ```
@@ -837,9 +837,9 @@ impl Client {
     /// Exactly one authentication field must be set: `apiKey`,
     /// `apiKeyFromEnv`, `apiKeyFromDotenv`, the `email` + `password` pair,
     /// or `credentialsFile`. Passing none, or two different ones, rejects
-    /// with a `ConfigError` before any network round-trip. `mddsType`
+    /// with a `ConfigError` before any network round-trip. `historicalType`
     /// (`"PROD"` / `"STAGE"`, case-insensitive) selects the historical
-    /// environment and `fpssType` (`"PROD"` / `"DEV"`, case-insensitive)
+    /// environment and `streamingType` (`"PROD"` / `"DEV"`, case-insensitive)
     /// the streaming environment, independently. For a pre-built full
     /// `Config` (or a pre-built `Credentials` handle), use
     /// [`Client::connect`], which takes both.
@@ -875,7 +875,7 @@ impl StreamView {
         self.client.stream().is_authenticated()
     }
 
-    /// Cumulative count of FPSS events that were dropped because the
+    /// Cumulative count of streaming events that were dropped because the
     /// callback fell behind and the in-flight buffer was full.
     ///
     /// The value matches every other binding (C ABI, Python, C++). The
@@ -1011,7 +1011,7 @@ impl StreamView {
     /// `activeSubscriptions()`, where `kind` is one of
     /// `"full_trades"` / `"full_open_interest"` and `contract` carries
     /// the wire-level security type (`"OPTION"`, `"STOCK"`, ...).
-    /// Quote is never a valid full-stream kind on the FPSS wire, so
+    /// Quote is never a valid full-stream kind on the streaming wire, so
     /// any such row from the core is dropped from the projection.
     /// Empty array when streaming has not started.
     #[napi(js_name = "activeFullSubscriptions")]
@@ -1028,7 +1028,7 @@ impl StreamView {
                             SubscriptionKind::Trade => "full_trades",
                             SubscriptionKind::OpenInterest => "full_open_interest",
                             // Quote is not a valid full-stream kind on
-                            // the FPSS wire — drop the row to keep the
+                            // the streaming wire, drop the row to keep the
                             // projection cross-binding clean.
                             SubscriptionKind::Quote => return None,
                             _ => return None,
@@ -1075,7 +1075,7 @@ pub struct HistoricalClient {
     /// bodies reference `self.client`, so the historical impl block the
     /// codegen projects onto this class compiles unchanged. This client
     /// holds the same `thetadatadx::Client` core but never
-    /// reaches its streaming methods — no FPSS TLS slot is opened for a
+    /// reaches its streaming methods — no streaming TLS slot is opened for a
     /// session that lives entirely through `HistoricalClient`.
     client: Arc<thetadatadx::Client>,
 }
@@ -1085,12 +1085,12 @@ impl HistoricalClient {
     // Lifecycle: intentionally hand-written (language-specific constructor
     // semantics), mirroring the unified `Client` factories. The
     // connect core is identical — `thetadatadx::Client::connect`
-    // opens MDDS + Nexus and never opens FPSS until a streaming method is
+    // opens the historical channel + Nexus and never opens streaming until a streaming method is
     // called, which this class does not surface.
 
     /// Connect to ThetaData with a `Credentials` handle and open the
     /// historical data channel. Historical only — this client never
-    /// opens the FPSS streaming transport. Pass an optional `Config` to
+    /// opens the streaming transport. Pass an optional `Config` to
     /// override the production-default endpoint. Use `StreamingClient` for
     /// real-time data.
     ///
@@ -1151,7 +1151,7 @@ impl HistoricalClient {
 // field named `client`, so the shared bodies compile against either.
 include!("_generated/historical_methods.rs");
 
-// Generated streaming/FPSS methods.
+// Generated streaming methods.
 include!("_generated/streaming_methods.rs");
 
 // `startStreaming(cb)` is the sole streaming entry point. Callers that
@@ -1177,7 +1177,7 @@ pub use streaming_batches::RecordBatchStreamHandle;
 // `Subscription`, `SecType` napi classes and the polymorphic
 // `subscribe(sub)` / `subscribeMany([sub, ...])` methods on the
 // unified client. The `Contract` name on the JS side is taken by the
-// FPSS-event payload object in `_generated/fpss_event_classes.rs`; the package
+// streaming-event payload object in `_generated/fpss_event_classes.rs`; the package
 // `index.ts` re-exports the fluent class under both `ContractRef` and
 // `Contract` so users write `Contract.stock("AAPL")` per the
 // documented surface.
@@ -1190,10 +1190,10 @@ pub use fluent::{ContractRef, SecType, Subscription};
 mod util_helpers;
 pub use util_helpers::Util;
 
-// Standalone FPSS-only streaming client. Adds the `StreamingClient` napi class
-// over `thetadatadx::fpss::StreamingClient` (the FPSS primitive), mirroring the
-// Python `StreamingClient` and the C++ `thetadatadx::StreamingClient`. It opens only the FPSS
-// TLS transport — no MDDS / Nexus — and drives its own dispatcher thread,
+// Standalone streaming-only client. Adds the `StreamingClient` napi class
+// over `thetadatadx::fpss::StreamingClient` (the streaming primitive), mirroring the
+// Python `StreamingClient` and the C++ `thetadatadx::StreamingClient`. It opens only the streaming
+// TLS transport, no historical channel or Nexus, and drives its own dispatcher thread,
 // routing events through the same `TsfnCallback` mechanism as the unified
 // client's streaming surface.
 mod fpss_client;
@@ -1322,8 +1322,8 @@ mod connect_options_tests {
             email: None,
             password: None,
             credentials_file: None,
-            mdds_type: None,
-            fpss_type: None,
+            historical_type: None,
+            streaming_type: None,
         }
     }
 
@@ -1351,13 +1351,13 @@ mod connect_options_tests {
         let opts = ClientConnectOptions {
             email: Some("You@Example.COM".to_string()),
             password: Some("hunter2".to_string()),
-            mdds_type: Some("STAGE".to_string()),
+            historical_type: Some("STAGE".to_string()),
             ..empty()
         };
         let (creds, cfg) = opts.resolve().expect("email/password resolves");
         assert!(!creds.is_api_key());
         assert_eq!(creds.email(), Some("you@example.com"));
-        // mddsType selects only the historical channel; streaming stays prod.
+        // historicalType selects only the historical channel; streaming stays prod.
         assert_eq!(
             cfg.historical_environment(),
             config::HistoricalEnvironment::Stage
@@ -1369,14 +1369,14 @@ mod connect_options_tests {
     }
 
     #[test]
-    fn fpss_type_dev_selects_only_the_streaming_channel() {
+    fn streaming_type_dev_selects_only_the_streaming_channel() {
         let opts = ClientConnectOptions {
             api_key: Some("td1_example".to_string()),
-            fpss_type: Some("dev".to_string()),
+            streaming_type: Some("dev".to_string()),
             ..empty()
         };
-        let (_creds, cfg) = opts.resolve().expect("fpssType resolves");
-        // fpssType selects only the streaming channel; historical stays prod.
+        let (_creds, cfg) = opts.resolve().expect("streamingType resolves");
+        // streamingType selects only the streaming channel; historical stays prod.
         assert_eq!(
             cfg.historical_environment(),
             config::HistoricalEnvironment::Prod
@@ -1414,31 +1414,31 @@ mod connect_options_tests {
     }
 
     #[test]
-    fn bad_mdds_type_is_an_error() {
+    fn bad_historical_type_is_an_error() {
         let opts = ClientConnectOptions {
             api_key: Some("k".to_string()),
-            mdds_type: Some("nope".to_string()),
+            historical_type: Some("nope".to_string()),
             ..empty()
         };
         let msg = match opts.resolve() {
-            Ok(_) => panic!("expected an mddsType parse error"),
+            Ok(_) => panic!("expected an historicalType parse error"),
             Err(e) => e.reason.clone(),
         };
-        assert!(msg.contains("mddsType"), "got: {msg}");
+        assert!(msg.contains("historicalType"), "got: {msg}");
     }
 
     #[test]
-    fn bad_fpss_type_is_an_error() {
+    fn bad_streaming_type_is_an_error() {
         let opts = ClientConnectOptions {
             api_key: Some("k".to_string()),
-            fpss_type: Some("nope".to_string()),
+            streaming_type: Some("nope".to_string()),
             ..empty()
         };
         let msg = match opts.resolve() {
-            Ok(_) => panic!("expected an fpssType parse error"),
+            Ok(_) => panic!("expected an streamingType parse error"),
             Err(e) => e.reason.clone(),
         };
-        assert!(msg.contains("fpssType"), "got: {msg}");
+        assert!(msg.contains("streamingType"), "got: {msg}");
     }
 
     #[test]

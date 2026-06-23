@@ -3049,7 +3049,7 @@ Major release. Three headline groups land in one pass:
 ### Added
 
 - **`DirectConfig::derive_ohlcvc(bool)`** -- config-driven OHLCVC opt-out, replaces duplicate method. (#129)
-- **REST server drop-in replacement** -- `--email`/`--password`, `--config`, `--fpss-region` CLI args. `/v3/system/status` endpoint. Startup banner. (#128)
+- **REST server drop-in replacement** -- `--email`/`--password`, `--config`, `--streaming-region` CLI args. `/v3/system/status` endpoint. Startup banner. (#128)
 - **Error suppression 5s after STOP** -- matches the JVM terminal's behavior. (#124)
 - **Auth retry on transient errors** -- 3 attempts, 2s delay, network errors only. (#125)
 - **Config validation** -- clamps queue_depth (16-1M), window_size (64-1024) with warnings. (#126)

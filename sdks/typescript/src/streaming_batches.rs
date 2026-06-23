@@ -212,7 +212,7 @@ impl RecordBatchStreamHandle {
         i64::try_from(self.inner.dropped()).unwrap_or(i64::MAX)
     }
 
-    /// Close the stream: unsubscribe and tear the FPSS session down.
+    /// Close the stream: unsubscribe and tear the streaming session down.
     /// Idempotent; subsequent pulls return `null`.
     #[napi]
     pub fn close(&self) {

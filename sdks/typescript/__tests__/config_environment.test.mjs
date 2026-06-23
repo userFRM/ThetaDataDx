@@ -2,7 +2,7 @@
 //
 // The production / stage presets select the target cluster as a unit; the
 // `environment` getter reads that selection back as a `"PROD"` / `"STAGE"`
-// string, mirroring the `mddsType` selector the inline `Client.connectWith`
+// string, mirroring the `historicalType` selector the inline `Client.connectWith`
 // factory accepts.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

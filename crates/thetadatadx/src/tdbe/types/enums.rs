@@ -1,4 +1,4 @@
-//! Wire enum taxonomy for the FPSS data layer.
+//! Wire enum taxonomy for the streaming data layer.
 //!
 //! Each enum mirrors a numeric (or short-text) code carried on the wire and
 //! pairs a `from_code` resolver with an `as_str` symbolic form for the dynamic
@@ -9,7 +9,7 @@
 /// Security type identifier.
 ///
 /// `Unknown` is a sentinel for contracts whose shape has not yet been resolved.
-/// The FPSS decoder uses it for the empty-contract placeholder that flows on
+/// The streaming decoder uses it for the empty-contract placeholder that flows on
 /// data events arriving before their `ContractAssigned` frame — downstream
 /// consumers can pattern-match `sec_type == SecType::Unknown` instead of
 /// relying on `contract.symbol.is_empty()`. `Unknown` has no wire-protocol

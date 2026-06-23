@@ -1,4 +1,4 @@
-//! Unified `ThetaData` client -- single entry point, one auth, lazy FPSS.
+//! Unified `ThetaData` client -- single entry point, one auth, lazy streaming.
 //!
 //! Connect once. Use historical data immediately. Streaming connects
 //! on-demand when you first subscribe -- not at startup.
@@ -8,7 +8,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), thetadatadx::Error> {
-//!     // One connect, one auth. FPSS is NOT connected yet.
+//!     // One connect, one auth. Streaming is NOT connected yet.
 //!     // Or inline: Credentials::new("user@example.com", "your-password")
 //!     let client = Client::connect(
 //!         &Credentials::from_file("creds.txt")?,
@@ -18,9 +18,8 @@
 //!     // Historical -- works immediately, via the `historical` surface
 //!     let eod = client.historical().stock_history_eod("AAPL", "20240101", "20240301").await?;
 //!
-//!     // Streaming -- FPSS connects lazily on first subscribe, via `stream`
-//!     use thetadatadx::fpss::{StreamData, StreamEvent};
-//!     use thetadatadx::fpss::protocol::Contract;
+//!     // Streaming -- connects lazily on first subscribe, via `stream`
+//!     use thetadatadx::streaming::{Contract, StreamData, StreamEvent};
 //!     client.stream().start_streaming(|event| {
 //!         if let StreamEvent::Data(StreamData::Trade { price, size, .. }) = event {
 //!             println!("trade {price} x {size}");
@@ -129,9 +128,9 @@ pub enum ConnectionStatus {
 
 /// Unified `ThetaData` client.
 ///
-/// Authenticates once at connect time. Historical data (MDDS) is
+/// Authenticates once at connect time. Historical data is
 /// available immediately via the [`historical`](Self::historical)
-/// surface. Streaming (FPSS) connects lazily on the first
+/// surface. Streaming connects lazily on the first
 /// [`start_streaming`](StreamSurface::start_streaming) on the
 /// [`stream`](Self::stream) surface.
 ///
@@ -150,7 +149,7 @@ pub struct Client {
     flatfiles_config: crate::config::FlatFilesConfig,
     /// Streaming lifecycle state, held behind an `Arc` so a teardown that
     /// outlives the borrowed [`StreamSurface`] — notably the pull-based
-    /// [`crate::fpss::batch_reader::RecordBatchStream`], whose `close` / drop
+    /// [`crate::streaming::RecordBatchStream`], whose `close` / drop
     /// fire after the `&Client` borrow has ended — can quiesce the same state
     /// cells [`Self::stop_streaming`] does, through a [`std::sync::Weak`]. The
     /// callback path reaches it through `&self`; both routes funnel through
@@ -196,7 +195,7 @@ pub(crate) struct StreamingState {
     /// Monotonic counter incremented by every [`Client::stop_streaming`].
     ///
     /// Each `start_streaming*()` snapshots this value at entry and
-    /// re-checks it after the FPSS connect completes. If the snapshot
+    /// re-checks it after the streaming connect completes. If the snapshot
     /// no longer matches, an interleaving `stop_streaming` raised the
     /// generation, the freshly built [`StreamingClient`] is dropped, and
     /// the install is rejected. Closes the `Stopped → Live` resurrection
@@ -390,7 +389,7 @@ impl StreamingState {
     /// and the join below returns.
     fn run_teardown(&self, work: TeardownWork) {
         let TeardownWork { client, session } = work;
-        // Shut the FPSS client signal so its reader thread + event ring
+        // Shut the streaming client signal so its reader thread + event ring
         // consumer drain and exit.
         if let Some(client) = client {
             client.shutdown();
@@ -404,7 +403,7 @@ impl StreamingState {
             // joining it. The per-event callback dispatcher parks only on the
             // event ring, which `client.shutdown()` above already signalled, so
             // it installs no hook. The columnar pull dispatcher can be parked in
-            // its bounded-queue `flush` wait, which the FPSS shutdown does NOT
+            // its bounded-queue `flush` wait, which the streaming shutdown does NOT
             // touch; its hook stores `closed` (under the queue lock) and
             // notifies, so the parked flush returns and the join below completes
             // instead of hanging. The hook runs the SAME wakeup the reader's own
@@ -537,7 +536,7 @@ impl Client {
 
     /// Connect to `ThetaData`. Authenticates once, opens gRPC channel.
     ///
-    /// FPSS streaming is NOT connected yet -- call
+    /// Streaming is NOT connected yet -- call
     /// [`start_streaming`](StreamSurface::start_streaming) on the
     /// [`stream`](Client::stream) surface when you need real-time data.
     /// # Errors
@@ -579,7 +578,7 @@ impl Client {
         }
     }
 
-    /// Start the FPSS streaming connection with a callback handler.
+    /// Start the streaming connection with a callback handler.
     ///
     /// Open the streaming channel, authenticate, and start the reader
     /// and consumer threads. The user callback fires on the bounded-ring
@@ -620,13 +619,13 @@ impl Client {
         self.start_streaming_scoped(handler, |drain| drain())
     }
 
-    /// Start FPSS streaming with each consumer batch drain wrapped in a
+    /// Start streaming with each consumer batch drain wrapped in a
     /// caller-supplied `scope`.
     ///
     /// Identical to [`Self::start_streaming`] in every observable respect
     /// — the same single-flight gate, install/rollback, panic isolation,
     /// and one-call-per-event delivery — except the dispatcher drives
-    /// [`crate::fpss::StreamingClient::for_each_scoped`] instead of
+    /// [`crate::streaming::StreamingClient::for_each_scoped`] instead of
     /// `for_each`, so `scope` brackets each batch drain. The inter-batch
     /// wait on an idle ring runs outside `scope`.
     ///
@@ -661,14 +660,14 @@ impl Client {
         .map(|(_client, _generation)| ())
     }
 
-    /// Start FPSS streaming with a custom dispatcher consumer body.
+    /// Start streaming with a custom dispatcher consumer body.
     ///
     /// Factors the connect / spawn / install / rollback sequence shared by
     /// the per-event callback path ([`Self::start_streaming_scoped`]) and
     /// the columnar pull path ([`Self::start_streaming_batches`]). The
     /// `dispatcher_body` closure runs on the dispatcher thread once the
     /// streaming slot is installed; it owns the consumer loop (typically
-    /// [`crate::fpss::StreamingClient::for_each_scoped`]) and returns when
+    /// [`crate::streaming::StreamingClient::for_each_scoped`]) and returns when
     /// the ring shuts down. The single-flight gate, startup gate, install,
     /// and failure rollback are identical across both consumers, so they
     /// live here once.
@@ -684,7 +683,7 @@ impl Client {
     /// On success returns the live client and the stop-generation the session
     /// was installed at. The columnar reader stamps that generation so its
     /// close tears down only the session it started, never a later session
-    /// that replaced it (see [`crate::fpss::batch_reader::RecordBatchStream`]).
+    /// that replaced it (see [`crate::streaming::RecordBatchStream`]).
     /// The value is the generation the install was validated against, so it
     /// identifies this session even if a teardown bumps the generation right
     /// after the install commits.
@@ -704,7 +703,7 @@ impl Client {
         // Single-flight gate: `dispatcher` mutex serialises the entire
         // connect-spawn-install sequence so two concurrent starts cannot
         // each spawn a dispatcher and race to overwrite the Running
-        // variant.  The lock is held across the FPSS connect call
+        // variant.  The lock is held across the streaming connect call
         // (typically tens of milliseconds); a second concurrent start
         // is rejected upfront by the `is_streaming` fast path or by
         // `install_live` once it observes a `Live` slot.
@@ -808,7 +807,7 @@ impl Client {
             })
             .map_err(|e| Error::Fpss {
                 kind: crate::error::StreamErrorKind::ConnectionRefused,
-                message: format!("failed to spawn FPSS dispatcher thread: {e}"),
+                message: format!("failed to spawn streaming dispatcher thread: {e}"),
             })?;
 
         // Run the install under `catch_unwind` so a panic (e.g. an
@@ -871,16 +870,16 @@ impl Client {
         }
     }
 
-    /// Start FPSS streaming in columnar pull mode, routing decoded
+    /// Start streaming in columnar pull mode, routing decoded
     /// market-data events into the Arrow batch sink behind `shared`.
     ///
     /// Reuses the connect / install / dispatcher machinery via
     /// [`Self::start_dispatcher`]; the dispatcher thread owns a
-    /// [`crate::fpss::batch_reader::BatchSink`] and drives the scoped drain
+    /// `BatchSink` and drives the scoped drain
     /// with it instead of a user callback. The sink appends one row per data
     /// event, flushes on `batch_size` / `linger` / shutdown, and publishes a
     /// terminal marker when the drain loop returns. The returned
-    /// [`crate::fpss::batch_reader::RecordBatchStream`] reads finished
+    /// [`crate::streaming::RecordBatchStream`] reads finished
     /// batches off the same `shared` queue.
     ///
     /// # Errors
@@ -899,7 +898,7 @@ impl Client {
         backpressure: crate::fpss::batch_reader::Backpressure,
     ) -> Result<(Arc<StreamingClient>, u64), Error> {
         // Teardown wake hook: a `Block` dispatcher can be parked in the batch
-        // queue's `flush` wait, which the FPSS shutdown does not touch. Any
+        // queue's `flush` wait, which the streaming shutdown does not touch. Any
         // teardown that runs `quiesce` directly (a `Client` drop /
         // `stop_streaming` / `reconnect_streaming`, not just the reader's own
         // close) invokes this just before joining the dispatcher, so the parked
@@ -937,7 +936,7 @@ impl Client {
     }
 
     /// A weak handle to this client's streaming lifecycle state, for the
-    /// pull-based [`crate::fpss::batch_reader::RecordBatchStream`] to quiesce
+    /// pull-based [`crate::streaming::RecordBatchStream`] to quiesce
     /// the session on close.
     ///
     /// Weak (not strong) so the reader never keeps the client's streaming
@@ -963,7 +962,7 @@ impl Client {
     ///    `Stopped → Live` resurrection guard: a caller that started
     ///    connecting BEFORE `stop_streaming` was invoked must NOT see
     ///    its connection installed AFTER stop returned, even though
-    ///    the FPSS connect itself succeeded.
+    ///    the streaming connect itself succeeded.
     ///
     /// On either rejection the freshly built [`StreamingClient`] (carried
     /// inside `new`) falls out of scope, which triggers its reader-
@@ -994,7 +993,7 @@ impl Client {
         });
         if matches!(&*prev, StreamingSlot::Live { .. }) {
             // Lost the race: another start_streaming installed first.
-            // `new` falls out of scope and shuts down its FPSS client.
+            // `new` falls out of scope and shuts down its streaming client.
             return Err(Self::already_streaming());
         }
         // Final check: if the rcu closure refused due to the generation
@@ -1045,7 +1044,7 @@ impl Client {
     }
 
     /// Configured capacity of the streaming event ring in slots (the
-    /// `fpss.ring_size` setting, a validated power of two). Returns
+    /// `streaming.ring_size` setting, a validated power of two). Returns
     /// `0` when streaming has not started.
     ///
     /// The fixed denominator for [`Self::ring_occupancy`]: when the
@@ -1336,13 +1335,13 @@ impl Client {
     /// Accepts the typed [`Subscription`] value returned by
     /// [`Contract::quote`] / [`Contract::trade`] /
     /// [`Contract::open_interest`] (per-contract scope) or by
-    /// [`crate::fpss::protocol::SecTypeExt::full_trades`] /
-    /// [`crate::fpss::protocol::SecTypeExt::full_open_interest`]
+    /// [`crate::streaming::SecTypeExt::full_trades`] /
+    /// [`crate::streaming::SecTypeExt::full_open_interest`]
     /// (full-stream scope).
     ///
     /// ```rust,no_run
     /// # use thetadatadx::{Client, Credentials, DirectConfig};
-    /// # use thetadatadx::fpss::protocol::{Contract, OptionLeg, SecTypeExt};
+    /// # use thetadatadx::streaming::{Contract, OptionLeg, SecTypeExt};
     /// # use thetadatadx::SecType;
     /// # async fn doc(client: &Client) -> Result<(), thetadatadx::Error> {
     /// let stock  = Contract::stock("AAPL");
@@ -1362,7 +1361,7 @@ impl Client {
 
     /// Bulk-subscribe a batch of [`Subscription`] values. Stops at the
     /// first error and returns it; previously-installed subscriptions
-    /// remain active (the FPSS protocol does not support batched
+    /// remain active (the streaming protocol does not support batched
     /// transactions). Use individual [`Self::subscribe`] +
     /// [`Self::unsubscribe`] when atomic rollback is required.
     ///
@@ -1432,7 +1431,7 @@ impl Client {
     /// # Asynchronous quiescence
     ///
     /// `stop_streaming` returns as soon as the slot has been swapped
-    /// to `Stopped` and the FPSS shutdown signal has been raised. The
+    /// to `Stopped` and the streaming shutdown signal has been raised. The
     /// I/O thread and the event-dispatch consumer continue running until
     /// they observe the signal, drain the in-flight ring contents
     /// through the user callback, and exit. [`Self::is_streaming`]
@@ -1598,7 +1597,7 @@ impl Client {
             StreamingSlot::Idle => ConnectionStatus::NotStarted,
             StreamingSlot::Stopped => ConnectionStatus::Disconnected,
             StreamingSlot::Live { client } => {
-                // The dispatcher thread draining the FPSS iterator is
+                // The dispatcher thread draining the streaming iterator is
                 // what delivers callbacks. If it panicked, no events
                 // will ever arrive even though the I/O thread and ring
                 // are still alive. Report as `Disconnected` so callers
@@ -1634,7 +1633,7 @@ impl Client {
         }
     }
 
-    /// Access the current MDDS session UUID.
+    /// Access the current historical session UUID.
     ///
     /// Returns an owned `String` rather than `&str` because the UUID
     /// lives behind a shared `crate::auth::SessionToken` that may be
@@ -1666,9 +1665,9 @@ impl Client {
     }
 
     // ---------------------------------------------------------------------
-    // FLATFILES surface (third public surface, alongside FPSS and MDDS).
+    // FLATFILES surface (third public surface, alongside streaming and historical).
     //
-    // The legacy MDDS port (12000) speaks a custom binary packet-stream
+    // The legacy historical port (12000) speaks a custom binary packet-stream
     // protocol that supports a single FLAT_FILE request type. The server
     // pre-builds an INDEX + DATA blob per (sec_type, data_type, date)
     // tuple overnight and streams it back on demand. See
@@ -1678,7 +1677,7 @@ impl Client {
     // ---------------------------------------------------------------------
 
     /// Pull a flat-file blob for `(sec_type, req_type, date)` over the legacy
-    /// MDDS port, decode it, and write the requested `format` to disk.
+    /// historical port, decode it, and write the requested `format` to disk.
     ///
     /// `format` selects the on-disk encoding:
     /// - [`crate::flatfiles::FlatFileFormat::Csv`] — vendor byte-format CSV
@@ -1852,7 +1851,7 @@ impl Drop for Client {
     /// Final cleanup: idempotently stops the streaming connection.
     ///
     /// `stop_streaming` swaps the state cell to `Stopped` and only
-    /// signals the FPSS client when the previous slot was `Live`.
+    /// signals the streaming client when the previous slot was `Live`.
     /// The actual TLS reader + event-dispatch consumer join happens when
     /// the last `Arc<StreamingClient>` is dropped via `StreamingClient::Drop`.
     /// Calling once from `Drop` after the user already called
@@ -1867,7 +1866,7 @@ impl Client {
     /// Historical data surface — the query endpoints (EOD, history,
     /// snapshots, list, at-time).
     ///
-    /// Borrowed view over the unified client's already-open MDDS
+    /// Borrowed view over the unified client's already-open historical
     /// channel. Exposes the exact same method set as the standalone
     /// historical client, so `client.historical().stock_history_eod(..)`
     /// and a standalone `HistoricalClient::stock_history_eod(..)` are one
@@ -1893,13 +1892,12 @@ impl Client {
     ///
     /// Lightweight borrowed view over the unified client's streaming
     /// state machine; constructing it is a pointer copy and performs no
-    /// connection work. FPSS connects lazily on the first
+    /// connection work. Streaming connects lazily on the first
     /// [`StreamSurface::start_streaming`].
     ///
     /// ```rust,no_run
     /// # use thetadatadx::Client;
-    /// # use thetadatadx::fpss::protocol::Contract;
-    /// # use thetadatadx::fpss::{StreamData, StreamEvent};
+    /// # use thetadatadx::streaming::{Contract, StreamData, StreamEvent};
     /// # fn doc(client: &Client) -> Result<(), thetadatadx::Error> {
     /// client.stream().start_streaming(|event| {
     ///     if let StreamEvent::Data(StreamData::Trade { price, size, .. }) = event {
@@ -2111,7 +2109,7 @@ impl FlatFiles<'_> {
 pub struct StreamSurface<'a>(&'a Client);
 
 impl StreamSurface<'_> {
-    /// Start the FPSS streaming connection with a callback handler.
+    /// Start the streaming connection with a callback handler.
     ///
     /// The callback fires on the dispatcher thread, one event at a time,
     /// each invocation panic-isolated. It MUST return within
@@ -2127,7 +2125,7 @@ impl StreamSurface<'_> {
         self.0.start_streaming(handler)
     }
 
-    /// Start FPSS streaming with each consumer batch drain wrapped in a
+    /// Start streaming with each consumer batch drain wrapped in a
     /// caller-supplied `scope`. See [`Self::start_streaming`]; `scope`
     /// brackets each batch drain so a binding can amortise an
     /// interpreter lock across a batch.
@@ -2192,7 +2190,7 @@ impl StreamSurface<'_> {
     ///
     /// Returns a [`BatchReaderBuilder`](crate::streaming::BatchReaderBuilder)
     /// to tune `batch_size` / `linger` / `backpressure`; call
-    /// [`build`](crate::streaming::BatchReaderBuilder::build) to start FPSS
+    /// [`build`](crate::streaming::BatchReaderBuilder::build) to start streaming
     /// and obtain a
     /// [`RecordBatchStream`](crate::streaming::RecordBatchStream) of Apache
     /// Arrow `RecordBatch` values. Subscriptions are managed on this same
@@ -2200,13 +2198,13 @@ impl StreamSurface<'_> {
     /// first, then open the reader. The batch schema is fixed for the
     /// subscription and identical across every batch.
     ///
-    /// Like the callback path, FPSS connects when the reader is built, so
+    /// Like the callback path, streaming connects when the reader is built, so
     /// this is an alternative to [`Self::start_streaming`], not a concurrent
     /// consumer of the same session.
     ///
     /// ```rust,no_run
     /// # use thetadatadx::Client;
-    /// # use thetadatadx::fpss::protocol::Contract;
+    /// # use thetadatadx::streaming::Contract;
     /// # use futures::StreamExt;
     /// # async fn doc(client: &Client) -> Result<(), thetadatadx::Error> {
     /// client.stream().subscribe(Contract::stock("AAPL").trade())?;
@@ -2550,10 +2548,10 @@ mod tests {
 
     /// Lightweight stand-in for `StreamingSlot` carrying just enough
     /// shape to walk the state machine transitions without spinning up
-    /// a real FPSS connection. The transitions and the `ArcSwap`
+    /// a real streaming connection. The transitions and the `ArcSwap`
     /// install/swap mechanics are what we are validating; the live
     /// payload (`StreamingClient`, `StreamingDispatcher`) is exercised by
-    /// the existing FPSS integration tests.
+    /// the existing streaming integration tests.
     enum SlotMarker {
         Idle,
         Live(u32),
@@ -2660,7 +2658,7 @@ mod tests {
     /// in — truthful and reusable — instead of leaving a stale `Live` slot and
     /// a `Running` dispatcher with an exited thread. The `Live`-slot shutdown
     /// branch shares its body with the callback path's `stop_streaming`, which
-    /// the FPSS integration tests exercise against a real connection.
+    /// the streaming integration tests exercise against a real connection.
     #[test]
     fn quiesce_from_idle_lands_stopped_and_idle() {
         let state = StreamingState::new();
@@ -2725,7 +2723,7 @@ mod tests {
     /// quiesce must not deadlock joining a columnar dispatcher parked in its
     /// bounded-queue `Block` flush wait on a teardown that bypasses the
     /// reader's own close (a `Client` drop / `stop_streaming` /
-    /// `reconnect_streaming`, which call quiesce DIRECTLY). The FPSS shutdown
+    /// `reconnect_streaming`, which call quiesce DIRECTLY). The streaming shutdown
     /// signals the event ring but not the batch queue, so the only thing that
     /// releases the parked flush is the wake hook quiesce runs before the join.
     ///
@@ -3389,7 +3387,7 @@ mod tests {
         let stop_gen = AtomicU64::new(0);
 
         // Caller snapshots the gen at entry, then bumps it (simulating
-        // an interleaving `stop_streaming` that ran while the FPSS
+        // an interleaving `stop_streaming` that ran while the streaming
         // connect was still in flight).
         let gen_at_entry = stop_gen.load(Ordering::Acquire);
         stop_gen.fetch_add(1, Ordering::AcqRel);
@@ -3541,7 +3539,7 @@ mod tests {
 
     /// Mirror of [`Client::subscribe`]'s `match` shape. Returns
     /// the routed (kind, contract-or-sec-type) tuple so the test can
-    /// assert the dispatch reached the right arm without a real FPSS
+    /// assert the dispatch reached the right arm without a real streaming
     /// connection.
     enum DispatchProbe {
         ContractQuote(Contract),

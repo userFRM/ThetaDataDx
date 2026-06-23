@@ -274,7 +274,7 @@ pub extern "C" fn thetadatadx_config_dev() -> *mut ThetaDataDxConfig {
     })
 }
 
-/// Create a historical-staging config (MDDS staging cluster + auth marker;
+/// Create a historical-staging config (historical staging cluster + auth marker;
 /// streaming stays on production). Unstable.
 #[no_mangle]
 pub extern "C" fn thetadatadx_config_stage() -> *mut ThetaDataDxConfig {
@@ -285,7 +285,7 @@ pub extern "C" fn thetadatadx_config_stage() -> *mut ThetaDataDxConfig {
     })
 }
 
-/// Select the historical (MDDS) environment on a config handle in place.
+/// Select the historical environment on a config handle in place.
 ///
 /// `kind` is `0` for production or `1` for staging. The historical and
 /// streaming channels are selected independently, so this leaves the
@@ -321,7 +321,7 @@ pub unsafe extern "C" fn thetadatadx_config_with_historical_environment(
     })
 }
 
-/// Select the streaming (FPSS) environment on a config handle in place.
+/// Select the streaming environment on a config handle in place.
 ///
 /// `kind` is `0` for production or `1` for dev. The streaming and
 /// historical channels are selected independently, so this leaves the
@@ -360,13 +360,13 @@ pub unsafe extern "C" fn thetadatadx_config_with_streaming_environment(
 /// Source a config handle from a `.env`-format file.
 ///
 /// Starts from the production configuration and applies the cluster keys
-/// carried by the file: `THETADATA_MDDS_TYPE` (`PROD` / `STAGE`,
+/// carried by the file: `THETADATA_HISTORICAL_TYPE` (`PROD` / `STAGE`,
 /// case-insensitive) selects the environment, and the optional
 /// `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` keys override the
 /// hosts (an explicit host wins over the environment default). This is the
 /// same file format and the same keys `thetadatadx_credentials_from_dotenv`
 /// reads, so one `.env` can carry both `THETADATA_API_KEY` and
-/// `THETADATA_MDDS_TYPE`.
+/// `THETADATA_HISTORICAL_TYPE`.
 ///
 /// Returns null on error (check `thetadatadx_last_error()`).
 #[no_mangle]
@@ -484,12 +484,12 @@ pub unsafe extern "C" fn thetadatadx_config_get_flush_mode(
     })
 }
 
-/// Read the historical (MDDS) environment carried by the config.
+/// Read the historical environment carried by the config.
 ///
 /// On success, returns a heap-owned NUL-terminated C string (`"PROD"` or
 /// `"STAGE"`) the caller MUST release with `thetadatadx_string_free`. The
 /// historical and streaming environments are selected independently: the
-/// `production` / `stage` / `dev` presets (and the `THETADATA_MDDS_TYPE`
+/// `production` / `stage` / `dev` presets (and the `THETADATA_HISTORICAL_TYPE`
 /// dotenv key) set the historical channel, and this is the readback of
 /// that selection. Returns null if `config` is null (the diagnostic is
 /// written to `thetadatadx_last_error()`).
@@ -518,12 +518,12 @@ pub unsafe extern "C" fn thetadatadx_config_get_historical_environment(
     })
 }
 
-/// Read the streaming (FPSS) environment carried by the config.
+/// Read the streaming environment carried by the config.
 ///
 /// On success, returns a heap-owned NUL-terminated C string (`"PROD"` or
 /// `"DEV"`) the caller MUST release with `thetadatadx_string_free`. The
 /// streaming and historical environments are selected independently: the
-/// `production` / `stage` / `dev` presets (and the `THETADATA_FPSS_TYPE`
+/// `production` / `stage` / `dev` presets (and the `THETADATA_STREAMING_TYPE`
 /// dotenv key) set the streaming channel, and this is the readback of that
 /// selection. Returns null if `config` is null (the diagnostic is written
 /// to `thetadatadx_last_error()`).

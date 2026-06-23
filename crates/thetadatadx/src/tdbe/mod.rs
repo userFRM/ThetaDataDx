@@ -9,7 +9,7 @@
 //! - **Tick types** -- [`EodTick`], [`TradeTick`], [`QuoteTick`], [`OhlcTick`], etc.
 //! - **Price** -- fixed-point price encoding used by `ThetaData`
 //! - **Enums** -- [`SecType`], [`DataType`], [`StreamMsgType`](types::enums::StreamMsgType), etc.
-//! - **FIT/FIE codecs** -- 4-bit nibble encoding for FPSS tick compression
+//! - **FIT/FIE codecs** -- 4-bit nibble encoding for streaming tick compression
 //! - **Greeks** -- Black-Scholes option pricing, Greek surface, and IV solver
 //! - **Error** -- encoding-layer error types
 //! - **Flags** -- bit flags and condition codes for market data records

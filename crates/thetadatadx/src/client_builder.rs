@@ -260,7 +260,7 @@ impl ClientBuilder {
     /// The file uses the common `.env` grammar; `THETADATA_API_KEY`
     /// selects an API key, otherwise `THETADATA_EMAIL` +
     /// `THETADATA_PASSWORD` build email + password credentials. The same
-    /// file can carry `THETADATA_MDDS_TYPE` for [`Self::from_dotenv`].
+    /// file can carry `THETADATA_HISTORICAL_TYPE` for [`Self::from_dotenv`].
     pub fn api_key_from_dotenv(self, path: impl Into<PathBuf>) -> Self {
         self.set_auth(AuthSource::DotenvFile { path: path.into() })
     }
@@ -291,8 +291,8 @@ impl ClientBuilder {
 
     // ─── Environment setters (optional, default production) ───────────
 
-    /// Select the historical (MDDS) [`HistoricalEnvironment`]. Equivalent to
-    /// the `THETADATA_MDDS_TYPE` env var and to
+    /// Select the historical [`HistoricalEnvironment`]. Equivalent to
+    /// the `THETADATA_HISTORICAL_TYPE` env var and to
     /// [`DirectConfig::with_historical_environment`]. Composes with a streaming
     /// selection — `.streaming_environment(..).historical_environment(..)`
     /// keeps both.
@@ -301,8 +301,8 @@ impl ClientBuilder {
         self
     }
 
-    /// Select the streaming (FPSS) [`StreamingEnvironment`]. Equivalent to the
-    /// `THETADATA_FPSS_TYPE` env var and to
+    /// Select the streaming [`StreamingEnvironment`]. Equivalent to the
+    /// `THETADATA_STREAMING_TYPE` env var and to
     /// [`DirectConfig::with_streaming_environment`]. Composes with a historical
     /// selection.
     pub fn streaming_environment(mut self, environment: StreamingEnvironment) -> Self {
@@ -336,8 +336,10 @@ impl ClientBuilder {
     ///
     /// The config and the environment setters resolve in call order, last
     /// one wins: this config replaces an earlier
-    /// [`Self::environment`] / [`Self::stage`] selection, and a later
-    /// `environment` / `stage` / `production` call replaces this config.
+    /// [`Self::historical_environment`] / [`Self::streaming_environment`] /
+    /// [`Self::stage`] selection, and a later environment-setter call
+    /// (`historical_environment` / `streaming_environment` / `stage` / `dev` /
+    /// `production`) replaces this config.
     pub fn config(mut self, config: DirectConfig) -> Self {
         self.env = EnvSource::Config {
             config: Box::new(config),
@@ -347,7 +349,7 @@ impl ClientBuilder {
 
     /// Source the target environment from a `.env`-format file.
     ///
-    /// Reads `THETADATA_MDDS_TYPE` (and the optional host overrides) via
+    /// Reads `THETADATA_HISTORICAL_TYPE` (and the optional host overrides) via
     /// [`DirectConfig::from_dotenv`]. The same file can carry
     /// `THETADATA_API_KEY` for [`Self::api_key_from_dotenv`], so a single
     /// `.env` can drive both the credential and the environment.

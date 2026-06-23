@@ -3,11 +3,11 @@
 //! The SDK drives two independent server channels, and each has its own
 //! environment set:
 //!
-//! * The historical (MDDS) channel runs in [`HistoricalEnvironment::Prod`] or
+//! * The historical channel runs in [`HistoricalEnvironment::Prod`] or
 //!   [`HistoricalEnvironment::Stage`]. The historical environment also drives
 //!   the auth wire marker (the `authEnv` object on the Nexus auth request):
 //!   staging carries the staging marker, production carries none.
-//! * The streaming (FPSS) channel runs in [`StreamingEnvironment::Prod`] or
+//! * The streaming channel runs in [`StreamingEnvironment::Prod`] or
 //!   [`StreamingEnvironment::Dev`]. The streaming environment selects only the
 //!   streaming hosts; it never affects auth.
 //!
@@ -23,7 +23,7 @@
 //! stays on production. They can also be chosen directly with
 //! [`DirectConfig::with_historical_environment`] /
 //! [`DirectConfig::with_streaming_environment`], or via the
-//! `THETADATA_MDDS_TYPE` (`PROD` / `STAGE`) and `THETADATA_FPSS_TYPE`
+//! `THETADATA_HISTORICAL_TYPE` (`PROD` / `STAGE`) and `THETADATA_STREAMING_TYPE`
 //! (`PROD` / `DEV`) environment variables.
 //!
 //! [`DirectConfig`]: crate::config::DirectConfig
@@ -33,7 +33,7 @@
 //! [`DirectConfig::with_historical_environment`]: crate::config::DirectConfig::with_historical_environment
 //! [`DirectConfig::with_streaming_environment`]: crate::config::DirectConfig::with_streaming_environment
 
-/// Which `ThetaData` historical (MDDS) environment the SDK targets.
+/// Which `ThetaData` historical environment the SDK targets.
 ///
 /// The historical channel runs in production or staging only. This value also
 /// drives the auth wire marker the Nexus auth request carries: staging carries
@@ -42,8 +42,8 @@
 ///
 /// Selected with [`DirectConfig::stage`](crate::config::DirectConfig::stage),
 /// the [`with_historical_environment`](crate::config::DirectConfig::with_historical_environment)
-/// builder, or `THETADATA_MDDS_TYPE=STAGE`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// builder, or `THETADATA_HISTORICAL_TYPE=STAGE`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
 pub enum HistoricalEnvironment {
     /// Production historical cluster — the standard live `ThetaData` cluster.
@@ -55,7 +55,7 @@ pub enum HistoricalEnvironment {
     Stage,
 }
 
-/// Which `ThetaData` streaming (FPSS) environment the SDK targets.
+/// Which `ThetaData` streaming environment the SDK targets.
 ///
 /// The streaming channel runs in production or dev only. This value selects
 /// only the streaming hosts and has no effect on auth — a dev session
@@ -64,8 +64,8 @@ pub enum HistoricalEnvironment {
 ///
 /// Selected with [`DirectConfig::dev`](crate::config::DirectConfig::dev), the
 /// [`with_streaming_environment`](crate::config::DirectConfig::with_streaming_environment)
-/// builder, or `THETADATA_FPSS_TYPE=DEV`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// builder, or `THETADATA_STREAMING_TYPE=DEV`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
 pub enum StreamingEnvironment {
     /// Production streaming cluster — the standard live `ThetaData` cluster.
@@ -92,7 +92,7 @@ impl HistoricalEnvironment {
     /// ignored). `"PROD"` maps to [`Self::Prod`] and `"STAGE"` to
     /// [`Self::Stage`]; any other input (including `"DEV"`, which the
     /// historical channel does not support) returns `None`. The round-trip
-    /// inverse of [`Self::as_str`] and the parser behind `THETADATA_MDDS_TYPE`.
+    /// inverse of [`Self::as_str`] and the parser behind `THETADATA_HISTORICAL_TYPE`.
     #[must_use]
     pub fn parse(s: &str) -> Option<Self> {
         match s.trim().to_ascii_uppercase().as_str() {
@@ -133,7 +133,7 @@ impl StreamingEnvironment {
     /// ignored). `"PROD"` maps to [`Self::Prod`] and `"DEV"` to [`Self::Dev`];
     /// any other input (including `"STAGE"`, which the streaming channel does
     /// not support) returns `None`. The round-trip inverse of [`Self::as_str`]
-    /// and the parser behind `THETADATA_FPSS_TYPE`.
+    /// and the parser behind `THETADATA_STREAMING_TYPE`.
     #[must_use]
     pub fn parse(s: &str) -> Option<Self> {
         match s.trim().to_ascii_uppercase().as_str() {

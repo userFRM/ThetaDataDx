@@ -1,6 +1,6 @@
 //! Offline saturation bench hooks for the Python streaming callback path.
 //!
-//! All hooks drive the SAME LMAX Disruptor pipeline the live FPSS consumer
+//! All hooks drive the SAME LMAX Disruptor pipeline the live streaming consumer
 //! uses (single producer, single consumer thread, `RING_SIZE` slots). They
 //! differ only in HOW the consumer hands events across the Python boundary,
 //! so the numbers isolate the boundary-crossing cost (the Disruptor itself
@@ -85,7 +85,7 @@ unsafe impl Sync for RingSlot {}
 /// Build a `Trade` event carrying a shared `Arc<Contract>`. The contract
 /// is interned by the caller (allocated once, `Arc::clone` per event) so
 /// the publish closure pays only a refcount bump — identical to the live
-/// FPSS decode path and to the core Rust bench's `make_event`.
+/// streaming decode path and to the core Rust bench's `make_event`.
 #[inline]
 fn make_event(contract: &Arc<Contract>, idx: u64) -> StreamEvent {
     StreamEvent::Data(StreamData::Trade {

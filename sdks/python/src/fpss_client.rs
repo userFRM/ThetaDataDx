@@ -1,31 +1,31 @@
 //! Standalone Python `StreamingClient` pyclass.
 //!
-//! Opens ONLY the FPSS TLS transport — no MDDS channel, no Nexus
+//! Opens ONLY the streaming TLS transport, no historical channel, no Nexus
 //! HTTP auth, no Treasury / Calendar / OHLCVC historical surface.
 //! Mirrors the C++ `thetadatadx::StreamingClient` (`sdks/cpp/include/thetadatadx.hpp`)
-//! and the standalone C ABI entry points (`thetadatadx_fpss_*` in
-//! `ffi/src/streaming.rs`), letting Python users run an FPSS-only
-//! session alongside an externally-managed MDDS process without the
-//! bundled [`crate::Client`] preempting the parallel MDDS
+//! and the standalone C ABI entry points (`thetadatadx_client_*` in
+//! `ffi/src/streaming.rs`), letting Python users run a streaming-only
+//! session alongside an externally-managed historical process without the
+//! bundled [`crate::Client`] preempting the parallel historical
 //! work at the Nexus session layer.
 //!
 //! # Nexus session behaviour
 //!
-//! This pyclass does NOT issue a Nexus authentication. FPSS speaks its
+//! This pyclass does NOT issue a Nexus authentication. The streaming service speaks its
 //! own protocol-level `CREDENTIALS` handshake (wire code `0`) on the
 //! TLS connection itself; no separate Nexus session UUID is acquired.
 //! The cross-binding contract here matches the standalone C ABI:
-//! `thetadatadx_fpss_connect` accepts a `ThetaDataDxCredentials` handle without
+//! `thetadatadx_client_connect` accepts a `ThetaDataDxCredentials` handle without
 //! touching Nexus. Run the bundled [`crate::Client`] (which
-//! does authenticate against Nexus) when you need the MDDS surface and
+//! does authenticate against Nexus) when you need the historical surface and
 //! Nexus session machinery side-by-side.
 //!
 //! # Lifecycle
 //!
 //! 1. `StreamingClient(creds, config)` — snapshots the connect parameters.
-//!    The FPSS TLS connection is opened lazily by `start_streaming`
+//!    The streaming TLS connection is opened lazily by `start_streaming`
 //!    (matching the FFI's deferred-connect contract).
-//! 2. `start_streaming(callback)` — opens the FPSS TLS connection and
+//! 2. `start_streaming(callback)` — opens the streaming TLS connection and
 //!    starts the background dispatcher that drives the ring iterator.
 //! 3. `subscribe(...)` / `unsubscribe(...)` — fluent subscription.
 //! 4. `stop_streaming()` / `shutdown()` — atomic stop with drain barrier.
@@ -49,7 +49,7 @@ use crate::fpss_event_to_typed;
 use crate::streaming_session::{StreamableHandle, StreamingSession};
 use crate::{Config, Credentials};
 
-/// Snapshot of the parameters required to open an FPSS TLS connection.
+/// Snapshot of the parameters required to open a streaming TLS connection.
 ///
 /// Cloned out of the user's `Config` at construction time so subsequent
 /// Python-side mutations of the `Config` handle cannot retroactively
@@ -117,11 +117,11 @@ impl FpssParams {
     }
 }
 
-/// Standalone FPSS-only streaming client.
+/// Standalone streaming-only client.
 ///
-/// Opens ONLY the FPSS TLS transport — no MDDS channel, no Nexus
-/// HTTP authentication. Use when a parallel MDDS process is already
-/// running in the same environment and you need to test FPSS without
+/// Opens ONLY the streaming TLS transport, no historical channel, no Nexus
+/// HTTP authentication. Use when a parallel historical process is already
+/// running in the same environment and you need to test streaming without
 /// the bundled [`crate::Client`] taking over the Nexus
 /// session at construction time.
 ///
@@ -129,15 +129,15 @@ impl FpssParams {
 /// from thetadatadx import StreamingClient, Credentials, Config, Contract
 ///
 /// creds = Credentials.from_file("creds.txt")
-/// fpss = StreamingClient(creds, Config.production())
+/// streaming = StreamingClient(creds, Config.production())
 ///
 /// def on_event(event):
 ///     print(event.kind, event)
 ///
-/// fpss.start_streaming(callback=on_event)
-/// fpss.subscribe(Contract.stock("AAPL").quote())
+/// streaming.start_streaming(callback=on_event)
+/// streaming.subscribe(Contract.stock("AAPL").quote())
 /// # ... events arrive on the event-dispatch consumer thread ...
-/// fpss.stop_streaming()
+/// streaming.stop_streaming()
 /// ```
 // `frozen` — every `#[pymethods]` entry takes `&self` (never
 // `&mut self`). The inner `Arc<Mutex<Option<fpss::StreamingClient>>>`
@@ -149,7 +149,7 @@ pub(crate) struct StreamingClient {
     /// Connect parameters captured at construction time. Reused on
     /// every `start_streaming*` / `reconnect`.
     params: FpssParams,
-    /// Currently-open inner FPSS client. `None` between construction
+    /// Currently-open inner streaming client. `None` between construction
     /// and `start_streaming*`, and after `stop_streaming` / `shutdown`.
     inner: Mutex<Option<Arc<RustStreamingClient>>>,
     /// Most recently registered Python callable. Retained across
@@ -220,12 +220,12 @@ impl StreamingClient {
         self.callback.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// Run a closure with a borrow of the live FPSS client, raising
+    /// Run a closure with a borrow of the live streaming client, raising
     /// `RuntimeError` when nothing is connected.
     ///
     /// The user closure runs with the GIL RELEASED: the live client is
     /// an `Arc<RustStreamingClient>` cloned out from under the binding
-    /// mutex, so the closure body (a blocking FPSS socket write) holds
+    /// mutex, so the closure body (a blocking streaming socket write) holds
     /// no Python object and no binding lock. The inner mutex is taken
     /// only briefly to clone the handle, then dropped before the
     /// detached blocking section, so a concurrent `stop_streaming` on a
@@ -255,17 +255,17 @@ impl StreamingClient {
 
 #[pymethods]
 impl StreamingClient {
-    /// Allocate a standalone FPSS handle.
+    /// Allocate a standalone streaming handle.
     ///
     /// Snapshots the connect parameters out of the supplied `Config`
-    /// but does NOT open the FPSS TLS connection — connection is
+    /// but does NOT open the streaming TLS connection. Connection is
     /// deferred to the first `start_streaming*` call. This matches the
-    /// C ABI's deferred-connect contract (`thetadatadx_fpss_connect` allocates
-    /// the handle, `thetadatadx_fpss_set_callback` opens the network) so the
+    /// C ABI's deferred-connect contract (`thetadatadx_client_connect` allocates
+    /// the handle, `thetadatadx_client_set_callback` opens the network) so the
     /// same observable behaviour applies across every binding.
     ///
-    /// No MDDS channel is opened. No Nexus HTTP request is issued.
-    /// A parallel MDDS process under the same credentials is unaffected
+    /// No historical channel is opened. No Nexus HTTP request is issued.
+    /// A parallel historical process under the same credentials is unaffected
     /// by this constructor.
     #[new]
     fn new(_py: Python<'_>, creds: &Credentials, config: &Config) -> PyResult<Self> {
@@ -280,7 +280,7 @@ impl StreamingClient {
         }
         // Seed the process-global runtime from this client's runtime config
         // so `worker_threads` is honoured when this is the first client in
-        // the process, even though the FPSS TLS connection itself is
+        // the process, even though the streaming TLS connection itself is
         // deferred to `start_streaming`.
         crate::runtime_from_config(&direct.runtime);
         Ok(Self {
@@ -332,16 +332,16 @@ impl StreamingClient {
         format!("StreamingClient(streaming={streaming}, hosts={hosts})")
     }
 
-    /// Open the FPSS TLS connection and register the Python callback
+    /// Open the streaming TLS connection and register the Python callback
     /// for incoming events.
     ///
     /// The event-dispatch consumer thread acquires the GIL via
     /// `Python::attach` to invoke `callback(event)` for every typed
-    /// FPSS event. Each invocation is individually wrapped in
+    /// streaming event. Each invocation is individually wrapped in
     /// `catch_unwind`: a panic on event N is caught, recorded via
     /// `panic_count()`, and does not stop event delivery — event N+1
     /// continues normally. `callback` must accept exactly one positional
-    /// argument — a typed FPSS event class (`Quote`, `Trade`, `Ohlcvc`,
+    /// argument — a typed streaming event class (`Quote`, `Trade`, `Ohlcvc`,
     /// … the same hierarchy emitted on the unified client's callback path).
     ///
     /// The reader never blocks on user code; on ring overflow events
@@ -358,7 +358,7 @@ impl StreamingClient {
         let callback_arc: Arc<Py<PyAny>> = Arc::new(callback);
         let dispatch_cb = Arc::clone(&callback_arc);
 
-        // The FPSS TLS connect (`StreamingClientBuilder::build`) performs
+        // The streaming TLS connect (`StreamingClientBuilder::build`) performs
         // the blocking socket connect + `CREDENTIALS` handshake on the
         // calling thread. Release the GIL across it so a sibling Python
         // thread keeps running while the handshake is in flight. The
@@ -464,14 +464,14 @@ impl StreamingClient {
                     client.shutdown();
                 }
                 return Err(PyRuntimeError::new_err(format!(
-                    "failed to spawn FPSS dispatcher thread: {e}"
+                    "failed to spawn streaming dispatcher thread: {e}"
                 )));
             }
         }
         Ok(())
     }
 
-    /// Whether the FPSS TLS connection is currently open.
+    /// Whether the streaming TLS connection is currently open.
     ///
     /// Returns `false` when the dispatcher thread panicked — no events
     /// are arriving even though the TLS slot is still populated, so
@@ -493,10 +493,10 @@ impl StreamingClient {
         true
     }
 
-    /// Whether the FPSS session is currently authenticated.
+    /// Whether the streaming session is currently authenticated.
     ///
     /// Mirrors the C++ `thetadatadx::StreamingClient::is_authenticated()` getter and
-    /// the C ABI `thetadatadx_fpss_is_authenticated`. Distinct from
+    /// the C ABI `thetadatadx_client_is_authenticated`. Distinct from
     /// `is_streaming()`: the TLS slot can hold an `RustStreamingClient` whose
     /// `authenticated` flag has been flipped to `false` after a server
     /// disconnect, before the application has issued `reconnect()`.
@@ -539,7 +539,7 @@ impl StreamingClient {
     ///
     /// Returns the same typed `Subscription` values the caller passes to
     /// `subscribe()`. Quote is never a valid full-stream kind on the
-    /// FPSS wire, so the core's `active_full_subscriptions` only ever
+    /// streaming wire, so the core's `active_full_subscriptions` only ever
     /// returns `Trade` / `OpenInterest`; any other variant is dropped
     /// from the projection. Empty list when streaming has not started.
     fn active_full_subscriptions(&self) -> Vec<PySubscription> {
@@ -567,7 +567,7 @@ impl StreamingClient {
             .collect()
     }
 
-    /// Cumulative count of FPSS events the TLS reader could not
+    /// Cumulative count of streaming events the TLS reader could not
     /// publish into the event ring because the consumer fell
     /// behind. Snapshot the value BEFORE `reconnect()` if you need to
     /// accumulate drops across session boundaries — `reconnect`
@@ -677,7 +677,7 @@ impl StreamingClient {
     /// Each iteration clones the live handle out from under the inner
     /// mutex and releases the GIL across the blocking wire write (via
     /// `with_live`), so a concurrent `stop_streaming` on a sibling
-    /// thread cannot deadlock against a long batch. The core FPSS
+    /// thread cannot deadlock against a long batch. The core streaming
     /// protocol has no batched-subscribe wire frame today; a future
     /// single-command `subscribe_many` on
     /// `crates/thetadatadx/src/fpss/mod.rs` is tracked as a follow-up
@@ -717,7 +717,7 @@ impl StreamingClient {
     /// Lock ordering: `callback` BEFORE `inner`, matching
     /// `start_streaming`. The two methods MUST agree on the order
     /// they acquire the two `Mutex` slots — `start_streaming`
-    /// releases the GIL across the FPSS connect (via `py.detach`), so
+    /// releases the GIL across the streaming connect (via `py.detach`), so
     /// concurrent `start_streaming` / `stop_streaming` can interleave
     /// on the same handle. Pinning the ordering here keeps that
     /// interleaving deadlock-free.
@@ -784,13 +784,13 @@ impl StreamingClient {
         self.stop_streaming(py);
     }
 
-    /// Re-open the FPSS connection and re-register the previously
+    /// Re-open the streaming connection and re-register the previously
     /// installed callback. Requires a prior `start_streaming(callback)`;
     /// raises `RuntimeError` otherwise.
     ///
     /// Mirrors [`thetadatadx::Client::reconnect_streaming`]:
     /// saves the active per-contract and full-stream subscriptions
-    /// against the old session, opens a fresh FPSS connection under
+    /// against the old session, opens a fresh streaming connection under
     /// the previously installed callback, and re-applies the saved
     /// subscriptions. Per-subscription failures during restore are
     /// surfaced as a single `RuntimeError` that names every contract
@@ -798,7 +798,7 @@ impl StreamingClient {
     /// already up at that point. Without this restore step a Python
     /// caller observing a transient disconnect would lose every
     /// subscription, breaking parity with the unified client and the
-    /// C ABI (`thetadatadx_fpss_reconnect`).
+    /// C ABI (`thetadatadx_client_reconnect`).
     fn reconnect(&self, py: Python<'_>) -> PyResult<()> {
         let stored = {
             let guard = self.lock_callback();
@@ -833,7 +833,7 @@ impl StreamingClient {
         //    engine — bursts with a jittered pause between them, the
         //    same cadence the auto-reconnect path uses, so a large
         //    saved set is not fired at a recovering upstream
-        //    back-to-back. Failures accumulate (the FPSS protocol has
+        //    back-to-back. Failures accumulate (the streaming protocol has
         //    no batched-transaction semantic) and surface as a single
         //    error naming everything that did not restore; the
         //    streaming session itself is already up at that point.
@@ -886,9 +886,9 @@ impl StreamingClient {
         })
     }
 
-    /// Open a context-managed FPSS streaming session.
+    /// Open a context-managed streaming session.
     ///
-    /// `with fpss.streaming(callback) as session:` registers
+    /// `with streaming_client.streaming(callback) as session:` registers
     /// `callback` via `start_streaming` on enter and pairs
     /// `stop_streaming()` + `await_drain(5000)` on exit — same RAII
     /// semantics as the unified client's `streaming()` helper.
