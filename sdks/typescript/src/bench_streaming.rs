@@ -144,7 +144,7 @@ pub async fn __bench_flood_events(
 /// per hop. Amortizes the per-event threadsafe-function crossing + V8
 /// callback invocation over a whole batch.
 ///
-/// Same production marshal per event (`fpss_event_to_buffered` ->
+/// Same production marshal per event (the typed-event conversion path,
 /// `buffered_event_to_typed`); the only change is that `batch_size` typed
 /// events are collected into a `Vec<StreamEvent>` (napi renders this as
 /// `Array<StreamEvent>`) and handed to the callback in one hop. Runs on a
