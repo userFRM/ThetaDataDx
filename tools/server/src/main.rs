@@ -72,13 +72,13 @@ struct Args {
     #[arg(long)]
     config: Option<String>,
 
-    /// Streaming (FPSS) environment: "production" (default) or "dev".
+    /// Streaming environment: "production" (default) or "dev".
     /// Selects the streaming channel independently of the historical
     /// channel; an invalid value is rejected at parse time.
     #[arg(long, default_value = "production", value_parser = ["production", "dev"])]
     streaming_region: String,
 
-    /// Historical (MDDS) environment: "production" (default) or "stage".
+    /// Historical environment: "production" (default) or "stage".
     /// Selects the historical channel independently of the streaming
     /// channel and also drives the authentication marker; an invalid
     /// value is rejected at parse time.
@@ -117,7 +117,7 @@ struct Args {
     #[arg(long)]
     no_streaming: bool,
 
-    /// Disable OHLCVC bar derivation from trades on the FPSS stream.
+    /// Disable OHLCVC bar derivation from trades on the streaming feed.
     #[arg(long)]
     no_ohlcvc: bool,
 }
