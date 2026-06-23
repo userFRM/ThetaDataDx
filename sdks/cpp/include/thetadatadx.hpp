@@ -2227,6 +2227,15 @@ enum class Backpressure {
 /// Each batch crosses the C ABI as an Arrow IPC stream and is decoded here
 /// with arrow-cpp's IPC reader, the same wire format the per-tick
 /// `*_to_arrow_ipc` terminals use.
+///
+/// Thread-safety: `ReadNext` is the single blocking consumer and is not
+/// itself re-entrant, but `close()` and destruction are safe to call from a
+/// different thread while a `ReadNext` is parked: the underlying reader is
+/// reference-counted across the C ABI, so a teardown wakes the parked pull
+/// (which returns clean end of stream) and the reader is not torn down until
+/// the in-flight pull completes. This matches the standard
+/// `arrow::RecordBatchReader` handoff where a worker drains the reader while
+/// the owner may release the last `shared_ptr` or call `close()`.
 class RecordBatchStream : public arrow::RecordBatchReader {
 public:
     RecordBatchStream(const RecordBatchStream&) = delete;
@@ -2278,12 +2287,16 @@ public:
     }
 
     /// Stop the reader: unsubscribe and tear the FPSS session down.
-    /// Idempotent; subsequent reads return end of stream. Called by the
-    /// destructor.
+    /// Idempotent; subsequent reads return end of stream.
+    ///
+    /// Safe to call from another thread while a `ReadNext` is in flight: it
+    /// signals close through the reference-counted C ABI (waking the parked
+    /// pull, which then returns clean end of stream) without freeing the
+    /// handle. The handle is released by the destructor, so a `close()` here
+    /// followed by destruction frees exactly once.
     void close() {
         if (handle_ != nullptr) {
-            thetadatadx_record_batch_stream_free(handle_);
-            handle_ = nullptr;
+            thetadatadx_record_batch_stream_close(handle_);
         }
     }
 
@@ -2313,10 +2326,21 @@ private:
         : handle_(handle), schema_(std::move(schema)) {}
 
     /// Decode a single-batch Arrow IPC buffer into `*batch`.
+    ///
+    /// Called only for a `next_ipc` return of 0, which promises one batch in
+    /// the buffer. A null batch from the IPC reader (a truncated or malformed
+    /// frame) is therefore a decode error, not end of stream: surfacing it as
+    /// an error avoids silently truncating a live stream, since the
+    /// `arrow::RecordBatchReader` contract reads a null batch with an OK
+    /// status as end of stream.
     static arrow::Status decode_one(const ThetaDataDxArrowBytes& bytes,
                                     std::shared_ptr<arrow::RecordBatch>* batch) {
         ARROW_ASSIGN_OR_RAISE(auto reader, open_ipc(bytes));
         ARROW_ASSIGN_OR_RAISE(*batch, reader->Next());
+        if (*batch == nullptr) {
+            return arrow::Status::IOError(
+                "streaming batch IPC buffer contained no record batch");
+        }
         return arrow::Status::OK();
     }
 

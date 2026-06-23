@@ -21,11 +21,31 @@
 //! `thetadatadx_client_batches_open` starts the session and returns an
 //! opaque handle. `..._next_ipc` blocks for the next batch (releasing no
 //! lock the caller holds); a `1` return means clean end of stream.
-//! `..._free` stops the session and joins, with no thread / socket /
-//! subscription leak. Every entry point is wrapped in the panic boundary so
-//! no Rust panic crosses `extern "C"`.
+//! `..._close` signals shutdown through a shared reference, so it is safe to
+//! call from another thread WHILE a `..._next_ipc` pull is parked: it wakes
+//! the pull (which then returns end of stream) and tears the FPSS session
+//! down without taking exclusive ownership. `..._free` releases the handle.
+//! Every entry point is wrapped in the panic boundary so no Rust panic
+//! crosses `extern "C"`.
+//!
+//! # Concurrency and handle ownership
+//!
+//! The reader is held behind an `Arc` so a teardown from one thread cannot
+//! deallocate the reader out from under a blocking pull parked on another
+//! thread. `..._next_ipc` / `..._schema_ipc` / `..._dropped` each take a
+//! short owning clone of that `Arc` for the duration of the call, so the
+//! reader stays alive for the whole pull even if `..._free` runs
+//! concurrently. `..._free` signals close before dropping its handle
+//! reference, so a parked pull is woken (returns end of stream) and the last
+//! `Arc` drop (whichever thread holds it) performs the deallocation. This
+//! mirrors the Python and TypeScript readers, which hold the same core
+//! [`RecordBatchStream`] behind an `Arc` and close through
+//! [`RecordBatchStream::close_shared`]; a bare owned handle freed by value
+//! would instead deallocate the reader while a concurrent pull still
+//! borrowed it.
 
 use std::os::raw::c_void;
+use std::sync::Arc;
 
 use thetadatadx::streaming::{Backpressure, RecordBatchStream};
 
@@ -47,10 +67,15 @@ pub const THETADATADX_BACKPRESSURE_DROP_OLDEST: i32 = 1;
 /// Opaque handle to a live pull-based Arrow `RecordBatch` reader.
 ///
 /// Created by [`thetadatadx_client_batches_open`], drained by
-/// [`thetadatadx_record_batch_stream_next_ipc`], freed by
+/// [`thetadatadx_record_batch_stream_next_ipc`], closed by
+/// [`thetadatadx_record_batch_stream_close`], freed by
 /// [`thetadatadx_record_batch_stream_free`].
+///
+/// The reader is held behind an `Arc` so a concurrent free cannot
+/// deallocate it while a blocking pull on another thread still borrows it;
+/// see the module-level concurrency note.
 pub struct ThetaDataDxRecordBatchStream {
-    inner: RecordBatchStream,
+    inner: Arc<RecordBatchStream>,
 }
 
 /// Open a pull-based Arrow `RecordBatch` reader over the unified client's
@@ -114,7 +139,9 @@ pub unsafe extern "C" fn thetadatadx_client_batches_open(
             .backpressure(backpressure)
             .build();
         match stream {
-            Ok(inner) => Box::into_raw(Box::new(ThetaDataDxRecordBatchStream { inner })),
+            Ok(inner) => Box::into_raw(Box::new(ThetaDataDxRecordBatchStream {
+                inner: Arc::new(inner),
+            })),
             Err(e) => {
                 crate::error::set_error_from(&e);
                 std::ptr::null_mut()
@@ -162,7 +189,13 @@ pub unsafe extern "C" fn thetadatadx_record_batch_stream_next_ipc(
             set_error("stream handle is null");
             return -1;
         };
-        match stream.inner.next_blocking() {
+        // Take an owning clone of the reader before the blocking pull so a
+        // concurrent `..._free` on another thread cannot deallocate the reader
+        // while this pull is parked inside `next_blocking`. The `&stream`
+        // borrow of the boxed handle ends here; the pull runs against the
+        // cloned `Arc`, and a concurrent close wakes it (see the module note).
+        let inner = Arc::clone(&stream.inner);
+        match inner.next_blocking() {
             Ok(Some(batch)) => match crate::streaming_batches_ipc::batch_to_ipc(&batch) {
                 Ok(bytes) => {
                     // SAFETY: `out` validated non-null + writable above.
@@ -214,7 +247,10 @@ pub unsafe extern "C" fn thetadatadx_record_batch_stream_schema_ipc(
             set_error("stream handle is null");
             return -1;
         };
-        match crate::streaming_batches_ipc::schema_to_ipc(&stream.inner.schema()) {
+        // Own the reader for the call so a concurrent `..._free` cannot
+        // deallocate it mid-read (see the module concurrency note).
+        let inner = Arc::clone(&stream.inner);
+        match crate::streaming_batches_ipc::schema_to_ipc(&inner.schema()) {
             Ok(bytes) => {
                 // SAFETY: `out` validated writable above.
                 unsafe { out.write(ThetaDataDxArrowBytes::from_vec(bytes)) };
@@ -244,7 +280,9 @@ pub unsafe extern "C" fn thetadatadx_record_batch_stream_dropped(
         // from `thetadatadx_client_batches_open`, not freed; `as_ref` yields
         // `None` for a null pointer, handled below.
         match unsafe { stream.as_ref() } {
-            Some(stream) => stream.inner.dropped(),
+            // Own the reader for the read so a concurrent `..._free` cannot
+            // deallocate it mid-call (see the module concurrency note).
+            Some(stream) => Arc::clone(&stream.inner).dropped(),
             None => {
                 set_error("stream handle is null");
                 0
@@ -253,11 +291,51 @@ pub unsafe extern "C" fn thetadatadx_record_batch_stream_dropped(
     })
 }
 
-/// Stop the reader, tear down the FPSS session, and free the handle.
+/// Stop the reader: unsubscribe and tear the FPSS session down, WITHOUT
+/// freeing the handle.
 ///
-/// Idempotent with respect to the underlying session (the core
-/// `RecordBatchStream` drop is a no-op if already closed). After this call
-/// the handle is invalid and must not be used.
+/// Signals shutdown through a shared reference, so it is safe to call from a
+/// different thread while a [`thetadatadx_record_batch_stream_next_ipc`] pull
+/// is parked: it wakes the pull (which returns `1`, clean end of stream) and
+/// shuts the session down. Idempotent; safe to call any number of times. The
+/// handle remains valid and must still be released with
+/// [`thetadatadx_record_batch_stream_free`].
+///
+/// This is the teardown a multi-threaded caller (e.g. a control thread that
+/// stops a reader another thread is draining) should use: it never takes
+/// exclusive ownership of the handle, so it cannot race the in-flight pull
+/// the way freeing the handle by value would.
+///
+/// # Safety
+///
+/// `stream` must be a valid handle from [`thetadatadx_client_batches_open`]
+/// not yet freed, or null (a null is a no-op).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_record_batch_stream_close(
+    stream: *const ThetaDataDxRecordBatchStream,
+) {
+    ffi_boundary!((), {
+        // SAFETY: caller's contract guarantees `stream` is a live handle from
+        // `_open`, not freed; `as_ref` yields `None` for null, a no-op.
+        if let Some(stream) = unsafe { stream.as_ref() } {
+            // Shared-reference close: wakes any in-flight pull on another
+            // thread and tears the session down without exclusive ownership.
+            stream.inner.close_shared();
+        }
+    })
+}
+
+/// Release the reader handle.
+///
+/// Signals shutdown first (waking any in-flight pull, which then returns
+/// clean end of stream) and then drops this handle's reference to the
+/// reader. Because the reader is held behind an `Arc` and every pull takes
+/// its own clone for the duration of the call, the underlying reader is
+/// deallocated only once the last reference drops, so a
+/// [`thetadatadx_record_batch_stream_next_ipc`] pull parked on another thread
+/// at the moment of free is woken and completes against still-live memory
+/// rather than being deallocated out from under it. After this call the
+/// handle is invalid and must not be used.
 ///
 /// # Safety
 ///
@@ -272,9 +350,16 @@ pub unsafe extern "C" fn thetadatadx_record_batch_stream_free(
             return;
         }
         // SAFETY: caller's contract guarantees `stream` is a live handle
-        // from `_open`, not previously freed. Reconstituting the Box drops
-        // the `RecordBatchStream`, whose `Drop` stops the session and joins.
-        drop(unsafe { Box::from_raw(stream) });
+        // from `_open`, not previously freed.
+        let boxed = unsafe { Box::from_raw(stream) };
+        // Signal close before dropping this handle's `Arc`, so a pull parked
+        // on another thread is woken and returns end of stream. Dropping
+        // `boxed` then releases this reference; the reader itself is
+        // deallocated by whichever thread drops the last `Arc` (its core
+        // `Drop` re-signals close idempotently), never while a concurrent
+        // pull still holds a clone.
+        boxed.inner.close_shared();
+        drop(boxed);
     })
 }
 
@@ -288,3 +373,55 @@ const _: () = {
             == std::mem::size_of::<*mut c_void>()
     );
 };
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every reader entry point treats a null handle as a well-defined no-op
+    /// (or error return), never a deref of null. The out-param functions
+    /// additionally leave `out` initialised empty so a caller can always read
+    /// it. The live-handle pull / close / free concurrency contract (that a
+    /// teardown never deallocates the reader out from under an in-flight pull)
+    /// is held by the `Arc` ownership here and proven in the core
+    /// `fpss::batch_reader` tests (`close_from_another_handle_unblocks_a_parked_pull`);
+    /// it needs a live FPSS connection, so it is exercised there rather than
+    /// reconstructed against a mock in this layer.
+    #[test]
+    fn null_handle_is_a_safe_no_op_on_every_entry_point() {
+        // close / free / dropped on null: no deref, no panic.
+        // SAFETY: passing null is explicitly part of each function's contract.
+        unsafe {
+            thetadatadx_record_batch_stream_close(std::ptr::null());
+            thetadatadx_record_batch_stream_free(std::ptr::null_mut());
+            assert_eq!(thetadatadx_record_batch_stream_dropped(std::ptr::null()), 0);
+        }
+
+        // next_ipc / schema_ipc on a null handle: -1, and `out` left as the
+        // empty sentinel so the caller can always read it and has nothing to
+        // free. The out-param is seeded empty (the documented pre-call state);
+        // the callee overwrites with the empty sentinel and owns no buffer.
+        let mut next_out = ThetaDataDxArrowBytes::empty();
+        let mut schema_out = ThetaDataDxArrowBytes::empty();
+        // SAFETY: null handle + valid writable out-param; contract returns -1
+        // and writes an empty `out`.
+        let rc_next =
+            unsafe { thetadatadx_record_batch_stream_next_ipc(std::ptr::null(), &mut next_out) };
+        // SAFETY: null handle + valid writable out-param; contract returns -1
+        // and writes an empty `out`.
+        let rc_schema = unsafe {
+            thetadatadx_record_batch_stream_schema_ipc(std::ptr::null(), &mut schema_out)
+        };
+        assert_eq!(rc_next, -1);
+        assert_eq!(rc_schema, -1);
+        assert!(next_out.data.is_null() && next_out.len == 0);
+        assert!(schema_out.data.is_null() && schema_out.len == 0);
+
+        // A null `out` is rejected without a deref.
+        // SAFETY: null handle + null out; contract returns -1.
+        let rc_null_out = unsafe {
+            thetadatadx_record_batch_stream_next_ipc(std::ptr::null(), std::ptr::null_mut())
+        };
+        assert_eq!(rc_null_out, -1);
+    }
+}
