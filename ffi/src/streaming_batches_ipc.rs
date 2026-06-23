@@ -19,7 +19,10 @@ use arrow_schema::Schema;
 /// Returns a human-readable message on an IPC writer / write / finish
 /// failure, surfaced to the caller through `thetadatadx_last_error()`.
 pub(crate) fn batch_to_ipc(batch: &RecordBatch) -> Result<Vec<u8>, String> {
-    let mut buf: Vec<u8> = Vec::new();
+    // Seed the buffer from the batch's in-memory byte size so the IPC body
+    // (which is close to that size plus a small framing overhead) is written
+    // without re-growing the Vec from empty on the dispatcher-adjacent path.
+    let mut buf: Vec<u8> = Vec::with_capacity(batch.get_array_memory_size());
     {
         let mut writer = StreamWriter::try_new(std::io::Cursor::new(&mut buf), &batch.schema())
             .map_err(|e| format!("arrow ipc writer init failed: {e}"))?;

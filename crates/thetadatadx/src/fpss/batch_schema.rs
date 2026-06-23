@@ -126,12 +126,19 @@ pub fn stream_batch_schema() -> Arc<Schema> {
 /// accumulator empty for the next batch. Every batch therefore carries the
 /// identical schema instance, which is what makes the output concat-safe.
 ///
-/// Builders preallocate to `capacity` so the steady-state append path does
-/// no reallocation until a batch is flushed.
+/// Builders preallocate to `capacity` so the append path does no reallocation
+/// within a batch. [`Self::finish`] re-sizes the builders back to `capacity`
+/// for the next batch, so this holds for every batch, not just the first:
+/// `arrow` builders' `finish()` swaps their backing buffer out (leaving it at
+/// zero capacity), and re-initializing here restores the preallocation rather
+/// than letting batches 2..N re-grow each column from empty by doubling.
 ///
 /// [`RecordBatchStream`]: super::batch_reader::RecordBatchStream
 pub struct StreamBatchBuilder {
     schema: Arc<Schema>,
+    /// Rows-per-batch preallocation target. Retained so [`Self::finish`] can
+    /// re-size every column builder back to this after each flush.
+    capacity: usize,
     rows: usize,
 
     event_type: StringBuilder,
@@ -187,12 +194,23 @@ impl StreamBatchBuilder {
     /// `capacity` rows.
     #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
+        Self::with_capacity_and_schema(capacity, stream_batch_schema())
+    }
+
+    /// Create an empty builder with every column preallocated to `capacity`
+    /// rows, reusing an existing schema `Arc` instead of allocating a fresh
+    /// one. [`Self::finish`] uses this to re-size the builders for the next
+    /// batch while keeping the identical schema instance (so the output stays
+    /// concat-safe and no schema is reallocated per batch).
+    #[must_use]
+    fn with_capacity_and_schema(capacity: usize, schema: Arc<Schema>) -> Self {
         // String builders take both an item-count and a byte-count hint;
         // symbols are short roots (a handful of bytes), the discriminator
         // and right tags shorter still, so the byte hints are deliberately
         // small multiples of `capacity`.
         Self {
-            schema: stream_batch_schema(),
+            schema,
+            capacity,
             rows: 0,
             event_type: StringBuilder::with_capacity(capacity, capacity * 8),
             symbol: StringBuilder::with_capacity(capacity, capacity * 8),
@@ -253,6 +271,15 @@ impl StreamBatchBuilder {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.rows == 0
+    }
+
+    /// Test-only: the slot capacity of a representative primitive column
+    /// builder. Every primitive column is preallocated to the same `capacity`,
+    /// so `ms_of_day` stands in for all of them when asserting that
+    /// [`Self::finish`] restores the per-batch preallocation.
+    #[cfg(test)]
+    pub(crate) fn primitive_column_capacity(&self) -> usize {
+        self.ms_of_day.capacity()
     }
 
     /// Append one event if it is a market-data variant, returning `true`
@@ -452,50 +479,61 @@ impl StreamBatchBuilder {
         if self.rows == 0 {
             return Ok(None);
         }
+        // Swap in a freshly pre-sized builder (reusing the same schema `Arc`)
+        // and drain the swapped-out one into the batch. `arrow` builders'
+        // `finish()` takes their backing buffer, leaving capacity at zero, so
+        // re-sizing here is what keeps EVERY batch pre-allocated; without it
+        // only the first batch would be sized and batches 2..N would re-grow
+        // each of the 40 columns from empty by doubling on the dispatcher
+        // thread. Reusing the schema `Arc` keeps the output concat-safe and
+        // avoids reallocating the schema per batch.
+        let mut prev = std::mem::replace(
+            self,
+            Self::with_capacity_and_schema(self.capacity, Arc::clone(&self.schema)),
+        );
         let columns: Vec<ArrayRef> = vec![
-            Arc::new(self.event_type.finish()) as ArrayRef,
-            Arc::new(self.symbol.finish()) as ArrayRef,
-            Arc::new(self.sec_type.finish()) as ArrayRef,
-            Arc::new(self.expiration.finish()) as ArrayRef,
-            Arc::new(self.strike.finish()) as ArrayRef,
-            Arc::new(self.right.finish()) as ArrayRef,
-            Arc::new(self.ms_of_day.finish()) as ArrayRef,
-            Arc::new(self.date.finish()) as ArrayRef,
-            Arc::new(self.received_at_ns.finish()) as ArrayRef,
-            Arc::new(self.bid.finish()) as ArrayRef,
-            Arc::new(self.bid_size.finish()) as ArrayRef,
-            Arc::new(self.bid_exchange.finish()) as ArrayRef,
-            Arc::new(self.bid_condition.finish()) as ArrayRef,
-            Arc::new(self.ask.finish()) as ArrayRef,
-            Arc::new(self.ask_size.finish()) as ArrayRef,
-            Arc::new(self.ask_exchange.finish()) as ArrayRef,
-            Arc::new(self.ask_condition.finish()) as ArrayRef,
-            Arc::new(self.price.finish()) as ArrayRef,
-            Arc::new(self.size.finish()) as ArrayRef,
-            Arc::new(self.exchange.finish()) as ArrayRef,
-            Arc::new(self.sequence.finish()) as ArrayRef,
-            Arc::new(self.condition.finish()) as ArrayRef,
-            Arc::new(self.ext_condition1.finish()) as ArrayRef,
-            Arc::new(self.ext_condition2.finish()) as ArrayRef,
-            Arc::new(self.ext_condition3.finish()) as ArrayRef,
-            Arc::new(self.ext_condition4.finish()) as ArrayRef,
-            Arc::new(self.condition_flags.finish()) as ArrayRef,
-            Arc::new(self.price_flags.finish()) as ArrayRef,
-            Arc::new(self.volume_type.finish()) as ArrayRef,
-            Arc::new(self.records_back.finish()) as ArrayRef,
-            Arc::new(self.open_interest.finish()) as ArrayRef,
-            Arc::new(self.open.finish()) as ArrayRef,
-            Arc::new(self.high.finish()) as ArrayRef,
-            Arc::new(self.low.finish()) as ArrayRef,
-            Arc::new(self.close.finish()) as ArrayRef,
-            Arc::new(self.volume.finish()) as ArrayRef,
-            Arc::new(self.count.finish()) as ArrayRef,
-            Arc::new(self.market_bid.finish()) as ArrayRef,
-            Arc::new(self.market_ask.finish()) as ArrayRef,
-            Arc::new(self.market_price.finish()) as ArrayRef,
+            Arc::new(prev.event_type.finish()) as ArrayRef,
+            Arc::new(prev.symbol.finish()) as ArrayRef,
+            Arc::new(prev.sec_type.finish()) as ArrayRef,
+            Arc::new(prev.expiration.finish()) as ArrayRef,
+            Arc::new(prev.strike.finish()) as ArrayRef,
+            Arc::new(prev.right.finish()) as ArrayRef,
+            Arc::new(prev.ms_of_day.finish()) as ArrayRef,
+            Arc::new(prev.date.finish()) as ArrayRef,
+            Arc::new(prev.received_at_ns.finish()) as ArrayRef,
+            Arc::new(prev.bid.finish()) as ArrayRef,
+            Arc::new(prev.bid_size.finish()) as ArrayRef,
+            Arc::new(prev.bid_exchange.finish()) as ArrayRef,
+            Arc::new(prev.bid_condition.finish()) as ArrayRef,
+            Arc::new(prev.ask.finish()) as ArrayRef,
+            Arc::new(prev.ask_size.finish()) as ArrayRef,
+            Arc::new(prev.ask_exchange.finish()) as ArrayRef,
+            Arc::new(prev.ask_condition.finish()) as ArrayRef,
+            Arc::new(prev.price.finish()) as ArrayRef,
+            Arc::new(prev.size.finish()) as ArrayRef,
+            Arc::new(prev.exchange.finish()) as ArrayRef,
+            Arc::new(prev.sequence.finish()) as ArrayRef,
+            Arc::new(prev.condition.finish()) as ArrayRef,
+            Arc::new(prev.ext_condition1.finish()) as ArrayRef,
+            Arc::new(prev.ext_condition2.finish()) as ArrayRef,
+            Arc::new(prev.ext_condition3.finish()) as ArrayRef,
+            Arc::new(prev.ext_condition4.finish()) as ArrayRef,
+            Arc::new(prev.condition_flags.finish()) as ArrayRef,
+            Arc::new(prev.price_flags.finish()) as ArrayRef,
+            Arc::new(prev.volume_type.finish()) as ArrayRef,
+            Arc::new(prev.records_back.finish()) as ArrayRef,
+            Arc::new(prev.open_interest.finish()) as ArrayRef,
+            Arc::new(prev.open.finish()) as ArrayRef,
+            Arc::new(prev.high.finish()) as ArrayRef,
+            Arc::new(prev.low.finish()) as ArrayRef,
+            Arc::new(prev.close.finish()) as ArrayRef,
+            Arc::new(prev.volume.finish()) as ArrayRef,
+            Arc::new(prev.count.finish()) as ArrayRef,
+            Arc::new(prev.market_bid.finish()) as ArrayRef,
+            Arc::new(prev.market_ask.finish()) as ArrayRef,
+            Arc::new(prev.market_price.finish()) as ArrayRef,
         ];
-        self.rows = 0;
-        let batch = RecordBatch::try_new(Arc::clone(&self.schema), columns)?;
+        let batch = RecordBatch::try_new(Arc::clone(&prev.schema), columns)?;
         Ok(Some(batch))
     }
 
@@ -812,5 +850,81 @@ mod tests {
         ));
         assert!(!appended, "control events are not columnar rows");
         assert!(b.is_empty());
+    }
+
+    /// finish() must restore the per-batch column preallocation, not just for
+    /// the first batch. `arrow` builders' `finish()` takes their backing
+    /// buffer (leaving capacity at zero), so without the re-size in `finish`
+    /// batches 2..N would re-grow every column from empty. This fills and
+    /// flushes several batches and asserts the representative column is
+    /// re-sized to at least the configured capacity each time, before the next
+    /// batch's appends.
+    #[test]
+    fn finish_restores_column_capacity_every_batch() {
+        let capacity = 64;
+        let mut b = StreamBatchBuilder::with_capacity(capacity);
+        let contract = std::sync::Arc::new(Contract::stock("SPY"));
+
+        assert!(
+            b.primitive_column_capacity() >= capacity,
+            "the first batch starts pre-sized"
+        );
+
+        for batch_idx in 0..4 {
+            for _ in 0..capacity {
+                b.append(&trade(&contract));
+            }
+            let produced = b.finish().unwrap().expect("a full batch");
+            assert_eq!(produced.num_rows(), capacity);
+            // The crux: after finish the builders are pre-sized again, so the
+            // next batch appends into preallocated space rather than re-growing
+            // from zero. Pre-fix this is 0 for every batch after the first.
+            assert!(
+                b.primitive_column_capacity() >= capacity,
+                "finish must re-size columns to >= capacity for batch {} (was {})",
+                batch_idx + 1,
+                b.primitive_column_capacity()
+            );
+            assert_eq!(b.len(), 0, "finish resets the row count");
+        }
+    }
+
+    /// Re-sizing in finish() must not change the bytes: batches built across
+    /// several flushes are identical to building each in a fresh builder, so
+    /// the optimization is purely an allocation change, not a correctness one.
+    #[test]
+    fn finish_resize_preserves_batch_contents() {
+        let contract = std::sync::Arc::new(Contract::stock("SPY"));
+        let events = [trade(&contract), quote(&contract), trade(&contract)];
+
+        // Two batches from one reused builder (so the second batch is built
+        // after a finish re-size).
+        let mut reused = StreamBatchBuilder::with_capacity(4);
+        for e in &events {
+            reused.append(e);
+        }
+        let reused_b1 = reused.finish().unwrap().expect("batch 1");
+        for e in &events {
+            reused.append(e);
+        }
+        let reused_b2 = reused.finish().unwrap().expect("batch 2");
+
+        // The same two batches, each from a fresh builder.
+        let mut fresh_a = StreamBatchBuilder::with_capacity(4);
+        for e in &events {
+            fresh_a.append(e);
+        }
+        let fresh_b1 = fresh_a.finish().unwrap().expect("fresh batch 1");
+        let mut fresh_b = StreamBatchBuilder::with_capacity(4);
+        for e in &events {
+            fresh_b.append(e);
+        }
+        let fresh_b2 = fresh_b.finish().unwrap().expect("fresh batch 2");
+
+        assert_eq!(reused_b1, fresh_b1, "first batch is byte-identical");
+        assert_eq!(
+            reused_b2, fresh_b2,
+            "the post-resize batch is byte-identical to a fresh build"
+        );
     }
 }
