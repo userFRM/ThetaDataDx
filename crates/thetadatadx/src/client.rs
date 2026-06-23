@@ -148,6 +148,27 @@ pub struct Client {
     /// so subsequent `DirectConfig` mutations cannot retroactively change
     /// retry behavior for already-issued requests.
     flatfiles_config: crate::config::FlatFilesConfig,
+    /// Streaming lifecycle state, held behind an `Arc` so a teardown that
+    /// outlives the borrowed [`StreamSurface`] — notably the pull-based
+    /// [`crate::fpss::batch_reader::RecordBatchStream`], whose `close` / drop
+    /// fire after the `&Client` borrow has ended — can quiesce the same state
+    /// cells [`Self::stop_streaming`] does, through a [`std::sync::Weak`]. The
+    /// callback path reaches it through `&self`; both routes funnel through
+    /// [`StreamingState::quiesce`], so the two delivery modes leave the client
+    /// in the same truthful, reusable state.
+    streaming: Arc<StreamingState>,
+}
+
+/// The streaming lifecycle state of a [`Client`].
+///
+/// Factored out of [`Client`] so it can be shared (via `Arc`) with a
+/// pull-based reader whose teardown outlives the `&Client` borrow that opened
+/// it. Both [`Client::stop_streaming`] and the batch reader's close drive
+/// [`Self::quiesce`], the single transition that swaps the slot to `Stopped`,
+/// retires the dispatcher session, and records the drain flag — so streaming
+/// status stays truthful and the client stays reusable regardless of which
+/// delivery mode (callback or columnar pull) ran.
+pub(crate) struct StreamingState {
     /// Streaming-side state machine. See [`StreamingSlot`] for the
     /// `Idle → Live → Stopped` lifecycle. The
     /// [`ArcSwap`] makes `is_streaming` / `connection_status` /
@@ -155,9 +176,9 @@ pub struct Client {
     /// took two `Mutex` locks plus an `AtomicBool` for the same answer.
     state: ArcSwap<StreamingSlot>,
     /// Quiescence flags of every superseded streaming session that has
-    /// not yet drained, captured during [`Self::stop_streaming`] /
-    /// [`Self::reconnect_streaming`] before the `Live → Stopped` swap
-    /// drops the previous `Arc<StreamingClient>`. [`Self::await_drain`]
+    /// not yet drained, captured during [`Client::stop_streaming`] /
+    /// [`Client::reconnect_streaming`] before the `Live → Stopped` swap
+    /// drops the previous `Arc<StreamingClient>`. [`Client::await_drain`]
     /// waits for **every** entry to flip to `true` before reporting
     /// quiescence; completed flags are GC'd lazily on each poll.
     ///
@@ -172,7 +193,7 @@ pub struct Client {
     /// FFI `ctx`. The Vec preserves every retired generation until its
     /// own flag is observed `true`.
     prev_drained: Mutex<Vec<Arc<AtomicBool>>>,
-    /// Monotonic counter incremented by every [`Self::stop_streaming`].
+    /// Monotonic counter incremented by every [`Client::stop_streaming`].
     ///
     /// Each `start_streaming*()` snapshots this value at entry and
     /// re-checks it after the FPSS connect completes. If the snapshot
@@ -193,6 +214,125 @@ pub struct Client {
     /// from `JoinHandle::join()` returning `Err(_)` rather than a
     /// separate atomic flag.
     dispatcher: Mutex<DispatcherSession>,
+}
+
+impl StreamingState {
+    /// A fresh, never-started streaming state.
+    fn new() -> Self {
+        Self {
+            state: ArcSwap::from_pointee(StreamingSlot::Idle),
+            prev_drained: Mutex::new(Vec::new()),
+            stop_generation: AtomicU64::new(0),
+            dispatcher: Mutex::new(DispatcherSession::Idle),
+        }
+    }
+
+    /// Quiesce the streaming session: swap the slot to `Stopped`, retire the
+    /// dispatcher session, and record the previous generation's drain flag.
+    ///
+    /// This is the single teardown both delivery modes share —
+    /// [`Client::stop_streaming`] (callback path) and the pull reader's close
+    /// (columnar path) both call it — so after either one the slot is
+    /// `Stopped`, the dispatcher is `Idle` (or `Failed` if it panicked), and
+    /// `is_streaming` / `connection_status` report the truth. Idempotent:
+    /// calling it on an already-`Stopped` state bumps the generation and
+    /// no-ops the rest.
+    pub(crate) fn quiesce(&self) {
+        // Bump the stop generation BEFORE the slot swap so any in-flight
+        // `start_streaming*()` that snapshotted the previous value will fail
+        // its install check and not resurrect the slot to `Live` after this
+        // returns. AcqRel because the ordering relative to the `state.swap`
+        // below is what closes the resurrection race.
+        self.stop_generation.fetch_add(1, Ordering::AcqRel);
+        // Atomically swap to `Stopped`; whichever caller wins the swap owns the
+        // previous `Arc<StreamingSlot>` and is the one that runs the shutdown
+        // sequence.
+        let prev = self.state.swap(Arc::new(StreamingSlot::Stopped));
+
+        // Drop the FPSS client signal so its reader thread + event ring
+        // consumer drain and exit. The actual join happens in
+        // `StreamingClient::Drop` when the last `Arc<StreamingClient>` is
+        // dropped (typically with `prev` going out of scope at end of scope).
+        if let StreamingSlot::Live { client } = &*prev {
+            // Capture the drain flag BEFORE the shutdown signal and PUSH it
+            // onto the retired-generations list (rather than overwriting a
+            // single slot). Stacked stop/start/stop cycles layer multiple
+            // in-flight generations on top of each other; an earlier
+            // still-firing session's flag must NOT be lost when a later session
+            // retires before the earlier one has drained. `await_drain()` waits
+            // for ALL entries, and lazily GCs flags that have flipped to
+            // `true`, so a long-lived handle does not accumulate
+            // `Arc<AtomicBool>` entries past their useful lifetime.
+            self.prev_drained
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push(client.drained_flag());
+            client.shutdown();
+        }
+
+        // Join the dispatcher thread (if any) after the producer-drop signal
+        // has propagated through the ring shutdown to the poller, letting the
+        // iterator's `for ... in &client` loop see a clean `Ok(None)` and exit.
+        // Joining here closes the race where a callback could still fire after
+        // `is_streaming()` observed `false`.
+        //
+        // Dispatcher panic state is derived from `JoinHandle::join()`:
+        // `Err(_)` means the dispatcher thread panicked in the event-iteration
+        // machinery (distinct from user-callback panics caught by
+        // `poll_batch`'s per-invocation `catch_unwind`). Record as
+        // `DispatcherSession::Failed` so `is_streaming` / `connection_status`
+        // see the failure even though the slot is now `Stopped`.
+        let prev_session = std::mem::replace(
+            &mut *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()),
+            DispatcherSession::Idle,
+        );
+        if let DispatcherSession::Running { handle } = prev_session {
+            // Avoid blocking the consumer thread joining itself when a callback
+            // (or, for the pull reader, a dispatcher-thread drop) called this.
+            // Detach in that case; `await_drain` still observes quiescence via
+            // the `prev_drained` flags.
+            if handle.thread().id() != std::thread::current().id() {
+                let join_result = handle.join();
+                if let Err(payload) = join_result {
+                    let reason = downcast_panic_payload(payload);
+                    tracing::error!(
+                        target: "thetadatadx::client",
+                        reason = %reason,
+                        "thetadatadx-fpss-dispatcher panicked; session marked as failed",
+                    );
+                    *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) =
+                        DispatcherSession::Failed { reason };
+                }
+            }
+        }
+    }
+
+    /// Test-only: the current streaming-slot variant as a static label, so a
+    /// test can assert the `Idle → Live → Stopped` transition `quiesce` drives
+    /// without naming the private `Arc<StreamingClient>` payload.
+    #[cfg(test)]
+    fn slot_label(&self) -> &'static str {
+        match &**self.state.load() {
+            StreamingSlot::Idle => "Idle",
+            StreamingSlot::Live { .. } => "Live",
+            StreamingSlot::Stopped => "Stopped",
+        }
+    }
+
+    /// Test-only: whether the dispatcher session is currently `Idle`.
+    #[cfg(test)]
+    fn dispatcher_is_idle(&self) -> bool {
+        matches!(
+            *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()),
+            DispatcherSession::Idle
+        )
+    }
+
+    /// Test-only: the current stop generation.
+    #[cfg(test)]
+    fn stop_generation_value(&self) -> u64 {
+        self.stop_generation.load(Ordering::Acquire)
+    }
 }
 
 impl Client {
@@ -263,10 +403,7 @@ impl Client {
             historical,
             creds: creds.clone(),
             flatfiles_config,
-            state: ArcSwap::from_pointee(StreamingSlot::Idle),
-            prev_drained: Mutex::new(Vec::new()),
-            stop_generation: AtomicU64::new(0),
-            dispatcher: Mutex::new(DispatcherSession::Idle),
+            streaming: Arc::new(StreamingState::new()),
         })
     }
 
@@ -396,10 +533,14 @@ impl Client {
         // (typically tens of milliseconds); a second concurrent start
         // is rejected upfront by the `is_streaming` fast path or by
         // `install_live` once it observes a `Live` slot.
-        let mut dispatcher_guard = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+        let mut dispatcher_guard = self
+            .streaming
+            .dispatcher
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
 
         // Reject a second concurrent start before paying the connect cost.
-        if matches!(&**self.state.load(), StreamingSlot::Live { .. }) {
+        if matches!(&**self.streaming.state.load(), StreamingSlot::Live { .. }) {
             return Err(Self::already_streaming());
         }
 
@@ -407,7 +548,7 @@ impl Client {
         // thread calls `stop_streaming()` between this load and the
         // post-connect `install_live`, the install path observes the
         // mismatch and refuses to resurrect the slot to `Live`.
-        let gen_at_entry = self.stop_generation.load(Ordering::Acquire);
+        let gen_at_entry = self.streaming.stop_generation.load(Ordering::Acquire);
 
         let config = self.historical.config();
         let client = StreamingClient::builder(&self.creds, &config.streaming.hosts)
@@ -596,6 +737,21 @@ impl Client {
         })
     }
 
+    /// A weak handle to this client's streaming lifecycle state, for the
+    /// pull-based [`crate::fpss::batch_reader::RecordBatchStream`] to quiesce
+    /// the session on close.
+    ///
+    /// Weak (not strong) so the reader never keeps the client's streaming
+    /// state alive past the client itself: if the client is dropped first, its
+    /// own `Drop` quiesces and the reader's later close finds nothing to
+    /// upgrade and is a no-op; in the common order (reader closed first) the
+    /// upgrade succeeds and resets the slot to `Stopped`, making
+    /// `is_streaming` / `connection_status` truthful and the client reusable.
+    #[cfg(feature = "arrow")]
+    pub(crate) fn streaming_state_weak(&self) -> std::sync::Weak<StreamingState> {
+        Arc::downgrade(&self.streaming)
+    }
+
     /// Atomically swap the slot to a fresh `Live` state.
     ///
     /// Rejects the install when:
@@ -621,8 +777,8 @@ impl Client {
         // `&Arc<T>` directly for non-Eq T; we instead read, decide,
         // and rcu the state. The `rcu` closure is retried until the
         // swap is observed atomically.
-        let stop_gen = &self.stop_generation;
-        let prev = self.state.rcu(|current| match &**current {
+        let stop_gen = &self.streaming.stop_generation;
+        let prev = self.streaming.state.rcu(|current| match &**current {
             StreamingSlot::Live { .. } => Arc::clone(current),
             _ => {
                 // Re-check the stop generation INSIDE the rcu closure.
@@ -646,7 +802,7 @@ impl Client {
         // mismatch, the cell was left at its current value (Stopped or
         // Idle). Distinguish from "successful install" by re-reading
         // the cell — if it does not point to our `new`, we lost.
-        if !Arc::ptr_eq(&self.state.load_full(), &new) {
+        if !Arc::ptr_eq(&self.streaming.state.load_full(), &new) {
             return Err(Self::stopped_during_start());
         }
         Ok(())
@@ -661,7 +817,7 @@ impl Client {
     /// per-drop log would amplify under sustained overflow.
     #[must_use]
     pub(crate) fn dropped_event_count(&self) -> u64 {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.dropped_count(),
             StreamingSlot::Idle | StreamingSlot::Stopped => 0,
@@ -682,7 +838,7 @@ impl Client {
     /// from your own monitoring thread at any cadence.
     #[must_use]
     pub(crate) fn ring_occupancy(&self) -> usize {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.ring_occupancy(),
             StreamingSlot::Idle | StreamingSlot::Stopped => 0,
@@ -699,7 +855,7 @@ impl Client {
     /// [`Self::dropped_event_count`]).
     #[must_use]
     pub(crate) fn ring_capacity(&self) -> usize {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.ring_capacity(),
             StreamingSlot::Idle | StreamingSlot::Stopped => 0,
@@ -717,7 +873,7 @@ impl Client {
     /// connection.
     #[must_use]
     pub(crate) fn millis_since_last_event(&self) -> Option<u64> {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.millis_since_last_event(),
             StreamingSlot::Idle | StreamingSlot::Stopped => None,
@@ -731,7 +887,7 @@ impl Client {
     /// correlating against their own pipeline timestamps.
     #[must_use]
     pub(crate) fn last_event_received_at_unix_nanos(&self) -> i64 {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.last_event_received_at_unix_nanos(),
             StreamingSlot::Idle | StreamingSlot::Stopped => 0,
@@ -743,7 +899,7 @@ impl Client {
     /// auto-reconnects. Returns `None` when streaming has not started.
     #[must_use]
     pub(crate) fn last_connected_addr(&self) -> Option<String> {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => Some(client.last_connected_addr()),
             StreamingSlot::Idle | StreamingSlot::Stopped => None,
@@ -759,7 +915,7 @@ impl Client {
     /// instead of this counter. Returns `0` when streaming has not started.
     #[must_use]
     pub(crate) fn panic_count(&self) -> u64 {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.panic_count(),
             StreamingSlot::Idle | StreamingSlot::Stopped => 0,
@@ -774,7 +930,7 @@ impl Client {
     #[cfg(feature = "__internal")]
     #[doc(hidden)]
     pub(crate) fn record_panic(&self) {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         if let StreamingSlot::Live { client } = &**snap {
             client.record_panic();
         }
@@ -796,7 +952,7 @@ impl Client {
     /// [`Self::start_streaming`] the threshold defaults back to
     /// disabled (callers must re-arm).
     pub(crate) fn set_slow_callback_threshold(&self, threshold: Duration) {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         if let StreamingSlot::Live { client } = &**snap {
             client.set_slow_callback_threshold(threshold);
         }
@@ -808,7 +964,7 @@ impl Client {
     /// watchdog is disabled or when streaming has not started.
     #[must_use]
     pub(crate) fn slow_callback_count(&self) -> u64 {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => client.slow_callback_count(),
             StreamingSlot::Idle | StreamingSlot::Stopped => 0,
@@ -830,9 +986,13 @@ impl Client {
     /// context, replacing the callback closure, or asserting the old
     /// consumer thread has joined.
     pub(crate) fn is_streaming(&self) -> bool {
-        match &**self.state.load() {
+        match &**self.streaming.state.load() {
             StreamingSlot::Live { .. } => {
-                let session = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+                let session = self
+                    .streaming
+                    .dispatcher
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
                 !matches!(*session, DispatcherSession::Failed { .. })
             }
             StreamingSlot::Idle | StreamingSlot::Stopped => false,
@@ -849,9 +1009,13 @@ impl Client {
     /// reporting "authenticated with no deliveries". Returns `false`
     /// before streaming starts and after it stops.
     pub(crate) fn is_authenticated(&self) -> bool {
-        match &**self.state.load() {
+        match &**self.streaming.state.load() {
             StreamingSlot::Live { client } => {
-                let session = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+                let session = self
+                    .streaming
+                    .dispatcher
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
                 client.is_authenticated() && !matches!(*session, DispatcherSession::Failed { .. })
             }
             StreamingSlot::Idle | StreamingSlot::Stopped => false,
@@ -888,7 +1052,7 @@ impl Client {
     /// does not leak `Arc<AtomicBool>` entries.
     #[must_use]
     pub(crate) fn prev_drained_is_set(&self) -> bool {
-        match self.prev_drained.try_lock() {
+        match self.streaming.prev_drained.try_lock() {
             Ok(mut guard) => {
                 guard.retain(|f| !f.load(Ordering::Acquire));
                 !guard.is_empty()
@@ -926,6 +1090,7 @@ impl Client {
         loop {
             let all_drained = {
                 let mut guard = self
+                    .streaming
                     .prev_drained
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -951,7 +1116,7 @@ impl Client {
         &self,
         f: impl FnOnce(&StreamingClient) -> Result<R, Error>,
     ) -> Result<R, Error> {
-        let snap = self.state.load();
+        let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => f(client.as_ref()),
             StreamingSlot::Idle | StreamingSlot::Stopped => Err(Error::Fpss {
@@ -1074,77 +1239,11 @@ impl Client {
     /// callback closure, or otherwise rely on the old user callback
     /// having stopped firing.
     pub(crate) fn stop_streaming(&self) {
-        // Bump the stop generation BEFORE the slot swap so any
-        // in-flight `start_streaming*()` that snapshotted the previous
-        // value will fail its install check and not resurrect the
-        // slot to `Live` after this returns. AcqRel because the
-        // ordering relative to the `state.swap` below is what closes
-        // the resurrection race.
-        self.stop_generation.fetch_add(1, Ordering::AcqRel);
-        // Atomically swap to `Stopped`; whichever caller wins the swap
-        // owns the previous `Arc<StreamingSlot>` and is the one that
-        // runs the shutdown sequence.
-        let prev = self.state.swap(Arc::new(StreamingSlot::Stopped));
-
-        // Drop the FPSS client signal so its reader thread + event ring
-        // consumer drain and exit. The actual join happens in
-        // `StreamingClient::Drop` when the last `Arc<StreamingClient>` is dropped
-        // (typically with `prev` going out of scope at end of scope).
-        if let StreamingSlot::Live { client } = &*prev {
-            // Capture the drain flag BEFORE the shutdown signal and
-            // PUSH it onto the retired-generations list (rather than
-            // overwriting a single slot). Stacked stop/start/stop
-            // cycles layer multiple in-flight generations on top of
-            // each other; an earlier still-firing session's flag must
-            // NOT be lost when a later session retires before the
-            // earlier one has drained. `await_drain()` waits for ALL
-            // entries, and lazily GCs flags that have flipped to
-            // `true`, so a long-lived handle does not accumulate
-            // `Arc<AtomicBool>` entries past their useful lifetime.
-            self.prev_drained
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .push(client.drained_flag());
-            client.shutdown();
-        }
-
-        // Join the dispatcher thread (if any) after the producer-drop
-        // signal has propagated through the ring shutdown to the
-        // poller, letting the iterator's `for ... in &client` loop see
-        // a clean `Ok(None)` and exit. Joining here closes the race
-        // where a callback could still fire after `is_streaming()`
-        // observed `false`.
-        //
-        // Dispatcher panic state is derived from `JoinHandle::join()`:
-        // `Err(_)` means the dispatcher thread panicked in the
-        // event-iteration machinery (distinct from user-callback panics
-        // caught by `poll_batch`'s per-invocation `catch_unwind`).
-        // Record as `DispatcherSession::Failed` so `is_streaming` /
-        // `connection_status` see the failure even though the slot is
-        // now `Stopped`.
-        let prev_session = std::mem::replace(
-            &mut *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()),
-            DispatcherSession::Idle,
-        );
-        if let DispatcherSession::Running { handle } = prev_session {
-            // Avoid blocking the consumer thread joining itself when a
-            // callback called `stop_streaming()`. Detach in that case;
-            // `await_drain` still observes quiescence via the
-            // `prev_drained` flags.
-            if handle.thread().id() != std::thread::current().id() {
-                let join_result = handle.join();
-                if let Err(payload) = join_result {
-                    let reason = downcast_panic_payload(payload);
-                    tracing::error!(
-                        target: "thetadatadx::client",
-                        reason = %reason,
-                        "thetadatadx-fpss-dispatcher panicked; session marked as failed",
-                    );
-                    *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) =
-                        DispatcherSession::Failed { reason };
-                }
-            }
-        }
+        // Single shared teardown: swap the slot to `Stopped`, retire the
+        // dispatcher session, record the drain flag. The pull reader's close
+        // drives the same [`StreamingState::quiesce`], so the callback and
+        // columnar paths leave the client identically truthful and reusable.
+        self.streaming.quiesce();
     }
 
     /// Reconnect the streaming connection, re-subscribing all previous subscriptions.
@@ -1203,7 +1302,7 @@ impl Client {
     {
         metrics::counter!("thetadatadx.fpss.reconnects").increment(1);
         // 1. Save active subscriptions before stopping
-        let saved_subs = match &**self.state.load() {
+        let saved_subs = match &**self.streaming.state.load() {
             StreamingSlot::Live { client } => (
                 client.active_subscriptions(),
                 client.active_full_subscriptions(),
@@ -1290,7 +1389,7 @@ impl Client {
 
     /// Get the current streaming connection status.
     pub(crate) fn connection_status(&self) -> ConnectionStatus {
-        match &**self.state.load() {
+        match &**self.streaming.state.load() {
             StreamingSlot::Idle => ConnectionStatus::NotStarted,
             StreamingSlot::Stopped => ConnectionStatus::Disconnected,
             StreamingSlot::Live { client } => {
@@ -1301,7 +1400,11 @@ impl Client {
                 // see a visible failed state instead of "Connected
                 // with no deliveries".
                 let failed_reason: Option<String> = {
-                    let session = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+                    let session = self
+                        .streaming
+                        .dispatcher
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner());
                     match &*session {
                         DispatcherSession::Failed { reason } => Some(reason.clone()),
                         _ => None,
@@ -2343,6 +2446,73 @@ mod tests {
         let prev = cell.swap(Arc::new(SlotMarker::Stopped));
         assert!(matches!(&*prev, SlotMarker::Live(2)));
         assert_eq!(variant(&cell.load()), "Stopped");
+    }
+
+    /// [`StreamingState::quiesce`] is the single teardown both delivery modes
+    /// share. From a never-started state it leaves the slot `Stopped`, the
+    /// dispatcher `Idle`, and bumps the stop generation (the resurrection
+    /// guard). This is the state the pull reader's close now lands the client
+    /// in — truthful and reusable — instead of leaving a stale `Live` slot and
+    /// a `Running` dispatcher with an exited thread. The `Live`-slot shutdown
+    /// branch shares its body with the callback path's `stop_streaming`, which
+    /// the FPSS integration tests exercise against a real connection.
+    #[test]
+    fn quiesce_from_idle_lands_stopped_and_idle() {
+        let state = StreamingState::new();
+        assert_eq!(state.slot_label(), "Idle");
+        assert!(state.dispatcher_is_idle());
+        let gen0 = state.stop_generation_value();
+
+        state.quiesce();
+
+        assert_eq!(
+            state.slot_label(),
+            "Stopped",
+            "quiesce must swap the slot to Stopped"
+        );
+        assert!(
+            state.dispatcher_is_idle(),
+            "quiesce must leave the dispatcher Idle"
+        );
+        assert!(
+            state.stop_generation_value() > gen0,
+            "quiesce must bump the stop generation (resurrection guard)"
+        );
+
+        // Idempotent: a second close (e.g. binding close() then the core Drop)
+        // is a harmless no-op beyond bumping the generation again.
+        let gen1 = state.stop_generation_value();
+        state.quiesce();
+        assert_eq!(state.slot_label(), "Stopped");
+        assert!(state.dispatcher_is_idle());
+        assert!(state.stop_generation_value() > gen1);
+    }
+
+    /// `quiesce` retires a `Running` dispatcher session — joining its thread
+    /// and resetting it to `Idle` — which is what makes the client reusable
+    /// after a pull reader closes: a later `start_streaming*` / `batches()`
+    /// installs a fresh dispatcher instead of finding a stale `Running` one
+    /// behind an exited thread. Driven with a real (immediately-exiting)
+    /// thread and the slot left out of `Live` so the join branch is what is
+    /// under test, deterministically and without a network.
+    #[test]
+    fn quiesce_retires_a_running_dispatcher() {
+        let state = StreamingState::new();
+        let handle = std::thread::spawn(|| { /* exits immediately */ });
+        *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) =
+            DispatcherSession::Running { handle };
+        assert!(
+            !state.dispatcher_is_idle(),
+            "precondition: Running installed"
+        );
+
+        state.quiesce();
+
+        assert!(
+            state.dispatcher_is_idle(),
+            "quiesce must join the dispatcher thread and reset the session to \
+             Idle so the client is reusable"
+        );
     }
 
     /// Concurrent `start` race: only one caller observes the install,

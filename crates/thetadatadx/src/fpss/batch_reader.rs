@@ -51,7 +51,7 @@
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, Once, Weak};
 use std::task::{Context, Poll, Waker};
 use std::time::{Duration, Instant};
 
@@ -60,7 +60,7 @@ use arrow_schema::Schema;
 
 use super::batch_schema::{stream_batch_schema, StreamBatchBuilder};
 use super::{StreamEvent, StreamingClient};
-use crate::client::Client;
+use crate::client::{Client, StreamingState};
 use crate::streaming::StreamError;
 
 /// Default rows per batch when [`BatchReaderBuilder::batch_size`] is not set.
@@ -395,12 +395,27 @@ impl BatchSink {
 pub struct RecordBatchStream {
     shared: Arc<Shared>,
     /// The live streaming client backing this reader, shared with the
-    /// dispatcher thread. Closing the reader calls
-    /// [`StreamingClient::shutdown`] on it, which is the authoritative
-    /// teardown: it stops the I/O and ping threads, closes the socket, and
-    /// shuts the ring. The dispatcher then observes ring shutdown, flushes
-    /// the final batch, and exits.
+    /// dispatcher thread. Closing the reader quiesces the owning client (see
+    /// `owner`), which shuts this same underlying client: it stops the I/O and
+    /// ping threads, closes the socket, and shuts the ring. The dispatcher then
+    /// observes ring shutdown, flushes the final batch, and exits. This `Arc`
+    /// is also the shutdown fallback when the owning client is already gone.
     client: Arc<StreamingClient>,
+    /// Weak handle to the owning client's streaming lifecycle state. On close
+    /// the reader upgrades this and calls [`StreamingState::quiesce`] — the
+    /// same teardown the callback surface's `stop_streaming` runs — so after
+    /// the reader closes the client's `state` is `Stopped` and its
+    /// `dispatcher` is `Idle`: `is_streaming` / `connection_status` tell the
+    /// truth and a subsequent `start_streaming*` / `batches()` succeeds rather
+    /// than returning `already_streaming`. Weak so the reader never keeps the
+    /// client's state alive past the client; if the client is already gone the
+    /// upgrade fails and the reset is a no-op (the client's own `Drop` already
+    /// quiesced).
+    owner: Weak<StreamingState>,
+    /// Runs the owner-state reset exactly once, even though `close_shared` is
+    /// `&self` and a binding may call it from several paths (explicit close,
+    /// then free, then the core `Drop`) and from different threads.
+    quiesce_once: Once,
     closed: bool,
 }
 
@@ -441,10 +456,16 @@ impl RecordBatchStream {
             linger,
             backpressure,
         )?;
+        // Capture the owner-state handle only after a successful start, so a
+        // failed build leaves no reference behind. Weak, so the reader's later
+        // close never resurrects or outlives the client's state.
+        let owner = client.streaming_state_weak();
 
         Ok(Self {
             shared,
             client: live,
+            owner,
+            quiesce_once: Once::new(),
             closed: false,
         })
     }
@@ -489,12 +510,37 @@ impl RecordBatchStream {
         // queue BEFORE shutting the client, so a parked flush re-checks
         // `closed`, stops pushing, and lets the dispatcher reach the
         // ring-shutdown exit. Idempotent at the atomic + `shutdown` level.
-        self.shared.closed.store(true, Ordering::Release);
+        //
+        // The store MUST happen while holding `inner`. A Block-mode producer
+        // in `flush` and a blocked consumer in `next_blocking` each check
+        // `closed` under this lock and then park on `cv` (which atomically
+        // releases the lock as it parks). Storing `closed` under the same lock
+        // serialises the store with that check-then-park: the store either
+        // lands before the waiter's check (it observes `closed` and does not
+        // park) or after the waiter has parked (the `notify_all` below wakes
+        // it). Storing without the lock opens a lost-wakeup window — the store
+        // and notify can fall between a waiter's check and its park, leaving
+        // it parked forever.
+        {
+            let _guard = lock(&self.shared.inner);
+            self.shared.closed.store(true, Ordering::Release);
+        }
         self.shared.cv.notify_all();
-        // Authoritative teardown: stop the I/O + ping threads, close the
-        // socket, shut the ring. `StreamingClient::shutdown` is idempotent
-        // and detaches its own join, so it never blocks the caller.
-        self.client.shutdown();
+        // Authoritative teardown, run exactly once. Reset the owning client's
+        // streaming state through the SAME `StreamingState::quiesce` the
+        // callback surface's `stop_streaming` uses: swap the slot to `Stopped`,
+        // shut the live client (stop the I/O + ping threads, close the socket,
+        // shut the ring), and retire the dispatcher session. After this the
+        // client is truthful (`is_streaming` / `connection_status` report a
+        // stopped session) and reusable (a later `start_streaming*` /
+        // `batches()` no longer sees a stale `Live` slot). If the client has
+        // already been dropped the weak upgrade fails — its own `Drop` already
+        // quiesced — so fall back to shutting our own client `Arc` directly,
+        // which is all that remains to do.
+        self.quiesce_once.call_once(|| match self.owner.upgrade() {
+            Some(state) => state.quiesce(),
+            None => self.client.shutdown(),
+        });
     }
 
     /// Adapt this stream into a blocking [`Iterator`] of
@@ -812,15 +858,38 @@ pub(crate) mod test_harness {
 
         /// Signal close so a Block-mode producer parked on a full queue
         /// stops, mirroring [`RecordBatchStream::close`] minus the client
-        /// teardown (there is no live client in the harness).
+        /// teardown (there is no live client in the harness). Stores `closed`
+        /// under `inner` so it serialises with a waiter's under-lock
+        /// check-then-park, matching `RecordBatchStream::close_shared`.
         pub(crate) fn close(&self) {
-            self.shared.closed.store(true, Ordering::Release);
+            {
+                let _guard = super::lock(&self.shared.inner);
+                self.shared.closed.store(true, Ordering::Release);
+            }
             self.shared.cv.notify_all();
         }
 
         /// Reader-side queue depth, for asserting the bound holds.
         pub(crate) fn queued(&self) -> usize {
             super::lock(&self.shared.inner).batches.len()
+        }
+
+        /// Run `f` while holding the `inner` queue lock, for a test that needs
+        /// to prove the close path stores `closed` under this same lock. While
+        /// `f` runs, a concurrent [`Self::close`] must block on its own `inner`
+        /// acquisition before it can store `closed` — the structural guarantee
+        /// that closes the lost-wakeup window. Keeps the private `Queue` type
+        /// out of the helper's signature.
+        pub(crate) fn with_inner_held<R>(&self, f: impl FnOnce() -> R) -> R {
+            let _guard = super::lock(&self.shared.inner);
+            f()
+        }
+
+        /// Read the `closed` flag without taking `inner`, so a test holding the
+        /// `inner` guard can observe whether a concurrent `close` has managed
+        /// to store it yet.
+        pub(crate) fn is_closed(&self) -> bool {
+            self.shared.closed.load(Ordering::Acquire)
         }
     }
 
@@ -1090,6 +1159,72 @@ mod tests {
         assert!(
             out.expect("no error").is_none(),
             "a closed stream's parked pull must return end-of-stream"
+        );
+    }
+
+    /// (f) the close path stores `closed` while holding `inner`.
+    ///
+    /// This is the invariant that closes the lost-wakeup window. A Block-mode
+    /// producer in `flush` (and a blocked consumer in `next_blocking`) checks
+    /// `closed` under `inner` and then parks on `cv`, which atomically releases
+    /// `inner` as it parks — so the producer holds `inner` continuously from
+    /// its check through the park. If `close` stores `closed` WITHOUT `inner`,
+    /// the store + `notify_all` can land in the gap between the producer's
+    /// check and its park; the notify then wakes no one and the producer parks
+    /// forever. Storing `closed` under `inner` serialises the store with that
+    /// check-then-park: it cannot land in the gap, because the producer holds
+    /// the lock across the whole gap.
+    ///
+    /// A timing race here is vanishingly narrow (the kernel futex handoff
+    /// hides it on most runs), so rather than chase it probabilistically this
+    /// asserts the structural guarantee directly: while the test holds `inner`,
+    /// a concurrent `close` MUST NOT be able to store `closed` — it has to
+    /// block on its own `inner` acquisition first. With the pre-fix unlocked
+    /// store this assertion fails immediately and deterministically, because
+    /// the store does not wait for the lock.
+    #[test]
+    fn close_stores_closed_under_the_inner_lock() {
+        use std::sync::atomic::{AtomicBool, Ordering as O};
+
+        let (_producer, reader_a) = harness(1_000, Duration::from_millis(50), Backpressure::Block);
+        let reader_b = super::test_harness::Reader::sharing(&reader_a);
+
+        let close_returned = Arc::new(AtomicBool::new(false));
+        let close_returned_t = Arc::clone(&close_returned);
+
+        // Hold `inner` across the whole observation window so a correct `close`
+        // cannot reach its store. `with_inner_held` keeps the lock for the
+        // duration of the closure.
+        let closer = reader_a.with_inner_held(|| {
+            let closer = thread::spawn(move || {
+                reader_b.close(); // blocks on `inner` until the test releases it
+                close_returned_t.store(true, O::Release);
+            });
+
+            // Give the closer ample time to run. With the store under `inner`
+            // it is parked on the lock the test holds, so `closed` must still
+            // be false and `close` must not have returned. Pre-fix (unlocked
+            // store) the closer stores `closed` immediately and this fails.
+            thread::sleep(Duration::from_millis(50));
+            assert!(
+                !reader_a.is_closed(),
+                "close must not store `closed` while another thread holds \
+                 `inner`; an unlocked store opens the lost-wakeup window this \
+                 guards"
+            );
+            assert!(
+                !close_returned.load(O::Acquire),
+                "close must still be blocked on `inner` while the test holds it"
+            );
+            closer
+        });
+
+        // `inner` released here; the closer now acquires it, stores `closed`,
+        // and returns.
+        closer.join().expect("closer thread");
+        assert!(
+            reader_a.is_closed(),
+            "after the lock is released, close stores `closed`"
         );
     }
 }
