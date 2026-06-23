@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [13.0.0-rc.5] - 2026-06-22
 
+### Breaking changes
+
+- **Configuration:** the two server channels are selected independently and named after the data they serve. The historical channel (production or staging) and the streaming channel (production or dev) each have their own selector: `HistoricalEnvironment` / `StreamingEnvironment` in Rust, with `with_historical_environment` / `with_streaming_environment` setters and `historical_environment` / `streaming_environment` getters across every binding. The single combined environment selector is removed.
+- **Environment variables:** `THETADATA_MDDS_TYPE` is renamed to `THETADATA_HISTORICAL_TYPE` (`PROD` or `STAGE`) and `THETADATA_FPSS_TYPE` to `THETADATA_STREAMING_TYPE` (`PROD` or `DEV`). An unrecognized or cross-channel value (for example `THETADATA_HISTORICAL_TYPE=DEV`) is now a hard error naming the offending key and the valid set rather than a silent fallback; a malformed host or port override is still skipped with a warning.
+- **Server CLI:** `--mdds-region` is renamed to `--historical-region` (`production` or `stage`) and `--fpss-region` to `--streaming-region` (`production` or `dev`). `--streaming-region` no longer accepts `stage`; there is no streaming staging cluster.
+- **Bindings:** the inline-construction selectors are renamed to match — Python `historical_type` / `streaming_type` and TypeScript `historicalType` / `streamingType`.
+
 ### Fixed
 
 - **Authentication:** api-key and email/password resolution is unified across the server, the CLI, and the MCP tool under one precedence: the `--api-key` flag, then `THETADATA_API_KEY`, then `THETADATA_EMAIL` with `THETADATA_PASSWORD`, then the credentials file. The CLI and MCP previously had no api-key path, and the MCP read non-canonical variable names. Authentication errors now carry only the HTTP status and never the upstream response body, on both the success-parse and non-success paths, so a gateway that reflects the submitted request can never surface a credential through the error chain.

@@ -225,7 +225,7 @@ impl DirectConfig {
     /// Production configuration for `ThetaData`'s NJ datacenter.
     ///
     /// - Historical: `mdds-01.thetadata.us:443` (TLS)
-    /// - Streaming: 4 NJ hosts with round-robin failover (`FPSS_NJ_HOSTS`)
+    /// - Streaming: 4 NJ hosts with round-robin failover
     /// - Timeouts: matched to ThetaData's published connection parameters
     ///
     /// Environment variables listed on [`DirectConfig`] are layered on
@@ -233,9 +233,11 @@ impl DirectConfig {
     ///
     /// # Panics
     ///
-    /// Panics if the resulting configuration fails [`Self::validate`].
-    /// The hardcoded defaults are always in range, so this fires only
-    /// when an environment override pushes a knob out of bounds.
+    /// Panics if an environment variable names an invalid environment selector
+    /// (the panic names the offending key, its value, and the valid set), or if
+    /// the resulting configuration fails [`Self::validate`]. The hardcoded
+    /// defaults are always in range, so the latter fires only when an
+    /// environment override pushes a knob out of bounds.
     #[must_use]
     pub fn production() -> Self {
         let mut config = Self::production_defaults();
@@ -243,10 +245,11 @@ impl DirectConfig {
         // loud here rather than silently keeping production: a stale or
         // mistyped selector (including a cross-channel value such as
         // `DEV` on `THETADATA_HISTORICAL_TYPE`) must surface, never quietly route to the wrong
-        // cluster. The message names the valid set for that channel.
-        env::apply_env_overrides(&mut config).expect(
-            "THETADATA_HISTORICAL_TYPE / THETADATA_STREAMING_TYPE must name a valid environment",
-        );
+        // cluster. Surface the underlying error verbatim so the panic names the
+        // offending key, its value, and the valid set for that channel rather
+        // than a generic string an operator cannot act on.
+        env::apply_env_overrides(&mut config)
+            .unwrap_or_else(|e| panic!("invalid environment selector: {e}"));
         config
             .validate()
             .expect("production defaults are within validated bounds")
@@ -3499,7 +3502,7 @@ mod tests {
         );
 
         // A later primary override via `.env` (host + port). No
-        // MDDS_TYPE, so the environment marker is unchanged.
+        // THETADATA_HISTORICAL_TYPE, so the environment marker is unchanged.
         let path = write_temp_dotenv(
             "primary-after-full.env",
             "THETADATA_STREAMING_HOST=later-primary.example.com\n\
@@ -3812,7 +3815,7 @@ mod tests {
         );
         let config = DirectConfig::from_dotenv(&path).expect(".env must source");
         assert_eq!(config.streaming.hosts[0].0, "stream.example.com");
-        // MDDS_TYPE=STAGE flips only historical; streaming stays on production,
+        // THETADATA_HISTORICAL_TYPE=STAGE flips only historical; streaming stays on production,
         // so the production failover hosts surround the overridden primary.
         assert_eq!(
             &config.streaming.hosts[1..],
@@ -3828,7 +3831,7 @@ mod tests {
         // A `.env` carrying only the streaming PORT (no host) must patch the
         // selected streaming environment's primary port and keep its host
         // cluster — the `.env` path mirrors the process-env override model.
-        // MDDS_TYPE=STAGE flips only historical, so streaming stays production.
+        // THETADATA_HISTORICAL_TYPE=STAGE flips only historical, so streaming stays production.
         let path = write_temp_dotenv(
             "streamport.env",
             "THETADATA_HISTORICAL_TYPE=STAGE\nTHETADATA_STREAMING_PORT=9999\n",
@@ -3922,7 +3925,7 @@ mod tests {
             .with_dotenv(&path)
             .expect(".env must layer onto dev()");
         let dev_hosts = DirectConfig::dev_streaming_hosts();
-        // Streaming marker stays dev; no `.env` FPSS_TYPE present.
+        // Streaming marker stays dev; no `.env` THETADATA_STREAMING_TYPE present.
         assert_eq!(config.streaming_environment, StreamingEnvironment::Dev);
         // Historical override applied.
         assert_eq!(config.historical.host, "dev-hist.example.com");
@@ -4004,7 +4007,7 @@ mod tests {
     fn dev_selects_streaming_dev_independently_of_ambient_mdds_stage() {
         let _guard = env_test_guard();
         clear_env_matrix();
-        // The shell forces MDDS_TYPE=STAGE, which `production()` honors on the
+        // The shell forces THETADATA_HISTORICAL_TYPE=STAGE, which `production()` honors on the
         // historical channel. `dev()` then selects ONLY the streaming dev
         // cluster — the two channels are independent, so historical stays on the
         // ambient staging selection while streaming routes to the dev replay
@@ -4015,7 +4018,7 @@ mod tests {
         }
         let config = DirectConfig::dev();
         assert_eq!(config.streaming_environment, StreamingEnvironment::Dev);
-        // Historical follows the ambient MDDS_TYPE=STAGE; dev does not touch it.
+        // Historical follows the ambient THETADATA_HISTORICAL_TYPE=STAGE; dev does not touch it.
         assert_eq!(config.historical_environment, HistoricalEnvironment::Stage);
         assert_eq!(config.historical.host, "mdds-stage.thetadata.us");
         // Dev streaming hosts (port 20200/20201).

@@ -3143,7 +3143,15 @@ public:
     /// (`"PROD"` or `"STAGE"`, case-insensitive). The historical and
     /// streaming channels are chosen independently, so this composes with a
     /// streaming selection — `.streaming_environment(..).historical_environment(..)`
-    /// keeps both.
+    /// keeps both. For example, to target historical staging and streaming dev
+    /// in one builder (the explicit form of the `.stage().dev()` shorthand):
+    ///
+    /// ```cpp
+    /// auto client = thetadatadx::Client::builder()
+    ///                   .historical_environment("STAGE")
+    ///                   .streaming_environment("DEV")
+    ///                   .connect();
+    /// ```
     ClientBuilder& historical_environment(const std::string& environment) & {
         set_historical_environment(environment);
         return *this;
