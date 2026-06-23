@@ -238,11 +238,48 @@ impl StreamingState {
     /// calling it on an already-`Stopped` state bumps the generation and
     /// no-ops the rest.
     pub(crate) fn quiesce(&self) {
+        // Direct teardown (stop_streaming / reconnect / Client drop): retire
+        // whatever session is currently live, unconditionally. The entire
+        // transition runs under the dispatcher lock; see `retire_locked`.
+        let mut guard = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+        self.retire_locked(&mut guard);
+    }
+
+    /// Retire the live session ONLY if the live stop-generation still equals
+    /// `expected_gen`, atomically with the generation re-check.
+    ///
+    /// This is the columnar reader's close gate. The generation re-check, the
+    /// slot swap, and the dispatcher retire all happen under the one dispatcher
+    /// lock that also serialises `start_dispatcher`'s install and the bump in
+    /// `retire_locked`, so a racing `stop_streaming` + `start_streaming` either
+    /// fully precedes this locked section (the generation has advanced, so the
+    /// re-check fails and this is a no-op, leaving the newer session to its
+    /// owner) or fully follows it (this reader's session is already retired).
+    /// A bare compare on the generation atomic alone would not close the window
+    /// between the reader's earlier read and the teardown; guarding the check
+    /// and the teardown together does.
+    #[cfg(any(feature = "arrow", test))]
+    pub(crate) fn quiesce_if_owned(&self, expected_gen: u64) {
+        let mut guard = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+        if self.stop_generation.load(Ordering::Acquire) == expected_gen {
+            self.retire_locked(&mut guard);
+        }
+    }
+
+    /// The teardown itself, run while holding the dispatcher lock: bump the
+    /// generation, swap the slot to `Stopped`, shut the live client, and retire
+    /// the dispatcher session (waking a parked columnar dispatcher first, then
+    /// joining it). Holding the lock across the whole transition makes the
+    /// generation bump, the slot swap, and the dispatcher retire one atomic
+    /// step with respect to `start_dispatcher` and the reader-close gate.
+    fn retire_locked(&self, guard: &mut std::sync::MutexGuard<'_, DispatcherSession>) {
         // Bump the stop generation BEFORE the slot swap so any in-flight
         // `start_streaming*()` that snapshotted the previous value will fail
         // its install check and not resurrect the slot to `Live` after this
         // returns. AcqRel because the ordering relative to the `state.swap`
-        // below is what closes the resurrection race.
+        // below is what closes the resurrection race. The bump is under the
+        // dispatcher lock, so it is also mutually exclusive with
+        // `start_dispatcher`'s generation snapshot and the reader-close gate.
         self.stop_generation.fetch_add(1, Ordering::AcqRel);
         // Atomically swap to `Stopped`; whichever caller wins the swap owns the
         // previous `Arc<StreamingSlot>` and is the one that runs the shutdown
@@ -270,11 +307,13 @@ impl StreamingState {
             client.shutdown();
         }
 
-        // Join the dispatcher thread (if any) after the producer-drop signal
-        // has propagated through the ring shutdown to the poller, letting the
+        // Retire the dispatcher session through the held guard (no re-lock).
+        // Join the dispatcher thread after the producer-drop signal has
+        // propagated through the ring shutdown to the poller, letting the
         // iterator's `for ... in &client` loop see a clean `Ok(None)` and exit.
-        // Joining here closes the race where a callback could still fire after
-        // `is_streaming()` observed `false`.
+        // Joining closes the race where a callback could still fire after
+        // `is_streaming()` observed `false`. The dispatcher thread never takes
+        // this dispatcher lock, so joining while holding it cannot deadlock.
         //
         // Dispatcher panic state is derived from `JoinHandle::join()`:
         // `Err(_)` means the dispatcher thread panicked in the event-iteration
@@ -282,10 +321,7 @@ impl StreamingState {
         // `poll_batch`'s per-invocation `catch_unwind`). Record as
         // `DispatcherSession::Failed` so `is_streaming` / `connection_status`
         // see the failure even though the slot is now `Stopped`.
-        let prev_session = std::mem::replace(
-            &mut *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()),
-            DispatcherSession::Idle,
-        );
+        let prev_session = std::mem::replace(&mut **guard, DispatcherSession::Idle);
         if let DispatcherSession::Running {
             handle,
             on_teardown,
@@ -299,8 +335,9 @@ impl StreamingState {
             // touch; its hook stores `closed` (under the queue lock) and
             // notifies, so the parked flush returns and the join below completes
             // instead of hanging. The hook runs the SAME wakeup the reader's own
-            // close path runs, so every teardown route converges on it. No lock
-            // is held here, so the wake cannot invert against the dispatcher.
+            // close path runs, so every teardown route converges on it. The
+            // hook takes the queue lock, never this dispatcher lock, so it
+            // cannot invert against the held guard.
             if let Some(wake) = on_teardown {
                 wake();
             }
@@ -317,8 +354,7 @@ impl StreamingState {
                         reason = %reason,
                         "thetadatadx-fpss-dispatcher panicked; session marked as failed",
                     );
-                    *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) =
-                        DispatcherSession::Failed { reason };
+                    **guard = DispatcherSession::Failed { reason };
                 }
             }
         }
@@ -326,13 +362,13 @@ impl StreamingState {
 
     /// The current stop generation.
     ///
-    /// Bumped by every [`Self::quiesce`]. The columnar reader captures the
-    /// value its session was installed at and compares it here on close, so it
-    /// quiesces only while its own session is still the live one; once a
-    /// teardown (a stop / reconnect / another reader) has advanced the
-    /// generation, the reader's close no longer matches and leaves the current
-    /// session to its owner.
-    pub(crate) fn stop_generation(&self) -> u64 {
+    /// Bumped by every teardown. The columnar reader captures the value its
+    /// session was installed at (returned from the start path) and passes it
+    /// to [`Self::quiesce_if_owned`] on close, so it retires only its own
+    /// session. This read accessor exists for tests; the live close path
+    /// compares the generation internally inside `quiesce_if_owned`.
+    #[cfg(test)]
+    fn stop_generation(&self) -> u64 {
         self.stop_generation.load(Ordering::Acquire)
     }
 
@@ -2664,16 +2700,17 @@ mod tests {
     }
 
     /// A columnar reader's close must tear down ONLY the session it started.
-    /// `RecordBatchStream::close_shared` quiesces the owning state only when
-    /// `state.stop_generation() == self.owned_generation`; this exercises that
-    /// guard directly against the mixed-mode supersession sequence.
+    /// `RecordBatchStream::close_shared` calls
+    /// `state.quiesce_if_owned(self.owned_generation)`; this exercises that
+    /// method directly against the mixed-mode supersession sequence.
     ///
     /// Sequence modeled: reader R starts its session and stamps the generation
     /// it owns; R's session is then retired (a `stop_streaming`, which advances
     /// the generation); a NEW session is installed on the same state (the
     /// callback session a caller can legitimately start once the slot is no
     /// longer `Live`). When R is finally dropped, its stamp no longer matches
-    /// the live generation, so its close must NOT retire the newer session.
+    /// the live generation, so `quiesce_if_owned` must NOT retire the newer
+    /// session.
     #[test]
     fn stale_generation_reader_does_not_tear_down_a_newer_session() {
         let state = StreamingState::new();
@@ -2703,17 +2740,9 @@ mod tests {
             on_teardown: None,
         };
 
-        // R is dropped now. Its close guard: quiesce ONLY if the live
-        // generation still matches R's stamp. It does not, so R must leave the
-        // newer session alone.
-        let r_close_would_quiesce = state.stop_generation() == r_owned_generation;
-        assert!(
-            !r_close_would_quiesce,
-            "a stale-generation reader must not quiesce"
-        );
-        if r_close_would_quiesce {
-            state.quiesce();
-        }
+        // R's drop runs its close gate against its stale stamp: it must leave
+        // the newer session alone.
+        state.quiesce_if_owned(r_owned_generation);
         assert!(
             !state.dispatcher_is_idle(),
             "R's stale close must leave the newer session Running, not retire it"
@@ -2724,9 +2753,9 @@ mod tests {
     }
 
     /// The matching-generation reader (the normal single-reader close) DOES
-    /// quiesce: when no teardown has advanced the generation, the live session
-    /// is still the one this reader started, so its close retires it. Guards
-    /// against the stamp over-suppressing the common path.
+    /// retire: when no teardown has advanced the generation, the live session
+    /// is still the one this reader started, so `quiesce_if_owned` retires it.
+    /// Guards against the stamp over-suppressing the common path.
     #[test]
     fn matching_generation_reader_quiesces_its_own_session() {
         let state = StreamingState::new();
@@ -2737,18 +2766,103 @@ mod tests {
         };
         let owned_generation = state.stop_generation();
 
-        // Nothing advanced the generation, so the reader's close guard matches
-        // and quiesces its own session.
-        let close_would_quiesce = state.stop_generation() == owned_generation;
-        assert!(
-            close_would_quiesce,
-            "an un-superseded reader's stamp must still match the live generation"
-        );
-        state.quiesce();
+        // Nothing advanced the generation, so the reader's stamp still matches
+        // and its close retires its own session.
+        state.quiesce_if_owned(owned_generation);
         assert!(
             state.dispatcher_is_idle(),
             "the matching-generation close retires its own session"
         );
+    }
+
+    /// The reader-close gate does its generation re-check and its teardown
+    /// under the SAME dispatcher-lock acquisition, so they are atomic against a
+    /// racing stop + start. A non-atomic check-then-act (read the generation,
+    /// release, then separately retire) could read a still-matching generation,
+    /// have a `stop_streaming` + `start_streaming` install a newer session in
+    /// the gap, then retire that newer session it does not own.
+    ///
+    /// A cross-thread interleaving in that ~2-op gap is too narrow to hit
+    /// reliably, so this asserts the structural guarantee directly (the same
+    /// approach the lost-wakeup test uses): while the test holds the dispatcher
+    /// lock, a concurrent `quiesce_if_owned` cannot even reach its generation
+    /// check (it blocks on the lock); and when the test advances the generation
+    /// under that held lock and then releases, the gate observes the advanced
+    /// generation and no-ops. The re-check and the retire therefore cannot
+    /// straddle a teardown: any teardown is either fully before (gate sees the
+    /// new generation, no-op) or fully after (gate already ran) the gate's
+    /// single locked section.
+    #[test]
+    fn quiesce_if_owned_rechecks_generation_under_the_dispatcher_lock() {
+        use std::sync::atomic::{AtomicBool, Ordering as O};
+
+        let state = Arc::new(StreamingState::new());
+
+        // R's session at generation G, stamped by R.
+        let r_handle = std::thread::spawn(|| {});
+        *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
+            handle: r_handle,
+            on_teardown: None,
+        };
+        let r_owned_generation = state.stop_generation();
+
+        let gate_returned = Arc::new(AtomicBool::new(false));
+
+        // Hold the dispatcher lock for the whole observation window. A correct
+        // `quiesce_if_owned` cannot reach its generation check or its retire
+        // while this is held.
+        let mut guard = state.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+
+        let gate = {
+            let state = Arc::clone(&state);
+            let gate_returned = Arc::clone(&gate_returned);
+            std::thread::spawn(move || {
+                // Blocks on the dispatcher lock until the test releases it.
+                state.quiesce_if_owned(r_owned_generation);
+                gate_returned.store(true, O::Release);
+            })
+        };
+
+        // Give the gate thread time to park on the lock. With the check under
+        // the lock it cannot have returned.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        assert!(
+            !gate_returned.load(O::Acquire),
+            "quiesce_if_owned must block on the dispatcher lock before its \
+             generation check; it cannot check-then-act outside the lock"
+        );
+
+        // Under the held lock, model a stop + start that advanced past R's
+        // stamp and installed a NEWER session. Advancing the generation here is
+        // exactly what a `stop_streaming` does; doing it under the lock the gate
+        // is waiting on is what makes the gate's later re-check see the new
+        // value atomically.
+        state
+            .stop_generation
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        let newer = std::thread::spawn(|| {});
+        *guard = DispatcherSession::Running {
+            handle: newer,
+            on_teardown: None,
+        };
+        assert_ne!(
+            state
+                .stop_generation
+                .load(std::sync::atomic::Ordering::Acquire),
+            r_owned_generation,
+            "the modeled stop advanced the generation past R's stamp"
+        );
+
+        // Release the lock: the gate now acquires it, re-checks the generation
+        // (advanced -> mismatch), and must NOT retire the newer session.
+        drop(guard);
+        gate.join().expect("gate thread");
+        assert!(
+            !state.dispatcher_is_idle(),
+            "after R's stale gate ran, the newer session must still be Running"
+        );
+
+        state.quiesce(); // tidy the surviving session's thread
     }
 
     /// Concurrent `start` race: only one caller observes the install,

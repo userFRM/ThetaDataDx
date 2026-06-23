@@ -328,6 +328,16 @@ pub mod streaming {
         RecordBatchStream, DEFAULT_BATCH_SIZE, DEFAULT_LINGER, DEFAULT_QUEUE_DEPTH,
     };
 
+    /// Estimated Arrow IPC stream size, in bytes, for a single batch of
+    /// `num_rows` rows under the fixed streaming schema. A buffer-sizing hint
+    /// for the binding batch encoders so they seed their output `Vec` from the
+    /// USED size (keyed on `num_rows`) rather than the builder's preallocated
+    /// column capacity. Hidden: an internal hint shared with the bindings, not
+    /// part of the supported surface.
+    #[cfg(feature = "arrow")]
+    #[doc(hidden)]
+    pub use crate::fpss::batch_schema::estimated_ipc_len;
+
     /// Consumer wait strategies for the streaming ring.
     ///
     /// When the consumer drains the ring faster than events arrive, it

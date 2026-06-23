@@ -116,6 +116,44 @@ pub fn stream_batch_schema() -> Arc<Schema> {
     ]))
 }
 
+/// Approximate serialized bytes per row, used only to seed the Arrow IPC
+/// output buffer so it is written without re-growing from empty.
+///
+/// Derived from the fixed [`stream_batch_schema`] columns: 23 `Int32` (4 B
+/// each = 92), 11 `Float64` + 1 `UInt64` + 2 `Int64` (8 B each = 112), and 3
+/// `Utf8` columns (offset plus a short value, allowed ~16 B each = 48),
+/// totalling ~252 B; rounded up to 256 to cover per-row validity bits and
+/// alignment. This is a buffer-sizing HINT, never a correctness input — if a
+/// column is added to the schema, bump this alongside it. Sized so a full
+/// batch seeds at or above the real IPC body (no doubling regrow) while a tiny
+/// linger-flushed batch seeds only a few hundred bytes.
+pub(crate) const EST_IPC_BYTES_PER_ROW: usize = 256;
+
+/// Fixed Arrow IPC framing allowance added to the per-row estimate: the schema
+/// message (a flatbuffer over the 40-field schema) plus the record-batch
+/// message header. A few kilobytes comfortably covers both so a small batch is
+/// not under-seeded.
+pub(crate) const EST_IPC_FRAMING_OVERHEAD: usize = 8 * 1024;
+
+/// Estimated serialized size, in bytes, of an Arrow IPC stream carrying a
+/// single batch of `num_rows` rows under [`stream_batch_schema`].
+///
+/// Used to seed the IPC byte buffer in the FFI and TypeScript batch encoders
+/// so the body is written without re-growing the `Vec` from empty. It is keyed
+/// on `num_rows` (the USED size), not on the builder's preallocated buffer
+/// capacity, so a linger-flushed one-row batch seeds a few kilobytes rather
+/// than the batch-size-wide column capacity. A hint only; correctness does not
+/// depend on it.
+///
+/// Re-exported `#[doc(hidden)]` through `crate::streaming` so the binding
+/// encoders (separate crates) can share this one estimate.
+#[must_use]
+pub fn estimated_ipc_len(num_rows: usize) -> usize {
+    num_rows
+        .saturating_mul(EST_IPC_BYTES_PER_ROW)
+        .saturating_add(EST_IPC_FRAMING_OVERHEAD)
+}
+
 /// Column-oriented accumulator that turns a run of [`StreamData`] events
 /// into a single [`RecordBatch`] under [`stream_batch_schema`].
 ///
@@ -925,6 +963,47 @@ mod tests {
         assert_eq!(
             reused_b2, fresh_b2,
             "the post-resize batch is byte-identical to a fresh build"
+        );
+    }
+
+    /// The IPC seed estimate is keyed on the row count, so a tiny linger-flushed
+    /// batch seeds a few kilobytes (not the batch-size-wide column capacity a
+    /// buffer-capacity estimate would report after the per-batch preallocation
+    /// fix), while a full batch seeds large enough to hold the body without a
+    /// doubling regrow. The byte-exact "estimate >= real IPC body" check lives
+    /// in the FFI encoder test (the core crate has no IPC writer dependency).
+    #[test]
+    fn estimated_ipc_len_scales_with_rows_not_capacity() {
+        // A one-row (or empty) batch seeds only the framing overhead plus a
+        // row or two, comfortably under 64 KiB regardless of the configured
+        // batch size.
+        assert!(
+            estimated_ipc_len(0) < 64 * 1024,
+            "empty batch seed must be small"
+        );
+        assert!(
+            estimated_ipc_len(1) < 64 * 1024,
+            "one-row batch seed must be small, not the batch-size-wide capacity"
+        );
+
+        // The estimate grows linearly with rows, so a full batch seeds far
+        // above a tiny one (the property that avoids regrow on large batches).
+        let full = estimated_ipc_len(65_536);
+        assert!(
+            full >= 65_536 * EST_IPC_BYTES_PER_ROW,
+            "a full batch seeds at least the per-row estimate times the rows"
+        );
+        assert!(
+            full > estimated_ipc_len(1) * 1000,
+            "the seed scales with row count"
+        );
+
+        // Saturating arithmetic: a wrapped/huge row count cannot overflow the
+        // estimate into a tiny value.
+        assert_eq!(
+            estimated_ipc_len(usize::MAX),
+            usize::MAX,
+            "the estimate saturates rather than wrapping"
         );
     }
 }

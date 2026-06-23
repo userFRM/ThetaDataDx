@@ -62,10 +62,14 @@ fn parse_backpressure(kind: Option<String>, capacity: Option<i64>) -> napi::Resu
 /// free-function scan (which keys off a preceding `#[napi]` attribute) never
 /// mistakes this internal helper for a cross-binding utility.
 fn batch_to_ipc(batch: &arrow_array::RecordBatch) -> napi::Result<Vec<u8>> {
-    // Seed from the batch's in-memory byte size so the IPC body is written
-    // without re-growing the Vec from empty (the body is close to that size
-    // plus a small framing overhead).
-    let mut buf: Vec<u8> = Vec::with_capacity(batch.get_array_memory_size());
+    // Seed from an estimate keyed on the row COUNT, so the IPC body is written
+    // without re-growing the Vec from empty. Sizing from
+    // `get_array_memory_size()` would seed from the builder's preallocated
+    // column capacity (now batch-size-wide), so a one-row linger-flushed batch
+    // would over-allocate by orders of magnitude; `estimated_ipc_len` keys on
+    // the used rows instead. The same estimate is used in the FFI encoder.
+    let mut buf: Vec<u8> =
+        Vec::with_capacity(thetadatadx::streaming::estimated_ipc_len(batch.num_rows()));
     {
         let mut writer = arrow_ipc::writer::StreamWriter::try_new(
             std::io::Cursor::new(&mut buf),

@@ -624,31 +624,28 @@ impl RecordBatchStream {
         // `Shared`, so it is correct regardless of which session is now live.
         self.shared.close_and_wake();
         // Authoritative teardown, run exactly once. Reset the owning client's
-        // streaming state through the SAME `StreamingState::quiesce` the
-        // callback surface's `stop_streaming` uses: swap the slot to `Stopped`,
-        // shut the live client (stop the I/O + ping threads, close the socket,
-        // shut the ring), and retire the dispatcher session, leaving the client
-        // truthful (`is_streaming` / `connection_status` report a stopped
-        // session) and reusable.
+        // streaming state through `StreamingState::quiesce_if_owned`: swap the
+        // slot to `Stopped`, shut the live client (stop the I/O + ping threads,
+        // close the socket, shut the ring), and retire the dispatcher session,
+        // leaving the client truthful (`is_streaming` / `connection_status`
+        // report a stopped session) and reusable.
         //
-        // But quiesce only when the live generation still matches the one this
-        // reader's session was installed at. Once a teardown has advanced the
-        // generation, the live session is no longer this reader's — quiescing
-        // it would tear down a session this reader does not own (e.g. a
-        // callback session started after this reader was stopped). In that case
-        // the predecessor teardown already retired this reader's session, so
-        // there is nothing left for this reader to do.
+        // `quiesce_if_owned` retires only when the live generation still equals
+        // the one this reader's session was installed at, and does the
+        // generation re-check and the teardown ATOMICALLY under the dispatcher
+        // lock. So a teardown that advanced the generation (a `stop_streaming` /
+        // `reconnect_streaming`, or a later session on the same client) either
+        // fully precedes this call (the re-check fails, leaving the newer
+        // session to its owner) or fully follows it (this reader's session is
+        // already retired) — never interleaves with it, which a separate
+        // check-then-quiesce would allow.
         //
         // If the client has already been dropped the weak upgrade fails (its
         // own `Drop` already quiesced); fall back to shutting our own client
         // `Arc` directly, which is all that remains and only touches this
         // reader's session.
         self.quiesce_once.call_once(|| match self.owner.upgrade() {
-            Some(state) => {
-                if state.stop_generation() == self.owned_generation {
-                    state.quiesce();
-                }
-            }
+            Some(state) => state.quiesce_if_owned(self.owned_generation),
             None => self.client.shutdown(),
         });
     }
