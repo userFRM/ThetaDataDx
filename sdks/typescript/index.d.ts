@@ -22,7 +22,7 @@ export declare class Client {
    * optional `Config` (`dev` / `stage` / `production`, plus any
    * tuned setters) to override the production-default endpoint.
    * Historical only; call `client.stream.startStreaming(...)` to
-   * begin FPSS real-time data.
+   * begin streaming real-time data.
    *
    * The config is snapshot at connect time: the `Config` handle may be
    * reused or mutated afterward without affecting this client.
@@ -109,7 +109,7 @@ export declare class Config {
   /** Dev streaming config (port 20200, infinite historical replay). */
   static dev(): Config
   /**
-   * Historical-staging config (MDDS staging cluster + auth marker; streaming
+   * Historical-staging config (historical staging cluster + auth marker; streaming
    * stays on production). Unstable testing servers.
    */
   static stage(): Config
@@ -566,7 +566,7 @@ export declare class Config {
    */
   get flushMode(): string
   /**
-   * Target historical (MDDS) environment carried by this configuration:
+   * Target historical environment carried by this configuration:
    * `"PROD"` for the production cluster or `"STAGE"` for staging. The
    * historical and streaming channels are selected independently;
    * `Config.production()` / `Config.stage()` (and the
@@ -576,7 +576,7 @@ export declare class Config {
    */
   get historicalEnvironment(): string
   /**
-   * Target streaming (FPSS) environment carried by this configuration:
+   * Target streaming environment carried by this configuration:
    * `"PROD"` for the production cluster or `"DEV"` for the dev cluster.
    * The streaming and historical channels are selected independently;
    * `Config.production()` / `Config.dev()` (and the
@@ -837,7 +837,7 @@ export declare class HistoricalClient {
   /**
    * Connect to ThetaData with a `Credentials` handle and open the
    * historical data channel. Historical only — this client never
-   * opens the FPSS streaming transport. Pass an optional `Config` to
+   * opens the streaming transport. Pass an optional `Config` to
    * override the production-default endpoint. Use `StreamingClient` for
    * real-time data.
    *
@@ -2520,7 +2520,7 @@ export declare class RecordBatchStreamHandle {
    */
   get dropped(): number
   /**
-   * Close the stream: unsubscribe and tear the FPSS session down.
+   * Close the stream: unsubscribe and tear the streaming session down.
    * Idempotent; subsequent pulls return `null`.
    */
   close(): void
@@ -2559,30 +2559,30 @@ export declare class SecType {
 }
 
 /**
- * Standalone FPSS-only streaming client.
+ * Standalone streaming-only client.
  *
- * Opens ONLY the FPSS TLS transport — no historical data channel, no
+ * Opens ONLY the streaming TLS transport, no historical data channel, no
  * Nexus HTTP authentication. Use when a parallel historical process is
- * already running in the same environment and you need to stream FPSS
+ * already running in the same environment and you need to stream
  * without the bundled `Client` taking over the Nexus session
  * at connect time.
  *
  * ```ts
  * import { StreamingClient, Contract } from "thetadatadx";
- * const fpss = StreamingClient.connectFromFile("creds.txt");
- * await fpss.startStreaming((event) => console.log(event.kind, event));
- * fpss.subscribe(Contract.stock("AAPL").quote());
+ * const streaming = StreamingClient.connectFromFile("creds.txt");
+ * await streaming.startStreaming((event) => console.log(event.kind, event));
+ * streaming.subscribe(Contract.stock("AAPL").quote());
  * // ... events arrive on the Node main thread ...
- * fpss.stopStreaming();
+ * streaming.stopStreaming();
  * ```
  */
 export declare class StreamingClient {
   /**
-   * Allocate a standalone FPSS handle with a `Credentials` handle.
+   * Allocate a standalone streaming handle with a `Credentials` handle.
    * Streaming only — opens no historical data channel and issues no
    * Nexus request. Pass an optional `Config` (`dev` / `stage` /
-   * `production`, plus any tuned FPSS / reconnect setters) to override the
-   * production-default endpoint. The FPSS TLS connection opens on the
+   * `production`, plus any tuned streaming / reconnect setters) to override the
+   * production-default endpoint. The streaming TLS connection opens on the
    * first `startStreaming` call.
    *
    * The config is snapshot at construction time: the `Config` handle
@@ -2590,17 +2590,17 @@ export declare class StreamingClient {
    */
   static connect(creds: Credentials, config?: Config | undefined | null): StreamingClient
   /**
-   * Allocate a standalone FPSS handle with a credentials file (line 1 =
+   * Allocate a standalone streaming handle with a credentials file (line 1 =
    * email, line 2 = password). Convenience wrapper over
    * `Credentials.fromFile` + `connect`. Pass an optional `Config` to
    * override the production-default endpoint.
    */
   static connectFromFile(path: string, config?: Config | undefined | null): StreamingClient
   /**
-   * Start FPSS streaming and register a JS callback for incoming events.
+   * Start streaming and register a JS callback for incoming events.
    *
-   * Opens the FPSS connection and begins delivering events. Each typed
-   * FPSS event is delivered to your `callback(event)` on the Node main
+   * Opens the streaming connection and begins delivering events. Each typed
+   * streaming event is delivered to your `callback(event)` on the Node main
    * thread, so the callback may use any JS API safely. A callback that
    * panics or throws is isolated and does not interrupt the stream.
    *
@@ -2614,13 +2614,13 @@ export declare class StreamingClient {
    */
   startStreaming(callback: ((arg: StreamEvent) => void)): Promise<void>
   /**
-   * Whether the FPSS TLS connection is currently open. Returns `false`
+   * Whether the streaming TLS connection is currently open. Returns `false`
    * when the dispatcher thread has panicked — no events are arriving
    * even though the TLS slot is still populated.
    */
   isStreaming(): boolean
   /**
-   * Whether the FPSS session is currently authenticated. Distinct from
+   * Whether the streaming session is currently authenticated. Distinct from
    * `isStreaming()`: the TLS slot can hold a client whose authenticated
    * flag has flipped to `false` after a server disconnect, before the
    * application has issued `reconnect()`. A panicked dispatcher also
@@ -2663,7 +2663,7 @@ export declare class StreamingClient {
    */
   activeFullSubscriptions(): any
   /**
-   * Cumulative count of FPSS events the TLS reader could not publish into
+   * Cumulative count of streaming events the TLS reader could not publish into
    * the event ring because the consumer fell behind. Snapshot the value
    * BEFORE `reconnect()` if you need to accumulate drops across session
    * boundaries — `reconnect` rebuilds the inner client and the counter
@@ -2742,12 +2742,12 @@ export declare class StreamingClient {
    */
   shutdown(): void
   /**
-   * Re-open the FPSS connection and re-register the previously installed
+   * Re-open the streaming connection and re-register the previously installed
    * callback. Requires a prior `startStreaming(callback)`; throws
    * otherwise.
    *
    * Saves the active per-contract and full-stream subscriptions against
-   * the old session, opens a fresh FPSS connection under the previously
+   * the old session, opens a fresh streaming connection under the previously
    * installed callback, and re-applies the saved subscriptions through
    * the core's paced replay engine. Per-subscription failures surface as
    * a single error naming every contract that did not re-subscribe — the
@@ -2784,7 +2784,7 @@ export declare class StreamView {
    */
   isAuthenticated(): boolean
   /**
-   * Cumulative count of FPSS events that were dropped because the
+   * Cumulative count of streaming events that were dropped because the
    * callback fell behind and the in-flight buffer was full.
    *
    * The value matches every other binding (C ABI, Python, C++). The
@@ -2890,7 +2890,7 @@ export declare class StreamView {
    * `activeSubscriptions()`, where `kind` is one of
    * `"full_trades"` / `"full_open_interest"` and `contract` carries
    * the wire-level security type (`"OPTION"`, `"STOCK"`, ...).
-   * Quote is never a valid full-stream kind on the FPSS wire, so
+   * Quote is never a valid full-stream kind on the streaming wire, so
    * any such row from the core is dropped from the projection.
    * Empty array when streaming has not started.
    */
@@ -3113,7 +3113,7 @@ export declare class Util {
 }
 
 /**
- * Flood `n` synthetic FPSS `Trade` events through the real `TsfnCallback`
+ * Flood `n` synthetic streaming `Trade` events through the real `TsfnCallback`
  * dispatch path to `callback`, returning the count of tsfn-boundary drops
  * (non-`Ok` `call` statuses) as an `f64` (JS `number`; `n` is bounded well
  * under 2^53 in practice, and the count is `0` on the healthy path).
@@ -3326,14 +3326,14 @@ export interface ClientConnectOptions {
    */
   credentialsFile?: string
   /**
-   * Historical (MDDS) environment selector (`"PROD"` / `"STAGE"`,
+   * Historical environment selector (`"PROD"` / `"STAGE"`,
    * case-insensitive). Defaults to production. The historical and
    * streaming channels are selected independently. For full host-level
    * control, build a `Config` and use `Client.connect(creds, config)`.
    */
   historicalType?: string
   /**
-   * Streaming (FPSS) environment selector (`"PROD"` / `"DEV"`,
+   * Streaming environment selector (`"PROD"` / `"DEV"`,
    * case-insensitive). Defaults to production. Selected independently of
    * the historical channel.
    */

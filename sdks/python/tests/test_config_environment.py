@@ -1,4 +1,4 @@
-"""Round-trip tests for the Config.environment readback getter."""
+"""Round-trip tests for the per-channel Config environment readback getters."""
 from __future__ import annotations
 
 import pytest
@@ -12,17 +12,27 @@ except ImportError:
     )
 
 
-def test_production_reads_back_prod():
+def test_production_reads_back_prod_on_both_channels():
     cfg = client.Config.production()
-    assert cfg.environment == "PROD"
+    assert cfg.historical_environment == "PROD"
+    assert cfg.streaming_environment == "PROD"
 
 
-def test_stage_reads_back_stage():
+def test_stage_selects_historical_staging_and_leaves_streaming_on_prod():
     cfg = client.Config.stage()
-    assert cfg.environment == "STAGE"
+    assert cfg.historical_environment == "STAGE"
+    assert cfg.streaming_environment == "PROD"
 
 
-def test_environment_is_read_only():
+def test_dev_selects_streaming_dev_and_leaves_historical_on_prod():
+    cfg = client.Config.dev()
+    assert cfg.historical_environment == "PROD"
+    assert cfg.streaming_environment == "DEV"
+
+
+def test_environment_getters_are_read_only():
     cfg = client.Config.production()
     with pytest.raises(AttributeError):
-        cfg.environment = "STAGE"
+        cfg.historical_environment = "STAGE"
+    with pytest.raises(AttributeError):
+        cfg.streaming_environment = "DEV"
