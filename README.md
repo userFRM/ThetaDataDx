@@ -1,6 +1,6 @@
 # ThetaDataDx
 
-High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Python, TypeScript, C++, and Rust** — one Rust engine under all four. Pull US stock, option, index, and rate data three ways: point-in-time **history**, real-time **streaming**, and whole-universe **flat files**, all from a single authenticated client. Connects straight to ThetaData — nothing to install and run locally.
+High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Python, TypeScript, C++, and Rust**. One Rust engine under all four. Pull US stock, option, index, and rate data three ways: point-in-time **history**, real-time **streaming**, and whole-universe **flat files**, all from a single authenticated client. Connects straight to ThetaData, with nothing to install and run locally.
 
 [![Rust CI](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml/badge.svg)](https://github.com/userFRM/ThetaDataDx/actions/workflows/ci.yml)
 [![Python SDK](https://github.com/userFRM/ThetaDataDx/actions/workflows/python.yml/badge.svg)](https://github.com/userFRM/ThetaDataDx/actions/workflows/python.yml)
@@ -25,12 +25,12 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 
 ## Features
 
-- **Complete coverage** — stocks, options, indices, and rates across 65 typed endpoints.
-- **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
-- **DataFrames built in** — every result chains straight to Polars, pandas, or Arrow over a zero-copy boundary.
-- **Greeks without a round-trip** — first- through third-order Black-Scholes Greeks and an implied-volatility solver, computed locally.
-- **The same surface in every language** — identical methods and identical typed errors, Python through Rust.
-- **No terminal to run** — a direct connection to ThetaData; nothing to install and babysit locally.
+- **Complete coverage**: stocks, options, indices, and rates across 65 typed endpoints.
+- **Three access modes, one client**: point-in-time history, real-time streaming, and bulk flat-file downloads.
+- **DataFrames built in**: every result chains straight to Polars, pandas, or Arrow over a zero-copy boundary.
+- **Greeks without a round-trip**: first- through third-order Black-Scholes Greeks and an implied-volatility solver, computed locally.
+- **The same surface in every language**: identical methods and identical typed errors, Python through Rust.
+- **No terminal to run**: a direct connection to ThetaData; nothing to install and babysit locally.
 
 ## Install
 
@@ -40,7 +40,7 @@ npm install thetadatadx        # TypeScript / Node.js
 cargo add thetadatadx          # Rust
 ```
 
-C++ ships as a header plus a small implementation file over a prebuilt library (a CMake target wires it up) — see the [C++ guide](sdks/cpp/).
+C++ ships as a header plus a small implementation file over a prebuilt library (a CMake target wires it up). See the [C++ guide](sdks/cpp/).
 
 ## Quick start
 
@@ -208,7 +208,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
 
 ## DataFrames
 
-Every historical result is a typed list that converts directly to a dataframe —
+Every historical result is a typed list that converts directly to a dataframe:
 no row-by-row iteration:
 
 ```python
@@ -219,23 +219,32 @@ greeks.to_arrow()    # pyarrow.Table      (zero-copy)
 
 The same `.to_polars()` / `.to_pandas()` / `.to_arrow()` terminals are available
 on flat-file results. For multi-day backfills, stream the response in chunks
-instead of buffering it — see [Bulk backfill](https://userfrm.github.io/ThetaDataDx/examples/bulk-backfill).
+instead of buffering it. See [Request sizing](https://userfrm.github.io/ThetaDataDx/articles/request-sizing).
 
 ## Streaming
 
 One connection, one authentication. Historical queries work immediately; the
 streaming transport connects on the first subscription. Subscribe specific
-contracts with the fluent `Contract` API, or take a whole-market feed — every
+contracts with the fluent `Contract` API, or take a whole-market feed: every
 option trade across the universe, no per-contract setup:
 
 ```python
 with client.streaming(on_event) as session:
     session.subscribe(SecType.OPTION.full_trades())
-    time.sleep(60)   # the callback runs on the streaming thread — keep it fast
+    time.sleep(60)   # the callback runs on the streaming thread; keep it fast
 ```
 
 > [!TIP]
-> On an involuntary disconnect the client recovers on its own — exponential
+> The callback above is one of two delivery modes. It pushes one typed event at
+> a time for the lowest latency, ideal when you react to each trade or quote.
+> For bulk and analytics, `client.stream.batches(...)` delivers the same
+> subscriptions as Apache Arrow `RecordBatch` values under a fixed schema, ready
+> to pull into pandas, Polars, or DuckDB. Open the reader first, since it starts
+> the session, then subscribe. Every binding has both; the
+> [streaming guide](https://userfrm.github.io/ThetaDataDx/streaming/) covers them.
+
+> [!TIP]
+> On an involuntary disconnect the client recovers on its own: exponential
 > backoff with jitter, automatic host failover, then a paced re-subscribe of
 > every active contract. Read liveness directly off the stream with
 > `connection_status()` and the last-event timestamp; no separate health poll
@@ -260,7 +269,7 @@ The full per-language method list lives in the
 ## Errors
 
 Every binding raises the same typed hierarchy, so the same cases are catchable
-in any language — `AuthenticationError`, `RateLimitError`, `NotFoundError`,
+in any language: `AuthenticationError`, `RateLimitError`, `NotFoundError`,
 `DeadlineExceededError`, `InvalidParameterError`, and the rest, all under a
 common `ThetaDataError` base.
 
@@ -268,7 +277,7 @@ common `ThetaDataError` base.
 
 | Path | Package | Purpose |
 |---|---|---|
-| [`crates/thetadatadx`](crates/thetadatadx/) | `thetadatadx` (crates.io) | The Rust SDK — tick types, Greeks, price math, and the network client in one crate |
+| [`crates/thetadatadx`](crates/thetadatadx/) | `thetadatadx` (crates.io) | The Rust SDK: tick types, Greeks, price math, and the network client in one crate |
 | [`sdks/python`](sdks/python/) | `thetadatadx` (PyPI) | Python package with DataFrame adapters |
 | [`sdks/typescript`](sdks/typescript/) | `thetadatadx` (npm) | TypeScript / Node.js package, prebuilt binaries |
 | [`sdks/cpp`](sdks/cpp/) | header + prebuilt library | C++ wrapper over the C ABI |
@@ -280,7 +289,7 @@ common `ThetaDataError` base.
 
 ## Documentation
 
-- [Documentation site](https://userfrm.github.io/ThetaDataDx/) — getting started, API reference, streaming, server, and MCP
+- [Documentation site](https://userfrm.github.io/ThetaDataDx/): getting started, API reference, streaming, server, and MCP
 - [Changelog](CHANGELOG.md)
 
 ## Contributing
