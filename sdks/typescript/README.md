@@ -145,9 +145,10 @@ Prefer columns? `client.stream.batches(...)` is a sibling to the callback: the s
 ```typescript
 import { Contract } from 'thetadatadx';
 
-client.stream.subscribe(Contract.stock('AAPL').trade());
+// `batches(...)` starts the FPSS session, so open it first, then subscribe.
 const batches = await client.stream.batches({ batchSize: 8192 });
 try {
+  client.stream.subscribe(Contract.stock('AAPL').trade());
   for await (const batch of batches) {
     console.log(batch.numRows);
   }

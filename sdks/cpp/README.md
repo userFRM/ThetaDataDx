@@ -171,8 +171,9 @@ fpss.subscribe(thetadatadx::SecType::option().full_trades());   // the callback 
 Prefer columns? `client.stream().batches(...)` is a sibling to the callback — the same subscriptions, delivered as Arrow record batches under a fixed schema through a native `arrow::RecordBatchReader`. Build the SDK with `-DTHETADATADX_CPP_ARROW=ON` (links arrow-cpp) to enable it:
 
 ```cpp
-client.stream().subscribe(thetadatadx::Contract::stock("AAPL").trade());
+// `batches(...)` starts the FPSS session, so open it first, then subscribe.
 auto reader = client.stream().batches(/*batch_size=*/8192);
+client.stream().subscribe(thetadatadx::Contract::stock("AAPL").trade());
 std::shared_ptr<arrow::RecordBatch> batch;
 while (reader->ReadNext(&batch).ok() && batch != nullptr) {
     std::printf("%lld rows\n", static_cast<long long>(batch->num_rows()));

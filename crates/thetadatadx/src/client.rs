@@ -227,6 +227,28 @@ struct TeardownWork {
     session: DispatcherSession,
 }
 
+/// Whether a retiring dispatcher session should register its drain flag for
+/// [`StreamingState::await_drain`].
+///
+/// `await_drain` waits for an in-flight per-event user CALLBACK to finish
+/// firing. Only the callback session has such a callback, so only it registers
+/// a flag. The columnar (batches) pull session has no callback — and its
+/// `drained` flag stays unset until the reader's `Arc<StreamingClient>` is
+/// dropped rather than merely closed — so registering it would make a manual
+/// `await_drain` time out spuriously while a closed-but-not-dropped columnar
+/// reader is alive. The columnar session is distinguished by being the only
+/// session that installs a teardown wake hook (to release a producer parked on
+/// the batch queue); the callback session installs none. A non-`Running`
+/// session has nothing to wait on.
+fn session_registers_drain_flag(session: &DispatcherSession) -> bool {
+    match session {
+        // Callback session: a wake hook is never installed -> register.
+        // Columnar session: a wake hook IS installed -> do not register.
+        DispatcherSession::Running { on_teardown, .. } => on_teardown.is_none(),
+        DispatcherSession::Idle | DispatcherSession::Failed { .. } => false,
+    }
+}
+
 impl StreamingState {
     /// A fresh, never-started streaming state.
     fn new() -> Self {
@@ -310,26 +332,43 @@ impl StreamingState {
         // dispatcher lock, so it is also mutually exclusive with
         // `start_dispatcher`'s generation snapshot and the reader-close gate.
         self.stop_generation.fetch_add(1, Ordering::AcqRel);
+        // Whether the session being retired should register its drain flag for
+        // `await_drain`. `await_drain` exists to wait for a user CALLBACK to
+        // finish firing; the columnar (batches) pull session has no callback,
+        // so its flag must NOT be registered (see the push below).
+        let register_drain_flag = session_registers_drain_flag(&guard);
         // Atomically swap to `Stopped`; whichever caller wins the swap owns the
         // previous `Arc<StreamingSlot>` and is the one that runs the shutdown
         // sequence.
         let prev = self.state.swap(Arc::new(StreamingSlot::Stopped));
         let client = match &*prev {
             StreamingSlot::Live { client } => {
-                // Capture the drain flag BEFORE the shutdown signal and PUSH it
-                // onto the retired-generations list (rather than overwriting a
-                // single slot). Stacked stop/start/stop cycles layer multiple
-                // in-flight generations on top of each other; an earlier
-                // still-firing session's flag must NOT be lost when a later
-                // session retires before the earlier one has drained.
-                // `await_drain()` waits for ALL entries, and lazily GCs flags
-                // that have flipped to `true`, so a long-lived handle does not
-                // accumulate `Arc<AtomicBool>` entries past their useful
-                // lifetime.
-                self.prev_drained
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .push(client.drained_flag());
+                // Register the drain flag for `await_drain` ONLY for a callback
+                // session. `await_drain` waits for in-flight user callbacks to
+                // finish; the columnar session has no callback, and its
+                // `drained` flag stays unset until the reader's
+                // `Arc<StreamingClient>` is dropped (not merely closed), so
+                // registering it would make a manual `await_drain` while a
+                // closed-but-not-dropped columnar reader is alive time out
+                // spuriously. Skipping it leaves the callback path's
+                // `await_drain` unchanged.
+                //
+                // For a callback session: capture the drain flag BEFORE the
+                // shutdown signal and PUSH it onto the retired-generations list
+                // (rather than overwriting a single slot). Stacked
+                // stop/start/stop cycles layer multiple in-flight generations
+                // on top of each other; an earlier still-firing session's flag
+                // must NOT be lost when a later session retires before the
+                // earlier one has drained. `await_drain()` waits for ALL
+                // entries, and lazily GCs flags that have flipped to `true`, so
+                // a long-lived handle does not accumulate `Arc<AtomicBool>`
+                // entries past their useful lifetime.
+                if register_drain_flag {
+                    self.prev_drained
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .push(client.drained_flag());
+                }
                 Some(Arc::clone(client))
             }
             StreamingSlot::Idle | StreamingSlot::Stopped => None,
@@ -1232,6 +1271,12 @@ impl Client {
     }
 
     /// Wait for **every** retired streaming session to drain.
+    ///
+    /// Pertains to the per-event callback surface: it waits for in-flight user
+    /// callbacks of retired sessions to finish firing. The columnar (batches)
+    /// pull path has no callback and registers nothing here, so `await_drain`
+    /// is a no-op (returns immediately) for a columnar-only client; the
+    /// columnar reader's own close / drop is its teardown barrier.
     ///
     /// Stacked `stop → start → stop` cycles layer multiple in-flight
     /// generations on top of each other before any one of them drains;
@@ -2923,6 +2968,85 @@ mod tests {
         drop(guard);
         // Tidy: retire the surviving session so its thread is joined.
         state.quiesce();
+    }
+
+    /// `await_drain` must not be made to time out spuriously by the columnar
+    /// path: a retiring columnar session has no user callback to wait for, so
+    /// it must NOT register a drain flag, whereas a callback session MUST. This
+    /// pins `session_registers_drain_flag` (the single decision the teardown
+    /// uses) for both session shapes, and models the `await_drain` consequence
+    /// on the retired-generations Vec (the production `await_drain` runs the
+    /// same `retain` + `is_empty` cadence over it; building a real Live session
+    /// needs a network credential, so the Vec is exercised directly, as the
+    /// other `await_drain` tests do).
+    #[test]
+    fn columnar_session_does_not_register_a_drain_flag() {
+        // The decision itself: columnar (has wake hook) does not register;
+        // callback (no wake hook) does.
+        let columnar = DispatcherSession::Running {
+            handle: std::thread::spawn(|| {}),
+            on_teardown: Some(Box::new(|| {})),
+        };
+        let callback = DispatcherSession::Running {
+            handle: std::thread::spawn(|| {}),
+            on_teardown: None,
+        };
+        assert!(
+            !session_registers_drain_flag(&columnar),
+            "a columnar session has no callback to drain-wait for"
+        );
+        assert!(
+            session_registers_drain_flag(&callback),
+            "a callback session must register its drain flag for await_drain"
+        );
+        // A non-Running session has nothing to wait on.
+        assert!(!session_registers_drain_flag(&DispatcherSession::Idle));
+
+        // The await_drain consequence, modeled on the retired-generations Vec.
+        // Columnar teardown registers nothing, so await_drain (retain +
+        // is_empty) reports drained immediately — no spurious timeout while a
+        // closed-but-not-dropped columnar reader is alive.
+        let prev_drained: Mutex<Vec<Arc<AtomicBool>>> = Mutex::new(Vec::new());
+        if session_registers_drain_flag(&columnar) {
+            prev_drained
+                .lock()
+                .unwrap()
+                .push(Arc::new(AtomicBool::new(false)));
+        }
+        {
+            let mut g = prev_drained.lock().unwrap();
+            g.retain(|f| !f.load(Ordering::Acquire));
+            assert!(
+                g.is_empty(),
+                "columnar teardown must leave nothing for await_drain to block on"
+            );
+        }
+
+        // Callback teardown registers a still-unflipped flag, so await_drain
+        // correctly does NOT report drained until the callback finishes (no
+        // regression to the callback path).
+        if session_registers_drain_flag(&callback) {
+            prev_drained
+                .lock()
+                .unwrap()
+                .push(Arc::new(AtomicBool::new(false)));
+        }
+        {
+            let mut g = prev_drained.lock().unwrap();
+            g.retain(|f| !f.load(Ordering::Acquire));
+            assert_eq!(
+                g.len(),
+                1,
+                "callback teardown registers a flag await_drain must wait on"
+            );
+        }
+
+        // Detach the trivial threads.
+        for s in [columnar, callback] {
+            if let DispatcherSession::Running { handle, .. } = s {
+                let _ = handle.join();
+            }
+        }
     }
 
     /// A columnar reader's close must tear down ONLY the session it started.
