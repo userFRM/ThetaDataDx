@@ -394,8 +394,21 @@ impl StreamingState {
                         reason = %reason,
                         "thetadatadx-fpss-dispatcher panicked; session marked as failed",
                     );
-                    *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) =
-                        DispatcherSession::Failed { reason };
+                    // Record `Failed` ONLY if no newer session was installed
+                    // since the extract left the slot `Idle`. The lock was
+                    // released across the join, so a `start_dispatcher` may have
+                    // installed a fresh `Running` session in that window; the
+                    // panic belongs to the now-superseded OLD session, so
+                    // overwriting the slot unconditionally would clobber the new
+                    // session's `JoinHandle` (orphaning its thread) and falsely
+                    // report a healthy live session as failed. Writing `Failed`
+                    // only while the slot is still `Idle` records the panic for
+                    // the common no-race case and leaves any newer session
+                    // untouched.
+                    let mut guard = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+                    if matches!(*guard, DispatcherSession::Idle) {
+                        *guard = DispatcherSession::Failed { reason };
+                    }
                 }
             }
         }
@@ -2810,6 +2823,106 @@ mod tests {
         }
         teardown.join().expect("teardown thread");
         assert!(state.dispatcher_is_idle());
+    }
+
+    /// A join panic on the OLD dispatcher must not clobber a NEWER session
+    /// installed during the lock-free join window. `run_teardown` releases the
+    /// dispatcher lock across the join, so a `start_dispatcher` can install a
+    /// fresh `Running` session before the join returns. If the old dispatcher
+    /// then panics, the `Failed` write must NOT overwrite that newer session —
+    /// it would orphan the new session's `JoinHandle` and report a healthy live
+    /// session as failed. The write is now conditional on the slot still being
+    /// `Idle` (the state extract left it), so a newer session is left alone.
+    ///
+    /// Modeled deterministically: build a `TeardownWork` whose `Running`
+    /// session's handle panics only after a NEW session has been installed,
+    /// then run the teardown; the new session must still be `Running`
+    /// afterward.
+    #[test]
+    fn join_panic_does_not_clobber_a_newer_session() {
+        use std::sync::atomic::{AtomicBool, Ordering as O};
+
+        let state = Arc::new(StreamingState::new());
+
+        // The teardown wake hook fires just before the join; the test uses it
+        // as the signal that the join window has opened.
+        let join_window_open = Arc::new(AtomicBool::new(false));
+        // Set by the test once the NEW session is installed; the old handle
+        // waits for it, then panics, so the new session is guaranteed in place
+        // before the join returns and the conditional `Failed` write runs.
+        let new_installed = Arc::new(AtomicBool::new(false));
+
+        // OLD dispatcher handle: wait until the new session is installed, then
+        // panic so `handle.join()` returns Err.
+        let old_handle = {
+            let new_installed = Arc::clone(&new_installed);
+            std::thread::spawn(move || {
+                while !new_installed.load(O::Acquire) {
+                    std::hint::spin_loop();
+                }
+                panic!("old dispatcher panicked in event-iteration machinery");
+            })
+        };
+        let work = TeardownWork {
+            client: None,
+            session: DispatcherSession::Running {
+                handle: old_handle,
+                on_teardown: Some({
+                    let join_window_open = Arc::clone(&join_window_open);
+                    Box::new(move || join_window_open.store(true, O::Release))
+                }),
+            },
+        };
+
+        // Run the teardown on a side thread (its join blocks until the old
+        // handle panics, which the test gates below).
+        let done = Arc::new(AtomicBool::new(false));
+        let teardown = {
+            let state = Arc::clone(&state);
+            let done = Arc::clone(&done);
+            std::thread::spawn(move || {
+                state.run_teardown(work);
+                done.store(true, O::Release);
+            })
+        };
+
+        // Wait until the teardown opens the join window (wake hook fired), then
+        // install a NEW Running session into the slot the extract left Idle,
+        // exactly as a racing `start_dispatcher` would.
+        while !join_window_open.load(O::Acquire) {
+            std::hint::spin_loop();
+        }
+        let new_handle = std::thread::spawn(|| {});
+        *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
+            handle: new_handle,
+            on_teardown: None,
+        };
+        // Release the old handle to panic; the join now returns Err and the
+        // conditional `Failed` write runs against the slot holding the NEW
+        // Running session.
+        new_installed.store(true, O::Release);
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !done.load(O::Acquire) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "teardown did not complete"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        teardown.join().expect("teardown thread");
+
+        // The newer session must survive: a join panic on the superseded old
+        // session must not flip the live session to Failed.
+        let guard = state.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+        assert!(
+            matches!(*guard, DispatcherSession::Running { .. }),
+            "a newer session installed during the join window must not be \
+             clobbered by the old dispatcher's join-panic Failed write"
+        );
+        drop(guard);
+        // Tidy: retire the surviving session so its thread is joined.
+        state.quiesce();
     }
 
     /// A columnar reader's close must tear down ONLY the session it started.
