@@ -130,10 +130,12 @@ pub fn stream_batch_schema() -> Arc<Schema> {
 pub(crate) const EST_IPC_BYTES_PER_ROW: usize = 256;
 
 /// Fixed Arrow IPC framing allowance added to the per-row estimate: the schema
-/// message (a flatbuffer over the 40-field schema) plus the record-batch
-/// message header. A few kilobytes comfortably covers both so a small batch is
-/// not under-seeded.
-pub(crate) const EST_IPC_FRAMING_OVERHEAD: usize = 8 * 1024;
+/// message (a flatbuffer over the 40-field schema, which measures ~8.5 KB on
+/// its own) plus the record-batch message header and stream end-of-stream
+/// marker. 16 KB covers the schema preamble for even the smallest batch, so a
+/// one-row batch (whose body is ~9.5 KB) seeds above its real IPC size and does
+/// not trigger the one bounded realloc an 8 KB allowance left it with.
+pub(crate) const EST_IPC_FRAMING_OVERHEAD: usize = 16 * 1024;
 
 /// Estimated serialized size, in bytes, of an Arrow IPC stream carrying a
 /// single batch of `num_rows` rows under [`stream_batch_schema`].

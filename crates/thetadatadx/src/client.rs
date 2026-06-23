@@ -216,6 +216,17 @@ pub(crate) struct StreamingState {
     dispatcher: Mutex<DispatcherSession>,
 }
 
+/// The deferred, lock-free part of a teardown, extracted under the dispatcher
+/// lock by [`StreamingState::extract_for_teardown_locked`] and finished by
+/// [`StreamingState::run_teardown`] with no lock held.
+struct TeardownWork {
+    /// The retired session's live client, to shut down (drains its threads and
+    /// ring). `None` when the slot was not `Live`.
+    client: Option<Arc<StreamingClient>>,
+    /// The retired dispatcher session, to wake (columnar) and join.
+    session: DispatcherSession,
+}
+
 impl StreamingState {
     /// A fresh, never-started streaming state.
     fn new() -> Self {
@@ -239,40 +250,58 @@ impl StreamingState {
     /// no-ops the rest.
     pub(crate) fn quiesce(&self) {
         // Direct teardown (stop_streaming / reconnect / Client drop): retire
-        // whatever session is currently live, unconditionally. The entire
-        // transition runs under the dispatcher lock; see `retire_locked`.
-        let mut guard = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
-        self.retire_locked(&mut guard);
+        // whatever session is currently live, unconditionally.
+        if let Some(work) = self.extract_for_teardown_locked(None) {
+            self.run_teardown(work);
+        }
     }
 
     /// Retire the live session ONLY if the live stop-generation still equals
     /// `expected_gen`, atomically with the generation re-check.
     ///
     /// This is the columnar reader's close gate. The generation re-check, the
-    /// slot swap, and the dispatcher retire all happen under the one dispatcher
-    /// lock that also serialises `start_dispatcher`'s install and the bump in
-    /// `retire_locked`, so a racing `stop_streaming` + `start_streaming` either
-    /// fully precedes this locked section (the generation has advanced, so the
-    /// re-check fails and this is a no-op, leaving the newer session to its
-    /// owner) or fully follows it (this reader's session is already retired).
-    /// A bare compare on the generation atomic alone would not close the window
-    /// between the reader's earlier read and the teardown; guarding the check
-    /// and the teardown together does.
+    /// generation bump, the slot swap, and the dispatcher-session extraction
+    /// all happen under the one dispatcher lock that also serialises
+    /// `start_dispatcher`'s install and the bump in
+    /// [`Self::extract_for_teardown_locked`], so a racing `stop_streaming` +
+    /// `start_streaming` either fully precedes this locked section (the
+    /// generation has advanced, so the re-check fails and this is a no-op,
+    /// leaving the newer session to its owner) or fully follows it (this
+    /// reader's session is already retired). A bare compare on the generation
+    /// atomic alone would not close the window between the reader's earlier
+    /// read and the teardown; guarding the check and the extraction together
+    /// does. The slow part (client shutdown + dispatcher join) runs AFTER the
+    /// lock is released, so it never holds the lock a callback might need.
     #[cfg(any(feature = "arrow", test))]
     pub(crate) fn quiesce_if_owned(&self, expected_gen: u64) {
-        let mut guard = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
-        if self.stop_generation.load(Ordering::Acquire) == expected_gen {
-            self.retire_locked(&mut guard);
+        if let Some(work) = self.extract_for_teardown_locked(Some(expected_gen)) {
+            self.run_teardown(work);
         }
     }
 
-    /// The teardown itself, run while holding the dispatcher lock: bump the
-    /// generation, swap the slot to `Stopped`, shut the live client, and retire
-    /// the dispatcher session (waking a parked columnar dispatcher first, then
-    /// joining it). Holding the lock across the whole transition makes the
-    /// generation bump, the slot swap, and the dispatcher retire one atomic
-    /// step with respect to `start_dispatcher` and the reader-close gate.
-    fn retire_locked(&self, guard: &mut std::sync::MutexGuard<'_, DispatcherSession>) {
+    /// The atomic part of teardown, run under the dispatcher lock: optionally
+    /// gate on `expected_gen`, bump the generation, swap the slot to `Stopped`,
+    /// and extract the previous live client and dispatcher session. Returns the
+    /// extracted work for [`Self::run_teardown`] to finish OUTSIDE the lock, or
+    /// `None` when the generation gate did not match.
+    ///
+    /// Only the bump + swap + extraction are under the lock — exactly the part
+    /// that must be atomic with the generation gate and with
+    /// `start_dispatcher`. The client shutdown and the dispatcher join, which
+    /// can block while the dispatcher drains already-buffered events through
+    /// user callbacks, are deliberately NOT done here: a callback may call
+    /// `is_streaming` / `connection_status` / `stop_streaming`, which take this
+    /// same lock, so holding it across the join would deadlock.
+    fn extract_for_teardown_locked(&self, expected_gen: Option<u64>) -> Option<TeardownWork> {
+        let mut guard = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+        // The columnar reader-close gate: only retire while this reader's
+        // session is still the live one. Checked under the lock so it is atomic
+        // with the bump + swap + extraction below.
+        if let Some(expected) = expected_gen {
+            if self.stop_generation.load(Ordering::Acquire) != expected {
+                return None;
+            }
+        }
         // Bump the stop generation BEFORE the slot swap so any in-flight
         // `start_streaming*()` that snapshotted the previous value will fail
         // its install check and not resurrect the slot to `Live` after this
@@ -285,47 +314,52 @@ impl StreamingState {
         // previous `Arc<StreamingSlot>` and is the one that runs the shutdown
         // sequence.
         let prev = self.state.swap(Arc::new(StreamingSlot::Stopped));
+        let client = match &*prev {
+            StreamingSlot::Live { client } => {
+                // Capture the drain flag BEFORE the shutdown signal and PUSH it
+                // onto the retired-generations list (rather than overwriting a
+                // single slot). Stacked stop/start/stop cycles layer multiple
+                // in-flight generations on top of each other; an earlier
+                // still-firing session's flag must NOT be lost when a later
+                // session retires before the earlier one has drained.
+                // `await_drain()` waits for ALL entries, and lazily GCs flags
+                // that have flipped to `true`, so a long-lived handle does not
+                // accumulate `Arc<AtomicBool>` entries past their useful
+                // lifetime.
+                self.prev_drained
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .push(client.drained_flag());
+                Some(Arc::clone(client))
+            }
+            StreamingSlot::Idle | StreamingSlot::Stopped => None,
+        };
+        // Extract the dispatcher session so the join runs outside the lock.
+        let session = std::mem::replace(&mut *guard, DispatcherSession::Idle);
+        Some(TeardownWork { client, session })
+    }
 
-        // Drop the FPSS client signal so its reader thread + event ring
-        // consumer drain and exit. The actual join happens in
-        // `StreamingClient::Drop` when the last `Arc<StreamingClient>` is
-        // dropped (typically with `prev` going out of scope at end of scope).
-        if let StreamingSlot::Live { client } = &*prev {
-            // Capture the drain flag BEFORE the shutdown signal and PUSH it
-            // onto the retired-generations list (rather than overwriting a
-            // single slot). Stacked stop/start/stop cycles layer multiple
-            // in-flight generations on top of each other; an earlier
-            // still-firing session's flag must NOT be lost when a later session
-            // retires before the earlier one has drained. `await_drain()` waits
-            // for ALL entries, and lazily GCs flags that have flipped to
-            // `true`, so a long-lived handle does not accumulate
-            // `Arc<AtomicBool>` entries past their useful lifetime.
-            self.prev_drained
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .push(client.drained_flag());
+    /// The slow part of teardown, run with NO lock held: shut the live client,
+    /// wake a parked columnar dispatcher, and join the dispatcher thread.
+    ///
+    /// Holding no lock here is what keeps the teardown deadlock-free: while the
+    /// client is shut down it keeps draining already-ring-buffered events
+    /// through user callbacks until it observes the shutdown, and such a
+    /// callback may call `is_streaming` / `connection_status` /
+    /// `stop_streaming`, all of which take the dispatcher lock. With the lock
+    /// released, those calls proceed, the dispatcher reaches its shutdown exit,
+    /// and the join below returns.
+    fn run_teardown(&self, work: TeardownWork) {
+        let TeardownWork { client, session } = work;
+        // Shut the FPSS client signal so its reader thread + event ring
+        // consumer drain and exit.
+        if let Some(client) = client {
             client.shutdown();
         }
-
-        // Retire the dispatcher session through the held guard (no re-lock).
-        // Join the dispatcher thread after the producer-drop signal has
-        // propagated through the ring shutdown to the poller, letting the
-        // iterator's `for ... in &client` loop see a clean `Ok(None)` and exit.
-        // Joining closes the race where a callback could still fire after
-        // `is_streaming()` observed `false`. The dispatcher thread never takes
-        // this dispatcher lock, so joining while holding it cannot deadlock.
-        //
-        // Dispatcher panic state is derived from `JoinHandle::join()`:
-        // `Err(_)` means the dispatcher thread panicked in the event-iteration
-        // machinery (distinct from user-callback panics caught by
-        // `poll_batch`'s per-invocation `catch_unwind`). Record as
-        // `DispatcherSession::Failed` so `is_streaming` / `connection_status`
-        // see the failure even though the slot is now `Stopped`.
-        let prev_session = std::mem::replace(&mut **guard, DispatcherSession::Idle);
         if let DispatcherSession::Running {
             handle,
             on_teardown,
-        } = prev_session
+        } = session
         {
             // Wake a dispatcher parked on its own backpressure primitive BEFORE
             // joining it. The per-event callback dispatcher parks only on the
@@ -335,9 +369,7 @@ impl StreamingState {
             // touch; its hook stores `closed` (under the queue lock) and
             // notifies, so the parked flush returns and the join below completes
             // instead of hanging. The hook runs the SAME wakeup the reader's own
-            // close path runs, so every teardown route converges on it. The
-            // hook takes the queue lock, never this dispatcher lock, so it
-            // cannot invert against the held guard.
+            // close path runs, so every teardown route converges on it.
             if let Some(wake) = on_teardown {
                 wake();
             }
@@ -345,16 +377,25 @@ impl StreamingState {
             // (or, for the pull reader, a dispatcher-thread drop) called this.
             // Detach in that case; `await_drain` still observes quiescence via
             // the `prev_drained` flags.
+            //
+            // Dispatcher panic state is derived from `JoinHandle::join()`:
+            // `Err(_)` means the dispatcher thread panicked in the
+            // event-iteration machinery (distinct from user-callback panics
+            // caught by `poll_batch`'s per-invocation `catch_unwind`). Record as
+            // `DispatcherSession::Failed` so `is_streaming` / `connection_status`
+            // see the failure even though the slot is now `Stopped`. The Failed
+            // state is published by RE-ACQUIRING the lock, which is safe now
+            // that the join has completed and the lock is free.
             if handle.thread().id() != std::thread::current().id() {
-                let join_result = handle.join();
-                if let Err(payload) = join_result {
+                if let Err(payload) = handle.join() {
                     let reason = downcast_panic_payload(payload);
                     tracing::error!(
                         target: "thetadatadx::client",
                         reason = %reason,
                         "thetadatadx-fpss-dispatcher panicked; session marked as failed",
                     );
-                    **guard = DispatcherSession::Failed { reason };
+                    *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) =
+                        DispatcherSession::Failed { reason };
                 }
             }
         }
@@ -2697,6 +2738,78 @@ mod tests {
             state.dispatcher_is_idle(),
             "after quiesce the dispatcher session is retired to Idle"
         );
+    }
+
+    /// Teardown must not deadlock when a user callback firing during the
+    /// post-shutdown drain calls into the client (e.g. `is_streaming()`), which
+    /// takes the dispatcher lock. The client shutdown keeps draining
+    /// already-buffered events through callbacks until the shutdown is observed;
+    /// if the teardown held the dispatcher lock across the dispatcher join, such
+    /// a callback would block on the lock forever, the dispatcher would never
+    /// exit, and the join would never return.
+    ///
+    /// This models that exactly without a network: the dispatcher thread, once
+    /// the teardown signals it (via the wake hook, standing in for the shutdown
+    /// being observed), calls `dispatcher_is_idle()` — which acquires and
+    /// releases the dispatcher lock, exactly as `is_streaming()` does — and only
+    /// then exits. The teardown runs on a side thread under a watchdog and must
+    /// COMPLETE: with shutdown + join OUTSIDE the lock the callback acquires the
+    /// free lock, the thread exits, and the join returns. If the join held the
+    /// lock (the pre-fix regression) the callback would block and the watchdog
+    /// would fire.
+    #[test]
+    fn teardown_does_not_deadlock_when_a_callback_takes_the_dispatcher_lock() {
+        use std::sync::atomic::{AtomicBool, Ordering as O};
+
+        let state = Arc::new(StreamingState::new());
+
+        // The wake hook stands in for `client.shutdown()` being observed by the
+        // dispatcher: it releases the dispatcher thread to run its "callback".
+        let released = Arc::new(AtomicBool::new(false));
+
+        // Dispatcher thread: wait until teardown releases it, then do exactly
+        // what an `is_streaming()` call in a user callback does — take and drop
+        // the dispatcher lock — before exiting. If teardown still holds the lock
+        // at that point, this blocks forever.
+        let dispatcher = {
+            let state = Arc::clone(&state);
+            let released = Arc::clone(&released);
+            std::thread::spawn(move || {
+                while !released.load(O::Acquire) {
+                    std::hint::spin_loop();
+                }
+                // Acquires + releases the dispatcher lock, like is_streaming().
+                let _ = state.dispatcher_is_idle();
+            })
+        };
+
+        let wake_released = Arc::clone(&released);
+        *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
+            handle: dispatcher,
+            on_teardown: Some(Box::new(move || wake_released.store(true, O::Release))),
+        };
+
+        // Drive teardown on a side thread so a hung join is caught by the
+        // watchdog rather than wedging the suite.
+        let done = Arc::new(AtomicBool::new(false));
+        let done_t = Arc::clone(&done);
+        let state_t = Arc::clone(&state);
+        let teardown = std::thread::spawn(move || {
+            state_t.quiesce();
+            done_t.store(true, O::Release);
+        });
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !done.load(O::Acquire) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "teardown deadlocked: it held the dispatcher lock across the \
+                 dispatcher join while a callback was blocked acquiring that lock"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        teardown.join().expect("teardown thread");
+        assert!(state.dispatcher_is_idle());
     }
 
     /// A columnar reader's close must tear down ONLY the session it started.

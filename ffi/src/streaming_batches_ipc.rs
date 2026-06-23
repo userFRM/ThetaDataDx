@@ -64,53 +64,79 @@ pub(crate) fn schema_to_ipc(schema: &Arc<Schema>) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow_array::{ArrayRef, Float64Array, Int32Array, StringArray};
-    use arrow_schema::{DataType, Field};
+    use arrow_array::{ArrayRef, Float64Array, Int32Array, Int64Array, StringArray, UInt64Array};
+    use arrow_schema::DataType;
 
-    /// Build a representative multi-column batch of `rows` rows. The seed
-    /// estimate is keyed on the row count and is schema-agnostic, so a few
-    /// typed columns suffice to exercise the IPC body-vs-seed relationship.
-    fn sample_batch(rows: usize) -> RecordBatch {
-        let schema = Arc::new(Schema::new(vec![
-            Field::new("i", DataType::Int32, false),
-            Field::new("f", DataType::Float64, false),
-            Field::new("s", DataType::Utf8, false),
-        ]));
-        let ints = Int32Array::from((0..rows as i32).collect::<Vec<_>>());
-        let floats = Float64Array::from((0..rows).map(|i| i as f64).collect::<Vec<_>>());
-        let strings = StringArray::from((0..rows).map(|_| "SPY").collect::<Vec<_>>());
-        RecordBatch::try_new(
-            schema,
-            vec![
-                Arc::new(ints) as ArrayRef,
-                Arc::new(floats) as ArrayRef,
-                Arc::new(strings) as ArrayRef,
-            ],
-        )
-        .expect("sample batch")
+    /// Build a batch of `rows` rows under the REAL fixed streaming schema (the
+    /// same 40 columns the live reader emits), so the seed estimate is tested
+    /// against a body whose per-row and framing sizes match what
+    /// `estimated_ipc_len` is calibrated for, not an unrepresentative sample.
+    /// Each field gets a column of its declared type; the values are arbitrary.
+    fn streaming_batch(rows: usize) -> RecordBatch {
+        let schema = thetadatadx::streaming::stream_batch_schema();
+        let columns: Vec<ArrayRef> = schema
+            .fields()
+            .iter()
+            .map(|field| -> ArrayRef {
+                match field.data_type() {
+                    DataType::Int32 => {
+                        Arc::new(Int32Array::from((0..rows as i32).collect::<Vec<_>>()))
+                    }
+                    DataType::Int64 => {
+                        Arc::new(Int64Array::from((0..rows as i64).collect::<Vec<_>>()))
+                    }
+                    DataType::UInt64 => {
+                        Arc::new(UInt64Array::from((0..rows as u64).collect::<Vec<_>>()))
+                    }
+                    DataType::Float64 => Arc::new(Float64Array::from(
+                        (0..rows).map(|i| i as f64).collect::<Vec<_>>(),
+                    )),
+                    DataType::Utf8 => Arc::new(StringArray::from(
+                        (0..rows).map(|_| "SPY").collect::<Vec<_>>(),
+                    )),
+                    other => panic!("unexpected streaming-schema column type {other:?}"),
+                }
+            })
+            .collect();
+        RecordBatch::try_new(schema, columns).expect("streaming batch")
     }
 
     /// The IPC seed estimate keeps a tiny (linger-flushed) batch's buffer small
-    /// and is large enough to hold a full batch's body without a doubling
-    /// regrow. This is the concrete check that the over-allocation regression
-    /// (seeding from buffer capacity, which is now batch-size-wide) is gone:
-    /// the seed for one row is a few kilobytes, and for a full batch it is at
-    /// least the actual serialized IPC length.
+    /// AND covers the real serialized body without a doubling regrow, for both
+    /// the smallest and a full batch. This is the concrete check that the
+    /// over-allocation regression (seeding from buffer capacity, now
+    /// batch-size-wide) is gone and that the framing allowance is large enough
+    /// for the smallest batch (whose body is dominated by the 40-field schema
+    /// preamble). Tested against the REAL 40-column schema so the per-row and
+    /// framing figures are the ones being validated.
     #[test]
-    fn ipc_seed_is_small_for_one_row_and_covers_a_full_batch() {
-        // One row: the seed is the framing overhead plus a row, well under
-        // 64 KiB (a buffer-capacity estimate would have reported megabytes).
-        let one = thetadatadx::streaming::estimated_ipc_len(1);
-        assert!(one < 64 * 1024, "one-row seed must be small, was {one}");
+    fn ipc_seed_is_small_for_one_row_and_covers_real_batches() {
+        // One row: the seed stays well under 64 KiB (a buffer-capacity estimate
+        // would have reported megabytes) ...
+        let one_seed = thetadatadx::streaming::estimated_ipc_len(1);
+        assert!(
+            one_seed < 64 * 1024,
+            "one-row seed must be small, was {one_seed}"
+        );
+        // ... and still covers the real one-row IPC body (dominated by the
+        // schema preamble), so even the smallest linger-flushed batch needs no
+        // realloc.
+        let one_body = batch_to_ipc(&streaming_batch(1)).expect("encode 1").len();
+        assert!(
+            one_seed >= one_body,
+            "one-row seed ({one_seed}) must cover the real one-row IPC body ({one_body})"
+        );
 
         // Full batch: the seed must be at least the real serialized body so the
         // writer never re-grows the Vec by doubling.
         let rows = 65_536;
-        let body = batch_to_ipc(&sample_batch(rows)).expect("encode").len();
-        let seed = thetadatadx::streaming::estimated_ipc_len(rows);
+        let full_body = batch_to_ipc(&streaming_batch(rows))
+            .expect("encode full")
+            .len();
+        let full_seed = thetadatadx::streaming::estimated_ipc_len(rows);
         assert!(
-            seed >= body,
-            "seed ({seed}) must cover the actual IPC body ({body}) so there is no regrow"
+            full_seed >= full_body,
+            "full-batch seed ({full_seed}) must cover the real IPC body ({full_body})"
         );
     }
 }

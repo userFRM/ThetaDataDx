@@ -338,6 +338,13 @@ pub mod streaming {
     #[doc(hidden)]
     pub use crate::fpss::batch_schema::estimated_ipc_len;
 
+    /// The fixed streaming-batch Arrow schema. Hidden: shared with the binding
+    /// layers (and their tests) so they describe a streaming batch without
+    /// reconstructing the column list.
+    #[cfg(feature = "arrow")]
+    #[doc(hidden)]
+    pub use crate::fpss::batch_schema::stream_batch_schema;
+
     /// Consumer wait strategies for the streaming ring.
     ///
     /// When the consumer drains the ring faster than events arrive, it
