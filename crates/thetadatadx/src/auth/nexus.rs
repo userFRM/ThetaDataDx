@@ -46,7 +46,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use super::Credentials;
-use crate::config::Environment;
+use crate::config::HistoricalEnvironment;
 use crate::error::Error;
 use crate::util::random_id::validate_uuid_format;
 
@@ -92,23 +92,19 @@ struct AuthEnv {
 }
 
 impl AuthEnv {
-    /// Build the `authEnv` marker for the target environment.
+    /// Build the `authEnv` marker for the target HISTORICAL environment.
     ///
-    /// Production carries no marker: the server treats an absent
-    /// `authEnv` as `PROD`, so omitting it keeps the production request
-    /// body byte-identical to the long-validated shape. Dev is a
-    /// streaming-only cluster with no server-side auth env of its own, so
-    /// it authenticates exactly as production — it too carries no marker,
-    /// keeping a dev session's auth body byte-identical to a production
-    /// one. Only the staging environment serializes an explicit marker.
-    ///
-    /// The environment selector is both a cluster selector and an auth
-    /// wire marker; this is the seam where the two diverge: `Dev` selects
-    /// a distinct streaming cluster but the *same* auth body as `Prod`.
-    fn for_environment(env: Environment) -> Option<Self> {
+    /// The auth marker is driven by the historical (MDDS) environment only;
+    /// the streaming environment never reaches auth. Production carries no
+    /// marker: the server treats an absent `authEnv` as `PROD`, so omitting it
+    /// keeps the production request body byte-identical to the long-validated
+    /// shape. Only the staging historical environment serializes an explicit
+    /// marker. A streaming-dev session therefore authenticates byte-identically
+    /// to production, since its historical environment is production.
+    fn for_environment(env: HistoricalEnvironment) -> Option<Self> {
         match env {
-            Environment::Prod | Environment::Dev => None,
-            Environment::Stage => Some(Self {
+            HistoricalEnvironment::Prod => None,
+            HistoricalEnvironment::Stage => Some(Self {
                 env_type: EnvType::Stage,
             }),
         }
@@ -146,7 +142,7 @@ impl<'a> AuthRequest<'a> {
     /// `{"apiKey": ...}`; an email + password serializes as
     /// `{"email": ..., "password": ...}`. The staging environment adds
     /// `"authEnv": {"envType": "STAGE"}`; production omits it.
-    fn from_credentials(creds: &'a Credentials, environment: Environment) -> Self {
+    fn from_credentials(creds: &'a Credentials, environment: HistoricalEnvironment) -> Self {
         let auth_env = AuthEnv::for_environment(environment);
         if let Some(key) = creds.api_key_secret() {
             Self {
@@ -170,13 +166,13 @@ impl<'a> AuthRequest<'a> {
 /// credential, returning the on-the-wire JSON.
 ///
 /// Test-only seam so callers outside this module (notably the config-layer
-/// tests) can assert the auth wire body a given [`Environment`] produces —
+/// tests) can assert the auth wire body a given [`HistoricalEnvironment`] produces —
 /// in particular that a dev config's body is byte-identical to production's
 /// — without `AuthRequest` leaving this module's private surface. The
 /// credential is irrelevant to the `authEnv` marker under test, so a fixed
 /// email/password pair is used.
 #[cfg(test)]
-pub(crate) fn auth_request_json_for_test(environment: Environment) -> serde_json::Value {
+pub(crate) fn auth_request_json_for_test(environment: HistoricalEnvironment) -> serde_json::Value {
     let creds = Credentials::new("user@example.com", "hunter2");
     serde_json::to_value(AuthRequest::from_credentials(&creds, environment))
         .expect("auth request serializes")
@@ -361,7 +357,7 @@ fn is_transient_network_error(err: &reqwest::Error) -> bool {
 #[cfg(feature = "__internal")]
 pub async fn authenticate(
     creds: &Credentials,
-    environment: Environment,
+    environment: HistoricalEnvironment,
 ) -> Result<AuthResponse, Error> {
     authenticate_at(NEXUS_AUTH_URL, creds, environment).await
 }
@@ -463,7 +459,7 @@ fn malformed_success_body_message() -> &'static str {
 pub async fn authenticate_at(
     url: &str,
     creds: &Credentials,
-    environment: Environment,
+    environment: HistoricalEnvironment,
 ) -> Result<AuthResponse, Error> {
     metrics::counter!("thetadatadx.auth.requests").increment(1);
     let auth_start = std::time::Instant::now();
@@ -615,7 +611,7 @@ mod tests {
     #[test]
     fn auth_request_serializes_email_password() {
         let creds = Credentials::new("user@example.com", "hunter2");
-        let body = AuthRequest::from_credentials(&creds, Environment::Prod);
+        let body = AuthRequest::from_credentials(&creds, HistoricalEnvironment::Prod);
         let json: serde_json::Value = serde_json::to_value(&body).unwrap();
         assert_eq!(json["email"], "user@example.com");
         assert_eq!(json["password"], "hunter2");
@@ -630,7 +626,7 @@ mod tests {
     #[test]
     fn auth_request_serializes_api_key_only() {
         let creds = Credentials::api_key("secret-key-xyz");
-        let body = AuthRequest::from_credentials(&creds, Environment::Prod);
+        let body = AuthRequest::from_credentials(&creds, HistoricalEnvironment::Prod);
         let json: serde_json::Value = serde_json::to_value(&body).unwrap();
         assert_eq!(json["apiKey"], "secret-key-xyz");
         assert!(
@@ -649,7 +645,7 @@ mod tests {
     #[test]
     fn auth_request_api_key_with_email_stays_api_key_only() {
         let creds = Credentials::api_key_with_email("user@example.com", "secret-key-xyz");
-        let body = AuthRequest::from_credentials(&creds, Environment::Prod);
+        let body = AuthRequest::from_credentials(&creds, HistoricalEnvironment::Prod);
         let json: serde_json::Value = serde_json::to_value(&body).unwrap();
         assert_eq!(json["apiKey"], "secret-key-xyz");
         assert!(json.get("email").is_none());
@@ -662,7 +658,7 @@ mod tests {
     #[test]
     fn auth_request_omits_auth_env_for_prod() {
         let creds = Credentials::new("user@example.com", "hunter2");
-        let body = AuthRequest::from_credentials(&creds, Environment::Prod);
+        let body = AuthRequest::from_credentials(&creds, HistoricalEnvironment::Prod);
         let json: serde_json::Value = serde_json::to_value(&body).unwrap();
         assert!(
             json.get("authEnv").is_none(),
@@ -676,37 +672,43 @@ mod tests {
     #[test]
     fn auth_request_serializes_auth_env_stage() {
         let creds = Credentials::new("user@example.com", "hunter2");
-        let body = AuthRequest::from_credentials(&creds, Environment::Stage);
+        let body = AuthRequest::from_credentials(&creds, HistoricalEnvironment::Stage);
         let json: serde_json::Value = serde_json::to_value(&body).unwrap();
         assert_eq!(json["authEnv"], serde_json::json!({ "envType": "STAGE" }));
     }
 
-    /// The dev environment carries NO `authEnv` marker and produces an
-    /// auth body byte-identical to production: dev replay is a
-    /// streaming-only cluster with no server-side auth env of its own, so
-    /// a dev session authenticates exactly as a production session. This
-    /// locks the "dev auths as prod" invariant — the seam where the
-    /// cluster selector (dev streaming) diverges from the auth wire marker
-    /// (prod).
+    /// The auth marker is total over the historical environment, and only
+    /// staging carries one: the streaming environment (including streaming
+    /// dev) never reaches auth, so it cannot produce an `authEnv`. The
+    /// "streaming-dev authenticates as production" invariant is therefore
+    /// structural here — a dev config's historical environment is production,
+    /// which omits the marker — and is pinned at the config layer where
+    /// `DirectConfig::dev()` exists. This locks the production body as the
+    /// only no-marker shape across both credential forms.
     #[test]
-    fn auth_request_dev_auth_body_is_byte_identical_to_prod() {
+    fn only_staging_carries_an_auth_marker() {
         for creds in [
             Credentials::new("user@example.com", "hunter2"),
             Credentials::api_key("secret-key-xyz"),
         ] {
-            let dev: serde_json::Value =
-                serde_json::to_value(AuthRequest::from_credentials(&creds, Environment::Dev))
-                    .unwrap();
-            let prod: serde_json::Value =
-                serde_json::to_value(AuthRequest::from_credentials(&creds, Environment::Prod))
-                    .unwrap();
+            let prod: serde_json::Value = serde_json::to_value(AuthRequest::from_credentials(
+                &creds,
+                HistoricalEnvironment::Prod,
+            ))
+            .unwrap();
+            let stage: serde_json::Value = serde_json::to_value(AuthRequest::from_credentials(
+                &creds,
+                HistoricalEnvironment::Stage,
+            ))
+            .unwrap();
             assert!(
-                dev.get("authEnv").is_none(),
-                "dev body must omit authEnv: {dev}"
+                prod.get("authEnv").is_none(),
+                "production body must omit authEnv: {prod}"
             );
             assert_eq!(
-                dev, prod,
-                "dev auth body must be byte-identical to production"
+                stage["authEnv"],
+                serde_json::json!({ "envType": "STAGE" }),
+                "staging body must carry the staging marker"
             );
         }
     }
@@ -717,7 +719,7 @@ mod tests {
     #[test]
     fn auth_request_full_body_shape_prod() {
         let creds = Credentials::new("user@example.com", "hunter2");
-        let body = AuthRequest::from_credentials(&creds, Environment::Prod);
+        let body = AuthRequest::from_credentials(&creds, HistoricalEnvironment::Prod);
         let json: serde_json::Value = serde_json::to_value(&body).unwrap();
         assert_eq!(
             json,
@@ -733,7 +735,7 @@ mod tests {
     #[test]
     fn auth_request_full_body_shape_stage() {
         let creds = Credentials::new("user@example.com", "hunter2");
-        let body = AuthRequest::from_credentials(&creds, Environment::Stage);
+        let body = AuthRequest::from_credentials(&creds, HistoricalEnvironment::Stage);
         let json: serde_json::Value = serde_json::to_value(&body).unwrap();
         assert_eq!(
             json,

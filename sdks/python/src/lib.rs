@@ -301,7 +301,8 @@ impl Config {
         Self::from_direct(config::DirectConfig::dev())
     }
 
-    /// Stage streaming configuration (port 20100, testing, unstable).
+    /// Historical-staging configuration (MDDS staging cluster + auth marker;
+    /// streaming stays on production). Testing, unstable.
     #[staticmethod]
     fn stage() -> Self {
         Self::from_direct(config::DirectConfig::stage())
@@ -1194,16 +1195,32 @@ impl Config {
         }
     }
 
-    /// Target server environment carried by this configuration:
-    /// ``"PROD"`` for the production cluster, ``"STAGE"`` for staging.
-    /// Set as a unit by :meth:`Config.production` / :meth:`Config.stage`
-    /// (and by the ``THETADATA_MDDS_TYPE`` key on :meth:`Config.from_dotenv`);
-    /// this is the readback of that selection. Mirrors the ``mdds_type``
-    /// string the inline ``Client`` constructor accepts.
+    /// Target historical (MDDS) environment carried by this configuration:
+    /// ``"PROD"`` for the production cluster or ``"STAGE"`` for staging.
+    /// The historical and streaming channels are selected independently;
+    /// :meth:`Config.production` / :meth:`Config.stage` (and the
+    /// ``THETADATA_MDDS_TYPE`` key on :meth:`Config.from_dotenv`) set the
+    /// historical channel, and this is the readback of that selection.
+    /// Mirrors the ``mdds_type`` string the inline ``Client`` constructor
+    /// accepts.
     #[getter]
-    fn get_environment(&self) -> &'static str {
+    fn get_historical_environment(&self) -> &'static str {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.environment().as_str()
+        guard.historical_environment().as_str()
+    }
+
+    /// Target streaming (FPSS) environment carried by this configuration:
+    /// ``"PROD"`` for the production cluster or ``"DEV"`` for the dev
+    /// cluster. The streaming and historical channels are selected
+    /// independently; :meth:`Config.production` / :meth:`Config.dev` (and
+    /// the ``THETADATA_FPSS_TYPE`` key on :meth:`Config.from_dotenv`) set
+    /// the streaming channel, and this is the readback of that selection.
+    /// Mirrors the ``fpss_type`` string the inline ``Client`` constructor
+    /// accepts.
+    #[getter]
+    fn get_streaming_environment(&self) -> &'static str {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming_environment().as_str()
     }
 
     /// Set the streaming event-ring consumer wait strategy — the
@@ -1494,13 +1511,18 @@ fn resolve_credentials(
 
 /// Resolve the environment selection into a [`config::DirectConfig`].
 ///
-/// A full `config` handle wins (its environment and hosts are taken
-/// verbatim). Otherwise `mdds_type` (`"PROD"` / `"STAGE"`,
-/// case-insensitive) selects the environment on top of the production
-/// defaults; absent, the default is production.
+/// A full `config` handle wins (its environments and hosts are taken
+/// verbatim). Otherwise the historical (MDDS) and streaming (FPSS)
+/// channels are selected independently on top of the production defaults:
+/// `mdds_type` (`"PROD"` / `"STAGE"`, case-insensitive) selects the
+/// historical channel and `fpss_type` (`"PROD"` / `"DEV"`,
+/// case-insensitive) the streaming channel. Either absent keeps that
+/// channel on production. An unrecognized value raises ``ValueError``
+/// naming the valid set, never a silent fallback.
 fn resolve_direct_config(
     config: Option<&Config>,
     mdds_type: Option<&str>,
+    fpss_type: Option<&str>,
 ) -> PyResult<config::DirectConfig> {
     if let Some(cfg) = config {
         // Snapshot under the mutex — connect() takes ownership and the
@@ -1508,17 +1530,24 @@ fn resolve_direct_config(
         let guard = cfg.inner.lock().unwrap_or_else(|e| e.into_inner());
         return Ok(guard.clone());
     }
-    match mdds_type {
-        None => Ok(config::DirectConfig::production()),
-        Some(raw) => {
-            let environment = config::Environment::parse(raw).ok_or_else(|| {
-                config_err(format!(
-                    "mdds_type must be \"PROD\" or \"STAGE\" (case-insensitive); got {raw:?}"
-                ))
-            })?;
-            Ok(config::DirectConfig::production().with_environment(environment))
-        }
+    let mut direct = config::DirectConfig::production();
+    if let Some(raw) = mdds_type {
+        let environment = config::HistoricalEnvironment::parse(raw).ok_or_else(|| {
+            config_err(format!(
+                "mdds_type must be \"PROD\" or \"STAGE\" (case-insensitive); got {raw:?}"
+            ))
+        })?;
+        direct = direct.with_historical_environment(environment);
     }
+    if let Some(raw) = fpss_type {
+        let environment = config::StreamingEnvironment::parse(raw).ok_or_else(|| {
+            config_err(format!(
+                "fpss_type must be \"PROD\" or \"DEV\" (case-insensitive); got {raw:?}"
+            ))
+        })?;
+        direct = direct.with_streaming_environment(environment);
+    }
+    Ok(direct)
 }
 
 #[pyclass(frozen)]
@@ -1645,8 +1674,10 @@ impl Client {
     /// the ``email`` + ``password`` pair, or ``credentials``. Passing
     /// none, or two different ones, raises ``ConfigError`` before any
     /// network round-trip. ``mdds_type`` (``"PROD"`` / ``"STAGE"``,
-    /// case-insensitive) selects the environment; ``config`` supplies a
-    /// full :class:`Config` whose environment and hosts win.
+    /// case-insensitive) selects the historical environment and
+    /// ``fpss_type`` (``"PROD"`` / ``"DEV"``, case-insensitive) the
+    /// streaming environment, independently; ``config`` supplies a full
+    /// :class:`Config` whose environments and hosts win.
     #[new]
     #[pyo3(signature = (
         credentials=None,
@@ -1656,6 +1687,7 @@ impl Client {
         email=None,
         password=None,
         mdds_type=None,
+        fpss_type=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
@@ -1666,9 +1698,10 @@ impl Client {
         email: Option<String>,
         password: Option<String>,
         mdds_type: Option<&str>,
+        fpss_type: Option<&str>,
     ) -> PyResult<Self> {
         let creds = resolve_credentials(credentials, api_key, email, password)?;
-        let direct_config = resolve_direct_config(config, mdds_type)?;
+        let direct_config = resolve_direct_config(config, mdds_type, fpss_type)?;
         Self::connect_blocking(py, creds, direct_config)
     }
 
@@ -1683,19 +1716,21 @@ impl Client {
     /// env-or-file convenience read a ``.env`` file with
     /// :meth:`from_dotenv` instead.
     ///
-    /// ``mdds_type`` selects the environment (``"PROD"`` / ``"STAGE"``);
-    /// ``config`` supplies a full :class:`Config` whose environment and
-    /// hosts win. The key is read once, immediately before the network
-    /// round-trip.
+    /// ``mdds_type`` selects the historical environment (``"PROD"`` /
+    /// ``"STAGE"``) and ``fpss_type`` the streaming environment (``"PROD"``
+    /// / ``"DEV"``), independently; ``config`` supplies a full
+    /// :class:`Config` whose environments and hosts win. The key is read
+    /// once, immediately before the network round-trip.
     #[staticmethod]
-    #[pyo3(signature = (config=None, *, mdds_type=None))]
+    #[pyo3(signature = (config=None, *, mdds_type=None, fpss_type=None))]
     fn from_env(
         py: Python<'_>,
         config: Option<&Config>,
         mdds_type: Option<&str>,
+        fpss_type: Option<&str>,
     ) -> PyResult<Self> {
         let creds = auth::Credentials::from_env().map_err(to_py_err)?;
-        let direct_config = resolve_direct_config(config, mdds_type)?;
+        let direct_config = resolve_direct_config(config, mdds_type, fpss_type)?;
         Self::connect_blocking(py, creds, direct_config)
     }
 
@@ -1705,23 +1740,26 @@ impl Client {
     /// ``THETADATA_API_KEY`` selects an API key; otherwise
     /// ``THETADATA_EMAIL`` + ``THETADATA_PASSWORD`` build email +
     /// password credentials. When ``config`` is omitted the same file is
-    /// also read for ``THETADATA_MDDS_TYPE``, so one ``.env`` can carry
-    /// both the credential and the environment. An explicit ``config`` or
-    /// ``mdds_type`` overrides the file's environment selection.
+    /// also read for ``THETADATA_MDDS_TYPE`` and ``THETADATA_FPSS_TYPE``,
+    /// so one ``.env`` can carry both the credential and the
+    /// environments. An explicit ``config``, ``mdds_type``, or
+    /// ``fpss_type`` overrides the file's environment selection.
     #[staticmethod]
-    #[pyo3(signature = (path, config=None, *, mdds_type=None))]
+    #[pyo3(signature = (path, config=None, *, mdds_type=None, fpss_type=None))]
     fn from_dotenv(
         py: Python<'_>,
         path: &str,
         config: Option<&Config>,
         mdds_type: Option<&str>,
+        fpss_type: Option<&str>,
     ) -> PyResult<Self> {
         let creds = auth::Credentials::from_dotenv(path).map_err(to_py_err)?;
-        // With no explicit config / mdds_type, read the environment from
-        // the same file; otherwise honour the explicit override.
-        let direct_config = match (config, mdds_type) {
-            (None, None) => config::DirectConfig::from_dotenv(path).map_err(to_py_err)?,
-            _ => resolve_direct_config(config, mdds_type)?,
+        // With no explicit config / mdds_type / fpss_type, read both
+        // environment selectors from the same file; otherwise honour the
+        // explicit override.
+        let direct_config = match (config, mdds_type, fpss_type) {
+            (None, None, None) => config::DirectConfig::from_dotenv(path).map_err(to_py_err)?,
+            _ => resolve_direct_config(config, mdds_type, fpss_type)?,
         };
         Self::connect_blocking(py, creds, direct_config)
     }
@@ -1741,7 +1779,7 @@ impl Client {
     #[pyo3(signature = (path, config=None))]
     fn from_file(py: Python<'_>, path: &str, config: Option<&Config>) -> PyResult<Self> {
         let creds = auth::Credentials::from_file(path).map_err(to_py_err)?;
-        let direct_config = resolve_direct_config(config, None)?;
+        let direct_config = resolve_direct_config(config, None, None)?;
         Self::connect_blocking(py, creds, direct_config)
     }
 
@@ -2249,7 +2287,7 @@ impl AsyncClient {
     /// the handshake does not stall the event loop.
     #[new]
     fn new(py: Python<'_>, creds: &Credentials, config: &Config) -> PyResult<Self> {
-        let direct_config = resolve_direct_config(Some(config), None)?;
+        let direct_config = resolve_direct_config(Some(config), None, None)?;
         let inner = Client::connect_blocking(py, creds.inner.clone(), direct_config)?;
         let client = Py::new(py, inner)?;
         Ok(Self { inner: client })
@@ -2307,7 +2345,7 @@ impl AsyncClient {
     #[pyo3(signature = (path, config=None))]
     fn from_file(py: Python<'_>, path: &str, config: Option<&Config>) -> PyResult<Self> {
         let creds = auth::Credentials::from_file(path).map_err(to_py_err)?;
-        let direct_config = resolve_direct_config(config, None)?;
+        let direct_config = resolve_direct_config(config, None, None)?;
         let inner = Client::connect_blocking(py, creds, direct_config)?;
         let client = Py::new(py, inner)?;
         Ok(Self { inner: client })

@@ -785,20 +785,22 @@ public:
      *  @return An owning `Config` holder seeded with dev defaults. */
     static Config dev();
 
-    /** Build the stage streaming configuration (port 20100, testing,
-     *  unstable).
+    /** Build the historical-staging configuration (MDDS staging cluster +
+     *  auth marker; streaming stays on production). Testing, unstable.
      *  @return An owning `Config` holder seeded with stage defaults. */
     static Config stage();
 
     /** Source a configuration from a `.env`-format file.
      *  Starts from the production configuration and applies the cluster
-     *  keys carried by the file: `THETADATA_MDDS_TYPE` (`PROD` / `STAGE`,
-     *  case-insensitive) selects the environment, and the optional
+     *  keys carried by the file: `THETADATA_MDDS_TYPE` (`PROD` / `STAGE`)
+     *  selects the historical environment and `THETADATA_FPSS_TYPE`
+     *  (`PROD` / `DEV`) selects the streaming environment (both
+     *  case-insensitive, selected independently), and the optional
      *  `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` keys
      *  override the hosts (an explicit host wins over the environment
      *  default). This reads the same file format and keys as
-     *  `Credentials::from_dotenv`, so one `.env` can carry both
-     *  `THETADATA_API_KEY` and `THETADATA_MDDS_TYPE`.
+     *  `Credentials::from_dotenv`, so one `.env` can carry
+     *  `THETADATA_API_KEY`, `THETADATA_MDDS_TYPE`, and `THETADATA_FPSS_TYPE`.
      *  @param path Path to the `.env` file.
      *  @return An owning `Config` holder.
      *  @throws thetadatadx::ThetaDataError if the file is unreadable. */
@@ -1399,14 +1401,27 @@ public:
         return mode;
     }
 
-    /** Target server environment carried by this configuration: `"PROD"`
-     *  for the production cluster, `"STAGE"` for staging, or `"DEV"` for
-     *  the dev cluster. Set as a unit by the production / stage / dev
-     *  presets (and the `THETADATA_MDDS_TYPE` dotenv key); this is the
-     *  readback of that selection. Returns an empty string if the FFI
-     *  getter returns null (null handle). */
-    std::string get_environment() const {
-        detail::FfiString s(thetadatadx_config_get_environment(handle_.get()));
+    /** Target historical (MDDS) environment carried by this configuration:
+     *  `"PROD"` for the production cluster or `"STAGE"` for staging. The
+     *  historical and streaming environments are selected independently;
+     *  the production / stage / dev presets (and the `THETADATA_MDDS_TYPE`
+     *  dotenv key) set the historical channel, and this is the readback of
+     *  that selection. Returns an empty string if the FFI getter returns
+     *  null (null handle). */
+    std::string get_historical_environment() const {
+        detail::FfiString s(thetadatadx_config_get_historical_environment(handle_.get()));
+        return s.str();
+    }
+
+    /** Target streaming (FPSS) environment carried by this configuration:
+     *  `"PROD"` for the production cluster or `"DEV"` for the dev cluster.
+     *  The streaming and historical environments are selected
+     *  independently; the production / stage / dev presets (and the
+     *  `THETADATA_FPSS_TYPE` dotenv key) set the streaming channel, and
+     *  this is the readback of that selection. Returns an empty string if
+     *  the FFI getter returns null (null handle). */
+    std::string get_streaming_environment() const {
+        detail::FfiString s(thetadatadx_config_get_streaming_environment(handle_.get()));
         return s.str();
     }
 
@@ -3124,41 +3139,71 @@ public:
         return std::move(*this);
     }
 
-    /// Select the target environment by its binding label (`"PROD"` or
-    /// `"STAGE"`, case-insensitive).
-    ClientBuilder& environment(const std::string& environment) & {
-        set_environment(environment);
+    /// Select the historical (MDDS) environment by its binding label
+    /// (`"PROD"` or `"STAGE"`, case-insensitive). The historical and
+    /// streaming channels are chosen independently, so this composes with a
+    /// streaming selection — `.streaming_environment(..).historical_environment(..)`
+    /// keeps both.
+    ClientBuilder& historical_environment(const std::string& environment) & {
+        set_historical_environment(environment);
         return *this;
     }
-    ClientBuilder&& environment(const std::string& environment) && {
-        set_environment(environment);
+    ClientBuilder&& historical_environment(const std::string& environment) && {
+        set_historical_environment(environment);
         return std::move(*this);
     }
 
-    /// Target the staging cluster.
+    /// Select the streaming (FPSS) environment by its binding label
+    /// (`"PROD"` or `"DEV"`, case-insensitive). Composes with a historical
+    /// selection.
+    ClientBuilder& streaming_environment(const std::string& environment) & {
+        set_streaming_environment(environment);
+        return *this;
+    }
+    ClientBuilder&& streaming_environment(const std::string& environment) && {
+        set_streaming_environment(environment);
+        return std::move(*this);
+    }
+
+    /// Target the historical staging cluster (streaming stays on
+    /// production). Shorthand for `historical_environment("STAGE")`.
     ClientBuilder& stage() & {
-        set_environment_kind(EnvKind::Stage);
+        select_historical(HistoricalKind::Stage);
         return *this;
     }
     ClientBuilder&& stage() && {
-        set_environment_kind(EnvKind::Stage);
+        select_historical(HistoricalKind::Stage);
         return std::move(*this);
     }
 
-    /// Target the production cluster (the default).
+    /// Target the streaming dev-replay cluster (historical stays on
+    /// production). Shorthand for `streaming_environment("DEV")`.
+    ClientBuilder& dev() & {
+        select_streaming(StreamingKind::Dev);
+        return *this;
+    }
+    ClientBuilder&& dev() && {
+        select_streaming(StreamingKind::Dev);
+        return std::move(*this);
+    }
+
+    /// Target production on both channels (the default).
     ClientBuilder& production() & {
-        set_environment_kind(EnvKind::Production);
+        select_historical(HistoricalKind::Production);
+        select_streaming(StreamingKind::Production);
         return *this;
     }
     ClientBuilder&& production() && {
-        set_environment_kind(EnvKind::Production);
+        select_historical(HistoricalKind::Production);
+        select_streaming(StreamingKind::Production);
         return std::move(*this);
     }
 
-    /// Use a fully built `Config` verbatim. The config and the environment
-    /// setters resolve in call order, last one wins: this config replaces
-    /// an earlier `stage()` / `production()` selection, and a later
-    /// `stage()` / `production()` call replaces this config.
+    /// Use a fully built `Config` verbatim. The config and the per-channel
+    /// environment setters resolve in call order, last one wins: this config
+    /// replaces an earlier `stage()` / `dev()` / `production()` /
+    /// `historical_environment(..)` / `streaming_environment(..)` selection,
+    /// and a later such preset setter replaces this config.
     ClientBuilder& config(Config cfg) & {
         set_config(std::move(cfg));
         return *this;
@@ -3240,7 +3285,21 @@ private:
         CredentialsFile,
         Prebuilt,
     };
-    enum class EnvKind { Default, Production, Stage, Config, Dotenv };
+    /// Environment SOURCE mode. `Preset` composes the per-channel
+    /// selections below on top of the production defaults; `Config` uses a
+    /// caller-supplied `Config` verbatim; `Dotenv` reads the environment
+    /// from a `.env` file at connect time. The source and the per-channel
+    /// preset setters resolve in call order, last one wins on the kind:
+    /// a later `config()` / `from_dotenv()` replaces a preset selection,
+    /// and a later preset setter (`stage()` / `dev()` /
+    /// `historical_environment(..)` / `streaming_environment(..)`) replaces
+    /// a `config()` / `from_dotenv()` source.
+    enum class EnvKind { Preset, Config, Dotenv };
+
+    /// Per-channel preset selections, mirroring the independent historical
+    /// (MDDS) and streaming (FPSS) channels. Both default to production.
+    enum class HistoricalKind { Production, Stage };
+    enum class StreamingKind { Production, Dev };
 
     /// Record an auth source, rejecting a second different one. Re-stating
     /// the same kind overwrites; a different kind latches a conflict that
@@ -3266,18 +3325,27 @@ private:
         }
     }
 
-    /// Store a fully built `Config`, selecting the verbatim-config
-    /// environment.
+    /// Store a fully built `Config`, selecting the verbatim-config source.
     void set_config(Config cfg) {
         env_kind_ = EnvKind::Config;
         detail::secure_wipe(env_path_);
         config_ = std::make_shared<Config>(std::move(cfg));
     }
 
-    /// Store a symbolic environment selector (`"PROD"` / `"STAGE"`),
-    /// rejecting anything else as a client-construction config error.
-    void set_environment(const std::string& environment) {
-        set_environment_kind(parse_environment_kind(environment));
+    /// Select the historical (MDDS) channel by its string label
+    /// (`"PROD"` / `"STAGE"`), rejecting anything else as a
+    /// client-construction config error. The streaming channel is left
+    /// untouched.
+    void set_historical_environment(const std::string& environment) {
+        select_historical(parse_historical_kind(environment));
+    }
+
+    /// Select the streaming (FPSS) channel by its string label
+    /// (`"PROD"` / `"DEV"`), rejecting anything else as a
+    /// client-construction config error. The historical channel is left
+    /// untouched.
+    void set_streaming_environment(const std::string& environment) {
+        select_streaming(parse_streaming_kind(environment));
     }
 
     /// Store a `.env` file as the environment source; the same `path`
@@ -3289,33 +3357,70 @@ private:
         config_.reset();
     }
 
-    /// Switch to one of the preset environment sources, clearing any
-    /// prior verbatim-config or `.env` environment override.
-    void set_environment_kind(EnvKind kind) {
-        env_kind_ = kind;
+    /// Record a historical-channel preset selection, switching the source
+    /// to the preset mode and clearing any prior verbatim-config or `.env`
+    /// override while preserving the streaming-channel selection.
+    void select_historical(HistoricalKind kind) {
+        switch_to_preset();
+        historical_ = kind;
+    }
+
+    /// Record a streaming-channel preset selection, switching the source to
+    /// the preset mode and clearing any prior verbatim-config or `.env`
+    /// override while preserving the historical-channel selection.
+    void select_streaming(StreamingKind kind) {
+        switch_to_preset();
+        streaming_ = kind;
+    }
+
+    /// Switch to the preset environment source, clearing any prior
+    /// verbatim-config or `.env` override. The per-channel selections are
+    /// preserved so `.stage().dev()` composes to historical-staging +
+    /// streaming-dev.
+    void switch_to_preset() {
+        env_kind_ = EnvKind::Preset;
         detail::secure_wipe(env_path_);
         config_.reset();
     }
 
-    /// Parse the C++ binding's string environment representation.
-    static EnvKind parse_environment_kind(const std::string& environment) {
+    /// Trim and upper-case a string environment label.
+    static std::string normalize_label(const std::string& environment) {
         const auto first = environment.find_first_not_of(" \t\r\n");
         if (first == std::string::npos) {
-            detail::throw_config_error("environment must be PROD or STAGE; got empty string");
+            return std::string();
         }
         const auto last = environment.find_last_not_of(" \t\r\n");
         std::string normalized = environment.substr(first, last - first + 1);
         for (char& ch : normalized) {
             ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch)));
         }
+        return normalized;
+    }
+
+    /// Parse a historical (MDDS) channel label (`"PROD"` / `"STAGE"`).
+    static HistoricalKind parse_historical_kind(const std::string& environment) {
+        const std::string normalized = normalize_label(environment);
         if (normalized == "PROD") {
-            return EnvKind::Production;
+            return HistoricalKind::Production;
         }
         if (normalized == "STAGE") {
-            return EnvKind::Stage;
+            return HistoricalKind::Stage;
         }
         detail::throw_config_error(
-            "environment must be PROD or STAGE; got \"" + environment + "\"");
+            "historical environment must be PROD or STAGE; got \"" + environment + "\"");
+    }
+
+    /// Parse a streaming (FPSS) channel label (`"PROD"` / `"DEV"`).
+    static StreamingKind parse_streaming_kind(const std::string& environment) {
+        const std::string normalized = normalize_label(environment);
+        if (normalized == "PROD") {
+            return StreamingKind::Production;
+        }
+        if (normalized == "DEV") {
+            return StreamingKind::Dev;
+        }
+        detail::throw_config_error(
+            "streaming environment must be PROD or DEV; got \"" + environment + "\"");
     }
 
     /// Track the auth-source label so a second, different source can be
@@ -3406,13 +3511,27 @@ private:
                 return std::move(*config_);
             case EnvKind::Dotenv:
                 return Config::from_dotenv(env_path_);
-            case EnvKind::Stage:
-                // The staging preset carries the staging cluster routing.
-                return Config::stage();
-            case EnvKind::Production:
-            case EnvKind::Default:
-            default:
-                return Config::production();
+            case EnvKind::Preset:
+            default: {
+                // Compose the two independently-selected channels on top of
+                // the production defaults, mirroring the Rust builder: the
+                // historical and streaming environments are applied in turn,
+                // so any combination (including historical-staging +
+                // streaming-dev) is reachable. A channel left on production
+                // is a no-op.
+                Config cfg = Config::production();
+                if (historical_ == HistoricalKind::Stage) {
+                    if (thetadatadx_config_with_historical_environment(cfg.get(), 1) != 0) {
+                        detail::throw_last_ffi_error();
+                    }
+                }
+                if (streaming_ == StreamingKind::Dev) {
+                    if (thetadatadx_config_with_streaming_environment(cfg.get(), 1) != 0) {
+                        detail::throw_last_ffi_error();
+                    }
+                }
+                return cfg;
+            }
         }
     }
 
@@ -3421,7 +3540,9 @@ private:
     std::string auth_b_;
     std::shared_ptr<Credentials> prebuilt_;
 
-    EnvKind env_kind_ = EnvKind::Default;
+    EnvKind env_kind_ = EnvKind::Preset;
+    HistoricalKind historical_ = HistoricalKind::Production;
+    StreamingKind streaming_ = StreamingKind::Production;
     std::string env_path_;
     std::shared_ptr<Config> config_;
 

@@ -1083,10 +1083,31 @@ ThetaDataDxConfig* thetadatadx_config_production(void);
  *          thetadatadx_config_free. */
 ThetaDataDxConfig* thetadatadx_config_dev(void);
 
-/** Create a stage streaming config (port 20100, testing, unstable).
+/** Create a historical-staging config (MDDS staging cluster + auth marker;
+ *  streaming stays on production). Testing, unstable.
  *  @return Heap-owned ThetaDataDxConfig the caller must release with
  *          thetadatadx_config_free. */
 ThetaDataDxConfig* thetadatadx_config_stage(void);
+
+/** Select the historical (MDDS) environment on a config handle in place:
+ *  kind 0 = production, kind 1 = staging. The historical and streaming
+ *  channels are selected independently, so this leaves the streaming
+ *  channel untouched.
+ *  @param config Config handle to mutate.
+ *  @param kind 0 for PROD, 1 for STAGE.
+ *  @return 0 on success, or -1 on error (config is null, or kind is
+ *          outside {0, 1}); check thetadatadx_last_error(). */
+int32_t thetadatadx_config_with_historical_environment(ThetaDataDxConfig* config, int32_t kind);
+
+/** Select the streaming (FPSS) environment on a config handle in place:
+ *  kind 0 = production, kind 1 = dev. The streaming and historical
+ *  channels are selected independently, so this leaves the historical
+ *  channel and the auth marker untouched.
+ *  @param config Config handle to mutate.
+ *  @param kind 0 for PROD, 1 for DEV.
+ *  @return 0 on success, or -1 on error (config is null, or kind is
+ *          outside {0, 1}); check thetadatadx_last_error(). */
+int32_t thetadatadx_config_with_streaming_environment(ThetaDataDxConfig* config, int32_t kind);
 
 /** Source a config from a .env-format file. Starts from the production
  *  configuration and applies the cluster keys carried by the file:
@@ -1885,15 +1906,28 @@ int thetadatadx_config_set_flush_mode(ThetaDataDxConfig* config, int mode);
 int32_t thetadatadx_config_get_flush_mode(const ThetaDataDxConfig* config, int32_t* out_mode);
 
 /**
- * Read the target server environment carried by the config: "PROD" for
- * the production cluster, "STAGE" for staging, or "DEV" for the dev
- * cluster. Set as a unit by the production / stage / dev presets (and the
- * THETADATA_MDDS_TYPE dotenv key); this is the readback of that selection.
+ * Read the historical (MDDS) environment carried by the config: "PROD"
+ * for the production cluster or "STAGE" for staging. The historical and
+ * streaming environments are selected independently; the production /
+ * stage / dev presets (and the THETADATA_MDDS_TYPE dotenv key) set the
+ * historical channel, and this is the readback of that selection.
  * @param config Config handle to read.
  * @return A heap-owned NUL-terminated C string the caller MUST free with
  *         thetadatadx_string_free, or NULL if config is null.
  */
-char* thetadatadx_config_get_environment(const ThetaDataDxConfig* config);
+char* thetadatadx_config_get_historical_environment(const ThetaDataDxConfig* config);
+
+/**
+ * Read the streaming (FPSS) environment carried by the config: "PROD" for
+ * the production cluster or "DEV" for the dev cluster. The streaming and
+ * historical environments are selected independently; the production /
+ * stage / dev presets (and the THETADATA_FPSS_TYPE dotenv key) set the
+ * streaming channel, and this is the readback of that selection.
+ * @param config Config handle to read.
+ * @return A heap-owned NUL-terminated C string the caller MUST free with
+ *         thetadatadx_string_free, or NULL if config is null.
+ */
+char* thetadatadx_config_get_streaming_environment(const ThetaDataDxConfig* config);
 
 /* Streaming wait-strategy preset selectors for
  * thetadatadx_config_set_wait_strategy / _get_wait_strategy. */

@@ -37,7 +37,7 @@ use zeroize::Zeroizing;
 
 use crate::auth::Credentials;
 use crate::client::Client;
-use crate::config::{DirectConfig, Environment};
+use crate::config::{DirectConfig, HistoricalEnvironment, StreamingEnvironment};
 use crate::error::Error;
 
 /// How the builder will source the authentication credential.
@@ -126,12 +126,17 @@ impl AuthSource {
 enum EnvSource {
     /// No environment selected — default to [`DirectConfig::production`].
     Default,
-    /// Select a [`DirectConfig`] preset for the given [`Environment`].
-    Environment { environment: Environment },
+    /// Select per-channel environments on top of [`DirectConfig::production`].
+    /// Either channel may be left unset (production); the historical and
+    /// streaming channels are chosen independently.
+    Environment {
+        historical: Option<HistoricalEnvironment>,
+        streaming: Option<StreamingEnvironment>,
+    },
     /// Use a caller-supplied [`DirectConfig`] verbatim. The config and
     /// environment setters resolve in call order, last one wins: a later
-    /// `.environment()` / `.stage()` / `.production()` replaces this
-    /// config, and this config replaces an earlier environment selection.
+    /// environment setter replaces this config, and this config replaces an
+    /// earlier environment selection.
     Config { config: Box<DirectConfig> },
     /// Source the environment from a `.env`-format file at connect time,
     /// via [`DirectConfig::from_dotenv`].
@@ -143,11 +148,43 @@ impl EnvSource {
     fn resolve(self) -> Result<DirectConfig, Error> {
         match self {
             EnvSource::Default => Ok(DirectConfig::production()),
-            EnvSource::Environment { environment } => {
-                Ok(DirectConfig::production().with_environment(environment))
+            EnvSource::Environment {
+                historical,
+                streaming,
+            } => {
+                let mut config = DirectConfig::production();
+                if let Some(env) = historical {
+                    config = config.with_historical_environment(env);
+                }
+                if let Some(env) = streaming {
+                    config = config.with_streaming_environment(env);
+                }
+                Ok(config)
             }
             EnvSource::Config { config } => Ok(*config),
             EnvSource::DotenvFile { path } => DirectConfig::from_dotenv(path),
+        }
+    }
+
+    /// Fold a per-channel selection into the current source, preserving any
+    /// already-selected channel so `.stage().dev()` composes to
+    /// historical-staging + streaming-dev. A `Config` / `DotenvFile` source is
+    /// replaced (last-setter-wins on the kind), matching the prior behavior.
+    fn with_channel(
+        self,
+        historical: Option<HistoricalEnvironment>,
+        streaming: Option<StreamingEnvironment>,
+    ) -> Self {
+        let (prev_h, prev_s) = match self {
+            EnvSource::Environment {
+                historical,
+                streaming,
+            } => (historical, streaming),
+            _ => (None, None),
+        };
+        EnvSource::Environment {
+            historical: historical.or(prev_h),
+            streaming: streaming.or(prev_s),
         }
     }
 }
@@ -254,24 +291,45 @@ impl ClientBuilder {
 
     // ─── Environment setters (optional, default production) ───────────
 
-    /// Select the target server [`Environment`]. Equivalent to the
-    /// `THETADATA_MDDS_TYPE` env var and to
-    /// [`DirectConfig::with_environment`].
-    pub fn environment(mut self, environment: Environment) -> Self {
-        self.env = EnvSource::Environment { environment };
+    /// Select the historical (MDDS) [`HistoricalEnvironment`]. Equivalent to
+    /// the `THETADATA_MDDS_TYPE` env var and to
+    /// [`DirectConfig::with_historical_environment`]. Composes with a streaming
+    /// selection — `.streaming_environment(..).historical_environment(..)`
+    /// keeps both.
+    pub fn historical_environment(mut self, environment: HistoricalEnvironment) -> Self {
+        self.env = self.env.with_channel(Some(environment), None);
         self
     }
 
-    /// Target the staging cluster. Shorthand for
-    /// `.environment(Environment::Stage)`.
-    pub fn stage(self) -> Self {
-        self.environment(Environment::Stage)
+    /// Select the streaming (FPSS) [`StreamingEnvironment`]. Equivalent to the
+    /// `THETADATA_FPSS_TYPE` env var and to
+    /// [`DirectConfig::with_streaming_environment`]. Composes with a historical
+    /// selection.
+    pub fn streaming_environment(mut self, environment: StreamingEnvironment) -> Self {
+        self.env = self.env.with_channel(None, Some(environment));
+        self
     }
 
-    /// Target the production cluster (the default). Shorthand for
-    /// `.environment(Environment::Prod)`.
+    /// Target the historical staging cluster (streaming stays on production).
+    /// Shorthand for `.historical_environment(HistoricalEnvironment::Stage)`;
+    /// matches [`DirectConfig::stage`].
+    pub fn stage(self) -> Self {
+        self.historical_environment(HistoricalEnvironment::Stage)
+    }
+
+    /// Target the streaming dev-replay cluster (historical stays on
+    /// production). Shorthand for
+    /// `.streaming_environment(StreamingEnvironment::Dev)`; matches
+    /// [`DirectConfig::dev`].
+    pub fn dev(self) -> Self {
+        self.streaming_environment(StreamingEnvironment::Dev)
+    }
+
+    /// Target production on both channels (the default). Shorthand for
+    /// selecting [`HistoricalEnvironment::Prod`] + [`StreamingEnvironment::Prod`].
     pub fn production(self) -> Self {
-        self.environment(Environment::Prod)
+        self.historical_environment(HistoricalEnvironment::Prod)
+            .streaming_environment(StreamingEnvironment::Prod)
     }
 
     /// Use a fully built [`DirectConfig`] verbatim.
@@ -419,7 +477,8 @@ mod tests {
         let (creds, config) = resolve(ClientBuilder::new().api_key("  td1_example  ")).unwrap();
         assert!(creds.is_api_key());
         assert_eq!(creds.api_key_secret(), Some("td1_example"));
-        assert_eq!(config.environment(), Environment::Prod);
+        assert_eq!(config.historical_environment(), HistoricalEnvironment::Prod);
+        assert_eq!(config.streaming_environment(), StreamingEnvironment::Prod);
     }
 
     #[test]
@@ -432,10 +491,35 @@ mod tests {
     }
 
     #[test]
-    fn stage_selects_stage_environment() {
+    fn stage_selects_historical_staging_only() {
         let (_, config) = resolve(ClientBuilder::new().api_key("k").stage()).unwrap();
-        assert_eq!(config.environment(), Environment::Stage);
+        assert_eq!(
+            config.historical_environment(),
+            HistoricalEnvironment::Stage
+        );
         assert_eq!(config.historical_host(), "mdds-stage.thetadata.us");
+        // Streaming stays on production — `stage()` is historical-only.
+        assert_eq!(config.streaming_environment(), StreamingEnvironment::Prod);
+    }
+
+    #[test]
+    fn dev_selects_streaming_dev_only() {
+        let (_, config) = resolve(ClientBuilder::new().api_key("k").dev()).unwrap();
+        assert_eq!(config.streaming_environment(), StreamingEnvironment::Dev);
+        // Historical stays on production — `dev()` is streaming-only.
+        assert_eq!(config.historical_environment(), HistoricalEnvironment::Prod);
+    }
+
+    #[test]
+    fn per_channel_selectors_compose() {
+        // `.stage().dev()` selects historical-staging AND streaming-dev — the
+        // two channels are independent and both selections survive.
+        let (_, config) = resolve(ClientBuilder::new().api_key("k").stage().dev()).unwrap();
+        assert_eq!(
+            config.historical_environment(),
+            HistoricalEnvironment::Stage
+        );
+        assert_eq!(config.streaming_environment(), StreamingEnvironment::Dev);
     }
 
     #[test]
@@ -443,10 +527,12 @@ mod tests {
         let (_, config) = resolve(
             ClientBuilder::new()
                 .api_key("k")
-                .environment(Environment::Prod),
+                .historical_environment(HistoricalEnvironment::Prod)
+                .streaming_environment(StreamingEnvironment::Prod),
         )
         .unwrap();
-        assert_eq!(config.environment(), Environment::Prod);
+        assert_eq!(config.historical_environment(), HistoricalEnvironment::Prod);
+        assert_eq!(config.streaming_environment(), StreamingEnvironment::Prod);
     }
 
     #[test]
@@ -460,7 +546,7 @@ mod tests {
                 .config(DirectConfig::production()),
         )
         .unwrap();
-        assert_eq!(config.environment(), Environment::Prod);
+        assert_eq!(config.historical_environment(), HistoricalEnvironment::Prod);
     }
 
     #[test]

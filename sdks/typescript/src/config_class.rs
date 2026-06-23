@@ -79,7 +79,8 @@ impl Config {
         }
     }
 
-    /// Stage streaming config (port 20100, unstable testing servers).
+    /// Historical-staging config (MDDS staging cluster + auth marker; streaming
+    /// stays on production). Unstable testing servers.
     #[napi(factory)]
     pub fn stage() -> Self {
         Self {
@@ -910,10 +911,7 @@ impl Config {
     /// like the other wide streaming knobs: `setStreamingRingSize(BigInt(131072))`.
     /// Default `131_072`.
     #[napi(js_name = "setStreamingRingSize")]
-    pub fn set_streaming_ring_size(
-        &self,
-        n: napi::bindgen_prelude::BigInt,
-    ) -> napi::Result<()> {
+    pub fn set_streaming_ring_size(&self, n: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
         let value = bigint_to_u64("setStreamingRingSize", &n)?;
         let value = usize::try_from(value).map_err(|_| {
             crate::invalid_parameter_err(format!(
@@ -1585,19 +1583,36 @@ impl Config {
         })
     }
 
-    /// Target server environment carried by this configuration: `"PROD"`
-    /// for the production cluster, `"STAGE"` for staging. Set as a unit by
-    /// `Config.production()` / `Config.stage()` (and by the
-    /// `THETADATA_MDDS_TYPE` key on `Config.fromDotenv`); this is the
-    /// readback of that selection. Mirrors the `mddsType` string the inline
-    /// `Client.connectWith` factory accepts.
-    #[napi(getter, js_name = "environment")]
-    pub fn environment(&self) -> napi::Result<&'static str> {
+    /// Target historical (MDDS) environment carried by this configuration:
+    /// `"PROD"` for the production cluster or `"STAGE"` for staging. The
+    /// historical and streaming channels are selected independently;
+    /// `Config.production()` / `Config.stage()` (and the
+    /// `THETADATA_MDDS_TYPE` key on `Config.fromDotenv`) set the historical
+    /// channel, and this is the readback of that selection. Mirrors the
+    /// `mddsType` string the inline `Client.connectWith` factory accepts.
+    #[napi(getter, js_name = "historicalEnvironment")]
+    pub fn historical_environment(&self) -> napi::Result<&'static str> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.environment().as_str())
+        Ok(guard.historical_environment().as_str())
+    }
+
+    /// Target streaming (FPSS) environment carried by this configuration:
+    /// `"PROD"` for the production cluster or `"DEV"` for the dev cluster.
+    /// The streaming and historical channels are selected independently;
+    /// `Config.production()` / `Config.dev()` (and the
+    /// `THETADATA_FPSS_TYPE` key on `Config.fromDotenv`) set the streaming
+    /// channel, and this is the readback of that selection. Mirrors the
+    /// `fpssType` string the inline `Client.connectWith` factory accepts.
+    #[napi(getter, js_name = "streamingEnvironment")]
+    pub fn streaming_environment(&self) -> napi::Result<&'static str> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.streaming_environment().as_str())
     }
 
     /// Set the streaming event-ring consumer wait strategy — the

@@ -231,10 +231,15 @@ pub struct ClientConnectOptions {
     /// Path to a two-line `creds.txt` file (line 1 = email, line 2 =
     /// password).
     pub credentials_file: Option<String>,
-    /// Target environment selector (`"PROD"` / `"STAGE"`,
-    /// case-insensitive). Defaults to production. For full host-level
+    /// Historical (MDDS) environment selector (`"PROD"` / `"STAGE"`,
+    /// case-insensitive). Defaults to production. The historical and
+    /// streaming channels are selected independently. For full host-level
     /// control, build a `Config` and use `Client.connect(creds, config)`.
     pub mdds_type: Option<String>,
+    /// Streaming (FPSS) environment selector (`"PROD"` / `"DEV"`,
+    /// case-insensitive). Defaults to production. Selected independently of
+    /// the historical channel.
+    pub fpss_type: Option<String>,
 }
 
 impl ClientConnectOptions {
@@ -249,6 +254,7 @@ impl ClientConnectOptions {
             password,
             credentials_file,
             mdds_type,
+            fpss_type,
         } = self;
 
         // Count the distinct auth methods. `email` + `password` together
@@ -303,17 +309,27 @@ impl ClientConnectOptions {
             return Err(config_option_err("no authentication field set"));
         };
 
-        let cfg = match mdds_type.as_deref() {
-            None => config::DirectConfig::production(),
-            Some(raw) => {
-                let environment = config::Environment::parse(raw).ok_or_else(|| {
-                    config_option_err(format!(
-                        "mddsType must be \"PROD\" or \"STAGE\" (case-insensitive); got {raw:?}"
-                    ))
-                })?;
-                config::DirectConfig::production().with_environment(environment)
-            }
-        };
+        // The historical (MDDS) and streaming (FPSS) channels are selected
+        // independently on top of the production defaults; either absent
+        // keeps that channel on production. An unrecognized value is a
+        // config error naming the valid set, never a silent fallback.
+        let mut cfg = config::DirectConfig::production();
+        if let Some(raw) = mdds_type.as_deref() {
+            let environment = config::HistoricalEnvironment::parse(raw).ok_or_else(|| {
+                config_option_err(format!(
+                    "mddsType must be \"PROD\" or \"STAGE\" (case-insensitive); got {raw:?}"
+                ))
+            })?;
+            cfg = cfg.with_historical_environment(environment);
+        }
+        if let Some(raw) = fpss_type.as_deref() {
+            let environment = config::StreamingEnvironment::parse(raw).ok_or_else(|| {
+                config_option_err(format!(
+                    "fpssType must be \"PROD\" or \"DEV\" (case-insensitive); got {raw:?}"
+                ))
+            })?;
+            cfg = cfg.with_streaming_environment(environment);
+        }
 
         Ok((creds, cfg))
     }
@@ -822,9 +838,11 @@ impl Client {
     /// `apiKeyFromEnv`, `apiKeyFromDotenv`, the `email` + `password` pair,
     /// or `credentialsFile`. Passing none, or two different ones, rejects
     /// with a `ConfigError` before any network round-trip. `mddsType`
-    /// (`"PROD"` / `"STAGE"`, case-insensitive) selects the environment.
-    /// For a pre-built full `Config` (or a pre-built `Credentials` handle),
-    /// use [`Client::connect`], which takes both.
+    /// (`"PROD"` / `"STAGE"`, case-insensitive) selects the historical
+    /// environment and `fpssType` (`"PROD"` / `"DEV"`, case-insensitive)
+    /// the streaming environment, independently. For a pre-built full
+    /// `Config` (or a pre-built `Credentials` handle), use
+    /// [`Client::connect`], which takes both.
     ///
     /// `async` for the same reason as [`Client::connect`].
     #[napi(js_name = "connectWith")]
@@ -1305,6 +1323,7 @@ mod connect_options_tests {
             password: None,
             credentials_file: None,
             mdds_type: None,
+            fpss_type: None,
         }
     }
 
@@ -1317,7 +1336,14 @@ mod connect_options_tests {
         let (creds, cfg) = opts.resolve().expect("api_key resolves");
         assert!(creds.is_api_key());
         assert_eq!(creds.api_key_secret(), Some("td1_example"));
-        assert_eq!(cfg.environment(), config::Environment::Prod);
+        assert_eq!(
+            cfg.historical_environment(),
+            config::HistoricalEnvironment::Prod
+        );
+        assert_eq!(
+            cfg.streaming_environment(),
+            config::StreamingEnvironment::Prod
+        );
     }
 
     #[test]
@@ -1331,7 +1357,34 @@ mod connect_options_tests {
         let (creds, cfg) = opts.resolve().expect("email/password resolves");
         assert!(!creds.is_api_key());
         assert_eq!(creds.email(), Some("you@example.com"));
-        assert_eq!(cfg.environment(), config::Environment::Stage);
+        // mddsType selects only the historical channel; streaming stays prod.
+        assert_eq!(
+            cfg.historical_environment(),
+            config::HistoricalEnvironment::Stage
+        );
+        assert_eq!(
+            cfg.streaming_environment(),
+            config::StreamingEnvironment::Prod
+        );
+    }
+
+    #[test]
+    fn fpss_type_dev_selects_only_the_streaming_channel() {
+        let opts = ClientConnectOptions {
+            api_key: Some("td1_example".to_string()),
+            fpss_type: Some("dev".to_string()),
+            ..empty()
+        };
+        let (_creds, cfg) = opts.resolve().expect("fpssType resolves");
+        // fpssType selects only the streaming channel; historical stays prod.
+        assert_eq!(
+            cfg.historical_environment(),
+            config::HistoricalEnvironment::Prod
+        );
+        assert_eq!(
+            cfg.streaming_environment(),
+            config::StreamingEnvironment::Dev
+        );
     }
 
     #[test]
@@ -1372,6 +1425,20 @@ mod connect_options_tests {
             Err(e) => e.reason.clone(),
         };
         assert!(msg.contains("mddsType"), "got: {msg}");
+    }
+
+    #[test]
+    fn bad_fpss_type_is_an_error() {
+        let opts = ClientConnectOptions {
+            api_key: Some("k".to_string()),
+            fpss_type: Some("nope".to_string()),
+            ..empty()
+        };
+        let msg = match opts.resolve() {
+            Ok(_) => panic!("expected an fpssType parse error"),
+            Err(e) => e.reason.clone(),
+        };
+        assert!(msg.contains("fpssType"), "got: {msg}");
     }
 
     #[test]

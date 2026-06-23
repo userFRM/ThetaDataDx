@@ -84,17 +84,18 @@ consumer_cpu = -1
 # (Credentials::from_file("creds.txt") or Credentials::new(email, password))
 # passed to the client constructor. They are not part of this tuning config.
 
+# ── Environment selection ────────────────────────────────────────────────────
+# The historical (MDDS) and streaming (FPSS) channels are selected
+# independently via environment variables, each PROD by default:
+#   THETADATA_MDDS_TYPE = "prod" | "stage"  — historical cluster + auth marker
+#   THETADATA_FPSS_TYPE = "prod" | "dev"    — streaming cluster only
+# There is no streaming staging cluster; historical staging leaves streaming on
+# production. `stage` (historical) is less stable than production and reboots
+# often.
+
 # ── Alternate Server Regions ─────────────────────────────────────────────────
-# Uncomment to use staging or dev servers. These are NOT stable.
-
-# [streaming]
-# hosts = [
-#     "nj-a.thetadata.us:20100",
-#     "test-server.thetadata.us:20100",
-#     "test-server.thetadata.us:20101",
-# ]
-
-# Dev servers (frequent reboots, replays historical data):
+# Dev streaming servers (frequent reboots, replays historical data). Selected
+# with THETADATA_FPSS_TYPE=dev; uncomment to pin the dev hosts in this file.
 # [streaming]
 # hosts = [
 #     "nj-a.thetadata.us:20200",

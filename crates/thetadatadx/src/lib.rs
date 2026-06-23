@@ -273,9 +273,9 @@ pub use backoff::JitterMode;
 pub use client::{Client, ConnectionStatus, FlatFiles, StreamSurface, SubscriptionInfo};
 pub use client_builder::ClientBuilder;
 pub use config::{
-    DirectConfig, Environment, FlatFilesConfig, HostSelectionPolicy, ReconnectAttemptClass,
-    ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig, StreamingFlushMode,
-    StreamingWaitStrategy,
+    DirectConfig, FlatFilesConfig, HistoricalEnvironment, HostSelectionPolicy,
+    ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig,
+    StreamingEnvironment, StreamingFlushMode, StreamingWaitStrategy,
 };
 pub use error::{
     AuthErrorKind, ConfigErrorKind, DecodeErrorKind, DecompressErrorKind, Error, GrpcStatusKind,

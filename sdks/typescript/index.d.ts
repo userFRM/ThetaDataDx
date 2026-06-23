@@ -68,9 +68,11 @@ export declare class Client {
    * `apiKeyFromEnv`, `apiKeyFromDotenv`, the `email` + `password` pair,
    * or `credentialsFile`. Passing none, or two different ones, rejects
    * with a `ConfigError` before any network round-trip. `mddsType`
-   * (`"PROD"` / `"STAGE"`, case-insensitive) selects the environment.
-   * For a pre-built full `Config` (or a pre-built `Credentials` handle),
-   * use [`Client::connect`], which takes both.
+   * (`"PROD"` / `"STAGE"`, case-insensitive) selects the historical
+   * environment and `fpssType` (`"PROD"` / `"DEV"`, case-insensitive)
+   * the streaming environment, independently. For a pre-built full
+   * `Config` (or a pre-built `Credentials` handle), use
+   * [`Client::connect`], which takes both.
    *
    * `async` for the same reason as [`Client::connect`].
    */
@@ -106,7 +108,10 @@ export declare class Config {
   static production(): Config
   /** Dev streaming config (port 20200, infinite historical replay). */
   static dev(): Config
-  /** Stage streaming config (port 20100, unstable testing servers). */
+  /**
+   * Historical-staging config (MDDS staging cluster + auth marker; streaming
+   * stays on production). Unstable testing servers.
+   */
   static stage(): Config
   /**
    * Source the target environment from a `.env`-format file.
@@ -561,14 +566,25 @@ export declare class Config {
    */
   get flushMode(): string
   /**
-   * Target server environment carried by this configuration: `"PROD"`
-   * for the production cluster, `"STAGE"` for staging. Set as a unit by
-   * `Config.production()` / `Config.stage()` (and by the
-   * `THETADATA_MDDS_TYPE` key on `Config.fromDotenv`); this is the
-   * readback of that selection. Mirrors the `mddsType` string the inline
-   * `Client.connectWith` factory accepts.
+   * Target historical (MDDS) environment carried by this configuration:
+   * `"PROD"` for the production cluster or `"STAGE"` for staging. The
+   * historical and streaming channels are selected independently;
+   * `Config.production()` / `Config.stage()` (and the
+   * `THETADATA_MDDS_TYPE` key on `Config.fromDotenv`) set the historical
+   * channel, and this is the readback of that selection. Mirrors the
+   * `mddsType` string the inline `Client.connectWith` factory accepts.
    */
-  get environment(): string
+  get historicalEnvironment(): string
+  /**
+   * Target streaming (FPSS) environment carried by this configuration:
+   * `"PROD"` for the production cluster or `"DEV"` for the dev cluster.
+   * The streaming and historical channels are selected independently;
+   * `Config.production()` / `Config.dev()` (and the
+   * `THETADATA_FPSS_TYPE` key on `Config.fromDotenv`) set the streaming
+   * channel, and this is the readback of that selection. Mirrors the
+   * `fpssType` string the inline `Client.connectWith` factory accepts.
+   */
+  get streamingEnvironment(): string
   /**
    * Set the streaming event-ring consumer wait strategy — the
    * latency-vs-CPU knob applied on each ring-empty poll.
@@ -3310,11 +3326,18 @@ export interface ClientConnectOptions {
    */
   credentialsFile?: string
   /**
-   * Target environment selector (`"PROD"` / `"STAGE"`,
-   * case-insensitive). Defaults to production. For full host-level
+   * Historical (MDDS) environment selector (`"PROD"` / `"STAGE"`,
+   * case-insensitive). Defaults to production. The historical and
+   * streaming channels are selected independently. For full host-level
    * control, build a `Config` and use `Client.connect(creds, config)`.
    */
   mddsType?: string
+  /**
+   * Streaming (FPSS) environment selector (`"PROD"` / `"DEV"`,
+   * case-insensitive). Defaults to production. Selected independently of
+   * the historical channel.
+   */
+  fpssType?: string
 }
 
 /** FPSS server connection ack (wire code 4). Carries no payload. */

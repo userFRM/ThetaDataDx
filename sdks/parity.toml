@@ -1784,19 +1784,33 @@ python = true
 typescript = true
 cpp = true
 
-# `environment` is the target-server readback: the production / stage /
-# dev presets (and the `THETADATA_MDDS_TYPE` dotenv key) set the cluster
-# selector as a unit, and this getter reads it back as a `"PROD"` /
-# `"STAGE"` / `"DEV"` string, the same selector spelling the inline client
-# takes as `mddsType` / `mdds_type`. Exposed on every binding: Python
-# (`Config.environment` property), TypeScript (`Config.environment`
-# getter), C++ (`Config::get_environment()` over the FFI
-# `thetadatadx_config_get_environment` symbol). There is no matching
-# setter row: the selector is chosen by the `production` / `stage`
-# factories, not a free-standing field write.
+# The historical (MDDS) and streaming (FPSS) environments are read back
+# through two independent getters. The two channels are selected
+# independently: the production / stage / dev presets (and the
+# `THETADATA_MDDS_TYPE` / `THETADATA_FPSS_TYPE` dotenv keys) set each
+# channel, and these getters read each one back. `historicalEnvironment`
+# reads a `"PROD"` / `"STAGE"` string, the same selector spelling the
+# inline client takes as `mddsType` / `mdds_type`; `streamingEnvironment`
+# reads a `"PROD"` / `"DEV"` string, matching `fpssType` / `fpss_type`.
+# Each is exposed on every binding: Python (`Config.historical_environment`
+# / `Config.streaming_environment` properties), TypeScript
+# (`Config.historicalEnvironment` / `Config.streamingEnvironment`
+# getters), C++ (`Config::get_historical_environment()` /
+# `Config::get_streaming_environment()` over the FFI
+# `thetadatadx_config_get_historical_environment` /
+# `thetadatadx_config_get_streaming_environment` symbols). There is no
+# matching setter row: each selector is chosen by the `production` /
+# `stage` / `dev` factories, not a free-standing field write.
 [[method]]
 class = "Config"
-name = "environment"
+name = "historicalEnvironment"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "streamingEnvironment"
 python = true
 typescript = true
 cpp = true

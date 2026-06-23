@@ -1439,6 +1439,7 @@ TYPESCRIPT_CONNECT_WITH_FIELD_ROSTER: frozenset[str] = frozenset(
         "password",
         "credentialsFile",
         "mddsType",
+        "fpssType",
     }
 )
 

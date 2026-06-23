@@ -183,7 +183,7 @@ class Config:
 
     @staticmethod
     def stage() -> Config:
-        """Return the stage configuration (port 20100, testing, unstable)."""
+        """Return the historical-staging configuration (MDDS staging cluster + auth marker; streaming stays on production). Testing, unstable."""
         ...
 
     @staticmethod
@@ -291,8 +291,11 @@ class Config:
     flush_mode: Literal["batched", "immediate"]
     """Streaming write-flush policy. ``"batched"`` (default) flushes on the heartbeat (~100 ms); ``"immediate"`` flushes after every wire write. The setter accepts the same two strings case-insensitively and raises ``ValueError`` otherwise."""
     @property
-    def environment(self) -> Literal["PROD", "STAGE"]:
-        """Target server environment carried by this configuration: ``"PROD"`` for the production cluster, ``"STAGE"`` for staging. Set as a unit by :meth:`Config.production` / :meth:`Config.stage` (and the ``THETADATA_MDDS_TYPE`` key on :meth:`Config.from_dotenv`); this is the readback of that selection. Read-only: the selector is chosen by the environment-tier factories, not assigned directly. Mirrors the ``mdds_type`` string the inline :class:`Client` constructor accepts."""
+    def historical_environment(self) -> Literal["PROD", "STAGE"]:
+        """Target historical (MDDS) environment carried by this configuration: ``"PROD"`` for the production cluster or ``"STAGE"`` for staging. The historical and streaming channels are selected independently; :meth:`Config.production` / :meth:`Config.stage` (and the ``THETADATA_MDDS_TYPE`` key on :meth:`Config.from_dotenv`) set the historical channel, and this is the readback of that selection. Read-only: the selector is chosen by the environment-tier factories, not assigned directly. Mirrors the ``mdds_type`` string the inline :class:`Client` constructor accepts."""
+    @property
+    def streaming_environment(self) -> Literal["PROD", "DEV"]:
+        """Target streaming (FPSS) environment carried by this configuration: ``"PROD"`` for the production cluster or ``"DEV"`` for the dev cluster. The streaming and historical channels are selected independently; :meth:`Config.production` / :meth:`Config.dev` (and the ``THETADATA_FPSS_TYPE`` key on :meth:`Config.from_dotenv`) set the streaming channel, and this is the readback of that selection. Read-only: the selector is chosen by the environment-tier factories, not assigned directly. Mirrors the ``fpss_type`` string the inline :class:`Client` constructor accepts."""
     wait_strategy: Literal["low_latency", "balanced", "efficient", "busy_spin"]
     """Streaming event-ring consumer wait strategy — the latency-vs-CPU knob applied on each ring-empty poll. ``"low_latency"`` (default) never sleeps; ``"balanced"`` parks briefly; ``"efficient"`` parks longer; ``"busy_spin"`` pure-spins and pins a core. The setter accepts the same strings case-insensitively and raises ``ValueError`` otherwise."""
     wait_spin_iters: int
@@ -5307,6 +5310,7 @@ class Client:
         email: Optional[str] = None,
         password: Optional[str] = None,
         mdds_type: Optional[str] = None,
+        fpss_type: Optional[str] = None,
     ) -> Client: ...
 
     def __init__(
@@ -5318,6 +5322,7 @@ class Client:
         email: Optional[str] = None,
         password: Optional[str] = None,
         mdds_type: Optional[str] = None,
+        fpss_type: Optional[str] = None,
     ) -> None:
         """Connect to ThetaData and open the historical channel.
 
@@ -5333,9 +5338,11 @@ class Client:
         the ``email`` + ``password`` pair, or ``credentials``. Passing
         none, or two different ones, raises ``ConfigError`` before any
         network round-trip. ``mdds_type`` (``"PROD"`` / ``"STAGE"``,
-        case-insensitive) selects the environment; ``config`` supplies a
-        full :class:`Config` whose environment and hosts win. Streaming is
-        not started. The call is interruptible with ``Ctrl+C`` if the
+        case-insensitive) selects the historical environment and
+        ``fpss_type`` (``"PROD"`` / ``"DEV"``, case-insensitive) the
+        streaming environment, independently; ``config`` supplies a full
+        :class:`Config` whose environments and hosts win. Streaming is not
+        started. The call is interruptible with ``Ctrl+C`` if the
         handshake stalls.
 
         Args:
@@ -5344,11 +5351,13 @@ class Client:
             api_key: Inline API key.
             email: Inline account email, paired with ``password``.
             password: Inline account password, paired with ``email``.
-            mdds_type: Environment selector (``"PROD"`` / ``"STAGE"``).
+            mdds_type: Historical environment selector (``"PROD"`` / ``"STAGE"``).
+            fpss_type: Streaming environment selector (``"PROD"`` / ``"DEV"``).
 
         Raises:
             ConfigError: If no authentication argument is given, two
-                different ones are given, or ``mdds_type`` is invalid.
+                different ones are given, or ``mdds_type`` / ``fpss_type``
+                is invalid.
             ThetaDataError: If authentication or the connection fails.
         """
         ...
@@ -5358,6 +5367,7 @@ class Client:
         config: Optional[Config] = None,
         *,
         mdds_type: Optional[str] = None,
+        fpss_type: Optional[str] = None,
     ) -> Client:
         """Connect with the API key sourced strictly from the environment.
 
@@ -5369,14 +5379,15 @@ class Client:
         Args:
             config: Connection configuration; defaults to
                 ``Config.production()`` when omitted.
-            mdds_type: Environment selector (``"PROD"`` / ``"STAGE"``).
+            mdds_type: Historical environment selector (``"PROD"`` / ``"STAGE"``).
+            fpss_type: Streaming environment selector (``"PROD"`` / ``"DEV"``).
 
         Returns:
             A connected :class:`Client`.
 
         Raises:
             ConfigError: If ``THETADATA_API_KEY`` is unset or empty, or
-                ``mdds_type`` is invalid.
+                ``mdds_type`` / ``fpss_type`` is invalid.
             ThetaDataError: If the connection fails.
         """
         ...
@@ -5387,23 +5398,27 @@ class Client:
         config: Optional[Config] = None,
         *,
         mdds_type: Optional[str] = None,
+        fpss_type: Optional[str] = None,
     ) -> Client:
-        """Connect with the credential (and optionally the environment)
+        """Connect with the credential (and optionally the environments)
         sourced from a ``.env``-format file.
 
         ``THETADATA_API_KEY`` selects an API key; otherwise
         ``THETADATA_EMAIL`` + ``THETADATA_PASSWORD`` build email +
         password credentials. When ``config`` is omitted the same file is
-        also read for ``THETADATA_MDDS_TYPE``, so one ``.env`` can carry
-        both the credential and the environment. An explicit ``config`` or
-        ``mdds_type`` overrides the file's environment selection.
+        also read for ``THETADATA_MDDS_TYPE`` and ``THETADATA_FPSS_TYPE``,
+        so one ``.env`` can carry both the credential and the
+        environments. An explicit ``config``, ``mdds_type``, or
+        ``fpss_type`` overrides the file's environment selection.
 
         Args:
             path: Path to the ``.env`` file to read.
             config: Connection configuration overriding the file's
                 environment selection.
-            mdds_type: Environment selector (``"PROD"`` / ``"STAGE"``)
-                overriding the file's selection.
+            mdds_type: Historical environment selector (``"PROD"`` /
+                ``"STAGE"``) overriding the file's selection.
+            fpss_type: Streaming environment selector (``"PROD"`` /
+                ``"DEV"``) overriding the file's selection.
 
         Returns:
             A connected :class:`Client`.
