@@ -92,6 +92,17 @@ SERVER_ROUTER_FILES = (
     ROOT / "tools/server/src/flatfile_routes.rs",
 )
 
+# The server CLI is the source of truth for the documented flag defaults.
+# The `#[arg(...)]` attributes on the `struct Args` fields carry each
+# flag's default; the docs render those in a `| --flag | default | ... |`
+# Markdown table. The gate parses the `#[arg(...)]` defaults from this file
+# and asserts the doc-table rows match value-by-value, so a changed server
+# default that the docs don't reflect trips the gate (the same
+# derive-from-source pattern as `flatfile_served_matrix`). A substring
+# check ("25503" appears somewhere) could not catch a default that changed
+# to a value still mentioned elsewhere on the page.
+SERVER_MAIN_RS = ROOT / "tools/server/src/main.rs"
+
 # `.route("/v3/...")` literal. The path string may sit on the same line as
 # `.route(` or wrap onto the next, so `\s*` (which spans newlines) bridges the
 # two. Restricting the capture to `/v3/...` naturally excludes any non-served
@@ -653,6 +664,242 @@ def flatfile_served_matrix() -> dict[str, set[str]]:
     return matrix
 
 
+def _struct_body(text: str, struct_name: str) -> str | None:
+    """Return the `{ ... }` body of `struct <struct_name> { ... }`,
+    brace-balanced. Used to scope the `#[arg(...)]` scan to the CLI args
+    struct so an `#[arg]` on an unrelated type cannot leak in.
+    """
+    header = re.search(rf"struct\s+{re.escape(struct_name)}\s*\{{", text)
+    if not header:
+        return None
+    depth = 1
+    i = header.end()
+    while i < len(text) and depth > 0:
+        c = text[i]
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+        i += 1
+    return text[header.end() : i - 1]
+
+
+def server_arg_defaults() -> dict[str, str | None]:
+    """Derive `{--flag: default}` for every server CLI flag from the
+    `#[arg(...)]` attributes on `struct Args` in `tools/server/src/main.rs`.
+
+    The default is:
+
+    * the `default_value = "X"` string literal, verbatim;
+    * the `default_value_t = N` literal (an integer such as `25503`);
+    * for `default_value_t = <path>::Variant` (a clap `ValueEnum`), the
+      kebab/lower-cased last path segment — clap renders `LogFormat::Text`
+      as `text` with no `#[value(name=...)]` override;
+    * `None` when the field carries no `default_value*` (an `Option<T>` or
+      `bool` flag), meaning the doc-table default cell must be empty.
+
+    The flag long name is clap's snake→kebab derivation of the field name
+    (`http_port` -> `--http-port`). `value_parser = [...]` does not set a
+    default and is ignored.
+    """
+    text = SERVER_MAIN_RS.read_text()
+    body = _struct_body(text, "Args")
+    if body is None:
+        fail(f"{SERVER_MAIN_RS.relative_to(ROOT)} has no `struct Args` body")
+
+    defaults: dict[str, str | None] = {}
+    # Each field is an `#[arg(...)]` attribute followed by `<field>: <type>`.
+    # The attribute arg list can itself contain `[...]` (a
+    # `value_parser = ["production", "dev"]` allow-list) and nested `(...)`,
+    # so the inner span is read with a bracket/paren balance counter — a
+    # naive `#[arg([^\]]*)]` stops at the first `]` inside the value_parser
+    # array and drops the flag (the same inner-delimiter trap the napi
+    # parity collectors hit). After the attribute's closing `]`, the next
+    # identifier before a `:` is the field name.
+    after_field_re = re.compile(r"\s*(?:#\[[^\]]*\]\s*)*([a-z_][a-z0-9_]*)\s*:")
+    for m in re.finditer(r"#\[\s*arg\b", body):
+        i = m.end()
+        while i < len(body) and body[i].isspace():
+            i += 1
+        attr = ""
+        if i < len(body) and body[i] == "(":
+            attr, after = _balanced_paren_span(body, i)
+            if after is None:
+                continue
+        else:
+            after = i
+        # Advance past the attribute's closing `]`.
+        while after < len(body) and body[after] != "]":
+            after += 1
+        after += 1
+        fm = after_field_re.match(body, after)
+        if not fm:
+            continue
+        field = fm.group(1)
+        flag = "--" + field.replace("_", "-")
+        defaults[flag] = _arg_default_from_attr(attr)
+    if not defaults:
+        fail(
+            f"{SERVER_MAIN_RS.relative_to(ROOT)} `struct Args` parsed to no "
+            "`#[arg(...)]` flags"
+        )
+    return defaults
+
+
+def _balanced_paren_span(text: str, open_idx: int) -> tuple[str, int | None]:
+    """Given `open_idx` at a `(`, return `(inner, after)` where `inner` is
+    the balanced content up to the matching `)` and `after` is the index
+    just past that `)`. Tracks `"..."` string literals (with `\\` escapes)
+    and nested `(` / `[` so a `)` or `]` inside a string or a
+    `value_parser = [...]` array does not close the span early. Returns
+    `("", None)` if unbalanced.
+    """
+    depth = 0
+    in_str = False
+    esc = False
+    start = open_idx + 1
+    i = open_idx
+    n = len(text)
+    while i < n:
+        c = text[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+        elif c == '"':
+            in_str = True
+        elif c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+            if depth == 0:
+                return text[start:i], i + 1
+        i += 1
+    return "", None
+
+
+def _arg_default_from_attr(attr: str) -> str | None:
+    """Extract the rendered default from one `#[arg(...)]` inner text, or
+    `None` when the attribute sets no default.
+    """
+    # `default_value = "X"` — string literal verbatim.
+    m = re.search(r'default_value\s*=\s*"([^"]*)"', attr)
+    if m:
+        return m.group(1)
+    # `default_value_t = <expr>`.
+    m = re.search(r"default_value_t\s*=\s*([^,]+)", attr)
+    if m:
+        expr = m.group(1).strip()
+        # A clap `ValueEnum` path (`logging::LogFormat::Text`) renders as
+        # the kebab/lower-cased last segment.
+        if "::" in expr:
+            variant = expr.rsplit("::", 1)[1]
+            return _value_enum_render(variant)
+        # Otherwise a literal (integer like `25503`, or `true`/`false`).
+        return expr
+    return None
+
+
+def _value_enum_render(variant: str) -> str:
+    """Render a clap `ValueEnum` PascalCase variant the way clap does by
+    default: lower-case, words separated by `-` (`OpenInterest` ->
+    `open-interest`, `Text` -> `text`). Matches clap's default
+    `to_possible_value` kebab-casing when no `#[value(name=...)]` override
+    is present.
+    """
+    out: list[str] = []
+    for i, ch in enumerate(variant):
+        if ch.isupper() and i > 0:
+            out.append("-")
+        out.append(ch.lower())
+    return "".join(out)
+
+
+# Markdown flag-table row: `| --flag[ <metavar>] | default | description |`.
+# The first cell may carry a metavar (`--creds <path>`) or pair two flags
+# (`--email / --password`); the default cell may be empty or an em-dash
+# placeholder. The parser below normalises both.
+_FLAG_ROW_RE = re.compile(
+    r"^\|\s*(?P<flags>`[^|]+?`(?:\s*/\s*`[^|]+?`)*)\s*\|"
+    r"\s*(?P<default>[^|]*?)\s*\|",
+    re.MULTILINE,
+)
+_FLAG_CELL_RE = re.compile(r"`(--[a-z][a-z0-9-]*)(?:\s+[^`]*)?`")
+
+
+def _parse_doc_flag_table(text: str) -> dict[str, str | None]:
+    """Parse a Markdown flags table into `{--flag: default-or-None}`.
+
+    Each flag in the first cell (a row may list two, `--email / --password`)
+    maps to the row's default cell. An empty cell or an em-dash / hyphen
+    placeholder (`—` / `-`) means "no default" and maps to `None`. The
+    default literal is unwrapped from surrounding backticks so it compares
+    against the raw `#[arg]` default.
+    """
+    out: dict[str, str | None] = {}
+    for m in _FLAG_ROW_RE.finditer(text):
+        flags = _FLAG_CELL_RE.findall(m.group("flags"))
+        if not flags:
+            continue
+        raw_default = m.group("default").strip()
+        # Strip backticks and treat placeholders as "no default".
+        unwrapped = raw_default.strip("`").strip()
+        default: str | None
+        if unwrapped in ("", "—", "-", "–"):
+            default = None
+        else:
+            default = unwrapped
+        for flag in flags:
+            out[flag] = default
+    return out
+
+
+def check_server_flag_defaults() -> None:
+    """Assert the server flag-default tables in the docs match the
+    `#[arg(...)]` defaults derived from `tools/server/src/main.rs`,
+    value-by-value. A substring check could not catch a default that
+    silently changed to a value still printed elsewhere on the page.
+
+    Both the server README and the docs-site server page carry the table;
+    each is checked. A doc may legitimately omit a flag from its table
+    (e.g. a terse page), so the gate asserts agreement only for the flags a
+    given table DOES document — but a documented flag whose default
+    disagrees with the source, or a documented default for a flag the
+    source says has none (and vice versa), trips.
+    """
+    source_defaults = server_arg_defaults()
+    doc_tables = (
+        ROOT / "tools/server/README.md",
+        DOCS_SITE / "server/index.md",
+    )
+    for doc in doc_tables:
+        if not doc.is_file():
+            fail(f"{doc.relative_to(ROOT)}: server flag-table doc not found")
+        documented = _parse_doc_flag_table(doc.read_text())
+        # The table must document a meaningful subset of the real flags;
+        # if it parsed to nothing, the table shape drifted and the gate is
+        # silently blind — fail loudly.
+        overlap = set(documented) & set(source_defaults)
+        if not overlap:
+            fail(
+                f"{doc.relative_to(ROOT)}: no server flags parsed from the "
+                "flag-default table (the table shape changed — the gate would "
+                "be blind to default drift)"
+            )
+        for flag in sorted(overlap):
+            want = source_defaults[flag]
+            got = documented[flag]
+            if want != got:
+                fail(
+                    f"{doc.relative_to(ROOT)} documents {flag} default as "
+                    f"{got!r}, but `tools/server/src/main.rs` `#[arg]` sets "
+                    f"{want!r}"
+                )
+
+
 def _yaml_block(text: str, header_re: str, *, after: int = 0) -> tuple[str, int]:
     """Return the indented body under the first `header_re` line at/after `after`.
 
@@ -979,8 +1226,135 @@ def check_tier_badges() -> None:
         fail("tier badge check failed (see scripts/ci/check_tier_badges.py output above)")
 
 
+def _selftest() -> int:
+    """Hermetic checks for the server flag-default derivation (G5).
+
+    Drives `server_arg_defaults`, `_parse_doc_flag_table`, and
+    `_value_enum_render` on synthetic inputs:
+
+    * The `#[arg]` parser reads string (`default_value = "x"`), integer
+      (`default_value_t = 25503`), and `ValueEnum` (`default_value_t =
+      LogFormat::Text` -> `text`) defaults, treats a flag with no default
+      as `None`, and — critically — is NOT truncated by a
+      `value_parser = ["a", "b"]` allow-list whose `]` would otherwise
+      close a naive attribute scan (the inner-delimiter bypass).
+    * The Markdown table parser maps `--flag <metavar>` and paired
+      `--a / --b` rows to their default cells, reads an em-dash / empty cell
+      as `None`, and unwraps backticked defaults.
+    * A documented default that disagrees with the source value is caught
+      value-by-value, where a substring scan would miss a default that
+      changed to a value still printed elsewhere.
+    """
+    import tempfile
+
+    global SERVER_MAIN_RS
+    failures: list[str] = []
+
+    # `_value_enum_render`.
+    if _value_enum_render("Text") != "text":
+        failures.append("value-enum: `Text` did not render to `text`")
+    if _value_enum_render("OpenInterest") != "open-interest":
+        failures.append("value-enum: `OpenInterest` did not render to `open-interest`")
+
+    synthetic_main = (
+        "struct Args {\n"
+        '    #[arg(long, default_value = "creds.txt")]\n'
+        "    creds: String,\n"
+        "    #[arg(long)]\n"
+        "    api_key: Option<String>,\n"
+        '    #[arg(long, default_value = "production", '
+        'value_parser = ["production", "dev"])]\n'
+        "    streaming_region: String,\n"
+        "    #[arg(long, default_value_t = 25503)]\n"
+        "    http_port: u16,\n"
+        "    #[arg(long, value_enum, default_value_t = logging::LogFormat::Text)]\n"
+        "    log_format: logging::LogFormat,\n"
+        "    #[arg(long)]\n"
+        "    no_streaming: bool,\n"
+        "}\n"
+    )
+    saved_main = SERVER_MAIN_RS
+    with tempfile.TemporaryDirectory() as td:
+        fake_main = Path(td) / "main.rs"
+        fake_main.write_text(synthetic_main, encoding="utf-8")
+        SERVER_MAIN_RS = fake_main
+        try:
+            derived = server_arg_defaults()
+        finally:
+            SERVER_MAIN_RS = saved_main
+
+    expected = {
+        "--creds": "creds.txt",
+        "--api-key": None,
+        "--streaming-region": "production",  # not truncated by value_parser `]`
+        "--http-port": "25503",
+        "--log-format": "text",
+        "--no-streaming": None,
+    }
+    for flag, want in expected.items():
+        got = derived.get(flag, "<<missing>>")
+        if got != want:
+            failures.append(
+                f"arg-parse: {flag} derived as {got!r}, expected {want!r}"
+            )
+
+    # Markdown table parser: metavar, paired flags, em-dash, backticks.
+    table = (
+        "| Flag | Default | Description |\n"
+        "|------|---------|-------------|\n"
+        "| `--creds <path>` | `creds.txt` | creds file |\n"
+        "| `--email` / `--password` | — | inline creds |\n"
+        "| `--http-port <port>` | `25503` | port |\n"
+        "| `--log-format <fmt>` | `text` | format |\n"
+    )
+    parsed = _parse_doc_flag_table(table)
+    table_expected = {
+        "--creds": "creds.txt",
+        "--email": None,
+        "--password": None,
+        "--http-port": "25503",
+        "--log-format": "text",
+    }
+    for flag, want in table_expected.items():
+        got = parsed.get(flag, "<<missing>>")
+        if got != want:
+            failures.append(
+                f"table-parse: {flag} parsed as {got!r}, expected {want!r}"
+            )
+
+    # Value-by-value mismatch detection: a doc default that disagrees with
+    # the source must be caught even though the stale value appears
+    # elsewhere in the page text.
+    stale_table = (
+        "Run on port 25503 by default.\n\n"
+        "| Flag | Default | Description |\n"
+        "|------|---------|-------------|\n"
+        "| `--http-port <port>` | `25503` | port |\n"
+    )
+    src = {"--http-port": "25504"}  # source moved to 25504
+    doc = _parse_doc_flag_table(stale_table)
+    mismatch = any(
+        doc.get(f) != src.get(f)
+        for f in set(doc) & set(src)
+    )
+    if not mismatch:
+        failures.append(
+            "value-by-value: a stale documented port default was not detected "
+            "as a mismatch (substring scan would have passed it)"
+        )
+
+    if failures:
+        print("check_docs_consistency --selftest: FAILED")
+        for f in failures:
+            print(f"  - {f}")
+        return 1
+    print("check_docs_consistency --selftest: ok")
+    return 0
+
+
 def main() -> None:
     check_static_docs()
+    check_server_flag_defaults()
     check_reference_pages()
     check_llms_txt()
     check_openapi()
@@ -992,4 +1366,15 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument(
+        "--selftest",
+        action="store_true",
+        help="Run the embedded self-test and exit.",
+    )
+    args = parser.parse_args()
+    if args.selftest:
+        sys.exit(_selftest())
     main()

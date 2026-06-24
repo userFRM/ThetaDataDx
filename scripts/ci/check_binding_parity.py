@@ -413,6 +413,80 @@ def _read_source(path: pathlib.Path) -> str:
     return _strip_js_comments(path.read_text(encoding="utf-8"))
 
 
+# napi attribute argument lists can contain a callback type with its own
+# parentheses, e.g.
+#   #[napi(ts_args_type = "cb: (e: Event) => void", js_name = "setCallback")]
+# The `#[napi(` ... `)]` argument list therefore is NOT
+# parenthesis-free, so the historical `#[napi(...[^)]*...)]` collectors
+# stopped at the FIRST inner `)` (inside `(e: Event)`) and never reached
+# the trailing `js_name`, silently reading a callback-typed method as
+# ABSENT. The helper below scans the attribute argument list with a paren
+# balance counter (respecting string literals) so the full inner content
+# — across any nested `(...)` — is returned for sub-matching.
+_NAPI_ATTR_START_RE = re.compile(r"#\[\s*napi\b")
+
+
+def _iter_napi_attrs(text: str):
+    """Yield `(inner, after)` for every `#[napi ...]` attribute in `text`.
+
+    `inner` is the argument list between the `(` after `napi` and its
+    balanced closing `)` (empty string for the bare `#[napi]` form with no
+    args). `after` is the index just past the attribute's closing `]`, so a
+    caller can resume scanning for the `fn <name>` that the attribute
+    decorates. The paren/bracket walk respects `"..."` string literals
+    (with `\\` escapes), so a `)` or `]` inside a `ts_args_type` /
+    `ts_return_type` string does not terminate the span early.
+    """
+    n = len(text)
+    for m in _NAPI_ATTR_START_RE.finditer(text):
+        i = m.end()
+        # Skip whitespace between `napi` and an optional `(`.
+        j = i
+        while j < n and text[j].isspace():
+            j += 1
+        inner = ""
+        if j < n and text[j] == "(":
+            # Walk to the balanced `)`, tracking string literals.
+            depth = 0
+            k = j
+            in_str = False
+            esc = False
+            start_inner = j + 1
+            while k < n:
+                c = text[k]
+                if in_str:
+                    if esc:
+                        esc = False
+                    elif c == "\\":
+                        esc = True
+                    elif c == '"':
+                        in_str = False
+                elif c == '"':
+                    in_str = True
+                elif c == "(":
+                    depth += 1
+                elif c == ")":
+                    depth -= 1
+                    if depth == 0:
+                        inner = text[start_inner:k]
+                        k += 1
+                        break
+                k += 1
+            else:
+                # Unbalanced (malformed source) — skip this attribute.
+                continue
+            pos = k
+        else:
+            pos = j
+        # Advance to the attribute's closing `]` (also string-aware so a
+        # `]` inside a string literal in the args does not fool us; we
+        # already consumed the args, so this only spans `)]` / `]`).
+        while pos < n and text[pos] != "]":
+            pos += 1
+        after = pos + 1 if pos < n else n
+        yield inner, after
+
+
 def _read_cpp_expanded(cpp_hpp: pathlib.Path) -> str:
     """Read a C++ wrapper header, inline its `.inc` includes, and strip
     comments from the combined text.
@@ -984,11 +1058,13 @@ def _collect_typescript_setters(ts_src: pathlib.Path) -> set[str]:
         # `thetadatadx_config_set_*` C ABI surface.
         for body in _iter_impl_config_bodies(text):
             # `#[napi(js_name = "setX")]` → setter `X` (drop the `set` prefix).
-            for m in re.finditer(
-                r'#\[napi\([^)]*\bjs_name\s*=\s*"set([A-Z]\w*)"[^)]*\)\]',
-                body,
-            ):
-                setters_camel.add(m.group(1))
+            # Scan the balanced attribute arg list so a callback-typed
+            # method (`ts_args_type = "cb: (e) => void", js_name = "setX"`)
+            # is still seen — the old `[^)]*` stopped at the inner `)`.
+            for inner, _ in _iter_napi_attrs(body):
+                m = re.search(r'\bjs_name\s*=\s*"set([A-Z]\w*)"', inner)
+                if m:
+                    setters_camel.add(m.group(1))
     # Lift to snake_case for parity-row matching. Every camelCase
     # name renders to one or more snake-case candidates (the bare
     # snake form plus any compound-word alias rendering); the gate
@@ -1117,11 +1193,16 @@ def _collect_typescript_getters(ts_src: pathlib.Path) -> set[str]:
     for rs in ts_src.rglob("*.rs"):
         text = _read_source(rs)
         for body in _iter_impl_config_bodies(text):
-            for m in re.finditer(
-                r'#\[napi\([^)]*\bgetter\b[^)]*\bjs_name\s*=\s*"([a-zA-Z_]\w*)"[^)]*\)\]',
-                body,
-            ):
-                getters_camel.add(m.group(1))
+            # A getter is `#[napi(getter, js_name = "<X>")]` in either
+            # attribute order. Scan the balanced arg list and require both
+            # the `getter` flag and a `js_name` to be present, so order is
+            # irrelevant and a callback-typed arg cannot truncate the scan.
+            for inner, _ in _iter_napi_attrs(body):
+                if not re.search(r"\bgetter\b", inner):
+                    continue
+                m = re.search(r'\bjs_name\s*=\s*"([a-zA-Z_]\w*)"', inner)
+                if m:
+                    getters_camel.add(m.group(1))
     getters_snake: set[str] = set()
     for name in getters_camel:
         getters_snake.update(_camel_to_snake_with_aliases(name))
@@ -1796,13 +1877,17 @@ def _collect_typescript_class_methods(
     impl_re = re.compile(
         r"impl\s+(?:[A-Za-z_][A-Za-z0-9_]*::)*([A-Za-z_][A-Za-z0-9_]*)\s*\{"
     )
-    js_name_re = re.compile(
-        r'#\[napi\([^)]*\bjs_name\s*=\s*"([a-zA-Z_][a-zA-Z0-9_]*)"[^)]*\)\]\s*'
-        r'(?:pub\s+)?(?:async\s+)?fn\s+([a-z_][a-z0-9_]*)\s*[(<]'
-    )
-    bare_napi_re = re.compile(
-        r'#\[napi(?:\((?:(?!js_name)[^)])*\))?\]\s*'
-        r'(?:pub\s+)?(?:async\s+)?fn\s+([a-z_][a-z0-9_]*)\s*[(<]'
+    # The `js_name` literal inside a napi attribute arg list, and the
+    # `fn <snake>` that the attribute decorates (allowing intervening outer
+    # attributes / doc comments between the `#[napi(...)]` and the `fn`).
+    js_name_in_attr_re = re.compile(r'\bjs_name\s*=\s*"([a-zA-Z_][a-zA-Z0-9_]*)"')
+    # `.match(body, after)` anchors at `after`, so no `\A`/`^` is needed
+    # (and `\A` would WRONGLY anchor at string start, never matching when
+    # `after > 0`). Tolerates intervening outer attributes / doc comments
+    # between the `#[napi(...)]` and the decorated `fn`.
+    following_fn_re = re.compile(
+        r"(?:\s*(?:#\[[^\]]*\]|///[^\n]*|//[^\n]*))*\s*"
+        r"(?:pub\s+)?(?:async\s+)?fn\s+([a-z_][a-z0-9_]*)\s*[(<]"
     )
     for rs in ts_src.rglob("*.rs"):
         text = _read_source(rs)
@@ -1821,14 +1906,24 @@ def _collect_typescript_class_methods(
                     depth -= 1
                 i += 1
             body = text[body_start : i - 1]
-            for m in js_name_re.finditer(body):
-                out.setdefault(class_name, set()).add(m.group(1))
-            for m in bare_napi_re.finditer(body):
-                snake = m.group(1)
-                head, *rest = snake.split("_")
-                camel = head + "".join(p.capitalize() for p in rest)
-                out.setdefault(class_name, set()).add(camel)
-                out.setdefault(class_name, set()).add(snake)
+            # Balanced-paren attribute scan: a callback-typed arg list
+            # (`ts_args_type = "cb: (e) => void", js_name = "setX"`) no
+            # longer truncates the `js_name` read at the inner `)`.
+            for inner, after in _iter_napi_attrs(body):
+                fn_m = following_fn_re.match(body, after)
+                if not fn_m:
+                    # The `#[napi(...)]` does not decorate a fn (e.g. a
+                    # struct attribute) — nothing to record from this site.
+                    continue
+                js_m = js_name_in_attr_re.search(inner)
+                if js_m:
+                    out.setdefault(class_name, set()).add(js_m.group(1))
+                else:
+                    snake = fn_m.group(1)
+                    head, *rest = snake.split("_")
+                    camel = head + "".join(p.capitalize() for p in rest)
+                    out.setdefault(class_name, set()).add(camel)
+                    out.setdefault(class_name, set()).add(snake)
     if ts_pkg_dir is not None:
         for cls, methods in _collect_ts_wrapper_class_methods(ts_pkg_dir).items():
             out.setdefault(cls, set()).update(methods)
@@ -1906,10 +2001,22 @@ def _collect_cpp_class_methods(cpp_hpp: pathlib.Path) -> dict[str, set[str]]:
     """Return `{class_name: {method, ...}}` for every C++ class.
 
     Parses each `class X { ... };` body in `thetadatadx.hpp` and collects
-    every member declaration with a `name(` shape. The first identifier
-    before the `(` is the method name. Bounded brace-counting keeps
-    nested types (e.g. lambdas inside default-arg initializers) from
-    leaking into the outer class's method set.
+    every member *declaration* with a `<return-type> name(` shape. Bounded
+    brace-counting keeps nested types (e.g. lambdas inside default-arg
+    initializers) from leaking into the outer class's method set.
+
+    A member declaration is in DECLARATION position: the method name is
+    immediately preceded by a return-type token (an identifier ending the
+    return type, or a `>` / `*` / `&` / `]` from a templated, pointer,
+    reference, or array return). A bare `name(` CALL inside another inline
+    method body — e.g. `return request(...)` in a convenience accessor, or
+    a statement-leading `helper();` — is NOT in declaration position and is
+    rejected. Counting such call sites let a method *declaration* be
+    deleted while its in-class call sites kept the name alive, so the
+    parity gate read the binding as still exposing a method it no longer
+    declared (the G11 bypass). This mirrors `_collect_cpp_setters`, which
+    already keys on the `void` / `int32_t` return type so a bare call
+    cannot satisfy it.
 
     Honors `#include "<file>.inc"` inside a class body by inlining the
     included file's contents before parsing — generator-emitted method
@@ -1923,6 +2030,54 @@ def _collect_cpp_class_methods(cpp_hpp: pathlib.Path) -> dict[str, set[str]]:
     # Limit to class bodies — struct bodies are POD-shaped value types
     # and irrelevant to the cross-binding method contract.
     class_header_re = re.compile(r"^class\s+(\w+)\s*(?::[^{]*)?\{", re.MULTILINE)
+    # A member declaration: a return-type token (`prev`), then whitespace,
+    # then the method `name(`. `prev` is captured so a control keyword that
+    # can front a CALL (`return foo(`) is rejected — a real return type is
+    # never one of those keywords. The leading return-type token is what
+    # separates `FlatFileRowList request(` (declaration) from
+    # `return request(` and the statement-leading `request(` (calls).
+    decl_re = re.compile(
+        r"(?P<prev>[A-Za-z_]\w*|[>*&\]])\s+(?P<name>[a-z_][a-z0-9_]*)\s*\(",
+    )
+    # Keywords that can precede a `name(` as a CALL or statement, never as
+    # a return type. `return foo(` is the live G11 mask; the rest guard the
+    # general class (`else if (`, `co_return bar(`, etc.).
+    _CALL_PREV_KEYWORDS = {
+        "return",
+        "co_return",
+        "co_await",
+        "if",
+        "while",
+        "for",
+        "switch",
+        "throw",
+        "catch",
+        "sizeof",
+        "new",
+        "delete",
+        "and",
+        "or",
+        "not",
+    }
+    # Method names that are themselves keywords (defensive; a declaration
+    # never names a method these).
+    _NAME_KEYWORDS = {
+        "if",
+        "while",
+        "for",
+        "switch",
+        "return",
+        "throw",
+        "catch",
+        "sizeof",
+        "operator",
+        "new",
+        "delete",
+        "static_cast",
+        "reinterpret_cast",
+        "const_cast",
+        "dynamic_cast",
+    }
     for header in class_header_re.finditer(text):
         class_name = header.group(1)
         body_start = header.end()
@@ -1936,34 +2091,16 @@ def _collect_cpp_class_methods(cpp_hpp: pathlib.Path) -> dict[str, set[str]]:
                 depth -= 1
             i += 1
         body = text[body_start : i - 1]
-        # Match member declarations + definitions. The `name(` pattern is
-        # preceded by whitespace and (optionally) qualifiers / return
-        # type tokens; the first plain identifier immediately before the
-        # opening paren is the method name.
-        for fm in re.finditer(
-            r"(?:^|\s)([a-z_][a-z0-9_]*)\s*\(",
-            body,
-            re.MULTILINE,
-        ):
-            name = fm.group(1)
-            # Filter language keywords that look like method calls.
-            if name in {
-                "if",
-                "while",
-                "for",
-                "switch",
-                "return",
-                "throw",
-                "catch",
-                "sizeof",
-                "operator",
-                "new",
-                "delete",
-                "static_cast",
-                "reinterpret_cast",
-                "const_cast",
-                "dynamic_cast",
-            }:
+        for fm in decl_re.finditer(body):
+            prev = fm.group("prev")
+            name = fm.group("name")
+            # The preceding token must be a return type, not a call-context
+            # keyword. `request` declared as `FlatFileRowList request(`
+            # passes (`prev == "FlatFileRowList"`); the `return request(`
+            # call is rejected (`prev == "return"`).
+            if prev in _CALL_PREV_KEYWORDS:
+                continue
+            if name in _NAME_KEYWORDS:
                 continue
             out.setdefault(class_name, set()).add(name)
     return out
@@ -2683,10 +2820,13 @@ def _collect_typescript_utility_functions(ts_src: pathlib.Path) -> set[str]:
     # trailing `// ...` line comment), then `pub fn <name>`. The generated
     # calculator carries a `#[allow(clippy::too_many_arguments)] // Reason:
     # ...` line between the napi attribute and the fn, so the gap tolerates
-    # further `#[...]` / `///` / `//` runs.
-    free_fn_re = re.compile(
-        r"#\[napi(?:\([^)]*\))?\]\s*"
-        r"(?:(?:#\[[^\]]*\]|//[^\n]*)\s*)*"
+    # further `#[...]` / `///` / `//` runs. The attribute arg list is
+    # consumed with the balanced-paren scanner so a callback-typed arg
+    # (`ts_args_type = "cb: (e) => void"`) cannot truncate the match.
+    # `.match(body, after)` anchors at `after`; no `\A`/`^` (which would
+    # anchor at string start and never match when `after > 0`).
+    following_fn_re = re.compile(
+        r"(?:\s*(?:#\[[^\]]*\]|///[^\n]*|//[^\n]*))*\s*"
         r"(?:pub\s+)?(?:async\s+)?fn\s+([a-z_][a-z0-9_]*)\s*[(<]"
     )
     for rs in ts_src.rglob("*.rs"):
@@ -2716,8 +2856,10 @@ def _collect_typescript_utility_functions(ts_src: pathlib.Path) -> set[str]:
                 j += 1
             i = j
         body = "".join(cleaned)
-        for fm in free_fn_re.finditer(body):
-            out.add(fm.group(1))
+        for _inner, after in _iter_napi_attrs(body):
+            fn_m = following_fn_re.match(body, after)
+            if fn_m:
+                out.add(fn_m.group(1))
     return out
 
 

@@ -101,3 +101,49 @@ jobs:
         # tight; the floor keeps the gate meaningful if a baseline ever
         # approaches zero allocations per row.
         run: python3 scripts/ci/check_perf_gate.py --threshold 10
+
+  # ═══════════════════════════════════════════════════════════════
+  # AGGREGATOR GATE. A single roll-up status summarizing every job in
+  # this workflow, mirroring `ci.yml`'s `ci-gate`. It runs with
+  # `if: always()`, depends on every other job, and fails unless every
+  # dependency finished `success` or `skipped`. The bench job
+  # legitimately skips on a path-irrelevant PR (it counts as a pass); a
+  # real `failure` or `cancelled` fails the gate. This is the one
+  # perf-lane check branch protection should require — requiring it
+  # (instead of a per-job name) keeps a conditionally-skipped required
+  # check from leaving the merge gate permanently unsatisfiable, and a
+  # newly added job is covered the moment it appears in `needs` below.
+  # ═══════════════════════════════════════════════════════════════
+  perf-gate:
+    name: Perf gate
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs:
+      - changes
+      - decode-allocations
+    steps:
+      - name: Fail unless every dependency succeeded or was skipped
+        shell: bash
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          bad = sorted(
+              name
+              for name, data in needs.items()
+              if data.get("result") not in ("success", "skipped")
+          )
+          for name in sorted(needs):
+              print(f"{name}: {needs[name].get('result')}")
+          if bad:
+              joined = ", ".join(bad)
+              sys.exit(f"Perf gate failed: {joined} did not succeed or skip")
+          print("Perf gate passed: every dependency succeeded or was skipped")
+          PY

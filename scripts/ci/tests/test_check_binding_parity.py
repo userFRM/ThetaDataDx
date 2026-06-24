@@ -1080,6 +1080,142 @@ def test_historical_families_live_rust_column_clean() -> None:
     assert stream_errors == [], f"live streaming rust column must be clean; got {stream_errors!r}"
 
 
+# ─── napi balanced-paren collector (G2) ────────────────────────────
+
+
+def test_napi_callback_typed_setter_detected(tmp: pathlib.Path) -> None:
+    """A callback-typed napi setter (`ts_args_type = "cb: (e) => void",
+    js_name = "setX"`) must be collected. The old `#[napi(...[^)]*...)]`
+    scan stopped at the `)` inside `(e)` and read it as ABSENT — the G2
+    bypass. The balanced-paren scan must see it.
+    """
+    src = (
+        "#[napi]\n"
+        "impl Config {\n"
+        '    #[napi(ts_args_type = "cb: (e: Event) => void", '
+        'js_name = "setStreamCallback")]\n'
+        "    pub fn set_stream_callback(&mut self, cb: ThreadsafeFunction)"
+        " -> napi::Result<()> { Ok(()) }\n"
+        "}\n"
+    )
+    (tmp / "config.rs").write_text(src, encoding="utf-8")
+    setters = cbp._collect_typescript_setters(tmp)
+    assert any("stream_callback" in s for s in setters), (
+        "callback-typed napi setter was not collected (the balanced-paren "
+        f"scan regressed); got {sorted(setters)!r}"
+    )
+
+
+def test_napi_callback_typed_method_detected(tmp: pathlib.Path) -> None:
+    """A callback-typed napi class method must be collected — the same
+    inner-paren bypass on the class-method collector.
+    """
+    src = (
+        "#[napi]\n"
+        "impl StreamView {\n"
+        '    #[napi(ts_args_type = "cb: (e: Event) => void", '
+        'js_name = "onEvent")]\n'
+        "    pub fn on_event(&self, cb: ThreadsafeFunction)"
+        " -> napi::Result<()> { Ok(()) }\n"
+        "}\n"
+    )
+    (tmp / "sv.rs").write_text(src, encoding="utf-8")
+    methods = cbp._collect_typescript_class_methods(tmp)
+    assert "onEvent" in methods.get("StreamView", set()), (
+        "callback-typed napi method was not collected on StreamView; got "
+        f"{sorted(methods.get('StreamView', set()))!r}"
+    )
+
+
+def test_napi_getter_order_independent(tmp: pathlib.Path) -> None:
+    """A `#[napi(js_name = "x", getter)]` (getter flag AFTER js_name) must
+    be collected — the balanced scan checks for both tokens regardless of
+    order, where the old regex required `getter` before `js_name`.
+    """
+    src = (
+        "#[napi]\n"
+        "impl Config {\n"
+        '    #[napi(js_name = "fooBar", getter)]\n'
+        "    pub fn foo_bar(&self) -> u32 { 0 }\n"
+        "}\n"
+    )
+    (tmp / "g.rs").write_text(src, encoding="utf-8")
+    getters = cbp._collect_typescript_getters(tmp)
+    assert any("foo_bar" in g for g in getters), (
+        f"order-independent getter not collected; got {sorted(getters)!r}"
+    )
+
+
+# ─── C++ method decl-position collector (G11) ──────────────────────
+
+
+def test_cpp_method_call_site_not_counted_as_decl(tmp: pathlib.Path) -> None:
+    """A C++ method called inside another inline body (`return request(...)`)
+    must NOT count as a declaration. Deleting the `request` DECLARATION
+    while leaving its call sites must make the collector drop `request` —
+    the G11 bypass (a deleted decl masked by in-class call sites).
+    """
+    with_decl = (
+        "class FlatFiles {\n"
+        "public:\n"
+        "    FlatFileRowList request(const std::string& a) const {\n"
+        "        return FlatFileRowList(do_it(a));\n"
+        "    }\n"
+        "    FlatFileRowList option_eod(const std::string& d) const {\n"
+        '        return request("OPTION");\n'
+        "    }\n"
+        "};\n"
+    )
+    decl_deleted = (
+        "class FlatFiles {\n"
+        "public:\n"
+        "    FlatFileRowList option_eod(const std::string& d) const {\n"
+        '        return request("OPTION");\n'
+        "    }\n"
+        "};\n"
+    )
+    hpp = tmp / "thetadatadx.hpp"
+
+    hpp.write_text(with_decl, encoding="utf-8")
+    methods = cbp._collect_cpp_class_methods(hpp).get("FlatFiles", set())
+    assert "request" in methods, (
+        f"declared method `request` not collected; got {sorted(methods)!r}"
+    )
+
+    hpp.write_text(decl_deleted, encoding="utf-8")
+    methods = cbp._collect_cpp_class_methods(hpp).get("FlatFiles", set())
+    assert "request" not in methods, (
+        "a deleted C++ method declaration was still reported because its "
+        "in-class call sites kept the name alive (the G11 bypass); got "
+        f"{sorted(methods)!r}"
+    )
+    # The real surviving accessor must still be collected.
+    assert "option_eod" in methods, (
+        f"a genuine method declaration was dropped; got {sorted(methods)!r}"
+    )
+
+
+def test_cpp_member_field_not_counted_as_method(tmp: pathlib.Path) -> None:
+    """A trailing-underscore member field (`handle_`) must not be collected
+    as a method — only `<return-type> name(` declarations count.
+    """
+    src = (
+        "class Foo {\n"
+        "public:\n"
+        "    int32_t value() const { return handle_; }\n"
+        "private:\n"
+        "    Handle* handle_;\n"
+        "};\n"
+    )
+    hpp = tmp / "thetadatadx.hpp"
+    hpp.write_text(src, encoding="utf-8")
+    methods = cbp._collect_cpp_class_methods(hpp).get("Foo", set())
+    assert "value" in methods, f"real method dropped; got {sorted(methods)!r}"
+    assert "handle_" not in methods, (
+        f"a member field was counted as a method; got {sorted(methods)!r}"
+    )
+
+
 # ─── Driver ────────────────────────────────────────────────────────
 
 
@@ -1126,6 +1262,32 @@ def main() -> int:
     _check("historical-base untracked orphan trips", test_historical_base_untracked_orphan_trips)
     _check("historical-base live sources clean", test_historical_base_live_sources_clean)
     _check("historical families live rust column clean", test_historical_families_live_rust_column_clean)
+    # napi balanced-paren collector (G2) + C++ decl-position collector (G11)
+    with tempfile.TemporaryDirectory() as tmp:
+        _check(
+            "napi callback-typed setter detected",
+            lambda: test_napi_callback_typed_setter_detected(pathlib.Path(tmp)),
+        )
+    with tempfile.TemporaryDirectory() as tmp:
+        _check(
+            "napi callback-typed method detected",
+            lambda: test_napi_callback_typed_method_detected(pathlib.Path(tmp)),
+        )
+    with tempfile.TemporaryDirectory() as tmp:
+        _check(
+            "napi getter order-independent",
+            lambda: test_napi_getter_order_independent(pathlib.Path(tmp)),
+        )
+    with tempfile.TemporaryDirectory() as tmp:
+        _check(
+            "cpp method call-site not counted as decl",
+            lambda: test_cpp_method_call_site_not_counted_as_decl(pathlib.Path(tmp)),
+        )
+    with tempfile.TemporaryDirectory() as tmp:
+        _check(
+            "cpp member field not counted as method",
+            lambda: test_cpp_member_field_not_counted_as_method(pathlib.Path(tmp)),
+        )
 
     if _fails:
         print(f"test_check_binding_parity: {len(_fails)} failure(s)")

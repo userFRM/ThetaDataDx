@@ -131,6 +131,35 @@ FORBIDDEN_PATTERNS = (
     r"Python::detach",
     r"ingest[\s_-]?ring",
     r"dispatch[\s_-]?consumer",
+    # Extended DENY set — the rest of the standing impl-IP vocabulary that
+    # describes the dispatch engine, the runtime data structures, and the
+    # async bridge. Each carries the same flexible `[\s_-]?` separator as
+    # the entries above so a reflowed or re-hyphenated rendering cannot
+    # dodge the gate.
+    r"firehose",                  # the streaming fan-out engine name
+    r"routing[\s_-]?table",       # the contract-to-consumer routing table
+    r"arc[\s_-]?swap",            # `arc_swap` / `arc-swap` hot-config cell
+    r"dashmap",                   # the concurrent map crate
+    r"rustc[\s_-]?hash",          # `rustc_hash` / `FxHashMap` hasher crate
+    r"epoll",                     # the Linux readiness primitive
+    r"kqueue",                    # the BSD/macOS readiness primitive
+    r"pyo3-async-runtimes",       # the Python async bridge crate
+    r"future_into_py",            # the pyo3 async bridge entry point
+    r"SharedProducer",            # internal ring-producer handle type
+    r"StateCell",                 # internal hot-swappable state cell type
+    # NOTE: `worker[\s_-]?pool` is deliberately NOT in this list. The
+    # async worker-thread count is a documented PUBLIC config knob
+    # (`set_worker_threads` / the `worker_threads` property on every
+    # binding); `check_binding_parity._check_public_surface_vocab` already
+    # adjudicates worker-thread vocabulary as neutral public surface (it
+    # strips the internal `tokio_` prefix and exposes `worker_threads`),
+    # with an explicit `test_surface_vocab_allows_neutral_worker_threads`
+    # asserting it stays clean. The knob's own doc comment necessarily
+    # describes its process-global threading model, so banning "worker
+    # pool" here would fire on a legitimate public-API description, not an
+    # impl-IP leak. The internal runtime crate name (`tokio`) is already
+    # banned above — that is the token that would actually leak the
+    # implementation.
 )
 
 # Each pattern is wrapped in identifier-boundary guards so a token glued
@@ -235,6 +264,13 @@ def _selftest() -> int:
       `dispatch consumer`) — every one must be flagged, proving the
       case-insensitive scan, the new phrases, and the flexible
       separators all bite.
+    * A header carrying the extended DENY set (`Firehose`, `routing table`,
+      `arc-swap`, `DashMap`, `rustc-hash`, `epoll`, `kqueue`,
+      `pyo3-async-runtimes`, `future_into_py`, `SharedProducer`,
+      `StateCell`) — every one must be flagged. A planted `firehose` in a
+      shipped `sdks/cpp/include/*.h` is the canonical bypass this closes.
+      (`worker pool` is intentionally absent — see the FORBIDDEN_PATTERNS
+      note; worker-thread vocabulary is adjudicated public surface.)
     * A shipped README (`sdks/python/README.md`) naming an internal
       runtime crate — must be flagged, proving `sdks/*/README.md` is in
       the scan set (the PyPI / npm long-description leak that previously
@@ -273,6 +309,22 @@ def _selftest() -> int:
         "/* events arrive on the ingest ring */\n"
         "/* serviced by the dispatch consumer */\n"
     )
+    # The extended DENY set, one spelling per line — the dispatch engine,
+    # the runtime data structures, and the async bridge, in mixed casing
+    # and with separator variants. Every one must be flagged.
+    extended_deny_variants = (
+        "/* events fan out through the Firehose */\n"
+        "/* keyed by the routing table */\n"
+        "/* hot config lives in an arc-swap cell */\n"
+        "/* contracts indexed in a DashMap */\n"
+        "/* hashed with rustc-hash */\n"
+        "/* readiness via epoll on Linux */\n"
+        "/* readiness via kqueue on macOS */\n"
+        "/* bridged by pyo3-async-runtimes */\n"
+        "/* the future_into_py entry point */\n"
+        "/* writes go through a SharedProducer */\n"
+        "/* swapped atomically in a StateCell */\n"
+    )
     leaky_readme = (
         "# thetadatadx (Python)\n"
         "\n"
@@ -297,6 +349,10 @@ def _selftest() -> int:
         variants = root / "sdks" / "cpp" / "include" / "variants.h"
         variants.parent.mkdir(parents=True, exist_ok=True)
         variants.write_text(case_and_separator_variants, encoding="utf-8")
+
+        extended = root / "sdks" / "cpp" / "include" / "extended.h"
+        extended.parent.mkdir(parents=True, exist_ok=True)
+        extended.write_text(extended_deny_variants, encoding="utf-8")
 
         readme = root / "sdks" / "python" / "README.md"
         readme.parent.mkdir(parents=True, exist_ok=True)
@@ -351,6 +407,35 @@ def _selftest() -> int:
             print(
                 "selftest FAILED: case/separator-variant impl-IP tokens "
                 f"slipped through: {sorted(missing)!r}"
+            )
+            return 1
+
+        # Every entry in the extended DENY set must be flagged.
+        extended_tokens = {
+            re.sub(r"[\s_-]", "", token.lower())
+            for (rel, _, token, _) in hits
+            if rel.name == "extended.h"
+        }
+        expected_extended = {
+            "firehose",
+            "routingtable",
+            "arcswap",
+            "dashmap",
+            "rustchash",
+            "epoll",
+            "kqueue",
+            # `pyo3-async-runtimes` normalises to `pyo3asyncruntimes` once
+            # the hyphens are stripped.
+            "pyo3asyncruntimes",
+            "futureintopy",
+            "sharedproducer",
+            "statecell",
+        }
+        missing_extended = expected_extended - extended_tokens
+        if missing_extended:
+            print(
+                "selftest FAILED: extended-DENY-set tokens slipped through: "
+                f"{sorted(missing_extended)!r}"
             )
             return 1
 

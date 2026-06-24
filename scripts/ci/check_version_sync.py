@@ -40,11 +40,20 @@ import json
 import re
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 CANONICAL_CARGO = ROOT / "crates" / "thetadatadx" / "Cargo.toml"
 CMAKE_LISTS = ROOT / "sdks" / "cpp" / "CMakeLists.txt"
+# The published REST contract. Its `info.version` is the version a
+# generated client stamps into its user-agent / about strings, yet it was
+# governed by no gate: `check_version_sync` never read this file and
+# `check_docs_consistency` validates only the servers / paths / security
+# of the same YAML, never `info.version`. So the published OpenAPI spec
+# could fall a full release behind canonical undetected. The gate now
+# asserts `info.version` against the canonical version.
+OPENAPI_YAML = ROOT / "docs-site" / "docs" / "public" / "thetadatadx.yaml"
 PY_INIT = ROOT / "sdks" / "python" / "python" / "thetadatadx" / "__init__.py"
 # The published Python wheel version is NOT pinned in `pyproject.toml`
 # (it declares `dynamic = ["version"]` with `build-backend = "maturin"`);
@@ -68,6 +77,103 @@ def cargo_version(path: Path) -> str:
     if not match:
         sys.exit(f"could not parse `version` from {path}")
     return match.group(1)
+
+
+# Every workspace crate's published / advertised version must move in
+# lockstep with the canonical one. The previous gate asserted only the
+# canonical `crates/thetadatadx/Cargo.toml` and `sdks/python/Cargo.toml`
+# manifests, leaving the FFI, CLI, server, MCP, and TypeScript-binding
+# crates — plus EVERY `Cargo.lock` — unscanned. The server and MCP
+# binaries advertise their version at runtime via `CARGO_PKG_VERSION`
+# (sourced from their own manifests), and a lockfile that pins a stale
+# `thetadatadx` entry ships an aged dependency graph; both drifted
+# silently. The two helpers below discover every manifest and lockfile so
+# any `thetadatadx*` version that falls out of sync trips the gate.
+#
+# Build output and vendored trees never carry a first-party manifest, so
+# they are pruned from the walk.
+_MANIFEST_EXCLUDE_FRAGMENTS = ("/target/", "/node_modules/", "/.git/")
+
+
+def _is_excluded_manifest(path: Path) -> bool:
+    rel = "/" + path.relative_to(ROOT).as_posix()
+    return any(frag in rel for frag in _MANIFEST_EXCLUDE_FRAGMENTS)
+
+
+def cargo_manifest_package_version(path: Path) -> tuple[str, str] | None:
+    """`([package].name, [package].version)` for a Cargo manifest, or
+    `None` for a virtual manifest (a `[workspace]` root with no
+    `[package]`). Parsed with `tomllib` so a `version` under
+    `[dependencies]` is never mistaken for the package version.
+    """
+    data = tomllib.loads(path.read_text())
+    pkg = data.get("package")
+    if not isinstance(pkg, dict) or "version" not in pkg:
+        return None
+    version = pkg["version"]
+    # `version.workspace = true` inheritance renders as a dict; the
+    # thetadatadx workspace does NOT hoist `version` (each member carries
+    # its own literal), so a dict here means the manifest defers to the
+    # workspace and there is no literal to assert.
+    if not isinstance(version, str):
+        return None
+    return str(pkg.get("name", "")), version
+
+
+def cargo_manifest_mismatches(canonical: str) -> list[str]:
+    """Every first-party (`thetadatadx*`) crate manifest whose
+    `[package].version` disagrees with the canonical version.
+
+    `publish = false` crates (the binding crates, the server/MCP/CLI
+    tools) are included on purpose: the server and MCP binaries surface
+    their version at runtime through `CARGO_PKG_VERSION`, so a drifted
+    manifest there ships a wrong version string even though nothing is
+    uploaded to a registry.
+    """
+    issues: list[str] = []
+    for path in sorted(ROOT.rglob("Cargo.toml")):
+        if _is_excluded_manifest(path):
+            continue
+        parsed = cargo_manifest_package_version(path)
+        if parsed is None:
+            continue
+        name, version = parsed
+        if not name.startswith("thetadatadx"):
+            continue
+        if version != canonical:
+            issues.append(
+                f"{path.relative_to(ROOT)} [package] version (crate "
+                f"`{name}`) is {version}, expected {canonical}"
+            )
+    return issues
+
+
+def cargo_lock_mismatches(canonical: str) -> list[str]:
+    """Every `Cargo.lock` whose pinned `thetadatadx*` package entries
+    disagree with the canonical version.
+
+    A lockfile is valid TOML with a top-level `[[package]]` array; the
+    first-party crates appear there with their resolved version. A stale
+    pin here means the resolved dependency graph ships an aged crate even
+    when the manifest is correct, so every lockfile in the tree (the
+    excluded-from-workspace SDK / tool lockfiles included) is scanned.
+    """
+    issues: list[str] = []
+    for path in sorted(ROOT.rglob("Cargo.lock")):
+        if _is_excluded_manifest(path):
+            continue
+        data = tomllib.loads(path.read_text())
+        for pkg in data.get("package", []):
+            name = pkg.get("name", "")
+            if not name.startswith("thetadatadx"):
+                continue
+            version = pkg.get("version")
+            if version != canonical:
+                issues.append(
+                    f"{path.relative_to(ROOT)} pins `{name}` at {version}, "
+                    f"expected {canonical}"
+                )
+    return issues
 
 
 def package_json_version(path: Path) -> str:
@@ -99,16 +205,88 @@ def cmake_project_version(path: Path) -> str | None:
     return match.group(1)
 
 
+def openapi_info_version(path: Path) -> str | None:
+    """The `info.version` value from an OpenAPI YAML, or `None` if the
+    file or the key is absent.
+
+    Block-scoped: the spec carries other `version:` keys inside response
+    schemas (deeper-indented), so a naive first-`version:` grab would read
+    the wrong value. This walks the top-level `info:` block — from the
+    unindented `info:` line to the next top-level (column-0) key — and
+    returns the `version:` found within it. Hand-rolled in the same style
+    as `check_docs_consistency._openapi_server_urls` to keep the gate
+    dependency-light (no YAML parser).
+    """
+    if not path.is_file():
+        return None
+    in_info = False
+    for line in path.read_text().splitlines():
+        if re.match(r"^info:\s*$", line):
+            in_info = True
+            continue
+        if in_info:
+            # A new top-level key (no indentation) ends the info block.
+            if re.match(r"^\S", line):
+                break
+            m = re.match(r"\s+version:\s*(\S+)\s*$", line)
+            if m:
+                return m.group(1).strip().strip('"').strip("'")
+    return None
+
+
 # U5 closure: the same gate scans documentation pins for the
 # `thetadatadx = "<version>"` shape. Drift between the canonical Cargo
-# version and a doc pin (README.md, docs-site quickstart /
-# installation) silently aged the docs across v9 → v10 — this gate
-# now catches that case.
-DOC_PIN_PATHS = (
-    ROOT / "README.md",
-    ROOT / "docs-site" / "docs" / "articles" / "getting-started.md",
-    ROOT / "docs-site" / "docs" / "examples" / "dataframes.md",
+# version and a doc pin silently aged the docs across v9 → v10, and again
+# across the rc series: `crates/thetadatadx/README.md` ships verbatim to
+# docs.rs (it is the crate's `readme = "README.md"`) yet a hand-picked
+# three-path list never scanned it, so it pinned `13.0.0-rc.1` against a
+# canonical `13.0.0-rc.5` undetected. The gate now discovers EVERY `*.md`
+# in the tree (minus the exclusions below) so a new install snippet in any
+# Markdown file is covered the moment it lands, with no edit here.
+#
+# Excluded from the doc-pin scan, because they pin historical versions by
+# design and would false-positive against the canonical version:
+#
+#   * `CHANGELOG.md` + `docs-site/docs/changelog.md` — the changelog and
+#     its published mirror enumerate every shipped version.
+#   * `.github/release-notes/*.md` (and the whole `.github/` tree) — each
+#     release note pins the version it documents.
+#   * `docs-site/docs/migration/*.md` — migration guides pin the old→new
+#     version pair as before/after examples (`thetadatadx = "11"` → `"12"`).
+#
+# Build output, vendored deps, and VCS metadata are excluded too.
+_DOC_PIN_EXCLUDE_FRAGMENTS = (
+    "/target/",
+    "/node_modules/",
+    "/.git/",
+    "/.github/",
+    "/migration/",
 )
+_DOC_PIN_EXCLUDE_NAMES = frozenset({"CHANGELOG.md", "changelog.md"})
+
+
+def _discover_doc_pin_files() -> tuple[Path, ...]:
+    """Every `*.md` under the repo root that should carry a current pin.
+
+    Walks the tree and drops the historical-pin files (changelog, release
+    notes, migration guides) and the build/vendor/VCS trees. Sorted for
+    deterministic diagnostics.
+    """
+    out: list[Path] = []
+    for path in ROOT.rglob("*.md"):
+        rel = "/" + path.relative_to(ROOT).as_posix()
+        if any(frag in rel for frag in _DOC_PIN_EXCLUDE_FRAGMENTS):
+            continue
+        if path.name in _DOC_PIN_EXCLUDE_NAMES:
+            continue
+        out.append(path)
+    return tuple(sorted(out))
+
+
+# Retained as an override hook: when `None` (production), the doc-pin scan
+# discovers the file set via `_discover_doc_pin_files()`. The selftest sets
+# this to an explicit synthetic list to stay hermetic.
+DOC_PIN_PATHS: tuple[Path, ...] | None = None
 # Match `thetadatadx = "<VERSION>"` (Cargo.toml-ish pin) and
 # `thetadatadx = { version = "<VERSION>", ... }` (Cargo.toml feature
 # pin). Capture the FULL quoted literal — including any pre-release
@@ -162,8 +340,9 @@ def python_init_fallback_mismatches(canonical: str) -> list[str]:
 
 
 def doc_pin_mismatches(canonical: str) -> list[str]:
+    paths = DOC_PIN_PATHS if DOC_PIN_PATHS is not None else _discover_doc_pin_files()
     issues: list[str] = []
-    for path in DOC_PIN_PATHS:
+    for path in paths:
         if not path.is_file():
             continue
         for lineno, line in enumerate(path.read_text().splitlines(), start=1):
@@ -250,6 +429,29 @@ def main() -> int:
     # full (including any pre-release suffix), not merely the major.
     failures.extend(doc_pin_mismatches(canonical))
 
+    # Every first-party crate manifest and every lockfile must agree with
+    # the canonical version — the FFI / CLI / server / MCP / TS-binding
+    # crates and all `Cargo.lock` files were previously unscanned, so the
+    # server + MCP runtime `CARGO_PKG_VERSION` advertisement and the
+    # resolved dependency graph could drift undetected.
+    failures.extend(cargo_manifest_mismatches(canonical))
+    failures.extend(cargo_lock_mismatches(canonical))
+
+    # The published OpenAPI contract's `info.version` must match canonical.
+    # A generated client reads it for its about / user-agent strings, yet
+    # neither this gate nor the docs-consistency gate previously asserted
+    # it, so the published REST spec could age a full release behind.
+    openapi_version = openapi_info_version(OPENAPI_YAML)
+    if openapi_version is None:
+        failures.append(
+            f"{OPENAPI_YAML.relative_to(ROOT)}: could not read `info.version`"
+        )
+    elif openapi_version != canonical:
+        failures.append(
+            f"{OPENAPI_YAML.relative_to(ROOT)} info.version is "
+            f"{openapi_version}, expected {canonical}"
+        )
+
     # M4 closure (post-#572 audit): Python SDK `__version__` fallback
     # must be the `"unknown"` sentinel, not a numeric literal that
     # drifts silently.
@@ -282,6 +484,19 @@ def _selftest() -> int:
       crate version must compare equal. This is the published-wheel
       version that `pyproject.toml`'s `dynamic = ["version"]` + maturin
       stamps onto the PyPI upload.
+    * Doc-pin discovery (G3): against a synthetic temp ROOT, an install
+      doc (`sdks/README.md`) is discovered while a changelog, a release
+      note, and a migration guide are excluded; a stale pin in the install
+      doc is flagged and the historical-pin files never leak in.
+    * Manifest + lockfile coverage (G4): a drifted first-party crate
+      manifest (`thetadatadx-server`) and a drifted lockfile entry are
+      flagged, a third-party crate is ignored, a `[dependencies]` version
+      is not mistaken for the package version, and a virtual workspace root
+      with no `[package]` does not crash.
+    * OpenAPI info.version (G12): the block-scoped reader returns the
+      `info.version` and not a deeper-indented response-schema `version:`
+      key; a drifted value is read verbatim and a matching one compares
+      equal to canonical.
     """
     global DOC_PIN_PATHS
 
@@ -385,6 +600,179 @@ def _selftest() -> int:
         if cargo_version(matched_cargo) != canonical:
             failures.append(
                 "py-wheel: a matching Python crate version did not compare "
+                "equal to canonical"
+            )
+
+    # --- Doc-pin discovery: recursive *.md scan with exclusions ---------
+    # A synthetic repo tree: a stale pin in an arbitrary install doc must
+    # be discovered, while the same stale pin in a changelog / release-note
+    # / migration guide must be excluded (those legitimately pin history).
+    global ROOT
+    saved_root = ROOT
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        ROOT = root
+        DOC_PIN_PATHS = None  # force production discovery against the temp ROOT
+        try:
+            install_doc = root / "sdks" / "README.md"
+            install_doc.parent.mkdir(parents=True, exist_ok=True)
+            install_doc.write_text('thetadatadx = "13.0.0-rc.1"\n', encoding="utf-8")
+
+            changelog = root / "CHANGELOG.md"
+            changelog.write_text('thetadatadx = "13.0.0-rc.1"\n', encoding="utf-8")
+
+            release_note = root / ".github" / "release-notes" / "v13.0.0-rc.1.md"
+            release_note.parent.mkdir(parents=True, exist_ok=True)
+            release_note.write_text('thetadatadx = "13.0.0-rc.1"\n', encoding="utf-8")
+
+            migration = root / "docs-site" / "docs" / "migration" / "v11-to-v12.md"
+            migration.parent.mkdir(parents=True, exist_ok=True)
+            migration.write_text('thetadatadx = "11"\n', encoding="utf-8")
+
+            discovered = {p.relative_to(root).as_posix() for p in _discover_doc_pin_files()}
+            if "sdks/README.md" not in discovered:
+                failures.append(
+                    "doc-pin-discovery: an install doc outside the old "
+                    "hardcoded list was not discovered (the recursive *.md "
+                    "scan regressed — this is the crate-README drift bypass)"
+                )
+            for excluded in (
+                "CHANGELOG.md",
+                ".github/release-notes/v13.0.0-rc.1.md",
+                "docs-site/docs/migration/v11-to-v12.md",
+            ):
+                if excluded in discovered:
+                    failures.append(
+                        f"doc-pin-discovery: {excluded} was scanned but must be "
+                        "excluded (it pins historical versions by design)"
+                    )
+
+            mismatches = doc_pin_mismatches(canonical)
+            if not any("sdks/README.md" in m for m in mismatches):
+                failures.append(
+                    "doc-pin-discovery: the stale pin in the discovered install "
+                    "doc was not flagged as a mismatch"
+                )
+            if any("CHANGELOG.md" in m or "migration" in m for m in mismatches):
+                failures.append(
+                    "doc-pin-discovery: a historical-pin file leaked into the "
+                    "mismatch list"
+                )
+        finally:
+            DOC_PIN_PATHS = None
+            ROOT = saved_root
+
+    # --- Manifest + lockfile coverage (G4) -----------------------------
+    # A synthetic repo with a drifted first-party manifest, a drifted
+    # lockfile entry, a third-party manifest that must be IGNORED, and a
+    # virtual workspace root with no `[package]` (must not crash).
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        ROOT = root
+        try:
+            # Virtual workspace root — no `[package]`.
+            (root / "Cargo.toml").write_text(
+                '[workspace]\nmembers = ["server"]\n', encoding="utf-8"
+            )
+            # First-party crate manifest, drifted.
+            srv = root / "server" / "Cargo.toml"
+            srv.parent.mkdir(parents=True, exist_ok=True)
+            srv.write_text(
+                '[package]\nname = "thetadatadx-server"\n'
+                'version = "13.0.0-rc.1"\nedition = "2021"\n\n'
+                '[dependencies]\n'
+                # A dependency `version` must NOT be mistaken for the
+                # package version — tomllib scoping proves this.
+                'serde = { version = "1.0.0" }\n',
+                encoding="utf-8",
+            )
+            # Third-party crate manifest — must be ignored (name prefix).
+            other = root / "other" / "Cargo.toml"
+            other.parent.mkdir(parents=True, exist_ok=True)
+            other.write_text(
+                '[package]\nname = "some-other-crate"\n'
+                'version = "0.1.0"\nedition = "2021"\n',
+                encoding="utf-8",
+            )
+            # Lockfile with a drifted first-party entry + an unrelated one.
+            lock = root / "Cargo.lock"
+            lock.write_text(
+                'version = 3\n\n'
+                '[[package]]\nname = "thetadatadx"\nversion = "13.0.0-rc.1"\n\n'
+                '[[package]]\nname = "serde"\nversion = "1.0.0"\n',
+                encoding="utf-8",
+            )
+
+            man_issues = cargo_manifest_mismatches(canonical)
+            if not any("thetadatadx-server" in m for m in man_issues):
+                failures.append(
+                    "manifest: a drifted first-party crate manifest "
+                    "(thetadatadx-server) was not flagged — the FFI / CLI / "
+                    "server / MCP manifests were the unscanned bypass"
+                )
+            if any("some-other-crate" in m for m in man_issues):
+                failures.append(
+                    "manifest: a third-party crate was flagged (the scan must "
+                    "be scoped to `thetadatadx*` crates)"
+                )
+
+            lock_issues = cargo_lock_mismatches(canonical)
+            if not any("thetadatadx" in m for m in lock_issues):
+                failures.append(
+                    "lockfile: a drifted first-party lock entry was not flagged "
+                    "— every Cargo.lock was previously unscanned"
+                )
+            if any("serde" in m for m in lock_issues):
+                failures.append(
+                    "lockfile: an unrelated lock entry (serde) was flagged"
+                )
+        finally:
+            ROOT = saved_root
+
+    # --- OpenAPI info.version (G12) -------------------------------------
+    # The block-scoped reader must pull the `info.version` and ignore the
+    # deeper-indented `version:` keys inside response schemas (the trap the
+    # task flagged). A drifted info.version must be detected; a matching one
+    # must compare equal.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        drift_yaml = root / "drift.yaml"
+        drift_yaml.write_text(
+            "openapi: 3.1.0\n"
+            "info:\n"
+            "  title: Theta Data v3\n"
+            "  version: 13.0.0-rc.1\n"
+            "  contact:\n"
+            "    name: x\n"
+            "paths:\n"
+            "  /v3/thing:\n"
+            "    get:\n"
+            "      responses:\n"
+            "        '200':\n"
+            "          content:\n"
+            "            application/json:\n"
+            "              schema:\n"
+            "                properties:\n"
+            "                  version:\n"
+            "                    type: string\n",
+            encoding="utf-8",
+        )
+        got = openapi_info_version(drift_yaml)
+        if got != "13.0.0-rc.1":
+            failures.append(
+                "openapi-info-version: block-scoped read returned "
+                f"{got!r}, expected '13.0.0-rc.1' (a deeper-indented "
+                "response-schema `version:` key may have been grabbed instead "
+                "of info.version)"
+            )
+        ok_yaml = root / "ok.yaml"
+        ok_yaml.write_text(
+            "info:\n  title: x\n  version: 13.0.0-rc.5\n",
+            encoding="utf-8",
+        )
+        if openapi_info_version(ok_yaml) != canonical:
+            failures.append(
+                "openapi-info-version: a matching info.version did not compare "
                 "equal to canonical"
             )
 
