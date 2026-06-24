@@ -219,4 +219,4 @@ jobs:
         run: |
           set -euo pipefail
           duration="${WORKFLOW_INPUT_SOAK_DURATION_SECS:-120}"
-          python scripts/dev/fpss_soak.py creds.txt --duration-secs "$duration"
+          python scripts/dev/streaming_soak.py creds.txt --duration-secs "$duration"

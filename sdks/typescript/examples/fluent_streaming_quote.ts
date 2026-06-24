@@ -19,7 +19,7 @@ async function main(): Promise<void> {
   const option = Contract.option("SPY", { expiration: "20260620", strike: "550", right: "C" });
 
   // Register the per-event callback. The napi-rs binding hands every
-  // FPSS event to the JS callback on the Node main thread via a
+  // streaming event to the JS callback on the Node main thread via a
   // `ThreadsafeFunction`, so the libuv loop stays responsive.
   client.stream.startStreaming((event) => {
     switch (event.kind) {
