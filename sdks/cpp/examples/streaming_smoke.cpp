@@ -1,4 +1,4 @@
-// fpss_smoke.cpp -- C++ streaming smoke test driven by the callback C ABI.
+// streaming_smoke.cpp -- C++ streaming smoke test driven by the callback C ABI.
 //
 // Subscribes to a stock and an option contract, registers a queued
 // callback, prints every event for a few seconds, then exits cleanly.
