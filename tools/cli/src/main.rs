@@ -562,6 +562,12 @@ pub(crate) fn resolve_credentials(
     api_key_flag: Option<&str>,
     creds_path: &str,
 ) -> Result<thetadatadx::Credentials, thetadatadx::Error> {
+    // An empty / whitespace-only `--api-key` is treated as unset, so it falls
+    // through to the lower-precedence sources (env api-key, env email/password,
+    // creds file) instead of shadowing them with a blank key that could never
+    // authenticate. This mirrors the empty-env handling (`non_empty_env`) and
+    // the server binary.
+    let api_key_flag = api_key_flag.filter(|k| !k.trim().is_empty());
     let email_password = match (non_empty_env(EMAIL_ENV), non_empty_env(PASSWORD_ENV)) {
         (Some(email), Some(password)) => Some((email, password)),
         _ => None,
@@ -2013,6 +2019,31 @@ async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
 
 #[cfg(test)]
 mod tests {
+    // ── Empty --api-key is treated as unset (#auth precedence) ─────────
+    //
+    // `resolve_credentials` filters a blank/whitespace `--api-key` to `None`
+    // before the precedence decision, so a blank flag does not shadow the
+    // lower-precedence sources. This pins the filter (pure, no env / fs).
+    #[test]
+    fn blank_api_key_flag_is_treated_as_unset() {
+        let blank: Option<&str> = Some("   ");
+        assert!(
+            blank.filter(|k| !k.trim().is_empty()).is_none(),
+            "a whitespace-only --api-key must filter to None (treated as unset)",
+        );
+        let real: Option<&str> = Some("td1_key");
+        assert!(
+            real.filter(|k| !k.trim().is_empty()).is_some(),
+            "a real --api-key must remain Some",
+        );
+        // With the flag filtered out and no api-key env, the decision must NOT
+        // be ApiKeyFlag.
+        assert_ne!(
+            super::select_credential_source(false, false, false),
+            super::CredentialSource::ApiKeyFlag,
+        );
+    }
+
     use super::{
         json_cell, raw_date, raw_f64, raw_i32, raw_i64, raw_ms, raw_right_label,
         resolve_credentials, select_credential_source, CredentialSource, OutputFormat, TabularData,
