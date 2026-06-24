@@ -44,7 +44,10 @@ def _test(name: str) -> list[list[str]]:
 # pre-pass where the gate has one, plus the production invocation with
 # the same thresholds CI uses). `all` runs them in this dict's order.
 GATES: dict[str, list[list[str]]] = {
-    "c_abi_completeness": _ci("check_c_abi_completeness"),
+    "c_abi_completeness": (
+        _ci("check_c_abi_completeness", "--selftest")
+        + _ci("check_c_abi_completeness")
+    ),
     "binding_parity": (
         _ci("check_binding_parity", "--selftest")
         + _test("test_check_binding_parity")
@@ -69,8 +72,13 @@ GATES: dict[str, list[list[str]]] = {
         + _ci("check_bench_regression", "--threshold", "25")
     ),
     "perf_gate": _ci("check_perf_gate", "--threshold", "10"),
-    "docs_consistency": _ci("check_docs_consistency"),
-    "version_sync": _ci("check_version_sync"),
+    "docs_consistency": (
+        _ci("check_docs_consistency", "--selftest")
+        + _ci("check_docs_consistency")
+    ),
+    "version_sync": (
+        _ci("check_version_sync", "--selftest") + _ci("check_version_sync")
+    ),
     "lockfile_drift": _ci("check_lockfile_drift"),
     "tier_badges": _ci("check_tier_badges"),
     "agreement": _test("test_check_agreement"),

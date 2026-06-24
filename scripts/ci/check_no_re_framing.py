@@ -105,6 +105,16 @@ EXEMPT_PATH_FRAGMENTS = (
     # scanning it would flag the very guard that protects the public
     # surface.
     "/build_support_bin/",
+    # Pinned upstream / CI input data, not our publicly-rendered source.
+    # `scripts/ci/data/` holds the verbatim vendor OpenAPI snapshot
+    # (`upstream_openapi.yaml`, refreshed wholesale from
+    # `docs.thetadata.us/openapiv3.yaml`) and gate allow-lists. The vendor
+    # spec legitimately carries the vendor's own `x-java-package:
+    # net.thetadata.*` field — that is THEIR published metadata, not our
+    # provenance leak, and it is never shipped in any crate or rendered on
+    # docs.rs. This directory is the same category as `build_support_bin/`:
+    # CI input, not public prose.
+    "/scripts/ci/data/",
 )
 
 
@@ -142,6 +152,16 @@ FORBIDDEN_PATTERNS = (
     # (`Contract.java`, `CONTRACT.JAVA`): a named Java source is
     # provenance a reader could only have from decompilation.
     re.compile(r"\b\w+\.java\b", re.IGNORECASE),
+    # A dotted `net.thetadata.*` Java fully-qualified class name
+    # (`net.thetadata.types.tick.MarketValueTick`): the package path is
+    # provenance a reader could only have from the decompiled terminal,
+    # and unlike a `Contract.java` source reference it carries no `.java`
+    # suffix, so the `<identifier>.java` pattern above never sees it. Only
+    # the DOTTED form is forbidden — `net.thetadata` must be immediately
+    # followed by a `.`-separated path. The bare class name on its own
+    # (`MarketValueTick`) is a legitimate public SDK type that ships across
+    # every binding and must stay clean, so the package prefix is required.
+    re.compile(r"\bnet\.thetadata\.[\w.]+", re.IGNORECASE),
     re.compile(r"\bjavap\b", re.IGNORECASE),
     re.compile(r"decompil", re.IGNORECASE),
     # The reverse-engineering vocabulary itself, with any separator
@@ -275,6 +295,13 @@ def _selftest() -> int:
       / `RE-d`, the `reversed engineering` conjugation, an uppercase
       `.JAVA` source, and a hyphenated `jar-build` note — every one must
       be flagged.
+    * A file naming a dotted `net.thetadata.*` Java fully-qualified class
+      name (`net.thetadata.types.tick.MarketValueTick`) — must be flagged.
+      The package path has no `.java` suffix, so the `<identifier>.java`
+      pattern never saw it; the dotted-FQCN pattern closes that gap.
+    * A clean file naming only the BARE public SDK type (`MarketValueTick`,
+      `QuoteTick`) with no package prefix — must pass, proving the dotted
+      pattern does not punish the legitimate cross-binding type name.
     * A clean file that names only the allow-listed "JVM terminal" /
       "Theta Terminal" parity reference — must pass.
     * A clean file whose factual wire description shares a line with the
@@ -315,6 +342,20 @@ def _selftest() -> int:
         "/// Layout reversed engineering notes for the OHLC packet.\n"
         "/// Source: `Contract.JAVA` decompiled output.\n"
         "/// Checked against the terminal jar-build `202605221`.\n"
+    )
+    # A dotted Java fully-qualified class name from the decompiled terminal
+    # package tree. It carries no `.java` suffix, so the older
+    # `<identifier>.java` pattern never saw it. Must trip.
+    leaky_fqcn = (
+        "/// Field order mirrors net.thetadata.types.tick.MarketValueTick.\n"
+        "/// Also seen as NET.THETADATA.Types.Tick.QuoteTick in another build.\n"
+    )
+    # The bare public SDK type name on its own — no package prefix. This is
+    # a legitimate cross-binding type and must stay clean; the dotted-FQCN
+    # pattern must NOT fire on it.
+    clean_bare_type = (
+        "/// Returns a MarketValueTick with the consolidated NBBO snapshot.\n"
+        "/// The QuoteTick and TradeTick structs share the same header.\n"
     )
     clean = (
         "//! Matches the JVM terminal byte-for-byte on the wire.\n"
@@ -363,6 +404,14 @@ def _selftest() -> int:
         variants_path.parent.mkdir(parents=True, exist_ok=True)
         variants_path.write_text(leaky_variants, encoding="utf-8")
 
+        fqcn_path = root / "crates" / "thetadatadx" / "src" / "fqcn.rs"
+        fqcn_path.parent.mkdir(parents=True, exist_ok=True)
+        fqcn_path.write_text(leaky_fqcn, encoding="utf-8")
+
+        bare_type_path = root / "sdks" / "cpp" / "include" / "bare_type.hpp"
+        bare_type_path.parent.mkdir(parents=True, exist_ok=True)
+        bare_type_path.write_text(clean_bare_type, encoding="utf-8")
+
         contractions_path = root / "ffi" / "src" / "contractions.rs"
         contractions_path.parent.mkdir(parents=True, exist_ok=True)
         contractions_path.write_text(clean_contractions, encoding="utf-8")
@@ -398,6 +447,27 @@ def _selftest() -> int:
             return 1
         if any(rel.name == "vendor.rs" for (rel, _, _, _) in hits):
             print("selftest FAILED: an allow-listed parity-reference file was flagged")
+            return 1
+
+        # A dotted `net.thetadata.*` FQCN must be flagged.
+        fqcn_hits = [h for h in hits if h[0].name == "fqcn.rs"]
+        if not any("net.thetadata" in m.lower() for (_, _, m, _) in fqcn_hits):
+            print(
+                "selftest FAILED: a dotted net.thetadata.* Java FQCN was not "
+                "flagged (the package path is decompilation provenance)"
+            )
+            return 1
+        # The bare public SDK type name (no package prefix) must stay clean.
+        if any(rel.name == "bare_type.hpp" for (rel, _, _, _) in hits):
+            bad = [
+                (m, line)
+                for (rel, _, m, line) in hits
+                if rel.name == "bare_type.hpp"
+            ]
+            print(
+                "selftest FAILED: the dotted-FQCN pattern false-positived on a "
+                f"bare public type name: {bad!r}"
+            )
             return 1
 
         # Spelling-variant coverage: every new variant must surface at

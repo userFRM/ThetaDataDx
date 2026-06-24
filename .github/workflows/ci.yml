@@ -156,6 +156,7 @@ jobs:
       # The cross-platform FFI builds live in the heavy lane; the fast
       # lane builds the Linux .so this gate needs and nothing more.
       - run: cargo build -p thetadatadx-ffi --release --locked
+      - run: python3 scripts/ci/check_c_abi_completeness.py --selftest
       - run: python3 scripts/ci/check_c_abi_completeness.py
 
   binding-parity:
@@ -278,6 +279,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - run: python3 scripts/ci/check_docs_consistency.py --selftest
       - run: python3 scripts/ci/check_docs_consistency.py
 
   version-sync:
@@ -289,7 +291,41 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      - run: python3 scripts/ci/check_version_sync.py --selftest
       - run: python3 scripts/ci/check_version_sync.py
+
+  # Pure-Python script gates split out of the heavy `surfaces` job so they
+  # run on EVERY PR — including a docs-only PR that skips the rust-gated
+  # `surfaces` job. While they lived only in `surfaces`, a path-irrelevant
+  # PR skipped them, and the aggregate gate counts a skip as a pass, so
+  # cross-lockfile drift / endpoint-agreement regressions could merge
+  # untested. Neither needs cargo or node, so they belong in the fast lane
+  # alongside docs-consistency / version-sync.
+  lockfile-drift:
+    name: Lockfile drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      # Cross-Cargo.lock dependency-version drift on security-critical
+      # (rustls, tokio, h2, reqwest, hyper) and SDK-owned (thetadatadx)
+      # deps. A workspace bump must land in every binding lockfile or the
+      # wheel / npm package ships a stale runtime.
+      - run: python3 scripts/ci/check_lockfile_drift.py
+
+  agreement:
+    name: Endpoint agreement
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python3 scripts/ci/tests/test_check_agreement.py
 
   cargo-deny:
     name: Cargo deny
@@ -556,12 +592,12 @@ jobs:
           node-version: "20"
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/install-protoc
-      # Cross-Cargo.lock dependency-version drift on security-critical
-      # (rustls, tokio, h2, reqwest, hyper) and SDK-owned (thetadatadx)
-      # deps. A workspace bump must land in every binding lockfile or the
-      # wheel / npm package ships a stale runtime.
-      - run: python3 scripts/ci/check_lockfile_drift.py
-      - run: python3 scripts/ci/tests/test_check_agreement.py
+      # NOTE: `check_lockfile_drift.py` and `test_check_agreement.py` ran
+      # here historically, but they are pure-Python gates that must run on
+      # EVERY PR (a docs-only PR skips this rust-gated heavy job). They now
+      # live in the standalone `lockfile-drift` / `agreement` fast-lane
+      # jobs above, both wired into `ci-gate`. Kept out of this job to
+      # avoid running them twice.
       - run: cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces --locked -- --check
       - run: cargo run -p thetadatadx --features config-file,__internal --bin generate_docs_site --locked -- --check
       - run: cargo check --manifest-path tools/mcp/Cargo.toml --locked
@@ -818,6 +854,8 @@ jobs:
       - no-re-framing
       - docs-consistency
       - version-sync
+      - lockfile-drift
+      - agreement
       - cargo-deny
       - lint-matrix
       - test

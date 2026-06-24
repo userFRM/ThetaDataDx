@@ -240,3 +240,51 @@ jobs:
             case "$pkg_version" in *-*) dist_tag=next;; esac
             npm publish --provenance --access public --tag "$dist_tag"
           fi
+
+  # ═══════════════════════════════════════════════════════════════
+  # AGGREGATOR GATE. A single roll-up status summarizing every job in
+  # this workflow, mirroring `ci.yml`'s `ci-gate`. It runs with
+  # `if: always()`, depends on every other job, and fails unless every
+  # dependency finished `success` or `skipped`. A heavy job that
+  # legitimately skips on a path-irrelevant PR counts as a pass; a real
+  # `failure` or `cancelled` fails the gate. This is the one
+  # TypeScript-lane check branch protection should require — requiring it
+  # (instead of a hand-kept list of per-job names) keeps a
+  # conditionally-skipped required check from leaving the merge gate
+  # permanently unsatisfiable, and a newly added job is covered the
+  # moment it appears in `needs` below.
+  # ═══════════════════════════════════════════════════════════════
+  typescript-gate:
+    name: TypeScript gate
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs:
+      - changes
+      - build
+      - publish
+    steps:
+      - name: Fail unless every dependency succeeded or was skipped
+        shell: bash
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          bad = sorted(
+              name
+              for name, data in needs.items()
+              if data.get("result") not in ("success", "skipped")
+          )
+          for name in sorted(needs):
+              print(f"{name}: {needs[name].get('result')}")
+          if bad:
+              joined = ", ".join(bad)
+              sys.exit(f"TypeScript gate failed: {joined} did not succeed or skip")
+          print("TypeScript gate passed: every dependency succeeded or was skipped")
+          PY
