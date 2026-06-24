@@ -39,7 +39,7 @@ Multi-language SDKs for ThetaDataDx. All are thin bindings over the shared Rust 
                     | gRPC (HTTP/2)       |
                     | Protobuf (prost)|
                     | zstd            |
-                    | FPSS (TCP)      |
+                    | Streaming (TCP) |
                     +--------+--------+
                              |
                     +--------v--------+
@@ -172,7 +172,7 @@ The library exposes opaque handle types and `extern "C"` functions:
 | **Standalone streaming** | `thetadatadx_streaming_connect`, `thetadatadx_streaming_set_callback`, `thetadatadx_streaming_subscribe`, `thetadatadx_streaming_unsubscribe` (both polymorphic, take `ThetaDataDxSubscriptionRequest`), `thetadatadx_streaming_is_authenticated`, `thetadatadx_streaming_active_subscriptions`, `thetadatadx_streaming_reconnect`, `thetadatadx_streaming_dropped_events`, `thetadatadx_streaming_shutdown`, `thetadatadx_streaming_await_drain`, `thetadatadx_streaming_free` |
 | **Memory** | `thetadatadx_*_array_free` (per tick type), `thetadatadx_string_array_free`, `thetadatadx_string_free`, `thetadatadx_last_error` |
 
-All historical data endpoints (61 total) are accessed through `thetadatadx_historical_connect`. Streaming can be reached either through the unified handle (`ThetaDataDxClient`, one auth/session for historical + streaming) or the standalone FPSS handle (`ThetaDataDxStreamHandle`). Results are returned as typed `#[repr(C)]` struct arrays (e.g. `ThetaDataDxEodTickArray`, `ThetaDataDxOhlcTickArray`) that must be freed with the corresponding `thetadatadx_*_array_free` function. List endpoints return `ThetaDataDxStringArray`. See the [FFI source](../ffi/src/lib.rs) for the full API and safety contract.
+All historical data endpoints (61 total) are accessed through `thetadatadx_historical_connect`. Streaming can be reached either through the unified handle (`ThetaDataDxClient`, one auth/session for historical + streaming) or the standalone streaming handle (`ThetaDataDxStreamHandle`). Results are returned as typed `#[repr(C)]` struct arrays (e.g. `ThetaDataDxEodTickArray`, `ThetaDataDxOhlcTickArray`) that must be freed with the corresponding `thetadatadx_*_array_free` function. List endpoints return `ThetaDataDxStringArray`. See the [FFI source](../ffi/src/lib.rs) for the full API and safety contract.
 
 ## Building All SDKs
 
