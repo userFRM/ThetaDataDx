@@ -122,6 +122,14 @@ skip-tree = [
     # still on hashbrown 0.15 while the rest of the tree is on 0.17.
     # Duplicate is upstream-rooted and resolves once petgraph updates.
     { name = "petgraph", version = "0.8" },
+    # Reason: windows-sys is pulled at two minor lines by independent
+    # upstreams -- 0.52 via rustls-platform-verifier (reqwest's TLS
+    # verifier) and tempfile/proptest, 0.61 via clap's anstyle stack
+    # (and the criterion dev-dependency). It is a Windows-target-only
+    # crate, so it is never compiled on the Linux CI host, and the split
+    # is forced by upstream version choices; it clears once those crates
+    # converge. Skipped so `cargo deny check` stays warning-clean.
+    { name = "windows-sys" },
 ]
 
 [sources]

@@ -51,6 +51,19 @@ impl StreamView {
         }
         let dispatch_cb = Arc::clone(&callback_arc);
 
+        // Teardown wake hook. The dispatcher does NOT park only on the
+        // event ring: once the bounded callback queue is full it blocks inside
+        // the `Blocking` `dispatch_cb.call(...)` below, waiting for the Node
+        // main thread to drain the queue. On `stopStreaming()` the main thread
+        // is itself inside the dispatcher join, so it can never drain the queue
+        // — the consumer would block forever and the join would hang. The hook
+        // aborts the threadsafe function so the in-flight `Blocking` call
+        // returns `Status::Closing`, the consumer resumes, observes the client
+        // shutdown, exits `for_each_scoped`, and the join completes. It is
+        // built from `callback_arc` (a shared-handle clone, NOT the stored
+        // slot) so installing it consumes nothing the dispatcher needs.
+        let teardown_hook = crate::fpss_client::abort_hook(&callback_arc);
+
         // The FPSS connect and authentication handshake are network-bound
         // and run synchronously inside `start_streaming`. Move that work
         // onto a blocking worker so the single libuv thread stays free to
@@ -62,7 +75,7 @@ impl StreamView {
         let join_result = tokio::task::spawn_blocking(move || {
             client
                 .stream()
-                .start_streaming(move |event: &fpss::StreamEvent| {
+                .start_streaming_with_teardown(move |event: &fpss::StreamEvent| {
                     // Convert to the typed `StreamEvent` napi object on the
                     // dispatcher thread, then hand the value
                     // to `ThreadsafeFunction::call`. napi-rs' internal
@@ -90,7 +103,7 @@ impl StreamView {
                     // the JS side's problem, surfaced through Node's own
                     // `uncaughtException`.
                     dispatch_cb.call(typed, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
-                })
+                }, teardown_hook)
         })
         .await;
 
@@ -207,6 +220,12 @@ impl StreamView {
             }
         };
         let dispatch_cb = Arc::clone(&callback_arc);
+        // Fresh teardown wake hook for the reconnected session. The
+        // reconnect re-uses the same `ThreadsafeFunction`, but the hook is
+        // `FnOnce`, so a new one is built from the persistent callback handle
+        // per reconnect to wake a dispatcher blocked in the full callback queue
+        // when the NEW session tears down. See `startStreaming`.
+        let teardown_hook = crate::fpss_client::abort_hook(&callback_arc);
 
         // The reconnect re-runs the FPSS connect and authentication
         // handshake plus a paced subscription restore — all network-bound.
@@ -218,11 +237,11 @@ impl StreamView {
         tokio::task::spawn_blocking(move || {
             client
                 .stream()
-                .reconnect_streaming(move |event: &fpss::StreamEvent| {
+                .reconnect_streaming_with_teardown(move |event: &fpss::StreamEvent| {
                     let buffered = fpss_event_to_buffered(event);
                     let typed = buffered_event_to_typed(buffered);
                     dispatch_cb.call(typed, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
-                })
+                }, teardown_hook)
         })
         .await
         .map_err(|e| napi::Error::from_reason(format!("reconnect task panicked: {e}")))?

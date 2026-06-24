@@ -55,6 +55,8 @@
                     });
                 },
                 |drain| Python::attach(|_py| drain()),
+                // No teardown wake hook — see `start_streaming` above.
+                None,
             )
         })
         .map_err(to_py_err)?;

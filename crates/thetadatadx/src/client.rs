@@ -235,15 +235,24 @@ struct TeardownWork {
 /// `drained` flag stays unset until the reader's `Arc<StreamingClient>` is
 /// dropped rather than merely closed — so registering it would make a manual
 /// `await_drain` time out spuriously while a closed-but-not-dropped columnar
-/// reader is alive. The columnar session is distinguished by being the only
-/// session that installs a teardown wake hook (to release a producer parked on
-/// the batch queue); the callback session installs none. A non-`Running`
-/// session has nothing to wait on.
+/// reader is alive. The two are told apart by the explicit
+/// [`DispatcherSession::Running::registers_drain_flag`] set at start, NOT by
+/// whether a teardown wake hook is present: a callback session can now also
+/// carry a hook (the TypeScript `ThreadsafeFunction` abort), so the hook is no
+/// longer a proxy for "columnar". A non-`Running` session has nothing to wait
+/// on.
 fn session_registers_drain_flag(session: &DispatcherSession) -> bool {
     match session {
-        // Callback session: a wake hook is never installed -> register.
-        // Columnar session: a wake hook IS installed -> do not register.
-        DispatcherSession::Running { on_teardown, .. } => on_teardown.is_none(),
+        // Read the explicit per-session flag: the per-event callback sessions
+        // set it `true` (a user callback `await_drain` must wait for); the
+        // columnar pull session sets it `false`. This must NOT be inferred from
+        // whether `on_teardown` is present — a callback session can now also
+        // carry a wake hook (the TypeScript `ThreadsafeFunction` abort), so the
+        // hook is no longer a proxy for "columnar".
+        DispatcherSession::Running {
+            registers_drain_flag,
+            ..
+        } => *registers_drain_flag,
         DispatcherSession::Idle | DispatcherSession::Failed { .. } => false,
     }
 }
@@ -397,24 +406,16 @@ impl StreamingState {
         if let DispatcherSession::Running {
             handle,
             on_teardown,
+            ..
         } = session
         {
-            // Wake a dispatcher parked on its own backpressure primitive BEFORE
-            // joining it. The per-event callback dispatcher parks only on the
-            // event ring, which `client.shutdown()` above already signalled, so
-            // it installs no hook. The columnar pull dispatcher can be parked in
-            // its bounded-queue `flush` wait, which the FPSS shutdown does NOT
-            // touch; its hook stores `closed` (under the queue lock) and
-            // notifies, so the parked flush returns and the join below completes
-            // instead of hanging. The hook runs the SAME wakeup the reader's own
-            // close path runs, so every teardown route converges on it.
-            if let Some(wake) = on_teardown {
-                wake();
-            }
             // Avoid blocking the consumer thread joining itself when a callback
             // (or, for the pull reader, a dispatcher-thread drop) called this.
             // Detach in that case; `await_drain` still observes quiescence via
-            // the `prev_drained` flags.
+            // the `prev_drained` flags. A self-call also means the dispatcher is
+            // executing this teardown rather than parked on a backpressure
+            // primitive, so the wake hook is neither needed nor run on that path
+            // (it is dropped below with `session`).
             //
             // Dispatcher panic state is derived from `JoinHandle::join()`:
             // `Err(_)` means the dispatcher thread panicked in the
@@ -425,7 +426,24 @@ impl StreamingState {
             // state is published by RE-ACQUIRING the lock, which is safe now
             // that the join has completed and the lock is free.
             if handle.thread().id() != std::thread::current().id() {
-                if let Err(payload) = handle.join() {
+                // Signal-grace-wake-join. `client.shutdown()` above signalled
+                // the event ring, so a dispatcher parked there exits on its own
+                // and is joined without ever firing the hook. The hook fires
+                // only as a fallback, when the dispatcher is still blocked off
+                // the ring after the grace window — the columnar pull dispatcher
+                // parked in its bounded-queue `flush` wait (which the FPSS
+                // shutdown does not touch), or a binding whose per-event handler
+                // is parked in a full bounded callback queue (the TypeScript
+                // `ThreadsafeFunction` path). Gating the wake behind the grace
+                // (rather than firing it unconditionally) matters for hooks
+                // whose wake is destructive: the TypeScript abort hook makes the
+                // function permanently reject calls, and a `reconnect` re-uses
+                // that same function, so aborting it on every stop would leave a
+                // reconnected session unable to deliver events. A dispatcher
+                // that exits cleanly is joined before the grace elapses, so the
+                // destructive wake runs only when it is the sole way to break a
+                // real deadlock.
+                if let Err(payload) = join_dispatcher_with_wake(handle, on_teardown) {
                     let reason = downcast_panic_payload(payload);
                     tracing::error!(
                         target: "thetadatadx::client",
@@ -616,7 +634,10 @@ impl Client {
     {
         // Identity batch scope — each batch drain runs directly. The
         // GIL-amortising form lives in [`Self::start_streaming_scoped`].
-        self.start_streaming_scoped(handler, |drain| drain())
+        // No teardown wake hook: a handler that delivers events through a Rust
+        // call, the CPython interpreter lock, or the C ABI parks only on the
+        // event ring, which `client.shutdown()` already signals at teardown.
+        self.start_streaming_scoped(handler, |drain| drain(), None)
     }
 
     /// Start FPSS streaming with each consumer batch drain wrapped in a
@@ -635,10 +656,31 @@ impl Client {
     /// which both raises sustained drain throughput and keeps a blocking
     /// wait off the lock. `handler` still fires exactly once per event.
     ///
+    /// `on_teardown` is the optional dispatcher wakeup hook (see
+    /// [`DispatcherSession::Running`]). It is required when `handler` can park
+    /// off the event ring waiting on a primitive the FPSS shutdown does not
+    /// touch — notably a binding whose `handler` hands each event to a bounded
+    /// queue and blocks once that queue is full. The TypeScript binding's
+    /// per-event callback path does exactly this: it routes events through a
+    /// napi `ThreadsafeFunction` with a bounded call queue and a `Blocking`
+    /// call mode, so a full queue parks the dispatcher inside `call` waiting
+    /// for the Node main thread to drain it. During teardown the main thread is
+    /// itself inside the dispatcher join, so it can never drain the queue, and
+    /// the hook is what aborts the threadsafe function (making the in-flight
+    /// `Blocking` call return) so the dispatcher resumes, observes the
+    /// shutdown, exits `for_each_scoped`, and the join completes. Pass `None`
+    /// when `handler` parks only on the event ring (the Rust / Python / C ABI
+    /// callback paths), which `client.shutdown()` already signals.
+    ///
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub(crate) fn start_streaming_scoped<F, S>(&self, mut handler: F, scope: S) -> Result<(), Error>
+    pub(crate) fn start_streaming_scoped<F, S>(
+        &self,
+        mut handler: F,
+        scope: S,
+        on_teardown: Option<Box<dyn FnOnce() + Send>>,
+    ) -> Result<(), Error>
     where
         F: FnMut(&StreamEvent) + Send + 'static,
         S: FnMut(&mut dyn FnMut() -> crate::PollOutcome) -> crate::PollOutcome + Send + 'static,
@@ -648,14 +690,13 @@ impl Client {
         // sequence is shared with the columnar `batches()` path via
         // `start_dispatcher`; only the per-thread consumer body differs.
         let mut scope = scope;
-        // The callback dispatcher parks only on the event ring, which the
-        // client shutdown signals during teardown, so it needs no extra wake
-        // hook.
         self.start_dispatcher(
             move |client| {
                 client.for_each_scoped(|event| handler(event), &mut scope);
             },
-            None,
+            on_teardown,
+            // Callback session: `await_drain` waits for this user handler.
+            true,
         )
         .map(|(_client, _generation)| ())
     }
@@ -673,12 +714,19 @@ impl Client {
     /// live here once.
     ///
     /// `on_teardown` is the optional dispatcher wakeup hook (see
-    /// [`DispatcherSession::Running`]). The callback path passes `None`; the
-    /// columnar path passes a hook that releases a dispatcher parked on the
+    /// [`DispatcherSession::Running`]). The callback path passes `None` when its
+    /// handler parks only on the event ring, or a hook that releases a handler
+    /// blocked off the ring (the TypeScript `ThreadsafeFunction` callback queue);
+    /// the columnar path passes a hook that releases a dispatcher parked on the
     /// batch queue so a direct `stop_streaming` / drop can join it. It is
     /// installed atomically with the `Running` transition under the dispatcher
     /// lock, so a teardown racing the start never sees a `Running` session
     /// without its hook.
+    ///
+    /// `registers_drain_flag` records whether the session has a user callback
+    /// that [`StreamSurface::await_drain`] must wait for (see
+    /// [`DispatcherSession::Running`]). The per-event callback path passes
+    /// `true`; the columnar pull path passes `false`.
     ///
     /// On success returns the live client and the stop-generation the session
     /// was installed at. The columnar reader stamps that generation so its
@@ -696,6 +744,7 @@ impl Client {
         &self,
         dispatcher_body: B,
         on_teardown: Option<Box<dyn FnOnce() + Send>>,
+        registers_drain_flag: bool,
     ) -> Result<(Arc<StreamingClient>, u64), Error>
     where
         B: FnOnce(Arc<StreamingClient>) + Send + 'static,
@@ -850,6 +899,7 @@ impl Client {
                 *dispatcher_guard = DispatcherSession::Running {
                     handle: dispatcher_handle,
                     on_teardown,
+                    registers_drain_flag,
                 };
                 let _ = gate.set(true);
                 Ok((client_arc, gen_at_entry))
@@ -932,6 +982,10 @@ impl Client {
                 sink.finish();
             },
             Some(on_teardown),
+            // Columnar pull session: no user callback, so `await_drain` must
+            // NOT register this session's drain flag (it stays unset until the
+            // reader handle is dropped).
+            false,
         )
     }
 
@@ -1482,7 +1536,8 @@ impl Client {
         F: FnMut(&StreamEvent) + Send + 'static,
     {
         // Identity batch scope — see [`Self::reconnect_streaming_scoped`].
-        self.reconnect_streaming_scoped(handler, |drain| drain())
+        // No teardown wake hook for the same reason as [`Self::start_streaming`].
+        self.reconnect_streaming_scoped(handler, |drain| drain(), None)
     }
 
     /// Reconnect, re-registering `handler` with each consumer batch drain
@@ -1494,12 +1549,25 @@ impl Client {
     /// `handler` still fires exactly once per event; `scope` brackets
     /// each batch drain on the fresh connection.
     ///
+    /// `on_teardown` is the optional dispatcher wakeup hook installed on the
+    /// fresh session, carried straight through to
+    /// [`Self::start_streaming_scoped`] — see its docs for when it is required.
+    /// A binding that needs the hook (e.g. the TypeScript `ThreadsafeFunction`
+    /// path) builds a fresh one per reconnect from its persistent callback
+    /// handle so the new session's teardown can wake a dispatcher blocked in
+    /// the bounded callback queue.
+    ///
     /// # Errors
     ///
     /// Returns [`Error::PartialReconnect`] when some subscriptions fail
     /// to restore, or a network / authentication / parsing error on the
     /// restart itself.
-    pub(crate) fn reconnect_streaming_scoped<F, S>(&self, handler: F, scope: S) -> Result<(), Error>
+    pub(crate) fn reconnect_streaming_scoped<F, S>(
+        &self,
+        handler: F,
+        scope: S,
+        on_teardown: Option<Box<dyn FnOnce() + Send>>,
+    ) -> Result<(), Error>
     where
         F: FnMut(&StreamEvent) + Send + 'static,
         S: FnMut(&mut dyn FnMut() -> crate::PollOutcome) -> crate::PollOutcome + Send + 'static,
@@ -1518,7 +1586,7 @@ impl Client {
         self.stop_streaming();
 
         // 3. Start a new streaming connection
-        self.start_streaming_scoped(handler, scope)?;
+        self.start_streaming_scoped(handler, scope, on_teardown)?;
 
         // 4. Re-subscribe all saved subscriptions (paced), accumulating
         //    failures.
@@ -2125,20 +2193,56 @@ impl StreamSurface<'_> {
         self.0.start_streaming(handler)
     }
 
+    /// Start FPSS streaming with a dispatcher teardown wakeup hook.
+    ///
+    /// Identical to [`Self::start_streaming`] except that `on_teardown` runs
+    /// just before the dispatcher join at teardown. A binding whose `handler`
+    /// can block off the event ring — notably one that hands each event to a
+    /// bounded queue and blocks once full (the TypeScript napi
+    /// `ThreadsafeFunction` path) — supplies a hook that releases that block so
+    /// the dispatcher can observe the shutdown and the join can complete.
+    /// `handler` that parks only on the event ring needs no hook; use the
+    /// plain [`Self::start_streaming`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error on network, authentication, or parsing failure.
+    pub fn start_streaming_with_teardown<F>(
+        &self,
+        handler: F,
+        on_teardown: Box<dyn FnOnce() + Send>,
+    ) -> Result<(), Error>
+    where
+        F: FnMut(&StreamEvent) + Send + 'static,
+    {
+        self.0
+            .start_streaming_scoped(handler, |drain| drain(), Some(on_teardown))
+    }
+
     /// Start FPSS streaming with each consumer batch drain wrapped in a
     /// caller-supplied `scope`. See [`Self::start_streaming`]; `scope`
     /// brackets each batch drain so a binding can amortise an
     /// interpreter lock across a batch.
     ///
+    /// `on_teardown` is the optional dispatcher wakeup hook — see
+    /// [`Self::start_streaming_with_teardown`] for when it is required. The
+    /// interpreter-lock bindings (e.g. Python) park only on the event ring and
+    /// pass `None`.
+    ///
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure.
-    pub fn start_streaming_scoped<F, S>(&self, handler: F, scope: S) -> Result<(), Error>
+    pub fn start_streaming_scoped<F, S>(
+        &self,
+        handler: F,
+        scope: S,
+        on_teardown: Option<Box<dyn FnOnce() + Send>>,
+    ) -> Result<(), Error>
     where
         F: FnMut(&StreamEvent) + Send + 'static,
         S: FnMut(&mut dyn FnMut() -> crate::PollOutcome) -> crate::PollOutcome + Send + 'static,
     {
-        self.0.start_streaming_scoped(handler, scope)
+        self.0.start_streaming_scoped(handler, scope, on_teardown)
     }
 
     /// Polymorphic subscribe — primary fluent entry point.
@@ -2263,19 +2367,55 @@ impl StreamSurface<'_> {
         self.0.reconnect_streaming(handler)
     }
 
-    /// Reconnect, re-registering `handler` with each consumer batch drain
-    /// wrapped in `scope`.
+    /// Reconnect with a dispatcher teardown wakeup hook on the fresh session.
+    ///
+    /// The reconnect counterpart of [`Self::start_streaming_with_teardown`]:
+    /// tears the old session down, restarts under `handler`, and installs
+    /// `on_teardown` on the new session so a later teardown can wake a
+    /// dispatcher blocked off the event ring (the TypeScript
+    /// `ThreadsafeFunction` path). The hook is consumed by this one reconnect;
+    /// a binding that reconnects again builds a fresh hook from its persistent
+    /// callback handle.
     ///
     /// # Errors
     ///
     /// Returns [`Error::PartialReconnect`] when some subscriptions fail to
     /// restore, or a network / authentication / parsing error.
-    pub fn reconnect_streaming_scoped<F, S>(&self, handler: F, scope: S) -> Result<(), Error>
+    pub fn reconnect_streaming_with_teardown<F>(
+        &self,
+        handler: F,
+        on_teardown: Box<dyn FnOnce() + Send>,
+    ) -> Result<(), Error>
+    where
+        F: FnMut(&StreamEvent) + Send + 'static,
+    {
+        self.0
+            .reconnect_streaming_scoped(handler, |drain| drain(), Some(on_teardown))
+    }
+
+    /// Reconnect, re-registering `handler` with each consumer batch drain
+    /// wrapped in `scope`.
+    ///
+    /// `on_teardown` is the optional dispatcher wakeup hook installed on the
+    /// fresh session — see [`Self::reconnect_streaming_with_teardown`]. The
+    /// interpreter-lock bindings (e.g. Python) pass `None`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::PartialReconnect`] when some subscriptions fail to
+    /// restore, or a network / authentication / parsing error.
+    pub fn reconnect_streaming_scoped<F, S>(
+        &self,
+        handler: F,
+        scope: S,
+        on_teardown: Option<Box<dyn FnOnce() + Send>>,
+    ) -> Result<(), Error>
     where
         F: FnMut(&StreamEvent) + Send + 'static,
         S: FnMut(&mut dyn FnMut() -> crate::PollOutcome) -> crate::PollOutcome + Send + 'static,
     {
-        self.0.reconnect_streaming_scoped(handler, scope)
+        self.0
+            .reconnect_streaming_scoped(handler, scope, on_teardown)
     }
 
     /// Re-subscribe a saved subscription snapshot onto the live session,
@@ -2540,6 +2680,56 @@ fn downcast_panic_payload(payload: Box<dyn std::any::Any + Send>) -> String {
     "dispatcher panicked with non-string payload".to_owned()
 }
 
+/// Grace window a teardown gives the dispatcher to exit on its own — by
+/// observing the ring shutdown — before the wake hook is fired.
+///
+/// A dispatcher whose consumer loop is not parked off the event ring returns
+/// from its body within microseconds of `client.shutdown()`, so it is observed
+/// finished almost immediately and the wake hook never runs. A dispatcher
+/// parked off the ring — the columnar pull dispatcher in its bounded-queue
+/// `flush` wait, or a binding's per-event handler blocked in a full bounded
+/// callback queue — does not finish on its own, so it is still running when this
+/// window elapses and the wake hook is fired to release it.
+///
+/// Firing the hook only as a fallback (rather than unconditionally) is required
+/// because some wakes are destructive and the woken resource may be re-used: the
+/// TypeScript `ThreadsafeFunction` abort permanently makes the function reject
+/// calls, yet `reconnect` re-registers that same function, so aborting it on
+/// every stop would leave a reconnected session unable to deliver events. A
+/// dispatcher that exits cleanly is joined before the grace elapses, so the
+/// destructive wake runs only when it is the sole way to break a real deadlock.
+const DISPATCHER_TEARDOWN_WAKE_GRACE: Duration = Duration::from_millis(250);
+
+/// Poll cadence for [`DISPATCHER_TEARDOWN_WAKE_GRACE`].
+const DISPATCHER_TEARDOWN_POLL: Duration = Duration::from_millis(1);
+
+/// Join a dispatcher thread, firing its teardown wake hook only if it does not
+/// exit on its own within [`DISPATCHER_TEARDOWN_WAKE_GRACE`].
+///
+/// The caller must have already signalled the client shutdown (so a dispatcher
+/// parked on the event ring is on its way out) and must not be the dispatcher
+/// thread itself. Returns the [`std::thread::JoinHandle::join`] result so the
+/// caller can record a dispatcher panic.
+fn join_dispatcher_with_wake(
+    handle: std::thread::JoinHandle<()>,
+    on_teardown: Option<Box<dyn FnOnce() + Send>>,
+) -> std::thread::Result<()> {
+    let deadline = Instant::now() + DISPATCHER_TEARDOWN_WAKE_GRACE;
+    while !handle.is_finished() {
+        if Instant::now() >= deadline {
+            // Still running after the grace window: the dispatcher is parked off
+            // the event ring. Fire the wake hook to release it, then fall
+            // through to the blocking join, which now completes.
+            if let Some(wake) = on_teardown {
+                wake();
+            }
+            break;
+        }
+        std::thread::sleep(DISPATCHER_TEARDOWN_POLL);
+    }
+    handle.join()
+}
+
 #[cfg(test)]
 mod tests {
     use crate::fpss::protocol::OptionLeg;
@@ -2705,6 +2895,7 @@ mod tests {
         *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
             handle,
             on_teardown: None,
+            registers_drain_flag: true,
         };
         assert!(
             !state.dispatcher_is_idle(),
@@ -2768,6 +2959,9 @@ mod tests {
         *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
             handle: feeder,
             on_teardown: Some(Box::new(move || wake_shared.close_and_wake())),
+            // Columnar-shaped session in this test, but the assertion is on the
+            // join completing, not on drain-flag registration.
+            registers_drain_flag: false,
         };
 
         // Drive quiesce on a side thread so a hung join is caught by the
@@ -2843,6 +3037,7 @@ mod tests {
         *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
             handle: dispatcher,
             on_teardown: Some(Box::new(move || wake_released.store(true, O::Release))),
+            registers_drain_flag: true,
         };
 
         // Drive teardown on a side thread so a hung join is caught by the
@@ -2914,6 +3109,7 @@ mod tests {
                     let join_window_open = Arc::clone(&join_window_open);
                     Box::new(move || join_window_open.store(true, O::Release))
                 }),
+                registers_drain_flag: true,
             },
         };
 
@@ -2939,6 +3135,7 @@ mod tests {
         *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
             handle: new_handle,
             on_teardown: None,
+            registers_drain_flag: true,
         };
         // Release the old handle to panic; the join now returns Err and the
         // conditional `Failed` write runs against the slot holding the NEW
@@ -2979,15 +3176,20 @@ mod tests {
     /// other `await_drain` tests do).
     #[test]
     fn columnar_session_does_not_register_a_drain_flag() {
-        // The decision itself: columnar (has wake hook) does not register;
-        // callback (no wake hook) does.
+        // The decision is the explicit `registers_drain_flag` field, NOT the
+        // presence of a wake hook: a columnar session sets it `false`, a
+        // callback session `true`. A callback session may now ALSO carry a hook
+        // (the TypeScript abort), so this case pins that a hook-bearing callback
+        // session still registers its drain flag.
         let columnar = DispatcherSession::Running {
             handle: std::thread::spawn(|| {}),
             on_teardown: Some(Box::new(|| {})),
+            registers_drain_flag: false,
         };
         let callback = DispatcherSession::Running {
             handle: std::thread::spawn(|| {}),
-            on_teardown: None,
+            on_teardown: Some(Box::new(|| {})),
+            registers_drain_flag: true,
         };
         assert!(
             !session_registers_drain_flag(&columnar),
@@ -3068,6 +3270,7 @@ mod tests {
         *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
             handle: r_handle,
             on_teardown: None,
+            registers_drain_flag: true,
         };
         let r_owned_generation = state.stop_generation();
 
@@ -3086,6 +3289,7 @@ mod tests {
         *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
             handle: newer_handle,
             on_teardown: None,
+            registers_drain_flag: true,
         };
 
         // R's drop runs its close gate against its stale stamp: it must leave
@@ -3111,6 +3315,7 @@ mod tests {
         *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
             handle,
             on_teardown: None,
+            registers_drain_flag: true,
         };
         let owned_generation = state.stop_generation();
 
@@ -3151,6 +3356,7 @@ mod tests {
         *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
             handle: r_handle,
             on_teardown: None,
+            registers_drain_flag: true,
         };
         let r_owned_generation = state.stop_generation();
 
@@ -3192,6 +3398,7 @@ mod tests {
         *guard = DispatcherSession::Running {
             handle: newer,
             on_teardown: None,
+            registers_drain_flag: true,
         };
         assert_ne!(
             state

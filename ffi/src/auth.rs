@@ -314,9 +314,18 @@ pub unsafe extern "C" fn thetadatadx_config_with_historical_environment(
         };
         // SAFETY: config is a non-null `*mut ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces an exclusive reference valid for the call duration.
         let config = unsafe { &mut *config };
-        // Move the inner config through the consuming builder and store it back.
-        let inner = std::mem::take(&mut config.inner);
-        config.inner = inner.with_historical_environment(environment);
+        // Run the consuming builder on a CLONE and store back only on success.
+        // `with_historical_environment` ends in `validate().expect(...)`, which
+        // panics if a previously raw-set tuning knob is out of range; the
+        // `ffi_boundary!` wrapper catches that and returns -1. The assignment
+        // below only happens if the right-hand side completed without panicking,
+        // so a panic leaves the original `config.inner` (custom hosts / tuning)
+        // intact instead of wiping it to `Default`. (Taking the inner out first
+        // and only restoring on success was the wiping bug.)
+        config.inner = config
+            .inner
+            .clone()
+            .with_historical_environment(environment);
         0
     })
 }
@@ -350,9 +359,13 @@ pub unsafe extern "C" fn thetadatadx_config_with_streaming_environment(
         };
         // SAFETY: config is a non-null `*mut ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces an exclusive reference valid for the call duration.
         let config = unsafe { &mut *config };
-        // Move the inner config through the consuming builder and store it back.
-        let inner = std::mem::take(&mut config.inner);
-        config.inner = inner.with_streaming_environment(environment);
+        // Run the consuming builder on a CLONE and store back only on success
+        // (see `thetadatadx_config_with_historical_environment` for the
+        // wiping-bug rationale): `with_streaming_environment` panics on an
+        // out-of-range tuning knob via `validate().expect(...)`, and assigning
+        // only after the RHS completes leaves the original config intact on the
+        // caught-panic path rather than resetting it to `Default`.
+        config.inner = config.inner.clone().with_streaming_environment(environment);
         0
     })
 }

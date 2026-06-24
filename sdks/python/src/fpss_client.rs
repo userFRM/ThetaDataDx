@@ -455,6 +455,8 @@ impl StreamingClient {
                     PyFpssDispatcherSession::Running {
                         handle: h,
                         on_teardown: None,
+                        // Python runs its own teardown and never reads this flag.
+                        registers_drain_flag: true,
                     };
             }
             Err(e) => {

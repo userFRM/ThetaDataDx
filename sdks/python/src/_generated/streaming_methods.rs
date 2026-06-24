@@ -132,6 +132,12 @@ impl StreamView {
                     });
                 },
                 |drain| Python::attach(|_py| drain()),
+                // No teardown wake hook: the dispatcher parks only on the
+                // event ring (the `call1` GIL acquire never blocks waiting on
+                // the teardown thread), which `client.shutdown()` already
+                // signals. The bounded-queue wake hook is a TypeScript
+                // `ThreadsafeFunction` concern.
+                None,
             )
         })
         .map_err(to_py_err)?;
@@ -276,6 +282,8 @@ impl StreamView {
                     });
                 },
                 |drain| Python::attach(|_py| drain()),
+                // No teardown wake hook — see `start_streaming` above.
+                None,
             )
         })
         .map_err(to_py_err)?;

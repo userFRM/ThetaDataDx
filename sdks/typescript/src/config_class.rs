@@ -25,8 +25,10 @@ pub struct ReconnectDecisionArgs {
 }
 
 /// Decode a non-negative `u64` from a JS `bigint` argument, with the
-/// setter name in the failure diagnostic.
-fn bigint_to_u64(name: &str, v: &napi::bindgen_prelude::BigInt) -> napi::Result<u64> {
+/// setter name in the failure diagnostic. `get_u64`'s `lossless` flag is
+/// `false` for a negative (sign bit set) or an over-`u64` magnitude, so this
+/// rejects both rather than passing a wrapped/truncated value.
+pub(crate) fn bigint_to_u64(name: &str, v: &napi::bindgen_prelude::BigInt) -> napi::Result<u64> {
     let (_signed, value, lossless) = v.get_u64();
     if !lossless {
         return Err(napi::Error::from_reason(format!(
@@ -1772,5 +1774,42 @@ impl Config {
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
         Ok(guard.streaming.derive_ohlcvc)
+    }
+}
+
+#[cfg(test)]
+mod bigint_to_u64_tests {
+    use super::bigint_to_u64;
+    use napi::bindgen_prelude::BigInt;
+
+    // The lossless u64 decode behind the BigInt setters (incl.
+    // setSlowCallbackThresholdUs) must reject a negative or an over-u64
+    // magnitude rather than passing a wrapped/truncated value.
+    #[test]
+    fn rejects_negative_bigint() {
+        let neg = BigInt::from(-1i64);
+        assert!(
+            bigint_to_u64("test", &neg).is_err(),
+            "a negative BigInt must be rejected, not wrapped to a large u64",
+        );
+    }
+
+    #[test]
+    fn rejects_over_u64_magnitude() {
+        let huge = BigInt::from(u128::from(u64::MAX) + 1);
+        assert!(
+            bigint_to_u64("test", &huge).is_err(),
+            "a magnitude beyond u64 must be rejected, not truncated",
+        );
+    }
+
+    #[test]
+    fn accepts_in_range_values() {
+        assert_eq!(bigint_to_u64("test", &BigInt::from(0u64)).unwrap(), 0);
+        assert_eq!(bigint_to_u64("test", &BigInt::from(50_000u64)).unwrap(), 50_000);
+        assert_eq!(
+            bigint_to_u64("test", &BigInt::from(u64::MAX)).unwrap(),
+            u64::MAX,
+        );
     }
 }

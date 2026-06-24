@@ -292,17 +292,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // re-wrapped in `Credentials`'s own `Zeroizing<String>`. Our
     // `Zeroizing<String>` here guarantees that by the time this block
     // exits, the clap-produced allocation has been overwritten.
+    // An empty / whitespace-only `--api-key` is treated as unset so it falls
+    // through to the lower-precedence sources instead of shadowing them with a
+    // blank key that could never authenticate. Symmetric with the empty-env
+    // handling and the CLI binary.
+    let api_key_flag = args.api_key.take().filter(|k| !k.trim().is_empty());
     let creds = match select_credential_source(
-        args.api_key.is_some(),
+        api_key_flag.is_some(),
         env_var_present(API_KEY_ENV),
         env_var_present(EMAIL_ENV) && env_var_present(PASSWORD_ENV),
     ) {
         CredentialSource::ApiKeyFlag => {
-            // Move the key out of the clap struct into `Zeroizing` so the
-            // argv-sourced allocation is scrubbed when this scope exits.
-            // `Credentials::api_key` keeps its own zeroized copy. The key
-            // itself is never logged.
-            let raw_key = args.api_key.take().expect("api_key is Some on this arm");
+            // Move the key out into `Zeroizing` so the argv-sourced allocation
+            // is scrubbed when this scope exits. `Credentials::api_key` keeps
+            // its own zeroized copy. The key itself is never logged.
+            let raw_key = api_key_flag.expect("api_key is Some on this arm");
             let key: Zeroizing<String> = Zeroizing::new(raw_key);
             tracing::info!("loaded credentials from --api-key flag");
             let c = Credentials::api_key(key.as_str());
