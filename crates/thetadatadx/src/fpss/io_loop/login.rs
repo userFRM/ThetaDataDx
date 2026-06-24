@@ -113,7 +113,7 @@ where
     let mut frame_state = FrameReadState::new();
     loop {
         if now() >= deadline {
-            return Err(Error::Fpss {
+            return Err(Error::Stream {
                 kind: crate::error::StreamErrorKind::Timeout,
                 message: "login handshake did not complete within the handshake deadline"
                     .to_string(),
@@ -121,7 +121,7 @@ where
         }
 
         if pending_control.len() >= max_pending_control {
-            return Err(Error::Fpss {
+            return Err(Error::Stream {
                 kind: crate::error::StreamErrorKind::ProtocolError,
                 message: format!(
                     "login handshake buffered {max_pending_control} control frames without METADATA"
@@ -137,7 +137,7 @@ where
         ) {
             Ok(Some(frame)) => frame,
             Ok(None) => {
-                return Err(Error::Fpss {
+                return Err(Error::Stream {
                     kind: crate::error::StreamErrorKind::Disconnected,
                     message: "connection closed during login handshake".to_string(),
                 })
@@ -163,7 +163,7 @@ where
             StreamMsgType::Error => {
                 let msg = String::from_utf8_lossy(payload);
                 tracing::warn!(message = %msg, "server error during login");
-                return Err(Error::Fpss {
+                return Err(Error::Stream {
                     kind: crate::error::StreamErrorKind::ConnectionRefused,
                     message: format!("server error during login: {msg}"),
                 });
@@ -486,7 +486,7 @@ mod tests {
             clock,
         );
         match result {
-            Err(Error::Fpss { kind, .. }) => {
+            Err(Error::Stream { kind, .. }) => {
                 assert!(matches!(kind, crate::error::StreamErrorKind::Timeout));
             }
             Err(other) => panic!("expected an Fpss timeout error, got {other:?}"),
@@ -570,7 +570,7 @@ mod tests {
             clock,
         );
         match result {
-            Err(Error::Fpss { kind, .. }) => assert!(
+            Err(Error::Stream { kind, .. }) => assert!(
                 matches!(kind, crate::error::StreamErrorKind::Timeout),
                 "a mid-frame trickle past the deadline must surface as a handshake timeout"
             ),
@@ -604,7 +604,7 @@ mod tests {
             Instant::now,
         );
         match result {
-            Err(Error::Fpss { kind, .. }) => {
+            Err(Error::Stream { kind, .. }) => {
                 assert!(matches!(kind, crate::error::StreamErrorKind::ProtocolError));
             }
             Err(other) => panic!("expected an Fpss protocol error, got {other:?}"),

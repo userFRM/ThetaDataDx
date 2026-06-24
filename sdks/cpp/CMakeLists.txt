@@ -88,8 +88,8 @@ target_link_libraries(thetadatadx_example PRIVATE thetadatadx_cpp)
 add_executable(thetadatadx_validate examples/validate.cpp)
 target_link_libraries(thetadatadx_validate PRIVATE thetadatadx_cpp)
 
-add_executable(thetadatadx_fpss_smoke examples/fpss_smoke.cpp)
-target_link_libraries(thetadatadx_fpss_smoke PRIVATE thetadatadx_cpp)
+add_executable(thetadatadx_streaming_smoke examples/streaming_smoke.cpp)
+target_link_libraries(thetadatadx_streaming_smoke PRIVATE thetadatadx_cpp)
 
 add_executable(thetadatadx_historical_stream_smoke examples/historical_stream_smoke.cpp)
 target_link_libraries(thetadatadx_historical_stream_smoke PRIVATE thetadatadx_cpp)

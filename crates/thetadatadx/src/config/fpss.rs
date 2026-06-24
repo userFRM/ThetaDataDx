@@ -391,7 +391,7 @@ impl StreamingConfig {
     /// mode and tuning knobs.
     ///
     /// The [`StreamingWaitStrategy::LowLatency`] default with the default
-    /// tuning reproduces the historical fixed FPSS strategy byte-for-byte
+    /// tuning reproduces the prior fixed streaming strategy byte-for-byte
     /// (100 spins / 10 yields / trailing `spin_loop` hint, never sleeps).
     /// Out-of-range tuning is clamped to the wait strategy's documented
     /// bounds.

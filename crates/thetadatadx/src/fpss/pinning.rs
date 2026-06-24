@@ -43,9 +43,8 @@ pub(crate) fn ct_eq_bytes(a: &[u8], b: &[u8]) -> bool {
 }
 
 /// SHA-256 of the `SubjectPublicKeyInfo` presented by every `ThetaData`
-/// FPSS endpoint. The same keypair fronts every preset host: prod
-/// (`nj-a:20000/20001`, `nj-b:20000/20001`), stage (`nj-a:20100`,
-/// `test-server:20100/20101`), and dev (`nj-a:20200`,
+/// FPSS endpoint. The same keypair fronts every streaming host: prod
+/// (`nj-a:20000/20001`, `nj-b:20000/20001`) and dev (`nj-a:20200`,
 /// `test-server:20200/20201`).
 ///
 /// Captured 2026-04-20 via the `openssl` pipeline documented in the module
@@ -60,12 +59,12 @@ pub(crate) const FPSS_SPKI_SHA256: [u8; 32] = [
 
 /// Hostnames we are willing to connect to for FPSS.
 ///
-/// Covers every host the shipped presets dial: production spans the two NJ
-/// machines (`nj-a` / `nj-b`), while the stage and dev presets dial
-/// `nj-a` plus `test-server.thetadata.us`. The hostname allowlist runs
-/// before the SPKI pin, so a host missing here fails TLS with
-/// `NotValidForName` and that environment loses failover — `test-server`
-/// must be present for stage/dev to connect at all.
+/// Covers every host the shipped streaming environments dial: production spans
+/// the two NJ machines (`nj-a` / `nj-b`), while the dev replay environment dials
+/// `nj-a` plus `test-server.thetadata.us`. The hostname allowlist runs before
+/// the SPKI pin, so a host missing here fails TLS with `NotValidForName` and
+/// that environment loses failover — `test-server` must be present for dev to
+/// connect at all.
 ///
 /// Even with SPKI pinning we keep this explicit allowlist: if a config typo
 /// or DNS shenanigan points us at an unexpected host that happens to share
@@ -307,28 +306,26 @@ mod tests {
 
     #[test]
     fn allowed_hosts_cover_every_fpss_environment() {
-        use crate::config::{DirectConfig, Environment};
+        use crate::config::StreamingEnvironment;
 
-        // Enumerate every streaming host the shipped presets dial, pulled
-        // from the config layer itself rather than a hardcoded list, and
-        // assert each hostname is in the allowlist. The allowlist runs
-        // before the SPKI pin, so a preset host missing here fails TLS with
-        // `NotValidForName` and that environment silently loses failover.
-        // Sourcing from `Environment::streaming_hosts` + the dev preset
-        // means a future preset host that is not allowlisted trips this
-        // test instead of shipping a dead environment.
-        let mut preset_hosts: Vec<(String, u16)> = Vec::new();
-        for env in [Environment::Prod, Environment::Stage] {
-            preset_hosts.extend(env.streaming_hosts());
+        // Enumerate every streaming host the shipped streaming environments
+        // dial, pulled from the config layer itself rather than a hardcoded
+        // list, and assert each hostname is in the allowlist. The allowlist
+        // runs before the SPKI pin, so an environment host missing here fails
+        // TLS with `NotValidForName` and that environment silently loses
+        // failover. Streaming hosts come exclusively from the streaming
+        // environment {Prod, Dev} — there is no streaming staging cluster — so
+        // a future host that is not allowlisted trips this test instead of
+        // shipping a dead environment.
+        let mut env_hosts: Vec<(String, u16)> = Vec::new();
+        for env in [StreamingEnvironment::Prod, StreamingEnvironment::Dev] {
+            env_hosts.extend(env.hosts());
         }
-        // Dev is not an `Environment` (historical stays on prod), so its
-        // streaming hosts come from the dedicated source of truth.
-        preset_hosts.extend(DirectConfig::dev_streaming_hosts());
 
-        for (host, _port) in preset_hosts {
+        for (host, _port) in env_hosts {
             assert!(
                 ALLOWED_FPSS_HOSTS.contains(&host.as_str()),
-                "preset streaming host {host} is missing from ALLOWED_FPSS_HOSTS \
+                "streaming host {host} is missing from ALLOWED_FPSS_HOSTS \
                  — that environment fails TLS hostname verification and loses failover"
             );
         }

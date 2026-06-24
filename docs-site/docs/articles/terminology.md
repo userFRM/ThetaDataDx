@@ -19,5 +19,5 @@ description: The dozen terms the rest of this documentation assumes.
 | **Snapshot** | The latest value (quote, trade, OHLC, …) for the current session, served in real time. |
 | **Tick** | One typed row of market data — a trade print, a quote update, a bar. |
 | **Tier** | Your ThetaData subscription level per asset class: Free, Value, Standard, or Pro. See [Subscriptions](/articles/subscriptions). |
-| **FPSS** | ThetaData's streaming service — the upstream source behind [Streaming](/streaming/). |
-| **MDDS** | ThetaData's market-data delivery service — the upstream source behind historical requests. |
+| **Streaming service** | ThetaData's real-time service, the upstream source behind [Streaming](/streaming/). |
+| **Historical service** | ThetaData's market-data delivery service, the upstream source behind historical requests. |

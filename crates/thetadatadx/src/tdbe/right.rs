@@ -98,7 +98,7 @@ impl ParsedRight {
         }
     }
 
-    /// Decode an FPSS wire byte (`67` for `'C'`, `80` for `'P'`) into
+    /// Decode a streaming wire byte (`67` for `'C'`, `80` for `'P'`) into
     /// a typed [`ParsedRight`]. Returns [`None`] for any other byte
     /// so callers can lift the soft-skip / hard-error decision into
     /// their own error type.
@@ -324,7 +324,7 @@ mod tests {
                     );
                 }
                 None => {
-                    // `Both` returns None on the forward direction —
+                    // `Both` returns None on the forward direction,
                     // there is no FPSS byte to invert from.
                     assert_eq!(variant, ParsedRight::Both);
                 }

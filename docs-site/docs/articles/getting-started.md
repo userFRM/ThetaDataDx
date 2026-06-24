@@ -163,7 +163,7 @@ client = Client.from_env()
 client = Client.from_dotenv(".env")
 
 # Email and password inline, staging environment.
-client = Client(email="you@example.com", password="your-password", mdds_type="STAGE")
+client = Client(email="you@example.com", password="your-password", historical_type="STAGE")
 ```
 
 </template>
@@ -179,7 +179,7 @@ const fromDotenv = await Client.connectWith({ apiKeyFromDotenv: '.env' });
 const withLogin = await Client.connectWith({
   email: 'you@example.com',
   password: 'your-password',
-  mddsType: 'STAGE',
+  historicalType: 'STAGE',
 });
 ```
 
@@ -598,7 +598,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
 ```python
 from thetadatadx import Client
 
-# Pass your API key directly. Use mdds_type="STAGE" to target staging.
+# Pass your API key directly. Use historical_type="STAGE" to target staging.
 client = Client(api_key="your_api_key")
 
 rows = client.historical.stock_history_eod("AAPL", "20250303", "20250306")
@@ -613,7 +613,7 @@ for t in rows:
 ```typescript
 import { Client } from 'thetadatadx';
 
-// Pass your API key directly. Add mddsType: 'STAGE' to target staging.
+// Pass your API key directly. Add historicalType: 'STAGE' to target staging.
 const client = await Client.connectWith({ apiKey: 'your_api_key' });
 
 const rows = await client.historical.stockHistoryEOD('AAPL', '20250303', '20250306');
@@ -669,4 +669,4 @@ Every endpoint follows this shape. Browse the [API Reference](/reference/) — e
 - **Dates are `YYYYMMDD` strings** in the SDKs (`"20250303"`); the HTTP server also accepts ISO `YYYY-MM-DD`. Timestamps come back as milliseconds since midnight Eastern Time — see [Symbology & Contract Identity](/articles/symbology).
 - **Connect once, reuse the client.** One client multiplexes any number of historical requests and an optional [streaming](/streaming/) session; per-request connections waste the authentication round trip.
 - **Markets closed?** Connect with `Config.dev()` / `DirectConfig::dev()` to stream a replayed historical session, and prefer historical endpoints over snapshots on weekends.
-- **Targeting staging?** Select the staging environment in any of three ways: pass it directly in code (`DirectConfig::production().with_environment(Environment::Stage)` in Rust, or the `Config.stage()` / `DirectConfig::stage()` preset), set the `THETADATA_MDDS_TYPE=STAGE` environment variable, or read it from a `.env` file with `Config.from_dotenv(path)`. Each one points authentication, historical, and streaming all at the staging cluster and works with either credential type. The `.env` reader uses the same file and keys as `Credentials.from_dotenv`, so one `.env` file can hold both `THETADATA_API_KEY` and `THETADATA_MDDS_TYPE`. See [Configuration](/articles/configuration).
+- **Targeting staging or dev?** The historical and streaming environments are selected independently. Pick the historical staging cluster with `DirectConfig::production().with_historical_environment(HistoricalEnvironment::Stage)` (or the `Config.stage()` / `DirectConfig::stage()` preset), the `THETADATA_HISTORICAL_TYPE=STAGE` environment variable, or a `.env` file. Pick the streaming dev-replay cluster with `with_streaming_environment(StreamingEnvironment::Dev)` (or the `dev()` preset) or `THETADATA_STREAMING_TYPE=DEV`. The historical environment also sets the authentication marker; the streaming environment does not. All paths work with either credential type, and one `.env` file can hold `THETADATA_API_KEY`, `THETADATA_HISTORICAL_TYPE`, and `THETADATA_STREAMING_TYPE` together. See [Configuration](/articles/configuration).

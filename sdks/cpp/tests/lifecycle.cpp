@@ -111,7 +111,7 @@ TEST_CASE("Config::from_dotenv selects the staging environment from a .env file"
     const std::string path = unique_dotenv_path();
     {
         std::ofstream out(path);
-        out << "# select staging\nTHETADATA_MDDS_TYPE=STAGE\n";
+        out << "# select staging\nTHETADATA_HISTORICAL_TYPE=STAGE\n";
     }
     auto config = thetadatadx::Config::from_dotenv(path);
     REQUIRE(config.get() != nullptr);

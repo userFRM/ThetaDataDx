@@ -274,7 +274,8 @@ pub extern "C" fn thetadatadx_config_dev() -> *mut ThetaDataDxConfig {
     })
 }
 
-/// Create a stage config (streaming stage servers, port 20100, unstable).
+/// Create a historical-staging config (historical staging cluster + auth marker;
+/// streaming stays on production). Unstable.
 #[no_mangle]
 pub extern "C" fn thetadatadx_config_stage() -> *mut ThetaDataDxConfig {
     ffi_boundary!(ptr::null_mut(), {
@@ -284,16 +285,88 @@ pub extern "C" fn thetadatadx_config_stage() -> *mut ThetaDataDxConfig {
     })
 }
 
+/// Select the historical environment on a config handle in place.
+///
+/// `kind` is `0` for production or `1` for staging. The historical and
+/// streaming channels are selected independently, so this leaves the
+/// streaming channel untouched. Returns `0` on success. Returns `-1` with
+/// `thetadatadx_last_error` set when `config` is null or when `kind` is
+/// outside the documented `{0, 1}` set.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_with_historical_environment(
+    config: *mut ThetaDataDxConfig,
+    kind: i32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            set_error("config handle is null");
+            return -1;
+        }
+        let environment = match kind {
+            0 => thetadatadx::HistoricalEnvironment::Prod,
+            1 => thetadatadx::HistoricalEnvironment::Stage,
+            other => {
+                set_error(&format!(
+                    "historical environment selector must be 0 (PROD) or 1 (STAGE); got {other}"
+                ));
+                return -1;
+            }
+        };
+        // SAFETY: config is a non-null `*mut ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces an exclusive reference valid for the call duration.
+        let config = unsafe { &mut *config };
+        // Move the inner config through the consuming builder and store it back.
+        let inner = std::mem::take(&mut config.inner);
+        config.inner = inner.with_historical_environment(environment);
+        0
+    })
+}
+
+/// Select the streaming environment on a config handle in place.
+///
+/// `kind` is `0` for production or `1` for dev. The streaming and
+/// historical channels are selected independently, so this leaves the
+/// historical channel and the auth marker untouched. Returns `0` on
+/// success. Returns `-1` with `thetadatadx_last_error` set when `config`
+/// is null or when `kind` is outside the documented `{0, 1}` set.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_with_streaming_environment(
+    config: *mut ThetaDataDxConfig,
+    kind: i32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            set_error("config handle is null");
+            return -1;
+        }
+        let environment = match kind {
+            0 => thetadatadx::StreamingEnvironment::Prod,
+            1 => thetadatadx::StreamingEnvironment::Dev,
+            other => {
+                set_error(&format!(
+                    "streaming environment selector must be 0 (PROD) or 1 (DEV); got {other}"
+                ));
+                return -1;
+            }
+        };
+        // SAFETY: config is a non-null `*mut ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces an exclusive reference valid for the call duration.
+        let config = unsafe { &mut *config };
+        // Move the inner config through the consuming builder and store it back.
+        let inner = std::mem::take(&mut config.inner);
+        config.inner = inner.with_streaming_environment(environment);
+        0
+    })
+}
+
 /// Source a config handle from a `.env`-format file.
 ///
 /// Starts from the production configuration and applies the cluster keys
-/// carried by the file: `THETADATA_MDDS_TYPE` (`PROD` / `STAGE`,
+/// carried by the file: `THETADATA_HISTORICAL_TYPE` (`PROD` / `STAGE`,
 /// case-insensitive) selects the environment, and the optional
 /// `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` keys override the
 /// hosts (an explicit host wins over the environment default). This is the
 /// same file format and the same keys `thetadatadx_credentials_from_dotenv`
 /// reads, so one `.env` can carry both `THETADATA_API_KEY` and
-/// `THETADATA_MDDS_TYPE`.
+/// `THETADATA_HISTORICAL_TYPE`.
 ///
 /// Returns null on error (check `thetadatadx_last_error()`).
 #[no_mangle]
@@ -411,17 +484,17 @@ pub unsafe extern "C" fn thetadatadx_config_get_flush_mode(
     })
 }
 
-/// Read the target server environment carried by the config.
+/// Read the historical environment carried by the config.
 ///
-/// On success, returns a heap-owned NUL-terminated C string (`"PROD"`,
-/// `"STAGE"`, or `"DEV"`) the caller MUST release with
-/// `thetadatadx_string_free`. The environment is set as a unit by
-/// `thetadatadx_direct_config_new` / the stage / dev presets (and the
-/// `THETADATA_MDDS_TYPE` dotenv key); this is the readback of that
-/// selection. Returns null if `config` is null (the diagnostic is written
-/// to `thetadatadx_last_error()`).
+/// On success, returns a heap-owned NUL-terminated C string (`"PROD"` or
+/// `"STAGE"`) the caller MUST release with `thetadatadx_string_free`. The
+/// historical and streaming environments are selected independently: the
+/// `production` / `stage` / `dev` presets (and the `THETADATA_HISTORICAL_TYPE`
+/// dotenv key) set the historical channel, and this is the readback of
+/// that selection. Returns null if `config` is null (the diagnostic is
+/// written to `thetadatadx_last_error()`).
 #[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_environment(
+pub unsafe extern "C" fn thetadatadx_config_get_historical_environment(
     config: *const ThetaDataDxConfig,
 ) -> *mut c_char {
     ffi_boundary!(ptr::null_mut(), {
@@ -431,12 +504,48 @@ pub unsafe extern "C" fn thetadatadx_config_get_environment(
         }
         // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let config = unsafe { &*config };
-        // `Environment::as_str` is a `'static` label free of interior NULs,
-        // so `CString::new` never fails here.
-        match std::ffi::CString::new(config.inner.environment().as_str()) {
+        // `HistoricalEnvironment::as_str` is a `'static` label free of
+        // interior NULs, so `CString::new` never fails here.
+        match std::ffi::CString::new(config.inner.historical_environment().as_str()) {
             Ok(c) => c.into_raw(),
             Err(e) => {
-                set_error(&format!("environment label contains an interior NUL: {e}"));
+                set_error(&format!(
+                    "historical environment label contains an interior NUL: {e}"
+                ));
+                ptr::null_mut()
+            }
+        }
+    })
+}
+
+/// Read the streaming environment carried by the config.
+///
+/// On success, returns a heap-owned NUL-terminated C string (`"PROD"` or
+/// `"DEV"`) the caller MUST release with `thetadatadx_string_free`. The
+/// streaming and historical environments are selected independently: the
+/// `production` / `stage` / `dev` presets (and the `THETADATA_STREAMING_TYPE`
+/// dotenv key) set the streaming channel, and this is the readback of that
+/// selection. Returns null if `config` is null (the diagnostic is written
+/// to `thetadatadx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_streaming_environment(
+    config: *const ThetaDataDxConfig,
+) -> *mut c_char {
+    ffi_boundary!(ptr::null_mut(), {
+        if config.is_null() {
+            set_error("config handle is null");
+            return ptr::null_mut();
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // `StreamingEnvironment::as_str` is a `'static` label free of
+        // interior NULs, so `CString::new` never fails here.
+        match std::ffi::CString::new(config.inner.streaming_environment().as_str()) {
+            Ok(c) => c.into_raw(),
+            Err(e) => {
+                set_error(&format!(
+                    "streaming environment label contains an interior NUL: {e}"
+                ));
                 ptr::null_mut()
             }
         }
@@ -3899,26 +4008,81 @@ mod auth_metrics_setter_tests {
     }
 
     #[test]
-    fn environment_reads_back_the_selected_cluster_via_getter() {
-        // The readback getter mirrored across the bindings: the stage
-        // preset reads back `"STAGE"`, the production preset `"PROD"`, and
-        // the dev preset `"DEV"`.
+    fn environment_reads_back_the_selected_clusters_via_getters() {
+        // The readback getters mirrored across the bindings. The two
+        // channels are selected independently: the stage preset moves the
+        // historical channel to staging while streaming stays on
+        // production, the dev preset moves the streaming channel to dev
+        // while historical stays on production, and production keeps both.
         let staged = super::thetadatadx_config_stage();
         let prod = super::thetadatadx_config_production();
         let dev = super::thetadatadx_config_dev();
         // SAFETY: all three handles were just returned by the config constructors.
         unsafe {
-            let got = take_owned(super::thetadatadx_config_get_environment(staged));
+            let got = take_owned(super::thetadatadx_config_get_historical_environment(staged));
             assert_eq!(got.as_deref(), Some("STAGE"));
-            let got = take_owned(super::thetadatadx_config_get_environment(prod));
+            let got = take_owned(super::thetadatadx_config_get_streaming_environment(staged));
             assert_eq!(got.as_deref(), Some("PROD"));
-            let got = take_owned(super::thetadatadx_config_get_environment(dev));
+
+            let got = take_owned(super::thetadatadx_config_get_historical_environment(prod));
+            assert_eq!(got.as_deref(), Some("PROD"));
+            let got = take_owned(super::thetadatadx_config_get_streaming_environment(prod));
+            assert_eq!(got.as_deref(), Some("PROD"));
+
+            let got = take_owned(super::thetadatadx_config_get_historical_environment(dev));
+            assert_eq!(got.as_deref(), Some("PROD"));
+            let got = take_owned(super::thetadatadx_config_get_streaming_environment(dev));
             assert_eq!(got.as_deref(), Some("DEV"));
-            // A null handle yields null.
-            assert!(super::thetadatadx_config_get_environment(std::ptr::null()).is_null());
+
+            // A null handle yields null on both getters.
+            assert!(
+                super::thetadatadx_config_get_historical_environment(std::ptr::null()).is_null()
+            );
+            assert!(
+                super::thetadatadx_config_get_streaming_environment(std::ptr::null()).is_null()
+            );
             super::thetadatadx_config_free(staged);
             super::thetadatadx_config_free(prod);
             super::thetadatadx_config_free(dev);
+        }
+    }
+
+    #[test]
+    fn with_channel_setters_compose_both_environments() {
+        // The two channel selectors compose to any combination, including
+        // historical-staging + streaming-dev, mirroring the Rust builder.
+        let cfg = super::thetadatadx_config_production();
+        // SAFETY: handle just returned by thetadatadx_config_production.
+        unsafe {
+            assert_eq!(
+                super::thetadatadx_config_with_historical_environment(cfg, 1),
+                0
+            );
+            assert_eq!(
+                super::thetadatadx_config_with_streaming_environment(cfg, 1),
+                0
+            );
+            let got = take_owned(super::thetadatadx_config_get_historical_environment(cfg));
+            assert_eq!(got.as_deref(), Some("STAGE"));
+            let got = take_owned(super::thetadatadx_config_get_streaming_environment(cfg));
+            assert_eq!(got.as_deref(), Some("DEV"));
+            // An out-of-range selector is rejected and leaves the config unchanged.
+            assert_eq!(
+                super::thetadatadx_config_with_historical_environment(cfg, 2),
+                -1
+            );
+            assert_eq!(
+                super::thetadatadx_config_with_streaming_environment(cfg, 9),
+                -1
+            );
+            let got = take_owned(super::thetadatadx_config_get_historical_environment(cfg));
+            assert_eq!(got.as_deref(), Some("STAGE"));
+            // A null handle is rejected.
+            assert_eq!(
+                super::thetadatadx_config_with_historical_environment(std::ptr::null_mut(), 0),
+                -1
+            );
+            super::thetadatadx_config_free(cfg);
         }
     }
 

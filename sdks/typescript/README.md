@@ -31,12 +31,12 @@ Prebuilt binaries are downloaded automatically for Linux x64 (glibc), macOS arm6
 ## Quick start
 
 > [!TIP]
-> Pass your API key directly to the client and you are one line from a live connection. Generate a key from your [ThetaData user portal](https://www.thetadata.net/), then call `Client.connectWith({ apiKey: "td1_..." })`. The key can also come from the environment (`{ apiKeyFromEnv: true }`, reading `THETADATA_API_KEY`) or a `.env` file (`{ apiKeyFromDotenv: ".env" }`). Email and password is also supported: `{ email, password }` inline, or a `creds.txt` file (email on line 1, password on line 2) via `connectFromFile`. Target staging with `mddsType: "STAGE"`. For full control over hosts and timeouts, build a typed `Credentials` + `Config` and call `Client.connect(creds, config)`.
+> Pass your API key directly to the client and you are one line from a live connection. Generate a key from your [ThetaData user portal](https://www.thetadata.net/), then call `Client.connectWith({ apiKey: "td1_..." })`. The key can also come from the environment (`{ apiKeyFromEnv: true }`, reading `THETADATA_API_KEY`) or a `.env` file (`{ apiKeyFromDotenv: ".env" }`). Email and password is also supported: `{ email, password }` inline, or a `creds.txt` file (email on line 1, password on line 2) via `connectFromFile`. Target staging with `historicalType: "STAGE"`. For full control over hosts and timeouts, build a typed `Credentials` + `Config` and call `Client.connect(creds, config)`.
 
 ```typescript
 import { Client } from 'thetadatadx';
 
-// Pass your API key directly. Add mddsType: "STAGE" to target staging.
+// Pass your API key directly. Add historicalType: "STAGE" to target staging.
 const client = await Client.connectWith({ apiKey: 'td1_...' });
 
 // First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
@@ -145,7 +145,7 @@ Prefer columns? `client.stream.batches(...)` is a sibling to the callback: the s
 ```typescript
 import { Contract } from 'thetadatadx';
 
-// `batches(...)` starts the FPSS session, so open it first, then subscribe.
+// `batches(...)` starts the streaming session, so open it first, then subscribe.
 const batches = await client.stream.batches({ batchSize: 8192 });
 try {
   client.stream.subscribe(Contract.stock('AAPL').trade());

@@ -1081,10 +1081,10 @@ rust = false        # Rust uses scoped streaming APIs, no `streaming()` factory
 #     returning a `ClientBuilder`, so the `builder` row carries the `rust`
 #     and `cpp` columns.
 #   - TypeScript exposes the options-object factory `Client.connectWith({
-#     apiKey, mddsType, ... })` — the idiomatic JS shape — tracked by the
+#     apiKey, historicalType, ... })` — the idiomatic JS shape — tracked by the
 #     `connectWith` row.
 #   - Python reaches the same surface through the `Client(api_key=...,
-#     mdds_type=...)` constructor kwargs (a keyword constructor, not a
+#     historical_type=...)` constructor kwargs (a keyword constructor, not a
 #     named method), so it rides the existing `__new__` constructor rather
 #     than a `[[method]]` row; both `builder` and `connectWith` are
 #     therefore absent on the Python column.
@@ -1105,7 +1105,7 @@ rust = true         # `Client::builder()` fluent builder
 class = "Client"
 name = "connectWith"
 python = false      # Python uses the `Client(api_key=...)` constructor kwargs
-typescript = true   # `Client.connectWith({ apiKey, mddsType, ... })` napi factory
+typescript = true   # `Client.connectWith({ apiKey, historicalType, ... })` napi factory
 cpp = false         # C++ uses the `Client::builder()` fluent builder
 rust = false        # Rust uses the `Client::builder()` fluent builder
 
@@ -1668,7 +1668,7 @@ typescript = true
 cpp = true
 
 # Dotenv sourcing for the configuration: read the cluster selector
-# (`THETADATA_MDDS_TYPE`) and the documented host overrides from a
+# (`THETADATA_HISTORICAL_TYPE`) and the documented host overrides from a
 # `.env`-format file. The mirror of `Credentials.fromDotenv` on the Config
 # class, so a single `.env` file serves both the credential and the
 # environment selection. Every binding exposes it: Python (`from_dotenv`
@@ -1784,19 +1784,33 @@ python = true
 typescript = true
 cpp = true
 
-# `environment` is the target-server readback: the production / stage /
-# dev presets (and the `THETADATA_MDDS_TYPE` dotenv key) set the cluster
-# selector as a unit, and this getter reads it back as a `"PROD"` /
-# `"STAGE"` / `"DEV"` string, the same selector spelling the inline client
-# takes as `mddsType` / `mdds_type`. Exposed on every binding: Python
-# (`Config.environment` property), TypeScript (`Config.environment`
-# getter), C++ (`Config::get_environment()` over the FFI
-# `thetadatadx_config_get_environment` symbol). There is no matching
-# setter row: the selector is chosen by the `production` / `stage`
-# factories, not a free-standing field write.
+# The historical (MDDS) and streaming (FPSS) environments are read back
+# through two independent getters. The two channels are selected
+# independently: the production / stage / dev presets (and the
+# `THETADATA_HISTORICAL_TYPE` / `THETADATA_STREAMING_TYPE` dotenv keys) set each
+# channel, and these getters read each one back. `historicalEnvironment`
+# reads a `"PROD"` / `"STAGE"` string, the same selector spelling the
+# inline client takes as `historicalType` / `historical_type`; `streamingEnvironment`
+# reads a `"PROD"` / `"DEV"` string, matching `streamingType` / `streaming_type`.
+# Each is exposed on every binding: Python (`Config.historical_environment`
+# / `Config.streaming_environment` properties), TypeScript
+# (`Config.historicalEnvironment` / `Config.streamingEnvironment`
+# getters), C++ (`Config::get_historical_environment()` /
+# `Config::get_streaming_environment()` over the FFI
+# `thetadatadx_config_get_historical_environment` /
+# `thetadatadx_config_get_streaming_environment` symbols). There is no
+# matching setter row: each selector is chosen by the `production` /
+# `stage` / `dev` factories, not a free-standing field write.
 [[method]]
 class = "Config"
-name = "environment"
+name = "historicalEnvironment"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "streamingEnvironment"
 python = true
 typescript = true
 cpp = true

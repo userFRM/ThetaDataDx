@@ -149,21 +149,21 @@ pub(in crate::fpss) const CMD_CHANNEL_CAPACITY: usize = 16_384;
 /// `From<StreamError> for Error` maps each `StreamError` variant into an
 /// umbrella [`crate::Error`] variant according to the table below.
 /// `DispatcherFailed` does NOT have a dedicated umbrella variant; it
-/// is encoded as `Error::Fpss { kind: Disconnected }` with a
+/// is encoded as `Error::Stream { kind: Disconnected }` with a
 /// `"dispatcher failed: "` prefix on the message, which the reverse
 /// direction recognises:
 ///
 /// | `StreamError`               | `Error`                                                         |
 /// |---------------------------|-----------------------------------------------------------------|
-/// | `ConnectionRefused(m)`    | `Error::Fpss { kind: ConnectionRefused, message: m }`           |
-/// | `Timeout(m)`              | `Error::Fpss { kind: Timeout, message: m }`                     |
-/// | `Protocol(m)`             | `Error::Fpss { kind: ProtocolError, message: m }`               |
-/// | `Disconnected(m)`         | `Error::Fpss { kind: Disconnected, message: m }`                |
-/// | `RateLimited(m)`          | `Error::Fpss { kind: TooManyRequests, message: m }`             |
+/// | `ConnectionRefused(m)`    | `Error::Stream { kind: ConnectionRefused, message: m }`           |
+/// | `Timeout(m)`              | `Error::Stream { kind: Timeout, message: m }`                     |
+/// | `Protocol(m)`             | `Error::Stream { kind: ProtocolError, message: m }`               |
+/// | `Disconnected(m)`         | `Error::Stream { kind: Disconnected, message: m }`                |
+/// | `RateLimited(m)`          | `Error::Stream { kind: TooManyRequests, message: m }`             |
 /// | `AuthenticationFailed(m)` | `Error::Auth { kind: InvalidCredentials, message: m }`          |
 /// | `Config(m)`               | `Error::Config { kind: InvalidValue { field: "fpss", message }}`|
 /// | `Io(m)`                   | `Error::Io(io::Error::other(m))`                                |
-/// | `DispatcherFailed(m)`     | `Error::Fpss { kind: Disconnected, message: "dispatcher failed: {m}" }` |
+/// | `DispatcherFailed(m)`     | `Error::Stream { kind: Disconnected, message: "dispatcher failed: {m}" }` |
 ///
 /// Round-tripping `StreamError → Error → StreamError` preserves the
 /// variant for every row above (the prefixed message lets the
@@ -187,7 +187,7 @@ pub(in crate::fpss) const CMD_CHANNEL_CAPACITY: usize = 16_384;
 ///   manually.
 ///
 /// `From<Error> for StreamError` is **best-effort categorisation**. The
-/// FPSS-shaped umbrella variants (`Error::Fpss`, `Error::Auth`,
+/// FPSS-shaped umbrella variants (`Error::Stream`, `Error::Auth`,
 /// `Error::Config`, `Error::Io`, `Error::Tls`, `Error::Timeout`)
 /// preserve their human-readable message and route to the closest
 /// `StreamError` variant; everything else (gRPC, decode, transport)
@@ -253,23 +253,23 @@ impl From<StreamError> for Error {
     fn from(e: StreamError) -> Self {
         use crate::error::{AuthErrorKind, ConfigErrorKind, StreamErrorKind};
         match e {
-            StreamError::ConnectionRefused(message) => Error::Fpss {
+            StreamError::ConnectionRefused(message) => Error::Stream {
                 kind: StreamErrorKind::ConnectionRefused,
                 message,
             },
-            StreamError::Timeout(message) => Error::Fpss {
+            StreamError::Timeout(message) => Error::Stream {
                 kind: StreamErrorKind::Timeout,
                 message,
             },
-            StreamError::Protocol(message) => Error::Fpss {
+            StreamError::Protocol(message) => Error::Stream {
                 kind: StreamErrorKind::ProtocolError,
                 message,
             },
-            StreamError::Disconnected(message) => Error::Fpss {
+            StreamError::Disconnected(message) => Error::Stream {
                 kind: StreamErrorKind::Disconnected,
                 message,
             },
-            StreamError::RateLimited(message) => Error::Fpss {
+            StreamError::RateLimited(message) => Error::Stream {
                 kind: StreamErrorKind::TooManyRequests,
                 message,
             },
@@ -277,11 +277,11 @@ impl From<StreamError> for Error {
                 kind: AuthErrorKind::InvalidCredentials,
                 message,
             },
-            StreamError::DispatcherFailed(message) => Error::Fpss {
+            StreamError::DispatcherFailed(message) => Error::Stream {
                 kind: StreamErrorKind::Disconnected,
                 message: format!("dispatcher failed: {message}"),
             },
-            StreamError::ReentrantDrain(message) => Error::Fpss {
+            StreamError::ReentrantDrain(message) => Error::Stream {
                 kind: StreamErrorKind::ReentrantDrain,
                 message,
             },
@@ -302,7 +302,7 @@ impl From<Error> for StreamError {
     fn from(e: Error) -> Self {
         use crate::error::StreamErrorKind;
         match e {
-            Error::Fpss { kind, message } => match kind {
+            Error::Stream { kind, message } => match kind {
                 StreamErrorKind::ConnectionRefused => StreamError::ConnectionRefused(message),
                 StreamErrorKind::Timeout => StreamError::Timeout(message),
                 StreamErrorKind::ProtocolError => StreamError::Protocol(message),
@@ -1308,7 +1308,7 @@ impl StreamingClient {
                         message: format!("FPSS server rejected login: {reason:?}"),
                     });
                 }
-                return Err(Error::Fpss {
+                return Err(Error::Stream {
                     kind: crate::error::StreamErrorKind::Disconnected,
                     message: format!("server rejected login: {reason:?}"),
                 });
@@ -1322,7 +1322,7 @@ impl StreamingClient {
         stream
             .sock
             .set_read_timeout(Some(io_read_slice))
-            .map_err(|e| Error::Fpss {
+            .map_err(|e| Error::Stream {
                 kind: crate::error::StreamErrorKind::ConnectionRefused,
                 message: format!("failed to set read timeout: {e}"),
             })?;
@@ -1561,7 +1561,7 @@ impl StreamingClient {
                     next_req_id: io_next_req_id,
                 });
             })
-            .map_err(|e| Error::Fpss {
+            .map_err(|e| Error::Stream {
                 kind: crate::error::StreamErrorKind::ConnectionRefused,
                 message: format!("failed to spawn fpss-io thread: {e}"),
             })?;
@@ -1580,7 +1580,7 @@ impl StreamingClient {
                     ping_interval,
                 );
             })
-            .map_err(|e| Error::Fpss {
+            .map_err(|e| Error::Stream {
                 kind: crate::error::StreamErrorKind::ConnectionRefused,
                 message: format!("failed to spawn fpss-ping thread: {e}"),
             })?;
@@ -2731,13 +2731,13 @@ impl StreamingClient {
     /// Verify connection is live before sending.
     fn check_connected(&self) -> Result<(), Error> {
         if self.shutdown.load(Ordering::Acquire) {
-            return Err(Error::Fpss {
+            return Err(Error::Stream {
                 kind: crate::error::StreamErrorKind::Disconnected,
                 message: "client is shut down".to_string(),
             });
         }
         if !self.authenticated.load(Ordering::Acquire) {
-            return Err(Error::Fpss {
+            return Err(Error::Stream {
                 kind: crate::error::StreamErrorKind::Disconnected,
                 message: "not authenticated".to_string(),
             });
@@ -3043,14 +3043,14 @@ impl StreamingClient {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .try_send(cmd)
             .map_err(|e| match e {
-                std_mpsc::TrySendError::Full(_) => Error::Fpss {
+                std_mpsc::TrySendError::Full(_) => Error::Stream {
                     kind: crate::error::StreamErrorKind::Disconnected,
                     message: format!(
                         "command queue full ({CMD_CHANNEL_CAPACITY} pending); \
                          the I/O thread is draining slower than commands arrive — retry shortly"
                     ),
                 },
-                std_mpsc::TrySendError::Disconnected(_) => Error::Fpss {
+                std_mpsc::TrySendError::Disconnected(_) => Error::Stream {
                     kind: crate::error::StreamErrorKind::Disconnected,
                     message: "I/O thread has exited".to_string(),
                 },

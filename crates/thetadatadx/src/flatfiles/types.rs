@@ -233,7 +233,10 @@ impl fmt::Display for FlatFilesUnavailableReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::AuthRejected { reason_code } => {
-                write!(f, "MDDS auth rejected (RemoveReason ord={reason_code})")
+                write!(
+                    f,
+                    "historical auth rejected (RemoveReason ord={reason_code})"
+                )
             }
             Self::RequestRejected { server_message } => {
                 write!(f, "FLAT_FILE request rejected: {server_message}")

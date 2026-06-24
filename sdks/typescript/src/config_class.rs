@@ -79,7 +79,8 @@ impl Config {
         }
     }
 
-    /// Stage streaming config (port 20100, unstable testing servers).
+    /// Historical-staging config (historical staging cluster + auth marker; streaming
+    /// stays on production). Unstable testing servers.
     #[napi(factory)]
     pub fn stage() -> Self {
         Self {
@@ -90,7 +91,7 @@ impl Config {
     /// Source the target environment from a `.env`-format file.
     ///
     /// Starts from the production config and applies the cluster keys
-    /// carried by the file: `THETADATA_MDDS_TYPE` (`PROD` / `STAGE`,
+    /// carried by the file: `THETADATA_HISTORICAL_TYPE` (`PROD` / `STAGE`,
     /// case-insensitive) selects the environment, and the optional
     /// `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` keys
     /// override the hosts (an explicit host wins over the environment
@@ -98,7 +99,7 @@ impl Config {
     ///
     /// Reads the same file format and keys as `Credentials.fromDotenv`, so
     /// a single `.env` file can carry both `THETADATA_API_KEY` and
-    /// `THETADATA_MDDS_TYPE`.
+    /// `THETADATA_HISTORICAL_TYPE`.
     #[napi(factory, js_name = "fromDotenv")]
     pub fn from_dotenv(path: String) -> napi::Result<Self> {
         let inner = config::DirectConfig::from_dotenv(&path).map_err(crate::to_napi_err)?;
@@ -910,10 +911,7 @@ impl Config {
     /// like the other wide streaming knobs: `setStreamingRingSize(BigInt(131072))`.
     /// Default `131_072`.
     #[napi(js_name = "setStreamingRingSize")]
-    pub fn set_streaming_ring_size(
-        &self,
-        n: napi::bindgen_prelude::BigInt,
-    ) -> napi::Result<()> {
+    pub fn set_streaming_ring_size(&self, n: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
         let value = bigint_to_u64("setStreamingRingSize", &n)?;
         let value = usize::try_from(value).map_err(|_| {
             crate::invalid_parameter_err(format!(
@@ -1585,19 +1583,36 @@ impl Config {
         })
     }
 
-    /// Target server environment carried by this configuration: `"PROD"`
-    /// for the production cluster, `"STAGE"` for staging. Set as a unit by
-    /// `Config.production()` / `Config.stage()` (and by the
-    /// `THETADATA_MDDS_TYPE` key on `Config.fromDotenv`); this is the
-    /// readback of that selection. Mirrors the `mddsType` string the inline
-    /// `Client.connectWith` factory accepts.
-    #[napi(getter, js_name = "environment")]
-    pub fn environment(&self) -> napi::Result<&'static str> {
+    /// Target historical environment carried by this configuration:
+    /// `"PROD"` for the production cluster or `"STAGE"` for staging. The
+    /// historical and streaming channels are selected independently;
+    /// `Config.production()` / `Config.stage()` (and the
+    /// `THETADATA_HISTORICAL_TYPE` key on `Config.fromDotenv`) set the historical
+    /// channel, and this is the readback of that selection. Mirrors the
+    /// `historicalType` string the inline `Client.connectWith` factory accepts.
+    #[napi(getter, js_name = "historicalEnvironment")]
+    pub fn historical_environment(&self) -> napi::Result<&'static str> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.environment().as_str())
+        Ok(guard.historical_environment().as_str())
+    }
+
+    /// Target streaming environment carried by this configuration:
+    /// `"PROD"` for the production cluster or `"DEV"` for the dev cluster.
+    /// The streaming and historical channels are selected independently;
+    /// `Config.production()` / `Config.dev()` (and the
+    /// `THETADATA_STREAMING_TYPE` key on `Config.fromDotenv`) set the streaming
+    /// channel, and this is the readback of that selection. Mirrors the
+    /// `streamingType` string the inline `Client.connectWith` factory accepts.
+    #[napi(getter, js_name = "streamingEnvironment")]
+    pub fn streaming_environment(&self) -> napi::Result<&'static str> {
+        let guard = self
+            .inner
+            .lock()
+            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
+        Ok(guard.streaming_environment().as_str())
     }
 
     /// Set the streaming event-ring consumer wait strategy — the

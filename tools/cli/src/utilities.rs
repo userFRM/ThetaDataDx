@@ -93,7 +93,8 @@ async fn try_run_generated_utility(
         Some(("auth", _)) => {
             let creds = resolve_credentials(api_key_flag, creds_path)?;
             let resp =
-                thetadatadx::auth::authenticate(&creds, thetadatadx::Environment::Prod).await?;
+                thetadatadx::auth::authenticate(&creds, thetadatadx::HistoricalEnvironment::Prod)
+                    .await?;
             let mut td = TabularData::new(vec![
                 "session_id",
                 "email",

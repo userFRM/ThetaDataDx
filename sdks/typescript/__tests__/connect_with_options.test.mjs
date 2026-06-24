@@ -70,16 +70,16 @@ describe('Client.connectWith options contract', () => {
     assert.match(message, /email\/password/);
   });
 
-  it('wires and parses mddsType (bad selector rejects)', async () => {
-    // A valid single auth field plus a bogus mddsType reaches the env
-    // parse step, so the rejection is the mddsType parse error, proving
-    // mddsType is both wired and parsed. A dropped mddsType would let the
+  it('wires and parses historicalType (bad selector rejects)', async () => {
+    // A valid single auth field plus a bogus historicalType reaches the env
+    // parse step, so the rejection is the historicalType parse error, proving
+    // historicalType is both wired and parsed. A dropped historicalType would let the
     // call past validation into a network-class failure instead.
     const message = await rejectionMessage(
-      Client.connectWith({ apiKey: 'td1_dummy_key', mddsType: 'BOGUS' }),
+      Client.connectWith({ apiKey: 'td1_dummy_key', historicalType: 'BOGUS' }),
     );
     assert.match(message, /\[ConfigError\]/);
-    assert.match(message, /mddsType/);
+    assert.match(message, /historicalType/);
   });
 
   it('accepts apiKeyFromEnv by name (strict env source)', async () => {

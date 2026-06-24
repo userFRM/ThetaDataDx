@@ -120,13 +120,13 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             push_rust_doc_comment(
                 &mut out,
                 "    ",
-                "Start FPSS streaming and register a Python callback for incoming events.\n\
+                "Start streaming and register a Python callback for incoming events.\n\
                  \n\
                  The dispatcher thread acquires the GIL\n\
                  via `Python::attach` to call `callback(event)` for\n\
-                 every typed FPSS event, with each invocation wrapped\n\
+                 every typed streaming event, with each invocation wrapped\n\
                  in `catch_unwind`. `callback` must accept exactly one\n\
-                 positional argument — a typed FPSS event class\n\
+                 positional argument — a typed streaming event class\n\
                  (`Quote`, `Trade`, `Ohlcvc`, `OpenInterest`,\n\
                  `LoginSuccess`, `ContractAssigned`, `ReqResponse`,\n\
                  `MarketOpen`, `MarketClose`, `ServerError`,\n\
@@ -137,7 +137,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
                  wire frames are filtered before the callback fires and\n\
                  accounted on the `thetadatadx.fpss.decode_failures` metric.\n\
                  \n\
-                 Events flow from the FPSS reader thread into the\n\
+                 Events flow from the streaming reader thread into the\n\
                  streaming ring (`Producer::try_publish`) and out\n\
                  to the consumer thread that runs `callback`. The\n\
                  reader never blocks on user code; if the callback\n\
@@ -329,7 +329,7 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             push_rust_doc_comment(
                 &mut out,
                 "    ",
-                "Reconnect FPSS streaming and re-register the previously installed callback.\n\
+                "Reconnect streaming and re-register the previously installed callback.\n\
                  \n\
                  Requires a prior `start_streaming(callback)`; raises\n\
                  `RuntimeError` if no callback is registered. All\n\

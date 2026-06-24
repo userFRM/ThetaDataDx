@@ -525,9 +525,9 @@ def test_connect_with_field_collector_camelizes() -> None:
 
 def test_connect_with_field_roster_missing_field_trips() -> None:
     """A dropped/renamed connectWith field trips."""
-    actual = set(cbp.TYPESCRIPT_CONNECT_WITH_FIELD_ROSTER) - {"mddsType"}
+    actual = set(cbp.TYPESCRIPT_CONNECT_WITH_FIELD_ROSTER) - {"historicalType"}
     errors = cbp._check_typescript_connect_with_field_roster(actual)
-    assert any("mddsType" in e and "missing" in e for e in errors), (
+    assert any("historicalType" in e and "missing" in e for e in errors), (
         f"a missing connectWith field must trip; got {errors!r}"
     )
 

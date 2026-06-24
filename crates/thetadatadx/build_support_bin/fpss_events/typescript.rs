@@ -18,7 +18,7 @@ use super::schema::{
 /// elision), producing fields that were flush-left inside the generated
 /// struct — not aligned with the rest of the file.
 fn render_contract_napi() -> &'static str {
-    r#"/// FPSS contract identifier. Surfaced on every decoded FPSS data
+    r#"/// Streaming contract identifier. Surfaced on every decoded streaming data
 /// event as `event.quote.contract` / `event.trade.contract` / etc.
 /// `secType` is the symbolic uppercase name (`"STOCK"` / `"OPTION"` /
 /// `"INDEX"` / `"RATE"`); `right` is `"C"` / `"P"` / `null`;
@@ -104,7 +104,7 @@ pub(super) fn render_ts_fpss_event_classes(schema: &Schema) -> String {
         .join(" | ");
 
     // Flat wrapper struct with `kind` tag + optional payloads.
-    out.push_str("/// A single FPSS event surfaced to JS/TS.\n");
+    out.push_str("/// A single streaming event surfaced to JS/TS.\n");
     out.push_str("///\n");
     out.push_str("/// `kind` is the discriminator — switch on it and read the matching\n");
     out.push_str("/// payload field. The shape is stable and every payload is typed, so\n");
@@ -228,7 +228,7 @@ fn render_ts_match_arm(event_name: &str, def: &EventDef) -> String {
 fn render_ts_event_class_struct(event_name: &str, def: &EventDef) -> String {
     let mut out = String::new();
     let doc_text = if def.doc.is_empty() {
-        format!("FPSS {event_name} event.")
+        format!("Streaming {event_name} event.")
     } else {
         def.doc.clone()
     };

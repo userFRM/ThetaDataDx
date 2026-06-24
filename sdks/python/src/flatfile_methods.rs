@@ -344,7 +344,7 @@ impl crate::Client {
     /// Namespace handle exposing the FLATFILES surface.
     ///
     /// Lazily constructed on each access. Internally clones the inner
-    /// `Arc<thetadatadx::Client>` — no auth round-trip, no FPSS
+    /// `Arc<thetadatadx::Client>` — no auth round-trip, no streaming
     /// state mutation. Each call returns a fresh handle so that storing
     /// `flat_files = client.flat_files` in user code is identical to
     /// calling `client.flat_files.option_eod(...)` inline.

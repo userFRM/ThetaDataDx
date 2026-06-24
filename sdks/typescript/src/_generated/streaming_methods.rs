@@ -2,9 +2,9 @@
 
 #[napi]
 impl StreamView {
-    /// Start FPSS streaming and register a JS callback for incoming events.
+    /// Start streaming and register a JS callback for incoming events.
     ///
-    /// Each typed FPSS event is delivered to your
+    /// Each typed streaming event is delivered to your
     /// `callback(event)` on the Node main thread, so the
     /// callback may use any JS API safely. A callback that
     /// panics or throws is isolated and does not interrupt
@@ -163,7 +163,7 @@ impl StreamView {
             .map_err(to_napi_err)
     }
 
-    /// Reconnect FPSS streaming and re-register the previously installed callback.
+    /// Reconnect streaming and re-register the previously installed callback.
     ///
     /// Requires a prior `startStreaming(callback)`; throws if
     /// no callback is registered. All active subscriptions are
@@ -239,7 +239,7 @@ impl StreamView {
         *guard = None;
     }
 
-    /// Shut down the FPSS streaming connection.
+    /// Shut down the streaming connection.
     ///
     /// On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as stopping the stream); reconnect will then fail until the caller starts streaming again with a freshly bound callback. The C++ binding preserves the underlying connection's behaviour.
     #[napi(js_name = "shutdown")]

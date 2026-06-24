@@ -13,7 +13,7 @@ LLM (any MCP-compatible client)
 thetadatadx-mcp (long-running process)
     |  Single ThetaDataDx client, authenticated once at startup
     v
-ThetaData servers (MDDS + FPSS)
+ThetaData servers (historical + streaming)
 ```
 
 The server authenticates **once** at startup, keeps the `Client` client alive, and serves tool calls instantly with zero per-request auth overhead.

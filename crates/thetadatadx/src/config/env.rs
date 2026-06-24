@@ -21,20 +21,26 @@
 //! Precedence is documented on `DirectConfig`: explicit builder setter >
 //! env var > hardcoded default.
 
-use super::{DirectConfig, Environment};
+use super::{DirectConfig, HistoricalEnvironment, StreamingEnvironment};
+use crate::error::Error;
 
-/// Target server environment selector (`PROD` / `STAGE` / `DEV`,
-/// case-insensitive). Equivalent to ThetaData's `mdds_type` option.
-/// `STAGE` points every cluster-bound channel at the staging environment;
-/// `DEV` points the streaming channel at the dev replay cluster while auth
-/// and historical stay on production; `PROD` (or unset) keeps production.
-/// The explicit host/port overrides are recorded first
-/// and the environment is selected last, so an explicit
-/// `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` /
-/// `THETADATA_STREAMING_PORT` patches the selected environment's cluster
-/// (the failover hosts still track that environment) rather than being
-/// overwritten by it.
-pub const ENV_MDDS_TYPE: &str = "THETADATA_MDDS_TYPE";
+/// Historical environment selector (`PROD` / `STAGE`, case-insensitive).
+/// `STAGE` points the historical host and the auth marker at the staging
+/// environment; `PROD` (or unset) keeps production. The streaming channel is
+/// selected separately via [`ENV_STREAMING_TYPE`]. An explicit
+/// `THETADATA_HISTORICAL_HOST` is recorded first and the environment selected
+/// last, so the explicit host patches the selected environment's cluster
+/// rather than being overwritten by it. An unrecognized value (including
+/// `DEV`, which the historical channel does not support) is a hard error
+/// naming the valid set, never a silent fallback.
+pub const ENV_HISTORICAL_TYPE: &str = "THETADATA_HISTORICAL_TYPE";
+
+/// Streaming environment selector (`PROD` / `DEV`, case-insensitive). `DEV`
+/// points the streaming channel at the dev replay cluster; `PROD` (or unset)
+/// keeps production. It never affects auth or the historical channel. An
+/// unrecognized value (including `STAGE`, which the streaming channel does not
+/// support) is a hard error naming the valid set, never a silent fallback.
+pub const ENV_STREAMING_TYPE: &str = "THETADATA_STREAMING_TYPE";
 
 /// Historical host.
 pub const ENV_HISTORICAL_HOST: &str = "THETADATA_HISTORICAL_HOST";
@@ -78,15 +84,12 @@ impl Source {
         }
     }
 
-    /// Diagnostic phrase for an unrecognized `THETADATA_MDDS_TYPE`.
-    fn unrecognized_mdds_type(self) -> &'static str {
+    /// Human label for the value source, for the typed error on an
+    /// unrecognized environment selector.
+    fn label(self) -> &'static str {
         match self {
-            Source::ProcessEnv => {
-                "ignoring unrecognized env var (expected PROD, STAGE, or DEV); keeping current environment"
-            }
-            Source::DotEnv => {
-                "ignoring unrecognized .env value (expected PROD, STAGE, or DEV); keeping current environment"
-            }
+            Source::ProcessEnv => "env var",
+            Source::DotEnv => ".env value",
         }
     }
 }
@@ -104,19 +107,33 @@ impl Source {
 /// `get` returns the trimmed, non-empty value for a key, or `None` when the key
 /// is absent or blank (an empty / all-whitespace value reads as unset so a
 /// blank never wins precedence and builds an empty host override or flips the
-/// cluster). Unknown / malformed values are logged via `source` and skipped so
-/// a typo never silently flips production to the wrong endpoint.
-fn apply_overrides<F>(cfg: &mut DirectConfig, get: F, source: Source)
+/// cluster). A malformed host/port/URL override is logged via `source` and
+/// skipped so a typo there never flips production to the wrong endpoint. An
+/// unrecognized environment SELECTOR is different: it is a hard error naming
+/// the valid set (returned to the caller), never a silent fallback, so a stale
+/// or cross-channel selector cannot quietly route to the wrong cluster.
+///
+/// Partial-mutation contract: the host/port/URL overrides are recorded before
+/// the environment selectors are resolved, so when a selector is unrecognized
+/// this returns `Err` with those overrides already applied — `cfg` may be left
+/// partially mutated on the `Err` path. Both callers discard the config on
+/// `Err` ([`DirectConfig::production`] panics, and the `.env` path owns its
+/// receiver and drops it), so the partial state is never observed; a caller
+/// that retains a config across an `Err` from this function must not assume it
+/// is unchanged.
+fn apply_overrides<F>(cfg: &mut DirectConfig, get: F, source: Source) -> Result<(), Error>
 where
     F: Fn(&str) -> Option<String>,
 {
     // Record the explicit host/port/url/client_type overrides into the typed
-    // override fields FIRST, then select the environment LAST: `apply_environment`
-    // rebuilds the cluster routing from the selected environment and patches the
-    // recorded host overrides on top, so an explicit host:port always wins over
-    // the environment default while the environment's failover hosts are
-    // preserved. Recording before selecting is what lets the override survive
-    // the environment rewrite (and a later `with_environment` switch).
+    // override fields FIRST, then select the environments LAST:
+    // `apply_historical_environment` / `apply_streaming_environment` rebuild the
+    // cluster routing from the selected environment and patch the recorded host
+    // overrides on top, so an explicit host:port always wins over the
+    // environment default while the environment's failover hosts are preserved.
+    // Recording before selecting is what lets the override survive the
+    // environment rewrite (and a later `with_historical_environment` /
+    // `with_streaming_environment` switch).
     if let Some(host) = get(ENV_HISTORICAL_HOST) {
         cfg.set_historical_host_override(host);
     }
@@ -132,7 +149,7 @@ where
         }
     }
     // Nexus auth URL and client_type are cluster-bound auth knobs: an operator
-    // that redirects the cluster (`THETADATA_MDDS_TYPE=STAGE`) and supplies a
+    // that redirects the cluster (`THETADATA_HISTORICAL_TYPE=STAGE`) and supplies a
     // staging `THETADATA_NEXUS_URL` in the same source expects auth to follow
     // the cluster, not keep POSTing production. Environment selection routes
     // only the historical + streaming hosts (it does not touch `auth`), so the
@@ -164,35 +181,50 @@ where
         }
     }
 
-    // Environment selector last: rebuild the cluster routing for the selected
-    // environment, applying the overrides recorded above. A blank value reads
-    // as unset (via `get`); an unrecognized value is logged and skipped
-    // (lenient, matching the malformed-port handling) so a typo never silently
-    // flips the cluster to the wrong endpoint. When no (or an unrecognized)
-    // selector is present we still re-apply the CURRENT environment so a host
-    // override recorded above patches the existing cluster.
-    let selected = match get(ENV_MDDS_TYPE) {
-        Some(mdds_type) => match Environment::parse(&mdds_type) {
-            Some(env) => env,
-            None => {
-                tracing::warn!(
-                    env = ENV_MDDS_TYPE,
-                    value = %mdds_type,
-                    "{}",
-                    source.unrecognized_mdds_type()
-                );
-                cfg.environment
-            }
-        },
-        None => cfg.environment,
+    // Environment selectors last: rebuild each channel's cluster routing,
+    // applying the overrides recorded above. A blank value reads as unset (via
+    // `get`); an UNRECOGNIZED value is a hard error naming the valid set
+    // (never a silent fallback), so a stale or typo'd selector — including a
+    // cross-channel value like `THETADATA_HISTORICAL_TYPE=DEV` or
+    // `THETADATA_STREAMING_TYPE=STAGE` — fails loud instead of quietly keeping the
+    // wrong cluster. When a selector is absent we re-apply the CURRENT
+    // environment so a host override recorded above patches the existing
+    // cluster.
+    let historical = match get(ENV_HISTORICAL_TYPE) {
+        Some(value) => HistoricalEnvironment::parse(&value).ok_or_else(|| {
+            Error::config_invalid(
+                ENV_HISTORICAL_TYPE,
+                format!(
+                    "{} {ENV_HISTORICAL_TYPE}={value:?} is not a historical environment; expected \"PROD\" or \"STAGE\"",
+                    source.label()
+                ),
+            )
+        })?,
+        None => cfg.historical_environment,
     };
-    cfg.apply_environment(selected);
+    cfg.apply_historical_environment(historical);
+
+    let streaming = match get(ENV_STREAMING_TYPE) {
+        Some(value) => StreamingEnvironment::parse(&value).ok_or_else(|| {
+            Error::config_invalid(
+                ENV_STREAMING_TYPE,
+                format!(
+                    "{} {ENV_STREAMING_TYPE}={value:?} is not a streaming environment; expected \"PROD\" or \"DEV\"",
+                    source.label()
+                ),
+            )
+        })?,
+        None => cfg.streaming_environment,
+    };
+    cfg.apply_streaming_environment(streaming);
+    Ok(())
 }
 
 /// Apply the documented [`DirectConfig`] env-var matrix on top of the
-/// receiver. Unknown / malformed values are logged and skipped so a
-/// typo never silently flips production to the wrong endpoint.
-pub(super) fn apply_env_overrides(cfg: &mut DirectConfig) {
+/// receiver. A malformed host/port override is logged and skipped; an
+/// unrecognized environment selector returns a typed error naming the valid
+/// set, so a typo never silently flips production to the wrong endpoint.
+pub(super) fn apply_env_overrides(cfg: &mut DirectConfig) -> Result<(), Error> {
     apply_overrides(
         cfg,
         |key| {
@@ -202,14 +234,14 @@ pub(super) fn apply_env_overrides(cfg: &mut DirectConfig) {
             })
         },
         Source::ProcessEnv,
-    );
+    )
 }
 
 /// Apply the environment-selector and override matrix carried by a parsed
 /// `.env` file on top of the receiver.
 ///
 /// This is the `.env`-file analogue of [`apply_env_overrides`]: it reads the
-/// **same** keys with the **same** precedence (`THETADATA_MDDS_TYPE` first to
+/// **same** keys with the **same** precedence (`THETADATA_HISTORICAL_TYPE` first to
 /// set the cluster default, then an explicit `THETADATA_HISTORICAL_HOST` /
 /// `THETADATA_STREAMING_HOST` wins over that default) but sources the values
 /// from the `(key, value)` pairs a `.env` file parsed to, rather than from the
@@ -218,10 +250,14 @@ pub(super) fn apply_env_overrides(cfg: &mut DirectConfig) {
 /// Only the documented configuration keys are read here; the credential keys in
 /// the same file are handled by [`crate::auth::Credentials::from_dotenv`].
 ///
-/// Unknown / empty values are skipped leniently, matching the process-env
-/// path, so a typo in the `.env` never silently flips the cluster to the wrong
-/// endpoint.
-pub(super) fn apply_dotenv_overrides(cfg: &mut DirectConfig, pairs: &[(String, &str)]) {
+/// A malformed host/port value is skipped leniently, matching the process-env
+/// path; an unrecognized environment selector returns a typed error naming the
+/// valid set, so a typo in the `.env` never silently flips the cluster to the
+/// wrong endpoint.
+pub(super) fn apply_dotenv_overrides(
+    cfg: &mut DirectConfig,
+    pairs: &[(String, &str)],
+) -> Result<(), Error> {
     use crate::auth::dotenv::lookup;
 
     // `lookup` already returns trimmed, non-empty values (or `None` for an
@@ -230,5 +266,98 @@ pub(super) fn apply_dotenv_overrides(cfg: &mut DirectConfig, pairs: &[(String, &
         cfg,
         |key| lookup(pairs, key).map(str::to_string),
         Source::DotEnv,
-    );
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Drive `apply_overrides` with a fixed key->value map, the same body both
+    /// the process-env and `.env` paths run.
+    fn apply(pairs: &[(&str, &str)]) -> Result<DirectConfig, Error> {
+        let mut cfg = DirectConfig::production();
+        let owned: Vec<(String, String)> = pairs
+            .iter()
+            .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+            .collect();
+        apply_overrides(
+            &mut cfg,
+            // Mirror the blank-as-unset filtering both real entry points apply
+            // before `apply_overrides` sees a value.
+            |key| {
+                owned.iter().find(|(k, _)| k == key).and_then(|(_, v)| {
+                    let trimmed = v.trim();
+                    (!trimmed.is_empty()).then(|| trimmed.to_string())
+                })
+            },
+            Source::ProcessEnv,
+        )?;
+        Ok(cfg)
+    }
+
+    #[test]
+    fn valid_selectors_route_each_channel() {
+        let cfg = apply(&[(ENV_HISTORICAL_TYPE, "STAGE"), (ENV_STREAMING_TYPE, "DEV")])
+            .expect("PROD/STAGE + PROD/DEV are valid selectors");
+        assert_eq!(cfg.historical_environment, HistoricalEnvironment::Stage);
+        assert_eq!(cfg.streaming_environment, StreamingEnvironment::Dev);
+    }
+
+    #[test]
+    fn absent_selectors_leave_the_baseline_untouched() {
+        let cfg = apply(&[]).expect("no selectors is a no-op");
+        assert_eq!(cfg.historical_environment, HistoricalEnvironment::Prod);
+        assert_eq!(cfg.streaming_environment, StreamingEnvironment::Prod);
+    }
+
+    #[test]
+    fn cross_channel_historical_selector_fails_loud() {
+        // The historical channel has no dev cluster: a stale/cross-channel
+        // value must NOT silently fall back to a default — it is a typed error
+        // that names the key and the valid set.
+        let err = apply(&[(ENV_HISTORICAL_TYPE, "DEV")])
+            .expect_err("HISTORICAL_TYPE=DEV must fail loud, never fall back");
+        let msg = err.to_string();
+        assert!(msg.contains(ENV_HISTORICAL_TYPE), "names the key: {msg}");
+        assert!(
+            msg.contains("PROD") && msg.contains("STAGE"),
+            "names the valid set: {msg}"
+        );
+    }
+
+    #[test]
+    fn cross_channel_streaming_selector_fails_loud() {
+        // The streaming channel has no staging cluster.
+        let err = apply(&[(ENV_STREAMING_TYPE, "STAGE")])
+            .expect_err("STREAMING_TYPE=STAGE must fail loud, never fall back");
+        let msg = err.to_string();
+        assert!(msg.contains(ENV_STREAMING_TYPE), "names the key: {msg}");
+        assert!(
+            msg.contains("PROD") && msg.contains("DEV"),
+            "names the valid set: {msg}"
+        );
+    }
+
+    #[test]
+    fn a_typoed_selector_fails_loud() {
+        assert!(apply(&[(ENV_HISTORICAL_TYPE, "prdo")]).is_err());
+        assert!(
+            apply(&[(ENV_STREAMING_TYPE, "")]).is_ok(),
+            "blank reads as unset"
+        );
+    }
+
+    #[test]
+    fn an_explicit_host_override_survives_the_selector_rewrite() {
+        // Recording the host before selecting the environment is what lets an
+        // explicit host patch the selected cluster rather than be overwritten.
+        let cfg = apply(&[
+            (ENV_HISTORICAL_TYPE, "STAGE"),
+            (ENV_HISTORICAL_HOST, "historical.example.test"),
+        ])
+        .expect("valid selector + explicit host");
+        assert_eq!(cfg.historical_environment, HistoricalEnvironment::Stage);
+        assert_eq!(cfg.historical.host, "historical.example.test");
+    }
 }

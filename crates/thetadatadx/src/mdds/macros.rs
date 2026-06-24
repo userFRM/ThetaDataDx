@@ -1305,14 +1305,14 @@ mod streaming_attempt_tests {
     use super::{classify_streaming_attempt, StreamingAttemptOutcome};
     use crate::auth::session::{SessionSnapshot, SessionToken};
     use crate::auth::Credentials;
-    use crate::config::Environment;
+    use crate::config::HistoricalEnvironment;
     use crate::error::{Error, GrpcStatusKind};
 
     fn fake_token(uuid: &str) -> SessionToken {
         SessionToken::new(
             uuid.to_string(),
             "https://nexus.example.invalid/auth".to_string(),
-            Environment::Prod,
+            HistoricalEnvironment::Prod,
             Credentials::new("user@example.com", "hunter2"),
         )
     }
@@ -1494,7 +1494,7 @@ mod refresh_retry_disabled_tests {
     use super::{run_streaming_retry_loop, run_unary_retry_loop};
     use crate::auth::session::SessionToken;
     use crate::auth::Credentials;
-    use crate::config::{Environment, RetryPolicy};
+    use crate::config::{HistoricalEnvironment, RetryPolicy};
     use crate::error::{Error, GrpcStatusKind};
     use std::cell::RefCell;
 
@@ -1502,7 +1502,7 @@ mod refresh_retry_disabled_tests {
         SessionToken::new(
             uuid.to_string(),
             "https://nexus.example.invalid/auth".to_string(),
-            Environment::Prod,
+            HistoricalEnvironment::Prod,
             Credentials::new("user@example.com", "hunter2"),
         )
     }

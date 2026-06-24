@@ -27,7 +27,7 @@ use super::schema::{
 /// silently shadow whichever helper registers first, hiding factory
 /// methods like `.stock()` / `.option()` from end users.
 fn render_contract_pyclass() -> &'static str {
-    "/// FPSS contract identifier. Surfaced on every decoded FPSS data\n\
+    "/// Streaming contract identifier. Surfaced on every decoded streaming data\n\
 /// event as `event.contract`. Reads `symbol`, `sec_type` (symbolic\n\
 /// string, e.g. `\"STOCK\"` / `\"OPTION\"`), `expiration` (`YYYYMMDD`),\n\
 /// `right` (`\"C\"` / `\"P\"` / `None`), and `strike` (option strike in\n\
@@ -124,7 +124,7 @@ pub(super) fn render_python_fpss_event_classes(schema: &Schema) -> String {
 fn render_python_event_class_struct(event_name: &str, def: &EventDef) -> String {
     let mut out = String::new();
     let doc_text = if def.doc.is_empty() {
-        format!("FPSS {event_name} event.")
+        format!("Streaming {event_name} event.")
     } else {
         def.doc.clone()
     };
@@ -224,7 +224,7 @@ fn render_python_event_class_struct(event_name: &str, def: &EventDef) -> String 
             .map(|c| c.name.as_str())
             .expect("has_contract implies a contract column");
         out.push('\n');
-        out.push_str("    /// FPSS contract identity (`symbol`, `sec_type`,\n");
+        out.push_str("    /// Streaming contract identity (`symbol`, `sec_type`,\n");
         out.push_str("    /// `expiration`, `right`, `strike`). Built on access from the\n");
         out.push_str("    /// event's inline contract.\n");
         out.push_str("    #[getter]\n");

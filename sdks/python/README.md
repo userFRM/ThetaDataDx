@@ -36,12 +36,12 @@ Binary wheels ship for Linux, macOS, and Windows and require no Rust toolchain. 
 ## Quick start
 
 > [!TIP]
-> Pass your API key directly to the client and you are one line from a live connection. Generate a key from your [ThetaData user portal](https://www.thetadata.net/), then construct `Client(api_key="td1_...")`. The key can also come from the environment with `Client.from_env()` (reading `THETADATA_API_KEY`) or a `.env` file with `Client.from_dotenv(".env")`. Email and password is also supported: `Client(email="you@example.com", password="your_password")` inline, or a `creds.txt` file (email on line 1, password on line 2) via `Credentials.from_file`. Target staging with `mdds_type="STAGE"`. For full control over hosts and timeouts, build a typed `Credentials` + `Config` and pass both to `Client(...)`.
+> Pass your API key directly to the client and you are one line from a live connection. Generate a key from your [ThetaData user portal](https://www.thetadata.net/), then construct `Client(api_key="td1_...")`. The key can also come from the environment with `Client.from_env()` (reading `THETADATA_API_KEY`) or a `.env` file with `Client.from_dotenv(".env")`. Email and password is also supported: `Client(email="you@example.com", password="your_password")` inline, or a `creds.txt` file (email on line 1, password on line 2) via `Credentials.from_file`. Target staging with `historical_type="STAGE"`. For full control over hosts and timeouts, build a typed `Credentials` + `Config` and pass both to `Client(...)`.
 
 ```python
 from thetadatadx import Client
 
-# Pass your API key directly. Use mdds_type="STAGE" to target staging.
+# Pass your API key directly. Use historical_type="STAGE" to target staging.
 client = Client(api_key="td1_...")
 
 # First-order Greeks for every strike on SPY's 2026-06-19 expiry, as of 2024-03-15
@@ -194,7 +194,7 @@ with client.streaming(on_event) as session:
 Prefer columns? `client.stream.batches(...)` is a sibling to the callback — the same subscriptions, delivered as `pyarrow.RecordBatch` values under a fixed schema. The reader is iterable (sync, releasing the GIL on the blocking pull) and async-iterable, and closes on context-manager exit:
 
 ```python
-# `batches(...)` starts the FPSS session, so open it first, then subscribe.
+# `batches(...)` starts the streaming session, so open it first, then subscribe.
 with client.stream.batches(batch_size=8192) as batches:
     client.stream.subscribe(Contract.stock("AAPL").trade())
     for batch in batches:        # or: async for batch in batches

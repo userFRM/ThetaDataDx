@@ -335,7 +335,7 @@ pub fn build_stop_payload() -> Vec<u8> {
 /// Returns an error on network, authentication, or parsing failure.
 pub fn parse_req_response(payload: &[u8]) -> Result<(i32, StreamResponseType), Error> {
     if payload.len() < 8 {
-        return Err(Error::Fpss {
+        return Err(Error::Stream {
             kind: crate::error::StreamErrorKind::ProtocolError,
             message: format!(
                 "REQ_RESPONSE payload too short: {} bytes, expected 8",
@@ -353,7 +353,7 @@ pub fn parse_req_response(payload: &[u8]) -> Result<(i32, StreamResponseType), E
         2 => StreamResponseType::MaxStreamsReached,
         3 => StreamResponseType::InvalidPerms,
         _ => {
-            return Err(Error::Fpss {
+            return Err(Error::Stream {
                 kind: crate::error::StreamErrorKind::ProtocolError,
                 message: format!("unknown REQ_RESPONSE code: {resp_code}"),
             });
@@ -418,7 +418,7 @@ pub fn parse_disconnect_reason(payload: &[u8]) -> RemoveReason {
 /// Returns an error on network, authentication, or parsing failure.
 pub fn parse_contract_message(payload: &[u8]) -> Result<(i32, Contract), Error> {
     if payload.len() < 5 {
-        return Err(Error::Fpss {
+        return Err(Error::Stream {
             kind: crate::error::StreamErrorKind::ProtocolError,
             message: format!("CONTRACT payload too short: {} bytes", payload.len()),
         });
@@ -430,13 +430,13 @@ pub fn parse_contract_message(payload: &[u8]) -> Result<(i32, Contract), Error> 
     // frame's size bookkeeping understates the real payload, so reject the
     // frame rather than silently ignore the surplus.
     let body = &payload[4..];
-    let (contract, consumed) = Contract::from_bytes(body).map_err(|e| Error::Fpss {
+    let (contract, consumed) = Contract::from_bytes(body).map_err(|e| Error::Stream {
         kind: crate::error::StreamErrorKind::ProtocolError,
         message: format!("failed to parse contract: {e}"),
     })?;
 
     if consumed != body.len() {
-        return Err(Error::Fpss {
+        return Err(Error::Stream {
             kind: crate::error::StreamErrorKind::ProtocolError,
             message: format!(
                 "CONTRACT frame has {} trailing byte(s) after the contract record",

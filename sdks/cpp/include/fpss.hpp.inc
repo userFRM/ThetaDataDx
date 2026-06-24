@@ -5,14 +5,14 @@
     /** Reconnect streaming and re-subscribe all previous subscriptions. */
     void reconnect();
     /**
-     * Shut down the FPSS streaming connection.
+     * Shut down the streaming connection.
      *
      * On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as stopping the stream); reconnect will then fail until the caller starts streaming again with a freshly bound callback. The C++ binding preserves the underlying connection's behaviour.
      */
     void shutdown();
-    /** Return true if the FPSS client is currently authenticated. */
+    /** Return true if the streaming client is currently authenticated. */
     bool is_authenticated() const;
-    /** Connect to FPSS streaming servers. Throws on failure. */
+    /** Connect to streaming servers. Throws on failure. */
     StreamingClient(const Credentials& creds, const Config& config);
-    /** Connect to FPSS streaming servers, loading credentials from a file (line 1 = email, line 2 = password), defaulting to the production configuration. Throws on failure. */
+    /** Connect to streaming servers, loading credentials from a file (line 1 = email, line 2 = password), defaulting to the production configuration. Throws on failure. */
     static StreamingClient from_file(const std::string& path, const Config& config = Config::production());

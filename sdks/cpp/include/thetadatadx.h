@@ -900,7 +900,7 @@ typedef struct ThetaDataDxRecordBatchStream ThetaDataDxRecordBatchStream;
 
 /** Open a pull-based Arrow RecordBatch reader over the unified client's
  *  stream — a sibling to thetadatadx_client_set_callback. Subscribe first on
- *  the same surface, then open. Starts the FPSS session.
+ *  the same surface, then open. Starts the streaming session.
  *  @param handle Client from thetadatadx_client_connect.
  *  @param batch_size Rows per batch (0 clamped to 1).
  *  @param linger_ms Partial-batch flush deadline in ms (quiet-stream flush).
@@ -938,7 +938,7 @@ int32_t thetadatadx_record_batch_stream_schema_ipc(const ThetaDataDxRecordBatchS
  *  under block. */
 uint64_t thetadatadx_record_batch_stream_dropped(const ThetaDataDxRecordBatchStream* stream);
 
-/** Stop the reader, tear down the FPSS session, WITHOUT freeing the handle.
+/** Stop the reader, tear down the streaming session, WITHOUT freeing the handle.
  *  Safe to call from another thread while a pull is in flight: it wakes the
  *  pull (which returns 1, clean end of stream) and shuts the session down.
  *  Idempotent. The handle stays valid and must still be released with
@@ -1083,19 +1083,40 @@ ThetaDataDxConfig* thetadatadx_config_production(void);
  *          thetadatadx_config_free. */
 ThetaDataDxConfig* thetadatadx_config_dev(void);
 
-/** Create a stage streaming config (port 20100, testing, unstable).
+/** Create a historical-staging config (historical staging cluster + auth marker;
+ *  streaming stays on production). Testing, unstable.
  *  @return Heap-owned ThetaDataDxConfig the caller must release with
  *          thetadatadx_config_free. */
 ThetaDataDxConfig* thetadatadx_config_stage(void);
 
+/** Select the historical environment on a config handle in place:
+ *  kind 0 = production, kind 1 = staging. The historical and streaming
+ *  channels are selected independently, so this leaves the streaming
+ *  channel untouched.
+ *  @param config Config handle to mutate.
+ *  @param kind 0 for PROD, 1 for STAGE.
+ *  @return 0 on success, or -1 on error (config is null, or kind is
+ *          outside {0, 1}); check thetadatadx_last_error(). */
+int32_t thetadatadx_config_with_historical_environment(ThetaDataDxConfig* config, int32_t kind);
+
+/** Select the streaming environment on a config handle in place:
+ *  kind 0 = production, kind 1 = dev. The streaming and historical
+ *  channels are selected independently, so this leaves the historical
+ *  channel and the auth marker untouched.
+ *  @param config Config handle to mutate.
+ *  @param kind 0 for PROD, 1 for DEV.
+ *  @return 0 on success, or -1 on error (config is null, or kind is
+ *          outside {0, 1}); check thetadatadx_last_error(). */
+int32_t thetadatadx_config_with_streaming_environment(ThetaDataDxConfig* config, int32_t kind);
+
 /** Source a config from a .env-format file. Starts from the production
  *  configuration and applies the cluster keys carried by the file:
- *  THETADATA_MDDS_TYPE (PROD / STAGE, case-insensitive) selects the
+ *  THETADATA_HISTORICAL_TYPE (PROD / STAGE, case-insensitive) selects the
  *  environment, and the optional THETADATA_HISTORICAL_HOST /
  *  THETADATA_STREAMING_HOST keys override the hosts (an explicit host wins
  *  over the environment default). Reads the same file format and keys as
  *  thetadatadx_credentials_from_dotenv, so one .env can carry both
- *  THETADATA_API_KEY and THETADATA_MDDS_TYPE.
+ *  THETADATA_API_KEY and THETADATA_HISTORICAL_TYPE.
  *  @param path Path to the .env file.
  *  @return Heap-owned ThetaDataDxConfig the caller must release with
  *          thetadatadx_config_free, or NULL on error
@@ -1885,15 +1906,28 @@ int thetadatadx_config_set_flush_mode(ThetaDataDxConfig* config, int mode);
 int32_t thetadatadx_config_get_flush_mode(const ThetaDataDxConfig* config, int32_t* out_mode);
 
 /**
- * Read the target server environment carried by the config: "PROD" for
- * the production cluster, "STAGE" for staging, or "DEV" for the dev
- * cluster. Set as a unit by the production / stage / dev presets (and the
- * THETADATA_MDDS_TYPE dotenv key); this is the readback of that selection.
+ * Read the historical environment carried by the config: "PROD"
+ * for the production cluster or "STAGE" for staging. The historical and
+ * streaming environments are selected independently; the production /
+ * stage / dev presets (and the THETADATA_HISTORICAL_TYPE dotenv key) set the
+ * historical channel, and this is the readback of that selection.
  * @param config Config handle to read.
  * @return A heap-owned NUL-terminated C string the caller MUST free with
  *         thetadatadx_string_free, or NULL if config is null.
  */
-char* thetadatadx_config_get_environment(const ThetaDataDxConfig* config);
+char* thetadatadx_config_get_historical_environment(const ThetaDataDxConfig* config);
+
+/**
+ * Read the streaming environment carried by the config: "PROD" for
+ * the production cluster or "DEV" for the dev cluster. The streaming and
+ * historical environments are selected independently; the production /
+ * stage / dev presets (and the THETADATA_STREAMING_TYPE dotenv key) set the
+ * streaming channel, and this is the readback of that selection.
+ * @param config Config handle to read.
+ * @return A heap-owned NUL-terminated C string the caller MUST free with
+ *         thetadatadx_string_free, or NULL if config is null.
+ */
+char* thetadatadx_config_get_streaming_environment(const ThetaDataDxConfig* config);
 
 /* Streaming wait-strategy preset selectors for
  * thetadatadx_config_set_wait_strategy / _get_wait_strategy. */
@@ -2281,9 +2315,9 @@ int32_t thetadatadx_sequence_unsigned_to_signed(uint64_t unsigned_value, int64_t
  * `event->kind` and read the matching `event-><variant>` payload —
  * for example
  *
- *   if (event->kind == THETADATADX_FPSS_LOGIN_SUCCESS)
+ *   if (event->kind == THETADATADX_STREAM_LOGIN_SUCCESS)
  *       printf("perms=%s\n", event->login_success.permissions);
- *   if (event->kind == THETADATADX_FPSS_DISCONNECTED)
+ *   if (event->kind == THETADATADX_STREAM_DISCONNECTED)
  *       printf("reason=%d\n", event->disconnected.reason);
  *
  * Borrowed pointers (`Contract.symbol`, `LoginSuccess.permissions`,

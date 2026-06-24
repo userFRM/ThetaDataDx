@@ -113,11 +113,11 @@ int main() {
     auto creds  = thetadatadx::Credentials::from_file("creds.txt");
     auto config = thetadatadx::Config::production();
 
-    thetadatadx::StreamingClient fpss(creds, config);
+    thetadatadx::StreamingClient streaming(creds, config);
 
-    fpss.set_callback([](const thetadatadx::StreamEvent& event) {
+    streaming.set_callback([](const thetadatadx::StreamEvent& event) {
         switch (event.kind) {
-            case THETADATADX_FPSS_TRADE:
+            case THETADATADX_STREAM_TRADE:
                 std::cout << event.trade.contract.symbol
                           << " trade price=" << event.trade.price
                           << " size=" << event.trade.size
@@ -127,7 +127,7 @@ int main() {
                           << " condition=" << event.trade.condition
                           << '\n';
                 break;
-            case THETADATADX_FPSS_QUOTE:
+            case THETADATADX_STREAM_QUOTE:
                 std::cout << event.quote.contract.symbol
                           << " quote bid=" << event.quote.bid
                           << " ask=" << event.quote.ask
@@ -147,19 +147,19 @@ int main() {
     auto stock  = thetadatadx::Contract::stock("AAPL");
     auto option = thetadatadx::Contract::option("SPY", {.expiration = "20260620", .strike = "550", .right = "C"});
 
-    fpss.subscribe(stock.quote());
-    fpss.subscribe_many({option.quote(), option.trade()});
+    streaming.subscribe(stock.quote());
+    streaming.subscribe_many({option.quote(), option.trade()});
 
     // ... let the callback run while events flow ...
 
-    fpss.shutdown();   // the destructor also calls this on scope exit
+    streaming.shutdown();   // the destructor also calls this on scope exit
 }
 ```
 
 Every subscription is the same value, so quotes, trades, and open interest across contracts mix freely. Or take a whole-market feed — every option trade across the universe — with no per-contract setup:
 
 ```cpp
-fpss.subscribe(thetadatadx::SecType::option().full_trades());   // the callback runs per event — keep it fast
+streaming.subscribe(thetadatadx::SecType::option().full_trades());   // the callback runs per event — keep it fast
 ```
 
 > [!TIP]
@@ -171,7 +171,7 @@ fpss.subscribe(thetadatadx::SecType::option().full_trades());   // the callback 
 Prefer columns? `client.stream().batches(...)` is a sibling to the callback — the same subscriptions, delivered as Arrow record batches under a fixed schema through a native `arrow::RecordBatchReader`. Build the SDK with `-DTHETADATADX_CPP_ARROW=ON` (links arrow-cpp) to enable it:
 
 ```cpp
-// `batches(...)` starts the FPSS session, so open it first, then subscribe.
+// `batches(...)` starts the streaming session, so open it first, then subscribe.
 auto reader = client.stream().batches(/*batch_size=*/8192);
 client.stream().subscribe(thetadatadx::Contract::stock("AAPL").trade());
 std::shared_ptr<arrow::RecordBatch> batch;

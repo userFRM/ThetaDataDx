@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise FPSS reconnect + subscription restoration against the replay servers."""
+"""Exercise streaming reconnect + subscription restoration against the replay servers."""
 
 from __future__ import annotations
 
@@ -126,7 +126,7 @@ def main() -> int:
         stream.await_drain(5_000)
 
     print(
-        f"fpss soak: ok ({reconnect_count} reconnects, {data_events} data events, symbol={args.symbol})"
+        f"streaming soak: ok ({reconnect_count} reconnects, {data_events} data events, symbol={args.symbol})"
     )
     return 0
 

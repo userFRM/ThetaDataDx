@@ -6,5 +6,5 @@ Request returned no rows,NoData,NoDataFoundError,thetadatadx::Error (kind == NoD
 Per-request deadline elapsed,Timeout,TimeoutError,thetadatadx::Error (kind == Timeout)
 Connection / TLS / protocol fault,Transport,NetworkError,thetadatadx::NetworkError
 Response shape unexpected,Decode,SchemaMismatchError,thetadatadx::SchemaMismatchError
-Streaming session fault,Fpss,StreamError,thetadatadx::StreamError
+Streaming session fault,Stream,StreamError,thetadatadx::StreamError
 Invalid parameters / configuration,Config,ThetaDataError,thetadatadx::ThetaDataError

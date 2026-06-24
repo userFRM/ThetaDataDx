@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cross-platform FPSS smoke checks for the Python SDK."""
+"""Cross-platform streaming smoke checks for the Python SDK."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def _drain_data_kind(events: "queue.Queue", *, timeout_secs: float) -> tuple[str
         last_kind = event.kind
         if last_kind in {"quote", "trade", "open_interest", "ohlcvc"}:
             return event.contract.symbol, last_kind
-    raise RuntimeError(f"timed out waiting for FPSS data event (last kind={last_kind})")
+    raise RuntimeError(f"timed out waiting for streaming data event (last kind={last_kind})")
 
 
 def main() -> int:
@@ -105,7 +105,7 @@ def main() -> int:
         client.stream.await_drain(5_000)
 
     print(
-        "python fpss smoke: ok "
+        "python streaming smoke: ok "
         f"(symbol={args.symbol}, option={args.option_symbol} {args.expiration} {args.strike} {args.right})"
     )
     return 0

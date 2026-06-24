@@ -5,12 +5,11 @@
 //! - [`login`] — CREDENTIALS + VERSION write, plus reading the
 //!   SESSION_TOKEN + METADATA confirmation pair.
 //!
-//! The auth flow does **not** wait for a `CONNECTED` (msg=4) frame: live
-//! observation shows the production server only emits SESSION_TOKEN +
-//! METADATA on success and never the explicit CONNECTED frame. Treating
-//! receipt of either pair as auth-success matches the vendor terminal's
-//! own log line `[MDDS] CONNECTED: ..., Bundle: ...` which is constructed
-//! from the METADATA payload.
+//! The auth flow does **not** wait for a `CONNECTED` (msg=4) frame: the
+//! production server only emits SESSION_TOKEN +
+//! METADATA on success and never the explicit CONNECTED frame, so receipt
+//! of either pair is treated as auth-success. The `[MDDS] CONNECTED: ...,
+//! Bundle: ...` status line is constructed from the METADATA payload.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -142,7 +141,7 @@ pub(crate) async fn login(
                 return Err(Error::Auth {
                     kind: AuthErrorKind::ServerError,
                     message: format!(
-                        "unexpected MDDS frame during login: msg={other} size={}",
+                        "unexpected historical frame during login: msg={other} size={}",
                         frame.payload.len()
                     ),
                 });
@@ -154,12 +153,12 @@ pub(crate) async fn login(
     }
     let bundle = bundle.ok_or_else(|| Error::Auth {
         kind: AuthErrorKind::ServerError,
-        message: "MDDS auth did not return METADATA bundle".into(),
+        message: "historical auth did not return METADATA bundle".into(),
     })?;
     if !session_token_seen {
         return Err(Error::Auth {
             kind: AuthErrorKind::ServerError,
-            message: "MDDS auth did not return SESSION_TOKEN".into(),
+            message: "historical auth did not return SESSION_TOKEN".into(),
         });
     }
     Ok(bundle)
@@ -207,7 +206,7 @@ pub(crate) async fn connect_and_login<'a>(
                 last_err = Some(Error::Io(std::io::Error::new(
                     std::io::ErrorKind::TimedOut,
                     format!(
-                        "MDDS connect/login to {}:{} timed out after {}s",
+                        "historical connect/login to {}:{} timed out after {}s",
                         host.host,
                         host.port,
                         connect_timeout.as_secs()

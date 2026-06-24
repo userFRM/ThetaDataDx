@@ -2997,9 +2997,9 @@ paths:
                     type: string
                     description: Running server version.
 
-  /v3/system/mdds/status:
+  /v3/system/historical/status:
     get:
-      operationId: systemMddsStatus
+      operationId: systemHistoricalStatus
       tags: [System]
       summary: Historical data connection status
       description: |
@@ -3030,9 +3030,9 @@ paths:
                       enum: [CONNECTED, DISCONNECTED]
                     description: Single-element array with the connection state.
 
-  /v3/system/fpss/status:
+  /v3/system/streaming/status:
     get:
-      operationId: systemFpssStatus
+      operationId: systemStreamingStatus
       tags: [System]
       summary: Streaming connection status
       description: |
@@ -3280,7 +3280,7 @@ components:
     StreamEventKind:
       type: string
       description: |
-        Discriminator for FPSS event variants. This is a literal-union
+        Discriminator for streaming event variants. This is a literal-union
         string, not a TypeScript `const enum`, so the type information
         stays self-contained under `isolatedModules: true` and works
         in every toolchain (Vite, esbuild, ts-jest, Next.js).
@@ -3294,7 +3294,7 @@ components:
 
     StreamEvent:
       type: object
-      description: Real-time streaming event from FPSS
+      description: Real-time streaming event
       oneOf:
         - type: object
           description: Quote tick (best bid/ask update)
@@ -3409,7 +3409,7 @@ components:
               description: Nanosecond monotonic receipt timestamp
         - type: object
           description: |
-            Control / diagnostic event (FPSS stream lifecycle). SDKs flatten
+            Control / diagnostic event (streaming lifecycle). SDKs flatten
             every `StreamControl` variant into a single `Simple` pyclass / TS
             object with `kind: "simple"` and an `event_type` discriminator.
             Use `event_type` to branch on the concrete variant; `detail` is
@@ -3451,7 +3451,7 @@ components:
               description: Nanosecond monotonic receipt timestamp
         - type: object
           description: |
-            Raw (non-decoded) FPSS payload. `payload` is a base64-encoded
+            Raw (non-decoded) streaming payload. `payload` is a base64-encoded
             copy of the original bytes (escape-hatch for forward-compat /
             debugging; SDKs should prefer decoded variants above).
           properties:
@@ -3463,7 +3463,7 @@ components:
               format: int32
               minimum: 0
               maximum: 255
-              description: Wire byte code (0-255). Original FPSS protocol uses unsigned 8-bit.
+              description: Wire byte code (0-255). Original streaming protocol uses unsigned 8-bit.
             payload:
               type: string
               description: Base64-encoded raw bytes

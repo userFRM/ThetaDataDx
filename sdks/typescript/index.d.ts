@@ -22,7 +22,7 @@ export declare class Client {
    * optional `Config` (`dev` / `stage` / `production`, plus any
    * tuned setters) to override the production-default endpoint.
    * Historical only; call `client.stream.startStreaming(...)` to
-   * begin FPSS real-time data.
+   * begin streaming real-time data.
    *
    * The config is snapshot at connect time: the `Config` handle may be
    * reused or mutated afterward without affecting this client.
@@ -59,7 +59,7 @@ export declare class Client {
    * field.
    *
    * ```js
-   * const staged = await Client.connectWith({ apiKey: "td1_...", mddsType: "STAGE" });
+   * const staged = await Client.connectWith({ apiKey: "td1_...", historicalType: "STAGE" });
    * const withLogin = await Client.connectWith({ email: "u@e.com", password: "secret" });
    * const fromEnv = await Client.connectWith({ apiKeyFromEnv: true });
    * ```
@@ -67,10 +67,12 @@ export declare class Client {
    * Exactly one authentication field must be set: `apiKey`,
    * `apiKeyFromEnv`, `apiKeyFromDotenv`, the `email` + `password` pair,
    * or `credentialsFile`. Passing none, or two different ones, rejects
-   * with a `ConfigError` before any network round-trip. `mddsType`
-   * (`"PROD"` / `"STAGE"`, case-insensitive) selects the environment.
-   * For a pre-built full `Config` (or a pre-built `Credentials` handle),
-   * use [`Client::connect`], which takes both.
+   * with a `ConfigError` before any network round-trip. `historicalType`
+   * (`"PROD"` / `"STAGE"`, case-insensitive) selects the historical
+   * environment and `streamingType` (`"PROD"` / `"DEV"`, case-insensitive)
+   * the streaming environment, independently. For a pre-built full
+   * `Config` (or a pre-built `Credentials` handle), use
+   * [`Client::connect`], which takes both.
    *
    * `async` for the same reason as [`Client::connect`].
    */
@@ -106,13 +108,16 @@ export declare class Config {
   static production(): Config
   /** Dev streaming config (port 20200, infinite historical replay). */
   static dev(): Config
-  /** Stage streaming config (port 20100, unstable testing servers). */
+  /**
+   * Historical-staging config (historical staging cluster + auth marker; streaming
+   * stays on production). Unstable testing servers.
+   */
   static stage(): Config
   /**
    * Source the target environment from a `.env`-format file.
    *
    * Starts from the production config and applies the cluster keys
-   * carried by the file: `THETADATA_MDDS_TYPE` (`PROD` / `STAGE`,
+   * carried by the file: `THETADATA_HISTORICAL_TYPE` (`PROD` / `STAGE`,
    * case-insensitive) selects the environment, and the optional
    * `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST` keys
    * override the hosts (an explicit host wins over the environment
@@ -120,7 +125,7 @@ export declare class Config {
    *
    * Reads the same file format and keys as `Credentials.fromDotenv`, so
    * a single `.env` file can carry both `THETADATA_API_KEY` and
-   * `THETADATA_MDDS_TYPE`.
+   * `THETADATA_HISTORICAL_TYPE`.
    */
   static fromDotenv(path: string): Config
   /**
@@ -561,14 +566,25 @@ export declare class Config {
    */
   get flushMode(): string
   /**
-   * Target server environment carried by this configuration: `"PROD"`
-   * for the production cluster, `"STAGE"` for staging. Set as a unit by
-   * `Config.production()` / `Config.stage()` (and by the
-   * `THETADATA_MDDS_TYPE` key on `Config.fromDotenv`); this is the
-   * readback of that selection. Mirrors the `mddsType` string the inline
-   * `Client.connectWith` factory accepts.
+   * Target historical environment carried by this configuration:
+   * `"PROD"` for the production cluster or `"STAGE"` for staging. The
+   * historical and streaming channels are selected independently;
+   * `Config.production()` / `Config.stage()` (and the
+   * `THETADATA_HISTORICAL_TYPE` key on `Config.fromDotenv`) set the historical
+   * channel, and this is the readback of that selection. Mirrors the
+   * `historicalType` string the inline `Client.connectWith` factory accepts.
    */
-  get environment(): string
+  get historicalEnvironment(): string
+  /**
+   * Target streaming environment carried by this configuration:
+   * `"PROD"` for the production cluster or `"DEV"` for the dev cluster.
+   * The streaming and historical channels are selected independently;
+   * `Config.production()` / `Config.dev()` (and the
+   * `THETADATA_STREAMING_TYPE` key on `Config.fromDotenv`) set the streaming
+   * channel, and this is the readback of that selection. Mirrors the
+   * `streamingType` string the inline `Client.connectWith` factory accepts.
+   */
+  get streamingEnvironment(): string
   /**
    * Set the streaming event-ring consumer wait strategy — the
    * latency-vs-CPU knob applied on each ring-empty poll.
@@ -821,7 +837,7 @@ export declare class HistoricalClient {
   /**
    * Connect to ThetaData with a `Credentials` handle and open the
    * historical data channel. Historical only — this client never
-   * opens the FPSS streaming transport. Pass an optional `Config` to
+   * opens the streaming transport. Pass an optional `Config` to
    * override the production-default endpoint. Use `StreamingClient` for
    * real-time data.
    *
@@ -2504,7 +2520,7 @@ export declare class RecordBatchStreamHandle {
    */
   get dropped(): number
   /**
-   * Close the stream: unsubscribe and tear the FPSS session down.
+   * Close the stream: unsubscribe and tear the streaming session down.
    * Idempotent; subsequent pulls return `null`.
    */
   close(): void
@@ -2543,30 +2559,30 @@ export declare class SecType {
 }
 
 /**
- * Standalone FPSS-only streaming client.
+ * Standalone streaming-only client.
  *
- * Opens ONLY the FPSS TLS transport — no historical data channel, no
+ * Opens ONLY the streaming TLS transport, no historical data channel, no
  * Nexus HTTP authentication. Use when a parallel historical process is
- * already running in the same environment and you need to stream FPSS
+ * already running in the same environment and you need to stream
  * without the bundled `Client` taking over the Nexus session
  * at connect time.
  *
  * ```ts
  * import { StreamingClient, Contract } from "thetadatadx";
- * const fpss = StreamingClient.connectFromFile("creds.txt");
- * await fpss.startStreaming((event) => console.log(event.kind, event));
- * fpss.subscribe(Contract.stock("AAPL").quote());
+ * const streaming = StreamingClient.connectFromFile("creds.txt");
+ * await streaming.startStreaming((event) => console.log(event.kind, event));
+ * streaming.subscribe(Contract.stock("AAPL").quote());
  * // ... events arrive on the Node main thread ...
- * fpss.stopStreaming();
+ * streaming.stopStreaming();
  * ```
  */
 export declare class StreamingClient {
   /**
-   * Allocate a standalone FPSS handle with a `Credentials` handle.
+   * Allocate a standalone streaming handle with a `Credentials` handle.
    * Streaming only — opens no historical data channel and issues no
    * Nexus request. Pass an optional `Config` (`dev` / `stage` /
-   * `production`, plus any tuned FPSS / reconnect setters) to override the
-   * production-default endpoint. The FPSS TLS connection opens on the
+   * `production`, plus any tuned streaming / reconnect setters) to override the
+   * production-default endpoint. The streaming TLS connection opens on the
    * first `startStreaming` call.
    *
    * The config is snapshot at construction time: the `Config` handle
@@ -2574,17 +2590,17 @@ export declare class StreamingClient {
    */
   static connect(creds: Credentials, config?: Config | undefined | null): StreamingClient
   /**
-   * Allocate a standalone FPSS handle with a credentials file (line 1 =
+   * Allocate a standalone streaming handle with a credentials file (line 1 =
    * email, line 2 = password). Convenience wrapper over
    * `Credentials.fromFile` + `connect`. Pass an optional `Config` to
    * override the production-default endpoint.
    */
   static connectFromFile(path: string, config?: Config | undefined | null): StreamingClient
   /**
-   * Start FPSS streaming and register a JS callback for incoming events.
+   * Start streaming and register a JS callback for incoming events.
    *
-   * Opens the FPSS connection and begins delivering events. Each typed
-   * FPSS event is delivered to your `callback(event)` on the Node main
+   * Opens the streaming connection and begins delivering events. Each typed
+   * streaming event is delivered to your `callback(event)` on the Node main
    * thread, so the callback may use any JS API safely. A callback that
    * panics or throws is isolated and does not interrupt the stream.
    *
@@ -2598,13 +2614,13 @@ export declare class StreamingClient {
    */
   startStreaming(callback: ((arg: StreamEvent) => void)): Promise<void>
   /**
-   * Whether the FPSS TLS connection is currently open. Returns `false`
+   * Whether the streaming TLS connection is currently open. Returns `false`
    * when the dispatcher thread has panicked — no events are arriving
    * even though the TLS slot is still populated.
    */
   isStreaming(): boolean
   /**
-   * Whether the FPSS session is currently authenticated. Distinct from
+   * Whether the streaming session is currently authenticated. Distinct from
    * `isStreaming()`: the TLS slot can hold a client whose authenticated
    * flag has flipped to `false` after a server disconnect, before the
    * application has issued `reconnect()`. A panicked dispatcher also
@@ -2647,7 +2663,7 @@ export declare class StreamingClient {
    */
   activeFullSubscriptions(): any
   /**
-   * Cumulative count of FPSS events the TLS reader could not publish into
+   * Cumulative count of streaming events the TLS reader could not publish into
    * the event ring because the consumer fell behind. Snapshot the value
    * BEFORE `reconnect()` if you need to accumulate drops across session
    * boundaries — `reconnect` rebuilds the inner client and the counter
@@ -2726,12 +2742,12 @@ export declare class StreamingClient {
    */
   shutdown(): void
   /**
-   * Re-open the FPSS connection and re-register the previously installed
+   * Re-open the streaming connection and re-register the previously installed
    * callback. Requires a prior `startStreaming(callback)`; throws
    * otherwise.
    *
    * Saves the active per-contract and full-stream subscriptions against
-   * the old session, opens a fresh FPSS connection under the previously
+   * the old session, opens a fresh streaming connection under the previously
    * installed callback, and re-applies the saved subscriptions through
    * the core's paced replay engine. Per-subscription failures surface as
    * a single error naming every contract that did not re-subscribe — the
@@ -2768,7 +2784,7 @@ export declare class StreamView {
    */
   isAuthenticated(): boolean
   /**
-   * Cumulative count of FPSS events that were dropped because the
+   * Cumulative count of streaming events that were dropped because the
    * callback fell behind and the in-flight buffer was full.
    *
    * The value matches every other binding (C ABI, Python, C++). The
@@ -2874,15 +2890,15 @@ export declare class StreamView {
    * `activeSubscriptions()`, where `kind` is one of
    * `"full_trades"` / `"full_open_interest"` and `contract` carries
    * the wire-level security type (`"OPTION"`, `"STOCK"`, ...).
-   * Quote is never a valid full-stream kind on the FPSS wire, so
+   * Quote is never a valid full-stream kind on the streaming wire, so
    * any such row from the core is dropped from the projection.
    * Empty array when streaming has not started.
    */
   activeFullSubscriptions(): any
   /**
-   * Start FPSS streaming and register a JS callback for incoming events.
+   * Start streaming and register a JS callback for incoming events.
    *
-   * Each typed FPSS event is delivered to your
+   * Each typed streaming event is delivered to your
    * `callback(event)` on the Node main thread, so the
    * callback may use any JS API safely. A callback that
    * panics or throws is isolated and does not interrupt
@@ -2921,7 +2937,7 @@ export declare class StreamView {
   /** Get a snapshot of currently active subscriptions. */
   activeSubscriptions(): any
   /**
-   * Reconnect FPSS streaming and re-register the previously installed callback.
+   * Reconnect streaming and re-register the previously installed callback.
    *
    * Requires a prior `startStreaming(callback)`; throws if
    * no callback is registered. All active subscriptions are
@@ -2955,7 +2971,7 @@ export declare class StreamView {
    */
   stopStreaming(): void
   /**
-   * Shut down the FPSS streaming connection.
+   * Shut down the streaming connection.
    *
    * On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as stopping the stream); reconnect will then fail until the caller starts streaming again with a freshly bound callback. The C++ binding preserves the underlying connection's behaviour.
    */
@@ -3097,7 +3113,7 @@ export declare class Util {
 }
 
 /**
- * Flood `n` synthetic FPSS `Trade` events through the real `TsfnCallback`
+ * Flood `n` synthetic streaming `Trade` events through the real `TsfnCallback`
  * dispatch path to `callback`, returning the count of tsfn-boundary drops
  * (non-`Ok` `call` statuses) as an `f64` (JS `number`; `n` is bounded well
  * under 2^53 in practice, and the count is `0` on the healthy path).
@@ -3147,7 +3163,7 @@ export declare function __benchFloodEventsArrowIpc(n: number, batchSize: number,
  * per hop. Amortizes the per-event threadsafe-function crossing + V8
  * callback invocation over a whole batch.
  *
- * Same production marshal per event (`fpss_event_to_buffered` ->
+ * Same production marshal per event (the typed-event conversion path,
  * `buffered_event_to_typed`); the only change is that `batch_size` typed
  * events are collected into a `Vec<StreamEvent>` (napi renders this as
  * `Array<StreamEvent>`) and handed to the callback in one hop. Runs on a
@@ -3310,20 +3326,27 @@ export interface ClientConnectOptions {
    */
   credentialsFile?: string
   /**
-   * Target environment selector (`"PROD"` / `"STAGE"`,
-   * case-insensitive). Defaults to production. For full host-level
+   * Historical environment selector (`"PROD"` / `"STAGE"`,
+   * case-insensitive). Defaults to production. The historical and
+   * streaming channels are selected independently. For full host-level
    * control, build a `Config` and use `Client.connect(creds, config)`.
    */
-  mddsType?: string
+  historicalType?: string
+  /**
+   * Streaming environment selector (`"PROD"` / `"DEV"`,
+   * case-insensitive). Defaults to production. Selected independently of
+   * the historical channel.
+   */
+  streamingType?: string
 }
 
-/** FPSS server connection ack (wire code 4). Carries no payload. */
+/** Streaming server connection ack (wire code 4). Carries no payload. */
 export interface Connected {
 
 }
 
 /**
- * FPSS contract identifier. Surfaced on every decoded FPSS data
+ * Streaming contract identifier. Surfaced on every decoded streaming data
  * event as `event.quote.contract` / `event.trade.contract` / etc.
  * `secType` is the symbolic uppercase name (`"STOCK"` / `"OPTION"` /
  * `"INDEX"` / `"RATE"`); `right` is `"C"` / `"P"` / `null`;
@@ -3340,13 +3363,13 @@ export interface Contract {
   strikeThousandths?: number
 }
 
-/** FPSS server assigned a contract id. The `contract` payload carries the full resolved contract (root, sec_type, expiration / strike / right for options). */
+/** Streaming server assigned a contract id. The `contract` payload carries the full resolved contract (root, sec_type, expiration / strike / right for options). */
 export interface ContractAssigned {
   id: number
   contract: Contract
 }
 
-/** FPSS server disconnected the client (wire code 12). `reason` is the integer disconnect code; read the resolved reason-name field for the symbolic name. */
+/** Streaming server disconnected the client (wire code 12). `reason` is the integer disconnect code; read the resolved reason-name field for the symbolic name. */
 export interface Disconnected {
   reason: number
   /**
@@ -3937,22 +3960,22 @@ export interface IvTick {
  */
 export declare function ivTickToArrowIpc(rows: Array<IvTick>): Buffer
 
-/** FPSS login succeeded. `permissions` is the server's opaque bundle string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers. */
+/** Streaming login succeeded. `permissions` is the server's opaque bundle string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers. */
 export interface LoginSuccess {
   permissions: string
 }
 
-/** FPSS market-close signal (wire code 32). Carries no payload. */
+/** Streaming market-close signal (wire code 32). Carries no payload. */
 export interface MarketClose {
 
 }
 
-/** FPSS market-open signal (wire code 30). Carries no payload. */
+/** Streaming market-open signal (wire code 30). Carries no payload. */
 export interface MarketOpen {
 
 }
 
-/** FPSS MarketValue tick (wire code 25). A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant). */
+/** Streaming MarketValue tick (wire code 25). A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant). */
 export interface MarketValue {
   contract: Contract
   msOfDay: number
@@ -4021,7 +4044,7 @@ export interface OhlcTick {
  */
 export declare function ohlcTickToArrowIpc(rows: Array<OhlcTick>): Buffer
 
-/** FPSS OHLCVC bar. */
+/** Streaming OHLCVC bar. */
 export interface Ohlcvc {
   contract: Contract
   msOfDay: number
@@ -4035,7 +4058,7 @@ export interface Ohlcvc {
   receivedAtNs: bigint
 }
 
-/** FPSS OpenInterest tick. */
+/** Streaming OpenInterest tick. */
 export interface OpenInterest {
   contract: Contract
   msOfDay: number
@@ -5167,12 +5190,12 @@ export interface OptionSnapshotTradeOptions {
   timeoutMs?: number
 }
 
-/** FPSS protocol-level parse error. Named `ParseError` on every binding so it never collides with the language's own error types (Python's exception classes, the JS global `Error`). */
+/** Streaming protocol-level parse error. Named `ParseError` on every binding so it never collides with the language's own error types (Python's exception classes, the JS global `Error`). */
 export interface ParseError {
   message: string
 }
 
-/** FPSS server heartbeat (wire code 10). The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics. */
+/** Streaming server heartbeat (wire code 10). The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics. */
 export interface Ping {
   payload: Array<number>
 }
@@ -5199,7 +5222,7 @@ export interface PriceTick {
  */
 export declare function priceTickToArrowIpc(rows: Array<PriceTick>): Buffer
 
-/** FPSS Quote tick. */
+/** Streaming Quote tick. */
 export interface Quote {
   contract: Contract
   msOfDay: number
@@ -5275,17 +5298,17 @@ export interface ReconnectDecisionArgs {
   attempt: number
 }
 
-/** FPSS auto-reconnect succeeded — connection is live again. Carries no payload. */
+/** Streaming auto-reconnect succeeded — connection is live again. Carries no payload. */
 export interface Reconnected {
 
 }
 
-/** FPSS server-side reconnect ack (wire code 13). Distinct from `Reconnected`, which the client emits from its auto-reconnect state machine once the new TLS session is authenticated. */
+/** Streaming server-side reconnect ack (wire code 13). Distinct from `Reconnected`, which the client emits from its auto-reconnect state machine once the new TLS session is authenticated. */
 export interface ReconnectedServer {
 
 }
 
-/** FPSS auto-reconnect is about to attempt reconnection. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at the maximum 32-bit signed value if the reconnect loop exceeds 2^31 attempts. */
+/** Streaming auto-reconnect is about to attempt reconnection. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at the maximum 32-bit signed value if the reconnect loop exceeds 2^31 attempts. */
 export interface Reconnecting {
   reason: number
   attempt: number
@@ -5298,7 +5321,7 @@ export interface Reconnecting {
   reasonName: string
 }
 
-/** FPSS auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the integer disconnect code of the final drop; read the resolved reason-name field for the symbolic name. `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted). */
+/** Streaming auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the integer disconnect code of the final drop; read the resolved reason-name field for the symbolic name. `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted). */
 export interface ReconnectsExhausted {
   reason: number
   attempts: number
@@ -5310,7 +5333,7 @@ export interface ReconnectsExhausted {
   reasonName: string
 }
 
-/** FPSS subscription response (wire code 40). `result` is an integer status code (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms). */
+/** Streaming subscription response (wire code 40). `result` is an integer status code (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms). */
 export interface ReqResponse {
   reqId: number
   result: number
@@ -5324,7 +5347,7 @@ export declare const enum RequestType {
   Ohlc = 'ohlc'
 }
 
-/** FPSS server stream restart (wire code 31). The server restarts the stream without dropping the TCP connection; delta decode state should be cleared on receipt. */
+/** Streaming server stream restart (wire code 31). The server restarts the stream without dropping the TCP connection; delta decode state should be cleared on receipt. */
 export interface Restart {
 
 }
@@ -5336,7 +5359,7 @@ export declare const enum Right {
   Both = 'both'
 }
 
-/** FPSS server-error message (wire code 11). */
+/** Streaming server-error message (wire code 11). */
 export interface ServerError {
   message: string
 }
@@ -5640,7 +5663,7 @@ export interface StockSnapshotTradeOptions {
 }
 
 /**
- * A single FPSS event surfaced to JS/TS.
+ * A single streaming event surfaced to JS/TS.
  *
  * `kind` is the discriminator — switch on it and read the matching
  * payload field. The shape is stable and every payload is typed, so
@@ -5677,7 +5700,7 @@ export interface StreamEvent {
   unknownFrame?: UnknownFrame
 }
 
-/** FPSS Trade tick. */
+/** Streaming Trade tick. */
 export interface Trade {
   contract: Contract
   msOfDay: number
@@ -6049,12 +6072,12 @@ export interface TradeTick {
  */
 export declare function tradeTickToArrowIpc(rows: Array<TradeTick>): Buffer
 
-/** FPSS control variant the SDK does not yet recognise. Surfaced when a newer protocol revision adds a control event this build predates — keep dispatch logic forward-compatible by handling this variant. Carries no payload. */
+/** Streaming control variant the SDK does not yet recognise. Surfaced when a newer protocol revision adds a control event this build predates — keep dispatch logic forward-compatible by handling this variant. Carries no payload. */
 export interface UnknownControl {
 
 }
 
-/** FPSS server sent a frame with an unrecognised wire code. Raw bytes preserved for diagnostics / upstream bug reports. */
+/** Streaming server sent a frame with an unrecognised wire code. Raw bytes preserved for diagnostics / upstream bug reports. */
 export interface UnknownFrame {
   code: number
   payload: Array<number>

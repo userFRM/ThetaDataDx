@@ -5,7 +5,7 @@
 //! ([`crate::config::DirectConfig::from_dotenv`]). One file can therefore
 //! carry both the credential keys (`THETADATA_API_KEY`, or
 //! `THETADATA_EMAIL` + `THETADATA_PASSWORD`) and the environment selector
-//! (`THETADATA_MDDS_TYPE`, plus the documented host overrides); the
+//! (`THETADATA_HISTORICAL_TYPE`, plus the documented host overrides); the
 //! credential reader picks up the secret keys and the configuration reader
 //! picks up the cluster keys, from the same parse.
 //!

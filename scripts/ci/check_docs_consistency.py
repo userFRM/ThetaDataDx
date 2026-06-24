@@ -127,8 +127,8 @@ SERVER_ONLY_PATHS = served_v3_routes() - REST_PATHS
 # contributes none.
 SERVER_ONLY_OPERATION_IDS = {
     "systemStatus",
-    "systemMddsStatus",
-    "systemFpssStatus",
+    "systemHistoricalStatus",
+    "systemStreamingStatus",
     "flatfileGet",
     "flatfileRequest",
 }

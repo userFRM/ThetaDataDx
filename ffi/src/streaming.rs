@@ -121,9 +121,9 @@ pub struct ThetaDataDxClient {
 /// handle. `thetadatadx_streaming_set_callback` and `_reconnect` enforce the
 /// transitions; `thetadatadx_streaming_shutdown` is terminal (no further
 /// registration / reconnect / shutdown calls succeed).
-const FPSS_STATE_FRESH: u8 = 0;
-const FPSS_STATE_ACTIVE: u8 = 1;
-const FPSS_STATE_SHUTDOWN: u8 = 2;
+const STREAM_STATE_FRESH: u8 = 0;
+const STREAM_STATE_ACTIVE: u8 = 1;
+const STREAM_STATE_SHUTDOWN: u8 = 2;
 
 /// Opaque FPSS streaming client handle.
 ///
@@ -136,15 +136,15 @@ const FPSS_STATE_SHUTDOWN: u8 = 2;
 ///
 /// `state` enforces the public C ABI contract:
 ///
-/// - `FPSS_STATE_FRESH`  -> `FPSS_STATE_ACTIVE` on the first successful
+/// - `STREAM_STATE_FRESH`  -> `STREAM_STATE_ACTIVE` on the first successful
 ///   `thetadatadx_streaming_set_callback`. A second registration on an already-
-///   `ACTIVE` handle returns -1 with "FPSS callback already installed
+///   `ACTIVE` handle returns -1 with "streaming callback already installed
 ///   -- only one set_callback call is permitted per handle".
-/// - `FPSS_STATE_ACTIVE` -> `FPSS_STATE_SHUTDOWN` on
+/// - `STREAM_STATE_ACTIVE` -> `STREAM_STATE_SHUTDOWN` on
 ///   `thetadatadx_streaming_shutdown`. Shutdown is terminal: every subsequent
 ///   register / reconnect / shutdown call returns -1 with
-///   "FPSS handle has already been shut down -- this is terminal".
-/// - `FPSS_STATE_FRESH` directly to `FPSS_STATE_SHUTDOWN` is allowed
+///   "streaming handle has already been shut down -- this is terminal".
+/// - `STREAM_STATE_FRESH` directly to `STREAM_STATE_SHUTDOWN` is allowed
 ///   (caller shut down a handle before installing a callback).
 pub struct ThetaDataDxStreamHandle {
     inner: Arc<Mutex<Option<Arc<thetadatadx::fpss::StreamingClient>>>>,
@@ -1321,7 +1321,7 @@ pub unsafe extern "C" fn thetadatadx_client_ring_occupancy(
 }
 
 /// Configured capacity of the streaming event ring in slots (the
-/// `fpss_ring_size` setting, a power of two) — the fixed denominator
+/// `streaming_ring_size` setting, a power of two), the fixed denominator
 /// for `thetadatadx_client_ring_occupancy`. When the occupancy sample
 /// approaches this value the ring is saturating and further events
 /// will be dropped (counted by `thetadatadx_client_dropped_events`).
@@ -1543,7 +1543,7 @@ pub unsafe extern "C" fn thetadatadx_client_free(handle: *mut ThetaDataDxClient)
 //  FPSS — Real-time streaming client
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Allocate an FPSS handle and stash the connection parameters.
+/// Allocate a streaming handle and stash the connection parameters.
 ///
 /// **Does NOT open the FPSS TLS connection** — connection is deferred
 /// until the caller installs a callback via `thetadatadx_streaming_set_callback`.
@@ -1585,14 +1585,14 @@ pub unsafe extern "C" fn thetadatadx_streaming_connect(
                 reconnect: config.inner.reconnect.clone(),
             },
             callback: Mutex::new(None),
-            state: AtomicU8::new(FPSS_STATE_FRESH),
+            state: AtomicU8::new(STREAM_STATE_FRESH),
             prev_drained: Mutex::new(Vec::new()),
             dispatcher: Mutex::new(FfpssDispatcherSession::Idle),
         }))
     })
 }
 
-/// Allocate an FPSS handle, loading credentials from a file
+/// Allocate a streaming handle, loading credentials from a file
 /// (line 1 = email, line 2 = password) instead of a credentials handle.
 ///
 /// One-call equivalent of `thetadatadx_credentials_from_file` followed by
@@ -1638,21 +1638,21 @@ pub unsafe extern "C" fn thetadatadx_streaming_connect_from_file(
 /// registration and the terminal-shutdown rule.
 fn reject_if_not_fresh(handle: &ThetaDataDxStreamHandle) -> bool {
     match handle.state.load(AtomicOrdering::Relaxed) {
-        FPSS_STATE_FRESH => true,
-        FPSS_STATE_ACTIVE => {
+        STREAM_STATE_FRESH => true,
+        STREAM_STATE_ACTIVE => {
             set_error(
-                "FPSS callback already installed -- only one set_callback call is permitted per handle",
+                "streaming callback already installed -- only one set_callback call is permitted per handle",
             );
             false
         }
-        FPSS_STATE_SHUTDOWN => {
-            set_error("FPSS handle has already been shut down -- this is terminal");
+        STREAM_STATE_SHUTDOWN => {
+            set_error("streaming handle has already been shut down -- this is terminal");
             false
         }
         _ => {
             // Unreachable -- state is only ever set to one of the three
             // constants above. Treat as terminal to fail closed.
-            set_error("FPSS handle in unknown lifecycle state -- refusing operation");
+            set_error("streaming handle in unknown lifecycle state -- refusing operation");
             false
         }
     }
@@ -1662,8 +1662,8 @@ fn reject_if_not_fresh(handle: &ThetaDataDxStreamHandle) -> bool {
 /// `thetadatadx_streaming_reconnect` and `thetadatadx_streaming_shutdown` (the latter to make
 /// double-shutdown a clean error rather than silently no-op).
 fn reject_if_shutdown(handle: &ThetaDataDxStreamHandle) -> bool {
-    if handle.state.load(AtomicOrdering::Relaxed) == FPSS_STATE_SHUTDOWN {
-        set_error("FPSS handle has already been shut down -- this is terminal");
+    if handle.state.load(AtomicOrdering::Relaxed) == STREAM_STATE_SHUTDOWN {
+        set_error("streaming handle has already been shut down -- this is terminal");
         false
     } else {
         true
@@ -1703,7 +1703,7 @@ where
         // future caller that bypasses the state gate cannot end up
         // double-connecting silently.
         set_error(
-            "FPSS callback already installed -- only one set_callback call is permitted per handle",
+            "streaming callback already installed -- only one set_callback call is permitted per handle",
         );
         return Err(());
     }
@@ -1729,7 +1729,7 @@ where
             }
             handle
                 .state
-                .store(FPSS_STATE_ACTIVE, AtomicOrdering::Relaxed);
+                .store(STREAM_STATE_ACTIVE, AtomicOrdering::Relaxed);
 
             let dispatcher_client = std::sync::Arc::clone(&client_arc);
             let spawn_result = std::thread::Builder::new()
@@ -1760,7 +1760,7 @@ where
                     let taken = guard.take();
                     handle
                         .state
-                        .store(FPSS_STATE_FRESH, AtomicOrdering::Relaxed);
+                        .store(STREAM_STATE_FRESH, AtomicOrdering::Relaxed);
                     if let Some(client) = taken {
                         client.shutdown();
                         drop(client);
@@ -1769,7 +1769,7 @@ where
                         .callback
                         .lock()
                         .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
-                    set_error(&format!("failed to spawn FPSS dispatcher thread: {e}"));
+                    set_error(&format!("failed to spawn streaming dispatcher thread: {e}"));
                     Err(())
                 }
             }
@@ -1821,9 +1821,9 @@ where
 /// shutdown — return -1 with an error message:
 ///
 /// - second register on an already-active handle:
-///   `"FPSS callback already installed -- only one set_callback call is permitted per handle"`
+///   `"streaming callback already installed -- only one set_callback call is permitted per handle"`
 /// - register after shutdown:
-///   `"FPSS handle has already been shut down -- this is terminal"`
+///   `"streaming handle has already been shut down -- this is terminal"`
 ///
 /// This is intentionally stricter than the unified C ABI's
 /// `thetadatadx_client_set_callback`, which supports stop-then-re-register as
@@ -1840,7 +1840,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_set_callback(
 ) -> i32 {
     ffi_boundary!(-1, {
         if handle.is_null() {
-            set_error("FPSS handle is null");
+            set_error("streaming handle is null");
             return -1;
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
@@ -1988,7 +1988,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_active_subscriptions(
 ) -> *mut ThetaDataDxSubscriptionArray {
     ffi_boundary!(std::ptr::null_mut(), {
         if handle.is_null() {
-            set_error("FPSS handle is null");
+            set_error("streaming handle is null");
             return ptr::null_mut();
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
@@ -2000,7 +2000,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_active_subscriptions(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client not started -- call thetadatadx_streaming_set_callback first, or has been shut down");
+            set_error("streaming client not started -- call thetadatadx_streaming_set_callback first, or has been shut down");
             return ptr::null_mut();
         };
         let subs = client.active_subscriptions();
@@ -2029,7 +2029,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_active_full_subscriptions(
 ) -> *mut ThetaDataDxSubscriptionArray {
     ffi_boundary!(std::ptr::null_mut(), {
         if handle.is_null() {
-            set_error("FPSS handle is null");
+            set_error("streaming handle is null");
             return ptr::null_mut();
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
@@ -2041,7 +2041,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_active_full_subscriptions(
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
-            set_error("FPSS client not started -- call thetadatadx_streaming_set_callback first, or has been shut down");
+            set_error("streaming client not started -- call thetadatadx_streaming_set_callback first, or has been shut down");
             return ptr::null_mut();
         };
         let subs = client.active_full_subscriptions();
@@ -2067,7 +2067,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_subscribe(
 ) -> i32 {
     ffi_boundary!(-1, {
         if handle.is_null() {
-            set_error("FPSS handle is null");
+            set_error("streaming handle is null");
             return -1;
         }
         // SAFETY: `request` is a non-null `*const ThetaDataDxSubscriptionRequest` the caller pins for the call duration; `coerce_subscription` validates its discriminant + tagged-union fields, setting `thetadatadx_last_error` on malformed payloads.
@@ -2085,7 +2085,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_subscribe(
             c
         } else {
             set_error(
-                "FPSS client not started -- call thetadatadx_streaming_set_callback first, or has been shut down",
+                "streaming client not started -- call thetadatadx_streaming_set_callback first, or has been shut down",
             );
             return -1;
         };
@@ -2109,7 +2109,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_unsubscribe(
 ) -> i32 {
     ffi_boundary!(-1, {
         if handle.is_null() {
-            set_error("FPSS handle is null");
+            set_error("streaming handle is null");
             return -1;
         }
         // SAFETY: `request` is a non-null `*const ThetaDataDxSubscriptionRequest` the caller pins for the call duration; `coerce_subscription` validates its discriminant + tagged-union fields, setting `thetadatadx_last_error` on malformed payloads.
@@ -2127,7 +2127,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_unsubscribe(
             c
         } else {
             set_error(
-                "FPSS client not started -- call thetadatadx_streaming_set_callback first, or has been shut down",
+                "streaming client not started -- call thetadatadx_streaming_set_callback first, or has been shut down",
             );
             return -1;
         };
@@ -2177,7 +2177,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
 ) -> i32 {
     ffi_boundary!(-1, {
         if handle.is_null() {
-            set_error("FPSS handle is null");
+            set_error("streaming handle is null");
             return -1;
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
@@ -2358,7 +2358,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
                 };
             }
             Err(e) => {
-                set_error(&format!("failed to spawn FPSS dispatcher thread: {e}"));
+                set_error(&format!("failed to spawn streaming dispatcher thread: {e}"));
                 return -1;
             }
         }
@@ -2503,7 +2503,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_last_connected_addr(
 ) -> *mut std::os::raw::c_char {
     ffi_boundary!(ptr::null_mut(), {
         if handle.is_null() {
-            set_error("FPSS handle is null");
+            set_error("streaming handle is null");
             return ptr::null_mut();
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
@@ -2582,7 +2582,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_ring_occupancy(
 }
 
 /// Configured capacity of the FPSS event ring in slots (the
-/// `fpss_ring_size` setting, a power of two) — the fixed denominator
+/// `streaming_ring_size` setting, a power of two), the fixed denominator
 /// for `thetadatadx_streaming_ring_occupancy`. When the occupancy sample
 /// approaches this value the ring is saturating and further events
 /// will be dropped (counted by `thetadatadx_streaming_dropped_events`).
@@ -2699,7 +2699,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_slow_callback_count(
 /// Shutdown is terminal: every subsequent `thetadatadx_streaming_set_callback` /
 /// `_reconnect` / `_shutdown` call on this handle returns -1 with the
 /// error message
-/// `"FPSS handle has already been shut down -- this is terminal"`. The
+/// `"streaming handle has already been shut down -- this is terminal"`. The
 /// handle remains valid for `thetadatadx_streaming_free()` only.
 ///
 /// Idempotency: calling shutdown twice on the same handle is rejected
@@ -2753,7 +2753,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_shutdown(handle: *const ThetaData
         // torn-down handle.
         handle
             .state
-            .store(FPSS_STATE_SHUTDOWN, AtomicOrdering::Relaxed);
+            .store(STREAM_STATE_SHUTDOWN, AtomicOrdering::Relaxed);
     })
 }
 
@@ -2900,10 +2900,10 @@ pub unsafe extern "C" fn thetadatadx_streaming_free(handle: *mut ThetaDataDxStre
             // mid-publish when we destroy the handle. The lock is held
             // for the duration of the teardown sequence (including the
             // 5 s drain wait); concurrent installs serialise behind it
-            // and observe `FPSS_STATE_SHUTDOWN`, so they bail out before
+            // and observe `STREAM_STATE_SHUTDOWN`, so they bail out before
             // touching freed memory.
             let mut disp_guard = h.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
-            if h.state.load(AtomicOrdering::Relaxed) != FPSS_STATE_SHUTDOWN {
+            if h.state.load(AtomicOrdering::Relaxed) != STREAM_STATE_SHUTDOWN {
                 let taken_client = h
                     .inner
                     .lock()
@@ -2918,7 +2918,8 @@ pub unsafe extern "C" fn thetadatadx_streaming_free(handle: *mut ThetaDataDxStre
                     drop(client);
                 }
                 join_dispatcher_session(&mut disp_guard);
-                h.state.store(FPSS_STATE_SHUTDOWN, AtomicOrdering::Relaxed);
+                h.state
+                    .store(STREAM_STATE_SHUTDOWN, AtomicOrdering::Relaxed);
             }
 
             // Wait for every superseded session's consumer thread to

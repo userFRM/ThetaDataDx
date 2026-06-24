@@ -30,7 +30,7 @@ from thetadatadx import (
 
 
 def on_event(event):
-    """Match-case dispatch on typed FPSS event classes."""
+    """Match-case dispatch on typed streaming event classes."""
     match event:
         case Trade(price=px, size=sz, contract=c):
             print(f"[{c.symbol}] TRADE {px:.2f} x {sz}")

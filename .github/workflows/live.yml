@@ -78,9 +78,9 @@ jobs:
       - shell: bash
         run: python -m pip install --force-reinstall dist/*.whl
       - run: python scripts/dev/live_smoke.py creds.txt
-      - run: python scripts/dev/fpss_smoke.py creds.txt
+      - run: python scripts/dev/streaming_smoke.py creds.txt
       - run: cmake -S sdks/cpp -B build/cpp
-      - run: cmake --build build/cpp --config Release --target thetadatadx_cpp thetadatadx_example thetadatadx_fpss_smoke
+      - run: cmake --build build/cpp --config Release --target thetadatadx_cpp thetadatadx_example thetadatadx_streaming_smoke
       - shell: bash
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/target/release
@@ -88,7 +88,7 @@ jobs:
       - shell: bash
         env:
           LD_LIBRARY_PATH: ${{ github.workspace }}/target/release
-        run: ./build/cpp/thetadatadx_fpss_smoke creds.txt
+        run: ./build/cpp/thetadatadx_streaming_smoke creds.txt
       - name: FLATFILES synthetic golden (decoder)
         # Runs against a hand-built blob in the repo; no live wire. This
         # is the always-on regression gate for the FIT decoder + CSV
@@ -219,4 +219,4 @@ jobs:
         run: |
           set -euo pipefail
           duration="${WORKFLOW_INPUT_SOAK_DURATION_SECS:-120}"
-          python scripts/dev/fpss_soak.py creds.txt --duration-secs "$duration"
+          python scripts/dev/streaming_soak.py creds.txt --duration-secs "$duration"

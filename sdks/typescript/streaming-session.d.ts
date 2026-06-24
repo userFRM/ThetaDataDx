@@ -21,7 +21,7 @@ export * from './index';
 
 /** `Contract` aliases `ContractRef`. napi-rs exposes the fluent
  * contract type under `ContractRef` because the `Contract` symbol is
- * already taken by the FPSS event-payload data class. The public
+ * already taken by the streaming event-payload data class. The public
  * surface documented in the quickstart and reference is
  * `Contract.stock("AAPL")` / `Contract.option(...)`, so the alias
  * keeps the type-side and runtime-side names identical. */
@@ -69,7 +69,7 @@ export class UnavailableError extends ThetaDataError {}
 export class NetworkError extends ThetaDataError {}
 /** Decoder schema mismatch — usually a server proto bump. */
 export class SchemaMismatchError extends ThetaDataError {}
-/** FPSS streaming protocol / state-machine failure. */
+/** Streaming protocol / state-machine failure. */
 export class StreamError extends ThetaDataError {}
 /** Configuration fault (config-file I/O, TOML parse). */
 export class ConfigError extends ThetaDataError {}
@@ -177,7 +177,7 @@ export interface RecordBatchStream extends AsyncIterable<import('apache-arrow').
   readonly schema: import('apache-arrow').Schema;
   /** Batches dropped so far under `"dropOldest"`; `0` under `"block"`. */
   readonly dropped: number;
-  /** Close the reader: unsubscribe and tear the FPSS session down. Idempotent. */
+  /** Close the reader: unsubscribe and tear the streaming session down. Idempotent. */
   close(): void;
   [Symbol.asyncDispose](): Promise<void>;
 }

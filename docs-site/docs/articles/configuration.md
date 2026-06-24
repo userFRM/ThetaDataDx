@@ -9,11 +9,28 @@ The configuration object (`DirectConfig` in Rust, `Config` elsewhere) ships sens
 
 ## Environments
 
-| Preset | Use |
-|---|---|
-| `production()` | Live market data. The default. |
-| `dev()` | Streaming servers replay a past trading day in a loop at full speed — develop while markets are closed. Historical requests still hit production. |
-| `stage()` | Staging environment: points authentication, historical, and streaming all at the staging cluster. Used to validate against pre-release server changes; less stable than production and subject to reboots. |
+The SDK has two independent clients, and each has its own environment:
+
+- The historical client runs in **production** or **staging**. The historical environment also sets the authentication marker, so staging authenticates against the staging cluster.
+- The streaming client runs in **production** or **dev**. The dev environment replays a past trading day in a loop at full speed, so you can develop while markets are closed.
+
+The two are chosen independently. There is no streaming staging cluster and no historical dev cluster, so a config can be historical-staging with streaming-production, historical-production with streaming-dev, and so on.
+
+| Preset | Historical | Streaming |
+|---|---|---|
+| `production()` (default) | production | production |
+| `stage()` | staging | production |
+| `dev()` | production | dev |
+
+`stage()` selects historical staging and leaves streaming on production; `dev()` selects streaming dev and leaves historical on production. To move both at once, select each channel:
+
+```rust
+use thetadatadx::config::{DirectConfig, HistoricalEnvironment, StreamingEnvironment};
+
+let cfg = DirectConfig::production()
+    .with_historical_environment(HistoricalEnvironment::Stage)
+    .with_streaming_environment(StreamingEnvironment::Dev);
+```
 
 ```python
 from thetadatadx import Config
@@ -24,52 +41,48 @@ cfg.flush_mode = "immediate"
 client = Client(creds, cfg)
 ```
 
-### Selecting the staging environment
+### Selecting an environment
 
-There are three ways to point the SDK at the staging cluster, and you can pick whichever fits how you configure the rest of your deployment. All three select the staging environment across every channel (authentication, historical, and streaming) in one step, and all three work the same whether you authenticate with an api-key or with email and password. The environment is independent of the credential.
+Each channel has its own selector, and you can pick whichever fits how you configure the rest of your deployment. All of them work the same whether you authenticate with an api-key or with email and password. The environment is independent of the credential.
 
-1. Pass it directly, in code. The typed selector is the most explicit option:
+1. Use a preset or the typed setters, in code. The presets are on every binding: `production()` / `stage()` / `dev()` (for example `Config.stage()` in Python and TypeScript, `thetadatadx::Config::stage()` in C++). For an explicit per-channel choice, use `DirectConfig::with_historical_environment(HistoricalEnvironment::Stage)` and `DirectConfig::with_streaming_environment(StreamingEnvironment::Dev)`.
 
-```rust
-use thetadatadx::config::{DirectConfig, Environment};
-
-let cfg = DirectConfig::production().with_environment(Environment::Stage);
-```
-
-`DirectConfig::production().with_environment(Environment::Stage)` is equivalent to the `stage()` preset; passing `Environment::Prod` restores production. The `stage()` preset is the same selection in one call, available on every binding: `DirectConfig::stage()` in Rust, `Config.stage()` in Python and TypeScript, and `thetadatadx::Config::stage()` in C++.
-
-2. Set the `THETADATA_MDDS_TYPE` environment variable. Set it to `STAGE` to select the staging environment, or `PROD` (the default, also used when the variable is unset) for production. The value is case-insensitive. This steers an existing deployment at staging without a code change, and it works with every binding because each one reads it when it builds the config from a preset:
+2. Set environment variables. `THETADATA_HISTORICAL_TYPE` selects the historical environment (`PROD` or `STAGE`); `THETADATA_STREAMING_TYPE` selects the streaming environment (`PROD` or `DEV`). Both are case-insensitive, and an unset value keeps production. This steers an existing deployment without a code change, and it works with every binding because each one reads them when it builds the config from a preset:
 
 ```bash
-export THETADATA_MDDS_TYPE=STAGE
+export THETADATA_HISTORICAL_TYPE=STAGE
+export THETADATA_STREAMING_TYPE=DEV
 ```
 
 ```python
 from thetadatadx import Config
 
-cfg = Config.production()  # reads THETADATA_MDDS_TYPE; STAGE selects staging
+cfg = Config.production()  # reads THETADATA_HISTORICAL_TYPE / THETADATA_STREAMING_TYPE
 client = Client(creds, cfg)
 ```
 
-3. Put it in a `.env` file. `Config.from_dotenv(path)` reads `THETADATA_MDDS_TYPE` (`STAGE` / `PROD`) from a `.env`-format file and selects the matching environment:
+3. Put them in a `.env` file. `Config.from_dotenv(path)` reads `THETADATA_HISTORICAL_TYPE` and `THETADATA_STREAMING_TYPE` from a `.env`-format file and selects the matching environment on each channel:
 
 ```python
 from thetadatadx import Config
 
-cfg = Config.from_dotenv(".env")  # THETADATA_MDDS_TYPE=STAGE selects staging
+cfg = Config.from_dotenv(".env")
 client = Client(creds, cfg)
 ```
 
-The same reader is on every binding: `DirectConfig::from_dotenv(path)` in Rust, `Config.fromDotenv(path)` in TypeScript, and `thetadatadx::Config::from_dotenv(path)` in C++. It reads the same `.env` file and the same keys that `Credentials.from_dotenv(path)` reads for the credential, so a single `.env` file can hold both the api key and the environment selector:
+The same reader is on every binding: `DirectConfig::from_dotenv(path)` in Rust, `Config.fromDotenv(path)` in TypeScript, and `thetadatadx::Config::from_dotenv(path)` in C++. It reads the same `.env` file and the same keys that `Credentials.from_dotenv(path)` reads for the credential, so a single `.env` file can hold both the api key and the environment selectors:
 
 ```ini
 THETADATA_API_KEY=your_api_key_here
-THETADATA_MDDS_TYPE=STAGE
+THETADATA_HISTORICAL_TYPE=STAGE
+THETADATA_STREAMING_TYPE=DEV
 ```
 
 Load the credential with `Credentials.from_dotenv` and the environment with `Config.from_dotenv`, both pointed at that one file.
 
-You can also select the environment inline at the client, without building a `Config` first. The fluent builder takes the environment alongside the credential: `Client::builder().api_key("...").stage().connect()` in Rust and C++, `Client(api_key="...", mdds_type="STAGE")` in Python, and `Client.connectWith({ apiKey: '...', mddsType: 'STAGE' })` in TypeScript. The `Config` path above stays available when you need full control over the hosts and tuning knobs; the builder is a convenience over it.
+A value outside a selector's set is rejected rather than silently ignored: `THETADATA_HISTORICAL_TYPE` must be `PROD` or `STAGE`, and `THETADATA_STREAMING_TYPE` must be `PROD` or `DEV`.
+
+You can also select environments inline at the client, without building a `Config` first. The fluent builder takes them alongside the credential: `Client::builder().api_key("...").stage().dev().connect()` in Rust and C++ (each shorthand selects its channel, and they compose), `Client(api_key="...", historical_type="STAGE", streaming_type="DEV")` in Python, and `Client.connectWith({ apiKey: '...', historicalType: 'STAGE', streamingType: 'DEV' })` in TypeScript. The `Config` path above stays available when you need full control over the hosts and tuning knobs; the builder is a convenience over it.
 
 If you also set an explicit streaming or historical host (through `THETADATA_HISTORICAL_HOST` / `THETADATA_STREAMING_HOST`, in the environment, in the `.env` file, or in the config file), that explicit host wins over the environment's default for that channel.
 

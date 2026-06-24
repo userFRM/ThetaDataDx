@@ -260,7 +260,7 @@ async fn run_one_attempt(
     config: &FlatFilesConfig,
 ) -> Result<PathBuf, Error> {
     // Build the host candidate list — try every (host, port) in priority
-    // order, matching the vendor terminal's `MDDS_NJ_HOSTS` config.
+    // order from the `MDDS_NJ_HOSTS` / `MDDS_PORTS` tables.
     let mut hosts: Vec<MddsHost<'_>> =
         Vec::with_capacity(ALLOWED_MDDS_HOSTS.len() * MDDS_PORTS.len());
     for h in ALLOWED_MDDS_HOSTS {

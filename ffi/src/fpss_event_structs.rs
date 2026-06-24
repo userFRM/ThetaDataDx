@@ -105,7 +105,7 @@ strike: 0.0,
 strike_thousandths: 0,
 };
 
-/// FPSS MarketValue tick (wire code 25). A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant).
+/// Streaming MarketValue tick (wire code 25). A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant).
 #[repr(C)]
 pub struct ThetaDataDxStreamMarketValue {
     /// Contract this event refers to.
@@ -124,7 +124,7 @@ pub struct ThetaDataDxStreamMarketValue {
     pub received_at_ns: u64,
 }
 
-/// FPSS OHLCVC bar.
+/// Streaming OHLCVC bar.
 #[repr(C)]
 pub struct ThetaDataDxStreamOhlcvc {
     /// Contract this event refers to.
@@ -149,7 +149,7 @@ pub struct ThetaDataDxStreamOhlcvc {
     pub received_at_ns: u64,
 }
 
-/// FPSS OpenInterest tick.
+/// Streaming OpenInterest tick.
 #[repr(C)]
 pub struct ThetaDataDxStreamOpenInterest {
     /// Contract this event refers to.
@@ -164,7 +164,7 @@ pub struct ThetaDataDxStreamOpenInterest {
     pub received_at_ns: u64,
 }
 
-/// FPSS Quote tick.
+/// Streaming Quote tick.
 #[repr(C)]
 pub struct ThetaDataDxStreamQuote {
     /// Contract this event refers to.
@@ -193,7 +193,7 @@ pub struct ThetaDataDxStreamQuote {
     pub received_at_ns: u64,
 }
 
-/// FPSS Trade tick.
+/// Streaming Trade tick.
 #[repr(C)]
 pub struct ThetaDataDxStreamTrade {
     /// Contract this event refers to.
@@ -232,7 +232,7 @@ pub struct ThetaDataDxStreamTrade {
     pub received_at_ns: u64,
 }
 
-/// FPSS server connection ack (wire code 4). Carries no payload.
+/// Streaming server connection ack (wire code 4). Carries no payload.
 #[repr(C)]
 pub struct ThetaDataDxStreamConnected {
     /// Placeholder so the struct has size 1 on every C compiler.
@@ -241,7 +241,7 @@ pub struct ThetaDataDxStreamConnected {
     pub _padding: u8,
 }
 
-/// FPSS server assigned a contract id. The `contract` payload carries the full resolved contract (root, sec_type, expiration / strike / right for options).
+/// Streaming server assigned a contract id. The `contract` payload carries the full resolved contract (root, sec_type, expiration / strike / right for options).
 #[repr(C)]
 pub struct ThetaDataDxStreamContractAssigned {
     /// Wire-internal contract id the FPSS server assigns to this contract.
@@ -250,21 +250,21 @@ pub struct ThetaDataDxStreamContractAssigned {
     pub contract: ThetaDataDxContract,
 }
 
-/// FPSS server disconnected the client (wire code 12). `reason` is the integer disconnect code; read the resolved reason-name field for the symbolic name.
+/// Streaming server disconnected the client (wire code 12). `reason` is the integer disconnect code; read the resolved reason-name field for the symbolic name.
 #[repr(C)]
 pub struct ThetaDataDxStreamDisconnected {
     /// Reason the server gave for dropping the connection.
     pub reason: i32,
 }
 
-/// FPSS login succeeded. `permissions` is the server's opaque bundle string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers.
+/// Streaming login succeeded. `permissions` is the server's opaque bundle string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers.
 #[repr(C)]
 pub struct ThetaDataDxStreamLoginSuccess {
     /// Server "Bundle" string copied verbatim from the METADATA frame; opaque diagnostic metadata.
     pub permissions: *const c_char,
 }
 
-/// FPSS market-close signal (wire code 32). Carries no payload.
+/// Streaming market-close signal (wire code 32). Carries no payload.
 #[repr(C)]
 pub struct ThetaDataDxStreamMarketClose {
     /// Placeholder so the struct has size 1 on every C compiler.
@@ -273,7 +273,7 @@ pub struct ThetaDataDxStreamMarketClose {
     pub _padding: u8,
 }
 
-/// FPSS market-open signal (wire code 30). Carries no payload.
+/// Streaming market-open signal (wire code 30). Carries no payload.
 #[repr(C)]
 pub struct ThetaDataDxStreamMarketOpen {
     /// Placeholder so the struct has size 1 on every C compiler.
@@ -282,14 +282,14 @@ pub struct ThetaDataDxStreamMarketOpen {
     pub _padding: u8,
 }
 
-/// FPSS protocol-level parse error. Named `ParseError` on every binding so it never collides with the language's own error types (Python's exception classes, the JS global `Error`).
+/// Streaming protocol-level parse error. Named `ParseError` on every binding so it never collides with the language's own error types (Python's exception classes, the JS global `Error`).
 #[repr(C)]
 pub struct ThetaDataDxStreamParseError {
     /// Human-readable error text from the server.
     pub message: *const c_char,
 }
 
-/// FPSS server heartbeat (wire code 10). The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics.
+/// Streaming server heartbeat (wire code 10). The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics.
 #[repr(C)]
 pub struct ThetaDataDxStreamPing {
     /// Raw frame payload bytes, preserved for diagnostics. Pointer to the first byte; null when empty.
@@ -298,7 +298,7 @@ pub struct ThetaDataDxStreamPing {
     pub payload_len: usize,
 }
 
-/// FPSS auto-reconnect succeeded — connection is live again. Carries no payload.
+/// Streaming auto-reconnect succeeded — connection is live again. Carries no payload.
 #[repr(C)]
 pub struct ThetaDataDxStreamReconnected {
     /// Placeholder so the struct has size 1 on every C compiler.
@@ -307,7 +307,7 @@ pub struct ThetaDataDxStreamReconnected {
     pub _padding: u8,
 }
 
-/// FPSS server-side reconnect ack (wire code 13). Distinct from `Reconnected`, which the client emits from its auto-reconnect state machine once the new TLS session is authenticated.
+/// Streaming server-side reconnect ack (wire code 13). Distinct from `Reconnected`, which the client emits from its auto-reconnect state machine once the new TLS session is authenticated.
 #[repr(C)]
 pub struct ThetaDataDxStreamReconnectedServer {
     /// Placeholder so the struct has size 1 on every C compiler.
@@ -316,7 +316,7 @@ pub struct ThetaDataDxStreamReconnectedServer {
     pub _padding: u8,
 }
 
-/// FPSS auto-reconnect is about to attempt reconnection. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at the maximum 32-bit signed value if the reconnect loop exceeds 2^31 attempts.
+/// Streaming auto-reconnect is about to attempt reconnection. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at the maximum 32-bit signed value if the reconnect loop exceeds 2^31 attempts.
 #[repr(C)]
 pub struct ThetaDataDxStreamReconnecting {
     /// Reason the server gave for dropping the connection.
@@ -327,7 +327,7 @@ pub struct ThetaDataDxStreamReconnecting {
     pub delay_ms: u64,
 }
 
-/// FPSS auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the integer disconnect code of the final drop; read the resolved reason-name field for the symbolic name. `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted).
+/// Streaming auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the integer disconnect code of the final drop; read the resolved reason-name field for the symbolic name. `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted).
 #[repr(C)]
 pub struct ThetaDataDxStreamReconnectsExhausted {
     /// Reason the server gave for dropping the connection.
@@ -336,7 +336,7 @@ pub struct ThetaDataDxStreamReconnectsExhausted {
     pub attempts: i32,
 }
 
-/// FPSS subscription response (wire code 40). `result` is an integer status code (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms).
+/// Streaming subscription response (wire code 40). `result` is an integer status code (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms).
 #[repr(C)]
 pub struct ThetaDataDxStreamReqResponse {
     /// Identifier of the subscription request this response answers.
@@ -345,7 +345,7 @@ pub struct ThetaDataDxStreamReqResponse {
     pub result: i32,
 }
 
-/// FPSS server stream restart (wire code 31). The server restarts the stream without dropping the TCP connection; delta decode state should be cleared on receipt.
+/// Streaming server stream restart (wire code 31). The server restarts the stream without dropping the TCP connection; delta decode state should be cleared on receipt.
 #[repr(C)]
 pub struct ThetaDataDxStreamRestart {
     /// Placeholder so the struct has size 1 on every C compiler.
@@ -354,14 +354,14 @@ pub struct ThetaDataDxStreamRestart {
     pub _padding: u8,
 }
 
-/// FPSS server-error message (wire code 11).
+/// Streaming server-error message (wire code 11).
 #[repr(C)]
 pub struct ThetaDataDxStreamServerError {
     /// Human-readable error text from the server.
     pub message: *const c_char,
 }
 
-/// FPSS control variant the SDK does not yet recognise. Surfaced when a newer protocol revision adds a control event this build predates — keep dispatch logic forward-compatible by handling this variant. Carries no payload.
+/// Streaming control variant the SDK does not yet recognise. Surfaced when a newer protocol revision adds a control event this build predates — keep dispatch logic forward-compatible by handling this variant. Carries no payload.
 #[repr(C)]
 pub struct ThetaDataDxStreamUnknownControl {
     /// Placeholder so the struct has size 1 on every C compiler.
@@ -370,7 +370,7 @@ pub struct ThetaDataDxStreamUnknownControl {
     pub _padding: u8,
 }
 
-/// FPSS server sent a frame with an unrecognised wire code. Raw bytes preserved for diagnostics / upstream bug reports.
+/// Streaming server sent a frame with an unrecognised wire code. Raw bytes preserved for diagnostics / upstream bug reports.
 #[repr(C)]
 pub struct ThetaDataDxStreamUnknownFrame {
     /// Unrecognized frame code reported by the server.

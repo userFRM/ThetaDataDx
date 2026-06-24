@@ -4,7 +4,7 @@
 // borrowed `&fpss::StreamEvent`. The single source of truth is
 // `crates/thetadatadx/fpss_event_schema.toml`.
 
-/// FPSS contract identifier. Surfaced on every decoded FPSS data
+/// Streaming contract identifier. Surfaced on every decoded streaming data
 /// event as `event.contract`. Reads `symbol`, `sec_type` (symbolic
 /// string, e.g. `"STOCK"` / `"OPTION"`), `expiration` (`YYYYMMDD`),
 /// `right` (`"C"` / `"P"` / `None`), and `strike` (option strike in
@@ -54,7 +54,7 @@ strike_thousandths: c.strike_thousandths,
 }
 }
 
-/// FPSS server connection ack (wire code 4). Carries no payload.
+/// Streaming server connection ack (wire code 4). Carries no payload.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct Connected;
@@ -66,7 +66,7 @@ impl Connected {
     fn kind(&self) -> &'static str { "connected" }
 }
 
-/// FPSS server assigned a contract id. The `contract` payload carries the full resolved contract (root, sec_type, expiration / strike / right for options).
+/// Streaming server assigned a contract id. The `contract` payload carries the full resolved contract (root, sec_type, expiration / strike / right for options).
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct ContractAssigned {
@@ -79,7 +79,7 @@ impl ContractAssigned {
         format!("ContractAssigned(id={})", self.id)
     }
 
-    /// FPSS contract identity (`symbol`, `sec_type`,
+    /// Streaming contract identity (`symbol`, `sec_type`,
     /// `expiration`, `right`, `strike`). Built on access from the
     /// event's inline contract.
     #[getter]
@@ -91,7 +91,7 @@ impl ContractAssigned {
     fn kind(&self) -> &'static str { "contract_assigned" }
 }
 
-/// FPSS server disconnected the client (wire code 12). `reason` is the integer disconnect code; read the resolved reason-name field for the symbolic name.
+/// Streaming server disconnected the client (wire code 12). `reason` is the integer disconnect code; read the resolved reason-name field for the symbolic name.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct Disconnected {
@@ -115,7 +115,7 @@ impl Disconnected {
     }
 }
 
-/// FPSS login succeeded. `permissions` is the server's opaque bundle string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers.
+/// Streaming login succeeded. `permissions` is the server's opaque bundle string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct LoginSuccess {
@@ -131,7 +131,7 @@ impl LoginSuccess {
     fn kind(&self) -> &'static str { "login_success" }
 }
 
-/// FPSS market-close signal (wire code 32). Carries no payload.
+/// Streaming market-close signal (wire code 32). Carries no payload.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct MarketClose;
@@ -143,7 +143,7 @@ impl MarketClose {
     fn kind(&self) -> &'static str { "market_close" }
 }
 
-/// FPSS market-open signal (wire code 30). Carries no payload.
+/// Streaming market-open signal (wire code 30). Carries no payload.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct MarketOpen;
@@ -155,7 +155,7 @@ impl MarketOpen {
     fn kind(&self) -> &'static str { "market_open" }
 }
 
-/// FPSS MarketValue tick (wire code 25). A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant).
+/// Streaming MarketValue tick (wire code 25). A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant).
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct MarketValue {
@@ -173,7 +173,7 @@ impl MarketValue {
         format!("MarketValue(ms_of_day={}, market_bid={}, market_ask={}, market_price={}, date={})", self.ms_of_day, self.market_bid, self.market_ask, self.market_price, self.date)
     }
 
-    /// FPSS contract identity (`symbol`, `sec_type`,
+    /// Streaming contract identity (`symbol`, `sec_type`,
     /// `expiration`, `right`, `strike`). Built on access from the
     /// event's inline contract.
     #[getter]
@@ -185,7 +185,7 @@ impl MarketValue {
     fn kind(&self) -> &'static str { "market_value" }
 }
 
-/// FPSS OHLCVC bar.
+/// Streaming OHLCVC bar.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct Ohlcvc {
@@ -206,7 +206,7 @@ impl Ohlcvc {
         format!("Ohlcvc(ms_of_day={}, open={}, high={}, low={}, close={}, volume={})", self.ms_of_day, self.open, self.high, self.low, self.close, self.volume)
     }
 
-    /// FPSS contract identity (`symbol`, `sec_type`,
+    /// Streaming contract identity (`symbol`, `sec_type`,
     /// `expiration`, `right`, `strike`). Built on access from the
     /// event's inline contract.
     #[getter]
@@ -218,7 +218,7 @@ impl Ohlcvc {
     fn kind(&self) -> &'static str { "ohlcvc" }
 }
 
-/// FPSS OpenInterest tick.
+/// Streaming OpenInterest tick.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct OpenInterest {
@@ -234,7 +234,7 @@ impl OpenInterest {
         format!("OpenInterest(ms_of_day={}, open_interest={}, date={})", self.ms_of_day, self.open_interest, self.date)
     }
 
-    /// FPSS contract identity (`symbol`, `sec_type`,
+    /// Streaming contract identity (`symbol`, `sec_type`,
     /// `expiration`, `right`, `strike`). Built on access from the
     /// event's inline contract.
     #[getter]
@@ -246,7 +246,7 @@ impl OpenInterest {
     fn kind(&self) -> &'static str { "open_interest" }
 }
 
-/// FPSS protocol-level parse error. Named `ParseError` on every binding so it never collides with the language's own error types (Python's exception classes, the JS global `Error`).
+/// Streaming protocol-level parse error. Named `ParseError` on every binding so it never collides with the language's own error types (Python's exception classes, the JS global `Error`).
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct ParseError {
@@ -262,7 +262,7 @@ impl ParseError {
     fn kind(&self) -> &'static str { "parse_error" }
 }
 
-/// FPSS server heartbeat (wire code 10). The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics.
+/// Streaming server heartbeat (wire code 10). The server emits PING frames (observed 1-byte payload `[0]`) the client heartbeat logic does not have to answer; payload preserved for diagnostics.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct Ping {
@@ -276,7 +276,7 @@ impl Ping {
     fn kind(&self) -> &'static str { "ping" }
 }
 
-/// FPSS Quote tick.
+/// Streaming Quote tick.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct Quote {
@@ -299,7 +299,7 @@ impl Quote {
         format!("Quote(ms_of_day={}, bid_size={}, bid_exchange={}, bid={}, bid_condition={}, ask_size={})", self.ms_of_day, self.bid_size, self.bid_exchange, self.bid, self.bid_condition, self.ask_size)
     }
 
-    /// FPSS contract identity (`symbol`, `sec_type`,
+    /// Streaming contract identity (`symbol`, `sec_type`,
     /// `expiration`, `right`, `strike`). Built on access from the
     /// event's inline contract.
     #[getter]
@@ -311,7 +311,7 @@ impl Quote {
     fn kind(&self) -> &'static str { "quote" }
 }
 
-/// FPSS auto-reconnect succeeded — connection is live again. Carries no payload.
+/// Streaming auto-reconnect succeeded — connection is live again. Carries no payload.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct Reconnected;
@@ -323,7 +323,7 @@ impl Reconnected {
     fn kind(&self) -> &'static str { "reconnected" }
 }
 
-/// FPSS server-side reconnect ack (wire code 13). Distinct from `Reconnected`, which the client emits from its auto-reconnect state machine once the new TLS session is authenticated.
+/// Streaming server-side reconnect ack (wire code 13). Distinct from `Reconnected`, which the client emits from its auto-reconnect state machine once the new TLS session is authenticated.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct ReconnectedServer;
@@ -335,7 +335,7 @@ impl ReconnectedServer {
     fn kind(&self) -> &'static str { "reconnected_server" }
 }
 
-/// FPSS auto-reconnect is about to attempt reconnection. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at the maximum 32-bit signed value if the reconnect loop exceeds 2^31 attempts.
+/// Streaming auto-reconnect is about to attempt reconnection. Emitted before sleeping for `delay_ms` milliseconds. `attempt` is 1-based and saturates at the maximum 32-bit signed value if the reconnect loop exceeds 2^31 attempts.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct Reconnecting {
@@ -361,7 +361,7 @@ impl Reconnecting {
     }
 }
 
-/// FPSS auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the integer disconnect code of the final drop; read the resolved reason-name field for the symbolic name. `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted).
+/// Streaming auto-reconnect stopped without a user-initiated shutdown — terminal for the session. Emitted when the reconnect budget (attempt count or wall-clock envelope) is exhausted, a permanent disconnect reason short-circuits recovery, a manual policy declines to reconnect, or a custom policy returns no delay. `reason` is the integer disconnect code of the final drop; read the resolved reason-name field for the symbolic name. `attempts` is the number of consecutive reconnect attempts consumed before giving up (0 when no reconnect was attempted).
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct ReconnectsExhausted {
@@ -386,7 +386,7 @@ impl ReconnectsExhausted {
     }
 }
 
-/// FPSS subscription response (wire code 40). `result` is an integer status code (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms).
+/// Streaming subscription response (wire code 40). `result` is an integer status code (0=Subscribed, 1=Error, 2=MaxStreamsReached, 3=InvalidPerms).
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct ReqResponse {
@@ -403,7 +403,7 @@ impl ReqResponse {
     fn kind(&self) -> &'static str { "req_response" }
 }
 
-/// FPSS server stream restart (wire code 31). The server restarts the stream without dropping the TCP connection; delta decode state should be cleared on receipt.
+/// Streaming server stream restart (wire code 31). The server restarts the stream without dropping the TCP connection; delta decode state should be cleared on receipt.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct Restart;
@@ -415,7 +415,7 @@ impl Restart {
     fn kind(&self) -> &'static str { "restart" }
 }
 
-/// FPSS server-error message (wire code 11).
+/// Streaming server-error message (wire code 11).
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct ServerError {
@@ -431,7 +431,7 @@ impl ServerError {
     fn kind(&self) -> &'static str { "server_error" }
 }
 
-/// FPSS Trade tick.
+/// Streaming Trade tick.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct Trade {
@@ -459,7 +459,7 @@ impl Trade {
         format!("Trade(ms_of_day={}, sequence={}, ext_condition1={}, ext_condition2={}, ext_condition3={}, ext_condition4={})", self.ms_of_day, self.sequence, self.ext_condition1, self.ext_condition2, self.ext_condition3, self.ext_condition4)
     }
 
-    /// FPSS contract identity (`symbol`, `sec_type`,
+    /// Streaming contract identity (`symbol`, `sec_type`,
     /// `expiration`, `right`, `strike`). Built on access from the
     /// event's inline contract.
     #[getter]
@@ -471,7 +471,7 @@ impl Trade {
     fn kind(&self) -> &'static str { "trade" }
 }
 
-/// FPSS control variant the SDK does not yet recognise. Surfaced when a newer protocol revision adds a control event this build predates — keep dispatch logic forward-compatible by handling this variant. Carries no payload.
+/// Streaming control variant the SDK does not yet recognise. Surfaced when a newer protocol revision adds a control event this build predates — keep dispatch logic forward-compatible by handling this variant. Carries no payload.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct UnknownControl;
@@ -483,7 +483,7 @@ impl UnknownControl {
     fn kind(&self) -> &'static str { "unknown_control" }
 }
 
-/// FPSS server sent a frame with an unrecognised wire code. Raw bytes preserved for diagnostics / upstream bug reports.
+/// Streaming server sent a frame with an unrecognised wire code. Raw bytes preserved for diagnostics / upstream bug reports.
 #[must_use]
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct UnknownFrame {

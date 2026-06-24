@@ -31,7 +31,7 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 
 use super::{authenticate_at, Credentials};
-use crate::config::Environment;
+use crate::config::HistoricalEnvironment;
 use crate::error::Error;
 
 /// Opaque handle to a shared, mutable session UUID.
@@ -64,7 +64,7 @@ struct Inner {
     nexus_url: String,
     /// Target server environment the token was issued for. Reused on
     /// refresh so a staging session re-authenticates against staging.
-    environment: Environment,
+    environment: HistoricalEnvironment,
     /// Credentials used for refresh. Clone is cheap (`Zeroizing<String>`
     /// inside) so we keep an owned copy rather than reaching back into
     /// the caller-provided handle every refresh.
@@ -93,7 +93,7 @@ impl SessionToken {
     pub fn new(
         uuid: String,
         nexus_url: String,
-        environment: Environment,
+        environment: HistoricalEnvironment,
         creds: Credentials,
     ) -> Self {
         Self {
@@ -243,7 +243,7 @@ mod tests {
         SessionToken::new(
             uuid.to_string(),
             "https://nexus.example.invalid/auth".to_string(),
-            Environment::Prod,
+            HistoricalEnvironment::Prod,
             fake_creds(),
         )
     }

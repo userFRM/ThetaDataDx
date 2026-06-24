@@ -18,9 +18,8 @@
 //!     // Historical -- works immediately, via the `historical` surface
 //!     let eod = client.historical().stock_history_eod("AAPL", "20240101", "20240301").await?;
 //!
-//!     // Streaming -- FPSS connects lazily on first subscribe, via `stream`
-//!     use thetadatadx::fpss::{StreamData, StreamEvent};
-//!     use thetadatadx::fpss::protocol::Contract;
+//!     // Streaming -- connects lazily on first subscribe, via `stream`
+//!     use thetadatadx::streaming::{Contract, StreamData, StreamEvent};
 //!     client.stream().start_streaming(|event| {
 //!         if let StreamEvent::Data(StreamData::Trade { price, size, .. }) = event {
 //!             println!("trade {price} x {size}");
@@ -129,9 +128,9 @@ pub enum ConnectionStatus {
 
 /// Unified `ThetaData` client.
 ///
-/// Authenticates once at connect time. Historical data (MDDS) is
+/// Authenticates once at connect time. Historical data is
 /// available immediately via the [`historical`](Self::historical)
-/// surface. Streaming (FPSS) connects lazily on the first
+/// surface. Streaming connects lazily on the first
 /// [`start_streaming`](StreamSurface::start_streaming) on the
 /// [`stream`](Self::stream) surface.
 ///
@@ -150,7 +149,7 @@ pub struct Client {
     flatfiles_config: crate::config::FlatFilesConfig,
     /// Streaming lifecycle state, held behind an `Arc` so a teardown that
     /// outlives the borrowed [`StreamSurface`] — notably the pull-based
-    /// [`crate::fpss::batch_reader::RecordBatchStream`], whose `close` / drop
+    /// [`crate::streaming::RecordBatchStream`], whose `close` / drop
     /// fire after the `&Client` borrow has ended — can quiesce the same state
     /// cells [`Self::stop_streaming`] does, through a [`std::sync::Weak`]. The
     /// callback path reaches it through `&self`; both routes funnel through
@@ -562,7 +561,7 @@ impl Client {
     /// Helper: error returned when `start_streaming*` is called while
     /// the slot is already [`StreamingSlot::Live`].
     fn already_streaming() -> Error {
-        Error::Fpss {
+        Error::Stream {
             kind: crate::error::StreamErrorKind::ConnectionRefused,
             message: "streaming already started".into(),
         }
@@ -573,7 +572,7 @@ impl Client {
     /// streaming after the caller observed it stopped. The freshly built
     /// [`StreamingClient`] is dropped before this returns.
     fn stopped_during_start() -> Error {
-        Error::Fpss {
+        Error::Stream {
             kind: crate::error::StreamErrorKind::Disconnected,
             message: "stop_streaming() raced ahead of start_streaming(); start refused".into(),
         }
@@ -684,7 +683,7 @@ impl Client {
     /// On success returns the live client and the stop-generation the session
     /// was installed at. The columnar reader stamps that generation so its
     /// close tears down only the session it started, never a later session
-    /// that replaced it (see [`crate::fpss::batch_reader::RecordBatchStream`]).
+    /// that replaced it (see [`crate::streaming::RecordBatchStream`]).
     /// The value is the generation the install was validated against, so it
     /// identifies this session even if a teardown bumps the generation right
     /// after the install commits.
@@ -806,9 +805,9 @@ impl Client {
                     );
                 }
             })
-            .map_err(|e| Error::Fpss {
+            .map_err(|e| Error::Stream {
                 kind: crate::error::StreamErrorKind::ConnectionRefused,
-                message: format!("failed to spawn FPSS dispatcher thread: {e}"),
+                message: format!("failed to spawn streaming dispatcher thread: {e}"),
             })?;
 
         // Run the install under `catch_unwind` so a panic (e.g. an
@@ -876,11 +875,11 @@ impl Client {
     ///
     /// Reuses the connect / install / dispatcher machinery via
     /// [`Self::start_dispatcher`]; the dispatcher thread owns a
-    /// [`crate::fpss::batch_reader::BatchSink`] and drives the scoped drain
+    /// `BatchSink` and drives the scoped drain
     /// with it instead of a user callback. The sink appends one row per data
     /// event, flushes on `batch_size` / `linger` / shutdown, and publishes a
     /// terminal marker when the drain loop returns. The returned
-    /// [`crate::fpss::batch_reader::RecordBatchStream`] reads finished
+    /// [`crate::streaming::RecordBatchStream`] reads finished
     /// batches off the same `shared` queue.
     ///
     /// # Errors
@@ -937,7 +936,7 @@ impl Client {
     }
 
     /// A weak handle to this client's streaming lifecycle state, for the
-    /// pull-based [`crate::fpss::batch_reader::RecordBatchStream`] to quiesce
+    /// pull-based [`crate::streaming::RecordBatchStream`] to quiesce
     /// the session on close.
     ///
     /// Weak (not strong) so the reader never keeps the client's streaming
@@ -1045,7 +1044,7 @@ impl Client {
     }
 
     /// Configured capacity of the streaming event ring in slots (the
-    /// `fpss.ring_size` setting, a validated power of two). Returns
+    /// `streaming.ring_size` setting, a validated power of two). Returns
     /// `0` when streaming has not started.
     ///
     /// The fixed denominator for [`Self::ring_occupancy`]: when the
@@ -1324,7 +1323,7 @@ impl Client {
         let snap = self.streaming.state.load();
         match &**snap {
             StreamingSlot::Live { client } => f(client.as_ref()),
-            StreamingSlot::Idle | StreamingSlot::Stopped => Err(Error::Fpss {
+            StreamingSlot::Idle | StreamingSlot::Stopped => Err(Error::Stream {
                 kind: crate::error::StreamErrorKind::Disconnected,
                 message: "streaming not started -- call start_streaming() first".into(),
             }),
@@ -1336,13 +1335,13 @@ impl Client {
     /// Accepts the typed [`Subscription`] value returned by
     /// [`Contract::quote`] / [`Contract::trade`] /
     /// [`Contract::open_interest`] (per-contract scope) or by
-    /// [`crate::fpss::protocol::SecTypeExt::full_trades`] /
-    /// [`crate::fpss::protocol::SecTypeExt::full_open_interest`]
+    /// [`crate::streaming::SecTypeExt::full_trades`] /
+    /// [`crate::streaming::SecTypeExt::full_open_interest`]
     /// (full-stream scope).
     ///
     /// ```rust,no_run
     /// # use thetadatadx::{Client, Credentials, DirectConfig};
-    /// # use thetadatadx::fpss::protocol::{Contract, OptionLeg, SecTypeExt};
+    /// # use thetadatadx::streaming::{Contract, OptionLeg, SecTypeExt};
     /// # use thetadatadx::SecType;
     /// # async fn doc(client: &Client) -> Result<(), thetadatadx::Error> {
     /// let stock  = Contract::stock("AAPL");
@@ -1408,7 +1407,7 @@ impl Client {
     /// Get all active per-contract subscriptions.
     /// # Errors
     ///
-    /// Returns [`Error::Fpss`] when streaming has not been started.
+    /// Returns [`Error::Stream`] when streaming has not been started.
     pub(crate) fn active_subscriptions(&self) -> Result<Vec<(SubscriptionKind, Contract)>, Error> {
         self.with_streaming(|s| Ok(s.active_subscriptions()))
     }
@@ -1416,7 +1415,7 @@ impl Client {
     /// Get all active full-type (full-stream) subscriptions.
     /// # Errors
     ///
-    /// Returns [`Error::Fpss`] when streaming has not been started.
+    /// Returns [`Error::Stream`] when streaming has not been started.
     pub(crate) fn active_full_subscriptions(
         &self,
     ) -> Result<Vec<(SubscriptionKind, SecType)>, Error> {
@@ -1468,7 +1467,7 @@ impl Client {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Fpss`], [`Error::Auth`], etc. when the underlying
+    /// Returns [`Error::Stream`], [`Error::Auth`], etc. when the underlying
     /// streaming session cannot be re-established (steps 1–3).
     ///
     /// Returns [`Error::PartialReconnect`] when the streaming session was
@@ -1898,8 +1897,7 @@ impl Client {
     ///
     /// ```rust,no_run
     /// # use thetadatadx::Client;
-    /// # use thetadatadx::fpss::protocol::Contract;
-    /// # use thetadatadx::fpss::{StreamData, StreamEvent};
+    /// # use thetadatadx::streaming::{Contract, StreamData, StreamEvent};
     /// # fn doc(client: &Client) -> Result<(), thetadatadx::Error> {
     /// client.stream().start_streaming(|event| {
     ///     if let StreamEvent::Data(StreamData::Trade { price, size, .. }) = event {
@@ -2206,7 +2204,7 @@ impl StreamSurface<'_> {
     ///
     /// ```rust,no_run
     /// # use thetadatadx::Client;
-    /// # use thetadatadx::fpss::protocol::Contract;
+    /// # use thetadatadx::streaming::Contract;
     /// # use futures::StreamExt;
     /// # async fn doc(client: &Client) -> Result<(), thetadatadx::Error> {
     /// client.stream().subscribe(Contract::stock("AAPL").trade())?;
@@ -2227,7 +2225,7 @@ impl StreamSurface<'_> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Fpss`] when streaming has not been started.
+    /// Returns [`Error::Stream`] when streaming has not been started.
     pub fn active_subscriptions(&self) -> Result<Vec<(SubscriptionKind, Contract)>, Error> {
         self.0.active_subscriptions()
     }
@@ -2236,7 +2234,7 @@ impl StreamSurface<'_> {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::Fpss`] when streaming has not been started.
+    /// Returns [`Error::Stream`] when streaming has not been started.
     pub fn active_full_subscriptions(&self) -> Result<Vec<(SubscriptionKind, SecType)>, Error> {
         self.0.active_full_subscriptions()
     }
@@ -3263,7 +3261,7 @@ mod tests {
             ReplayPacing::unpaced(),
             |_kind, contract| {
                 if &*contract.symbol == "MSFT" {
-                    Err(Error::Fpss {
+                    Err(Error::Stream {
                         kind: crate::error::StreamErrorKind::Disconnected,
                         message: "injected: MSFT subscribe rejected".to_string(),
                     })
@@ -3313,7 +3311,7 @@ mod tests {
             ReplayPacing::unpaced(),
             |_, _| Ok(()),
             |_, _| {
-                Some(Err(Error::Fpss {
+                Some(Err(Error::Stream {
                     kind: crate::error::StreamErrorKind::TooManyRequests,
                     message: "injected: full-type subscribe rate-limited".to_string(),
                 }))
@@ -3346,7 +3344,7 @@ mod tests {
             &full_type,
             ReplayPacing::unpaced(),
             |_, _| {
-                Err(Error::Fpss {
+                Err(Error::Stream {
                     kind: crate::error::StreamErrorKind::Disconnected,
                     message: "injected".to_string(),
                 })

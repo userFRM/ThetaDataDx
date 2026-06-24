@@ -19,7 +19,7 @@ pub struct ThetaDataDxCredentials {
     pub(crate) inner: thetadatadx::Credentials,
 }
 
-/// Opaque historical (MDDS) client handle.
+/// Opaque historical client handle.
 ///
 /// `repr(transparent)` guarantees `*const ThetaDataDxHistoricalClient` and
 /// `*const HistoricalClient` have identical layout, allowing safe pointer casts in

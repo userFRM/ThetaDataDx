@@ -45,12 +45,19 @@ TEST_CASE("Config historical_host / historical_port setters + getters round-trip
     REQUIRE(cfg.get_historical_port() == 50051u);
 }
 
-TEST_CASE("Config environment getter reads back the selected cluster",
+TEST_CASE("Config environment getters read back the selected clusters",
           "[config][environment][offline]") {
-    // The environment readback mirrors the Python `Config.environment`
-    // and TypeScript `environment` getters: the production / stage
-    // presets select the cluster as a unit, and this getter reads the
-    // selection back as the `"PROD"` / `"STAGE"` string.
-    REQUIRE(thetadatadx::Config::stage().get_environment() == "STAGE");
-    REQUIRE(thetadatadx::Config::production().get_environment() == "PROD");
+    // The environment readbacks mirror the Python
+    // `Config.historical_environment` / `.streaming_environment` and the
+    // TypeScript `historicalEnvironment` / `streamingEnvironment` getters.
+    // The two channels are selected independently: the stage preset moves
+    // the historical channel to staging while streaming stays on
+    // production, and the dev preset moves the streaming channel to dev
+    // while historical stays on production.
+    REQUIRE(thetadatadx::Config::stage().get_historical_environment() == "STAGE");
+    REQUIRE(thetadatadx::Config::stage().get_streaming_environment() == "PROD");
+    REQUIRE(thetadatadx::Config::dev().get_historical_environment() == "PROD");
+    REQUIRE(thetadatadx::Config::dev().get_streaming_environment() == "DEV");
+    REQUIRE(thetadatadx::Config::production().get_historical_environment() == "PROD");
+    REQUIRE(thetadatadx::Config::production().get_streaming_environment() == "PROD");
 }

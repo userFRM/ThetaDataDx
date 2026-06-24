@@ -1,4 +1,4 @@
-//! Trade sequence number handling for `ThetaData` FPSS streams.
+//! Trade sequence number handling for `ThetaData` streaming.
 //!
 //! Provides wrapping-aware sequence tracking for i32 trade sequence numbers
 //! that overflow from `i32::MAX` to `i32::MIN` and map into a monotonic
