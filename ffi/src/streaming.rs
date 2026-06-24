@@ -1879,6 +1879,8 @@ pub unsafe extern "C" fn thetadatadx_streaming_set_callback(
                 *dispatcher_guard = FfpssDispatcherSession::Running {
                     handle: h,
                     on_teardown: None,
+                    // The C ABI runs its own teardown and never reads this flag.
+                    registers_drain_flag: true,
                 };
                 0
             }
@@ -2384,6 +2386,8 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
                 *dispatcher_guard = FfpssDispatcherSession::Running {
                     handle: h,
                     on_teardown: None,
+                    // The C ABI runs its own teardown and never reads this flag.
+                    registers_drain_flag: true,
                 };
             }
             Err(e) => {
@@ -2442,6 +2446,7 @@ fn join_extracted_session(handle: &ThetaDataDxStreamHandle, session: FfpssDispat
     let FfpssDispatcherSession::Running {
         handle: thread_handle,
         on_teardown,
+        ..
     } = session
     else {
         return;
@@ -3426,6 +3431,7 @@ mod teardown_deadlock_tests {
             *guard = FfpssDispatcherSession::Running {
                 handle: dispatcher_handle,
                 on_teardown: None,
+                registers_drain_flag: true,
             };
         }
 

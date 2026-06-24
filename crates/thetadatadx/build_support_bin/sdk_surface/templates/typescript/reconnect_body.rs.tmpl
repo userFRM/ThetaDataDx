@@ -15,6 +15,12 @@
             }
         };
         let dispatch_cb = Arc::clone(&callback_arc);
+        // Fresh teardown wake hook for the reconnected session. The
+        // reconnect re-uses the same `ThreadsafeFunction`, but the hook is
+        // `FnOnce`, so a new one is built from the persistent callback handle
+        // per reconnect to wake a dispatcher blocked in the full callback queue
+        // when the NEW session tears down. See `startStreaming`.
+        let teardown_hook = crate::fpss_client::abort_hook(&callback_arc);
 
         // The reconnect re-runs the FPSS connect and authentication
         // handshake plus a paced subscription restore — all network-bound.
@@ -26,11 +32,11 @@
         tokio::task::spawn_blocking(move || {
             client
                 .stream()
-                .reconnect_streaming(move |event: &fpss::StreamEvent| {
+                .reconnect_streaming_with_teardown(move |event: &fpss::StreamEvent| {
                     let buffered = fpss_event_to_buffered(event);
                     let typed = buffered_event_to_typed(buffered);
                     dispatch_cb.call(typed, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
-                })
+                }, teardown_hook)
         })
         .await
         .map_err(|e| napi::Error::from_reason(format!("reconnect task panicked: {e}")))?
