@@ -2997,9 +2997,9 @@ paths:
                     type: string
                     description: Running server version.
 
-  /v3/system/mdds/status:
+  /v3/system/historical/status:
     get:
-      operationId: systemMddsStatus
+      operationId: systemHistoricalStatus
       tags: [System]
       summary: Historical data connection status
       description: |
@@ -3030,9 +3030,9 @@ paths:
                       enum: [CONNECTED, DISCONNECTED]
                     description: Single-element array with the connection state.
 
-  /v3/system/fpss/status:
+  /v3/system/streaming/status:
     get:
-      operationId: systemFpssStatus
+      operationId: systemStreamingStatus
       tags: [System]
       summary: Streaming connection status
       description: |

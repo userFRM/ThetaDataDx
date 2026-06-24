@@ -101,8 +101,8 @@ Endpoint query parameters follow the registry names (`symbol`, `expiration`, `st
 
 ```
 GET  /v3/system/status          # {"status":"CONNECTED","version":"<crate version>"}
-GET  /v3/system/mdds/status
-GET  /v3/system/fpss/status     # {"status":"CONNECTED","version":"<crate version>"}
+GET  /v3/system/historical/status
+GET  /v3/system/streaming/status     # {"status":"CONNECTED","version":"<crate version>"}
 POST /v3/system/shutdown        # requires X-Shutdown-Token header
 ```
 

@@ -538,14 +538,14 @@ pub async fn system_status(State(state): State<AppState>) -> Response {
     json_response(&mut body)
 }
 
-/// GET /v3/system/mdds/status
-pub async fn system_mdds_status(State(state): State<AppState>) -> Response {
+/// GET /v3/system/historical/status
+pub async fn system_historical_status(State(state): State<AppState>) -> Response {
     let mut body = format::ok_envelope(vec![sonic_rs::Value::from(state.mdds_status())]);
     json_response(&mut body)
 }
 
-/// GET /v3/system/fpss/status
-pub async fn system_fpss_status(State(state): State<AppState>) -> Response {
+/// GET /v3/system/streaming/status
+pub async fn system_streaming_status(State(state): State<AppState>) -> Response {
     let mut body = sonic_rs::json!({
         "status": state.fpss_status(),
         "version": env!("CARGO_PKG_VERSION"),

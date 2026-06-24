@@ -82,7 +82,7 @@ TEST_CASE("ClientBuilder validates auth before connecting",
     // composes. Pin the surface (api key first-class, plus the
     // environment selectors) at compile time without connecting.
     thetadatadx::ClientBuilder builder = thetadatadx::Client::builder();
-    builder.api_key("td1_example").environment("STAGE");
+    builder.api_key("td1_example").historical_environment("STAGE");
     thetadatadx::ClientBuilder dotenv_builder = thetadatadx::Client::builder();
     dotenv_builder.from_dotenv("/tmp/example.env").production();
 }
@@ -115,12 +115,12 @@ TEST_CASE("ClientBuilder is single-use: connect() consumes the builder",
 
 TEST_CASE("ClientBuilder environment and from_dotenv setters stay offline",
           "[unified][offline]") {
-    // The explicit environment selector uses the C++ binding's string
-    // representation (`PROD` / `STAGE`, case-insensitive) and validates
-    // locally, before any network round-trip.
-    REQUIRE_NOTHROW(thetadatadx::Client::builder().environment("stage"));
-    REQUIRE_NOTHROW(thetadatadx::Client::builder().environment(" PROD "));
-    REQUIRE_THROWS_AS(thetadatadx::Client::builder().environment("qa"),
+    // The explicit historical-environment selector uses the C++ binding's
+    // string representation (`PROD` / `STAGE`, case-insensitive) and
+    // validates locally, before any network round-trip.
+    REQUIRE_NOTHROW(thetadatadx::Client::builder().historical_environment("stage"));
+    REQUIRE_NOTHROW(thetadatadx::Client::builder().historical_environment(" PROD "));
+    REQUIRE_THROWS_AS(thetadatadx::Client::builder().historical_environment("qa"),
                       thetadatadx::ConfigError);
 
     // `from_dotenv` is fluent on both lvalues and rvalues; the setter

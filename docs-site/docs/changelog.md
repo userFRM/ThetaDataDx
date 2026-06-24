@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Environment variables:** `THETADATA_MDDS_TYPE` is renamed to `THETADATA_HISTORICAL_TYPE` (`PROD` or `STAGE`) and `THETADATA_FPSS_TYPE` to `THETADATA_STREAMING_TYPE` (`PROD` or `DEV`). An unrecognized or cross-channel value (for example `THETADATA_HISTORICAL_TYPE=DEV`) is now a hard error naming the offending key and the valid set rather than a silent fallback; a malformed host or port override is still skipped with a warning.
 - **Server CLI:** `--mdds-region` is renamed to `--historical-region` (`production` or `stage`) and `--fpss-region` to `--streaming-region` (`production` or `dev`). `--streaming-region` no longer accepts `stage`; there is no streaming staging cluster.
 - **Bindings:** the inline-construction selectors are renamed to match — Python `historical_type` / `streaming_type` and TypeScript `historicalType` / `streamingType`.
+- **Event and error taxonomy:** the C ABI streaming event-kind constants are renamed from the `THETADATADX_FPSS_*` prefix to `THETADATADX_STREAM_*` (the `_TRADE` / `_QUOTE` / `_OHLCVC` / ... suffixes are unchanged), and the umbrella error variant `Error::Fpss` becomes `Error::Stream` with the `Display` text `stream error (...)`. Python and TypeScript carry the event kind as a lowercase string union and are unaffected.
+- **Server routes:** the system status routes are renamed to the channel they report — `GET /v3/system/mdds/status` becomes `GET /v3/system/historical/status` and `GET /v3/system/fpss/status` becomes `GET /v3/system/streaming/status` (operation ids `systemHistoricalStatus` / `systemStreamingStatus`).
 
 ### Fixed
 

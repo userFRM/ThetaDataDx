@@ -66,8 +66,8 @@ See [Flat Files](/articles/flat-files) for sizing guidance.
 | Method | Route | Description |
 |---|---|---|
 | `GET` | `/v3/system/status` | Combined server status. |
-| `GET` | `/v3/system/mdds/status` | Historical-channel connection status. |
-| `GET` | `/v3/system/fpss/status` | Streaming connection status. |
+| `GET` | `/v3/system/historical/status` | Historical-channel connection status. |
+| `GET` | `/v3/system/streaming/status` | Streaming connection status. |
 | `POST` | `/v3/system/shutdown` | Graceful shutdown; requires the `X-Shutdown-Token` header printed at startup. |
 
 ## Concurrency behavior
