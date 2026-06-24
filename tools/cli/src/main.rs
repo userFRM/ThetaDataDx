@@ -376,21 +376,7 @@ impl TabularData {
                 let mut obj = sonic_rs::Object::new();
                 for (i, h) in self.headers.iter().enumerate() {
                     let val = row.get(i).cloned().unwrap_or_default();
-                    // Null sentinel -> JSON null
-                    if val == NULL_SENTINEL {
-                        obj.insert(&h, sonic_rs::Value::new_null());
-                    } else if let Ok(n) = val.parse::<f64>() {
-                        // Try to parse as number for cleaner JSON
-                        obj.insert(
-                            &h,
-                            sonic_rs::Value::from(
-                                sonic_rs::Number::from_f64(n)
-                                    .unwrap_or_else(|| sonic_rs::Number::from(0)),
-                            ),
-                        );
-                    } else {
-                        obj.insert(&h, sonic_rs::Value::from(val.as_str()));
-                    }
+                    obj.insert(&h, json_cell(&val));
                 }
                 sonic_rs::Value::from(obj)
             })
@@ -460,6 +446,26 @@ impl TabularData {
 /// in `DataTable` cells. For table display, nulls render as empty; for JSON/CSV,
 /// they render as proper `null`.
 const NULL_SENTINEL: &str = "\x00NULL\x00";
+
+/// Convert one presentation cell to its `--format json` value.
+///
+/// The null sentinel becomes JSON `null`; a value that parses as a finite f64
+/// becomes a JSON number; a value that parses as a NON-finite f64 (`NaN` /
+/// `inf` / `-inf`, which `f64::from_str` accepts) becomes `null` rather than a
+/// fabricated `0`, matching the json-raw / REST / MCP `json_canon` contract;
+/// anything else stays a JSON string.
+fn json_cell(value: &str) -> sonic_rs::Value {
+    if value == NULL_SENTINEL {
+        return sonic_rs::Value::new_null();
+    }
+    if let Ok(n) = value.parse::<f64>() {
+        return match sonic_rs::Number::from_f64(n) {
+            Some(num) => sonic_rs::Value::from(num),
+            None => sonic_rs::Value::new_null(),
+        };
+    }
+    sonic_rs::Value::from(value)
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Client construction helper
@@ -2008,10 +2014,41 @@ async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
 #[cfg(test)]
 mod tests {
     use super::{
-        raw_date, raw_f64, raw_i32, raw_i64, raw_ms, raw_right_label, resolve_credentials,
-        select_credential_source, CredentialSource, OutputFormat, TabularData,
+        json_cell, raw_date, raw_f64, raw_i32, raw_i64, raw_ms, raw_right_label,
+        resolve_credentials, select_credential_source, CredentialSource, OutputFormat, TabularData,
+        NULL_SENTINEL,
     };
     use sonic_rs::JsonValueTrait;
+
+    // ── `--format json` cell conversion (#940) ─────────────────────────
+    //
+    // A non-finite greek (NaN / +-Inf) must render as JSON `null`, not a
+    // fabricated `0`, matching the json-raw / REST / MCP json_canon contract.
+    #[test]
+    fn json_cell_non_finite_renders_null_not_zero() {
+        for s in ["NaN", "nan", "inf", "-inf", "Infinity", "-Infinity"] {
+            let v = json_cell(s);
+            assert!(
+                v.is_null(),
+                "non-finite {s:?} must render as JSON null, got {v:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn json_cell_finite_number_renders_as_number() {
+        let v = json_cell("1.5");
+        assert!(v.is_number(), "a finite f64 must render as a JSON number");
+        assert_eq!(v.as_f64(), Some(1.5));
+        // Zero stays a real number, distinct from the non-finite-null case.
+        assert_eq!(json_cell("0").as_f64(), Some(0.0));
+    }
+
+    #[test]
+    fn json_cell_null_sentinel_and_strings() {
+        assert!(json_cell(NULL_SENTINEL).is_null(), "null sentinel -> null");
+        assert!(json_cell("OPTION").is_str(), "non-numeric stays a string");
+    }
 
     // ── Credential resolution precedence ───────────────────────────────
     //

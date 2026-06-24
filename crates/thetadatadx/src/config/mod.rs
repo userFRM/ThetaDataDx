@@ -1319,7 +1319,7 @@ mod config_file {
 
     impl Default for MddsSection {
         fn default() -> Self {
-            let prod = DirectConfig::production();
+            let prod = DirectConfig::production_defaults();
             Self {
                 // Absent by default so the environment's host stays the
                 // single source of truth unless the operator sets it.
@@ -1361,7 +1361,7 @@ mod config_file {
 
     impl Default for FpssSection {
         fn default() -> Self {
-            let prod = DirectConfig::production();
+            let prod = DirectConfig::production_defaults();
             Self {
                 // Absent by default so the environment's host set stays the
                 // single source of truth unless the operator lists hosts.
@@ -1425,7 +1425,7 @@ mod config_file {
 
     impl Default for GrpcSection {
         fn default() -> Self {
-            let prod = DirectConfig::production();
+            let prod = DirectConfig::production_defaults();
             Self {
                 window_size_kb: prod.historical.window_size_kb,
                 connection_window_size_kb: prod.historical.connection_window_size_kb,
