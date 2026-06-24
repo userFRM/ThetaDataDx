@@ -2239,6 +2239,16 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take();
+        // Extract the old dispatcher session and RELEASE the dispatcher lock
+        // before the join: the old dispatcher keeps draining ring-buffered
+        // events through the user callback until it observes the shutdown, and
+        // such a callback may call a `thetadatadx_streaming_*` status reader that
+        // takes this same lock. Joining under the lock would deadlock. The lock
+        // is re-acquired below (step 3) to publish the replacement session; a
+        // shutdown racing in the lock-free window is caught by the
+        // `reject_if_shutdown` re-check there.
+        let old_session = extract_dispatcher_session(&mut dispatcher_guard);
+        drop(dispatcher_guard);
         let prev_drain_flag = if let Some(old) = taken_old {
             let flag = old.drained_flag();
             handle
@@ -2248,12 +2258,15 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
                 .push(flag.clone());
             old.shutdown();
             drop(old);
-            // Join the OLD dispatcher BEFORE spawning the replacement so
-            // the new dispatcher does not race the old one over the same
-            // C callback context.
-            join_dispatcher_session(&mut dispatcher_guard);
+            // Join the OLD dispatcher (lock-free) BEFORE spawning the
+            // replacement so the new dispatcher does not race the old one over
+            // the same C callback context.
+            join_extracted_session(handle, old_session);
             Some(flag)
         } else {
+            // No old client, but a stale Running session could still exist
+            // (e.g. a prior client already taken); join it lock-free too.
+            join_extracted_session(handle, old_session);
             None
         };
 
@@ -2294,15 +2307,31 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
             }
         };
 
+        // Re-acquire the dispatcher lock for the publish-and-install, now that
+        // the lock-free old-session join is done. A `thetadatadx_streaming_shutdown`
+        // / `_free` could have run in the lock-free window and flipped the
+        // handle terminal; re-check and bail (shutting the freshly built client)
+        // rather than resurrecting a shut-down handle with a new dispatcher.
+        let mut dispatcher_guard = handle.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+        if handle.state.load(AtomicOrdering::Relaxed) == STREAM_STATE_SHUTDOWN {
+            drop(dispatcher_guard);
+            new_client.shutdown();
+            drop(new_client);
+            set_error(
+                "handle was shut down concurrently with reconnect -- \
+                 the replacement session was discarded",
+            );
+            return -1;
+        }
         // Hold `handle.inner` for the entire publish-and-spawn so a
         // racing `thetadatadx_streaming_subscribe` / `_unsubscribe` /
         // `_active_subscriptions` (the lock-free control surface that
         // only takes `inner.lock`) either serialises in front of the
         // publish (sees `None`) or behind both publish and spawn
         // (sees a fully wired session). `thetadatadx_streaming_shutdown` / `_free`
-        // / `_set_callback` are already serialised against this
-        // function by `handle.dispatcher` (held by the caller for
-        // the whole `thetadatadx_streaming_reconnect` body). The spawned dispatcher
+        // / `_set_callback` are serialised against this install by
+        // `handle.dispatcher` (re-acquired just above and held through the
+        // `*dispatcher_guard = Running` write below). The spawned dispatcher
         // iterates the FPSS client poller via its own internal mutex
         // and never touches `handle.inner`, so the held guard does
         // NOT deadlock the dispatcher.
@@ -2386,32 +2415,70 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
     })
 }
 
-/// Join the dispatcher thread (if any) so callers never observe a
-/// callback firing after teardown returns. Defers to detach via the
-/// `prev_drained` chain when called from inside the dispatcher itself
-/// (the consumer-thread self-join hazard).
+/// Phase 1 of teardown: move the dispatcher session OUT of the lock so the
+/// join can run with no lock held. The caller holds the `dispatcher` guard
+/// only for this `mem::replace`; it must then DROP the guard and hand the
+/// returned session to [`join_extracted_session`].
 ///
-/// On a clean exit, transitions to `Idle`.  On a panic exit, transitions
-/// to `Failed` with the downcasted payload string.
-fn join_dispatcher_session(session: &mut FfpssDispatcherSession) {
-    let prev = std::mem::replace(session, FfpssDispatcherSession::Idle);
-    if let FfpssDispatcherSession::Running { handle, .. } = prev {
-        if handle.thread().id() != std::thread::current().id() {
-            match handle.join() {
-                Ok(()) => {}
-                Err(payload) => {
-                    let reason = downcast_ffi_panic_payload(payload);
-                    tracing::error!(
-                        target: "thetadatadx::ffi",
-                        reason = %reason,
-                        "thetadatadx-ffi-fpss-dispatcher panicked; handle marked as failed",
-                    );
-                    *session = FfpssDispatcherSession::Failed { reason };
-                }
-            }
+/// Splitting extract from join is what keeps teardown deadlock-free: while the
+/// client is shutting down it keeps draining already-ring-buffered events
+/// through the user callback until it observes the shutdown, and such a
+/// callback may call `thetadatadx_streaming_is_streaming` /
+/// `_is_authenticated`, which take the `dispatcher` lock. Joining the
+/// dispatcher thread while still holding that lock would block the re-entrant
+/// status read, the dispatcher would never reach its exit, and the join would
+/// hang. With the lock released before the join, those calls proceed and the
+/// dispatcher reaches its shutdown exit.
+fn extract_dispatcher_session(session: &mut FfpssDispatcherSession) -> FfpssDispatcherSession {
+    std::mem::replace(session, FfpssDispatcherSession::Idle)
+}
+
+/// Phase 2 of teardown: join the extracted dispatcher thread with NO lock
+/// held. `handle` is taken only to RE-ACQUIRE the `dispatcher` lock on a panic
+/// join, to publish `Failed`. Defers to detach via the `prev_drained` chain
+/// when called from inside the dispatcher itself (the consumer-thread
+/// self-join hazard).
+fn join_extracted_session(handle: &ThetaDataDxStreamHandle, session: FfpssDispatcherSession) {
+    let FfpssDispatcherSession::Running {
+        handle: thread_handle,
+        on_teardown,
+    } = session
+    else {
+        return;
+    };
+    // Wake a dispatcher parked on a teardown-specific primitive before joining.
+    // The per-event callback dispatcher parks only on the event ring, which the
+    // caller's `client.shutdown()` already signalled, so it installs no hook;
+    // the call is a no-op there but keeps every teardown route converging on
+    // the same wakeup contract the core client uses.
+    if let Some(wake) = on_teardown {
+        wake();
+    }
+    // Self-join hazard: a callback (or a dispatcher-thread drop) may reach this
+    // path on the dispatcher thread itself. Detach in that case; the
+    // `prev_drained` chain still provides quiescence visibility.
+    if thread_handle.thread().id() == std::thread::current().id() {
+        return;
+    }
+    if let Err(payload) = thread_handle.join() {
+        let reason = downcast_ffi_panic_payload(payload);
+        tracing::error!(
+            target: "thetadatadx::ffi",
+            reason = %reason,
+            "thetadatadx-ffi-fpss-dispatcher panicked; handle marked as failed",
+        );
+        // Publish `Failed` by re-acquiring the lock, which is safe now that the
+        // join has completed. Record it ONLY if the slot is still `Idle`: the
+        // lock was released across the join, so a concurrent
+        // `thetadatadx_streaming_set_callback` / `_reconnect` may have installed
+        // a fresh `Running` session in that window. The panic belongs to the
+        // now-superseded OLD session, so overwriting unconditionally would
+        // clobber the new session's `JoinHandle` (orphaning its thread) and
+        // falsely report a healthy live session as failed.
+        let mut guard = handle.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+        if matches!(*guard, FfpssDispatcherSession::Idle) {
+            *guard = FfpssDispatcherSession::Failed { reason };
         }
-        // If called from the dispatcher itself, leave as Idle (self-join
-        // hazard); `prev_drained` chain provides quiescence visibility.
     }
 }
 
@@ -2725,10 +2792,22 @@ pub unsafe extern "C" fn thetadatadx_streaming_shutdown(handle: *const ThetaData
             // Double-shutdown -- error already set, nothing to drop.
             return;
         }
-        // Take the StreamingClient Arc OUT of `handle.inner` under the lock,
-        // release the lock, then signal shutdown so a dispatcher
-        // attempting to re-enter `handle.inner` via the user callback
-        // never sees the lock held.
+        // Flip to terminal SHUTDOWN while still holding the dispatcher lock, and
+        // extract the session, BEFORE releasing the lock for the join. A racing
+        // `thetadatadx_streaming_set_callback` / `_reconnect` serialises on this
+        // same lock: it can only proceed after we release, by which point the
+        // state is SHUTDOWN and the session is extracted, so its
+        // `reject_if_shutdown` bails and it cannot resurrect the handle with a
+        // fresh dispatcher. (The join itself must run lock-free, below, so a
+        // callback re-entering a status read does not deadlock the join.)
+        handle
+            .state
+            .store(STREAM_STATE_SHUTDOWN, AtomicOrdering::Relaxed);
+        let session = extract_dispatcher_session(&mut dispatcher_guard);
+        drop(dispatcher_guard);
+        // Take the StreamingClient Arc OUT of `handle.inner` (a different lock),
+        // then signal shutdown so a dispatcher attempting to re-enter
+        // `handle.inner` via the user callback never sees that lock held either.
         let taken_client = handle
             .inner
             .lock()
@@ -2743,17 +2822,11 @@ pub unsafe extern "C" fn thetadatadx_streaming_shutdown(handle: *const ThetaData
             client.shutdown();
             drop(client);
         }
-        // Join the dispatcher AFTER the producer-drop signal has
-        // propagated through the ring shutdown to the iterator, so the
-        // `for ... in &client` loop returns `Ok(None)` and the thread
-        // exits cleanly.
-        join_dispatcher_session(&mut dispatcher_guard);
-        // Mark terminal AFTER teardown so any racing register/reconnect
-        // attempt that observes Shutdown is guaranteed to see a fully
-        // torn-down handle.
-        handle
-            .state
-            .store(STREAM_STATE_SHUTDOWN, AtomicOrdering::Relaxed);
+        // Join the dispatcher with NO lock held, AFTER the producer-drop signal
+        // has propagated through the ring shutdown to the iterator, so the
+        // `for ... in &client` loop returns `Ok(None)` and the thread exits
+        // cleanly while any re-entrant status read proceeds lock-free.
+        join_extracted_session(handle, session);
     })
 }
 
@@ -2904,6 +2977,16 @@ pub unsafe extern "C" fn thetadatadx_streaming_free(handle: *mut ThetaDataDxStre
             // touching freed memory.
             let mut disp_guard = h.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
             if h.state.load(AtomicOrdering::Relaxed) != STREAM_STATE_SHUTDOWN {
+                // Flip terminal + extract the session under the lock, then
+                // RELEASE the lock before the join: a dispatcher draining
+                // ring-buffered events through the user callback may re-enter a
+                // `thetadatadx_streaming_*` status reader that takes this same lock,
+                // so joining under it would deadlock. A concurrent install that
+                // acquires the lock after we release observes SHUTDOWN and bails.
+                h.state
+                    .store(STREAM_STATE_SHUTDOWN, AtomicOrdering::Relaxed);
+                let session = extract_dispatcher_session(&mut disp_guard);
+                drop(disp_guard);
                 let taken_client = h
                     .inner
                     .lock()
@@ -2917,9 +3000,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_free(handle: *mut ThetaDataDxStre
                     client.shutdown();
                     drop(client);
                 }
-                join_dispatcher_session(&mut disp_guard);
-                h.state
-                    .store(STREAM_STATE_SHUTDOWN, AtomicOrdering::Relaxed);
+                join_extracted_session(h, session);
             }
 
             // Wait for every superseded session's consumer thread to
@@ -3239,5 +3320,158 @@ mod discriminant_conversion_tests {
             let buffered = fpss_event_to_ffi(&event);
             assert_eq!(buffered.event.disconnected.reason, i32::from(reason as i16));
         }
+    }
+}
+
+#[cfg(test)]
+mod teardown_deadlock_tests {
+    //! Deterministic watchdog for the standalone-handle teardown deadlock.
+    //!
+    //! The bug: `thetadatadx_streaming_shutdown` / `_free` / `_reconnect` joined
+    //! the dispatcher thread WHILE holding the `dispatcher` lock. A user
+    //! callback draining ring-buffered events during shutdown can re-enter a
+    //! status reader (`thetadatadx_streaming_is_streaming` / `_is_authenticated`)
+    //! that takes the same lock, so the join blocks forever on a thread that is
+    //! itself blocked on the held lock.
+    //!
+    //! The fix splits teardown into `extract_dispatcher_session` (under the
+    //! lock) + `join_extracted_session` (lock-free). This test reproduces the
+    //! exact re-entrancy: a stand-in dispatcher thread blocks on
+    //! `handle.dispatcher.lock()` (the callback's status read) and only then
+    //! exits. Run the teardown sequence the production paths use; it must
+    //! complete within a watchdog budget. Against the OLD join-under-lock code
+    //! the stand-in could never acquire the lock, the join would hang, and the
+    //! watchdog would fire.
+
+    use std::sync::atomic::{AtomicU8, Ordering};
+    use std::sync::{Arc, Barrier, Mutex};
+    use std::time::Duration;
+
+    use super::{
+        extract_dispatcher_session, join_extracted_session, FfiCallback, FfpssDispatcherSession,
+        StreamingConnectParams, ThetaDataDxStreamCallback, ThetaDataDxStreamEvent,
+        ThetaDataDxStreamHandle, STREAM_STATE_ACTIVE,
+    };
+    use std::ffi::c_void;
+
+    extern "C" fn noop(_event: *const ThetaDataDxStreamEvent, _ctx: *mut c_void) {}
+
+    /// Build a minimal handle whose `dispatcher` slot holds the given session.
+    /// The connection params / callback are never exercised by the teardown
+    /// helpers; only `handle.dispatcher` matters here.
+    fn handle_with(session: FfpssDispatcherSession) -> ThetaDataDxStreamHandle {
+        ThetaDataDxStreamHandle {
+            inner: Arc::new(Mutex::new(None)),
+            connect_params: StreamingConnectParams {
+                creds: thetadatadx::Credentials::api_key("test"),
+                streaming: thetadatadx::config::StreamingConfig::production_defaults(),
+                reconnect: thetadatadx::config::ReconnectConfig::production_defaults(),
+            },
+            callback: Mutex::new(Some(FfiCallback {
+                callback: noop as ThetaDataDxStreamCallback,
+                ctx: std::ptr::null_mut(),
+            })),
+            state: AtomicU8::new(STREAM_STATE_ACTIVE),
+            prev_drained: Mutex::new(Vec::new()),
+            dispatcher: Mutex::new(session),
+        }
+    }
+
+    #[test]
+    fn teardown_does_not_deadlock_when_callback_re_enters_the_dispatcher_lock() {
+        let handle = Arc::new(handle_with(FfpssDispatcherSession::Idle));
+
+        // `released` flips true only AFTER the teardown worker drops the
+        // dispatcher guard. The stand-in (the re-entrant callback) records
+        // whether it acquired the lock BEFORE that release; a correct lock-free
+        // join lets it acquire only after the release.
+        let released = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let acquired_before_release = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        // The worker holds the guard, then opens this gate so the stand-in
+        // attempts the lock while the worker still holds it — the deadlock
+        // condition, made deterministic rather than timing-dependent.
+        let attempt_gate = Arc::new(Barrier::new(2));
+
+        let dispatcher_handle = {
+            let handle = Arc::clone(&handle);
+            let released = Arc::clone(&released);
+            let acquired_before_release = Arc::clone(&acquired_before_release);
+            let attempt_gate = Arc::clone(&attempt_gate);
+            std::thread::Builder::new()
+                .name("test-reentrant-dispatcher".into())
+                .spawn(move || {
+                    // Wait until the worker holds the guard and signals us.
+                    attempt_gate.wait();
+                    // Re-enter the dispatcher lock, as a status reader called
+                    // from the user callback would. Blocks until the worker
+                    // releases the guard.
+                    let guard = handle.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+                    // With the fix the worker drops the guard before joining, so
+                    // we get in only after `released` is set. With the old
+                    // join-under-lock code the worker never releases before the
+                    // join, so this acquisition (and thus the thread, and thus
+                    // the join) blocks forever — the watchdog fires.
+                    if !released.load(Ordering::Acquire) {
+                        acquired_before_release.store(true, Ordering::Release);
+                    }
+                    let _ = matches!(*guard, FfpssDispatcherSession::Idle);
+                    drop(guard);
+                })
+                .expect("spawn stand-in dispatcher")
+        };
+
+        // Install the running session carrying the stand-in thread's handle.
+        {
+            let mut guard = handle.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+            *guard = FfpssDispatcherSession::Running {
+                handle: dispatcher_handle,
+                on_teardown: None,
+            };
+        }
+
+        // Run the production teardown discipline on a worker, with a watchdog.
+        let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let teardown = {
+            let handle = Arc::clone(&handle);
+            let done = Arc::clone(&done);
+            let released = Arc::clone(&released);
+            let attempt_gate = Arc::clone(&attempt_gate);
+            std::thread::spawn(move || {
+                // Phase 1: acquire the guard and extract the session.
+                let mut guard = handle.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+                let session = extract_dispatcher_session(&mut guard);
+                // While STILL holding the guard, release the stand-in to attempt
+                // the lock. It now blocks on a lock we hold — the precise
+                // deadlock condition.
+                attempt_gate.wait();
+                std::thread::sleep(Duration::from_millis(50));
+                // Phase 2: drop the guard, THEN join lock-free. The OLD code
+                // joined here while still holding `guard`.
+                released.store(true, Ordering::Release);
+                drop(guard);
+                join_extracted_session(&handle, session);
+                done.store(true, Ordering::Release);
+            })
+        };
+
+        // Watchdog: teardown must finish well within this budget. A hang means
+        // the deadlock is back.
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while !done.load(Ordering::Acquire) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "teardown deadlocked: the dispatcher join did not complete with a \
+                 callback blocked on the dispatcher lock (join-under-lock regression)",
+            );
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        teardown.join().expect("teardown thread");
+        // The re-entrant reader got in only AFTER the guard was released —
+        // proving the join did not hold the lock.
+        assert!(
+            !acquired_before_release.load(Ordering::Acquire),
+            "the re-entrant status read acquired the dispatcher lock before teardown \
+             released it — the join was not lock-free",
+        );
     }
 }
