@@ -2258,6 +2258,11 @@ public:
 
     ~RecordBatchStream() override {
         if (handle_ != nullptr) {
+            // Safe to free even if another thread is parked in `ReadNext`: the
+            // C ABI handle is reference-counted, so this free signals teardown
+            // (waking the parked pull) and the underlying reader is not torn
+            // down until that in-flight pull returns. See the class-level
+            // thread-safety note above.
             thetadatadx_record_batch_stream_free(handle_);
             handle_ = nullptr;
         }
