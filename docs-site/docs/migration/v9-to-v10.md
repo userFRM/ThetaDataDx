@@ -61,17 +61,15 @@ classifiers can dispatch on the concrete kind without parsing
 `transport error (<kind>): <message>` for legacy string-keyed
 consumers — those will keep working.
 
-The decoder pool also lands in v10:
-`MddsConfig::decoder_threads` and `MddsConfig::decoder_ring_size`
-control a dedicated pool that runs zstd decompress + protobuf
-decode on worker threads, off the async I/O path, so a slow decode
-never stalls the connection. `decoder_threads = 0` auto-sizes to
-`(available_parallelism / 2).max(1)`[^auto-size]; `decoder_ring_size`
-must be a power of two `>= 64`.
+A dedicated historical decode stage also lands in v10, with
+decode-thread and decode-ring-size knobs (both since removed) that ran
+the decompression and decode work off the async I/O path so a slow
+decode never stalled the connection. The thread count auto-sized from
+the available CPU count when left at the default.[^auto-size]
 
-[^auto-size]: Pre-v10.0.1 also capped this by the channel count; the
-cap was dropped because channels (server-throttled streams) and
-decoder threads (CPU work on already-arrived bytes) are independent.
+[^auto-size]: Pre-v10.0.1 also capped this by the connection count; the
+cap was dropped because connections (server-throttled streams) and
+decode work (CPU work on already-arrived bytes) are independent.
 
 ## ContractRef rename
 
@@ -118,16 +116,16 @@ standard CPython wheel. `pip` picks the matching wheel automatically:
 | `python3.13t` (free-threaded) | `cp313-cp313t-*` | GIL disabled |
 | `python3.14t` (free-threaded) | `cp314-cp314t-*` | GIL disabled |
 
-The extension keeps the GIL disabled after `import thetadatadx` on a
-free-threaded interpreter. Every blocking call on the unified,
-streaming, and historical-channel clients releases the GIL before it
-waits on the network, so CPU-bound Python threads run truly in
+The extension leaves free-threading enabled after `import thetadatadx`
+on a free-threaded interpreter. Every blocking call on the unified,
+streaming, and historical-channel clients waits on the network without
+blocking other Python threads, so CPU-bound Python threads run truly in
 parallel with an in-flight request under contention.
 
 A parallel-throughput CI gate asserts `< 1.8x` overhead under
 contention on the free-threaded matrix entries (matching the
 `test_no_gil.py::test_parallel_throughput_bench_runs` pytest
-assertion). A regression that re-acquires the GIL on the hot path
+assertion). A regression that serialized those threads on the hot path
 trips both the gate and the test.
 
 ## `streaming_async()` (asyncio-native)
