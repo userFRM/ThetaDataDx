@@ -112,6 +112,15 @@ impl Source {
 /// unrecognized environment SELECTOR is different: it is a hard error naming
 /// the valid set (returned to the caller), never a silent fallback, so a stale
 /// or cross-channel selector cannot quietly route to the wrong cluster.
+///
+/// Partial-mutation contract: the host/port/URL overrides are recorded before
+/// the environment selectors are resolved, so when a selector is unrecognized
+/// this returns `Err` with those overrides already applied — `cfg` may be left
+/// partially mutated on the `Err` path. Both callers discard the config on
+/// `Err` ([`DirectConfig::production`] panics, and the `.env` path owns its
+/// receiver and drops it), so the partial state is never observed; a caller
+/// that retains a config across an `Err` from this function must not assume it
+/// is unchanged.
 fn apply_overrides<F>(cfg: &mut DirectConfig, get: F, source: Source) -> Result<(), Error>
 where
     F: Fn(&str) -> Option<String>,
