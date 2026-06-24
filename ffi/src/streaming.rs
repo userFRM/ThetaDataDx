@@ -2975,11 +2975,11 @@ pub unsafe extern "C" fn thetadatadx_streaming_free(handle: *mut ThetaDataDxStre
             let h = unsafe { &*handle };
             // Acquire `dispatcher` so an in-flight
             // `thetadatadx_streaming_set_callback` / `thetadatadx_streaming_reconnect` cannot be
-            // mid-publish when we destroy the handle. The lock is held
-            // for the duration of the teardown sequence (including the
-            // 5 s drain wait); concurrent installs serialise behind it
-            // and observe `STREAM_STATE_SHUTDOWN`, so they bail out before
-            // touching freed memory.
+            // mid-publish when we destroy the handle. `STREAM_STATE_SHUTDOWN`
+            // is flipped under this lock (below) before the lock is released
+            // for the lock-free join, so a concurrent install that later
+            // acquires the lock observes SHUTDOWN and bails out before touching
+            // freed memory. The drain wait further down runs lock-free.
             let mut disp_guard = h.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
             if h.state.load(AtomicOrdering::Relaxed) != STREAM_STATE_SHUTDOWN {
                 // Flip terminal + extract the session under the lock, then
