@@ -804,7 +804,9 @@ impl StreamingClient {
         &self,
         threshold_us: napi::bindgen_prelude::BigInt,
     ) -> napi::Result<()> {
-        let (_signed, value, _lossless) = threshold_us.get_u64();
+        // Reject a negative or over-u64 BigInt rather than silently passing a
+        // wrapped/truncated value, matching the config setters' lossless check.
+        let value = crate::config_class::bigint_to_u64("setSlowCallbackThresholdUs", &threshold_us)?;
         let guard = self.lock_inner();
         if let Some(c) = guard.as_ref() {
             c.set_slow_callback_threshold(std::time::Duration::from_micros(value));
