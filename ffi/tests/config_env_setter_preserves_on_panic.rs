@@ -47,19 +47,21 @@ fn historical_env_setter_preserves_custom_host_when_a_bad_knob_panics() {
     assert!(!config.is_null());
 
     let custom = CString::new("custom.example.test").unwrap();
-    // SAFETY: config is live; host is a valid NUL-terminated C string.
+    // SAFETY: `config` is the live handle from production() above; `custom`
+    // outlives this call and is a NUL-terminated C string from CString.
     let rc = unsafe { thetadatadx_config_set_historical_host(config, custom.as_ptr()) };
     assert_eq!(rc, 0, "setting the custom host should succeed");
-    // SAFETY: config is live.
     assert_eq!(read_historical_host(config), "custom.example.test");
 
     // Raw-set a flat-file connect timeout of 0, which the consuming builder's
     // `validate()` rejects (CONNECT_TIMEOUT_SECS range) -> `with_*` panics.
-    // SAFETY: config is live.
+    // SAFETY: `config` is still the live handle; this setter raw-writes a u64
+    // field through it and reads no pointer argument.
     unsafe { thetadatadx_config_set_flatfiles_connect_timeout_secs(config, 0) };
 
     // The setter must catch the panic and return -1...
-    // SAFETY: config is live; kind 1 == STAGE.
+    // SAFETY: `config` is live; the i32 selector (1 == STAGE) is the only other
+    // argument and carries no pointer.
     let rc = unsafe { thetadatadx_config_with_historical_environment(config, 1) };
     assert_eq!(
         rc, -1,
@@ -67,14 +69,14 @@ fn historical_env_setter_preserves_custom_host_when_a_bad_knob_panics() {
     );
 
     // ...AND must NOT have wiped the config: the custom host survives.
-    // SAFETY: config is live.
     assert_eq!(
         read_historical_host(config),
         "custom.example.test",
         "the env setter wiped the custom host on the caught-panic path (config-wipe regression)",
     );
 
-    // SAFETY: config has not been freed yet; free exactly once.
+    // SAFETY: `config` was returned by production() and has not been freed on
+    // any path above, so this is the sole owner releasing it exactly once.
     unsafe { thetadatadx_config_free(config) };
 }
 
@@ -85,24 +87,27 @@ fn streaming_env_setter_preserves_custom_host_when_a_bad_knob_panics() {
     assert!(!config.is_null());
 
     let custom = CString::new("custom.example.test").unwrap();
-    // SAFETY: config is live; host is a valid NUL-terminated C string.
+    // SAFETY: `config` is the live handle from production() above; `custom`
+    // outlives this call and is a NUL-terminated C string from CString.
     let rc = unsafe { thetadatadx_config_set_historical_host(config, custom.as_ptr()) };
     assert_eq!(rc, 0);
 
-    // SAFETY: config is live.
+    // SAFETY: `config` is still the live handle; this setter raw-writes a u64
+    // field through it and reads no pointer argument.
     unsafe { thetadatadx_config_set_flatfiles_connect_timeout_secs(config, 0) };
 
-    // SAFETY: config is live; kind 1 == DEV.
+    // SAFETY: `config` is live; the i32 selector (1 == DEV) is the only other
+    // argument and carries no pointer.
     let rc = unsafe { thetadatadx_config_with_streaming_environment(config, 1) };
     assert_eq!(rc, -1);
 
-    // SAFETY: config is live.
     assert_eq!(
         read_historical_host(config),
         "custom.example.test",
         "the streaming env setter wiped the config on the caught-panic path",
     );
 
-    // SAFETY: config has not been freed yet; free exactly once.
+    // SAFETY: `config` was returned by production() and has not been freed on
+    // any path above, so this is the sole owner releasing it exactly once.
     unsafe { thetadatadx_config_free(config) };
 }
