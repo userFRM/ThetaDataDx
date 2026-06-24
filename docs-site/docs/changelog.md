@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [13.0.0-rc.5] - 2026-06-22
+## [13.0.0-rc.5] - 2026-06-24
 
 ### Breaking changes
 
@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Event and error taxonomy:** the C ABI streaming event-kind constants are renamed from the `THETADATADX_FPSS_*` prefix to `THETADATADX_STREAM_*` (the `_TRADE` / `_QUOTE` / `_OHLCVC` / ... suffixes are unchanged), and the umbrella error variant `Error::Fpss` becomes `Error::Stream` with the `Display` text `stream error (...)`. Python and TypeScript carry the event kind as a lowercase string union and are unaffected.
 - **Server routes:** the system status routes are renamed to the channel they report — `GET /v3/system/mdds/status` becomes `GET /v3/system/historical/status` and `GET /v3/system/fpss/status` becomes `GET /v3/system/streaming/status` (operation ids `systemHistoricalStatus` / `systemStreamingStatus`).
 
+### Added
+
+- **Streaming:** a pull-based Arrow `RecordBatch` reader, `batches()`, as a columnar delivery mode alongside the per-event callback (#950). Instead of one callback per event, the reader coalesces decoded events into Arrow record batches you pull on your own schedule: Rust exposes both a `futures::Stream` and a `.blocking()` iterator; Python is a synchronous and an async iterable and a context manager, handing each batch to pyarrow zero-copy over the Arrow C-Data interface; TypeScript is an `AsyncIterable<RecordBatch>` decoded from Arrow IPC; C++ returns a native `arrow::RecordBatchReader`. Batching is tunable by `batch_size` and a `linger` flush interval, with a backpressure choice of `Block` (lossless, stalls the producer when the consumer falls behind) or `DropOldest` (bounded, evicts the oldest batch and reports the count through a `dropped()` counter). Every batch carries one fixed unified streaming schema across all bindings, and dropping or closing the reader tears the streaming session down. The per-event callback delivery mode is unchanged.
+
 ### Fixed
 
 - **Authentication:** api-key and email/password resolution is unified across the server, the CLI, and the MCP tool under one precedence: the `--api-key` flag, then `THETADATA_API_KEY`, then `THETADATA_EMAIL` with `THETADATA_PASSWORD`, then the credentials file. The CLI and MCP previously had no api-key path, and the MCP read non-canonical variable names. Authentication errors now carry only the HTTP status and never the upstream response body, on both the success-parse and non-success paths, so a gateway that reflects the submitted request can never surface a credential through the error chain.
@@ -24,6 +28,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Historical transport:** the connection carries a connect timeout, so a lazy reconnect dial fails fast and is classified retryable, a refused stream is retried, and list endpoints honor the request timeout and expose a deadline opt-out (a zero or disabled deadline) so a live-but-silent stream can no longer hang a list call indefinitely.
 - **Bindings:** C++ client view accessors are lvalue-only, so a view bound to a temporary client is a compile error, and a fresh callback node is installed on replace and released only on confirmed quiescence so callback state stays valid across a client move. The gRPC, MCP, and CLI error paths are char-boundary safe and no longer panic when upstream text is non-ASCII.
 - **Tools:** the published OpenAPI document matches the served `/v3` routes, drops a phantom document-wide auth scheme, and carries the correct server URL and version, and the flat-file surfaces expose only the served dataset matrix.
+- **Streaming teardown (FFI / C ABI):** shutting down, freeing, or reconnecting a standalone streaming client could deadlock when the user callback, draining events, re-entered a status read on the same client; teardown now completes the dispatcher join without holding the lock the status read needs, so it can no longer hang.
+- **Streaming teardown (TypeScript):** stopping the stream could hang when a slow callback had saturated the bounded delivery queue; teardown now wakes the blocked consumer before joining, so shutdown completes promptly. Reconnect, which reuses the same callback, is unaffected.
+- **Configuration:** selecting a channel environment after setting a custom configuration no longer resets that configuration to defaults when a later validation check rejects an out-of-range value; the custom hosts and tuning survive the rejected call.
+- **CLI:** `--format json` emits `null` for a non-finite number (NaN or infinity) instead of a fabricated `0`, matching the JSON the other frontends produce.
+- **Configuration:** loading a config file no longer panics, and no longer picks up ambient environment overrides, when an unrecognized environment selector is present in the environment.
+- **CLI:** an empty or whitespace-only `--api-key` is treated as unset and falls through to the next credential source instead of being used as a key; endpoint arguments are validated before the network connection is opened, so a malformed argument fails fast; and the TypeScript slow-callback-threshold setter rejects a value that does not fit losslessly rather than silently wrapping it.
+
+### Security
+
+- The TypeScript docs-site toolchain bumps esbuild to clear GHSA-gv7w-rqvm-qjhr. The Rust dependency tree upgrades memmap2 past RUSTSEC-2026-0186, and aligns h2 and webpki-roots and bumps rustls-platform-verifier across the tracked lockfiles. None of these reached a shipped SDK API; they are dependency and toolchain updates.
 
 ### Internal
 
