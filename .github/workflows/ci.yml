@@ -229,6 +229,17 @@ jobs:
         run: |
           python3 scripts/ci/check_public_surface_leak.py --selftest
           python3 scripts/ci/check_public_surface_leak.py
+      # Prose complement to the symbol-leak gate above: the symbol gate
+      # guards the exported API identifiers, this one guards the
+      # client-facing documentation prose (READMEs, examples, published
+      # type declarations, docs site, OpenAPI, user config) against the
+      # internal transport vocabulary. `--selftest` is the in-process
+      # smoke check; the tests/ file drives the full fixture matrix.
+      - name: Client-facing vocabulary detector
+        run: |
+          python3 scripts/ci/check_client_facing_vocab.py --selftest
+          python3 scripts/ci/tests/test_check_client_facing_vocab.py
+          python3 scripts/ci/check_client_facing_vocab.py
 
   doc-defaults:
     name: Documented config defaults
