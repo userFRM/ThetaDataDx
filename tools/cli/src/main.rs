@@ -1994,12 +1994,16 @@ async fn run(matches: ArgMatches) -> Result<(), thetadatadx::Error> {
                     )
                 })?;
 
-                let creds = resolve_credentials(api_key_flag, creds_path)?;
-                let client = connect(&creds, config_preset).await?;
+                // Parse and validate every endpoint argument BEFORE opening the
+                // network connection, so a malformed argument fails fast with a
+                // clear diagnostic instead of after a wasted connect + auth
+                // round-trip.
                 let mut args = build_endpoint_args(ep, sub_m)?;
                 if let Some(&ms) = matches.get_one::<u64>("timeout-ms") {
                     args = args.with_timeout_ms(ms);
                 }
+                let creds = resolve_credentials(api_key_flag, creds_path)?;
+                let client = connect(&creds, config_preset).await?;
                 let output = invoke_endpoint(client.historical(), ep.name, &args).await?;
                 render_output(ep, output, &fmt);
             } else {
