@@ -10,6 +10,7 @@
 //!      an `Err` (or, here, instead of being irrelevant);
 //!   2. an ambient `THETADATA_HISTORICAL_PORT` leaked into the parsed file
 //!      config for a TOML that omitted the port.
+//!
 //! Sourcing `production_defaults()` (env-independent) fixes both.
 //!
 //! This lives in its own integration binary (separate process) and serialises
