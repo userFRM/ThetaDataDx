@@ -7,6 +7,8 @@
 
 use std::fmt;
 
+use crate::tdbe::types::enums::RemoveReason;
+
 /// Security types accepted by the FLATFILES route.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SecType {
@@ -154,19 +156,34 @@ pub const SERVED_DATASETS: &[(SecType, ReqType)] = &[
 /// [`FlatFilesUnavailableReason::is_transient`]:
 ///
 /// * **Terminal** — re-running the request with identical inputs will
-///   fail the same way. Auth rejection on a permanent credential reason
-///   code, and `RequestRejected` from a malformed request, both fall
-///   here. The flatfile driver gives up immediately; no automatic retry.
+///   fail the same way. A `DISCONNECTED` carrying a terminal
+///   `RemoveReason` (a permanent credential/account code, or a no-data /
+///   validation code such as `NoStartDate`), and `RequestRejected` from a
+///   malformed request, both fall here. The flatfile driver gives up
+///   immediately; no automatic retry.
 /// * **Transient** — the request might succeed on a fresh connection
 ///   (server hop, momentary network blip, mid-stream truncation). The
 ///   flatfile driver retries with exponential backoff up to the
 ///   [`crate::config::FlatFilesConfig::max_attempts`] budget before
 ///   surfacing the error.
+///
+/// Within the terminal class, [`FlatFilesUnavailableReason::is_no_data`]
+/// further distinguishes a *no-data* `DISCONNECTED` (the requested slice
+/// simply does not exist for this account/date — the daily snapshot is not
+/// yet generated, or the date is outside the entitlement window) from a
+/// genuine auth/transport fault. The server maps the former to `404` and
+/// the latter to `502`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FlatFilesUnavailableReason {
-    /// Server returned a `RemoveReason` ordinal during auth (e.g.
-    /// `INVALID_CREDENTIALS=0`, `ACCOUNT_ALREADY_CONNECTED=6`).
+    /// Server sent a `DISCONNECTED` carrying a `RemoveReason` ordinal —
+    /// either during login (e.g. `INVALID_CREDENTIALS=0`,
+    /// `ACCOUNT_ALREADY_CONNECTED=6`) or mid-stream, when it declines to
+    /// serve a requested slice (e.g. `NO_START_DATE=13` for an
+    /// out-of-window date whose snapshot does not exist). The retry class
+    /// and the no-data-vs-fault distinction are decoded from the ordinal —
+    /// see [`FlatFilesUnavailableReason::is_transient`] and
+    /// [`FlatFilesUnavailableReason::is_no_data`].
     AuthRejected {
         /// Server-supplied removal-reason ordinal explaining the rejection.
         reason_code: u16,
@@ -189,19 +206,24 @@ impl FlatFilesUnavailableReason {
     /// might succeed (network blip, mid-stream drop). Drives the
     /// flatfile retry loop's terminal-vs-retryable decision.
     ///
-    /// `AuthRejected` is treated as terminal for every credential
-    /// reason code in the permanent set
-    /// ([`crate::fpss::reconnect_delay`] returns `None` for these); the
-    /// transient auth reasons (e.g. `ServerRestarting`) are surfaced as
-    /// retryable. `RequestRejected` is always terminal — bad params
-    /// will not fix themselves on retry. `StreamTruncated` is always
-    /// transient.
+    /// `AuthRejected` decodes its `RemoveReason` ordinal through
+    /// [`disconnect_reason_class`]: only the genuinely-transient reasons
+    /// (timeouts, `ServerRestarting`, rate-limit) retry; permanent
+    /// credential/account reasons and the no-data / validation reasons
+    /// (`NoStartDate`, `GeneralValidationError`) are terminal. This
+    /// classifier is shared by the login and mid-stream `DISCONNECTED`
+    /// paths — a mid-stream no-data `DISCONNECTED` must NOT be retried,
+    /// unlike a login-phase transient. `RequestRejected` is always
+    /// terminal — bad params will not fix themselves on retry.
+    /// `StreamTruncated` is always transient.
     #[must_use]
     pub fn is_transient(&self) -> bool {
         match self {
             Self::StreamTruncated { .. } => true,
             Self::RequestRejected { .. } => false,
-            Self::AuthRejected { reason_code } => auth_reason_is_transient(*reason_code),
+            Self::AuthRejected { reason_code } => {
+                disconnect_reason_class(*reason_code) == DisconnectReasonClass::Transient
+            }
         }
     }
 
@@ -211,24 +233,93 @@ impl FlatFilesUnavailableReason {
     pub fn is_terminal(&self) -> bool {
         !self.is_transient()
     }
+
+    /// Returns `true` when this is a terminal *no-data* condition: the
+    /// upstream answered but no flat file exists for the requested
+    /// account/date, rather than a credential/transport fault. The server
+    /// maps this to `404 flatfiles_no_data`; every other terminal reason
+    /// stays `502`.
+    ///
+    /// Only an `AuthRejected` whose `RemoveReason` ordinal classifies as
+    /// [`DisconnectReasonClass::TerminalNoData`] (`NoStartDate`,
+    /// `GeneralValidationError`) is no-data. A `RequestRejected` no-data
+    /// condition is carried in the server diagnostic string instead and is
+    /// recognised by the server's message classifier, not here.
+    #[must_use]
+    pub fn is_no_data(&self) -> bool {
+        matches!(
+            self,
+            Self::AuthRejected { reason_code }
+                if disconnect_reason_class(*reason_code) == DisconnectReasonClass::TerminalNoData
+        )
+    }
 }
 
-/// Classify a `RemoveReason` ordinal received during MDDS legacy login
-/// as transient (retry on a fresh connection) vs terminal (no amount of
-/// retrying will fix it).
+/// Retry/severity class of a `DISCONNECTED` `RemoveReason` on the flat-file
+/// path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DisconnectReasonClass {
+    /// A fresh connection might succeed: timeouts, `ServerRestarting`,
+    /// rate-limit, session-token churn, or an unrecognised/sentinel code.
+    /// Retried by the flat-file retry ladder.
+    Transient,
+    /// The requested slice does not exist for this account/date —
+    /// `NoStartDate` (out-of-window / snapshot not yet generated) or
+    /// `GeneralValidationError`. Not retried; surfaced as a `404` no-data
+    /// outcome by the server.
+    TerminalNoData,
+    /// A permanent credential/account rejection — bad credentials, free
+    /// account, account already connected. Not retried; surfaced as a
+    /// `502` by the server (a genuine auth fault, not "nothing here").
+    TerminalPermanent,
+}
+
+/// Classify a flat-file `DISCONNECTED` `RemoveReason` ordinal into its
+/// retry/severity class.
 ///
-/// Mirrors [`crate::fpss::reconnect_delay`]: the same permanent set
-/// applies on both surfaces — `InvalidCredentials`, `InvalidLoginValues`,
-/// `InvalidLoginSize`, `AccountAlreadyConnected`, `FreeAccount`,
-/// `ServerUserDoesNotExist`, `InvalidCredentialsNullUser`. Every other
-/// reason code (and the `0` sentinel emitted when the payload is too
-/// short) routes through the retry path.
-fn auth_reason_is_transient(reason_code: u16) -> bool {
-    // Wire ordinals match `crate::fpss::protocol::wire::remove_reason_from_code`.
-    //   0 InvalidCredentials, 1 InvalidLoginValues, 2 InvalidLoginSize,
-    //   6 AccountAlreadyConnected, 9 FreeAccount,
-    //   17 ServerUserDoesNotExist, 18 InvalidCredentialsNullUser.
-    !matches!(reason_code, 0 | 1 | 2 | 6 | 9 | 17 | 18)
+/// This is the mid-stream / login flat-file classifier — deliberately
+/// distinct from [`crate::fpss::session::reconnect_delay`], the streaming
+/// reconnect policy. The streaming loop only needs transient-vs-permanent
+/// (it never surfaces a no-data slice as `404`), and it treats every
+/// non-credential reason as retryable; on the flat-file path that would
+/// drive a permanent no-data `DISCONNECTED` (`NoStartDate`) through the
+/// full retry ladder before failing, instead of surfacing it immediately
+/// as no-data. So no-data / validation reasons are pulled out as their own
+/// terminal class here.
+///
+/// The ordinal is decoded through [`RemoveReason::from_code`] — the single
+/// source of the wire mapping — rather than matched as a bare integer, so
+/// this stays correct if a wire ordinal ever moves. The `0` sentinel the
+/// frame parser substitutes for a too-short payload decodes to
+/// `InvalidCredentials` and is classed permanent, matching the prior
+/// behaviour.
+fn disconnect_reason_class(reason_code: u16) -> DisconnectReasonClass {
+    // The flat-file frame parser reads the reason as a big-endian `u16`;
+    // `RemoveReason::from_code` takes the canonical `i16`. Every defined
+    // ordinal is in `0..=18`; `Unspecified` (`-1` / `0xFFFF`) round-trips
+    // through the `as i16` cast and decodes to the transient default.
+    match RemoveReason::from_code(reason_code as i16) {
+        // No data for this account/date, or the request failed server-side
+        // validation: re-running with identical inputs cannot succeed, and
+        // it is a "nothing here" outcome rather than an outage.
+        RemoveReason::NoStartDate | RemoveReason::GeneralValidationError => {
+            DisconnectReasonClass::TerminalNoData
+        }
+        // Permanent credential / account rejections. Mirrors the permanent
+        // set in `crate::fpss::session::reconnect_delay`.
+        RemoveReason::InvalidCredentials
+        | RemoveReason::InvalidLoginValues
+        | RemoveReason::InvalidLoginSize
+        | RemoveReason::AccountAlreadyConnected
+        | RemoveReason::FreeAccount
+        | RemoveReason::ServerUserDoesNotExist
+        | RemoveReason::InvalidCredentialsNullUser => DisconnectReasonClass::TerminalPermanent,
+        // Everything else is worth a fresh connection: timeouts
+        // (`TimedOut`, `LoginTimedOut`), `ServerRestarting`,
+        // `TooManyRequests`, session-token churn, client-forced drop, and
+        // the `Unspecified` sentinel.
+        _ => DisconnectReasonClass::Transient,
+    }
 }
 
 impl fmt::Display for FlatFilesUnavailableReason {
@@ -318,5 +409,103 @@ mod tests {
         ] {
             assert_eq!(sec.to_string(), token, "{sec:?}");
         }
+    }
+
+    /// A `NoStartDate` (ordinal 13) `DISCONNECTED` is a terminal *no-data*
+    /// condition: the requested slice does not exist for this account/date.
+    /// It must NOT be retried (`is_transient` false / `is_terminal` true)
+    /// and must report as no-data so the server answers `404`, not `502`.
+    /// This is the exact regression: the old login-phase classifier treated
+    /// every non-credential ordinal as transient, driving a permanent
+    /// no-data drop through the full retry ladder to a `502`.
+    #[test]
+    fn no_start_date_disconnect_is_terminal_no_data() {
+        // 13 == RemoveReason::NoStartDate (asserted against the canonical
+        // wire mapping below so a moved ordinal fails loudly).
+        assert_eq!(RemoveReason::from_code(13), RemoveReason::NoStartDate);
+        let reason = FlatFilesUnavailableReason::AuthRejected { reason_code: 13 };
+        assert!(!reason.is_transient(), "NoStartDate must not be retried");
+        assert!(reason.is_terminal());
+        assert!(
+            reason.is_no_data(),
+            "NoStartDate must surface as a no-data (404) condition"
+        );
+    }
+
+    /// `GeneralValidationError` (ordinal 3) is the other terminal no-data /
+    /// validation reason: re-running with identical inputs cannot succeed,
+    /// and it is a "nothing here" outcome, so it is non-transient and
+    /// no-data alongside `NoStartDate`.
+    #[test]
+    fn general_validation_error_disconnect_is_terminal_no_data() {
+        assert_eq!(
+            RemoveReason::from_code(3),
+            RemoveReason::GeneralValidationError
+        );
+        let reason = FlatFilesUnavailableReason::AuthRejected { reason_code: 3 };
+        assert!(!reason.is_transient());
+        assert!(reason.is_no_data());
+    }
+
+    /// Genuinely-transient `DISCONNECTED` reasons stay retryable and are
+    /// NOT no-data, so the retry ladder still reconnects on a fresh session
+    /// (a `502` only surfaces once the budget is exhausted). `TimedOut`,
+    /// `ServerRestarting`, `TooManyRequests`, and `LoginTimedOut` cover the
+    /// timeout / outage / rate-limit classes.
+    #[test]
+    fn transient_disconnect_reasons_still_retry() {
+        for (code, expect) in [
+            (4u16, RemoveReason::TimedOut),
+            (15, RemoveReason::ServerRestarting),
+            (12, RemoveReason::TooManyRequests),
+            (14, RemoveReason::LoginTimedOut),
+        ] {
+            assert_eq!(RemoveReason::from_code(code as i16), expect, "ordinal {code}");
+            let reason = FlatFilesUnavailableReason::AuthRejected { reason_code: code };
+            assert!(
+                reason.is_transient(),
+                "{expect:?} (ord {code}) must remain retryable"
+            );
+            assert!(
+                !reason.is_no_data(),
+                "{expect:?} (ord {code}) is a transport/outage fault, not no-data"
+            );
+        }
+    }
+
+    /// Permanent credential / account rejections are terminal but NOT
+    /// no-data: they are a genuine auth fault, so the server keeps them at
+    /// `502`, never `404`. They must not be retried either.
+    #[test]
+    fn permanent_credential_disconnect_is_terminal_not_no_data() {
+        // 0 InvalidCredentials, 1 InvalidLoginValues, 2 InvalidLoginSize,
+        // 6 AccountAlreadyConnected, 9 FreeAccount, 17 ServerUserDoesNotExist,
+        // 18 InvalidCredentialsNullUser.
+        for code in [0u16, 1, 2, 6, 9, 17, 18] {
+            let reason = FlatFilesUnavailableReason::AuthRejected { reason_code: code };
+            assert!(
+                !reason.is_transient(),
+                "credential reason {code} must not be retried"
+            );
+            assert!(
+                !reason.is_no_data(),
+                "credential reason {code} is an auth fault (502), not no-data (404)"
+            );
+        }
+    }
+
+    /// `is_no_data` is scoped to the `AuthRejected` reason-code path only:
+    /// a `RequestRejected` (message-classified on the server) and a
+    /// `StreamTruncated` are never reported as no-data here.
+    #[test]
+    fn is_no_data_is_scoped_to_auth_rejected() {
+        assert!(!FlatFilesUnavailableReason::RequestRejected {
+            server_message: "NO_START_DATE:...".into(),
+        }
+        .is_no_data());
+        assert!(!FlatFilesUnavailableReason::StreamTruncated {
+            bytes_received: 4096,
+        }
+        .is_no_data());
     }
 }

@@ -732,8 +732,64 @@ mod tests {
             });
         assert!(error_is_transient(&auth_transient));
 
+        // A mid-stream no-data DISCONNECTED (13 = NoStartDate) is terminal —
+        // the slice does not exist for this account/date, so re-running
+        // cannot succeed. It must NOT enter the retry ladder.
+        let no_data = Error::FlatFilesUnavailable(FlatFilesUnavailableReason::AuthRejected {
+            reason_code: 13,
+        });
+        assert!(
+            !error_is_transient(&no_data),
+            "NoStartDate must be terminal, not retried"
+        );
+
         // Config errors are terminal — not retryable.
         let cfg_err = Error::config_invalid("flatfiles.date", "bad");
         assert!(!error_is_transient(&cfg_err));
+    }
+
+    /// End-to-end through the retry driver: a `NoStartDate` (ordinal 13)
+    /// `DISCONNECTED` decoded by [`classify_stream_frame`] is terminal, so
+    /// the loop surfaces it on the first attempt instead of burning the
+    /// full ~10-attempt budget. This is the regression guard — the old
+    /// login-phase classifier drove this permanent no-data drop through
+    /// every retry before failing.
+    #[tokio::test]
+    async fn no_start_date_disconnect_is_not_retried() {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+        // Reproduce the exact reason the frame classifier produces for a
+        // mid-stream DISCONNECTED carrying RemoveReason ordinal 13.
+        let disc = frame(msg::DISCONNECTED, -1, 13u16.to_be_bytes().to_vec());
+        let no_data_err = classify_stream_frame(&disc, 7, 0)
+            .expect_err("a DISCONNECTED frame must classify to an error");
+        match &no_data_err {
+            Error::FlatFilesUnavailable(FlatFilesUnavailableReason::AuthRejected {
+                reason_code,
+            }) => assert_eq!(*reason_code, 13),
+            other => panic!("NoStartDate DISCONNECTED must decode to AuthRejected, got {other:?}"),
+        }
+
+        let attempts: Rc<RefCell<u32>> = Rc::new(RefCell::new(0));
+        let attempts_ref = Rc::clone(&attempts);
+        let result = run_retry_loop(&test_config(5), move |_attempt| {
+            *attempts_ref.borrow_mut() += 1;
+            // Each attempt yields the same terminal no-data error.
+            async move {
+                Err::<PathBuf, _>(Error::FlatFilesUnavailable(
+                    FlatFilesUnavailableReason::AuthRejected { reason_code: 13 },
+                ))
+            }
+        })
+        .await;
+        assert!(matches!(
+            result.unwrap_err(),
+            Error::FlatFilesUnavailable(FlatFilesUnavailableReason::AuthRejected { reason_code: 13 })
+        ));
+        assert_eq!(
+            *attempts.borrow(),
+            1,
+            "terminal no-data DISCONNECTED must not consume the retry budget"
+        );
     }
 }
