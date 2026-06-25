@@ -25,6 +25,7 @@ mod format;
 mod handler;
 mod logging;
 mod router;
+mod row;
 mod state;
 mod validation;
 mod ws;
