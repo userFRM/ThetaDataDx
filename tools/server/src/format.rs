@@ -102,7 +102,7 @@ fn serialize_rows(ep: &EndpointMeta, output: &EndpointOutput) -> Vec<Row> {
         EndpointOutput::TradeGreeksImpliedVolatilityTicks(ticks) => {
             trade_greeks_implied_volatility_ticks_to_json(ticks)
         }
-        EndpointOutput::IvTicks(ticks) => iv_ticks_to_json(ticks),
+        EndpointOutput::IvTicks(ticks) => iv_ticks_to_json(ticks, shape),
         EndpointOutput::PriceTicks(ticks) => price_ticks_to_json(ticks),
         EndpointOutput::IndexPriceAtTimeTicks(ticks) => index_price_at_time_ticks_to_json(ticks),
         EndpointOutput::CalendarDays(days) => calendar_days_to_json(days),
@@ -947,17 +947,18 @@ pub fn greeks_all_ticks_to_json(ticks: &[GreeksAllTick]) -> Vec<Row> {
                 "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "bid": t.bid,
                 "ask": t.ask,
-                "implied_vol": t.implied_volatility,
                 "delta": t.delta,
-                "gamma": t.gamma,
                 "theta": t.theta,
                 "vega": t.vega,
                 "rho": t.rho,
-                "iv_error": t.iv_error,
+                "epsilon": t.epsilon,
+                "lambda": t.lambda,
+                "gamma": t.gamma,
                 "vanna": t.vanna,
                 "charm": t.charm,
                 "vomma": t.vomma,
                 "veta": t.veta,
+                "vera": t.vera,
                 "speed": t.speed,
                 "zomma": t.zomma,
                 "color": t.color,
@@ -966,9 +967,8 @@ pub fn greeks_all_ticks_to_json(ticks: &[GreeksAllTick]) -> Vec<Row> {
                 "d2": t.d2,
                 "dual_delta": t.dual_delta,
                 "dual_gamma": t.dual_gamma,
-                "epsilon": t.epsilon,
-                "lambda": t.lambda,
-                "vera": t.vera,
+                "implied_vol": t.implied_volatility,
+                "iv_error": t.iv_error,
                 "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
                 "underlying_price": t.underlying_price,
             };
@@ -1335,7 +1335,18 @@ pub fn trade_greeks_implied_volatility_ticks_to_json(
 }
 
 /// Convert IV ticks to JSON array.
-pub fn iv_ticks_to_json(ticks: &[IvTick]) -> Vec<Row> {
+///
+/// The history IV endpoint (`option_history_greeks_implied_volatility`)
+/// publishes the full quote-IV surface: `bid,bid_implied_vol,midpoint,
+/// implied_vol,ask,ask_implied_vol,iv_error` — the implied vols computed off
+/// the bid / mid / ask sides. The *snapshot* IV endpoint
+/// (`option_snapshot_greeks_implied_volatility`) trims this to the last-quote
+/// summary `bid,ask,implied_vol,iv_error` (no `bid_implied_vol` / `midpoint`
+/// / `ask_implied_vol`, and `ask` follows `bid` in its spec slot). Both share
+/// the `IvTick` type, so the snapshot shape omits the bid/mid/ask-IV columns
+/// from the row rather than emitting columns the v3 snapshot schema doesn't
+/// list.
+pub fn iv_ticks_to_json(ticks: &[IvTick], shape: RowShape) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
@@ -1345,16 +1356,51 @@ pub fn iv_ticks_to_json(ticks: &[IvTick]) -> Vec<Row> {
             // / `ask_implied_vol`.
             let mut row = row! {
                 "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
-                "bid": t.bid,
-                "bid_implied_vol": t.bid_implied_volatility,
-                "midpoint": t.midpoint,
-                "implied_vol": t.implied_volatility,
-                "ask": t.ask,
-                "ask_implied_vol": t.ask_implied_volatility,
-                "iv_error": t.iv_error,
-                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
-                "underlying_price": t.underlying_price,
             };
+            if shape.is_snapshot {
+                // Snapshot IV: `...timestamp,bid,ask,implied_vol,iv_error,...`
+                // — the last-quote summary, no bid / mid / ask IV triple.
+                row.push("bid", sonic_rs::to_value(&t.bid).expect("f64 serializes"));
+                row.push("ask", sonic_rs::to_value(&t.ask).expect("f64 serializes"));
+                row.push(
+                    "implied_vol",
+                    sonic_rs::to_value(&t.implied_volatility).expect("f64 serializes"),
+                );
+            } else {
+                // History IV: the full quote-IV surface `...timestamp,bid,
+                // bid_implied_vol,midpoint,implied_vol,ask,ask_implied_vol,
+                // iv_error,...`.
+                row.push("bid", sonic_rs::to_value(&t.bid).expect("f64 serializes"));
+                row.push(
+                    "bid_implied_vol",
+                    sonic_rs::to_value(&t.bid_implied_volatility).expect("f64 serializes"),
+                );
+                row.push(
+                    "midpoint",
+                    sonic_rs::to_value(&t.midpoint).expect("f64 serializes"),
+                );
+                row.push(
+                    "implied_vol",
+                    sonic_rs::to_value(&t.implied_volatility).expect("f64 serializes"),
+                );
+                row.push("ask", sonic_rs::to_value(&t.ask).expect("f64 serializes"));
+                row.push(
+                    "ask_implied_vol",
+                    sonic_rs::to_value(&t.ask_implied_volatility).expect("f64 serializes"),
+                );
+            }
+            row.push(
+                "iv_error",
+                sonic_rs::to_value(&t.iv_error).expect("f64 serializes"),
+            );
+            row.push(
+                "underlying_timestamp",
+                ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+            );
+            row.push(
+                "underlying_price",
+                sonic_rs::to_value(&t.underlying_price).expect("f64 serializes"),
+            );
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
         })
@@ -3105,26 +3151,30 @@ mod tests {
             .columns()
             .collect();
 
-        // The order is intentionally not sorted: `rho` precedes `iv_error`
-        // precedes `vanna`, and `epsilon`/`lambda`/`vera` sit late — a
-        // lexicographic sort would scramble all of this.
+        // The order is intentionally not sorted: `bid`/`ask` lead the data,
+        // the first-order block (`delta,theta,vega,rho,epsilon,lambda`) precedes
+        // `gamma`, and `implied_vol`/`iv_error` sit late just before the
+        // underlying columns — a lexicographic sort would scramble all of this.
+        // This is the v3 spec column order (snapshot example ~:3453, history
+        // example ~:5579), data tail after the contract identity + `timestamp`.
         assert_eq!(
             serializer_order,
             vec![
                 "timestamp",
                 "bid",
                 "ask",
-                "implied_vol",
                 "delta",
-                "gamma",
                 "theta",
                 "vega",
                 "rho",
-                "iv_error",
+                "epsilon",
+                "lambda",
+                "gamma",
                 "vanna",
                 "charm",
                 "vomma",
                 "veta",
+                "vera",
                 "speed",
                 "zomma",
                 "color",
@@ -3133,9 +3183,8 @@ mod tests {
                 "d2",
                 "dual_delta",
                 "dual_gamma",
-                "epsilon",
-                "lambda",
-                "vera",
+                "implied_vol",
+                "iv_error",
                 "underlying_timestamp",
                 "underlying_price",
             ],
@@ -3202,5 +3251,545 @@ mod tests {
             original, cols,
             "guard: header must be non-alphabetical so this proves order is serializer-driven"
         );
+    }
+
+    // -----------------------------------------------------------------------
+    //  Greeks — full CSV header per the v3 spec, every variant, snapshot +
+    //  history. These are the SSOT guard: any column order/shape drift in a
+    //  greeks serializer fails here against the spec `text/csv` example header.
+    // -----------------------------------------------------------------------
+
+    fn greeks_all_tick() -> thetadatadx::GreeksAllTick {
+        thetadatadx::GreeksAllTick {
+            ms_of_day: 34_200_000,
+            bid: 0.0,
+            ask: 0.0,
+            implied_volatility: 0.0,
+            delta: 0.0,
+            gamma: 0.0,
+            theta: 0.0,
+            vega: 0.0,
+            rho: 0.0,
+            iv_error: 0.0,
+            vanna: 0.0,
+            charm: 0.0,
+            vomma: 0.0,
+            veta: 0.0,
+            speed: 0.0,
+            zomma: 0.0,
+            color: 0.0,
+            ultima: 0.0,
+            d1: 0.0,
+            d2: 0.0,
+            dual_delta: 0.0,
+            dual_gamma: 0.0,
+            epsilon: 0.0,
+            lambda: 0.0,
+            vera: 0.0,
+            underlying_ms_of_day: 34_200_000,
+            underlying_price: 0.0,
+            date: 20240102,
+            expiration: 20260116,
+            strike: 275.0,
+            right: 'C',
+        }
+    }
+
+    fn greeks_eod_tick() -> thetadatadx::GreeksEodTick {
+        thetadatadx::GreeksEodTick {
+            ms_of_day: 34_200_000,
+            open: 0.0,
+            high: 0.0,
+            low: 0.0,
+            close: 0.0,
+            volume: 0,
+            count: 0,
+            bid_size: 0,
+            bid_exchange: 0,
+            bid: 0.0,
+            bid_condition: 0,
+            ask_size: 0,
+            ask_exchange: 0,
+            ask: 0.0,
+            ask_condition: 0,
+            delta: 0.0,
+            theta: 0.0,
+            vega: 0.0,
+            rho: 0.0,
+            epsilon: 0.0,
+            lambda: 0.0,
+            gamma: 0.0,
+            vanna: 0.0,
+            charm: 0.0,
+            vomma: 0.0,
+            veta: 0.0,
+            vera: 0.0,
+            speed: 0.0,
+            zomma: 0.0,
+            color: 0.0,
+            ultima: 0.0,
+            d1: 0.0,
+            d2: 0.0,
+            dual_delta: 0.0,
+            dual_gamma: 0.0,
+            implied_volatility: 0.0,
+            iv_error: 0.0,
+            underlying_ms_of_day: 34_200_000,
+            underlying_price: 0.0,
+            date: 20240102,
+            expiration: 20260116,
+            strike: 275.0,
+            right: 'C',
+        }
+    }
+
+    fn greeks_first_order_tick() -> thetadatadx::GreeksFirstOrderTick {
+        thetadatadx::GreeksFirstOrderTick {
+            ms_of_day: 34_200_000,
+            bid: 0.0,
+            ask: 0.0,
+            delta: 0.0,
+            theta: 0.0,
+            vega: 0.0,
+            rho: 0.0,
+            epsilon: 0.0,
+            lambda: 0.0,
+            implied_volatility: 0.0,
+            iv_error: 0.0,
+            underlying_ms_of_day: 34_200_000,
+            underlying_price: 0.0,
+            date: 20240102,
+            expiration: 20260116,
+            strike: 275.0,
+            right: 'C',
+        }
+    }
+
+    fn greeks_second_order_tick() -> thetadatadx::GreeksSecondOrderTick {
+        thetadatadx::GreeksSecondOrderTick {
+            ms_of_day: 34_200_000,
+            bid: 0.0,
+            ask: 0.0,
+            gamma: 0.0,
+            vanna: 0.0,
+            charm: 0.0,
+            vomma: 0.0,
+            veta: 0.0,
+            implied_volatility: 0.0,
+            iv_error: 0.0,
+            underlying_ms_of_day: 34_200_000,
+            underlying_price: 0.0,
+            date: 20240102,
+            expiration: 20260116,
+            strike: 275.0,
+            right: 'C',
+        }
+    }
+
+    fn greeks_third_order_tick() -> thetadatadx::GreeksThirdOrderTick {
+        thetadatadx::GreeksThirdOrderTick {
+            ms_of_day: 34_200_000,
+            bid: 0.0,
+            ask: 0.0,
+            speed: 0.0,
+            zomma: 0.0,
+            color: 0.0,
+            ultima: 0.0,
+            implied_volatility: 0.0,
+            iv_error: 0.0,
+            underlying_ms_of_day: 34_200_000,
+            underlying_price: 0.0,
+            date: 20240102,
+            expiration: 20260116,
+            strike: 275.0,
+            right: 'C',
+        }
+    }
+
+    fn iv_tick() -> thetadatadx::IvTick {
+        thetadatadx::IvTick {
+            ms_of_day: 34_200_000,
+            bid: 0.0,
+            bid_implied_volatility: 0.0,
+            midpoint: 0.0,
+            implied_volatility: 0.0,
+            ask: 0.0,
+            ask_implied_volatility: 0.0,
+            iv_error: 0.0,
+            underlying_ms_of_day: 34_200_000,
+            underlying_price: 0.0,
+            date: 20240102,
+            expiration: 20260116,
+            strike: 275.0,
+            right: 'C',
+        }
+    }
+
+    fn trade_greeks_all_tick() -> thetadatadx::TradeGreeksAllTick {
+        thetadatadx::TradeGreeksAllTick {
+            ms_of_day: 34_200_000,
+            sequence: 0,
+            ext_condition1: 0,
+            ext_condition2: 0,
+            ext_condition3: 0,
+            ext_condition4: 0,
+            condition: 0,
+            size: 0,
+            exchange: 0,
+            price: 0.0,
+            delta: 0.0,
+            theta: 0.0,
+            vega: 0.0,
+            rho: 0.0,
+            epsilon: 0.0,
+            lambda: 0.0,
+            gamma: 0.0,
+            vanna: 0.0,
+            charm: 0.0,
+            vomma: 0.0,
+            veta: 0.0,
+            vera: 0.0,
+            speed: 0.0,
+            zomma: 0.0,
+            color: 0.0,
+            ultima: 0.0,
+            d1: 0.0,
+            d2: 0.0,
+            dual_delta: 0.0,
+            dual_gamma: 0.0,
+            implied_volatility: 0.0,
+            iv_error: 0.0,
+            underlying_ms_of_day: 34_200_000,
+            underlying_price: 0.0,
+            date: 20240102,
+            expiration: 20260116,
+            strike: 275.0,
+            right: 'C',
+        }
+    }
+
+    fn trade_greeks_first_order_tick() -> thetadatadx::TradeGreeksFirstOrderTick {
+        thetadatadx::TradeGreeksFirstOrderTick {
+            ms_of_day: 34_200_000,
+            sequence: 0,
+            ext_condition1: 0,
+            ext_condition2: 0,
+            ext_condition3: 0,
+            ext_condition4: 0,
+            condition: 0,
+            size: 0,
+            exchange: 0,
+            price: 0.0,
+            delta: 0.0,
+            theta: 0.0,
+            vega: 0.0,
+            rho: 0.0,
+            epsilon: 0.0,
+            lambda: 0.0,
+            implied_volatility: 0.0,
+            iv_error: 0.0,
+            underlying_ms_of_day: 34_200_000,
+            underlying_price: 0.0,
+            date: 20240102,
+            expiration: 20260116,
+            strike: 275.0,
+            right: 'C',
+        }
+    }
+
+    fn trade_greeks_second_order_tick() -> thetadatadx::TradeGreeksSecondOrderTick {
+        thetadatadx::TradeGreeksSecondOrderTick {
+            ms_of_day: 34_200_000,
+            sequence: 0,
+            ext_condition1: 0,
+            ext_condition2: 0,
+            ext_condition3: 0,
+            ext_condition4: 0,
+            condition: 0,
+            size: 0,
+            exchange: 0,
+            price: 0.0,
+            gamma: 0.0,
+            vanna: 0.0,
+            charm: 0.0,
+            vomma: 0.0,
+            veta: 0.0,
+            implied_volatility: 0.0,
+            iv_error: 0.0,
+            underlying_ms_of_day: 34_200_000,
+            underlying_price: 0.0,
+            date: 20240102,
+            expiration: 20260116,
+            strike: 275.0,
+            right: 'C',
+        }
+    }
+
+    fn trade_greeks_third_order_tick() -> thetadatadx::TradeGreeksThirdOrderTick {
+        thetadatadx::TradeGreeksThirdOrderTick {
+            ms_of_day: 34_200_000,
+            sequence: 0,
+            ext_condition1: 0,
+            ext_condition2: 0,
+            ext_condition3: 0,
+            ext_condition4: 0,
+            condition: 0,
+            size: 0,
+            exchange: 0,
+            price: 0.0,
+            speed: 0.0,
+            zomma: 0.0,
+            color: 0.0,
+            ultima: 0.0,
+            implied_volatility: 0.0,
+            iv_error: 0.0,
+            underlying_ms_of_day: 34_200_000,
+            underlying_price: 0.0,
+            date: 20240102,
+            expiration: 20260116,
+            strike: 275.0,
+            right: 'C',
+        }
+    }
+
+    fn trade_greeks_iv_tick() -> thetadatadx::TradeGreeksImpliedVolatilityTick {
+        thetadatadx::TradeGreeksImpliedVolatilityTick {
+            ms_of_day: 34_200_000,
+            sequence: 0,
+            ext_condition1: 0,
+            ext_condition2: 0,
+            ext_condition3: 0,
+            ext_condition4: 0,
+            condition: 0,
+            size: 0,
+            exchange: 0,
+            price: 0.0,
+            implied_volatility: 0.0,
+            iv_error: 0.0,
+            underlying_ms_of_day: 34_200_000,
+            underlying_price: 0.0,
+            date: 20240102,
+            expiration: 20260116,
+            strike: 275.0,
+            right: 'C',
+        }
+    }
+
+    /// Every greeks variant's full CSV header string must match its v3 spec
+    /// `text/csv` example column order EXACTLY, in BOTH snapshot and history
+    /// forms (where both exist). This is the comprehensive SSOT guard: it pins
+    /// the contract-identity prefix, the per-variant data block order, and the
+    /// snapshot-vs-history shape distinction, so any greeks column reordering or
+    /// shape drift fails here against the spec.
+    ///
+    /// The spec headers are identical for the snapshot and history form of each
+    /// shared-tick variant (`greeks/all`, `greeks/first_order`,
+    /// `greeks/second_order`, `greeks/third_order`) — both render contract-first
+    /// (`symbol,expiration,strike,right,timestamp,...`). `greeks/eod` and the
+    /// `trade_greeks/*` family are history-only.
+    #[test]
+    fn greeks_csv_headers_match_v3_spec_every_variant() {
+        // greeks/all — snapshot (spec ~:3453) AND history (spec ~:5579), same
+        // header. This is the reordered builder: bid,ask then the first-order
+        // block, gamma + second/third-order greeks, implied_vol/iv_error late.
+        const GREEKS_ALL: &str = "symbol,expiration,strike,right,timestamp,bid,ask,delta,theta,vega,rho,epsilon,lambda,gamma,vanna,charm,vomma,veta,vera,speed,zomma,color,ultima,d1,d2,dual_delta,dual_gamma,implied_vol,iv_error,underlying_timestamp,underlying_price";
+        assert_eq!(
+            csv_header_for(
+                "option_snapshot_greeks_all",
+                "AAPL",
+                EndpointOutput::GreeksAllTicks(vec![greeks_all_tick()])
+            ),
+            GREEKS_ALL,
+            "option_snapshot_greeks_all CSV header must match the v3 spec column order"
+        );
+        assert_eq!(
+            csv_header_for(
+                "option_history_greeks_all",
+                "AAPL",
+                EndpointOutput::GreeksAllTicks(vec![greeks_all_tick()])
+            ),
+            GREEKS_ALL,
+            "option_history_greeks_all CSV header must match the v3 spec column order"
+        );
+
+        // greeks/eod — history-only (spec ~:5361): the twelve EOD trade/quote
+        // context columns sit between `timestamp` and the greeks block.
+        assert_eq!(
+            csv_header_for(
+                "option_history_greeks_eod",
+                "AAPL",
+                EndpointOutput::GreeksEodTicks(vec![greeks_eod_tick()])
+            ),
+            "symbol,expiration,strike,right,timestamp,open,high,low,close,volume,count,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,delta,theta,vega,rho,epsilon,lambda,gamma,vanna,charm,vomma,veta,vera,speed,zomma,color,ultima,d1,d2,dual_delta,dual_gamma,implied_vol,iv_error,underlying_timestamp,underlying_price",
+            "option_history_greeks_eod CSV header must match the v3 spec column order"
+        );
+
+        // greeks/first_order — snapshot (spec ~:3636) AND history (spec ~:6079).
+        const GREEKS_FIRST: &str = "symbol,expiration,strike,right,timestamp,bid,ask,delta,theta,vega,rho,epsilon,lambda,implied_vol,iv_error,underlying_timestamp,underlying_price";
+        assert_eq!(
+            csv_header_for(
+                "option_snapshot_greeks_first_order",
+                "AAPL",
+                EndpointOutput::GreeksFirstOrderTicks(vec![greeks_first_order_tick()])
+            ),
+            GREEKS_FIRST,
+            "option_snapshot_greeks_first_order CSV header must match the v3 spec"
+        );
+        assert_eq!(
+            csv_header_for(
+                "option_history_greeks_first_order",
+                "AAPL",
+                EndpointOutput::GreeksFirstOrderTicks(vec![greeks_first_order_tick()])
+            ),
+            GREEKS_FIRST,
+            "option_history_greeks_first_order CSV header must match the v3 spec"
+        );
+
+        // greeks/second_order — snapshot (spec ~:3816) AND history (spec ~:6539).
+        const GREEKS_SECOND: &str = "symbol,expiration,strike,right,timestamp,bid,ask,gamma,vanna,charm,vomma,veta,implied_vol,iv_error,underlying_timestamp,underlying_price";
+        assert_eq!(
+            csv_header_for(
+                "option_snapshot_greeks_second_order",
+                "AAPL",
+                EndpointOutput::GreeksSecondOrderTicks(vec![greeks_second_order_tick()])
+            ),
+            GREEKS_SECOND,
+            "option_snapshot_greeks_second_order CSV header must match the v3 spec"
+        );
+        assert_eq!(
+            csv_header_for(
+                "option_history_greeks_second_order",
+                "AAPL",
+                EndpointOutput::GreeksSecondOrderTicks(vec![greeks_second_order_tick()])
+            ),
+            GREEKS_SECOND,
+            "option_history_greeks_second_order CSV header must match the v3 spec"
+        );
+
+        // greeks/third_order — snapshot (spec ~:4002) AND history (spec ~:6993).
+        const GREEKS_THIRD: &str = "symbol,expiration,strike,right,timestamp,bid,ask,speed,zomma,color,ultima,implied_vol,iv_error,underlying_timestamp,underlying_price";
+        assert_eq!(
+            csv_header_for(
+                "option_snapshot_greeks_third_order",
+                "AAPL",
+                EndpointOutput::GreeksThirdOrderTicks(vec![greeks_third_order_tick()])
+            ),
+            GREEKS_THIRD,
+            "option_snapshot_greeks_third_order CSV header must match the v3 spec"
+        );
+        assert_eq!(
+            csv_header_for(
+                "option_history_greeks_third_order",
+                "AAPL",
+                EndpointOutput::GreeksThirdOrderTicks(vec![greeks_third_order_tick()])
+            ),
+            GREEKS_THIRD,
+            "option_history_greeks_third_order CSV header must match the v3 spec"
+        );
+
+        // greeks/implied_volatility — the snapshot (spec ~:3228, 11 cols) trims
+        // the bid/mid/ask IV triple the history form (spec ~:7440, 14 cols)
+        // keeps. The shape descriptor drives the trim through one serializer.
+        assert_eq!(
+            csv_header_for(
+                "option_snapshot_greeks_implied_volatility",
+                "AAPL",
+                EndpointOutput::IvTicks(vec![iv_tick()])
+            ),
+            "symbol,expiration,strike,right,timestamp,bid,ask,implied_vol,iv_error,underlying_timestamp,underlying_price",
+            "option_snapshot_greeks_implied_volatility emits the trimmed 11-col v3 snapshot IV schema"
+        );
+        assert_eq!(
+            csv_header_for(
+                "option_history_greeks_implied_volatility",
+                "AAPL",
+                EndpointOutput::IvTicks(vec![iv_tick()])
+            ),
+            "symbol,expiration,strike,right,timestamp,bid,bid_implied_vol,midpoint,implied_vol,ask,ask_implied_vol,iv_error,underlying_timestamp,underlying_price",
+            "option_history_greeks_implied_volatility keeps the full 14-col v3 history IV schema"
+        );
+
+        // trade_greeks/* — history-only. Each carries the nine trade-side
+        // execution columns between `timestamp` and the greeks block.
+        assert_eq!(
+            csv_header_for(
+                "option_history_trade_greeks_all",
+                "AAPL",
+                EndpointOutput::TradeGreeksAllTicks(vec![trade_greeks_all_tick()])
+            ),
+            "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,delta,theta,vega,rho,epsilon,lambda,gamma,vanna,charm,vomma,veta,vera,speed,zomma,color,ultima,d1,d2,dual_delta,dual_gamma,implied_vol,iv_error,underlying_timestamp,underlying_price",
+            "option_history_trade_greeks_all CSV header must match the v3 spec ~:5867"
+        );
+        assert_eq!(
+            csv_header_for(
+                "option_history_trade_greeks_first_order",
+                "AAPL",
+                EndpointOutput::TradeGreeksFirstOrderTicks(vec![trade_greeks_first_order_tick()])
+            ),
+            "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,delta,theta,vega,rho,epsilon,lambda,implied_vol,iv_error,underlying_timestamp,underlying_price",
+            "option_history_trade_greeks_first_order CSV header must match the v3 spec ~:6325"
+        );
+        assert_eq!(
+            csv_header_for(
+                "option_history_trade_greeks_second_order",
+                "AAPL",
+                EndpointOutput::TradeGreeksSecondOrderTicks(vec![trade_greeks_second_order_tick()])
+            ),
+            "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,gamma,vanna,charm,vomma,veta,implied_vol,iv_error,underlying_timestamp,underlying_price",
+            "option_history_trade_greeks_second_order CSV header must match the v3 spec ~:6782"
+        );
+        assert_eq!(
+            csv_header_for(
+                "option_history_trade_greeks_third_order",
+                "AAPL",
+                EndpointOutput::TradeGreeksThirdOrderTicks(vec![trade_greeks_third_order_tick()])
+            ),
+            "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,speed,zomma,color,ultima,implied_vol,iv_error,underlying_timestamp,underlying_price",
+            "option_history_trade_greeks_third_order CSV header must match the v3 spec ~:7233"
+        );
+        assert_eq!(
+            csv_header_for(
+                "option_history_trade_greeks_implied_volatility",
+                "AAPL",
+                EndpointOutput::TradeGreeksImpliedVolatilityTicks(vec![trade_greeks_iv_tick()])
+            ),
+            "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,implied_vol,iv_error,underlying_timestamp,underlying_price",
+            "option_history_trade_greeks_implied_volatility CSV header must match the v3 spec ~:7637"
+        );
+    }
+
+    /// The snapshot IV serializer trims the bid/mid/ask-IV triple at the row
+    /// level (not just the header): the snapshot row must NOT carry
+    /// `bid_implied_vol` / `midpoint` / `ask_implied_vol`, while the history row
+    /// must. Guards the JSON / NDJSON bodies too, which read the same `Row`.
+    #[test]
+    fn snapshot_iv_trims_bid_mid_ask_iv_history_keeps_them() {
+        let snap = RowShape {
+            is_snapshot: true,
+            is_index: false,
+            is_option: true,
+        };
+        let s = iv_ticks_to_json(&[iv_tick()], snap);
+        let srow = &s[0];
+        for trimmed in ["bid_implied_vol", "midpoint", "ask_implied_vol"] {
+            assert!(
+                srow.get(trimmed).is_none(),
+                "snapshot IV must drop {trimmed}"
+            );
+        }
+        for kept in ["timestamp", "bid", "ask", "implied_vol", "iv_error", "underlying_price"] {
+            assert!(srow.get(kept).is_some(), "snapshot IV keeps {kept}");
+        }
+
+        let hist = RowShape {
+            is_snapshot: false,
+            is_index: false,
+            is_option: true,
+        };
+        let h = iv_ticks_to_json(&[iv_tick()], hist);
+        let hrow = &h[0];
+        for kept in ["bid_implied_vol", "midpoint", "ask_implied_vol", "implied_vol", "iv_error"] {
+            assert!(hrow.get(kept).is_some(), "history IV keeps {kept}");
+        }
     }
 }
