@@ -3748,7 +3748,6 @@ impl OptionSnapshotGreeksImpliedVolatilityBuilder {
 /// Get all Greeks snapshot for an option contract (from ThetaData server).
 ///
 /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-/// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
 /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 ///
 /// Defaults (upstream):
@@ -3989,7 +3988,6 @@ impl OptionSnapshotGreeksAllBuilder {
 /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
 ///
 /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-/// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
 /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 ///
 /// Defaults (upstream):
@@ -4230,7 +4228,6 @@ impl OptionSnapshotGreeksFirstOrderBuilder {
 /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
 ///
 /// - Retrieve a real-time last second order greeks calculation for all option contracts that lie on a provided expiration.
-/// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
 /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 ///
 /// Defaults (upstream):
@@ -4471,7 +4468,6 @@ impl OptionSnapshotGreeksSecondOrderBuilder {
 /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
 ///
 /// - Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
-/// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
 /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
 ///
 /// Defaults (upstream):
@@ -6806,7 +6802,7 @@ impl OptionHistoryOpenInterestBuilder {
 ///
 /// - Returns the data for all contracts that share the same provided symbol and expiration.
 /// - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
-/// - **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
+/// - **Any ``expiration=*`` request must be made day by day.**
 ///
 /// Defaults (upstream):
 /// - `strike`: `"*"`
@@ -16733,7 +16729,6 @@ impl HistoricalView {
     /// Get all Greeks snapshot for an option contract (from ThetaData server).
     ///
     /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-    /// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
     ///
     /// Defaults (upstream):
@@ -16805,7 +16800,6 @@ impl HistoricalView {
     /// Get all Greeks snapshot for an option contract (from ThetaData server).
     ///
     /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-    /// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
     ///
     /// Defaults (upstream):
@@ -16915,7 +16909,6 @@ impl HistoricalView {
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
     ///
     /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-    /// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
     ///
     /// Defaults (upstream):
@@ -16987,7 +16980,6 @@ impl HistoricalView {
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
     ///
     /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-    /// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
     ///
     /// Defaults (upstream):
@@ -17097,7 +17089,6 @@ impl HistoricalView {
     /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
     ///
     /// - Retrieve a real-time last second order greeks calculation for all option contracts that lie on a provided expiration.
-    /// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
     ///
     /// Defaults (upstream):
@@ -17169,7 +17160,6 @@ impl HistoricalView {
     /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
     ///
     /// - Retrieve a real-time last second order greeks calculation for all option contracts that lie on a provided expiration.
-    /// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
     ///
     /// Defaults (upstream):
@@ -17279,7 +17269,6 @@ impl HistoricalView {
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
     ///
     /// - Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
-    /// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
     ///
     /// Defaults (upstream):
@@ -17351,7 +17340,6 @@ impl HistoricalView {
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
     ///
     /// - Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
-    /// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
     ///
     /// Defaults (upstream):
@@ -18376,7 +18364,7 @@ impl HistoricalView {
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
     /// - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
-    /// - **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
+    /// - **Any ``expiration=*`` request must be made day by day.**
     ///
     /// Defaults (upstream):
     /// - `strike`: `"*"`
@@ -18442,7 +18430,7 @@ impl HistoricalView {
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
     /// - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
-    /// - **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
+    /// - **Any ``expiration=*`` request must be made day by day.**
     ///
     /// Defaults (upstream):
     /// - `strike`: `"*"`

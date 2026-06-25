@@ -192,8 +192,21 @@ x-anchors:
     required: true
     schema:
       type: string
+      pattern: '^(\d{8}|\*)$'
+    description: >-
+      Option expiration date in YYYYMMDD format. Pass `*` to select all
+      expirations for the underlying (chain-wide; query one date at a time).
+
+  expiration-no-star-param: &expiration-no-star-param
+    name: expiration
+    in: query
+    required: true
+    schema:
+      type: string
       pattern: '^\d{8}$'
-    description: Option expiration date in YYYYMMDD format
+    description: >-
+      Option expiration date in YYYYMMDD format. This endpoint resolves a
+      single concrete expiration and rejects the `*` wildcard.
 
   strike-param: &strike-param
     name: strike
@@ -211,12 +224,11 @@ x-anchors:
       type: string
       enum: [call, put, both, C, P, c, p, CALL, PUT, Call, Put, "*"]
     description: >-
-      Option right. Accepts `call`, `put`, `both` (upstream ThetaData
-      vocabulary; upstream default is `both`), plus our short-forms `C`
-      (call), `P` (put), and `*` (alias for `both`) for SDK ergonomics.
-      Matching is case-insensitive. The `both` / `*` wildcard is only
-      meaningful on endpoints that also accept `strike="0"` and
-      `expiration="0"` wildcards.
+      Option side. Use `both` or `*` (alias) for calls and puts. Accepts
+      `call`, `put`, `both` (upstream ThetaData vocabulary; upstream default
+      is `both`), plus our short-forms `C` (call), `P` (put), and `*` (alias
+      for `both`) for SDK ergonomics. Matching is case-insensitive. Every
+      endpoint that exposes `right` accepts the `both` / `*` wildcard.
 
   max_dte-param: &max_dte-param
     name: max_dte
@@ -1175,7 +1187,7 @@ paths:
       parameters:
         - *request_type-param
         - *symbol-param
-        - *expiration-param
+        - *expiration-no-star-param
         - *strike-param
         - *right-param
       responses:
@@ -1232,7 +1244,7 @@ paths:
       tags: [Option / List]
       parameters:
         - *symbol-param
-        - *expiration-param
+        - *expiration-no-star-param
       responses:
         '200':
           description: Successful response
@@ -1335,7 +1347,7 @@ paths:
       tags: [Option / Snapshot]
       parameters:
         - *symbol-param
-        - *expiration-param
+        - *expiration-no-star-param
         - *strike-param
         - *right-param
         - *strike_range-param
@@ -1705,7 +1717,7 @@ paths:
       tags: [Option / History]
       parameters:
         - *symbol-param
-        - *expiration-param
+        - *expiration-no-star-param
         - *strike-param
         - *right-param
         - *date-optional-param
@@ -1981,7 +1993,7 @@ paths:
       tags: [Option / History Greeks]
       parameters:
         - *symbol-param
-        - *expiration-param
+        - *expiration-no-star-param
         - *strike-param
         - *right-param
         - *date-optional-param
@@ -2032,7 +2044,7 @@ paths:
       tags: [Option / History Greeks]
       parameters:
         - *symbol-param
-        - *expiration-param
+        - *expiration-no-star-param
         - *strike-param
         - *right-param
         - *date-optional-param
@@ -2083,7 +2095,7 @@ paths:
       tags: [Option / History Greeks]
       parameters:
         - *symbol-param
-        - *expiration-param
+        - *expiration-no-star-param
         - *strike-param
         - *right-param
         - *date-optional-param
@@ -2134,7 +2146,7 @@ paths:
       tags: [Option / History Greeks]
       parameters:
         - *symbol-param
-        - *expiration-param
+        - *expiration-no-star-param
         - *strike-param
         - *right-param
         - *date-optional-param
@@ -2185,7 +2197,7 @@ paths:
       tags: [Option / History Greeks]
       parameters:
         - *symbol-param
-        - *expiration-param
+        - *expiration-no-star-param
         - *strike-param
         - *right-param
         - *date-optional-param

@@ -13,7 +13,7 @@ Fetch end-of-day Greeks history for an option contract.
 
 - Returns the data for all contracts that share the same provided symbol and expiration.
 - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
-- **Set `expiration` to `*` if you want to retrieve data for every option that shares the same `symbol`. (note: Any `expiration=*` must be requested day by day)**
+- **Any `expiration=*` request must be made day by day.**
 
 <SdkTabs>
 
@@ -154,11 +154,11 @@ curl -G 'http://127.0.0.1:25503/v3/option/history/greeks/eod' \
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
-| `expiration` | date | yes | — | Expiration date YYYYMMDD |
+| `expiration` | date | yes | — | Expiration date YYYYMMDD Pass `*` to select all expirations for the underlying (chain-wide; query one date at a time). |
 | `start_date` | date | yes | — | Start date YYYYMMDD |
 | `end_date` | date | yes | — | End date YYYYMMDD |
 | `strike` | string | no | `*` | Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. |
-| `right` | string | no | `both` | Option side. Accepted values: `call`, `put`, `both`. |
+| `right` | string | no | `both` | Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. |
 | `annual_dividend` | float | no | — | Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). |
 | `rate_type` | string | no | `sofr` | Risk-free-rate source used in the Greeks calculation. Accepted values: `sofr`, `treasury_m1`, `treasury_m3`, `treasury_m6`, `treasury_y1`, `treasury_y2`, `treasury_y3`, `treasury_y5`, `treasury_y7`, `treasury_y10`, `treasury_y20`, `treasury_y30`. |
 | `rate_value` | float | no | — | Interest rate as a percent (4.36 means 4.36%, matching the InterestRateTick.rate convention) used in the Greeks calculation. Applied when rate_type selects a manual rate. |

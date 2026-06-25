@@ -329,7 +329,7 @@ pub struct OptionListContractsOptions {
 pub struct OptionSnapshotOHLCOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Maximum days to expiration
     pub max_dte: Option<f64>,
@@ -353,7 +353,7 @@ pub struct OptionSnapshotOHLCOptions {
 pub struct OptionSnapshotTradeOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Strike range filter
     pub strike_range: Option<f64>,
@@ -375,7 +375,7 @@ pub struct OptionSnapshotTradeOptions {
 pub struct OptionSnapshotQuoteOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Maximum days to expiration
     pub max_dte: Option<f64>,
@@ -399,7 +399,7 @@ pub struct OptionSnapshotQuoteOptions {
 pub struct OptionSnapshotOpenInterestOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Maximum days to expiration
     pub max_dte: Option<f64>,
@@ -423,7 +423,7 @@ pub struct OptionSnapshotOpenInterestOptions {
 pub struct OptionSnapshotMarketValueOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Maximum days to expiration
     pub max_dte: Option<f64>,
@@ -447,7 +447,7 @@ pub struct OptionSnapshotMarketValueOptions {
 pub struct OptionSnapshotGreeksImpliedVolatilityOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
@@ -483,7 +483,7 @@ pub struct OptionSnapshotGreeksImpliedVolatilityOptions {
 pub struct OptionSnapshotGreeksAllOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
@@ -519,7 +519,7 @@ pub struct OptionSnapshotGreeksAllOptions {
 pub struct OptionSnapshotGreeksFirstOrderOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
@@ -555,7 +555,7 @@ pub struct OptionSnapshotGreeksFirstOrderOptions {
 pub struct OptionSnapshotGreeksSecondOrderOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
@@ -591,7 +591,7 @@ pub struct OptionSnapshotGreeksSecondOrderOptions {
 pub struct OptionSnapshotGreeksThirdOrderOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
@@ -627,7 +627,7 @@ pub struct OptionSnapshotGreeksThirdOrderOptions {
 pub struct OptionHistoryEODOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Maximum days to expiration
     pub max_dte: Option<f64>,
@@ -649,7 +649,7 @@ pub struct OptionHistoryEODOptions {
 pub struct OptionHistoryOHLCOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
@@ -679,7 +679,7 @@ pub struct OptionHistoryOHLCOptions {
 pub struct OptionHistoryTradeOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
@@ -709,7 +709,7 @@ pub struct OptionHistoryTradeOptions {
 pub struct OptionHistoryQuoteOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
@@ -741,7 +741,7 @@ pub struct OptionHistoryQuoteOptions {
 pub struct OptionHistoryTradeQuoteOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
@@ -773,7 +773,7 @@ pub struct OptionHistoryTradeQuoteOptions {
 pub struct OptionHistoryOpenInterestOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Maximum days to expiration
     pub max_dte: Option<f64>,
@@ -799,7 +799,7 @@ pub struct OptionHistoryOpenInterestOptions {
 pub struct OptionHistoryGreeksEODOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year).
     pub annual_dividend: Option<f64>,
@@ -831,7 +831,7 @@ pub struct OptionHistoryGreeksEODOptions {
 pub struct OptionHistoryGreeksAllOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
@@ -869,7 +869,7 @@ pub struct OptionHistoryGreeksAllOptions {
 pub struct OptionHistoryTradeGreeksAllOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
@@ -907,7 +907,7 @@ pub struct OptionHistoryTradeGreeksAllOptions {
 pub struct OptionHistoryGreeksFirstOrderOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
@@ -945,7 +945,7 @@ pub struct OptionHistoryGreeksFirstOrderOptions {
 pub struct OptionHistoryTradeGreeksFirstOrderOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
@@ -983,7 +983,7 @@ pub struct OptionHistoryTradeGreeksFirstOrderOptions {
 pub struct OptionHistoryGreeksSecondOrderOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
@@ -1021,7 +1021,7 @@ pub struct OptionHistoryGreeksSecondOrderOptions {
 pub struct OptionHistoryTradeGreeksSecondOrderOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
@@ -1059,7 +1059,7 @@ pub struct OptionHistoryTradeGreeksSecondOrderOptions {
 pub struct OptionHistoryGreeksThirdOrderOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
@@ -1097,7 +1097,7 @@ pub struct OptionHistoryGreeksThirdOrderOptions {
 pub struct OptionHistoryTradeGreeksThirdOrderOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
@@ -1135,7 +1135,7 @@ pub struct OptionHistoryTradeGreeksThirdOrderOptions {
 pub struct OptionHistoryGreeksImpliedVolatilityOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`.
     pub interval: Option<String>,
@@ -1173,7 +1173,7 @@ pub struct OptionHistoryGreeksImpliedVolatilityOptions {
 pub struct OptionHistoryTradeGreeksImpliedVolatilityOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Start time filter
     pub start_time: Option<Either<String, chrono::DateTime<chrono::Utc>>>,
@@ -1211,7 +1211,7 @@ pub struct OptionHistoryTradeGreeksImpliedVolatilityOptions {
 pub struct OptionAtTimeTradeOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Maximum days to expiration
     pub max_dte: Option<f64>,
@@ -1233,7 +1233,7 @@ pub struct OptionAtTimeTradeOptions {
 pub struct OptionAtTimeQuoteOptions {
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: Option<String>,
-    /// Option side. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: Option<String>,
     /// Maximum days to expiration
     pub max_dte: Option<f64>,
@@ -2931,7 +2931,6 @@ impl HistoricalView {
     /// Get all Greeks snapshot for an option contract (from ThetaData server).
     ///
     /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-    /// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
     ///
     /// Defaults (upstream):
@@ -3012,7 +3011,6 @@ impl HistoricalView {
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
     ///
     /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-    /// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
     ///
     /// Defaults (upstream):
@@ -3093,7 +3091,6 @@ impl HistoricalView {
     /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
     ///
     /// - Retrieve a real-time last second order greeks calculation for all option contracts that lie on a provided expiration.
-    /// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
     ///
     /// Defaults (upstream):
@@ -3174,7 +3171,6 @@ impl HistoricalView {
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
     ///
     /// - Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
-    /// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
     ///
     /// Defaults (upstream):
@@ -4046,7 +4042,7 @@ impl HistoricalView {
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
     /// - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
-    /// - **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
+    /// - **Any ``expiration=*`` request must be made day by day.**
     ///
     /// Defaults (upstream):
     /// - `strike`: `"*"`
@@ -8330,7 +8326,6 @@ impl HistoricalClient {
     /// Get all Greeks snapshot for an option contract (from ThetaData server).
     ///
     /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-    /// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
     ///
     /// Defaults (upstream):
@@ -8411,7 +8406,6 @@ impl HistoricalClient {
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
     ///
     /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
-    /// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
     ///
     /// Defaults (upstream):
@@ -8492,7 +8486,6 @@ impl HistoricalClient {
     /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
     ///
     /// - Retrieve a real-time last second order greeks calculation for all option contracts that lie on a provided expiration.
-    /// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
     ///
     /// Defaults (upstream):
@@ -8573,7 +8566,6 @@ impl HistoricalClient {
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
     ///
     /// - Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
-    /// - Set `expiration` to `*` to snapshot every expiration for the underlying in a single request.
     /// > This endpoint will return no data if the market was closed for the day. Theta Data resets the snapshot cache at midnight ET every night.
     ///
     /// Defaults (upstream):
@@ -9445,7 +9437,7 @@ impl HistoricalClient {
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
     /// - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
-    /// - **Set `expiration` to ``*`` if you want to retrieve data for every option that shares the same ``symbol``. (note: Any ``expiration=*`` must be requested day by day)**
+    /// - **Any ``expiration=*`` request must be made day by day.**
     ///
     /// Defaults (upstream):
     /// - `strike`: `"*"`
