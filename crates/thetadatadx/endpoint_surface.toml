@@ -1292,12 +1292,12 @@ use = "expiration_param"
 [[endpoints]]
 name = "option_list_contracts"
 template = "option_list_parsed"
-description = "List all option contracts for a symbol on a given date."
+description = "List all option contracts traded or quoted on a given date, optionally filtered to a symbol."
 vendor_docstring = """
 Lists all contracts that were traded or quoted on a particular date.
 
 If the ``symbol`` parameter is specified, the returned contracts will be filtered to match the symbol.
-Multiple symbols can be specified by separating them with commas such as ``symbol=AAPL,SPY,AMD``
+When ``symbol`` is omitted the full universe of contracts for that date is returned.
 This endpoint is updated real-time.
 """
 rest_path = "/v3/option/list/contracts"
@@ -1306,8 +1306,18 @@ returns = "OptionContracts"
 [[endpoints.params]]
 use = "request_type"
 
+# `symbol` is an OPTIONAL filter here (unlike the shared required `stock_symbol`
+# template). The upstream endpoint lists the full contract universe for the date
+# when no symbol is supplied; the proto field is `repeated string symbol`, so an
+# omitted filter sends an empty repeated value. Modeled as a builder-bound
+# optional because the surface grammar reserves method-bound params for required
+# inputs.
 [[endpoints.params]]
-use = "stock_symbol"
+name = "symbol"
+description = "Ticker symbol to filter by (e.g. AAPL). Omit to list every contract for the date."
+param_type = "Symbol"
+required = false
+binding = "builder"
 
 [[endpoints.params]]
 use = "required_date"
@@ -1918,6 +1928,7 @@ concrete_overrides = { end_date = "20250303" }
 # every endpoint MUST have a row here (enforced by validate_test_fixtures);
 # without one, the corresponding `with_<name>` cell would silently drop
 # from the matrix.
+symbol = "SPY"
 max_dte = "30"
 strike = "570"
 right = "call"

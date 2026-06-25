@@ -99,10 +99,10 @@ impl fmt::Display for ReqType {
 /// distribution actually serves.
 ///
 /// The flat-file service publishes a fixed matrix of daily snapshot
-/// datasets — option `trade_quote` / `open_interest` / `eod` and stock
-/// `trade_quote` / `eod`. Every other request type (per-tick quotes,
-/// trades, OHLC bars) is served by the historical endpoints, not as a
-/// flat file. Sending an unserved pair yields a server
+/// datasets — option `trade_quote` / `open_interest` / `eod`, stock
+/// `trade_quote` / `eod`, and index `eod`. Every other request type
+/// (per-tick quotes, trades, OHLC bars) is served by the historical
+/// endpoints, not as a flat file. Sending an unserved pair yields a server
 /// `INVALID_PARAMS:Invalid request type` rejection; this predicate lets
 /// the request entry points reject the pair locally, before any network
 /// round-trip, so callers see a typed invalid-parameter error instead.
@@ -114,6 +114,7 @@ pub fn flat_file_serves(sec: SecType, req: ReqType) -> bool {
             SecType::Option,
             ReqType::TradeQuote | ReqType::OpenInterest | ReqType::Eod
         ) | (SecType::Stock, ReqType::TradeQuote | ReqType::Eod)
+            | (SecType::Index, ReqType::Eod)
     )
 }
 
@@ -140,6 +141,7 @@ pub const SERVED_DATASETS: &[(SecType, ReqType)] = &[
     (SecType::Option, ReqType::Eod),
     (SecType::Stock, ReqType::TradeQuote),
     (SecType::Stock, ReqType::Eod),
+    (SecType::Index, ReqType::Eod),
 ];
 
 /// Reason a [`Client::flatfile_request`](crate::Client::flatfile_request)
@@ -301,8 +303,8 @@ mod tests {
                 );
             }
         }
-        // The served set is exactly the documented five datasets.
-        assert_eq!(SERVED_DATASETS.len(), 5);
+        // The served set is exactly the documented six datasets.
+        assert_eq!(SERVED_DATASETS.len(), 6);
     }
 
     /// Every security type maps to its exact upper-case wire token; the

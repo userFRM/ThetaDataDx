@@ -914,15 +914,13 @@ pub unsafe extern "C" fn thetadatadx_option_list_strikes_with_options(
     })
 }
 
-/// List all option contracts for a symbol on a given date.
+/// List all option contracts traded or quoted on a given date, optionally filtered to a symbol.
 ///
 /// Accepts optional builder parameters.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_option_list_contracts_with_options(
     client: *const ThetaDataDxHistoricalClient,
     request_type: *const c_char
-,
-    symbol: *const c_char
 ,
     date: *const c_char
 ,
@@ -937,11 +935,6 @@ pub unsafe extern "C" fn thetadatadx_option_list_contracts_with_options(
         args.insert(
             "request_type".to_string(),
             thetadatadx::EndpointArgValue::Str(request_type.to_string()),
-        );
-        let symbol = require_cstr!(symbol, empty);
-        args.insert(
-            "symbol".to_string(),
-            thetadatadx::EndpointArgValue::Str(symbol.to_string()),
         );
         let date = require_cstr!(date, empty);
         args.insert(

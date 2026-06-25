@@ -36,6 +36,8 @@ struct EndpointRequestOptions {
     std::optional<std::string> strike;
     /// Option side. Accepted values: `call`, `put`, `both`.
     std::optional<std::string> right;
+    /// Ticker symbol to filter by (e.g. AAPL). Omit to list every contract for the date.
+    std::optional<std::string> symbol;
     /// Maximum days to expiration
     std::optional<int32_t> max_dte;
     /// Strike range filter
@@ -95,6 +97,10 @@ struct EndpointRequestOptions {
     }
     EndpointRequestOptions& with_right(std::string value) {
         right = std::move(value);
+        return *this;
+    }
+    EndpointRequestOptions& with_symbol(std::string value) {
+        symbol = std::move(value);
         return *this;
     }
     EndpointRequestOptions& with_max_dte(int32_t value) {
@@ -160,6 +166,7 @@ struct FfiEndpointRequestOptions {
     std::string end_date_storage;
     std::string strike_storage;
     std::string right_storage;
+    std::string symbol_storage;
     std::string rate_type_storage;
     std::string version_storage;
 
@@ -203,6 +210,10 @@ struct FfiEndpointRequestOptions {
         if (options.right) {
             right_storage = *options.right;
             raw.right = right_storage.c_str();
+        }
+        if (options.symbol) {
+            symbol_storage = *options.symbol;
+            raw.symbol = symbol_storage.c_str();
         }
         if (options.max_dte) {
             raw.max_dte = *options.max_dte;

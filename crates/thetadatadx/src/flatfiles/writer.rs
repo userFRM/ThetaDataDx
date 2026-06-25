@@ -127,7 +127,7 @@ pub(crate) fn fmt_price_into(buf: &mut String, integer: i32, price_type: i32) ->
 fn append_csv_prefix(buf: &mut String, entry: &IndexEntry, sec: SecType) {
     use std::fmt::Write;
     match sec {
-        SecType::Option | SecType::Index => {
+        SecType::Option => {
             buf.push_str(&entry.symbol);
             buf.push(',');
             let _ = write!(buf, "{}", entry.expiration.unwrap_or(0));
@@ -141,7 +141,9 @@ fn append_csv_prefix(buf: &mut String, entry: &IndexEntry, sec: SecType) {
             buf.push(entry.right.unwrap_or('?'));
             buf.push(',');
         }
-        SecType::Stock => {
+        SecType::Stock | SecType::Index => {
+            // Stock and index entries carry only the symbol — no expiration,
+            // strike, or right dimension.
             buf.push_str(&entry.symbol);
             buf.push(',');
         }
@@ -192,10 +194,10 @@ impl RowSink for CsvSink {
     fn write_header(&mut self) -> Result<(), Error> {
         self.line.clear();
         match self.sec {
-            SecType::Option | SecType::Index => {
+            SecType::Option => {
                 self.line.push_str("symbol,expiration,strike,right,");
             }
-            SecType::Stock => self.line.push_str("symbol,"),
+            SecType::Stock | SecType::Index => self.line.push_str("symbol,"),
         }
         for (n, &i) in self.data_idx.iter().enumerate() {
             if n > 0 {
@@ -287,7 +289,7 @@ impl RowSink for JsonlSink {
     fn write_row(&mut self, row: RowView<'_>) -> Result<(), Error> {
         let mut obj = serde_json::Map::with_capacity(self.data_idx.len() + 4);
         match self.sec {
-            SecType::Option | SecType::Index => {
+            SecType::Option => {
                 obj.insert(
                     "symbol".into(),
                     serde_json::Value::String(row.entry.symbol.clone()),
@@ -313,7 +315,7 @@ impl RowSink for JsonlSink {
                     serde_json::Value::String(row.entry.right.unwrap_or('?').to_string()),
                 );
             }
-            SecType::Stock => {
+            SecType::Stock | SecType::Index => {
                 obj.insert(
                     "symbol".into(),
                     serde_json::Value::String(row.entry.symbol.clone()),

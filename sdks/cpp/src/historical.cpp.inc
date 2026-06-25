@@ -243,10 +243,10 @@ std::vector<std::string> HistoricalClient::option_list_strikes(const std::string
     return detail::check_string_array(thetadatadx_option_list_strikes_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw));
 }
 
-std::vector<OptionContract> HistoricalClient::option_list_contracts(const std::string& request_type, const std::string& symbol, const std::string& date, const EndpointRequestOptions& options) const {
+std::vector<OptionContract> HistoricalClient::option_list_contracts(const std::string& request_type, const std::string& date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    ThetaDataDxOptionContractArray arr = thetadatadx_option_list_contracts_with_options(historical_handle(), request_type.c_str(), symbol.c_str(), date.c_str(), &ffi_options.raw);
+    ThetaDataDxOptionContractArray arr = thetadatadx_option_list_contracts_with_options(historical_handle(), request_type.c_str(), date.c_str(), &ffi_options.raw);
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {
@@ -1236,10 +1236,10 @@ std::vector<std::string> Historical::option_list_strikes(const std::string& symb
     return detail::check_string_array(thetadatadx_option_list_strikes_with_options(historical_handle(), symbol.c_str(), expiration.c_str(), &ffi_options.raw));
 }
 
-std::vector<OptionContract> Historical::option_list_contracts(const std::string& request_type, const std::string& symbol, const std::string& date, const EndpointRequestOptions& options) const {
+std::vector<OptionContract> Historical::option_list_contracts(const std::string& request_type, const std::string& date, const EndpointRequestOptions& options) const {
     detail::FfiEndpointRequestOptions ffi_options(options);
     thetadatadx_clear_error();
-    ThetaDataDxOptionContractArray arr = thetadatadx_option_list_contracts_with_options(historical_handle(), request_type.c_str(), symbol.c_str(), date.c_str(), &ffi_options.raw);
+    ThetaDataDxOptionContractArray arr = thetadatadx_option_list_contracts_with_options(historical_handle(), request_type.c_str(), date.c_str(), &ffi_options.raw);
     {
         const std::string err = detail::last_ffi_error_raw();
         if (!err.empty()) {

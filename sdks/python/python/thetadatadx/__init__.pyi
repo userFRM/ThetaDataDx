@@ -2241,18 +2241,18 @@ class HistoricalView:
     def option_list_contracts(
         self,
         request_type: str,
-        symbol: str,
         date: Union[str, date, datetime],
         *,
+        symbol: Optional[str] = None,
         max_dte: Optional[int] = None,
         timeout_ms: Optional[int] = None,
     ) -> OptionContractList:
-        """List all option contracts for a symbol on a given date.
+        """List all option contracts traded or quoted on a given date, optionally filtered to a symbol.
 
         Lists all contracts that were traded or quoted on a particular date.
 
         If the ``symbol`` parameter is specified, the returned contracts will be filtered to match the symbol.
-        Multiple symbols can be specified by separating them with commas such as ``symbol=AAPL,SPY,AMD``
+        When ``symbol`` is omitted the full universe of contracts for that date is returned.
         This endpoint is updated real-time.
         """
         ...
@@ -2260,18 +2260,18 @@ class HistoricalView:
     def option_list_contracts_async(
         self,
         request_type: str,
-        symbol: str,
         date: Union[str, date, datetime],
         *,
+        symbol: Optional[str] = None,
         max_dte: Optional[int] = None,
         timeout_ms: Optional[int] = None,
     ) -> Awaitable[OptionContractList]:
-        """List all option contracts for a symbol on a given date.
+        """List all option contracts traded or quoted on a given date, optionally filtered to a symbol.
 
         Lists all contracts that were traded or quoted on a particular date.
 
         If the ``symbol`` parameter is specified, the returned contracts will be filtered to match the symbol.
-        Multiple symbols can be specified by separating them with commas such as ``symbol=AAPL,SPY,AMD``
+        When ``symbol`` is omitted the full universe of contracts for that date is returned.
         This endpoint is updated real-time.
 
 
@@ -2282,7 +2282,6 @@ class HistoricalView:
     def option_list_contracts_builder(
         self,
         request_type: str,
-        symbol: str,
         date: Union[str, date, datetime],
     ) -> OptionListContractsBuilder:
         """Fluent builder for `option_list_contracts`. Chain the optional setters, then call `.list()` (or `.list_async()`) to execute; the returned typed list wrapper exposes `.to_list()` / `.to_arrow()` / `.to_pandas()` / `.to_polars()`."""

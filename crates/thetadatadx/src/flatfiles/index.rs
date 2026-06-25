@@ -29,17 +29,19 @@
 //!
 //! The contract key inside `entry_payload` is:
 //!
-//! - Option / Index:
+//! - Option:
 //!   ```text
 //!     u8 root_len ; root_utf8 ; i32 BE exp ; u8 right ; i32 BE strike ; i32 BE date
 //!   ```
 //!   `right` is the ASCII byte `'C'` (0x43) or `'P'` (0x50). `exp` and
 //!   `date` are `YYYYMMDD` integers; `strike` is in tenths of a cent
 //!   (vendor convention — strike `210000` ≡ $210.00).
-//! - Stock:
+//! - Stock / Index:
 //!   ```text
 //!     u8 root_len ; root_utf8 ; i32 BE date
 //!   ```
+//!   An index has no option dimensions, so its entry carries only the root
+//!   and the entry-level trading date — the same shape as a stock entry.
 //!
 //! The DATA section at `[block_start..block_end]` is FIT-encoded for the
 //! per-column schema given by the header `fmt_count` codes. Each row in
@@ -187,17 +189,28 @@ fn parse_one_entry(cur: &mut Cursor<&[u8]>, sec: SecType) -> Result<IndexEntry, 
     let mut e = Cursor::new(&entry_buf[..]);
 
     let (root, exp, strike, right) = match sec {
-        SecType::Index => {
-            // The flat-file service publishes no INDEX dataset, so the
-            // request layer ([`crate::flatfiles::types::flat_file_serves`])
-            // rejects every Index pair before any blob is fetched and this
-            // walker is never reached with an INDEX section. No
-            // vendor-confirmed INDEX entry layout exists, so rather than
-            // borrow the option layout and risk misparsing a future format,
-            // fail loudly with a typed unsupported error.
-            return Err(Error::decode_codec(
-                "flatfiles INDEX: index flat-file entries are not supported",
-            ));
+        SecType::Index | SecType::Stock => {
+            // INDEX and STOCK share the contract-key layout: a length-prefixed
+            // root followed by the entry-level trading date, with no
+            // expiration / strike / right (an index has no option dimensions).
+            // The vendor's `index/flat_file/eod` section confirms this byte
+            // layout — each entry is `root_len ; root ; i32 date`.
+            let root_len = read_u8(&mut e)? as usize;
+            let mut root_bytes = vec![0u8; root_len];
+            e.read_exact(&mut root_bytes)?;
+            let root = String::from_utf8(root_bytes).map_err(|err| {
+                Error::decode_codec(format!(
+                    "flatfiles {sec}: non-UTF-8 root bytes {:?}",
+                    err.as_bytes()
+                ))
+            })?;
+            let date = read_i32(&mut e)?;
+            if !crate::tdbe::time::is_valid_yyyymmdd(date) {
+                return Err(Error::decode_codec(format!(
+                    "flatfiles {sec}: invalid trading-date YYYYMMDD {date}"
+                )));
+            }
+            (root, None, None, None)
         }
         SecType::Option => {
             // Option layout: root_len, root, exp, right, strike, date.
@@ -206,20 +219,20 @@ fn parse_one_entry(cur: &mut Cursor<&[u8]>, sec: SecType) -> Result<IndexEntry, 
             e.read_exact(&mut root_bytes)?;
             let root = String::from_utf8(root_bytes).map_err(|err| {
                 Error::decode_codec(format!(
-                    "flatfiles INDEX: non-UTF-8 root bytes {:?}",
+                    "flatfiles OPTION: non-UTF-8 root bytes {:?}",
                     err.as_bytes()
                 ))
             })?;
             let exp = read_i32(&mut e)?;
             if !crate::tdbe::time::is_valid_yyyymmdd(exp) {
                 return Err(Error::decode_codec(format!(
-                    "flatfiles INDEX: invalid expiration YYYYMMDD {exp}"
+                    "flatfiles OPTION: invalid expiration YYYYMMDD {exp}"
                 )));
             }
             let right_byte = read_u8(&mut e)?;
             if !matches!(right_byte, b'C' | b'P') {
                 return Err(Error::decode_codec(format!(
-                    "flatfiles INDEX: invalid right byte {right_byte} (expected b'C' or b'P')"
+                    "flatfiles OPTION: invalid right byte {right_byte} (expected b'C' or b'P')"
                 )));
             }
             let right = right_byte as char;
@@ -229,28 +242,10 @@ fn parse_one_entry(cur: &mut Cursor<&[u8]>, sec: SecType) -> Result<IndexEntry, 
             let date = read_i32(&mut e)?;
             if !crate::tdbe::time::is_valid_yyyymmdd(date) {
                 return Err(Error::decode_codec(format!(
-                    "flatfiles INDEX: invalid trading-date YYYYMMDD {date}"
+                    "flatfiles OPTION: invalid trading-date YYYYMMDD {date}"
                 )));
             }
             (root, Some(exp), Some(strike), Some(right))
-        }
-        SecType::Stock => {
-            let root_len = read_u8(&mut e)? as usize;
-            let mut root_bytes = vec![0u8; root_len];
-            e.read_exact(&mut root_bytes)?;
-            let root = String::from_utf8(root_bytes).map_err(|err| {
-                Error::decode_codec(format!(
-                    "flatfiles INDEX: non-UTF-8 root bytes {:?}",
-                    err.as_bytes()
-                ))
-            })?;
-            let date = read_i32(&mut e)?;
-            if !crate::tdbe::time::is_valid_yyyymmdd(date) {
-                return Err(Error::decode_codec(format!(
-                    "flatfiles INDEX: invalid trading-date YYYYMMDD {date}"
-                )));
-            }
-            (root, None, None, None)
         }
     };
 
@@ -430,10 +425,10 @@ mod tests {
     }
 
     #[test]
-    fn index_sec_type_is_rejected_as_unsupported() {
-        // The flat-file service publishes no INDEX dataset; the walker must
-        // reject an INDEX section with a typed error rather than borrow the
-        // option layout and risk misparsing a future vendor format.
+    fn index_entry_uses_stock_layout() {
+        // An INDEX entry shares the stock layout: `root_len ; root ; i32 date`,
+        // with no expiration / strike / right. SPX date=20260117 —
+        // entry_size = 1 + 3 + 4 = 8.
         let mut e = Vec::new();
         e.push(3u8);
         e.extend_from_slice(b"SPX");
@@ -447,12 +442,13 @@ mod tests {
         buf.extend_from_slice(&100i64.to_be_bytes());
 
         let mut iter = IndexIter::new(&buf, SecType::Index);
-        let err = iter.next().unwrap().unwrap_err();
-        let msg = err.to_string();
-        assert!(
-            msg.contains("index flat-file entries are not supported"),
-            "expected unsupported-index error, got: {msg}"
-        );
+        let entry = iter.next().unwrap().unwrap();
+        assert_eq!(entry.symbol, "SPX");
+        assert_eq!(entry.expiration, None);
+        assert_eq!(entry.strike, None);
+        assert_eq!(entry.right, None);
+        assert_eq!(entry.block_start, 0);
+        assert_eq!(entry.block_end, 100);
     }
 
     #[test]

@@ -11,6 +11,7 @@ typedef struct {
     int32_t has_exclusive;
     const char* strike;
     const char* right;
+    const char* symbol;
     int32_t max_dte;
     int32_t has_max_dte;
     int32_t strike_range;

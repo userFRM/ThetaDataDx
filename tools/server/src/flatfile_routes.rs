@@ -504,6 +504,7 @@ mod tests {
             (SecType::Option, ReqType::Eod),
             (SecType::Stock, ReqType::TradeQuote),
             (SecType::Stock, ReqType::Eod),
+            (SecType::Index, ReqType::Eod),
         ] {
             assert!(
                 reject_unserved_dataset(sec, req).is_ok(),
@@ -517,8 +518,8 @@ mod tests {
             (SecType::Option, ReqType::Quote),
             (SecType::Option, ReqType::Trade),
             (SecType::Option, ReqType::Ohlc),
-            (SecType::Index, ReqType::Eod),
             (SecType::Index, ReqType::TradeQuote),
+            (SecType::Index, ReqType::OpenInterest),
         ] {
             let err = reject_unserved_dataset(sec, req).expect_err(&format!(
                 "unserved pair {sec} {} must be rejected",
