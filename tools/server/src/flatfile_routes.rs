@@ -495,7 +495,9 @@ mod tests {
     /// The served-matrix gate accepts every pair the distribution serves and
     /// rejects everything else — including a pair whose security and request
     /// types are each individually served but not as a pair (stock
-    /// open_interest), and any `INDEX` pair. The rejection names the dataset.
+    /// open_interest). Index serves only EOD, so `(Index, Eod)` is accepted
+    /// while every non-EOD index pair is rejected. The rejection names the
+    /// dataset.
     #[test]
     fn unserved_dataset_is_rejected_at_the_boundary() {
         for (sec, req) in [

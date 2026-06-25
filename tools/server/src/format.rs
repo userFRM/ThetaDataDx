@@ -1490,40 +1490,58 @@ const CSV_CRLF: &str = "\r\n";
 ///
 /// The variant is selected from `ep.returns` (the registry's return-type
 /// discriminant, which maps one-to-one to [`EndpointOutput`]). Field *values*
-/// are immaterial to the column order — only that `expiration` is non-zero so
-/// the option identity columns are emitted, which the option families set. The
-/// single-day calendar endpoints (`calendar_on_date` / `calendar_open_today`)
-/// carry no `date` column, so the representative `CalendarDay.date` is zero for
-/// them and non-zero only for the multi-day `calendar_year`.
+/// are immaterial to the column order — only whether the id-bearing columns are
+/// present. The contract identity (`expiration` / `strike` / `right`) is emitted
+/// by the serializer only when `expiration != 0` ([`insert_contract_id_fields`]),
+/// and v3 carries it solely on option *tick* endpoints. So the representative
+/// tick is contract-bearing only when [`endpoint_is_option_tick`] holds; stock /
+/// index ticks (which share the same return type) get the `expiration == 0`
+/// no-id sentinel so their derived column order matches the real, id-less rows.
+///
+/// The single-day calendar endpoints (`calendar_on_date` / `calendar_open_today`)
+/// have a `date` column that v3 leads with when a response carries it, but the
+/// single-day responses normally omit it. The representative `CalendarDay.date`
+/// is therefore non-zero for every calendar endpoint, so `date` is captured in
+/// its leading slot; real date-less rows then drop it via the present-key
+/// intersection in [`csv_header_order`], while a date-bearing row keeps it
+/// leading (matching the multi-day `calendar_year` shape).
 ///
 /// Listing the fields explicitly means a new tick field is a compile error here
 /// rather than silent drift, keeping the derivation honest.
 fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
-    let calendar_date = if ep.name.strip_suffix("_range").unwrap_or(ep.name) == "calendar_year" {
-        20240101
+    // The single-day calendar header leads with `date` when present; seed a
+    // non-zero `date` on every calendar endpoint so `endpoint_columns` captures
+    // it in its leading slot (date-less rows drop it via the present-key filter).
+    let calendar_date = 20240101;
+    // v3 carries the contract identity only on option tick endpoints. Stock /
+    // index ticks share the return type but render no id columns, so give them
+    // the `expiration == 0` no-id sentinel (the serializer then emits none) and
+    // keep the column order faithful for all 61 endpoints.
+    let (id_expiration, id_strike, id_right) = if endpoint_is_option_tick(ep) {
+        (20240101, 100.0, 'C')
     } else {
-        0
+        (0, 0.0, '\0')
     };
     match ep.returns {
         ReturnType::StringList => EndpointOutput::StringList(vec![String::new()]),
-        ReturnType::EodTicks => EndpointOutput::EodTicks(vec![EodTick { created_ms_of_day: 0, last_trade_ms_of_day: 0, open: 0.0, high: 0.0, low: 0.0, close: 0.0, volume: 0, count: 0, bid_size: 0, bid_exchange: 0, bid: 0.0, bid_condition: 0, ask_size: 0, ask_exchange: 0, ask: 0.0, ask_condition: 0, date: 0, expiration: 20240101, strike: 100.0, right: 'C' }]),
-        ReturnType::OhlcTicks => EndpointOutput::OhlcTicks(vec![OhlcTick { ms_of_day: 0, open: 0.0, high: 0.0, low: 0.0, close: 0.0, volume: 0, count: 0, vwap: 0.0, date: 0, expiration: 20240101, strike: 100.0, right: 'C' }]),
-        ReturnType::TradeTicks => EndpointOutput::TradeTicks(vec![TradeTick { ms_of_day: 0, sequence: 0, ext_condition1: 0, ext_condition2: 0, ext_condition3: 0, ext_condition4: 0, condition: 0, size: 0, exchange: 0, price: 0.0, condition_flags: 0, price_flags: 0, volume_type: 0, records_back: 0, date: 0, expiration: 20240101, strike: 100.0, right: 'C' }]),
-        ReturnType::QuoteTicks => EndpointOutput::QuoteTicks(vec![QuoteTick { ms_of_day: 0, bid_size: 0, bid_exchange: 0, bid: 0.0, bid_condition: 0, ask_size: 0, ask_exchange: 0, ask: 0.0, ask_condition: 0, date: 0, expiration: 20240101, strike: 100.0, right: 'C', midpoint: 0.0 }]),
-        ReturnType::TradeQuoteTicks => EndpointOutput::TradeQuoteTicks(vec![TradeQuoteTick { ms_of_day: 0, sequence: 0, ext_condition1: 0, ext_condition2: 0, ext_condition3: 0, ext_condition4: 0, condition: 0, size: 0, exchange: 0, price: 0.0, condition_flags: 0, price_flags: 0, volume_type: 0, records_back: 0, quote_ms_of_day: 0, bid_size: 0, bid_exchange: 0, bid: 0.0, bid_condition: 0, ask_size: 0, ask_exchange: 0, ask: 0.0, ask_condition: 0, date: 0, expiration: 20240101, strike: 100.0, right: 'C' }]),
-        ReturnType::OpenInterestTicks => EndpointOutput::OpenInterestTicks(vec![OpenInterestTick { ms_of_day: 0, open_interest: 0, date: 0, expiration: 20240101, strike: 100.0, right: 'C' }]),
-        ReturnType::MarketValueTicks => EndpointOutput::MarketValueTicks(vec![MarketValueTick { ms_of_day: 0, market_bid: 0.0, market_ask: 0.0, market_price: 0.0, date: 0, expiration: 20240101, strike: 100.0, right: 'C' }]),
-        ReturnType::GreeksAllTicks => EndpointOutput::GreeksAllTicks(vec![GreeksAllTick { ms_of_day: 0, bid: 0.0, ask: 0.0, implied_volatility: 0.0, delta: 0.0, gamma: 0.0, theta: 0.0, vega: 0.0, rho: 0.0, iv_error: 0.0, vanna: 0.0, charm: 0.0, vomma: 0.0, veta: 0.0, speed: 0.0, zomma: 0.0, color: 0.0, ultima: 0.0, d1: 0.0, d2: 0.0, dual_delta: 0.0, dual_gamma: 0.0, epsilon: 0.0, lambda: 0.0, vera: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: 20240101, strike: 100.0, right: 'C' }]),
-        ReturnType::GreeksEodTicks => EndpointOutput::GreeksEodTicks(vec![GreeksEodTick { ms_of_day: 0, open: 0.0, high: 0.0, low: 0.0, close: 0.0, volume: 0, count: 0, bid_size: 0, bid_exchange: 0, bid: 0.0, bid_condition: 0, ask_size: 0, ask_exchange: 0, ask: 0.0, ask_condition: 0, delta: 0.0, theta: 0.0, vega: 0.0, rho: 0.0, epsilon: 0.0, lambda: 0.0, gamma: 0.0, vanna: 0.0, charm: 0.0, vomma: 0.0, veta: 0.0, vera: 0.0, speed: 0.0, zomma: 0.0, color: 0.0, ultima: 0.0, d1: 0.0, d2: 0.0, dual_delta: 0.0, dual_gamma: 0.0, implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: 20240101, strike: 100.0, right: 'C' }]),
-        ReturnType::GreeksFirstOrderTicks => EndpointOutput::GreeksFirstOrderTicks(vec![GreeksFirstOrderTick { ms_of_day: 0, bid: 0.0, ask: 0.0, delta: 0.0, theta: 0.0, vega: 0.0, rho: 0.0, epsilon: 0.0, lambda: 0.0, implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: 20240101, strike: 100.0, right: 'C' }]),
-        ReturnType::GreeksSecondOrderTicks => EndpointOutput::GreeksSecondOrderTicks(vec![GreeksSecondOrderTick { ms_of_day: 0, bid: 0.0, ask: 0.0, gamma: 0.0, vanna: 0.0, charm: 0.0, vomma: 0.0, veta: 0.0, implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: 20240101, strike: 100.0, right: 'C' }]),
-        ReturnType::GreeksThirdOrderTicks => EndpointOutput::GreeksThirdOrderTicks(vec![GreeksThirdOrderTick { ms_of_day: 0, bid: 0.0, ask: 0.0, speed: 0.0, zomma: 0.0, color: 0.0, ultima: 0.0, implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: 20240101, strike: 100.0, right: 'C' }]),
-        ReturnType::TradeGreeksAllTicks => EndpointOutput::TradeGreeksAllTicks(vec![TradeGreeksAllTick { ms_of_day: 0, sequence: 0, ext_condition1: 0, ext_condition2: 0, ext_condition3: 0, ext_condition4: 0, condition: 0, size: 0, exchange: 0, price: 0.0, delta: 0.0, theta: 0.0, vega: 0.0, rho: 0.0, epsilon: 0.0, lambda: 0.0, gamma: 0.0, vanna: 0.0, charm: 0.0, vomma: 0.0, veta: 0.0, vera: 0.0, speed: 0.0, zomma: 0.0, color: 0.0, ultima: 0.0, d1: 0.0, d2: 0.0, dual_delta: 0.0, dual_gamma: 0.0, implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: 20240101, strike: 100.0, right: 'C' }]),
-        ReturnType::TradeGreeksFirstOrderTicks => EndpointOutput::TradeGreeksFirstOrderTicks(vec![TradeGreeksFirstOrderTick { ms_of_day: 0, sequence: 0, ext_condition1: 0, ext_condition2: 0, ext_condition3: 0, ext_condition4: 0, condition: 0, size: 0, exchange: 0, price: 0.0, delta: 0.0, theta: 0.0, vega: 0.0, rho: 0.0, epsilon: 0.0, lambda: 0.0, implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: 20240101, strike: 100.0, right: 'C' }]),
-        ReturnType::TradeGreeksSecondOrderTicks => EndpointOutput::TradeGreeksSecondOrderTicks(vec![TradeGreeksSecondOrderTick { ms_of_day: 0, sequence: 0, ext_condition1: 0, ext_condition2: 0, ext_condition3: 0, ext_condition4: 0, condition: 0, size: 0, exchange: 0, price: 0.0, gamma: 0.0, vanna: 0.0, charm: 0.0, vomma: 0.0, veta: 0.0, implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: 20240101, strike: 100.0, right: 'C' }]),
-        ReturnType::TradeGreeksThirdOrderTicks => EndpointOutput::TradeGreeksThirdOrderTicks(vec![TradeGreeksThirdOrderTick { ms_of_day: 0, sequence: 0, ext_condition1: 0, ext_condition2: 0, ext_condition3: 0, ext_condition4: 0, condition: 0, size: 0, exchange: 0, price: 0.0, speed: 0.0, zomma: 0.0, color: 0.0, ultima: 0.0, implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: 20240101, strike: 100.0, right: 'C' }]),
-        ReturnType::TradeGreeksImpliedVolatilityTicks => EndpointOutput::TradeGreeksImpliedVolatilityTicks(vec![TradeGreeksImpliedVolatilityTick { ms_of_day: 0, sequence: 0, ext_condition1: 0, ext_condition2: 0, ext_condition3: 0, ext_condition4: 0, condition: 0, size: 0, exchange: 0, price: 0.0, implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: 20240101, strike: 100.0, right: 'C' }]),
-        ReturnType::IvTicks => EndpointOutput::IvTicks(vec![IvTick { ms_of_day: 0, bid: 0.0, bid_implied_volatility: 0.0, midpoint: 0.0, implied_volatility: 0.0, ask: 0.0, ask_implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: 20240101, strike: 100.0, right: 'C' }]),
+        ReturnType::EodTicks => EndpointOutput::EodTicks(vec![EodTick { created_ms_of_day: 0, last_trade_ms_of_day: 0, open: 0.0, high: 0.0, low: 0.0, close: 0.0, volume: 0, count: 0, bid_size: 0, bid_exchange: 0, bid: 0.0, bid_condition: 0, ask_size: 0, ask_exchange: 0, ask: 0.0, ask_condition: 0, date: 0, expiration: id_expiration, strike: id_strike, right: id_right }]),
+        ReturnType::OhlcTicks => EndpointOutput::OhlcTicks(vec![OhlcTick { ms_of_day: 0, open: 0.0, high: 0.0, low: 0.0, close: 0.0, volume: 0, count: 0, vwap: 0.0, date: 0, expiration: id_expiration, strike: id_strike, right: id_right }]),
+        ReturnType::TradeTicks => EndpointOutput::TradeTicks(vec![TradeTick { ms_of_day: 0, sequence: 0, ext_condition1: 0, ext_condition2: 0, ext_condition3: 0, ext_condition4: 0, condition: 0, size: 0, exchange: 0, price: 0.0, condition_flags: 0, price_flags: 0, volume_type: 0, records_back: 0, date: 0, expiration: id_expiration, strike: id_strike, right: id_right }]),
+        ReturnType::QuoteTicks => EndpointOutput::QuoteTicks(vec![QuoteTick { ms_of_day: 0, bid_size: 0, bid_exchange: 0, bid: 0.0, bid_condition: 0, ask_size: 0, ask_exchange: 0, ask: 0.0, ask_condition: 0, date: 0, expiration: id_expiration, strike: id_strike, right: id_right, midpoint: 0.0 }]),
+        ReturnType::TradeQuoteTicks => EndpointOutput::TradeQuoteTicks(vec![TradeQuoteTick { ms_of_day: 0, sequence: 0, ext_condition1: 0, ext_condition2: 0, ext_condition3: 0, ext_condition4: 0, condition: 0, size: 0, exchange: 0, price: 0.0, condition_flags: 0, price_flags: 0, volume_type: 0, records_back: 0, quote_ms_of_day: 0, bid_size: 0, bid_exchange: 0, bid: 0.0, bid_condition: 0, ask_size: 0, ask_exchange: 0, ask: 0.0, ask_condition: 0, date: 0, expiration: id_expiration, strike: id_strike, right: id_right }]),
+        ReturnType::OpenInterestTicks => EndpointOutput::OpenInterestTicks(vec![OpenInterestTick { ms_of_day: 0, open_interest: 0, date: 0, expiration: id_expiration, strike: id_strike, right: id_right }]),
+        ReturnType::MarketValueTicks => EndpointOutput::MarketValueTicks(vec![MarketValueTick { ms_of_day: 0, market_bid: 0.0, market_ask: 0.0, market_price: 0.0, date: 0, expiration: id_expiration, strike: id_strike, right: id_right }]),
+        ReturnType::GreeksAllTicks => EndpointOutput::GreeksAllTicks(vec![GreeksAllTick { ms_of_day: 0, bid: 0.0, ask: 0.0, implied_volatility: 0.0, delta: 0.0, gamma: 0.0, theta: 0.0, vega: 0.0, rho: 0.0, iv_error: 0.0, vanna: 0.0, charm: 0.0, vomma: 0.0, veta: 0.0, speed: 0.0, zomma: 0.0, color: 0.0, ultima: 0.0, d1: 0.0, d2: 0.0, dual_delta: 0.0, dual_gamma: 0.0, epsilon: 0.0, lambda: 0.0, vera: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: id_expiration, strike: id_strike, right: id_right }]),
+        ReturnType::GreeksEodTicks => EndpointOutput::GreeksEodTicks(vec![GreeksEodTick { ms_of_day: 0, open: 0.0, high: 0.0, low: 0.0, close: 0.0, volume: 0, count: 0, bid_size: 0, bid_exchange: 0, bid: 0.0, bid_condition: 0, ask_size: 0, ask_exchange: 0, ask: 0.0, ask_condition: 0, delta: 0.0, theta: 0.0, vega: 0.0, rho: 0.0, epsilon: 0.0, lambda: 0.0, gamma: 0.0, vanna: 0.0, charm: 0.0, vomma: 0.0, veta: 0.0, vera: 0.0, speed: 0.0, zomma: 0.0, color: 0.0, ultima: 0.0, d1: 0.0, d2: 0.0, dual_delta: 0.0, dual_gamma: 0.0, implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: id_expiration, strike: id_strike, right: id_right }]),
+        ReturnType::GreeksFirstOrderTicks => EndpointOutput::GreeksFirstOrderTicks(vec![GreeksFirstOrderTick { ms_of_day: 0, bid: 0.0, ask: 0.0, delta: 0.0, theta: 0.0, vega: 0.0, rho: 0.0, epsilon: 0.0, lambda: 0.0, implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: id_expiration, strike: id_strike, right: id_right }]),
+        ReturnType::GreeksSecondOrderTicks => EndpointOutput::GreeksSecondOrderTicks(vec![GreeksSecondOrderTick { ms_of_day: 0, bid: 0.0, ask: 0.0, gamma: 0.0, vanna: 0.0, charm: 0.0, vomma: 0.0, veta: 0.0, implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: id_expiration, strike: id_strike, right: id_right }]),
+        ReturnType::GreeksThirdOrderTicks => EndpointOutput::GreeksThirdOrderTicks(vec![GreeksThirdOrderTick { ms_of_day: 0, bid: 0.0, ask: 0.0, speed: 0.0, zomma: 0.0, color: 0.0, ultima: 0.0, implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: id_expiration, strike: id_strike, right: id_right }]),
+        ReturnType::TradeGreeksAllTicks => EndpointOutput::TradeGreeksAllTicks(vec![TradeGreeksAllTick { ms_of_day: 0, sequence: 0, ext_condition1: 0, ext_condition2: 0, ext_condition3: 0, ext_condition4: 0, condition: 0, size: 0, exchange: 0, price: 0.0, delta: 0.0, theta: 0.0, vega: 0.0, rho: 0.0, epsilon: 0.0, lambda: 0.0, gamma: 0.0, vanna: 0.0, charm: 0.0, vomma: 0.0, veta: 0.0, vera: 0.0, speed: 0.0, zomma: 0.0, color: 0.0, ultima: 0.0, d1: 0.0, d2: 0.0, dual_delta: 0.0, dual_gamma: 0.0, implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: id_expiration, strike: id_strike, right: id_right }]),
+        ReturnType::TradeGreeksFirstOrderTicks => EndpointOutput::TradeGreeksFirstOrderTicks(vec![TradeGreeksFirstOrderTick { ms_of_day: 0, sequence: 0, ext_condition1: 0, ext_condition2: 0, ext_condition3: 0, ext_condition4: 0, condition: 0, size: 0, exchange: 0, price: 0.0, delta: 0.0, theta: 0.0, vega: 0.0, rho: 0.0, epsilon: 0.0, lambda: 0.0, implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: id_expiration, strike: id_strike, right: id_right }]),
+        ReturnType::TradeGreeksSecondOrderTicks => EndpointOutput::TradeGreeksSecondOrderTicks(vec![TradeGreeksSecondOrderTick { ms_of_day: 0, sequence: 0, ext_condition1: 0, ext_condition2: 0, ext_condition3: 0, ext_condition4: 0, condition: 0, size: 0, exchange: 0, price: 0.0, gamma: 0.0, vanna: 0.0, charm: 0.0, vomma: 0.0, veta: 0.0, implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: id_expiration, strike: id_strike, right: id_right }]),
+        ReturnType::TradeGreeksThirdOrderTicks => EndpointOutput::TradeGreeksThirdOrderTicks(vec![TradeGreeksThirdOrderTick { ms_of_day: 0, sequence: 0, ext_condition1: 0, ext_condition2: 0, ext_condition3: 0, ext_condition4: 0, condition: 0, size: 0, exchange: 0, price: 0.0, speed: 0.0, zomma: 0.0, color: 0.0, ultima: 0.0, implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: id_expiration, strike: id_strike, right: id_right }]),
+        ReturnType::TradeGreeksImpliedVolatilityTicks => EndpointOutput::TradeGreeksImpliedVolatilityTicks(vec![TradeGreeksImpliedVolatilityTick { ms_of_day: 0, sequence: 0, ext_condition1: 0, ext_condition2: 0, ext_condition3: 0, ext_condition4: 0, condition: 0, size: 0, exchange: 0, price: 0.0, implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: id_expiration, strike: id_strike, right: id_right }]),
+        ReturnType::IvTicks => EndpointOutput::IvTicks(vec![IvTick { ms_of_day: 0, bid: 0.0, bid_implied_volatility: 0.0, midpoint: 0.0, implied_volatility: 0.0, ask: 0.0, ask_implied_volatility: 0.0, iv_error: 0.0, underlying_ms_of_day: 0, underlying_price: 0.0, date: 0, expiration: id_expiration, strike: id_strike, right: id_right }]),
         ReturnType::PriceTicks => EndpointOutput::PriceTicks(vec![PriceTick { ms_of_day: 0, price: 0.0, date: 0 }]),
         ReturnType::IndexPriceAtTimeTicks => EndpointOutput::IndexPriceAtTimeTicks(vec![IndexPriceAtTimeTick { ms_of_day: 0, sequence: 0, ext_condition1: 0, ext_condition2: 0, ext_condition3: 0, ext_condition4: 0, condition: 0, size: 0, exchange: 0, price: 0.0, date: 0 }]),
         ReturnType::InterestRateTicks => EndpointOutput::InterestRateTicks(vec![InterestRateTick { date: 0, rate: 0.0 }]),
@@ -1672,6 +1690,14 @@ fn render_csv_value(value: &sonic_rs::Value) -> String {
     let mut owned = value.clone();
     thetadatadx::json_canon::canonicalize(&mut owned);
     match sonic_rs::to_string(&owned) {
+        // Serialized numbers and booleans are machine-generated: they never
+        // contain an RFC-4180 special (`,`, `"`, CR, LF) and never need formula
+        // defusing. A negative numeric leaf (greeks, interest rates, IV errors)
+        // serializes with a leading `-`, which `escape_csv_field` would mistake
+        // for a spreadsheet formula prefix and corrupt into `"'-0.5"`; emit the
+        // bare token instead. Only the real-string branch above (symbols /
+        // conditions, where attacker-controlled text can appear) is defused.
+        Ok(rendered) if owned.is_number() || owned.is_boolean() => rendered,
         Ok(rendered) => escape_csv_field(&rendered),
         Err(err) => {
             tracing::warn!(error = %err, "csv cell serialisation failed; emitting sentinel");
@@ -1846,6 +1872,89 @@ mod tests {
         let benign =
             json_to_csv(csv_test_endpoint(), &[sonic_rs::json!({ "cell": "AAPL" })]).unwrap();
         assert_eq!(benign, "cell\r\nAAPL\r\n");
+    }
+
+    /// A serialized JSON number's leading `-` is a numeric sign, NOT a formula
+    /// prefix: negative greeks (delta / theta / rho / charm / vanna), interest
+    /// rates, and IV-errors are routinely negative and must render as the bare
+    /// token (`-0.5`), never the formula-defused `"'-0.5"` that would make the
+    /// documented CSV column an unparseable quoted string. Formula defusing is
+    /// reserved for the real-string branch (symbols / conditions), which the
+    /// `json_to_csv_defuses_formula_injection` test pins.
+    #[test]
+    fn negative_numeric_csv_cells_render_bare_not_formula_defused() {
+        // Interest-rate EOD: `rate` is signed and renders as a bare number.
+        let rate_ep = thetadatadx::find("interest_rate_history_eod").expect("endpoint exists");
+        let rate_csv = json_to_csv(
+            rate_ep,
+            &response_rows(
+                rate_ep,
+                &ContractParams::default(),
+                &EndpointOutput::InterestRateTicks(vec![InterestRateTick {
+                    date: 20240102,
+                    rate: -0.0125,
+                }]),
+            ),
+        )
+        .expect("CSV");
+        let rate_row = rate_csv.split("\r\n").nth(1).expect("data row");
+        assert!(
+            rate_row.contains("-0.0125") && !rate_row.contains("\"'-0.0125\""),
+            "negative rate must render bare, not formula-defused (got {rate_row:?})"
+        );
+
+        // Option greeks: a negative `delta` must render bare in the data cell.
+        let greeks_ep = thetadatadx::find("option_history_greeks_all").expect("endpoint exists");
+        let contract = ContractParams {
+            symbol: Some("AAPL"),
+            ..ContractParams::default()
+        };
+        let greeks_csv = json_to_csv(
+            greeks_ep,
+            &response_rows(
+                greeks_ep,
+                &contract,
+                &EndpointOutput::GreeksAllTicks(vec![GreeksAllTick {
+                    ms_of_day: 34_200_000,
+                    bid: 0.0,
+                    ask: 0.0,
+                    implied_volatility: 0.0,
+                    delta: -0.5,
+                    gamma: 0.0,
+                    theta: 0.0,
+                    vega: 0.0,
+                    rho: 0.0,
+                    iv_error: 0.0,
+                    vanna: 0.0,
+                    charm: 0.0,
+                    vomma: 0.0,
+                    veta: 0.0,
+                    speed: 0.0,
+                    zomma: 0.0,
+                    color: 0.0,
+                    ultima: 0.0,
+                    d1: 0.0,
+                    d2: 0.0,
+                    dual_delta: 0.0,
+                    dual_gamma: 0.0,
+                    epsilon: 0.0,
+                    lambda: 0.0,
+                    vera: 0.0,
+                    underlying_ms_of_day: 0,
+                    underlying_price: 0.0,
+                    date: 20240102,
+                    expiration: 20260116,
+                    strike: 275.0,
+                    right: 'C',
+                }]),
+            ),
+        )
+        .expect("CSV");
+        let greeks_row = greeks_csv.split("\r\n").nth(1).expect("data row");
+        assert!(
+            greeks_row.contains(",-0.5,") && !greeks_row.contains("\"'-0.5\""),
+            "negative delta must render bare, not formula-defused (got {greeks_row:?})"
+        );
     }
 
     /// Regression: the header key set must be the UNION of keys across
@@ -2623,6 +2732,83 @@ mod tests {
             ),
             "timestamp,open,high,low,close,volume,count,vwap"
         );
+    }
+
+    /// `endpoint_columns` is the SSOT for the v3 column order, so it must be
+    /// faithful even for the non-option endpoints that share a tick type with an
+    /// option family. Stock / index history rows carry no contract identity, so
+    /// the derived order must NOT carry a trailing `expiration` / `strike` /
+    /// `right`. (Masked at runtime by the present-key intersection — real rows
+    /// have `expiration == 0` — but the derived order must be correct on its own
+    /// for the invariant to hold.)
+    #[test]
+    fn endpoint_columns_omits_contract_identity_for_non_option_endpoints() {
+        for ep_name in ["stock_history_ohlc", "index_history_ohlc"] {
+            let ep = thetadatadx::find(ep_name).expect("endpoint exists");
+            let cols = endpoint_columns(ep);
+            for id in ["expiration", "strike", "right"] {
+                assert!(
+                    !cols.contains(&id),
+                    "{ep_name} carries no contract identity; derived order must omit `{id}` \
+                     (got {cols:?})"
+                );
+            }
+            // Positive control: the bare OHLC history order, no id columns spliced.
+            assert_eq!(
+                cols,
+                vec![
+                    "timestamp", "open", "high", "low", "close", "volume", "count", "vwap",
+                ],
+                "{ep_name} derived column order is the bare serializer order"
+            );
+        }
+    }
+
+    /// The single-day calendar header must lead with `date` WHEN a response
+    /// carries it — matching the multi-day `calendar_year` shape
+    /// (`date,type,open,close`) rather than sorting `date` into the trailing
+    /// `BTreeSet` tail. `endpoint_columns` therefore captures `date` in its
+    /// leading slot for the single-day endpoints; a date-less response drops it
+    /// via the present-key intersection, a date-bearing one keeps it leading.
+    #[test]
+    fn calendar_single_day_header_is_date_leading_when_present() {
+        let open_day = |date: i32| CalendarDay {
+            date,
+            is_open: true,
+            open_time: 34_200_000,
+            close_time: 57_600_000,
+            status: thetadatadx::CalendarStatus::Open,
+        };
+
+        for ep_name in ["calendar_on_date", "calendar_open_today"] {
+            let ep = thetadatadx::find(ep_name).expect("endpoint exists");
+            // Derived order leads with `date` (representative carries a date).
+            assert_eq!(
+                endpoint_columns(ep),
+                vec!["date", "type", "open", "close"],
+                "{ep_name} derived order leads with `date` so it sorts ahead of the body"
+            );
+
+            // A date-bearing single-day response keeps `date` leading — NOT in
+            // the trailing tail (`type,open,close,date`).
+            assert_eq!(
+                csv_header_for(
+                    ep_name,
+                    "",
+                    EndpointOutput::CalendarDays(vec![open_day(20240315)])
+                ),
+                "date,type,open,close",
+                "{ep_name} with a date present leads with `date`, like calendar_year"
+            );
+
+            // The normal date-less single-day response drops `date` entirely
+            // (present-key intersection), leaving the bare `type,open,close`.
+            assert_eq!(
+                csv_header_for(ep_name, "", EndpointOutput::CalendarDays(vec![open_day(0)])),
+                "type,open,close",
+                "{ep_name} with no date keeps the bare single-day header"
+            );
+        }
     }
 
     // -----------------------------------------------------------------------
