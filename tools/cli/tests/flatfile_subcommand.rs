@@ -92,30 +92,27 @@ fn flatfile_request_rejects_unknown_sec_type() {
 }
 
 #[test]
-fn flatfile_request_rejects_unserved_req_and_sec_types() {
-    // The generic `request` arm constrains both flags to the served matrix:
-    // `index` is not a served security type, and `quote` / `trade` / `ohlc`
-    // are not served as flat files. clap rejects each at parse time.
-    for (flag, value) in [
-        ("--sec-type", "index"),
-        ("--req-type", "quote"),
-        ("--req-type", "trade"),
-        ("--req-type", "ohlc"),
-    ] {
-        let other = if flag == "--sec-type" {
-            ["--req-type", "trade_quote"]
-        } else {
-            ["--sec-type", "option"]
-        };
+fn flatfile_request_rejects_unserved_req_types() {
+    // The generic `request` arm constrains `--req-type` to the served matrix:
+    // per-tick `quote` / `trade` / `ohlc` are not served as flat files, so clap
+    // rejects each at parse time before any client work.
+    for value in ["quote", "trade", "ohlc"] {
         let out = Command::new(binary())
             .args([
-                "flatfile", "request", flag, value, other[0], other[1], "--date", "20260428",
+                "flatfile",
+                "request",
+                "--req-type",
+                value,
+                "--sec-type",
+                "option",
+                "--date",
+                "20260428",
             ])
             .output()
             .expect("thetadatadx binary should exist");
         assert!(
             !out.status.success(),
-            "unserved {flag} {value} must fail at clap parse time"
+            "unserved --req-type {value} must fail at clap parse time"
         );
         let stderr = String::from_utf8_lossy(&out.stderr);
         assert!(
@@ -123,4 +120,34 @@ fn flatfile_request_rejects_unserved_req_and_sec_types() {
             "stderr should reject `{value}`; got: {stderr}"
         );
     }
+}
+
+#[test]
+fn flatfile_request_rejects_unserved_index_pair() {
+    // `index` is a served security type (index EOD), so it parses; the served
+    // matrix serves index EOD alone, so a non-EOD index pair such as
+    // `index trade_quote` is rejected by the dispatch gate before any network
+    // work, not at clap parse time.
+    let out = Command::new(binary())
+        .args([
+            "flatfile",
+            "request",
+            "--sec-type",
+            "index",
+            "--req-type",
+            "trade_quote",
+            "--date",
+            "20260428",
+        ])
+        .output()
+        .expect("thetadatadx binary should exist");
+    assert!(
+        !out.status.success(),
+        "unserved index trade_quote pair must fail"
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.to_lowercase().contains("index"),
+        "stderr should name the rejected index pair; got: {stderr}"
+    );
 }

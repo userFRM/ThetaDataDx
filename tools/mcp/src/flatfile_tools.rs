@@ -81,7 +81,7 @@ fn served_req_type_tokens_for(sec: SecType) -> Vec<String> {
 /// the generic-tool schema pair-aware: a JSON-schema validator accepts a
 /// `(sec_type, req_type)` document only when it matches a served pair, so an
 /// individually-valid-but-unserved combination (e.g. stock `open_interest`,
-/// any `index` request) fails the schema rather than parsing and being
+/// a non-EOD `index` request) fails the schema rather than parsing and being
 /// rejected only at runtime.
 fn served_pair_branches() -> Vec<Value> {
     let mut branches: Vec<Value> = Vec::new();
@@ -415,22 +415,17 @@ mod tests {
     }
 
     /// The advertised `sec_type` / `req_type` enums must cover exactly the
-    /// tokens the served matrix yields (each in both cases) and must not offer
-    /// a security or request type the flat-file service never serves — no
-    /// `INDEX`, no per-tick `QUOTE` / `TRADE` / `OHLC`.
+    /// tokens the served matrix yields (each in both cases), including `INDEX`
+    /// (the served matrix includes index EOD), and must not offer a request
+    /// type the flat-file service never serves — no per-tick `QUOTE` / `TRADE`
+    /// / `OHLC`.
     #[test]
     fn generic_tool_enums_match_the_served_matrix() {
         let sec_tokens = generic_request_enum("sec_type");
-        for served in ["OPTION", "STOCK", "option", "stock"] {
+        for served in ["OPTION", "STOCK", "INDEX", "option", "stock", "index"] {
             assert!(
                 sec_tokens.iter().any(|t| t == served),
                 "sec_type enum must advertise `{served}`; got {sec_tokens:?}"
-            );
-        }
-        for unserved in ["INDEX", "index"] {
-            assert!(
-                !sec_tokens.iter().any(|t| t == unserved),
-                "sec_type enum must not advertise unserved `{unserved}`; got {sec_tokens:?}"
             );
         }
 
@@ -530,9 +525,10 @@ mod tests {
 
     /// The schema's pair-aware `oneOf` must encode exactly the served matrix:
     /// the option branch offers `eod`, `open_interest`, and `trade_quote`; the
-    /// stock branch offers `eod` and `trade_quote` but never `open_interest`.
-    /// This is what makes a validator reject stock `open_interest` (and any
-    /// `index` request) before the handler runs.
+    /// stock branch offers `eod` and `trade_quote` but never `open_interest`;
+    /// the index branch offers `eod` only. This is what makes a validator reject
+    /// stock `open_interest` (and any non-EOD `index` request) before the
+    /// handler runs.
     #[test]
     fn generic_tool_oneof_encodes_served_pairs() {
         let branches = generic_request_pair_branches();
@@ -568,22 +564,30 @@ mod tests {
             );
         }
 
-        // No branch may advertise an index security type: the flat-file
-        // service serves no index dataset.
-        for (sec, _) in &branches {
-            for unserved in ["INDEX", "index"] {
-                assert!(
-                    !sec.iter().any(|t| t == unserved),
-                    "no oneOf branch may advertise `{unserved}`; got {sec:?}"
-                );
-            }
+        // The index branch serves EOD only — never trade_quote or
+        // open_interest: the flat-file service serves index EOD alone.
+        let index_branch = branches
+            .iter()
+            .find(|(sec, _)| sec.iter().any(|t| t == "INDEX"))
+            .expect("a oneOf branch must cover the index security type");
+        assert!(
+            index_branch.1.iter().any(|t| t == "EOD"),
+            "index branch must serve `EOD`; got {:?}",
+            index_branch.1
+        );
+        for unserved in ["TRADE_QUOTE", "OPEN_INTEREST", "trade_quote", "open_interest"] {
+            assert!(
+                !index_branch.1.iter().any(|t| t == unserved),
+                "index branch must not serve `{unserved}`; got {:?}",
+                index_branch.1
+            );
         }
 
-        // One branch per served security type (option, stock).
+        // One branch per served security type (option, stock, index).
         assert_eq!(
             branches.len(),
-            2,
-            "the served matrix yields exactly two security-type branches"
+            3,
+            "the served matrix yields exactly three security-type branches"
         );
     }
 

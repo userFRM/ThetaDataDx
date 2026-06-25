@@ -29,9 +29,9 @@ fn sec_type_cli_token(sec: SecType) -> &'static str {
 }
 
 /// Distinct lower-case `sec_type` flag values the flat-file service serves,
-/// derived from the served matrix so the generic `request` arm can never
-/// advertise a security type without a served dataset (no `index`). Order
-/// follows the matrix; duplicates are skipped.
+/// derived from the served matrix so the generic `request` arm advertises every
+/// security type with a served dataset (`option`, `stock`, and `index` — the
+/// last serving EOD only). Order follows the matrix; duplicates are skipped.
 fn served_sec_type_tokens() -> Vec<&'static str> {
     let mut tokens: Vec<&'static str> = Vec::new();
     for (sec, _) in SERVED_DATASETS {
@@ -120,7 +120,7 @@ pub(crate) fn add_flatfile_command(app: Command) -> Command {
                         .value_parser(clap::builder::PossibleValuesParser::new(
                             served_sec_type_tokens(),
                         ))
-                        .help("Security type with a served flat-file dataset (option or stock)"),
+                        .help("Security type with a served flat-file dataset (option, stock, or index)"),
                 )
                 .arg(
                     Arg::new("req_type")
@@ -132,7 +132,7 @@ pub(crate) fn add_flatfile_command(app: Command) -> Command {
                         .help(
                             "Request type served as a flat file. Valid set depends on \
                              --sec-type (option: trade_quote, open_interest, eod; stock: \
-                             trade_quote, eod)",
+                             trade_quote, eod; index: eod)",
                         ),
                 )
                 .arg(
@@ -342,16 +342,17 @@ pub(crate) async fn try_dispatch(
 mod tests {
     use super::*;
 
-    /// The generic `request` arm advertises only security types with a served
-    /// flat-file dataset — `option` and `stock`, never `index`.
+    /// The generic `request` arm advertises every security type with a served
+    /// flat-file dataset — `option`, `stock`, and `index` (the served matrix
+    /// includes index EOD).
     #[test]
     fn sec_type_choices_match_the_served_matrix() {
         let tokens = served_sec_type_tokens();
         assert!(tokens.contains(&"option"));
         assert!(tokens.contains(&"stock"));
         assert!(
-            !tokens.contains(&"index"),
-            "index has no served flat-file dataset; got {tokens:?}"
+            tokens.contains(&"index"),
+            "index serves a flat-file dataset (EOD) and must be advertised; got {tokens:?}"
         );
     }
 
