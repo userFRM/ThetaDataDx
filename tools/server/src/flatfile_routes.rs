@@ -361,9 +361,19 @@ fn classify_flatfile_error(e: &thetadatadx::Error) -> (StatusCode, &'static str)
         thetadatadx::Error::Config { kind, .. } if kind.is_invalid_parameter() => {
             (StatusCode::BAD_REQUEST, "bad_request")
         }
+        // No-data arrives two ways: an `ERROR` frame whose diagnostic names
+        // the reason (`RequestRejected`, message-classified), or a
+        // connection-scoped `DISCONNECTED` whose `RemoveReason` is a no-data
+        // code such as `NoStartDate` (`AuthRejected`, reason-classified by
+        // the SDK). Both are "nothing here for this account/date", not a
+        // gateway fault, so both map to 404 — otherwise the same no-data
+        // condition answers 404 via one frame type and 502 via the other.
         thetadatadx::Error::FlatFilesUnavailable(FlatFilesUnavailableReason::RequestRejected {
             server_message,
         }) if rejection_is_no_data(server_message) => {
+            (StatusCode::NOT_FOUND, "flatfiles_no_data")
+        }
+        thetadatadx::Error::FlatFilesUnavailable(reason) if reason.is_no_data() => {
             (StatusCode::NOT_FOUND, "flatfiles_no_data")
         }
         _ => (StatusCode::BAD_GATEWAY, "flatfiles_unavailable"),
@@ -377,16 +387,20 @@ fn classify_flatfile_error(e: &thetadatadx::Error) -> (StatusCode, &'static str)
 /// The upstream tags these with a leading reason token. `PERMISSION:`
 /// covers the history-entitlement boundary (`"Invalid permissions for
 /// date. Your first access date is: YYYYMMDD ..."`); `NO_START_DATE`
-/// covers a date with no generated snapshot. Matching the token keeps the
-/// classifier from sweeping a genuinely malformed-request rejection
-/// (`INVALID_PARAMS`) into the no-data bucket — that stays a 502 so it is
-/// not silently masked as an empty result.
+/// covers a date with no generated snapshot. Matching the tagged prefix
+/// keeps the classifier from sweeping a genuinely malformed-request
+/// rejection (`INVALID_PARAMS`) into the no-data bucket — that stays a 502
+/// so it is not silently masked as an empty result.
+///
+/// The leading reason is a tagged prefix, so the match is anchored on the
+/// prefix rather than a whitespace/`:`-split first token: a leading space
+/// would split to an empty token (wrongly 502), and prose like
+/// `"PERMISSION denied"` would match a bare `PERMISSION` token (wrongly
+/// 404). `trim()` then `starts_with` the exact `PERMISSION:` /
+/// `NO_START_DATE` tags avoids both.
 fn rejection_is_no_data(server_message: &str) -> bool {
-    let token = server_message
-        .split(|c: char| c == ':' || c.is_whitespace())
-        .next()
-        .unwrap_or("");
-    matches!(token, "PERMISSION" | "NO_START_DATE")
+    let trimmed = server_message.trim();
+    trimmed.starts_with("PERMISSION:") || trimmed.starts_with("NO_START_DATE")
 }
 
 async fn serve_flatfile(
@@ -564,7 +578,9 @@ mod tests {
     /// A genuine upstream/transport fault stays `502 flatfiles_unavailable`,
     /// and a malformed-request rejection is NOT swept into the no-data
     /// bucket — masking a bad request as an empty result would hide the
-    /// fault. Both must surface as 502.
+    /// fault. Both must surface as 502. `AuthRejected { 15 }` is
+    /// `ServerRestarting` — a transient outage, not a no-data condition, so
+    /// it stays 502.
     #[test]
     fn transport_and_malformed_faults_stay_502() {
         let cases = [
@@ -584,6 +600,55 @@ mod tests {
                 "transport / malformed fault must stay 502: {reason:?}"
             );
         }
+    }
+
+    /// A no-data `DISCONNECTED` arrives as `AuthRejected` carrying a
+    /// no-data `RemoveReason` (13 = NoStartDate, the out-of-window /
+    /// snapshot-not-generated condition). It is the same "nothing here for
+    /// this account/date" outcome as the `ERROR`-frame no-data, so it must
+    /// also map to `404 flatfiles_no_data` — not the `502` the default arm
+    /// would give. This is the server half of the regression fix: before,
+    /// a no-data `DISCONNECTED` ran the full retry ladder and then answered
+    /// `502`, while the same no-data via an `ERROR` frame answered `404`.
+    #[test]
+    fn no_data_disconnect_maps_to_404() {
+        let e = thetadatadx::Error::FlatFilesUnavailable(
+            FlatFilesUnavailableReason::AuthRejected { reason_code: 13 },
+        );
+        assert_eq!(
+            classify_flatfile_error(&e),
+            (StatusCode::NOT_FOUND, "flatfiles_no_data"),
+            "NoStartDate DISCONNECTED must be a 404, not a 502",
+        );
+    }
+
+    /// `rejection_is_no_data` matches the upstream's tagged reason prefix
+    /// robustly against whitespace and prose. A leading space must not
+    /// blank the match (regression: a whitespace/`:`-split first token went
+    /// empty → wrong 502), and `"PERMISSION denied"` prose must NOT match
+    /// (regression: a bare `PERMISSION` token → wrong 404). Only the exact
+    /// `PERMISSION:` / `NO_START_DATE` tags count.
+    #[test]
+    fn rejection_is_no_data_is_whitespace_and_prose_robust() {
+        // Tagged no-data reasons, including a leading-space variant.
+        assert!(rejection_is_no_data(
+            "PERMISSION:Invalid permissions for date. Your first access date is: 20260618"
+        ));
+        assert!(rejection_is_no_data("NO_START_DATE:no snapshot for date"));
+        assert!(
+            rejection_is_no_data("  PERMISSION:leading whitespace"),
+            "a leading space must not blank the no-data match"
+        );
+        assert!(rejection_is_no_data("\tNO_START_DATE:tab-led"));
+
+        // Prose / unrelated reasons must NOT be swept into no-data.
+        assert!(
+            !rejection_is_no_data("PERMISSION denied: contact support"),
+            "`PERMISSION denied` prose must not match the `PERMISSION:` tag"
+        );
+        assert!(!rejection_is_no_data("INVALID_PARAMS:Invalid request type"));
+        assert!(!rejection_is_no_data(""));
+        assert!(!rejection_is_no_data("   "));
     }
 
     /// The SDK's local dataset gate rejects an unserved pair before any
