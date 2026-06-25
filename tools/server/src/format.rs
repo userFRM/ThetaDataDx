@@ -126,6 +126,353 @@ pub fn output_envelope(output: &EndpointOutput) -> sonic_rs::Value {
 }
 
 // ---------------------------------------------------------------------------
+//  v3 endpoint-aware response building
+// ---------------------------------------------------------------------------
+//
+//  The handler knows the endpoint (`EndpointMeta`) and the request `symbol`
+//  param; this module knows the per-row v3 shape. The two meet here: the
+//  handler hands us both and we produce the flat v3 rows once, then the JSON
+//  path groups option rows under their contract while CSV / NDJSON consume
+//  the flat rows directly — mirroring the vendor terminal, whose CSV / NDJSON
+//  writers emit every contract column inline and only the grouped-JSON writer
+//  lifts the contract out of each row.
+
+/// `true` when an endpoint's rows carry the option contract identity
+/// (`symbol` + `expiration` + `strike` + `right`). v3 groups exactly these
+/// rows under a `contract` object; every other family stays flat. Keyed on
+/// the REST path segment `/option/` (per the v3 routing) — list endpoints
+/// take the [`EndpointOutput::StringList`] / [`EndpointOutput::OptionContracts`]
+/// paths and never reach the contract-grouped tick path.
+fn endpoint_is_option(ep: &EndpointMeta) -> bool {
+    ep.rest_path.contains("/option/")
+}
+
+/// `true` when an endpoint's rows carry a leading `symbol` column. Every
+/// option endpoint does (alongside the rest of the contract identity), and
+/// so do the stock / index *snapshot* endpoints (which the v3 spec renders
+/// with a `symbol` column but no `expiration` / `strike` / `right`, so they
+/// stay flat). Stock / index history / at-time rows carry no `symbol`.
+fn endpoint_carries_symbol(ep: &EndpointMeta) -> bool {
+    endpoint_is_option(ep) || ep.rest_path.contains("/snapshot/")
+}
+
+/// Pick the per-row key for a `StringList` list endpoint from the endpoint
+/// name suffix. v3 list rows are single-key objects keyed by the listed
+/// dimension (`symbol` / `date` / `expiration` / `strike`).
+fn list_value_key(ep: &EndpointMeta) -> &'static str {
+    if ep.name.ends_with("_list_symbols") {
+        "symbol"
+    } else if ep.name.ends_with("_list_dates") {
+        "date"
+    } else if ep.name.ends_with("_list_expirations") {
+        "expiration"
+    } else if ep.name.ends_with("_list_strikes") {
+        "strike"
+    } else {
+        "symbol"
+    }
+}
+
+/// Convert a raw `YYYYMMDD` list value (`"20160816"`) to the v3 ISO
+/// `YYYY-MM-DD` string. Non-8-digit values pass through unchanged so a
+/// surprise wire shape is observable rather than silently mangled.
+fn iso_date_string(raw: &str) -> String {
+    let bytes = raw.as_bytes();
+    if bytes.len() == 8 && bytes.iter().all(u8::is_ascii_digit) {
+        format!("{}-{}-{}", &raw[0..4], &raw[4..6], &raw[6..8])
+    } else {
+        raw.to_string()
+    }
+}
+
+/// Build the flat v3 rows for a list endpoint, applying the per-endpoint
+/// key, ISO date formatting, numeric strike values, and the `symbol`
+/// pairing the symbol-scoped lists (`expirations` / `strikes`) carry.
+fn list_rows(ep: &EndpointMeta, symbol: Option<&str>, items: &[String]) -> Vec<sonic_rs::Value> {
+    let key = list_value_key(ep);
+    let is_date = key == "date" || key == "expiration";
+    let is_strike = key == "strike";
+    // The symbol-scoped lists (`option_list_expirations` / `_strikes`) pair
+    // each value with the requested `symbol`; the bare symbol / date lists
+    // do not.
+    let pair_symbol =
+        symbol.filter(|s| !s.is_empty()).filter(|_| key == "expiration" || key == "strike");
+
+    items
+        .iter()
+        .map(|raw| {
+            let mut row = sonic_rs::json!({});
+            let object = row.as_object_mut().expect("freshly built JSON object");
+            if let Some(sym) = pair_symbol {
+                object.insert("symbol", sonic_rs::Value::from(sym));
+            }
+            let value = if is_date {
+                sonic_rs::Value::from(iso_date_string(raw).as_str())
+            } else if is_strike {
+                // v3 renders strikes as JSON numbers; fall back to the raw
+                // string only if the wire value is not finite-parseable.
+                match raw.parse::<f64>() {
+                    Ok(n) if n.is_finite() => {
+                        sonic_rs::to_value(&n).unwrap_or_else(|_| sonic_rs::Value::from(raw.as_str()))
+                    }
+                    _ => sonic_rs::Value::from(raw.as_str()),
+                }
+            } else {
+                sonic_rs::Value::from(raw.as_str())
+            };
+            object.insert(key, value);
+            row
+        })
+        .collect()
+}
+
+/// The request's contract-identity params, used to label the v3 contract.
+///
+/// `symbol` always comes from the request (the wire ticks never carry it).
+/// `expiration` / `strike` / `right` are the raw request param strings
+/// (`"20241108"`, `"220.000"`, `"call"`); they are only used as a *fallback*
+/// when a row does not already carry the field. Wildcard responses
+/// (`expiration=*`) inject the contract columns per row, so the row value
+/// wins there; a single-contract response carries no contract columns, so
+/// the request params populate the v3 contract object the spec shows.
+#[derive(Clone, Copy, Default)]
+pub struct ContractParams<'a> {
+    /// Request `symbol` param (the option / underlying root).
+    pub symbol: Option<&'a str>,
+    /// Request `expiration` param, raw `YYYYMMDD` (ignored when `*`).
+    pub expiration: Option<&'a str>,
+    /// Request `strike` param, raw dollars string (ignored when `*`).
+    pub strike: Option<&'a str>,
+    /// Request `right` param (`call` / `put` / `c` / `p`; ignored when `*`).
+    pub right: Option<&'a str>,
+}
+
+impl<'a> ContractParams<'a> {
+    /// A concrete (non-wildcard, non-empty) request param, else `None`.
+    fn concrete(value: Option<&'a str>) -> Option<&'a str> {
+        value.filter(|v| !v.is_empty() && *v != "*")
+    }
+
+    /// v3-formatted `expiration` fallback (`"20241108"` -> `"2026-11-08"`).
+    fn expiration_value(&self) -> Option<sonic_rs::Value> {
+        Self::concrete(self.expiration)
+            .map(|raw| sonic_rs::Value::from(iso_date_string(raw).as_str()))
+    }
+
+    /// v3-formatted `strike` fallback (numeric where parseable).
+    fn strike_value(&self) -> Option<sonic_rs::Value> {
+        Self::concrete(self.strike).map(|raw| match raw.parse::<f64>() {
+            Ok(n) if n.is_finite() => {
+                sonic_rs::to_value(&n).unwrap_or_else(|_| sonic_rs::Value::from(raw))
+            }
+            _ => sonic_rs::Value::from(raw),
+        })
+    }
+
+    /// v3-formatted `right` fallback (`call` -> `CALL`, `p` -> `PUT`).
+    fn right_value(&self) -> Option<sonic_rs::Value> {
+        Self::concrete(self.right).map(|raw| match raw.to_ascii_lowercase().as_str() {
+            "c" | "call" => sonic_rs::Value::from("CALL"),
+            "p" | "put" => sonic_rs::Value::from("PUT"),
+            other => sonic_rs::Value::from(other),
+        })
+    }
+}
+
+/// Rebuild a flat tick row to carry the contract identity: `symbol` (from
+/// the request) plus, for option rows, `expiration` / `strike` / `right`.
+///
+/// The serializers append `expiration` / `strike` / `right` via
+/// [`insert_contract_id_fields`] only for wildcard responses (where the wire
+/// injects them per row); a single-contract response omits them, so the
+/// concrete request params (`contract`) populate them — matching the v3
+/// contract object the spec renders for a single-contract query. The output
+/// field iteration order is not significant (the v3 JSON `data` rows are
+/// key-addressed and unordered, and the CSV column order is pinned
+/// separately by [`csv_header_order`]); this only guarantees the identity
+/// fields are *present* so grouping and the CSV identity columns resolve.
+fn lead_with_contract(
+    row: &sonic_rs::Value,
+    symbol: &str,
+    is_option: bool,
+    contract: &ContractParams<'_>,
+) -> sonic_rs::Value {
+    let src = row
+        .as_object()
+        .expect("serialized tick rows must always be JSON objects");
+    let mut out = sonic_rs::json!({});
+    let dst = out.as_object_mut().expect("freshly built JSON object");
+    dst.insert("symbol", sonic_rs::Value::from(symbol));
+    if is_option {
+        // Row value wins (wildcard responses carry it per row); the request
+        // param is the single-contract fallback.
+        let expiration = src.get(&"expiration").cloned().or_else(|| contract.expiration_value());
+        let strike = src.get(&"strike").cloned().or_else(|| contract.strike_value());
+        let right = src.get(&"right").cloned().or_else(|| contract.right_value());
+        if let Some(v) = expiration {
+            dst.insert("expiration", v);
+        }
+        if let Some(v) = strike {
+            dst.insert("strike", v);
+        }
+        if let Some(v) = right {
+            dst.insert("right", v);
+        }
+    }
+    for (k, v) in src.iter() {
+        if k == "expiration" || k == "strike" || k == "right" {
+            continue;
+        }
+        dst.insert(k, v.clone());
+    }
+    out
+}
+
+/// Build the flat v3 response rows for an endpoint result.
+///
+/// Every row is emitted in the v3 wire shape with the contract identity (and
+/// the request `symbol`) inline and leading where the endpoint carries it.
+/// These rows feed the CSV and NDJSON renderers directly; the JSON renderer
+/// groups option rows via [`json_envelope`].
+pub fn response_rows(
+    ep: &EndpointMeta,
+    contract: &ContractParams<'_>,
+    output: &EndpointOutput,
+) -> Vec<sonic_rs::Value> {
+    if let EndpointOutput::StringList(items) = output {
+        return list_rows(ep, contract.symbol, items);
+    }
+    let rows = output_envelope(output);
+    let response = rows
+        .get("response")
+        .and_then(|r: &sonic_rs::Value| r.as_array())
+        .map(|arr| arr.iter().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
+
+    // Inject the request `symbol` (and reorder the contract identity to the
+    // front) only for endpoints whose v3 rows carry a `symbol` column. The
+    // history / at-time stock + index families have none, so they pass
+    // through untouched.
+    match contract.symbol {
+        Some(sym) if !sym.is_empty() && endpoint_carries_symbol(ep) => {
+            let is_option = endpoint_is_option(ep);
+            response
+                .iter()
+                .map(|row| lead_with_contract(row, sym, is_option, contract))
+                .collect()
+        }
+        _ => response,
+    }
+}
+
+/// Wrap flat v3 rows in the JSON envelope, grouping option rows under their
+/// contract.
+///
+/// For an option endpoint the rows are grouped by `(expiration, strike,
+/// right)` into `{"contract": {...}, "data": [...]}` blocks (the contract
+/// fields removed from each data row); every other endpoint stays flat
+/// (`{"response": [...]}`). Rows are already contract-leading (see
+/// [`response_rows`]) so equal-contract rows are contiguous and grouping is a
+/// single linear pass.
+pub fn json_envelope(ep: &EndpointMeta, rows: Vec<sonic_rs::Value>) -> sonic_rs::Value {
+    if !endpoint_is_option(ep) {
+        return ok_envelope(rows);
+    }
+    ok_envelope(group_rows_by_contract(rows))
+}
+
+/// Contract-identity key for grouping: `(expiration, strike, right)` as the
+/// rendered v3 strings / number. `symbol` is constant within a request, so
+/// it is not part of the grouping key.
+fn contract_key(row: &sonic_rs::Value) -> (String, String, String) {
+    let field = |name: &str| -> String {
+        row.get(name)
+            .map(|v: &sonic_rs::Value| {
+                v.as_str()
+                    .map(str::to_string)
+                    .unwrap_or_else(|| sonic_rs::to_string(v).unwrap_or_default())
+            })
+            .unwrap_or_default()
+    };
+    (field("expiration"), field("strike"), field("right"))
+}
+
+/// Group contract-leading rows into v3 `{contract, data}` blocks.
+fn group_rows_by_contract(mut rows: Vec<sonic_rs::Value>) -> Vec<sonic_rs::Value> {
+    // Wildcard responses already arrive grouped by contract, but a stable
+    // sort by the contract key guarantees one block per contract even if a
+    // future wire shape interleaves them — without it, an interleaved
+    // contract would emit a duplicate `{contract, data}` block. Stable, so
+    // each contract's rows keep their original (chronological) order.
+    rows.sort_by_key(contract_key);
+
+    let mut groups: Vec<sonic_rs::Value> = Vec::new();
+    let mut current_key: Option<(String, String, String)> = None;
+    let mut current_data: Vec<sonic_rs::Value> = Vec::new();
+    let mut current_contract = sonic_rs::Value::new_null();
+
+    for row in rows {
+        let key = contract_key(&row);
+        if current_key.as_ref() != Some(&key) {
+            if current_key.is_some() {
+                groups.push(sonic_rs::json!({
+                    "contract": std::mem::replace(&mut current_contract, sonic_rs::Value::new_null()),
+                    "data": std::mem::take(&mut current_data),
+                }));
+            }
+            current_contract = contract_object(&row);
+            current_key = Some(key);
+        }
+        current_data.push(strip_contract_fields(row));
+    }
+    if current_key.is_some() {
+        groups.push(sonic_rs::json!({
+            "contract": current_contract,
+            "data": current_data,
+        }));
+    }
+    groups
+}
+
+/// Build the v3 `contract` object from a contract-leading row, carrying the
+/// four identity fields (`symbol`, `strike`, `right`, `expiration`).
+///
+/// The JSON field *order* within the object is not asserted: `sonic_rs`
+/// objects do not preserve construction order on serialisation (their
+/// storage is an indexed key array), and the vendor itself serialises this
+/// object from an unordered map, so the wire order is not a stable contract.
+/// Consumers read the contract by key. (The CSV column order, which *is*
+/// positional, is pinned separately and deterministically by
+/// [`csv_header_order`].)
+fn contract_object(row: &sonic_rs::Value) -> sonic_rs::Value {
+    let src = row.as_object().expect("contract row must be a JSON object");
+    let mut out = sonic_rs::json!({});
+    let dst = out.as_object_mut().expect("freshly built JSON object");
+    for field in ["symbol", "strike", "right", "expiration"] {
+        if let Some(v) = src.get(&field) {
+            dst.insert(field, v.clone());
+        }
+    }
+    out
+}
+
+/// Drop the contract-identity fields (`symbol`, `expiration`, `strike`,
+/// `right`) from a row, leaving the per-tick data the v3 `data` array
+/// carries.
+fn strip_contract_fields(row: sonic_rs::Value) -> sonic_rs::Value {
+    let src = row.as_object().expect("data row must be a JSON object");
+    let mut out = sonic_rs::json!({});
+    let dst = out.as_object_mut().expect("freshly built JSON object");
+    for (k, v) in src.iter() {
+        if matches!(k, "symbol" | "expiration" | "strike" | "right") {
+            continue;
+        }
+        dst.insert(k, v.clone());
+    }
+    out
+}
+
+// ---------------------------------------------------------------------------
 //  Contract identification helpers
 // ---------------------------------------------------------------------------
 
@@ -934,44 +1281,85 @@ pub fn option_contracts_to_json(contracts: &[OptionContract]) -> Vec<sonic_rs::V
 //  CSV formatting
 // ---------------------------------------------------------------------------
 
+/// CRLF line terminator. v3 CSV is RFC-4180 framed: every record (header
+/// and data rows) ends with `\r\n`, matching the vendor's documented
+/// `text/csv` examples. A bare `\n` is the v2 framing and is not the v3
+/// contract.
+const CSV_CRLF: &str = "\r\n";
+
+/// The v3 CSV leading column order. Contract identity first (matching the
+/// vendor `text/csv` examples, where `symbol` / `expiration` / `strike` /
+/// `right` lead an option row), then the time columns. Any column not in
+/// this list is a data column and follows, ordered deterministically.
+///
+/// This fixed prefix is the source of the v3 column order rather than the
+/// row's key iteration order: `sonic_rs::Value` objects built via
+/// `insert` / `json!` do NOT preserve field insertion order (their storage
+/// is an indexed key array whose iteration order is not the construction
+/// order), so iterating a row would yield a non-deterministic, non-v3
+/// column sequence. Pinning the semantically-significant leading columns
+/// here keeps the header deterministic and v3-shaped.
+const CSV_LEADING_COLUMNS: &[&str] = &[
+    "symbol",
+    "expiration",
+    "strike",
+    "right",
+    "timestamp",
+    "trade_timestamp",
+    "quote_timestamp",
+    "created",
+    "last_trade",
+    "date",
+    "underlying_timestamp",
+];
+
+/// Order the union of a response's column keys into the v3 CSV header
+/// sequence: the [`CSV_LEADING_COLUMNS`] that are present, in that fixed
+/// order, followed by every remaining column sorted lexicographically for
+/// determinism. Returns `None` only when no object row contributes a key.
+fn csv_header_order(response: &[sonic_rs::Value]) -> Option<Vec<String>> {
+    let mut present: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+    for row in response {
+        let row_obj = row.as_object()?;
+        for (k, _) in row_obj.iter() {
+            present.insert(k);
+        }
+    }
+    if present.is_empty() {
+        return None;
+    }
+    let mut keys: Vec<String> = Vec::with_capacity(present.len());
+    for lead in CSV_LEADING_COLUMNS {
+        if present.remove(*lead) {
+            keys.push((*lead).to_string());
+        }
+    }
+    // Remaining (data) columns: lexicographic, which `BTreeSet` already
+    // gives in iteration order.
+    keys.extend(present.into_iter().map(str::to_string));
+    Some(keys)
+}
+
 /// Convert a JSON response array to CSV with headers.
 ///
 /// Returns `None` if the response is empty or contains unsupported row shapes.
 ///
-/// Object rows are emitted with one column per key. Headers are the union
-/// of keys across every row in lexicographic (sorted) order, so sparse
-/// rows (e.g. index ticks without `expiration` / `strike` / `right`
-/// mixed with option ticks that have them) never silently drop columns.
-/// Scalar rows are emitted as a single-column CSV with the `value`
-/// header so list endpoints can round-trip through `format=csv`.
+/// Object rows are emitted with one column per key, the union across every
+/// row so sparse rows (e.g. index ticks without `expiration` / `strike` /
+/// `right` mixed with option ticks that have them) never silently drop
+/// columns. The header order is the v3 semantic order (see
+/// [`csv_header_order`]): contract identity and the time columns lead, then
+/// the data columns. The earlier lexicographic (`BTreeSet`) order put every
+/// column alphabetically and did not match the v3 `text/csv` examples.
+/// Scalar rows are emitted as a single-column CSV with the `value` header so
+/// list endpoints can round-trip through `format=csv`. Records are
+/// CRLF-terminated per the v3 contract.
 pub fn json_to_csv(response: &[sonic_rs::Value]) -> Option<String> {
     let first = response.first()?;
     let mut out = String::with_capacity(response.len() * 128);
 
     if first.as_object().is_some() {
-        // Union the key set across EVERY row — not just the first row. Object
-        // rows can be sparse (index ticks have no `expiration/strike/right`
-        // while option ticks do), and seeding the header from row 0 alone
-        // silently dropped every column row 0 did not carry. `BTreeSet`
-        // gives stable lexicographic header order for free, replacing the
-        // previous explicit `sort_unstable` on the row-0 key list.
-        let mut keys_set: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-        for row in response {
-            let row_obj = row.as_object()?;
-            for (k, _) in row_obj.iter() {
-                // Pre-check membership so we only allocate a fresh
-                // `String` for keys we are actually going to insert.
-                // `BTreeSet<String>::insert` takes the key by value and
-                // would otherwise heap-allocate for every duplicate.
-                if !keys_set.contains(k) {
-                    keys_set.insert(k.to_string());
-                }
-            }
-        }
-        if keys_set.is_empty() {
-            return None;
-        }
-        let keys: Vec<String> = keys_set.into_iter().collect();
+        let keys = csv_header_order(response)?;
         let null_val = sonic_rs::Value::default();
 
         for (i, key) in keys.iter().enumerate() {
@@ -980,7 +1368,7 @@ pub fn json_to_csv(response: &[sonic_rs::Value]) -> Option<String> {
             }
             out.push_str(&escape_csv_field(key));
         }
-        out.push('\n');
+        out.push_str(CSV_CRLF);
 
         for row in response {
             let row_obj = row.as_object()?;
@@ -991,7 +1379,7 @@ pub fn json_to_csv(response: &[sonic_rs::Value]) -> Option<String> {
                 let value = row_obj.get(key).unwrap_or(&null_val);
                 out.push_str(&render_csv_value(value));
             }
-            out.push('\n');
+            out.push_str(CSV_CRLF);
         }
 
         return Some(out);
@@ -1001,10 +1389,11 @@ pub fn json_to_csv(response: &[sonic_rs::Value]) -> Option<String> {
         return None;
     }
 
-    out.push_str("value\n");
+    out.push_str("value");
+    out.push_str(CSV_CRLF);
     for row in response {
         out.push_str(&render_csv_value(row));
-        out.push('\n');
+        out.push_str(CSV_CRLF);
     }
 
     Some(out)
@@ -1117,7 +1506,8 @@ mod tests {
         ])
         .expect("scalar list should format as CSV");
 
-        assert_eq!(csv, "value\nAAPL\n\"MS,FT\"\n\"He said \"\"hi\"\"\"\n");
+        // v3 CSV is CRLF-framed.
+        assert_eq!(csv, "value\r\nAAPL\r\n\"MS,FT\"\r\n\"He said \"\"hi\"\"\"\r\n");
     }
 
     #[test]
@@ -1128,7 +1518,9 @@ mod tests {
         ])
         .expect("object rows should format as CSV");
 
-        assert_eq!(csv, "count,symbol\n1,AAPL\n2,MSFT\n");
+        // v3 CSV preserves the row's field (insertion) order and is
+        // CRLF-framed — the column order matches the rows, not a sort.
+        assert_eq!(csv, "symbol,count\r\nAAPL,1\r\nMSFT,2\r\n");
     }
 
     #[test]
@@ -1175,9 +1567,9 @@ mod tests {
         assert_eq!(lines[5], "\"'\tnull-byte-start\"");
 
         // Sanity: a benign string must NOT be quoted or prefixed -- the fix
-        // must be surgical, not a blanket "quote everything".
+        // must be surgical, not a blanket "quote everything". (CRLF-framed.)
         let benign = json_to_csv(&[sonic_rs::json!({ "cell": "AAPL" })]).unwrap();
-        assert_eq!(benign, "cell\nAAPL\n");
+        assert_eq!(benign, "cell\r\nAAPL\r\n");
     }
 
     /// Regression: the header key set must be the UNION of keys across
@@ -1202,14 +1594,18 @@ mod tests {
         .expect("sparse-object rows should format as CSV");
 
         let lines: Vec<&str> = csv.lines().collect();
+        // v3 order: the contract-identity leading columns first in their
+        // fixed order (`expiration`, `strike`, `right`), then the data
+        // columns lexicographically (`ms_of_day`, `price`). Every key that
+        // appears in any row is present — sparse rows render empty cells.
         assert_eq!(
-            lines[0], "expiration,ms_of_day,price,right,strike",
-            "header should contain every key that appears in any row"
+            lines[0], "expiration,strike,right,ms_of_day,price",
+            "header should lead with contract identity then carry every data key"
         );
-        // Row 0 is missing `expiration`, `right`, `strike` — must render
-        // as empty columns, not drop the whole column from the schema.
-        assert_eq!(lines[1], ",0,100.0,,");
-        assert_eq!(lines[2], "20240315,1,101.0,C,150.0");
+        // Row 0 lacks the contract identity — those leading columns render
+        // empty, not dropped from the schema.
+        assert_eq!(lines[1], ",,,0,100.0");
+        assert_eq!(lines[2], "20240315,150.0,C,1,101.0");
     }
 
     /// v3 quote shape: the `date` + `ms_of_day` integer pair collapses
@@ -1441,5 +1837,315 @@ mod tests {
         assert!(r.get("expiration").is_none());
         assert!(r.get("strike").is_none());
         assert!(r.get("right").is_none());
+    }
+
+    // -----------------------------------------------------------------------
+    //  v3 endpoint-aware response building
+    // -----------------------------------------------------------------------
+
+    use thetadatadx::QuoteTick as TdQuoteTick;
+
+    fn quote_tick(expiration: i32, strike: f64, right: char) -> TdQuoteTick {
+        TdQuoteTick {
+            ms_of_day: 34_200_000,
+            bid_size: 1,
+            bid_exchange: 2,
+            bid: 3.0,
+            bid_condition: 4,
+            ask_size: 5,
+            ask_exchange: 6,
+            ask: 7.0,
+            ask_condition: 8,
+            date: 20240102,
+            expiration,
+            strike,
+            right,
+            midpoint: 5.0,
+        }
+    }
+
+    /// A wildcard option snapshot response (two contracts) groups under one
+    /// `{contract, data}` block per contract: the contract object carries the
+    /// request `symbol` + the per-row identity in the v3 `symbol, strike,
+    /// right, expiration` field order, and each data row drops the contract
+    /// fields. Stock / index endpoints stay flat (covered separately).
+    #[test]
+    fn option_endpoint_groups_rows_by_contract() {
+        let ep = thetadatadx::find("option_snapshot_quote").expect("endpoint exists");
+        let contract = ContractParams {
+            symbol: Some("AAPL"),
+            expiration: Some("*"),
+            strike: None,
+            right: None,
+        };
+        let output = EndpointOutput::QuoteTicks(vec![
+            quote_tick(20260116, 275.0, 'C'),
+            quote_tick(20260116, 280.0, 'P'),
+        ]);
+        let rows = response_rows(ep, &contract, &output);
+        let envelope = json_envelope(ep, rows);
+
+        let response = envelope
+            .get("response")
+            .and_then(|v: &sonic_rs::Value| v.as_array())
+            .expect("response array");
+        assert_eq!(response.len(), 2, "one group per distinct contract");
+
+        let first = &response[0];
+        let contract_obj = first.get("contract").expect("contract object");
+        // The contract object carries exactly the four identity keys (the
+        // JSON field *order* within the object is not contractual — the
+        // vendor serialises it from an unordered map, and clients read by
+        // key — so only presence + values are asserted).
+        let keys: std::collections::BTreeSet<String> = contract_obj
+            .as_object()
+            .expect("contract is an object")
+            .iter()
+            .map(|(k, _)| k.to_string())
+            .collect();
+        assert_eq!(
+            keys,
+            ["expiration", "right", "strike", "symbol"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect()
+        );
+        assert_eq!(
+            contract_obj.get("symbol").and_then(|v: &sonic_rs::Value| v.as_str()),
+            Some("AAPL"),
+            "contract symbol comes from the request param"
+        );
+        assert_eq!(
+            contract_obj.get("right").and_then(|v: &sonic_rs::Value| v.as_str()),
+            Some("CALL")
+        );
+        assert_eq!(
+            contract_obj
+                .get("expiration")
+                .and_then(|v: &sonic_rs::Value| v.as_str()),
+            Some("2026-01-16")
+        );
+
+        let data = first
+            .get("data")
+            .and_then(|v: &sonic_rs::Value| v.as_array())
+            .expect("data array");
+        assert_eq!(data.len(), 1);
+        let data_row = &data[0];
+        for dropped in ["symbol", "expiration", "strike", "right"] {
+            assert!(
+                data_row.get(dropped).is_none(),
+                "contract field must be lifted out of the data row: {dropped}"
+            );
+        }
+        assert!(data_row.get("bid").is_some(), "data row keeps the quote fields");
+    }
+
+    /// A single-contract option query carries no contract columns on the
+    /// wire (the tick's `expiration` is 0), so the v3 contract object is
+    /// populated from the concrete request params.
+    #[test]
+    fn single_contract_option_labels_contract_from_request_params() {
+        let ep = thetadatadx::find("option_history_quote").expect("endpoint exists");
+        let contract = ContractParams {
+            symbol: Some("AAPL"),
+            expiration: Some("20241108"),
+            strike: Some("220.000"),
+            right: Some("call"),
+        };
+        // expiration == 0 -> the serializer omits the contract columns.
+        let output = EndpointOutput::QuoteTicks(vec![quote_tick(0, 0.0, '\0')]);
+        let rows = response_rows(ep, &contract, &output);
+        let envelope = json_envelope(ep, rows);
+        let response = envelope
+            .get("response")
+            .and_then(|v: &sonic_rs::Value| v.as_array())
+            .expect("response array");
+        assert_eq!(response.len(), 1);
+        let c = response[0].get("contract").expect("contract object");
+        assert_eq!(
+            c.get("symbol").and_then(|v: &sonic_rs::Value| v.as_str()),
+            Some("AAPL")
+        );
+        assert_eq!(
+            c.get("expiration").and_then(|v: &sonic_rs::Value| v.as_str()),
+            Some("2024-11-08"),
+            "expiration falls back to the request param, ISO-formatted"
+        );
+        assert_eq!(
+            c.get("strike").and_then(|v: &sonic_rs::Value| v.as_f64()),
+            Some(220.0),
+            "strike falls back to the request param, as a number"
+        );
+        assert_eq!(
+            c.get("right").and_then(|v: &sonic_rs::Value| v.as_str()),
+            Some("CALL"),
+            "right falls back to the request param, spelled out"
+        );
+    }
+
+    /// Stock / index endpoints never group: the JSON envelope stays a flat
+    /// `{response: [...]}` array, with the `symbol` column inline on the
+    /// snapshot families and absent on history.
+    #[test]
+    fn stock_snapshot_stays_flat_with_inline_symbol() {
+        let ep = thetadatadx::find("stock_snapshot_quote").expect("endpoint exists");
+        let contract = ContractParams {
+            symbol: Some("AAPL"),
+            ..ContractParams::default()
+        };
+        let output = EndpointOutput::QuoteTicks(vec![quote_tick(0, 0.0, '\0')]);
+        let rows = response_rows(ep, &contract, &output);
+        let envelope = json_envelope(ep, rows);
+        let response = envelope
+            .get("response")
+            .and_then(|v: &sonic_rs::Value| v.as_array())
+            .expect("response array");
+        assert_eq!(response.len(), 1);
+        let row = &response[0];
+        assert!(
+            row.get("contract").is_none(),
+            "stock endpoints must not group under a contract"
+        );
+        assert_eq!(
+            row.get("symbol").and_then(|v: &sonic_rs::Value| v.as_str()),
+            Some("AAPL"),
+            "snapshot rows carry the request symbol inline"
+        );
+        assert!(
+            row.get("expiration").is_none() && row.get("strike").is_none(),
+            "stock rows carry no option contract identity"
+        );
+    }
+
+    /// `stock_history_*` rows carry no `symbol` column (the v3 spec renders
+    /// them without one).
+    #[test]
+    fn stock_history_has_no_symbol_column() {
+        let ep = thetadatadx::find("stock_history_quote").expect("endpoint exists");
+        let contract = ContractParams {
+            symbol: Some("AAPL"),
+            ..ContractParams::default()
+        };
+        let output = EndpointOutput::QuoteTicks(vec![quote_tick(0, 0.0, '\0')]);
+        let rows = response_rows(ep, &contract, &output);
+        assert!(
+            rows[0].get("symbol").is_none(),
+            "stock history rows have no symbol column"
+        );
+    }
+
+    /// v3 list endpoints: symbols -> `{symbol}`, dates -> `{date}` ISO,
+    /// option expirations -> `{symbol, expiration}` ISO, option strikes ->
+    /// `{symbol, strike}` numeric.
+    #[test]
+    fn list_endpoints_use_v3_keys_and_iso() {
+        // Symbol list: single `symbol` key, value verbatim.
+        let ep = thetadatadx::find("stock_list_symbols").expect("endpoint exists");
+        let rows = response_rows(
+            ep,
+            &ContractParams::default(),
+            &EndpointOutput::StringList(vec!["AAPL".into()]),
+        );
+        assert_eq!(
+            rows[0].get("symbol").and_then(|v: &sonic_rs::Value| v.as_str()),
+            Some("AAPL")
+        );
+
+        // Date list: `date` key, raw YYYYMMDD rendered ISO.
+        let ep = thetadatadx::find("stock_list_dates").expect("endpoint exists");
+        let rows = response_rows(
+            ep,
+            &ContractParams::default(),
+            &EndpointOutput::StringList(vec!["20160816".into()]),
+        );
+        assert_eq!(
+            rows[0].get("date").and_then(|v: &sonic_rs::Value| v.as_str()),
+            Some("2016-08-16")
+        );
+
+        // Option expirations: symbol-paired, expiration ISO.
+        let ep = thetadatadx::find("option_list_expirations").expect("endpoint exists");
+        let rows = response_rows(
+            ep,
+            &ContractParams {
+                symbol: Some("AAPL"),
+                ..ContractParams::default()
+            },
+            &EndpointOutput::StringList(vec!["20120601".into()]),
+        );
+        assert_eq!(
+            rows[0].get("symbol").and_then(|v: &sonic_rs::Value| v.as_str()),
+            Some("AAPL")
+        );
+        assert_eq!(
+            rows[0].get("expiration").and_then(|v: &sonic_rs::Value| v.as_str()),
+            Some("2012-06-01")
+        );
+
+        // Option strikes: symbol-paired, strike numeric.
+        let ep = thetadatadx::find("option_list_strikes").expect("endpoint exists");
+        let rows = response_rows(
+            ep,
+            &ContractParams {
+                symbol: Some("AAPL"),
+                ..ContractParams::default()
+            },
+            &EndpointOutput::StringList(vec!["80.000".into()]),
+        );
+        assert_eq!(
+            rows[0].get("symbol").and_then(|v: &sonic_rs::Value| v.as_str()),
+            Some("AAPL")
+        );
+        assert_eq!(
+            rows[0].get("strike").and_then(|v: &sonic_rs::Value| v.as_f64()),
+            Some(80.0)
+        );
+    }
+
+    /// v3 CSV: contract identity + time columns lead in fixed order, then
+    /// data columns, CRLF-framed. Built from an option history row so the
+    /// `symbol,expiration,strike,right,timestamp,...` prefix is exercised.
+    #[test]
+    fn csv_v3_column_order_leads_with_contract_then_crlf() {
+        let ep = thetadatadx::find("option_history_trade").expect("endpoint exists");
+        let tick = thetadatadx::TradeTick {
+            ms_of_day: 34_200_471,
+            sequence: 18902138,
+            ext_condition1: 255,
+            ext_condition2: 255,
+            ext_condition3: 255,
+            ext_condition4: 255,
+            condition: 130,
+            size: 2,
+            exchange: 22,
+            price: 3.90,
+            condition_flags: 0,
+            price_flags: 0,
+            volume_type: 0,
+            records_back: 0,
+            date: 20241104,
+            expiration: 20241108,
+            strike: 220.0,
+            right: 'C',
+        };
+        let contract = ContractParams {
+            symbol: Some("AAPL"),
+            expiration: Some("*"),
+            strike: None,
+            right: None,
+        };
+        let rows = response_rows(ep, &contract, &EndpointOutput::TradeTicks(vec![tick]));
+        let csv = json_to_csv(&rows).expect("CSV");
+        assert!(csv.ends_with("\r\n"), "v3 CSV is CRLF-framed: {csv:?}");
+        let header = csv.split("\r\n").next().expect("header line");
+        assert!(
+            header.starts_with("symbol,expiration,strike,right,timestamp,"),
+            "v3 CSV leads with contract identity then the time column: {header}"
+        );
+        // Every data column is still present somewhere in the header.
+        for col in ["sequence", "condition", "size", "exchange", "price"] {
+            assert!(header.contains(col), "data column {col} missing from {header}");
+        }
     }
 }

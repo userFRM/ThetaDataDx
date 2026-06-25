@@ -33,6 +33,29 @@ use crate::validation;
 /// suffix, so the suffix must never come back.
 pub(crate) const JSON_CONTENT_TYPE: &str = "application/json";
 
+/// Content type for the v3 plain-text error body. v3 returns the HTTP
+/// status with the error description as the body (no JSON envelope), so the
+/// data / registry error path emits `text/plain`.
+pub(crate) const TEXT_PLAIN_CONTENT_TYPE: &str = "text/plain; charset=utf-8";
+
+/// Build a v3 plain-text error response: the HTTP status carrying `msg` as
+/// a `text/plain` body, with no JSON envelope.
+///
+/// This is the v3 contract for the registry / data error path (`status` +
+/// plain description). The JSON-enveloped [`error_response`] is retained for
+/// the extractor-boundary and rate-limit rejections that other route layers
+/// (the `BoundedQuery` extractor, the rate-limit path in `router`, the
+/// shutdown-token guard) hand-write against; converting those is out of
+/// scope here because they live in files owned elsewhere.
+pub(crate) fn plain_error_response(status: StatusCode, msg: &str) -> Response {
+    (
+        status,
+        [(axum::http::header::CONTENT_TYPE, TEXT_PLAIN_CONTENT_TYPE)],
+        msg.to_owned(),
+    )
+        .into_response()
+}
+
 /// Build a JSON error response with the JVM terminal error envelope format.
 ///
 /// The envelope is hand-built from string + array primitives, so
@@ -285,12 +308,14 @@ fn resolve_range_sibling<'a>(
 const UPSTREAM_EXHAUSTED_RETRY_AFTER_SECS: u64 = 1;
 
 fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response {
+    // v3 error bodies are the HTTP status plus a plain-text description (no
+    // JSON envelope), so every arm here returns `plain_error_response`.
     match error {
         EndpointError::InvalidParams(message) => {
-            error_response(StatusCode::BAD_REQUEST, "bad_request", &message)
+            plain_error_response(StatusCode::BAD_REQUEST, &message)
         }
         EndpointError::UnknownEndpoint(message) => {
-            error_response(StatusCode::NOT_FOUND, "not_found", &message)
+            plain_error_response(StatusCode::NOT_FOUND, &message)
         }
         // Upstream capacity rejection that survived the SDK's retry
         // budget (`ResourceExhausted` is classified transient and
@@ -309,9 +334,8 @@ fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response 
                 error = %message,
                 "upstream capacity exhausted after retries"
             );
-            let mut resp = error_response(
+            let mut resp = plain_error_response(
                 StatusCode::SERVICE_UNAVAILABLE,
-                "upstream_exhausted",
                 &format!("upstream is at capacity; retry shortly: {message}"),
             );
             // Prefer the server-advertised cooldown when the upstream
@@ -326,11 +350,7 @@ fn endpoint_error_response(ep: &EndpointMeta, error: EndpointError) -> Response 
         }
         EndpointError::Server(error) => {
             tracing::warn!(endpoint = ep.name, error = %error, "request failed");
-            error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "server_error",
-                &error.to_string(),
-            )
+            plain_error_response(StatusCode::INTERNAL_SERVER_ERROR, &error.to_string())
         }
     }
 }
@@ -355,7 +375,7 @@ pub(crate) const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson; charset=utf-
 /// caller's pipeline fail far from the cause.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ResponseFormat {
-    /// JVM terminal JSON envelope (default).
+    /// JSON envelope.
     Json,
     /// RFC 4180 CSV with a header row.
     Csv,
@@ -363,12 +383,14 @@ enum ResponseFormat {
     Ndjson,
 }
 
-/// Parse the `format` query parameter. Absent means JSON.
+/// Parse the `format` query parameter. Absent means CSV — the v3 spec
+/// defaults `format` to `csv` on every path (the vendor terminal's
+/// `ResultsFormat.fromString` returns `CSV` for an absent / blank value).
 fn parse_response_format(
     params: &HashMap<String, String>,
 ) -> Result<ResponseFormat, EndpointError> {
     let Some(raw) = params.get("format") else {
-        return Ok(ResponseFormat::Json);
+        return Ok(ResponseFormat::Csv);
     };
     match raw.to_ascii_lowercase().as_str() {
         "json" => Ok(ResponseFormat::Json),
@@ -465,7 +487,7 @@ fn ndjson_response(json_val: &mut sonic_rs::Value) -> Response {
 ///    to the `_range` registry sibling (see [`resolve_range_sibling`]).
 /// 3. Validates query params against `EndpointMeta.params` (length caps
 ///    included — `format` falls under the generic 64-byte cap here).
-/// 4. Negotiates the response format (`json` default, `csv`,
+/// 4. Negotiates the response format (`csv` default, `json`,
 ///    `ndjson`/`jsonl`); unknown `format` values are a 400.
 /// 5. Invokes the shared endpoint runtime.
 /// 6. Renders the negotiated format.
@@ -495,23 +517,37 @@ pub async fn generic(
         Err(error) => return endpoint_error_response(ep, error),
     };
 
-    let mut json_val = format::output_envelope(&output);
+    // Build the flat v3 rows once. The CSV / NDJSON renderers consume them
+    // directly (contract identity inline per row); the JSON renderer groups
+    // option rows under their `contract`. The request contract params are the
+    // source of the per-row / contract identity — wildcard responses echo the
+    // contract columns per row (those win), but the wire never carries
+    // `symbol` and a single-contract response carries no contract columns, so
+    // they are threaded from here where the query is known.
+    let contract = format::ContractParams {
+        symbol: params.get("symbol").map(String::as_str),
+        expiration: params.get("expiration").map(String::as_str),
+        strike: params.get("strike").map(String::as_str),
+        right: params.get("right").map(String::as_str),
+    };
+    let rows = format::response_rows(ep, &contract, &output);
     match response_format {
-        ResponseFormat::Json => json_response(&mut json_val),
-        ResponseFormat::Ndjson => ndjson_response(&mut json_val),
+        ResponseFormat::Json => {
+            let mut json_val = format::json_envelope(ep, rows);
+            json_response(&mut json_val)
+        }
+        ResponseFormat::Ndjson => {
+            // NDJSON stays flat (one contract-inline row per line) — only the
+            // JSON envelope groups under `contract`.
+            let mut json_val = format::ok_envelope(rows);
+            ndjson_response(&mut json_val)
+        }
         ResponseFormat::Csv => {
             let disposition = format!(
                 "attachment; filename=\"{}\"",
                 csv_attachment_filename(ep, &params)
             );
-            let body = json_val
-                .get("response")
-                .and_then(|v: &sonic_rs::Value| v.as_array())
-                .and_then(|arr| {
-                    let items: Vec<sonic_rs::Value> = arr.iter().cloned().collect();
-                    format::json_to_csv(&items)
-                })
-                .unwrap_or_default();
+            let body = format::json_to_csv(&rows).unwrap_or_default();
             (
                 StatusCode::OK,
                 [
@@ -905,10 +941,11 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
-    fn response_format_defaults_to_json_and_parses_known_values() {
+    fn response_format_defaults_to_csv_and_parses_known_values() {
+        // v3 defaults `format` to `csv` when the param is absent.
         assert_eq!(
             parse_response_format(&HashMap::new()).unwrap(),
-            ResponseFormat::Json
+            ResponseFormat::Csv
         );
         for (raw, expected) in [
             ("json", ResponseFormat::Json),
@@ -1128,10 +1165,18 @@ mod tests {
                 .and_then(|v| v.to_str().ok()),
             Some("1")
         );
+        // v3 error body is plain text (no JSON envelope) carrying the
+        // description.
+        assert_eq!(
+            resp.headers()
+                .get(axum::http::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok()),
+            Some("text/plain; charset=utf-8")
+        );
         let body = read_body(resp).await;
         assert!(
-            body.contains("\"error_type\":\"upstream_exhausted\""),
-            "envelope names the capacity condition: {body}"
+            !body.contains("\"header\"") && !body.contains("\"error_type\""),
+            "v3 error body must not carry a JSON envelope: {body}"
         );
         assert!(
             body.contains("stream quota exceeded"),
@@ -1157,6 +1202,49 @@ mod tests {
             .headers()
             .get(axum::http::header::RETRY_AFTER)
             .is_none());
+    }
+
+    /// v3 registry / data errors are a plain-text body at the right status —
+    /// no JSON envelope, `text/plain` content type, the message verbatim.
+    #[tokio::test]
+    async fn endpoint_invalid_params_emits_plain_text_body() {
+        let ep = any_endpoint();
+        let resp = endpoint_error_response(
+            ep,
+            EndpointError::InvalidParams("missing required parameter: 'date'".to_string()),
+        );
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            resp.headers()
+                .get(axum::http::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok()),
+            Some("text/plain; charset=utf-8")
+        );
+        let body = read_body(resp).await;
+        assert_eq!(body, "missing required parameter: 'date'");
+        assert!(
+            !body.contains('{') && !body.contains("header"),
+            "v3 error body must not be a JSON envelope: {body}"
+        );
+    }
+
+    /// An unknown endpoint maps to a 404 plain-text body.
+    #[tokio::test]
+    async fn endpoint_unknown_emits_plain_text_404() {
+        let ep = any_endpoint();
+        let resp = endpoint_error_response(
+            ep,
+            EndpointError::UnknownEndpoint("no such endpoint: 'frobnicate'".to_string()),
+        );
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            resp.headers()
+                .get(axum::http::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok()),
+            Some("text/plain; charset=utf-8")
+        );
+        let body = read_body(resp).await;
+        assert_eq!(body, "no such endpoint: 'frobnicate'");
     }
 
     #[tokio::test]
@@ -1213,16 +1301,33 @@ mod tests {
             body.contains("\"symbol\":\"AAPL\""),
             "symbol must round-trip unchanged, got {body}"
         );
-        // The full envelope shape — `header` + `response` array — must be
-        // intact, so clients that pattern-match on `header.error_type` to
-        // distinguish success from failure still work.
+        // The v3 success envelope is `{"response": [...]}` with NO `header`
+        // key (v3 carries no header on any path). Assert the real shape: no
+        // header, a `response` array, and the row's actual values inside it.
+        let parsed: Value = sonic_rs::from_str(&body).expect("body must be valid JSON");
         assert!(
-            body.contains("\"header\""),
-            "envelope header missing: {body}"
+            parsed.get("header").is_none(),
+            "v3 success envelope must not carry a header: {body}"
+        );
+        let rows = parsed
+            .get("response")
+            .and_then(|r: &Value| r.as_array())
+            .expect("v3 envelope must carry a response array");
+        assert_eq!(rows.len(), 1, "exactly one row was supplied: {body}");
+        let row = &rows[0];
+        assert_eq!(
+            row.get("symbol").and_then(Value::as_str),
+            Some("AAPL"),
+            "symbol must round-trip in the response row: {body}"
+        );
+        assert_eq!(
+            row.get("delta").and_then(Value::as_f64),
+            Some(0.5),
+            "delta must round-trip in the response row: {body}"
         );
         assert!(
-            body.contains("\"response\""),
-            "envelope response missing: {body}"
+            row.get("vega").is_some_and(Value::is_null),
+            "non-finite vega must canonicalise to JSON null in the row: {body}"
         );
     }
 }
