@@ -207,7 +207,7 @@ impl FlatFilesUnavailableReason {
     /// flatfile retry loop's terminal-vs-retryable decision.
     ///
     /// `AuthRejected` decodes its `RemoveReason` ordinal through
-    /// [`disconnect_reason_class`]: only the genuinely-transient reasons
+    /// `disconnect_reason_class`: only the genuinely-transient reasons
     /// (timeouts, `ServerRestarting`, rate-limit) retry; permanent
     /// credential/account reasons (including `GeneralValidationError`, a
     /// login-phase auth failure) and the no-data reason (`NoStartDate`) are
@@ -241,7 +241,7 @@ impl FlatFilesUnavailableReason {
     /// stays `502`.
     ///
     /// Only an `AuthRejected` whose `RemoveReason` ordinal classifies as
-    /// [`DisconnectReasonClass::TerminalNoData`] (`NoStartDate`) is no-data.
+    /// `DisconnectReasonClass::TerminalNoData` (`NoStartDate`) is no-data.
     /// A `RequestRejected` no-data condition is carried in the server
     /// diagnostic string instead and is recognised by the server's message
     /// classifier, not here.
