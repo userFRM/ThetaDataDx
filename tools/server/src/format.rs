@@ -51,11 +51,29 @@ pub fn error_envelope(error_type: &str, message: &str) -> sonic_rs::Value {
     })
 }
 
-/// Wrap a list of strings in the envelope (for list endpoints).
-pub fn list_envelope(items: &[String]) -> sonic_rs::Value {
+/// Wrap a list of string values in the envelope (for list endpoints).
+///
+/// v3 list endpoints return an array of single-key objects rather than
+/// bare scalars: `stock_list_symbols` emits `[{"symbol":"AAPL"}, ...]`,
+/// `stock_list_dates` emits `[{"date":"2016-08-16"}, ...]`, and so on.
+/// `key` names the per-row field for the endpoint family in play.
+///
+/// The keyless [`EndpointOutput::StringList`] variant that reaches
+/// [`output_envelope`] carries only the raw `Vec<String>` with no
+/// per-endpoint key or ISO formatting, so the symbol-paired
+/// (`option_list_expirations`/`option_list_strikes`) and ISO-date
+/// (`list_dates`) shapes require the endpoint name to be threaded from
+/// the handler; that wiring lives outside this module.
+pub fn list_envelope(items: &[String], key: &str) -> sonic_rs::Value {
     let response: Vec<sonic_rs::Value> = items
         .iter()
-        .map(|s| sonic_rs::Value::from(s.as_str()))
+        .map(|s| {
+            let mut row = sonic_rs::json!({});
+            row.as_object_mut()
+                .expect("freshly built JSON object")
+                .insert(key, sonic_rs::Value::from(s.as_str()));
+            row
+        })
         .collect();
     ok_envelope(response)
 }
@@ -64,7 +82,13 @@ pub fn list_envelope(items: &[String]) -> sonic_rs::Value {
 pub fn output_envelope(output: &EndpointOutput) -> sonic_rs::Value {
     let response = match output {
         EndpointOutput::StringList(items) => {
-            return list_envelope(items);
+            // The generic handler does not thread the endpoint name into
+            // this module, so the keyless `StringList` arm cannot tell a
+            // symbol list from a date / expiration / strike list. Default
+            // to the canonical `symbol` key the bulk of the list endpoints
+            // use; per-endpoint keys + ISO formatting need the endpoint
+            // name to be plumbed through from the caller.
+            return list_envelope(items, "symbol");
         }
         EndpointOutput::EodTicks(ticks) => eod_ticks_to_json(ticks),
         EndpointOutput::OhlcTicks(ticks) => ohlc_ticks_to_json(ticks),
@@ -142,6 +166,27 @@ fn ms_of_day_to_iso(date: i32, ms_of_day: i32) -> sonic_rs::Value {
     )
 }
 
+/// Format a `YYYYMMDD` integer as the v3 ISO `YYYY-MM-DD` date string.
+/// Shares the calendar `date` and interest-rate `created` columns, which
+/// the spec renders as bare dates (no time component).
+fn date_label(date: i32) -> sonic_rs::Value {
+    let year = date / 10_000;
+    let month = (date / 100) % 100;
+    let day = date % 100;
+    sonic_rs::Value::from(format!("{year:04}-{month:02}-{day:02}").as_str())
+}
+
+/// Format a millisecond-of-day offset as the v3 `HH:mm:ss` clock string
+/// (the calendar `open` / `close` columns). Milliseconds are truncated:
+/// the calendar publishes whole-second session boundaries.
+fn ms_of_day_to_clock(ms_of_day: i32) -> sonic_rs::Value {
+    let ms = ms_of_day.max(0);
+    let hour = ms / 3_600_000;
+    let minute = (ms / 60_000) % 60;
+    let second = (ms / 1_000) % 60;
+    sonic_rs::Value::from(format!("{hour:02}:{minute:02}:{second:02}").as_str())
+}
+
 fn insert_contract_id_fields(row: &mut sonic_rs::Value, expiration: i32, strike: f64, right: char) {
     if expiration == 0 {
         return;
@@ -198,16 +243,18 @@ pub fn ohlc_ticks_to_json(ticks: &[OhlcTick]) -> Vec<sonic_rs::Value> {
     ticks
         .iter()
         .map(|t| {
+            // v3: the bar `timestamp` (ISO local-datetime built from the
+            // `date` + ms-of-day offset) replaces the v2 `ms_of_day` + `date`
+            // column pair.
             let mut row = sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
+                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "open": t.open,
                 "high": t.high,
                 "low": t.low,
                 "close": t.close,
                 "volume": t.volume,
                 "count": t.count,
-                "vwap": t.vwap,
-                "date": t.date
+                "vwap": t.vwap
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -220,8 +267,12 @@ pub fn trade_ticks_to_json(ticks: &[TradeTick]) -> Vec<sonic_rs::Value> {
     ticks
         .iter()
         .map(|t| {
+            // v3: `timestamp` (ISO from `date` + ms-of-day) replaces the v2
+            // `ms_of_day` + `date` pair; the v2-only `condition_flags`,
+            // `price_flags`, `volume_type`, and `records_back` wire columns
+            // are not part of the v3 trade shape.
             let mut row = sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
+                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "sequence": t.sequence,
                 "ext_condition1": t.ext_condition1,
                 "ext_condition2": t.ext_condition2,
@@ -230,12 +281,7 @@ pub fn trade_ticks_to_json(ticks: &[TradeTick]) -> Vec<sonic_rs::Value> {
                 "condition": t.condition,
                 "size": t.size,
                 "exchange": t.exchange,
-                "price": t.price,
-                "condition_flags": t.condition_flags,
-                "price_flags": t.price_flags,
-                "volume_type": t.volume_type,
-                "records_back": t.records_back,
-                "date": t.date
+                "price": t.price
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -248,8 +294,11 @@ pub fn quote_ticks_to_json(ticks: &[QuoteTick]) -> Vec<sonic_rs::Value> {
     ticks
         .iter()
         .map(|t| {
+            // v3: `timestamp` (ISO from `date` + ms-of-day) replaces the v2
+            // `ms_of_day` + `date` pair; the v2-only computed `midpoint`
+            // column is not part of the v3 quote shape.
             let mut row = sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
+                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "bid_size": t.bid_size,
                 "bid_exchange": t.bid_exchange,
                 "bid": t.bid,
@@ -257,9 +306,7 @@ pub fn quote_ticks_to_json(ticks: &[QuoteTick]) -> Vec<sonic_rs::Value> {
                 "ask_size": t.ask_size,
                 "ask_exchange": t.ask_exchange,
                 "ask": t.ask,
-                "ask_condition": t.ask_condition,
-                "midpoint": t.midpoint,
-                "date": t.date
+                "ask_condition": t.ask_condition
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -272,22 +319,25 @@ pub fn trade_quote_ticks_to_json(ticks: &[TradeQuoteTick]) -> Vec<sonic_rs::Valu
     ticks
         .iter()
         .map(|t| {
+            // v3: the trade and quote sides each carry their own ISO
+            // datetime -- `trade_timestamp` (from `date` + the trade
+            // ms-of-day) and `quote_timestamp` (from `date` + the paired
+            // quote ms-of-day) -- replacing the v2 `ms_of_day` /
+            // `quote_ms_of_day` / `date` integer columns. The v2-only
+            // `condition_flags`, `price_flags`, `volume_type`, and
+            // `records_back` columns are not part of the v3 shape.
             let mut row = sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
+                "trade_timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
+                "quote_timestamp": ms_of_day_to_iso(t.date, t.quote_ms_of_day),
                 "sequence": t.sequence,
-                "size": t.size,
-                "condition": t.condition,
-                "price": t.price,
-                "exchange": t.exchange,
                 "ext_condition1": t.ext_condition1,
                 "ext_condition2": t.ext_condition2,
                 "ext_condition3": t.ext_condition3,
                 "ext_condition4": t.ext_condition4,
-                "condition_flags": t.condition_flags,
-                "price_flags": t.price_flags,
-                "volume_type": t.volume_type,
-                "records_back": t.records_back,
-                "quote_ms_of_day": t.quote_ms_of_day,
+                "condition": t.condition,
+                "size": t.size,
+                "exchange": t.exchange,
+                "price": t.price,
                 "bid_size": t.bid_size,
                 "bid_exchange": t.bid_exchange,
                 "bid": t.bid,
@@ -295,8 +345,7 @@ pub fn trade_quote_ticks_to_json(ticks: &[TradeQuoteTick]) -> Vec<sonic_rs::Valu
                 "ask_size": t.ask_size,
                 "ask_exchange": t.ask_exchange,
                 "ask": t.ask,
-                "ask_condition": t.ask_condition,
-                "date": t.date
+                "ask_condition": t.ask_condition
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -309,10 +358,11 @@ pub fn open_interest_ticks_to_json(ticks: &[OpenInterestTick]) -> Vec<sonic_rs::
     ticks
         .iter()
         .map(|t| {
+            // v3: `timestamp` (ISO from `date` + ms-of-day) replaces the v2
+            // `ms_of_day` + `date` pair.
             let mut row = sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
                 "open_interest": t.open_interest,
-                "date": t.date
+                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day)
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -325,12 +375,13 @@ pub fn market_value_ticks_to_json(ticks: &[MarketValueTick]) -> Vec<sonic_rs::Va
     ticks
         .iter()
         .map(|t| {
+            // v3 market-value snapshots carry no time column: the v2
+            // `ms_of_day` + `date` pair is dropped, leaving the three
+            // market-quote fields plus the contract id.
             let mut row = sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
                 "market_bid": t.market_bid,
                 "market_ask": t.market_ask,
-                "market_price": t.market_price,
-                "date": t.date
+                "market_price": t.market_price
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -344,11 +395,15 @@ pub fn greeks_all_ticks_to_json(ticks: &[GreeksAllTick]) -> Vec<sonic_rs::Value>
     ticks
         .iter()
         .map(|t| {
+            // v3: `timestamp` / `underlying_timestamp` (ISO from `date` +
+            // the respective ms-of-day) replace the v2 `ms_of_day` /
+            // `underlying_ms_of_day` / `date` integer columns, and the
+            // implied-vol field is named `implied_vol`.
             let mut row = sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
+                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "bid": t.bid,
                 "ask": t.ask,
-                "implied_volatility": t.implied_volatility,
+                "implied_vol": t.implied_volatility,
                 "delta": t.delta,
                 "gamma": t.gamma,
                 "theta": t.theta,
@@ -370,9 +425,8 @@ pub fn greeks_all_ticks_to_json(ticks: &[GreeksAllTick]) -> Vec<sonic_rs::Value>
                 "epsilon": t.epsilon,
                 "lambda": t.lambda,
                 "vera": t.vera,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-                "date": t.date
+                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_price": t.underlying_price
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -393,8 +447,12 @@ pub fn greeks_eod_ticks_to_json(ticks: &[GreeksEodTick]) -> Vec<sonic_rs::Value>
     ticks
         .iter()
         .map(|t| {
+            // v3: `timestamp` / `underlying_timestamp` (ISO from `date` +
+            // the respective ms-of-day) replace the v2 `ms_of_day` /
+            // `underlying_ms_of_day` / `date` integer columns, and the
+            // implied-vol field is named `implied_vol`.
             let mut row = sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
+                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "open": t.open,
                 "high": t.high,
                 "low": t.low,
@@ -429,11 +487,10 @@ pub fn greeks_eod_ticks_to_json(ticks: &[GreeksEodTick]) -> Vec<sonic_rs::Value>
                 "d2": t.d2,
                 "dual_delta": t.dual_delta,
                 "dual_gamma": t.dual_gamma,
-                "implied_volatility": t.implied_volatility,
+                "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-                "date": t.date
+                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_price": t.underlying_price
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -447,8 +504,11 @@ pub fn greeks_first_order_ticks_to_json(ticks: &[GreeksFirstOrderTick]) -> Vec<s
     ticks
         .iter()
         .map(|t| {
+            // v3: `timestamp` / `underlying_timestamp` (ISO) replace the v2
+            // `ms_of_day` / `underlying_ms_of_day` / `date` columns; the
+            // implied-vol field is named `implied_vol`.
             let mut row = sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
+                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "bid": t.bid,
                 "ask": t.ask,
                 "delta": t.delta,
@@ -457,11 +517,10 @@ pub fn greeks_first_order_ticks_to_json(ticks: &[GreeksFirstOrderTick]) -> Vec<s
                 "rho": t.rho,
                 "epsilon": t.epsilon,
                 "lambda": t.lambda,
-                "implied_volatility": t.implied_volatility,
+                "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-                "date": t.date
+                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_price": t.underlying_price
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -475,8 +534,11 @@ pub fn greeks_second_order_ticks_to_json(ticks: &[GreeksSecondOrderTick]) -> Vec
     ticks
         .iter()
         .map(|t| {
+            // v3: `timestamp` / `underlying_timestamp` (ISO) replace the v2
+            // `ms_of_day` / `underlying_ms_of_day` / `date` columns; the
+            // implied-vol field is named `implied_vol`.
             let mut row = sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
+                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "bid": t.bid,
                 "ask": t.ask,
                 "gamma": t.gamma,
@@ -484,11 +546,10 @@ pub fn greeks_second_order_ticks_to_json(ticks: &[GreeksSecondOrderTick]) -> Vec
                 "charm": t.charm,
                 "vomma": t.vomma,
                 "veta": t.veta,
-                "implied_volatility": t.implied_volatility,
+                "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-                "date": t.date
+                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_price": t.underlying_price
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -503,19 +564,21 @@ pub fn greeks_third_order_ticks_to_json(ticks: &[GreeksThirdOrderTick]) -> Vec<s
     ticks
         .iter()
         .map(|t| {
+            // v3: `timestamp` / `underlying_timestamp` (ISO) replace the v2
+            // `ms_of_day` / `underlying_ms_of_day` / `date` columns; the
+            // implied-vol field is named `implied_vol`.
             let mut row = sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
+                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "bid": t.bid,
                 "ask": t.ask,
                 "speed": t.speed,
                 "zomma": t.zomma,
                 "color": t.color,
                 "ultima": t.ultima,
-                "implied_volatility": t.implied_volatility,
+                "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-                "date": t.date
+                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_price": t.underlying_price
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -532,8 +595,11 @@ pub fn trade_greeks_all_ticks_to_json(ticks: &[TradeGreeksAllTick]) -> Vec<sonic
     ticks
         .iter()
         .map(|t| {
+            // v3: `timestamp` / `underlying_timestamp` (ISO) replace the v2
+            // `ms_of_day` / `underlying_ms_of_day` / `date` columns; the
+            // implied-vol field is named `implied_vol`.
             let mut row = sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
+                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "sequence": t.sequence,
                 "ext_condition1": t.ext_condition1,
                 "ext_condition2": t.ext_condition2,
@@ -563,11 +629,10 @@ pub fn trade_greeks_all_ticks_to_json(ticks: &[TradeGreeksAllTick]) -> Vec<sonic
                 "d2": t.d2,
                 "dual_delta": t.dual_delta,
                 "dual_gamma": t.dual_gamma,
-                "implied_volatility": t.implied_volatility,
+                "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-                "date": t.date
+                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_price": t.underlying_price
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -583,8 +648,11 @@ pub fn trade_greeks_first_order_ticks_to_json(
     ticks
         .iter()
         .map(|t| {
+            // v3: `timestamp` / `underlying_timestamp` (ISO) replace the v2
+            // `ms_of_day` / `underlying_ms_of_day` / `date` columns; the
+            // implied-vol field is named `implied_vol`.
             let mut row = sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
+                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "sequence": t.sequence,
                 "ext_condition1": t.ext_condition1,
                 "ext_condition2": t.ext_condition2,
@@ -600,11 +668,10 @@ pub fn trade_greeks_first_order_ticks_to_json(
                 "rho": t.rho,
                 "epsilon": t.epsilon,
                 "lambda": t.lambda,
-                "implied_volatility": t.implied_volatility,
+                "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-                "date": t.date
+                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_price": t.underlying_price
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -620,8 +687,11 @@ pub fn trade_greeks_second_order_ticks_to_json(
     ticks
         .iter()
         .map(|t| {
+            // v3: `timestamp` / `underlying_timestamp` (ISO) replace the v2
+            // `ms_of_day` / `underlying_ms_of_day` / `date` columns; the
+            // implied-vol field is named `implied_vol`.
             let mut row = sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
+                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "sequence": t.sequence,
                 "ext_condition1": t.ext_condition1,
                 "ext_condition2": t.ext_condition2,
@@ -636,11 +706,10 @@ pub fn trade_greeks_second_order_ticks_to_json(
                 "charm": t.charm,
                 "vomma": t.vomma,
                 "veta": t.veta,
-                "implied_volatility": t.implied_volatility,
+                "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-                "date": t.date
+                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_price": t.underlying_price
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -657,8 +726,11 @@ pub fn trade_greeks_third_order_ticks_to_json(
     ticks
         .iter()
         .map(|t| {
+            // v3: `timestamp` / `underlying_timestamp` (ISO) replace the v2
+            // `ms_of_day` / `underlying_ms_of_day` / `date` columns; the
+            // implied-vol field is named `implied_vol`.
             let mut row = sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
+                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "sequence": t.sequence,
                 "ext_condition1": t.ext_condition1,
                 "ext_condition2": t.ext_condition2,
@@ -672,11 +744,10 @@ pub fn trade_greeks_third_order_ticks_to_json(
                 "zomma": t.zomma,
                 "color": t.color,
                 "ultima": t.ultima,
-                "implied_volatility": t.implied_volatility,
+                "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-                "date": t.date
+                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_price": t.underlying_price
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -694,8 +765,11 @@ pub fn trade_greeks_implied_volatility_ticks_to_json(
     ticks
         .iter()
         .map(|t| {
+            // v3: `timestamp` / `underlying_timestamp` (ISO) replace the v2
+            // `ms_of_day` / `underlying_ms_of_day` / `date` columns; the
+            // implied-vol field is named `implied_vol`.
             let mut row = sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
+                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "sequence": t.sequence,
                 "ext_condition1": t.ext_condition1,
                 "ext_condition2": t.ext_condition2,
@@ -705,11 +779,10 @@ pub fn trade_greeks_implied_volatility_ticks_to_json(
                 "size": t.size,
                 "exchange": t.exchange,
                 "price": t.price,
-                "implied_volatility": t.implied_volatility,
+                "implied_vol": t.implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-                "date": t.date
+                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_price": t.underlying_price
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -722,18 +795,21 @@ pub fn iv_ticks_to_json(ticks: &[IvTick]) -> Vec<sonic_rs::Value> {
     ticks
         .iter()
         .map(|t| {
+            // v3: `timestamp` / `underlying_timestamp` (ISO) replace the v2
+            // `ms_of_day` / `underlying_ms_of_day` / `date` columns; the
+            // implied-vol fields are named `implied_vol` / `bid_implied_vol`
+            // / `ask_implied_vol`.
             let mut row = sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
+                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "bid": t.bid,
-                "bid_implied_volatility": t.bid_implied_volatility,
+                "bid_implied_vol": t.bid_implied_volatility,
                 "midpoint": t.midpoint,
-                "implied_volatility": t.implied_volatility,
+                "implied_vol": t.implied_volatility,
                 "ask": t.ask,
-                "ask_implied_volatility": t.ask_implied_volatility,
+                "ask_implied_vol": t.ask_implied_volatility,
                 "iv_error": t.iv_error,
-                "underlying_ms_of_day": t.underlying_ms_of_day,
-                "underlying_price": t.underlying_price,
-                "date": t.date
+                "underlying_timestamp": ms_of_day_to_iso(t.date, t.underlying_ms_of_day),
+                "underlying_price": t.underlying_price
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
@@ -746,10 +822,11 @@ pub fn price_ticks_to_json(ticks: &[PriceTick]) -> Vec<sonic_rs::Value> {
     ticks
         .iter()
         .map(|t| {
+            // v3: `timestamp` (ISO from `date` + ms-of-day) replaces the v2
+            // `ms_of_day` + `date` pair.
             sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
                 "price": t.price,
-                "date": t.date
+                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day)
             })
         })
         .collect()
@@ -766,8 +843,10 @@ pub fn index_price_at_time_ticks_to_json(ticks: &[IndexPriceAtTimeTick]) -> Vec<
     ticks
         .iter()
         .map(|t| {
+            // v3: `timestamp` (ISO from `date` + ms-of-day) replaces the v2
+            // `ms_of_day` + `date` pair.
             sonic_rs::json!({
-                "ms_of_day": t.ms_of_day,
+                "timestamp": ms_of_day_to_iso(t.date, t.ms_of_day),
                 "sequence": t.sequence,
                 "ext_condition1": t.ext_condition1,
                 "ext_condition2": t.ext_condition2,
@@ -776,24 +855,45 @@ pub fn index_price_at_time_ticks_to_json(ticks: &[IndexPriceAtTimeTick]) -> Vec<
                 "condition": t.condition,
                 "size": t.size,
                 "exchange": t.exchange,
-                "price": t.price,
-                "date": t.date
+                "price": t.price
             })
         })
         .collect()
 }
 
 /// Convert calendar days to JSON array.
+///
+/// v3 shape: `{date, type, open, close}`. `date` is the ISO `YYYY-MM-DD`
+/// string and is omitted on the single-day `calendar_on_date` /
+/// `calendar_open_today` responses (where the server sends no date column
+/// and `CalendarDay.date` is `0`). `type` carries the vendor day
+/// classification (`open` / `early_close` / `full_close` / `weekend`).
+/// `open` / `close` are `HH:mm:ss` clock strings on trading days and
+/// `null` on fully-closed days, so a consumer can branch on a present
+/// time vs an explicit null rather than a sentinel midnight.
 pub fn calendar_days_to_json(days: &[CalendarDay]) -> Vec<sonic_rs::Value> {
     days.iter()
         .map(|d| {
-            sonic_rs::json!({
-                "date": d.date,
-                "is_open": d.is_open,
-                "open_time": d.open_time,
-                "close_time": d.close_time,
-                "status": d.status.as_str()
-            })
+            let (open, close) = if d.status.is_open() {
+                (
+                    ms_of_day_to_clock(d.open_time),
+                    ms_of_day_to_clock(d.close_time),
+                )
+            } else {
+                (sonic_rs::Value::new_null(), sonic_rs::Value::new_null())
+            };
+            // Build the row by hand so `date` leads the object (matching the
+            // multi-day spec example) yet drops out entirely on the
+            // single-day responses where the server omits the column.
+            let mut row = sonic_rs::json!({});
+            let object = row.as_object_mut().expect("freshly built JSON object");
+            if d.date != 0 {
+                object.insert("date", date_label(d.date));
+            }
+            object.insert("type", sonic_rs::Value::from(d.status.as_str()));
+            object.insert("open", open);
+            object.insert("close", close);
+            row
         })
         .collect()
 }
@@ -803,9 +903,11 @@ pub fn interest_rate_ticks_to_json(ticks: &[InterestRateTick]) -> Vec<sonic_rs::
     ticks
         .iter()
         .map(|t| {
+            // v3 names the EOD interest-rate date column `created` and
+            // renders it as the ISO `YYYY-MM-DD` string.
             sonic_rs::json!({
-                "date": t.date,
-                "rate": t.rate
+                "rate": t.rate,
+                "created": date_label(t.date)
             })
         })
         .collect()
@@ -816,10 +918,12 @@ pub fn option_contracts_to_json(contracts: &[OptionContract]) -> Vec<sonic_rs::V
     contracts
         .iter()
         .map(|c| {
+            // v3 `option_list_contracts` row order: symbol, strike,
+            // expiration (ISO `YYYY-MM-DD`), right (`CALL` / `PUT`).
             sonic_rs::json!({
                 "symbol": c.symbol,
-                "expiration": expiration_label(c.expiration),
                 "strike": c.strike,
+                "expiration": expiration_label(c.expiration),
                 "right": right_label(c.right),
             })
         })
@@ -1108,10 +1212,14 @@ mod tests {
         assert_eq!(lines[2], "20240315,1,101.0,C,150.0");
     }
 
+    /// v3 quote shape: the `date` + `ms_of_day` integer pair collapses
+    /// into one ISO `timestamp`, and the v2-only computed `midpoint`
+    /// column is gone. Contract id fields are emitted as ISO expiration +
+    /// `CALL` / `PUT`.
     #[test]
-    fn quote_ticks_includes_midpoint() {
+    fn quote_ticks_emit_v3_timestamp_without_midpoint() {
         let t = QuoteTick {
-            ms_of_day: 0,
+            ms_of_day: 62_273_606,
             bid_size: 1,
             bid_exchange: 2,
             bid: 3.0,
@@ -1120,7 +1228,7 @@ mod tests {
             ask_exchange: 6,
             ask: 7.0,
             ask_condition: 8,
-            date: 20260410,
+            date: 20240102,
             expiration: 20260417,
             strike: 150.0,
             right: 'C',
@@ -1128,17 +1236,33 @@ mod tests {
         };
         let r = quote_ticks_to_json(&[t]);
         let r = r.first().unwrap();
-        assert!(r.get("midpoint").is_some());
+        assert_eq!(
+            r.get("timestamp")
+                .and_then(|v: &sonic_rs::Value| v.as_str().map(str::to_string)),
+            Some("2024-01-02T17:17:53.606".to_string())
+        );
+        assert!(r.get("midpoint").is_none(), "v3 quote drops midpoint");
+        assert!(r.get("ms_of_day").is_none(), "v3 folds ms_of_day into timestamp");
+        assert!(r.get("date").is_none(), "v3 folds date into timestamp");
         assert_eq!(
             r.get("expiration")
                 .and_then(|v: &sonic_rs::Value| v.as_str().map(str::to_string)),
             Some("2026-04-17".to_string())
         );
+        assert_eq!(
+            r.get("right")
+                .and_then(|v: &sonic_rs::Value| v.as_str().map(str::to_string)),
+            Some("CALL".to_string())
+        );
     }
+    /// v3 trade_quote shape: the trade and quote sides each get their own
+    /// ISO datetime (`trade_timestamp` / `quote_timestamp`) and the v2-only
+    /// `condition_flags` / `price_flags` / `volume_type` / `records_back` /
+    /// `date` columns are gone. The four `ext_condition` columns stay.
     #[test]
-    fn trade_quote_ticks_has_extended_fields() {
+    fn trade_quote_ticks_emit_split_v3_timestamps() {
         let t = TradeQuoteTick {
-            ms_of_day: 0,
+            ms_of_day: 34_200_002,
             sequence: 1,
             ext_condition1: 10,
             ext_condition2: 20,
@@ -1152,7 +1276,7 @@ mod tests {
             price_flags: 7,
             volume_type: 1,
             records_back: 5,
-            quote_ms_of_day: 0,
+            quote_ms_of_day: 34_200_001,
             bid_size: 100,
             bid_exchange: 11,
             bid: 149.0,
@@ -1161,24 +1285,41 @@ mod tests {
             ask_exchange: 12,
             ask: 151.0,
             ask_condition: 2,
-            date: 20260410,
+            date: 20230103,
             expiration: 0,
             strike: 0.0,
             right: '\0',
         };
         let r = trade_quote_ticks_to_json(&[t]);
         let r = r.first().unwrap();
+        assert_eq!(
+            r.get("trade_timestamp")
+                .and_then(|v: &sonic_rs::Value| v.as_str().map(str::to_string)),
+            Some("2023-01-03T09:30:00.002".to_string())
+        );
+        assert_eq!(
+            r.get("quote_timestamp")
+                .and_then(|v: &sonic_rs::Value| v.as_str().map(str::to_string)),
+            Some("2023-01-03T09:30:00.001".to_string())
+        );
         for k in [
             "ext_condition1",
             "ext_condition2",
             "ext_condition3",
             "ext_condition4",
+        ] {
+            assert!(r.get(k).is_some(), "missing: {k}");
+        }
+        for k in [
+            "ms_of_day",
+            "quote_ms_of_day",
+            "date",
             "condition_flags",
             "price_flags",
             "volume_type",
             "records_back",
         ] {
-            assert!(r.get(k).is_some(), "missing: {k}");
+            assert!(r.get(k).is_none(), "v3 trade_quote must drop: {k}");
         }
     }
     #[test]
@@ -1219,7 +1360,7 @@ mod tests {
         let r = greeks_all_ticks_to_json(&[t]);
         let r = r.first().unwrap();
         for k in [
-            "implied_volatility",
+            "implied_vol",
             "delta",
             "gamma",
             "theta",
@@ -1243,10 +1384,16 @@ mod tests {
             "vera",
             "bid",
             "ask",
-            "underlying_ms_of_day",
+            "underlying_timestamp",
             "underlying_price",
+            "timestamp",
         ] {
             assert!(r.get(k).is_some(), "missing: {k}");
+        }
+        // v3 renames + folds: the integer time columns and the long
+        // `implied_volatility` spelling must not survive.
+        for k in ["implied_volatility", "ms_of_day", "underlying_ms_of_day", "date"] {
+            assert!(r.get(k).is_none(), "v3 greeks must drop: {k}");
         }
         assert_eq!(
             r.get("expiration")
