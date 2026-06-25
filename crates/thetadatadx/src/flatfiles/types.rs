@@ -460,7 +460,11 @@ mod tests {
             (12, RemoveReason::TooManyRequests),
             (14, RemoveReason::LoginTimedOut),
         ] {
-            assert_eq!(RemoveReason::from_code(code as i16), expect, "ordinal {code}");
+            assert_eq!(
+                RemoveReason::from_code(code as i16),
+                expect,
+                "ordinal {code}"
+            );
             let reason = FlatFilesUnavailableReason::AuthRejected { reason_code: code };
             assert!(
                 reason.is_transient(),

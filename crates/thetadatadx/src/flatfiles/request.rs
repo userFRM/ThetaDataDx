@@ -442,12 +442,19 @@ mod tests {
         match classify_stream_frame(&disc, request_id, 0) {
             Err(Error::FlatFilesUnavailable(FlatFilesUnavailableReason::AuthRejected {
                 reason_code,
-            })) => assert_eq!(reason_code, 9, "RemoveReason ordinal must decode from payload"),
+            })) => assert_eq!(
+                reason_code, 9,
+                "RemoveReason ordinal must decode from payload"
+            ),
             other => panic!("DISCONNECTED id=-1 must decode to AuthRejected, got {other:?}"),
         }
 
         // ERROR with id=-1 carrying a server diagnostic string.
-        let err = frame(msg::ERROR, -1, b"PERMISSION:Invalid permissions for date".to_vec());
+        let err = frame(
+            msg::ERROR,
+            -1,
+            b"PERMISSION:Invalid permissions for date".to_vec(),
+        );
         match classify_stream_frame(&err, request_id, 4096) {
             Err(Error::FlatFilesUnavailable(FlatFilesUnavailableReason::RequestRejected {
                 server_message,
@@ -470,11 +477,19 @@ mod tests {
             Ok(FrameAction::Ignore)
         ));
         assert!(matches!(
-            classify_stream_frame(&frame(msg::FLAT_FILE, request_id, vec![1, 2, 3]), request_id, 0),
+            classify_stream_frame(
+                &frame(msg::FLAT_FILE, request_id, vec![1, 2, 3]),
+                request_id,
+                0
+            ),
             Ok(FrameAction::Append)
         ));
         assert!(matches!(
-            classify_stream_frame(&frame(msg::FLAT_FILE_END, request_id, vec![]), request_id, 99),
+            classify_stream_frame(
+                &frame(msg::FLAT_FILE_END, request_id, vec![]),
+                request_id,
+                99
+            ),
             Ok(FrameAction::EndOfStream)
         ));
     }
@@ -784,7 +799,9 @@ mod tests {
         .await;
         assert!(matches!(
             result.unwrap_err(),
-            Error::FlatFilesUnavailable(FlatFilesUnavailableReason::AuthRejected { reason_code: 13 })
+            Error::FlatFilesUnavailable(FlatFilesUnavailableReason::AuthRejected {
+                reason_code: 13
+            })
         ));
         assert_eq!(
             *attempts.borrow(),
