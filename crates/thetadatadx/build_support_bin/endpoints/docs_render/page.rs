@@ -3,7 +3,7 @@
 use std::fmt::Write as _;
 
 use super::super::super::ticks::schema::Schema;
-use super::super::model::GeneratedEndpoint;
+use super::super::model::{GeneratedEndpoint, GeneratedParam};
 use super::super::sdk_helpers::{builder_params, method_params};
 use super::{lang, response};
 
@@ -108,7 +108,34 @@ fn docs_param_type(param_type: &str) -> &'static str {
     }
 }
 
+/// Note appended to the `expiration` parameter row on the endpoints whose
+/// upstream binding accepts the chain-wide wildcard. Single sentence so the
+/// per-endpoint `expiration=*` capability is documented once, from the same
+/// capability the mode taxonomy reads, instead of being hand-scattered across
+/// vendor docstrings where it silently drifted out of the parameters table.
+const EXPIRATION_WILDCARD_NOTE: &str =
+    "Pass `*` to select all expirations for the underlying (chain-wide; query one date at a time).";
+
+/// Build the parameters-table Description cell for one parameter row, folding
+/// newlines to spaces. The `expiration` row also carries the chain-wide
+/// wildcard note when this endpoint supports it; endpoints upstream binds to
+/// `expiration_no_star` reject `*`, so they render the plain description.
+fn param_description_cell(param: &GeneratedParam, supports_expiration_wildcard: bool) -> String {
+    let base = param.description.replace('\n', " ");
+    if param.name == "expiration" && supports_expiration_wildcard {
+        format!("{base} {EXPIRATION_WILDCARD_NOTE}")
+    } else {
+        base
+    }
+}
+
 fn render_params_section(endpoint: &GeneratedEndpoint) -> String {
+    // Single source of truth for `expiration=*` support: the same pinned
+    // upstream snapshot the mode taxonomy reads, so the rendered note and the
+    // emitted wildcard test modes can never disagree.
+    let supports_expiration_wildcard =
+        super::super::modes::endpoint_supports_expiration_wildcard(&endpoint.name);
+
     let mut out = String::from("## Parameters\n\n");
     out.push_str("| Name | Type | Required | Default | Description |\n|---|---|---|---|---|\n");
     for param in method_params(endpoint)
@@ -128,7 +155,7 @@ fn render_params_section(endpoint: &GeneratedEndpoint) -> String {
             docs_param_type(&param.param_type),
             required,
             default,
-            param.description.replace('\n', " "),
+            param_description_cell(param, supports_expiration_wildcard),
         );
     }
     out.push_str(

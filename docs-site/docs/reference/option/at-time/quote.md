@@ -155,7 +155,7 @@ curl -G 'http://127.0.0.1:25503/v3/option/at_time/quote' \
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
-| `expiration` | date | yes | — | Expiration date YYYYMMDD |
+| `expiration` | date | yes | — | Expiration date YYYYMMDD Pass `*` to select all expirations for the underlying (chain-wide; query one date at a time). |
 | `start_date` | date | yes | — | Start date YYYYMMDD |
 | `end_date` | date | yes | — | End date YYYYMMDD |
 | `time_of_day` | string | yes | — | ET wall-clock time in HH:MM:SS.SSS (e.g. 09:30:00.000 for 9:30 AM ET; legacy 34200000 is also accepted) |

@@ -142,7 +142,7 @@ curl -G 'http://127.0.0.1:25503/v3/option/snapshot/greeks/implied_volatility' \
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
-| `expiration` | date | yes | — | Expiration date YYYYMMDD |
+| `expiration` | date | yes | — | Expiration date YYYYMMDD Pass `*` to select all expirations for the underlying (chain-wide; query one date at a time). |
 | `strike` | string | no | `*` | Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. |
 | `right` | string | no | `both` | Option side. Accepted values: `call`, `put`, `both`. |
 | `annual_dividend` | float | no | — | Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). |

@@ -153,7 +153,7 @@ curl -G 'http://127.0.0.1:25503/v3/option/history/eod' \
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
-| `expiration` | date | yes | — | Expiration date YYYYMMDD |
+| `expiration` | date | yes | — | Expiration date YYYYMMDD Pass `*` to select all expirations for the underlying (chain-wide; query one date at a time). |
 | `start_date` | date | yes | — | Start date YYYYMMDD |
 | `end_date` | date | yes | — | End date YYYYMMDD |
 | `strike` | string | no | `*` | Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. |

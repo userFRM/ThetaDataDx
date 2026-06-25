@@ -192,8 +192,21 @@ x-anchors:
     required: true
     schema:
       type: string
+      pattern: '^(\d{8}|\*)$'
+    description: >-
+      Option expiration date in YYYYMMDD format. Pass `*` to select all
+      expirations for the underlying (chain-wide; query one date at a time).
+
+  expiration-no-star-param: &expiration-no-star-param
+    name: expiration
+    in: query
+    required: true
+    schema:
+      type: string
       pattern: '^\d{8}$'
-    description: Option expiration date in YYYYMMDD format
+    description: >-
+      Option expiration date in YYYYMMDD format. This endpoint resolves a
+      single concrete expiration and rejects the `*` wildcard.
 
   strike-param: &strike-param
     name: strike
@@ -1175,7 +1188,7 @@ paths:
       parameters:
         - *request_type-param
         - *symbol-param
-        - *expiration-param
+        - *expiration-no-star-param
         - *strike-param
         - *right-param
       responses:
@@ -1232,7 +1245,7 @@ paths:
       tags: [Option / List]
       parameters:
         - *symbol-param
-        - *expiration-param
+        - *expiration-no-star-param
       responses:
         '200':
           description: Successful response
@@ -1335,7 +1348,7 @@ paths:
       tags: [Option / Snapshot]
       parameters:
         - *symbol-param
-        - *expiration-param
+        - *expiration-no-star-param
         - *strike-param
         - *right-param
         - *strike_range-param
@@ -1705,7 +1718,7 @@ paths:
       tags: [Option / History]
       parameters:
         - *symbol-param
-        - *expiration-param
+        - *expiration-no-star-param
         - *strike-param
         - *right-param
         - *date-optional-param
@@ -1981,7 +1994,7 @@ paths:
       tags: [Option / History Greeks]
       parameters:
         - *symbol-param
-        - *expiration-param
+        - *expiration-no-star-param
         - *strike-param
         - *right-param
         - *date-optional-param
@@ -2032,7 +2045,7 @@ paths:
       tags: [Option / History Greeks]
       parameters:
         - *symbol-param
-        - *expiration-param
+        - *expiration-no-star-param
         - *strike-param
         - *right-param
         - *date-optional-param
@@ -2083,7 +2096,7 @@ paths:
       tags: [Option / History Greeks]
       parameters:
         - *symbol-param
-        - *expiration-param
+        - *expiration-no-star-param
         - *strike-param
         - *right-param
         - *date-optional-param
@@ -2134,7 +2147,7 @@ paths:
       tags: [Option / History Greeks]
       parameters:
         - *symbol-param
-        - *expiration-param
+        - *expiration-no-star-param
         - *strike-param
         - *right-param
         - *date-optional-param
@@ -2185,7 +2198,7 @@ paths:
       tags: [Option / History Greeks]
       parameters:
         - *symbol-param
-        - *expiration-param
+        - *expiration-no-star-param
         - *strike-param
         - *right-param
         - *date-optional-param

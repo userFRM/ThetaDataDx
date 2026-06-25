@@ -13,7 +13,7 @@ Fetch end-of-day Greeks history for an option contract.
 
 - Returns the data for all contracts that share the same provided symbol and expiration.
 - Uses Theta Data's EOD reports that get generated at 17:15 ET each day. The closing option price and closing underlying price are used for the greeks calculation.
-- **Set `expiration` to `*` if you want to retrieve data for every option that shares the same `symbol`. (note: Any `expiration=*` must be requested day by day)**
+- **Any `expiration=*` request must be made day by day.**
 
 <SdkTabs>
 
@@ -154,7 +154,7 @@ curl -G 'http://127.0.0.1:25503/v3/option/history/greeks/eod' \
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
-| `expiration` | date | yes | — | Expiration date YYYYMMDD |
+| `expiration` | date | yes | — | Expiration date YYYYMMDD Pass `*` to select all expirations for the underlying (chain-wide; query one date at a time). |
 | `start_date` | date | yes | — | Start date YYYYMMDD |
 | `end_date` | date | yes | — | End date YYYYMMDD |
 | `strike` | string | no | `*` | Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. |
