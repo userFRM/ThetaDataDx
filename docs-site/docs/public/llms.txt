@@ -55,7 +55,7 @@
 /reference/option/history/trade-greeks/second-order — Second-Order Trade Greeks: Fetch second-order Greeks on each trade for an option contract.
 /reference/option/history/trade-greeks/third-order — Third-Order Trade Greeks: Fetch third-order Greeks on each trade for an option contract.
 /reference/option/history/trade-quote — Trade Quote: Fetch combined trade + quote ticks for an option contract.
-/reference/option/list/contracts — Contracts: List all option contracts for a symbol on a given date.
+/reference/option/list/contracts — Contracts: List all option contracts traded or quoted on a given date, optionally filtered to a symbol.
 /reference/option/list/dates — Dates: List available dates for an option contract by request type.
 /reference/option/list/expirations — Expirations: List available expiration dates for an option underlying.
 /reference/option/list/strikes — Strikes: List available strike prices for an option at a given expiration.
