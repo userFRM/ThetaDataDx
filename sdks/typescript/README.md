@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../../assets/logo.svg" alt="ThetaDataDx" width="120" />
+</p>
+
 # thetadatadx (TypeScript / Node.js)
 
 The Node.js SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, option, index, and rate data three ways — point-in-time **history**, real-time **streaming**, and whole-universe **flat files** — all from a single authenticated client. Connects straight to ThetaData; nothing to install and run locally, no local proxy.

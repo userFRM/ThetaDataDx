@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../../assets/logo.svg" alt="ThetaDataDx" width="120" />
+</p>
+
 # thetadatadx-server
 
 Runs a local HTTP REST server and WebSocket server that expose the ThetaData `/v3/*` route surface, backed by Rust gRPC (historical) and TCP (streaming) connections to ThetaData's upstream servers.

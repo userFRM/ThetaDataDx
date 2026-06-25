@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="ThetaDataDx" width="120" />
+</p>
+
 # ThetaDataDx
 
 High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Python, TypeScript, C++, and Rust**. One Rust engine under all four. Pull US stock, option, index, and rate data three ways: point-in-time **history**, real-time **streaming**, and whole-universe **flat files**, all from a single authenticated client. Connects straight to ThetaData, with nothing to install and run locally.

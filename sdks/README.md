@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../assets/logo.svg" alt="ThetaDataDx" width="120" />
+</p>
+
 # SDKs
 
 Multi-language SDKs for ThetaDataDx. All are thin bindings over the shared Rust core; gRPC communication, protobuf parsing, zstd decompression, FIT tick decoding, and TCP streaming run inside the `thetadatadx` crate. The language binding is the interface surface.

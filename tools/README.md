@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../assets/logo.svg" alt="ThetaDataDx" width="120" />
+</p>
+
 # Tools
 
 Standalone applications built on the `thetadatadx` SDK. Each tool has its own README with full setup and usage details.

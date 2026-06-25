@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../assets/logo.svg" alt="ThetaDataDx" width="120" />
+</p>
+
 # Notebooks
 
 Interactive Jupyter notebooks demonstrating the `thetadatadx` Python SDK. Each notebook is self-contained and progresses from basics to real-time streaming.
