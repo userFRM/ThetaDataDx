@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../../assets/logo.svg" alt="ThetaDataDx" width="120" />
+</p>
+
 # ThetaDataDx Live Option Chain
 
 Option chain viewer powered by the ThetaDataDx native SDK. No JVM

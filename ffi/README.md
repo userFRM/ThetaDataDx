@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../assets/logo.svg" alt="ThetaDataDx" width="120" />
+</p>
+
 # thetadatadx-ffi
 
 C FFI layer for `thetadatadx` — exposes the Rust SDK as `extern "C"` functions.

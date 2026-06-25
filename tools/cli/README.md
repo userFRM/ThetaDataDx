@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="../../assets/logo.svg" alt="ThetaDataDx" width="120" />
+</p>
+
 # thetadatadx — ThetaDataDx CLI
 
 Command-line interface for querying ThetaData market data.
