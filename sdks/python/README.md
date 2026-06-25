@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="../../assets/logo.svg" alt="ThetaDataDx" width="500" />
+  <img src="../../assets/logo.svg" alt="ThetaDataDx" width="100%" />
 </p>
 
 # thetadatadx (Python)

@@ -45,16 +45,18 @@
       <!-- Visual explicitly displays STOCKS + OPTIONS + RATES + INDICES standard multi packet properties text streams  -->
       <g font-family="'JetBrains Mono', Consolas, Courier, monospace" font-size="10" opacity="0.45">
 
-        <!-- [STOCKS] Eqity ticker sequence packets loops formatting  -->
-        <text x="90" y="22" fill="#00D4FF">[EQT/STK] { ticker:"MSFT", px: 420.55, sz: 100 } :: UNFILTERED </text>
+        <!-- [OPTIONS] Local Black-Scholes greeks for a near-ATM SPY call -->
+        <text x="90" y="22" fill="#00D4FF">SPY 20260619 C 550   Δ 0.531  Γ 0.013  Θ -0.19  ν 0.44</text>
 
-        <!-- [INDICES & RATES] Macro benchmark feed lines properties bounds formats-->
-        <text x="40" y="66" fill="#1074FF" font-weight="700">SOFR.RATE :: 5.31%</text>
-        <text x="240" y="72" fill="#6A80A1">IX.VIX -&gt; 14.50 px [ms_tick:884]</text>
+        <!-- [STOCKS] Full-tick NBBO quote -->
+        <text x="40" y="66" fill="#1074FF" font-weight="700">NBBO  bid 4.85 ×120   ask 4.90 ×88</text>
+        <!-- [INDICES] Index level + implied vol -->
+        <text x="240" y="72" fill="#6A80A1">SPX 5512.40   VIX 13.80   IV 12.1%</text>
 
-        <!-- [OPTIONS] Advanced implied structural math variable text syntax  -->
-        <text x="80" y="158" fill="#1074FF">[OPT] SPY_260619_C550</text>
-        <text x="235" y="130" fill="#00D4FF" font-size="11">Γ: +0.0245   Δ: -0.5019</text>
+        <!-- [TRADE] Full-tick trade print -->
+        <text x="80" y="158" fill="#1074FF">trade  px 4.87  sz 10  @CBOE</text>
+        <!-- [STOCKS] Equity OHLC bar -->
+        <text x="172" y="130" fill="#00D4FF" font-size="10">AAPL  O 232.1  H 234.8  L 231.6  C 233.9</text>
       </g>
   </g>
 
@@ -78,6 +80,10 @@
     <text font-family="'JetBrains Mono', Consolas, Monaco, monospace" font-size="12" letter-spacing="0.05em">
       <tspan fill="#64768E">UNFILTERED MARKET DATA SDK //</tspan>
     </text>
+
+    <!-- Faint asset-class subtitle under the SDK label, set in a muted grey so it
+         reads as a quiet caption without competing with the wordmark or telemetry. -->
+    <text x="0" y="30" font-family="'JetBrains Mono', Consolas, Monaco, monospace" font-size="8" letter-spacing="0.06em" fill="#3D4B5E">STOCKS · OPTIONS · INDICES · RATES</text>
 
     <!-- Language marks: Rust / Python / TypeScript / C++ at 18px on a 38px pitch -->
     <g fill="#EAECEF">
