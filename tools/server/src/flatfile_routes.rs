@@ -575,12 +575,15 @@ mod tests {
         }
     }
 
-    /// A genuine upstream/transport fault stays `502 flatfiles_unavailable`,
-    /// and a malformed-request rejection is NOT swept into the no-data
-    /// bucket — masking a bad request as an empty result would hide the
-    /// fault. Both must surface as 502. `AuthRejected { 15 }` is
-    /// `ServerRestarting` — a transient outage, not a no-data condition, so
-    /// it stays 502.
+    /// A genuine upstream/transport or auth fault stays `502
+    /// flatfiles_unavailable`, and a malformed-request rejection is NOT
+    /// swept into the no-data bucket — masking a bad request as an empty
+    /// result would hide the fault. All must surface as 502. `AuthRejected
+    /// { 15 }` is `ServerRestarting` — a transient outage, not a no-data
+    /// condition. `AuthRejected { 3 }` is `GeneralValidationError` — a
+    /// login-phase credential/auth failure the upstream handles like
+    /// `InvalidCredentials`; classing it no-data would mask an auth failure
+    /// behind a `404`, so it must stay 502.
     #[test]
     fn transport_and_malformed_faults_stay_502() {
         let cases = [
@@ -588,6 +591,7 @@ mod tests {
                 bytes_received: 4096,
             },
             FlatFilesUnavailableReason::AuthRejected { reason_code: 15 },
+            FlatFilesUnavailableReason::AuthRejected { reason_code: 3 },
             FlatFilesUnavailableReason::RequestRejected {
                 server_message: "INVALID_PARAMS:Invalid request type".to_string(),
             },

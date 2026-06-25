@@ -157,10 +157,10 @@ pub const SERVED_DATASETS: &[(SecType, ReqType)] = &[
 ///
 /// * **Terminal** — re-running the request with identical inputs will
 ///   fail the same way. A `DISCONNECTED` carrying a terminal
-///   `RemoveReason` (a permanent credential/account code, or a no-data /
-///   validation code such as `NoStartDate`), and `RequestRejected` from a
-///   malformed request, both fall here. The flatfile driver gives up
-///   immediately; no automatic retry.
+///   `RemoveReason` (a permanent credential/account code, or the no-data
+///   code `NoStartDate`), and `RequestRejected` from a malformed request,
+///   both fall here. The flatfile driver gives up immediately; no
+///   automatic retry.
 /// * **Transient** — the request might succeed on a fresh connection
 ///   (server hop, momentary network blip, mid-stream truncation). The
 ///   flatfile driver retries with exponential backoff up to the
@@ -209,11 +209,11 @@ impl FlatFilesUnavailableReason {
     /// `AuthRejected` decodes its `RemoveReason` ordinal through
     /// [`disconnect_reason_class`]: only the genuinely-transient reasons
     /// (timeouts, `ServerRestarting`, rate-limit) retry; permanent
-    /// credential/account reasons and the no-data / validation reasons
-    /// (`NoStartDate`, `GeneralValidationError`) are terminal. This
-    /// classifier is shared by the login and mid-stream `DISCONNECTED`
-    /// paths — a mid-stream no-data `DISCONNECTED` must NOT be retried,
-    /// unlike a login-phase transient. `RequestRejected` is always
+    /// credential/account reasons (including `GeneralValidationError`, a
+    /// login-phase auth failure) and the no-data reason (`NoStartDate`) are
+    /// terminal. This classifier is shared by the login and mid-stream
+    /// `DISCONNECTED` paths — a mid-stream no-data `DISCONNECTED` must NOT be
+    /// retried, unlike a login-phase transient. `RequestRejected` is always
     /// terminal — bad params will not fix themselves on retry.
     /// `StreamTruncated` is always transient.
     #[must_use]
@@ -241,10 +241,10 @@ impl FlatFilesUnavailableReason {
     /// stays `502`.
     ///
     /// Only an `AuthRejected` whose `RemoveReason` ordinal classifies as
-    /// [`DisconnectReasonClass::TerminalNoData`] (`NoStartDate`,
-    /// `GeneralValidationError`) is no-data. A `RequestRejected` no-data
-    /// condition is carried in the server diagnostic string instead and is
-    /// recognised by the server's message classifier, not here.
+    /// [`DisconnectReasonClass::TerminalNoData`] (`NoStartDate`) is no-data.
+    /// A `RequestRejected` no-data condition is carried in the server
+    /// diagnostic string instead and is recognised by the server's message
+    /// classifier, not here.
     #[must_use]
     pub fn is_no_data(&self) -> bool {
         matches!(
@@ -264,9 +264,8 @@ enum DisconnectReasonClass {
     /// Retried by the flat-file retry ladder.
     Transient,
     /// The requested slice does not exist for this account/date —
-    /// `NoStartDate` (out-of-window / snapshot not yet generated) or
-    /// `GeneralValidationError`. Not retried; surfaced as a `404` no-data
-    /// outcome by the server.
+    /// `NoStartDate` (out-of-window / snapshot not yet generated). Not
+    /// retried; surfaced as a `404` no-data outcome by the server.
     TerminalNoData,
     /// A permanent credential/account rejection — bad credentials, free
     /// account, account already connected. Not retried; surfaced as a
@@ -280,12 +279,19 @@ enum DisconnectReasonClass {
 /// This is the mid-stream / login flat-file classifier — deliberately
 /// distinct from [`crate::fpss::session::reconnect_delay`], the streaming
 /// reconnect policy. The streaming loop only needs transient-vs-permanent
-/// (it never surfaces a no-data slice as `404`), and it treats every
-/// non-credential reason as retryable; on the flat-file path that would
-/// drive a permanent no-data `DISCONNECTED` (`NoStartDate`) through the
-/// full retry ladder before failing, instead of surfacing it immediately
-/// as no-data. So no-data / validation reasons are pulled out as their own
-/// terminal class here.
+/// (it never surfaces a no-data slice as `404`); on the flat-file path,
+/// driving a permanent no-data `DISCONNECTED` (`NoStartDate`) through the
+/// full retry ladder before failing would hide it, instead of surfacing it
+/// immediately as no-data. So the no-data reason (`NoStartDate`) is pulled
+/// out as its own terminal class here. `GeneralValidationError` is treated
+/// as a permanent credential failure: the upstream handles it identically
+/// to `InvalidCredentials` on the `!madeConnect` login branch, so a
+/// fresh attempt with the same credentials cannot succeed and it must
+/// surface as an auth fault (`502`), never as no-data (`404`). The
+/// streaming reconnect policy is more lenient — it retries
+/// `GeneralValidationError` rather than classing it permanent — because a
+/// long-lived stream tolerates a few wasted reconnects, whereas a one-shot
+/// flat-file request should fail fast with the honest auth status.
 ///
 /// The ordinal is decoded through [`RemoveReason::from_code`] — the single
 /// source of the wire mapping — rather than matched as a bare integer, so
@@ -299,17 +305,23 @@ fn disconnect_reason_class(reason_code: u16) -> DisconnectReasonClass {
     // ordinal is in `0..=18`; `Unspecified` (`-1` / `0xFFFF`) round-trips
     // through the `as i16` cast and decodes to the transient default.
     match RemoveReason::from_code(reason_code as i16) {
-        // No data for this account/date, or the request failed server-side
-        // validation: re-running with identical inputs cannot succeed, and
-        // it is a "nothing here" outcome rather than an outage.
-        RemoveReason::NoStartDate | RemoveReason::GeneralValidationError => {
-            DisconnectReasonClass::TerminalNoData
-        }
+        // No data for this account/date: the requested slice does not exist
+        // (out-of-window date, snapshot not yet generated). Re-running with
+        // identical inputs cannot succeed, and it is a "nothing here"
+        // outcome rather than an outage. This is the sole no-data reason.
+        RemoveReason::NoStartDate => DisconnectReasonClass::TerminalNoData,
         // Permanent credential / account rejections. Mirrors the permanent
         // set in `crate::fpss::session::reconnect_delay`.
+        // `GeneralValidationError` is a login-phase auth failure, not a
+        // no-data outcome: the upstream handles it identically to
+        // `InvalidCredentials` on the `!madeConnect` login branch (a
+        // "reset your password" credential fault). Classing it no-data would
+        // mask a credential/auth failure behind a `404`; it must surface as a
+        // `502` like the rest of the credential set.
         RemoveReason::InvalidCredentials
         | RemoveReason::InvalidLoginValues
         | RemoveReason::InvalidLoginSize
+        | RemoveReason::GeneralValidationError
         | RemoveReason::AccountAlreadyConnected
         | RemoveReason::FreeAccount
         | RemoveReason::ServerUserDoesNotExist
@@ -432,19 +444,36 @@ mod tests {
         );
     }
 
-    /// `GeneralValidationError` (ordinal 3) is the other terminal no-data /
-    /// validation reason: re-running with identical inputs cannot succeed,
-    /// and it is a "nothing here" outcome, so it is non-transient and
-    /// no-data alongside `NoStartDate`.
+    /// `GeneralValidationError` (ordinal 3) is a login-phase auth failure,
+    /// NOT a no-data condition: the upstream handles it identically to
+    /// `InvalidCredentials` on the `!madeConnect` login branch (a "reset
+    /// your password" credential fault). It is terminal-*permanent*, so it
+    /// must report `is_no_data() == false` and surface as a `502` auth
+    /// fault, never a `404 flatfiles_no_data` that would mask the credential
+    /// failure as "nothing here".
     #[test]
-    fn general_validation_error_disconnect_is_terminal_no_data() {
+    fn general_validation_error_disconnect_is_terminal_permanent() {
         assert_eq!(
             RemoveReason::from_code(3),
             RemoveReason::GeneralValidationError
         );
+        // Classified permanent, alongside the rest of the credential set.
+        assert_eq!(
+            disconnect_reason_class(3),
+            DisconnectReasonClass::TerminalPermanent
+        );
         let reason = FlatFilesUnavailableReason::AuthRejected { reason_code: 3 };
-        assert!(!reason.is_transient());
-        assert!(reason.is_no_data());
+        // Terminal (not retried), and crucially NOT no-data: the server's
+        // default arm maps it to `502`, not the no-data `404`.
+        assert!(
+            !reason.is_transient(),
+            "an auth failure must not be retried"
+        );
+        assert!(reason.is_terminal());
+        assert!(
+            !reason.is_no_data(),
+            "GeneralValidationError is a credential/auth fault (502), not no-data (404)"
+        );
     }
 
     /// Genuinely-transient `DISCONNECTED` reasons stay retryable and are
