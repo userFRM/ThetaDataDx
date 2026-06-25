@@ -51,7 +51,7 @@ The server starts:
 | `--streaming-region` | `production` | Streaming region: `production` or `dev` |
 | `--http-port` | `25503` | HTTP REST API port |
 | `--ws-port` | `25520` | WebSocket server port |
-| `--bind` | `127.0.0.1` | Bind address |
+| `--bind` | `0.0.0.0` | Bind address. Defaults to all interfaces, matching the terminal this server replaces; pass `--bind 127.0.0.1` to restrict to loopback. |
 | `--log-level` | `info` | Log level (`debug`, `trace`, `thetadatadx=trace`; `info,tower_http=off` silences the access log) |
 | `--log-file` | | Also write logs to `<path>.YYYY-MM-DD`, rotated daily |
 | `--log-format` | `text` | Log line format: `text`, `json`, or `legacy` (`[YYYY-MM-DD HH:MM:SS] LEVEL: message`, UTC) |

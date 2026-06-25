@@ -72,7 +72,7 @@ thetadatadx-server --creds creds.txt
 | `--streaming-region <region>` | `production` | Streaming environment: `production` or `dev`. |
 | `--http-port <port>` | `25503` | HTTP REST port. |
 | `--ws-port <port>` | `25520` | WebSocket port. |
-| `--bind <addr>` | `127.0.0.1` | Bind address. |
+| `--bind <addr>` | `0.0.0.0` | Bind address. Defaults to all interfaces; pass `--bind 127.0.0.1` to restrict to loopback. |
 | `--log-level <filter>` | `info` | Tracing filter (`info,tower_http=off` silences the access log). |
 | `--log-file <path>` | — | Also write logs to `<path>.YYYY-MM-DD`, rotated daily. |
 | `--log-format <fmt>` | `text` | `text`, `json` (one object per line), or `legacy` (`[YYYY-MM-DD HH:MM:SS] LEVEL: message`, UTC). |
