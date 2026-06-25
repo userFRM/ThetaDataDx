@@ -439,7 +439,7 @@ describe('non-negative integer query-param input-validation parity (native)', ()
       }
 
       await assert.rejects(
-        () => client.historical.optionListContracts('quote', 'AAPL', '20240101', { maxDte: value }),
+        () => client.historical.optionListContracts('quote', '20240101', { symbol: 'AAPL', maxDte: value }),
         (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
         `a ${label} maxDte must reject as InvalidParameterError, not wrap through ToInt32`,
       );
@@ -475,7 +475,7 @@ describe('non-negative integer query-param input-validation parity (native)', ()
     // core client. The round-trip may surface a data/network error, but it
     // must never be an InvalidParameterError from the query-param guard.
     try {
-      await client.historical.optionListContracts('quote', 'AAPL', '20240101', { maxDte: 30 });
+      await client.historical.optionListContracts('quote', '20240101', { symbol: 'AAPL', maxDte: 30 });
     } catch (err) {
       assert.ok(
         !(err instanceof mod.InvalidParameterError),

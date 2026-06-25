@@ -575,7 +575,12 @@ mod tests {
             "index branch must serve `EOD`; got {:?}",
             index_branch.1
         );
-        for unserved in ["TRADE_QUOTE", "OPEN_INTEREST", "trade_quote", "open_interest"] {
+        for unserved in [
+            "TRADE_QUOTE",
+            "OPEN_INTEREST",
+            "trade_quote",
+            "open_interest",
+        ] {
             assert!(
                 !index_branch.1.iter().any(|t| t == unserved),
                 "index branch must not serve `{unserved}`; got {:?}",
