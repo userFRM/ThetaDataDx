@@ -20,13 +20,9 @@ use thetadatadx::*;
 
 /// Wrap a response array in the JVM terminal's standard envelope.
 pub fn ok_envelope(response: Vec<sonic_rs::Value>) -> sonic_rs::Value {
-    sonic_rs::json!({
-        "header": {
-            "format": "json",
-            "error_type": "null"
-        },
-        "response": response
-    })
+    // v3 contract: the success body is `{"response": [...]}` with no
+    // `header` key (the v3 spec carries no header on any path).
+    sonic_rs::json!({ "response": response })
 }
 
 /// Error envelope matching the JVM terminal's error format.
@@ -110,9 +106,10 @@ pub fn output_envelope(output: &EndpointOutput) -> sonic_rs::Value {
 // ---------------------------------------------------------------------------
 
 fn right_label(right: char) -> sonic_rs::Value {
+    // v3 spells the option right out as `CALL` / `PUT` (v2 used `C`/`P`).
     match right {
-        'C' => sonic_rs::Value::from("C"),
-        'P' => sonic_rs::Value::from("P"),
+        'C' => sonic_rs::Value::from("CALL"),
+        'P' => sonic_rs::Value::from("PUT"),
         other => sonic_rs::Value::from(other.to_string().as_str()),
     }
 }
@@ -124,6 +121,25 @@ fn expiration_label(expiration: i32) -> sonic_rs::Value {
     let month = (expiration / 100) % 100;
     let day = expiration % 100;
     sonic_rs::Value::from(format!("{year:04}-{month:02}-{day:02}").as_str())
+}
+
+/// Combine a `YYYYMMDD` date with a millisecond-of-day offset into the v3
+/// ISO local-datetime shape (`20240102`, `62273606` ->
+/// `"2024-01-02T17:17:53.606"`). v3 folds the separate v2 `date` +
+/// `ms_of_day` columns into one ISO timestamp string.
+fn ms_of_day_to_iso(date: i32, ms_of_day: i32) -> sonic_rs::Value {
+    let year = date / 10_000;
+    let month = (date / 100) % 100;
+    let day = date % 100;
+    let ms = ms_of_day.max(0);
+    let hour = ms / 3_600_000;
+    let minute = (ms / 60_000) % 60;
+    let second = (ms / 1_000) % 60;
+    let millis = ms % 1_000;
+    sonic_rs::Value::from(
+        format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{millis:03}")
+            .as_str(),
+    )
 }
 
 fn insert_contract_id_fields(row: &mut sonic_rs::Value, expiration: i32, strike: f64, right: char) {
@@ -150,9 +166,12 @@ pub fn eod_ticks_to_json(ticks: &[EodTick]) -> Vec<sonic_rs::Value> {
     ticks
         .iter()
         .map(|t| {
+            // v3: `created` / `last_trade` are ISO datetimes built from the
+            // EOD `date` + ms-of-day offsets; the standalone `date` column is
+            // dropped (folded into the ISO strings).
             let mut row = sonic_rs::json!({
-                "created": t.created_ms_of_day,
-                "last_trade": t.last_trade_ms_of_day,
+                "created": ms_of_day_to_iso(t.date, t.created_ms_of_day),
+                "last_trade": ms_of_day_to_iso(t.date, t.last_trade_ms_of_day),
                 "open": t.open,
                 "high": t.high,
                 "low": t.low,
@@ -166,8 +185,7 @@ pub fn eod_ticks_to_json(ticks: &[EodTick]) -> Vec<sonic_rs::Value> {
                 "ask_size": t.ask_size,
                 "ask_exchange": t.ask_exchange,
                 "ask": t.ask,
-                "ask_condition": t.ask_condition,
-                "date": t.date
+                "ask_condition": t.ask_condition
             });
             insert_contract_id_fields(&mut row, t.expiration, t.strike, t.right);
             row
