@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="../assets/logo.svg" alt="ThetaDataDx" width="120" />
+  <img src="../assets/logo.svg" alt="ThetaDataDx" width="500" />
 </p>
 
 # Tools
