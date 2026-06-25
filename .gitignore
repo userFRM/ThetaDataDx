@@ -8,6 +8,7 @@ venv/
 *.dll
 *.a
 creds.txt
+api_key.txt
 config.toml
 config.properties
 __pycache__/
