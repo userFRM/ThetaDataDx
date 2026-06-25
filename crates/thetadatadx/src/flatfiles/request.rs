@@ -504,8 +504,7 @@ mod tests {
         for code in [msg::FLAT_FILE, msg::FLAT_FILE_END] {
             let wrong = frame(code, 999, vec![]);
             let err = classify_stream_frame(&wrong, request_id, 0)
-                .err()
-                .expect("a data frame with a foreign id must be rejected");
+                .expect_err("a data frame with a foreign id must be rejected");
             assert!(
                 err.to_string().contains("unexpected response id=999"),
                 "foreign-id data frame must name the correlation fault, got {err}"
