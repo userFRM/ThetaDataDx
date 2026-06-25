@@ -56,6 +56,74 @@ pub(crate) fn plain_error_response(status: StatusCode, msg: &str) -> Response {
         .into_response()
 }
 
+/// Deprecated v2 query parameters and their v3 replacements.
+///
+/// The JVM terminal's pre-matching filter rejects any request carrying one
+/// of these legacy v2 parameter names with `410 Gone` and a body naming the
+/// v3 replacement, rather than silently ignoring it (these names are not v3
+/// parameters, so a request using them would otherwise fail later with an
+/// opaque "missing required parameter" or simply drop the value). Replicating
+/// the terminal's mapping means a v2 client gets the same actionable upgrade
+/// message from this server.
+///
+/// `"*unnecessary*"` marks a v2 knob with no v3 equivalent (the behaviour is
+/// now always-on or removed); `"*path parameter*"` marks a value that moved
+/// from the query string into the URL path (`sec`). The names and their
+/// replacements match the JVM terminal's v2-parameter rejection map.
+const DEPRECATED_V2_PARAMS: &[(&str, &str)] = &[
+    ("annual_div", "annual_dividend"),
+    ("exp", "expiration"),
+    ("ivl", "interval"),
+    ("perf_boost", "*unnecessary*"),
+    ("pretty_time", "*unnecessary*"),
+    ("rate", "rate_type"),
+    ("root", "symbol"),
+    ("rth", "*unnecessary*"),
+    ("sec", "*path parameter*"),
+    ("under_price", "stock_price"),
+    ("use_csv", "format"),
+];
+
+/// Reject a request carrying any deprecated v2 query parameter with `410
+/// Gone`, mirroring the JVM terminal's pre-matching filter.
+///
+/// Returns `Some(response)` — a `410` whose `text/plain` body lists each
+/// offending parameter and its v3 replacement — when at least one v2
+/// parameter name is present, and `None` when the request is clean (the
+/// caller then proceeds to normal dispatch). The check is a cheap scan over
+/// the already-parsed query keys; `DEPRECATED_V2_PARAMS` has eleven entries,
+/// so the per-request cost is negligible.
+///
+/// Splitting the decision (pure, over a `&HashMap`) from the middleware glue
+/// keeps it unit-testable without driving a live request through the router.
+fn deprecated_v2_param_response(params: &HashMap<String, String>) -> Option<Response> {
+    let mut hits: Vec<(&str, &str)> = DEPRECATED_V2_PARAMS
+        .iter()
+        .filter(|(name, _)| params.contains_key(*name))
+        .map(|(name, replacement)| (*name, *replacement))
+        .collect();
+    if hits.is_empty() {
+        return None;
+    }
+    // Stable, deterministic ordering so the body (and tests) don't depend on
+    // HashMap iteration order.
+    hits.sort_unstable_by(|a, b| a.0.cmp(b.0));
+
+    let mut body = String::from(
+        "We have upgraded to API v3. Please use API v3 query parameters instead.\n\
+         Deprecated query parameters:\n",
+    );
+    for (name, replacement) in hits {
+        body.push('\t');
+        body.push_str(name);
+        body.push_str(" -> ");
+        body.push_str(replacement);
+        body.push('\n');
+    }
+    body.push_str("Consult API v3 documentation for more information: https://docs.thetadata.us/");
+    Some(plain_error_response(StatusCode::GONE, &body))
+}
+
 /// Build a JSON error response with the JVM terminal error envelope format.
 ///
 /// The envelope is hand-built from string + array primitives, so
@@ -246,6 +314,18 @@ fn build_endpoint_args(
     for param in ep.params {
         match params.get(param.name) {
             Some(raw) => args.insert_raw(param.name, param.param_type, raw)?,
+            // An absent optional param that the JVM terminal injects an
+            // upstream default for is forwarded with that exact literal so
+            // a request omitting it sees the same data window / venue /
+            // interval the terminal would have produced (see
+            // [`terminal_param_default`]). Defaults that fail to parse for
+            // their declared `ParamType` are a server bug, not a client
+            // fault, so the parse error propagates as-is.
+            None if !param.required => {
+                if let Some(default) = terminal_param_default(param.name) {
+                    args.insert_raw(param.name, param.param_type, default)?;
+                }
+            }
             None if param.required => {
                 return Err(EndpointError::InvalidParams(format!(
                     "missing required parameter: '{}' ({})",
@@ -256,6 +336,45 @@ fn build_endpoint_args(
         }
     }
     Ok(args)
+}
+
+/// The default literal the JVM terminal injects upstream for `param_name`
+/// when the client omits it, or `None` for a param the terminal forwards
+/// only when present.
+///
+/// The JVM terminal's REST layer substitutes a fixed literal for each of
+/// these params when the request omits it (and always sets `interval` to
+/// `1s` when it is absent), before forwarding the request to the upstream
+/// gRPC service. A request that omits one of these params therefore lands on
+/// the upstream with the terminal's literal, not an empty field. This server
+/// forwards only what the client sent, so an omitted param previously
+/// reached the upstream as unset — a different data window / venue /
+/// interval / pairing rule than the terminal. The literals below match the
+/// terminal's so the two front ends produce identical upstream calls.
+///
+/// Injection is name-gated AND guarded by the endpoint declaring the param:
+/// `build_endpoint_args` only consults this table for a param the endpoint
+/// actually has in `ep.params`, so a snapshot endpoint (no `start_time`)
+/// never gains a time window and an `eod` endpoint (no `interval`) never
+/// gains a bar size. Every current and future endpoint that declares one of
+/// these optional params inherits the terminal-matching default
+/// automatically.
+///
+/// `exclusive` intentionally defaults to `true` here even though the
+/// registry's SDK-facing metadata documents `false`: the JVM terminal's REST
+/// front end injects `true` for an omitted `exclusive`, and this server's job
+/// is to reproduce the terminal's wire behaviour for a request that omits the
+/// param. The registry default governs the typed SDK builders, a separate
+/// surface.
+fn terminal_param_default(param_name: &str) -> Option<&'static str> {
+    match param_name {
+        "venue" => Some("nqb"),
+        "start_time" => Some("09:30:00"),
+        "end_time" => Some("16:00:00"),
+        "interval" => Some("1s"),
+        "exclusive" => Some("true"),
+        _ => None,
+    }
 }
 
 /// Resolve the endpoint a request should actually dispatch to.
@@ -496,6 +615,45 @@ pub async fn generic(
     BoundedQuery(params): BoundedQuery<MAX_QUERY_PARAMS>,
     ep: &EndpointMeta,
 ) -> Response {
+    generic_with_overrides(State(state), BoundedQuery(params), ep, &[]).await
+}
+
+/// Generic handler with caller-supplied parameter overrides folded into the
+/// query map before dispatch.
+///
+/// The JVM terminal serves `request_type` as a URL **path** segment on the
+/// list-dates / list-contracts routes
+/// (`/v3/stock/list/dates/{request_type}`), then sets it on the upstream
+/// request as if it were the `request_type` query param. This server models
+/// `request_type` as a registry query param, so the path-segment routes pass
+/// the captured segment here as `("request_type", segment)` and it is folded
+/// into the query map exactly as though the client had sent
+/// `?request_type=<segment>`. An override always wins over a query value of
+/// the same name, matching the terminal where the path binding is
+/// authoritative.
+///
+/// `overrides` is a tiny fixed slice (one entry today), so the linear scan
+/// and per-entry `insert` cost nothing measurable against the per-request
+/// work that follows.
+pub async fn generic_with_overrides(
+    State(state): State<AppState>,
+    BoundedQuery(mut params): BoundedQuery<MAX_QUERY_PARAMS>,
+    ep: &EndpointMeta,
+    overrides: &[(&str, String)],
+) -> Response {
+    for (key, value) in overrides {
+        params.insert((*key).to_string(), value.clone());
+    }
+
+    // v2 → v3 parameter migration gate. A request carrying a deprecated v2
+    // parameter name is rejected with `410 Gone` naming the v3 replacement,
+    // matching the terminal's pre-matching filter. Runs before any
+    // validation / dispatch so a v2 client gets the upgrade message rather
+    // than an opaque missing-parameter error from a name v3 does not know.
+    if let Some(response) = deprecated_v2_param_response(&params) {
+        return response;
+    }
+
     let ep = resolve_range_sibling(ep, &params);
 
     let args = match build_endpoint_args(ep, &params) {
@@ -561,6 +719,45 @@ pub async fn generic(
     }
 }
 
+/// Dispatch a `{request_type}` path-segment route to its registry endpoint.
+///
+/// The JVM terminal exposes three list routes with `request_type` as a
+/// **path** segment rather than a query param:
+/// `/v3/stock/list/dates/{request_type}`,
+/// `/v3/option/list/dates/{request_type}`, and
+/// `/v3/option/list/contracts/{request_type}` (the v3 OpenAPI marks the
+/// segment `required: true`). The matching registry endpoints
+/// (`stock_list_dates`, `option_list_dates`, `option_list_contracts`) model
+/// `request_type` as a required query param, so a request to the terminal's
+/// path form would otherwise 404. This handler captures the segment and
+/// folds it into the query map as `request_type` before delegating to the
+/// shared [`generic`] pipeline, so the path form and the query form resolve
+/// to the same upstream call.
+///
+/// `endpoint_name` is resolved against the registry once per request; it is
+/// always one of the three names wired in `router::build`, so the lookup
+/// cannot legitimately miss. A miss is treated as a server misconfiguration
+/// (500) rather than a client fault.
+pub async fn list_by_request_type(
+    state: State<AppState>,
+    axum::extract::Path(request_type): axum::extract::Path<String>,
+    query: BoundedQuery<MAX_QUERY_PARAMS>,
+    endpoint_name: &'static str,
+) -> Response {
+    let Some(ep) = thetadatadx::find(endpoint_name) else {
+        tracing::error!(
+            endpoint = endpoint_name,
+            "request_type path route is wired to an endpoint missing from the registry"
+        );
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "server_error",
+            "route is wired to an unknown endpoint",
+        );
+    };
+    generic_with_overrides(state, query, ep, &[("request_type", request_type)]).await
+}
+
 // ---------------------------------------------------------------------------
 //  System endpoints
 // ---------------------------------------------------------------------------
@@ -595,6 +792,41 @@ pub async fn system_streaming_status(State(state): State<AppState>) -> Response 
         "json_serialize_failures": crate::ws::json_serialize_failure_count(),
     });
     json_response(&mut body)
+}
+
+/// GET /v3/terminal/streaming/status -- terminal-compatible streaming
+/// connection status as a bare `text/plain` body.
+///
+/// The JVM terminal exposes the streaming (FPSS) channel health at
+/// `/v3/terminal/fpss/status` as a one-word `text/plain` response
+/// (`CONNECTED` / `DISCONNECTED`); this is the client-facing alias of that
+/// route (the wire codename stays out of the public path). It mirrors the
+/// JSON `/v3/system/streaming/status` route but in the terminal's plain-text
+/// shape so operator tooling that scrapes the terminal's mgmt surface keeps
+/// working unchanged.
+pub async fn terminal_streaming_status(State(state): State<AppState>) -> Response {
+    (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, TEXT_PLAIN_CONTENT_TYPE)],
+        state.fpss_status(),
+    )
+        .into_response()
+}
+
+/// GET /v3/terminal/historical/status -- terminal-compatible historical
+/// connection status as a bare `text/plain` body.
+///
+/// The terminal-compatible alias of the historical (MDDS) channel health,
+/// which the JVM terminal serves at `/v3/terminal/mdds/status` as a one-word
+/// `text/plain` response (`CONNECTED` / `DISCONNECTED`). Plain-text sibling
+/// of the JSON `/v3/system/historical/status` route.
+pub async fn terminal_historical_status(State(state): State<AppState>) -> Response {
+    (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, TEXT_PLAIN_CONTENT_TYPE)],
+        state.mdds_status(),
+    )
+        .into_response()
 }
 
 /// POST /v3/system/shutdown -- requires `X-Shutdown-Token` header.
@@ -747,6 +979,153 @@ mod tests {
             .iter()
             .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
             .collect()
+    }
+
+    // -----------------------------------------------------------------------
+    //  C8 — server-side parameter defaults match the JVM terminal
+    // -----------------------------------------------------------------------
+
+    /// The default literals match the JVM terminal's absent-param
+    /// substitutions exactly.
+    #[test]
+    fn terminal_param_defaults_match_the_terminal_literals() {
+        assert_eq!(terminal_param_default("venue"), Some("nqb"));
+        assert_eq!(terminal_param_default("start_time"), Some("09:30:00"));
+        assert_eq!(terminal_param_default("end_time"), Some("16:00:00"));
+        assert_eq!(terminal_param_default("interval"), Some("1s"));
+        // The terminal injects `exclusive=true` even though the SDK-facing
+        // registry metadata documents `false`; the REST front end is what we
+        // reproduce here.
+        assert_eq!(terminal_param_default("exclusive"), Some("true"));
+        // Params the terminal forwards only when present get no default.
+        assert_eq!(terminal_param_default("symbol"), None);
+        assert_eq!(terminal_param_default("date"), None);
+        assert_eq!(terminal_param_default("strike"), None);
+    }
+
+    /// An intraday OHLC request that omits the windowing params lands on the
+    /// upstream with the terminal's `09:30:00`..`16:00:00` window, `1s`
+    /// interval, and `nqb` venue — not an empty field per param.
+    #[test]
+    fn build_endpoint_args_injects_window_interval_and_venue_defaults() {
+        let ep = thetadatadx::find("stock_history_ohlc").expect("endpoint exists");
+        let params = string_params(&[("symbol", "AAPL"), ("date", "20260603")]);
+        let args = build_endpoint_args(ep, &params).expect("args build");
+        assert_eq!(args.optional_str("interval").unwrap(), Some("1s"));
+        assert_eq!(args.optional_str("start_time").unwrap(), Some("09:30:00"));
+        assert_eq!(args.optional_str("end_time").unwrap(), Some("16:00:00"));
+        assert_eq!(args.optional_str("venue").unwrap(), Some("nqb"));
+    }
+
+    /// A client value always wins over the injected default — the default is
+    /// the absent-param fallback, never an override.
+    #[test]
+    fn build_endpoint_args_default_yields_to_client_value() {
+        let ep = thetadatadx::find("stock_history_ohlc").expect("endpoint exists");
+        let params = string_params(&[
+            ("symbol", "AAPL"),
+            ("date", "20260603"),
+            ("interval", "1m"),
+            ("venue", "utp_cta"),
+        ]);
+        let args = build_endpoint_args(ep, &params).expect("args build");
+        assert_eq!(args.optional_str("interval").unwrap(), Some("1m"));
+        assert_eq!(args.optional_str("venue").unwrap(), Some("utp_cta"));
+        // The untouched window params still pick up the terminal default.
+        assert_eq!(args.optional_str("start_time").unwrap(), Some("09:30:00"));
+    }
+
+    /// The `trade_quote` endpoint declares `exclusive` (and no `interval`):
+    /// the `exclusive=true` default is injected and NO interval is added,
+    /// because the endpoint does not declare one.
+    #[test]
+    fn build_endpoint_args_injects_exclusive_true_and_no_interval_for_trade_quote() {
+        let ep = thetadatadx::find("stock_history_trade_quote").expect("endpoint exists");
+        let params = string_params(&[("symbol", "AAPL"), ("date", "20260603")]);
+        let args = build_endpoint_args(ep, &params).expect("args build");
+        assert_eq!(args.optional_bool("exclusive").unwrap(), Some(true));
+        assert_eq!(args.optional_str("start_time").unwrap(), Some("09:30:00"));
+        assert_eq!(args.optional_str("venue").unwrap(), Some("nqb"));
+        // The endpoint has no `interval` param, so none is injected.
+        assert_eq!(args.optional_str("interval").unwrap(), None);
+    }
+
+    /// Defaults are injected ONLY for params the endpoint declares: an EOD
+    /// range endpoint that declares none of the window/venue/interval params
+    /// gains none of them.
+    #[test]
+    fn build_endpoint_args_injects_no_defaults_for_endpoints_without_those_params() {
+        let ep = thetadatadx::find("stock_history_eod").expect("endpoint exists");
+        let params = string_params(&[
+            ("symbol", "AAPL"),
+            ("start_date", "20260101"),
+            ("end_date", "20260301"),
+        ]);
+        let args = build_endpoint_args(ep, &params).expect("args build");
+        assert_eq!(args.optional_str("interval").unwrap(), None);
+        assert_eq!(args.optional_str("start_time").unwrap(), None);
+        assert_eq!(args.optional_str("end_time").unwrap(), None);
+        assert_eq!(args.optional_str("venue").unwrap(), None);
+    }
+
+    /// A snapshot endpoint declares `venue` but no time window: only the
+    /// venue default is injected.
+    #[test]
+    fn build_endpoint_args_injects_only_venue_for_snapshot() {
+        let ep = thetadatadx::find("stock_snapshot_ohlc").expect("endpoint exists");
+        let params = string_params(&[("symbol", "AAPL")]);
+        let args = build_endpoint_args(ep, &params).expect("args build");
+        assert_eq!(args.optional_str("venue").unwrap(), Some("nqb"));
+        assert_eq!(args.optional_str("start_time").unwrap(), None);
+        assert_eq!(args.optional_str("interval").unwrap(), None);
+    }
+
+    // -----------------------------------------------------------------------
+    //  H8 — deprecated v2 query parameters are rejected with 410
+    // -----------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn deprecated_v2_param_returns_410_naming_the_replacement() {
+        let params = string_params(&[("root", "AAPL"), ("date", "20260603")]);
+        let resp =
+            deprecated_v2_param_response(&params).expect("a v2 param must trigger the 410 gate");
+        assert_eq!(resp.status(), StatusCode::GONE);
+        assert_eq!(
+            resp.headers()
+                .get(axum::http::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok()),
+            Some("text/plain; charset=utf-8")
+        );
+        let body = read_body(resp).await;
+        assert!(
+            body.contains("root -> symbol"),
+            "body must map the deprecated param to its v3 name: {body}"
+        );
+        assert!(
+            body.contains("API v3"),
+            "body must carry the upgrade message: {body}"
+        );
+    }
+
+    #[tokio::test]
+    async fn deprecated_v2_params_list_every_offender_sorted() {
+        let params = string_params(&[("ivl", "1m"), ("exp", "20260101"), ("use_csv", "true")]);
+        let resp = deprecated_v2_param_response(&params).expect("v2 params present");
+        let body = read_body(resp).await;
+        // Deterministic, sorted order regardless of HashMap iteration.
+        let exp_at = body.find("exp -> expiration").expect("exp mapped");
+        let ivl_at = body.find("ivl -> interval").expect("ivl mapped");
+        let csv_at = body.find("use_csv -> format").expect("use_csv mapped");
+        assert!(exp_at < ivl_at && ivl_at < csv_at, "entries must be sorted: {body}");
+    }
+
+    #[test]
+    fn clean_request_does_not_trigger_the_v2_gate() {
+        let params = string_params(&[("symbol", "AAPL"), ("interval", "1m"), ("format", "json")]);
+        assert!(
+            deprecated_v2_param_response(&params).is_none(),
+            "a v3-only request must pass the gate untouched"
+        );
     }
 
     /// `start_date`+`end_date` (without `date`) on a single-date path

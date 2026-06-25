@@ -430,8 +430,23 @@ async fn serve_flatfile(
 }
 
 /// Add the FLATFILES routes onto an existing axum router.
+///
+/// Two GET path shapes serve the same `handle_get` logic:
+///
+/// - `/v3/{sec_type}/flat_file/{req_type}` — the v3 form the JVM terminal
+///   serves (e.g. `/v3/option/flat_file/trade_quote`). The terminal carries
+///   `date` + `format` in the query string and `sec_type` / `req_type` in
+///   the path, which is exactly `handle_get`'s shape, so the same handler
+///   serves both this and the convenience form below. An unserved
+///   `(sec_type, req_type)` pair (stock `open_interest`, any `index`) still
+///   fails the served-matrix gate as a `400 bad_request`.
+/// - `/v3/flatfile/{sec_type}/{req_type}` — the original convenience form,
+///   kept so existing callers do not break.
+///
+/// The generic `POST /v3/flatfile/request` form is retained alongside both.
 pub(crate) fn add_flatfile_routes(router: Router<AppState>) -> Router<AppState> {
     router
+        .route("/v3/{sec_type}/flat_file/{req_type}", get(handle_get))
         .route("/v3/flatfile/{sec_type}/{req_type}", get(handle_get))
         .route("/v3/flatfile/request", post(handle_post))
 }
