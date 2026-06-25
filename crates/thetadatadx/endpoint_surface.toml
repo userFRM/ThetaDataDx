@@ -149,7 +149,7 @@ default = "*"
 
 [[param_groups.right_param.params]]
 name = "right"
-description = "Option side."
+description = "Option side. Use `both` or `*` (alias) for calls and puts."
 param_type = "Right"
 enum = "Right"
 required = false

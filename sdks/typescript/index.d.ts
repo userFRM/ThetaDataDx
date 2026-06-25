@@ -4101,7 +4101,7 @@ export declare function openInterestTickToArrowIpc(rows: Array<OpenInterestTick>
 export interface OptionAtTimeQuoteOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Maximum days to expiration */
   maxDte?: number
@@ -4125,7 +4125,7 @@ export interface OptionAtTimeQuoteOptions {
 export interface OptionAtTimeTradeOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Maximum days to expiration */
   maxDte?: number
@@ -4157,7 +4157,7 @@ export interface OptionContract {
 export interface OptionHistoryEodOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Maximum days to expiration */
   maxDte?: number
@@ -4181,7 +4181,7 @@ export interface OptionHistoryEodOptions {
 export interface OptionHistoryGreeksAllOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
@@ -4221,7 +4221,7 @@ export interface OptionHistoryGreeksAllOptions {
 export interface OptionHistoryGreeksEodOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
@@ -4255,7 +4255,7 @@ export interface OptionHistoryGreeksEodOptions {
 export interface OptionHistoryGreeksFirstOrderOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
@@ -4295,7 +4295,7 @@ export interface OptionHistoryGreeksFirstOrderOptions {
 export interface OptionHistoryGreeksImpliedVolatilityOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
@@ -4335,7 +4335,7 @@ export interface OptionHistoryGreeksImpliedVolatilityOptions {
 export interface OptionHistoryGreeksSecondOrderOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
@@ -4375,7 +4375,7 @@ export interface OptionHistoryGreeksSecondOrderOptions {
 export interface OptionHistoryGreeksThirdOrderOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
@@ -4415,7 +4415,7 @@ export interface OptionHistoryGreeksThirdOrderOptions {
 export interface OptionHistoryOhlcOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
@@ -4447,7 +4447,7 @@ export interface OptionHistoryOhlcOptions {
 export interface OptionHistoryOpenInterestOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Maximum days to expiration */
   maxDte?: number
@@ -4475,7 +4475,7 @@ export interface OptionHistoryOpenInterestOptions {
 export interface OptionHistoryQuoteOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Interval preset or millisecond string. Defaults to `1s` when omitted — matching the upstream ThetaData Python library. Accepted values: `tick`, `10ms`, `100ms`, `500ms`, `1s`, `5s`, `10s`, `15s`, `30s`, `1m`, `5m`, `10m`, `15m`, `30m`, `1h`. */
   interval?: string
@@ -4509,7 +4509,7 @@ export interface OptionHistoryQuoteOptions {
 export interface OptionHistoryTradeGreeksAllOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Start time filter */
   startTime?: string | Date
@@ -4549,7 +4549,7 @@ export interface OptionHistoryTradeGreeksAllOptions {
 export interface OptionHistoryTradeGreeksFirstOrderOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Start time filter */
   startTime?: string | Date
@@ -4589,7 +4589,7 @@ export interface OptionHistoryTradeGreeksFirstOrderOptions {
 export interface OptionHistoryTradeGreeksImpliedVolatilityOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Start time filter */
   startTime?: string | Date
@@ -4629,7 +4629,7 @@ export interface OptionHistoryTradeGreeksImpliedVolatilityOptions {
 export interface OptionHistoryTradeGreeksSecondOrderOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Start time filter */
   startTime?: string | Date
@@ -4669,7 +4669,7 @@ export interface OptionHistoryTradeGreeksSecondOrderOptions {
 export interface OptionHistoryTradeGreeksThirdOrderOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Start time filter */
   startTime?: string | Date
@@ -4709,7 +4709,7 @@ export interface OptionHistoryTradeGreeksThirdOrderOptions {
 export interface OptionHistoryTradeOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Start time filter */
   startTime?: string | Date
@@ -4741,7 +4741,7 @@ export interface OptionHistoryTradeOptions {
 export interface OptionHistoryTradeQuoteOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Start time filter */
   startTime?: string | Date
@@ -4881,7 +4881,7 @@ export interface OptionListSymbolsOptions {
 export interface OptionSnapshotGreeksAllOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
@@ -4919,7 +4919,7 @@ export interface OptionSnapshotGreeksAllOptions {
 export interface OptionSnapshotGreeksFirstOrderOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
@@ -4957,7 +4957,7 @@ export interface OptionSnapshotGreeksFirstOrderOptions {
 export interface OptionSnapshotGreeksImpliedVolatilityOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
@@ -4995,7 +4995,7 @@ export interface OptionSnapshotGreeksImpliedVolatilityOptions {
 export interface OptionSnapshotGreeksSecondOrderOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
@@ -5033,7 +5033,7 @@ export interface OptionSnapshotGreeksSecondOrderOptions {
 export interface OptionSnapshotGreeksThirdOrderOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Annualized expected dividend amount, in dollars per share, used in the Greeks calculation (e.g. 2.5 is $2.50 per share per year). */
   annualDividend?: number
@@ -5071,7 +5071,7 @@ export interface OptionSnapshotGreeksThirdOrderOptions {
 export interface OptionSnapshotMarketValueOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Maximum days to expiration */
   maxDte?: number
@@ -5097,7 +5097,7 @@ export interface OptionSnapshotMarketValueOptions {
 export interface OptionSnapshotOhlcOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Maximum days to expiration */
   maxDte?: number
@@ -5123,7 +5123,7 @@ export interface OptionSnapshotOhlcOptions {
 export interface OptionSnapshotOpenInterestOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Maximum days to expiration */
   maxDte?: number
@@ -5149,7 +5149,7 @@ export interface OptionSnapshotOpenInterestOptions {
 export interface OptionSnapshotQuoteOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Maximum days to expiration */
   maxDte?: number
@@ -5175,7 +5175,7 @@ export interface OptionSnapshotQuoteOptions {
 export interface OptionSnapshotTradeOptions {
   /** Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. */
   strike?: string
-  /** Option side. Accepted values: `call`, `put`, `both`. */
+  /** Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. */
   right?: string
   /** Strike range filter */
   strikeRange?: number

@@ -150,7 +150,7 @@ curl -G 'http://127.0.0.1:25503/v3/option/list/dates' \
 | `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
 | `expiration` | date | yes | — | Expiration date YYYYMMDD |
 | `strike` | string | no | `*` | Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. |
-| `right` | string | no | `both` | Option side. Accepted values: `call`, `put`, `both`. |
+| `right` | string | no | `both` | Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. |
 | `timeout_ms` | int | no | — | Per-request deadline in milliseconds. 0 means no deadline. |
 
 ## Response

@@ -224,12 +224,11 @@ x-anchors:
       type: string
       enum: [call, put, both, C, P, c, p, CALL, PUT, Call, Put, "*"]
     description: >-
-      Option right. Accepts `call`, `put`, `both` (upstream ThetaData
-      vocabulary; upstream default is `both`), plus our short-forms `C`
-      (call), `P` (put), and `*` (alias for `both`) for SDK ergonomics.
-      Matching is case-insensitive. The `both` / `*` wildcard is only
-      meaningful on endpoints that also accept `strike="0"` and
-      `expiration="0"` wildcards.
+      Option side. Use `both` or `*` (alias) for calls and puts. Accepts
+      `call`, `put`, `both` (upstream ThetaData vocabulary; upstream default
+      is `both`), plus our short-forms `C` (call), `P` (put), and `*` (alias
+      for `both`) for SDK ergonomics. Matching is case-insensitive. Every
+      endpoint that exposes `right` accepts the `both` / `*` wildcard.
 
   max_dte-param: &max_dte-param
     name: max_dte

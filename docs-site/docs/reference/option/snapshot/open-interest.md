@@ -142,7 +142,7 @@ curl -G 'http://127.0.0.1:25503/v3/option/snapshot/open_interest' \
 | `symbol` | string | yes | — | Ticker symbol (e.g. AAPL) |
 | `expiration` | date | yes | — | Expiration date YYYYMMDD Pass `*` to select all expirations for the underlying (chain-wide; query one date at a time). |
 | `strike` | string | no | `*` | Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection. |
-| `right` | string | no | `both` | Option side. Accepted values: `call`, `put`, `both`. |
+| `right` | string | no | `both` | Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`. |
 | `max_dte` | int | no | — | Maximum days to expiration |
 | `strike_range` | int | no | — | Strike range filter |
 | `min_time` | string | no | — | Minimum time filter |
