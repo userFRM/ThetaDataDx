@@ -311,6 +311,8 @@ pub struct OptionListStrikesOptions {
 #[napi(object)]
 #[derive(Default)]
 pub struct OptionListContractsOptions {
+    /// Ticker symbol to filter by (e.g. AAPL). Omit to list every contract for the date.
+    pub symbol: Option<String>,
     /// Maximum days to expiration
     pub max_dte: Option<f64>,
     /// Per-call deadline as a non-negative whole number of milliseconds;
@@ -2512,18 +2514,17 @@ impl HistoricalView {
         .await
     }
 
-    /// List all option contracts for a symbol on a given date.
+    /// List all option contracts traded or quoted on a given date, optionally filtered to a symbol.
     ///
     /// Lists all contracts that were traded or quoted on a particular date.
     ///
     /// If the ``symbol`` parameter is specified, the returned contracts will be filtered to match the symbol.
-    /// Multiple symbols can be specified by separating them with commas such as ``symbol=AAPL,SPY,AMD``
+    /// When ``symbol`` is omitted the full universe of contracts for that date is returned.
     /// This endpoint is updated real-time.
     #[napi(js_name = "optionListContracts")]
     pub async fn option_list_contracts(
         &self,
         request_type: String,
-        symbol: String,
         date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionListContractsOptions>,
     ) -> napi::Result<Vec<OptionContract>> {
@@ -2534,9 +2535,13 @@ impl HistoricalView {
         };
         let client = self.client.clone();
         let date = normalize_date(date);
+        let symbol = options.symbol;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_list_contracts(&request_type, &symbol, date.as_str());
+            let mut request = client.historical().option_list_contracts(&request_type, date.as_str());
+            if let Some(value) = symbol {
+                request = request.symbol(value.as_str());
+            }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }
@@ -2554,7 +2559,6 @@ impl HistoricalView {
     pub async fn option_list_contracts_stream(
         &self,
         request_type: String,
-        symbol: String,
         date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionListContractsOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OptionContract>, (), Vec<OptionContract>, napi::Status, false>,
@@ -2566,10 +2570,14 @@ impl HistoricalView {
         };
         let client = self.client.clone();
         let date = normalize_date(date);
+        let symbol = options.symbol;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = client.historical().option_list_contracts(&request_type, &symbol, date.as_str());
+            let mut request = client.historical().option_list_contracts(&request_type, date.as_str());
+            if let Some(value) = symbol {
+                request = request.symbol(value.as_str());
+            }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }
@@ -7907,18 +7915,17 @@ impl HistoricalClient {
         .await
     }
 
-    /// List all option contracts for a symbol on a given date.
+    /// List all option contracts traded or quoted on a given date, optionally filtered to a symbol.
     ///
     /// Lists all contracts that were traded or quoted on a particular date.
     ///
     /// If the ``symbol`` parameter is specified, the returned contracts will be filtered to match the symbol.
-    /// Multiple symbols can be specified by separating them with commas such as ``symbol=AAPL,SPY,AMD``
+    /// When ``symbol`` is omitted the full universe of contracts for that date is returned.
     /// This endpoint is updated real-time.
     #[napi(js_name = "optionListContracts")]
     pub async fn option_list_contracts(
         &self,
         request_type: String,
-        symbol: String,
         date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionListContractsOptions>,
     ) -> napi::Result<Vec<OptionContract>> {
@@ -7929,9 +7936,13 @@ impl HistoricalClient {
         };
         let client = self.client.clone();
         let date = normalize_date(date);
+        let symbol = options.symbol;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let ticks = spawn_endpoint_task(async move {
-            let mut request = client.historical().option_list_contracts(&request_type, &symbol, date.as_str());
+            let mut request = client.historical().option_list_contracts(&request_type, date.as_str());
+            if let Some(value) = symbol {
+                request = request.symbol(value.as_str());
+            }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }
@@ -7949,7 +7960,6 @@ impl HistoricalClient {
     pub async fn option_list_contracts_stream(
         &self,
         request_type: String,
-        symbol: String,
         date: Either<String, chrono::DateTime<chrono::Utc>>,
         options: Option<OptionListContractsOptions>,
         callback: napi::threadsafe_function::ThreadsafeFunction<Vec<OptionContract>, (), Vec<OptionContract>, napi::Status, false>,
@@ -7961,10 +7971,14 @@ impl HistoricalClient {
         };
         let client = self.client.clone();
         let date = normalize_date(date);
+        let symbol = options.symbol;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let callback = std::sync::Arc::new(callback);
         spawn_endpoint_task(async move {
-            let mut request = client.historical().option_list_contracts(&request_type, &symbol, date.as_str());
+            let mut request = client.historical().option_list_contracts(&request_type, date.as_str());
+            if let Some(value) = symbol {
+                request = request.symbol(value.as_str());
+            }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }

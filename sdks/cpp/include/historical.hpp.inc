@@ -248,15 +248,15 @@
         });
     }
 
-    /// List all option contracts for a symbol on a given date.
-    std::vector<OptionContract> option_list_contracts(const std::string& request_type, const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    /// List all option contracts traded or quoted on a given date, optionally filtered to a symbol.
+    std::vector<OptionContract> option_list_contracts(const std::string& request_type, const std::string& date, const EndpointRequestOptions& options = {}) const;
 
     /// \warning The future borrows the object it was called on; do not let it
     /// outlive that object. Call on a named `HistoricalClient` (or chain the
     /// result), never on the temporary returned by `client.historical()`.
-    std::future<std::vector<OptionContract>> option_list_contracts_async(std::string request_type, std::string symbol, std::string date, EndpointRequestOptions options = {}) const {
-        return std::async(std::launch::async, [this, request_type = std::move(request_type), symbol = std::move(symbol), date = std::move(date), options = std::move(options)]() {
-            return this->option_list_contracts(request_type, symbol, date, options);
+    std::future<std::vector<OptionContract>> option_list_contracts_async(std::string request_type, std::string date, EndpointRequestOptions options = {}) const {
+        return std::async(std::launch::async, [this, request_type = std::move(request_type), date = std::move(date), options = std::move(options)]() {
+            return this->option_list_contracts(request_type, date, options);
         });
     }
 

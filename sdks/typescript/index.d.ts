@@ -1052,17 +1052,17 @@ export declare class HistoricalClient {
    */
   optionListStrikes(symbol: string, expiration: string | Date, options?: OptionListStrikesOptions | undefined | null): Promise<Array<string>>
   /**
-   * List all option contracts for a symbol on a given date.
+   * List all option contracts traded or quoted on a given date, optionally filtered to a symbol.
    *
    * Lists all contracts that were traded or quoted on a particular date.
    *
    * If the ``symbol`` parameter is specified, the returned contracts will be filtered to match the symbol.
-   * Multiple symbols can be specified by separating them with commas such as ``symbol=AAPL,SPY,AMD``
+   * When ``symbol`` is omitted the full universe of contracts for that date is returned.
    * This endpoint is updated real-time.
    */
-  optionListContracts(requestType: string, symbol: string, date: string | Date, options?: OptionListContractsOptions | undefined | null): Promise<Array<OptionContract>>
+  optionListContracts(requestType: string, date: string | Date, options?: OptionListContractsOptions | undefined | null): Promise<Array<OptionContract>>
   /** Stream `option_list_contracts` rows into `callback` without materialising the full response in memory. `callback(chunk: OptionContract[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionListContracts` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionListContractsStream(requestType: string, symbol: string, date: string | Date, options: OptionListContractsOptions | undefined | null, callback: ((arg: Array<OptionContract>) => void)): Promise<void>
+  optionListContractsStream(requestType: string, date: string | Date, options: OptionListContractsOptions | undefined | null, callback: ((arg: Array<OptionContract>) => void)): Promise<void>
   /**
    * Get the latest OHLC snapshot for an option contract.
    *
@@ -1874,17 +1874,17 @@ export declare class HistoricalView {
    */
   optionListStrikes(symbol: string, expiration: string | Date, options?: OptionListStrikesOptions | undefined | null): Promise<Array<string>>
   /**
-   * List all option contracts for a symbol on a given date.
+   * List all option contracts traded or quoted on a given date, optionally filtered to a symbol.
    *
    * Lists all contracts that were traded or quoted on a particular date.
    *
    * If the ``symbol`` parameter is specified, the returned contracts will be filtered to match the symbol.
-   * Multiple symbols can be specified by separating them with commas such as ``symbol=AAPL,SPY,AMD``
+   * When ``symbol`` is omitted the full universe of contracts for that date is returned.
    * This endpoint is updated real-time.
    */
-  optionListContracts(requestType: string, symbol: string, date: string | Date, options?: OptionListContractsOptions | undefined | null): Promise<Array<OptionContract>>
+  optionListContracts(requestType: string, date: string | Date, options?: OptionListContractsOptions | undefined | null): Promise<Array<OptionContract>>
   /** Stream `option_list_contracts` rows into `callback` without materialising the full response in memory. `callback(chunk: OptionContract[]) => void` is invoked once per server chunk; the chunk is freed before the next is fetched, so peak memory tracks a single chunk rather than the whole result. This is the memory-bounded companion to the `optionListContracts` method — prefer it for multi-day or full-universe pulls. The returned Promise resolves when the stream drains and rejects (typed like the buffered method) on a wire or decode error. Cancelling the Promise drops the in-flight request. `options` carries the same optional builder parameters and `timeoutMs` as the buffered method; the `callback` is the trailing argument. */
-  optionListContractsStream(requestType: string, symbol: string, date: string | Date, options: OptionListContractsOptions | undefined | null, callback: ((arg: Array<OptionContract>) => void)): Promise<void>
+  optionListContractsStream(requestType: string, date: string | Date, options: OptionListContractsOptions | undefined | null, callback: ((arg: Array<OptionContract>) => void)): Promise<void>
   /**
    * Get the latest OHLC snapshot for an option contract.
    *
@@ -4789,6 +4789,8 @@ export interface OptionLeg {
  * returned Promise rejects and the underlying request is cancelled.
  */
 export interface OptionListContractsOptions {
+  /** Ticker symbol to filter by (e.g. AAPL). Omit to list every contract for the date. */
+  symbol?: string
   /** Maximum days to expiration */
   maxDte?: number
   /**

@@ -25,6 +25,7 @@ mod format;
 mod handler;
 mod logging;
 mod router;
+mod row;
 mod state;
 mod validation;
 mod ws;
@@ -93,8 +94,10 @@ struct Args {
     #[arg(long, default_value_t = 25520)]
     ws_port: u16,
 
-    /// Bind address for both servers (127.0.0.1 only, not 0.0.0.0).
-    #[arg(long, default_value = "127.0.0.1")]
+    /// Bind address for both the HTTP REST and WebSocket servers. Defaults
+    /// to `0.0.0.0` (all interfaces), matching the JVM terminal this server
+    /// replaces. Set `--bind 127.0.0.1` to restrict to loopback only.
+    #[arg(long, default_value = "0.0.0.0")]
     bind: String,
 
     /// Log level filter (e.g. "info", "debug", "thetadatadx=trace").

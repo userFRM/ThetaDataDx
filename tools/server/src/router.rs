@@ -36,8 +36,10 @@
 //! # Trust model
 //!
 //! The server is NOT deployed behind a trusted reverse proxy. It binds to
-//! `127.0.0.1` by default and accepts connections directly from local
-//! clients. The rate-limit key extractor uses the peer connect-info IP
+//! `0.0.0.0` by default (all interfaces, matching the JVM terminal it
+//! replaces) and accepts connections directly from clients; an operator who
+//! wants loopback-only exposure passes `--bind 127.0.0.1`. The rate-limit
+//! key extractor uses the peer connect-info IP
 //! only: `X-Forwarded-For`, `X-Real-IP`, and `Forwarded` headers are
 //! **explicitly ignored**. Trusting any of them would let a malicious
 //! local process rotate a synthetic IP on every request to obtain a fresh
@@ -242,6 +244,12 @@ pub fn build(state: AppState, rate_limit: Option<RateLimit>) -> Router {
         "registered endpoint routes from registry"
     );
 
+    // v3 path-form routes that the core registry does not generate, mounted
+    // at the server level so the core codegen (and its drift guard) stays
+    // untouched. Each route dispatches to the same registry endpoint / SDK
+    // call as its query-form sibling.
+    app = register_v3_path_routes(app);
+
     // Build the per-route governor for the shutdown endpoint. Must be
     // attached with `route_layer` so it only applies to `/v3/system/shutdown`
     // and not to the sibling system-status routes.
@@ -265,6 +273,35 @@ pub fn build(state: AppState, rate_limit: Option<RateLimit>) -> Router {
             post(handler::system_shutdown).route_layer(
                 GovernorLayer::new(shutdown_governor).error_handler(governor_error_response),
             ),
+        );
+
+    // Terminal-compatible management status routes. The JVM terminal this
+    // server replaces serves channel health under `/v3/terminal/<channel>/
+    // status` as a one-word `text/plain` body; replicating the terminal's
+    // literal paths verbatim is what lets operator tooling that scrapes the
+    // terminal's mgmt surface keep working without changes. The transport
+    // codenames in these two paths are the vendor terminal's own wire path,
+    // not client-facing prose. The mutating `/v3/terminal/shutdown` GET the
+    // terminal also exposes is deliberately NOT mirrored: this server gates
+    // shutdown behind a token on a non-cacheable POST (`/v3/system/shutdown`)
+    // — an unauthenticated GET that any prefetch / CSRF could trip would
+    // regress that hardening.
+    app = app
+        .route(
+            "/v3/terminal/streaming/status",
+            get(handler::terminal_streaming_status),
+        )
+        .route(
+            "/v3/terminal/historical/status",
+            get(handler::terminal_historical_status),
+        )
+        .route(
+            "/v3/terminal/fpss/status",
+            get(handler::terminal_streaming_status),
+        )
+        .route(
+            "/v3/terminal/mdds/status",
+            get(handler::terminal_historical_status),
         );
 
     // Flat-file routes — whole-universe daily blobs over
@@ -326,6 +363,109 @@ pub fn build(state: AppState, rate_limit: Option<RateLimit>) -> Router {
     );
 
     app.with_state(state)
+}
+
+/// Mount the v3 REST path forms the core registry does not generate.
+///
+/// Two families of route live here rather than in the core's
+/// `endpoint_surface.toml` so the core codegen and its drift guard stay
+/// untouched (server-level overrides are the cheaper, lower-risk change):
+///
+/// 1. `request_type` **path-segment** routes (`C6`). The terminal serves
+///    `request_type` as a path segment on three list routes; the registry
+///    models it as a query param, so the terminal's path form would 404.
+///    Each route captures the segment and folds it into the query map via
+///    [`handler::list_by_request_type`], dispatching to the same registry
+///    endpoint as the query form.
+/// 2. **Renamed** routes (`H1`). The terminal's `calendar/today`,
+///    `calendar/year_holidays`, and `interest_rate/history/eod` map to the
+///    registry's `calendar/open_today`, `calendar/year`, and
+///    `rate/history/eod`. The registry already mounts the latter (legacy
+///    aliases stay live); these add the v3 names pointing at the same
+///    handlers / SDK calls.
+///
+/// A renamed route resolves its registry endpoint by name at build time;
+/// the `expect` documents that these three endpoints are part of the
+/// compiled-in registry and a miss is a build-time invariant violation, not
+/// a runtime condition.
+fn register_v3_path_routes(app: Router<AppState>) -> Router<AppState> {
+    // --- request_type path-segment routes (C6) ---
+    // Each closure pins the registry endpoint name its path form dispatches
+    // to; `list_by_request_type` injects the captured segment as the
+    // `request_type` query param before delegating to the generic pipeline.
+    let app = app
+        .route(
+            "/v3/stock/list/dates/{request_type}",
+            get(
+                |s: axum::extract::State<AppState>,
+                 p: axum::extract::Path<String>,
+                 q: handler::BoundedQuery<{ handler::MAX_QUERY_PARAMS }>| async move {
+                    handler::list_by_request_type(s, p, q, "stock_list_dates").await
+                },
+            ),
+        )
+        .route(
+            "/v3/option/list/dates/{request_type}",
+            get(
+                |s: axum::extract::State<AppState>,
+                 p: axum::extract::Path<String>,
+                 q: handler::BoundedQuery<{ handler::MAX_QUERY_PARAMS }>| async move {
+                    handler::list_by_request_type(s, p, q, "option_list_dates").await
+                },
+            ),
+        )
+        .route(
+            "/v3/option/list/contracts/{request_type}",
+            get(
+                |s: axum::extract::State<AppState>,
+                 p: axum::extract::Path<String>,
+                 q: handler::BoundedQuery<{ handler::MAX_QUERY_PARAMS }>| async move {
+                    handler::list_by_request_type(s, p, q, "option_list_contracts").await
+                },
+            ),
+        );
+
+    // --- renamed routes (H1) ---
+    // The v3 path name routes to the same registry endpoint the legacy path
+    // already serves. The legacy paths stay mounted by the registry loop, so
+    // both names work.
+    app.route(
+        "/v3/calendar/today",
+        get(registry_route_handler("calendar_open_today")),
+    )
+    .route(
+        "/v3/calendar/year_holidays",
+        get(registry_route_handler("calendar_year")),
+    )
+    .route(
+        "/v3/interest_rate/history/eod",
+        get(registry_route_handler("interest_rate_history_eod")),
+    )
+}
+
+/// Build a GET handler closure that dispatches to the registry endpoint
+/// named `endpoint_name` through the shared [`handler::generic`] pipeline.
+///
+/// Used to mount a v3 path alias at the server level for an endpoint the
+/// core registry already exposes under a different path. The endpoint is
+/// resolved against the compiled-in registry once at build time; these names
+/// are part of the registry, so a miss is a build-time invariant violation
+/// surfaced via `expect`, never a runtime branch.
+fn registry_route_handler(
+    endpoint_name: &'static str,
+) -> impl Fn(
+    axum::extract::State<AppState>,
+    handler::BoundedQuery<{ handler::MAX_QUERY_PARAMS }>,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = axum::response::Response> + Send>>
+       + Clone {
+    let ep: &'static EndpointMeta = thetadatadx::find(endpoint_name)
+        .expect("v3 alias route is wired to an endpoint compiled into the registry");
+    let ep_shared = Arc::new(ep);
+    move |s: axum::extract::State<AppState>,
+          q: handler::BoundedQuery<{ handler::MAX_QUERY_PARAMS }>| {
+        let ep = Arc::clone(&ep_shared);
+        Box::pin(async move { handler::generic(s, q, &ep).await })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -526,5 +666,112 @@ mod tests {
             resolve_rate_limit_from(Some("5"), Some("oops")),
             Some((5, GENERAL_BURST_SIZE))
         );
+    }
+
+    // -----------------------------------------------------------------------
+    //  v3 path-form routes (C6 / H1) — registry wiring + matchit coexistence
+    // -----------------------------------------------------------------------
+
+    /// Every registry endpoint name referenced by a server-level v3 route
+    /// (the `{request_type}` path routes and the renamed-route aliases) must
+    /// resolve in the compiled-in registry. `register_v3_path_routes` /
+    /// `registry_route_handler` panic via `expect` on a typo'd or removed
+    /// name; this surfaces that as a fast unit-test failure instead of a
+    /// boot-time panic.
+    #[test]
+    fn v3_path_routes_reference_real_registry_endpoints() {
+        for name in [
+            // request_type path-segment routes (C6)
+            "stock_list_dates",
+            "option_list_dates",
+            "option_list_contracts",
+            // renamed-route aliases (H1)
+            "calendar_open_today",
+            "calendar_year",
+            "interest_rate_history_eod",
+        ] {
+            assert!(
+                thetadatadx::find(name).is_some(),
+                "v3 route is wired to `{name}`, which is missing from the registry"
+            );
+        }
+    }
+
+    /// `registry_route_handler` resolves its endpoint at construction; this
+    /// proves the three H1 alias names build a handler without panicking.
+    #[test]
+    fn registry_route_handler_builds_for_renamed_aliases() {
+        let _ = registry_route_handler("calendar_open_today");
+        let _ = registry_route_handler("calendar_year");
+        let _ = registry_route_handler("interest_rate_history_eod");
+    }
+
+    /// The v3 wildcard flat-file route (`/v3/{sec_type}/flat_file/...`) and
+    /// the `{request_type}` path-segment routes must coexist with the
+    /// static `/v3/{stock,option,index}/...` registry routes WITHOUT a
+    /// matchit conflict panic, AND must not shadow the static routes. This
+    /// builds a bare `Router` carrying every real registry `rest_path` plus
+    /// the new server-level path patterns, then drives requests to confirm
+    /// the precedence axum/matchit actually applies.
+    #[tokio::test]
+    async fn v3_path_routes_coexist_with_registry_routes_without_shadowing() {
+        async fn registry_marker() -> &'static str {
+            "REGISTRY"
+        }
+        async fn flat_marker() -> &'static str {
+            "FLAT"
+        }
+        async fn rt_marker(
+            axum::extract::Path(rt): axum::extract::Path<String>,
+        ) -> String {
+            format!("RT:{rt}")
+        }
+
+        // Mount every real registry path so the test mirrors the production
+        // routing table's static segments at positions 2 and 3.
+        let mut app: Router<()> = Router::new();
+        for ep in ENDPOINTS {
+            app = app.route(ep.rest_path, get(registry_marker));
+        }
+        // The new server-level path forms (same patterns as the production
+        // wiring, minus the live handlers).
+        app = app
+            .route("/v3/{sec_type}/flat_file/{req_type}", get(flat_marker))
+            .route("/v3/stock/list/dates/{request_type}", get(rt_marker))
+            .route("/v3/option/list/dates/{request_type}", get(rt_marker))
+            .route("/v3/option/list/contracts/{request_type}", get(rt_marker));
+
+        async fn get_body(app: &Router<()>, uri: &str) -> (StatusCode, String) {
+            let resp = app
+                .clone()
+                .oneshot(Request::builder().uri(uri).body(Body::empty()).unwrap())
+                .await
+                .expect("router responds");
+            let status = resp.status();
+            let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
+                .await
+                .expect("body collect");
+            (status, String::from_utf8(bytes.to_vec()).unwrap())
+        }
+
+        // Flat-file v3 path resolves to the wildcard route.
+        let (st, body) = get_body(&app, "/v3/option/flat_file/trade_quote").await;
+        assert_eq!((st, body.as_str()), (StatusCode::OK, "FLAT"));
+
+        // A static registry data route is NOT shadowed by the `{sec_type}`
+        // wildcard.
+        let (st, body) = get_body(&app, "/v3/option/snapshot/ohlc").await;
+        assert_eq!((st, body.as_str()), (StatusCode::OK, "REGISTRY"));
+
+        // The query-form list route still hits its registry handler...
+        let (st, body) = get_body(&app, "/v3/option/list/contracts").await;
+        assert_eq!((st, body.as_str()), (StatusCode::OK, "REGISTRY"));
+
+        // ...while the path-segment form captures `request_type`.
+        let (st, body) = get_body(&app, "/v3/option/list/contracts/trade").await;
+        assert_eq!((st, body.as_str()), (StatusCode::OK, "RT:trade"));
+
+        let (st, body) = get_body(&app, "/v3/stock/list/dates/quote").await;
+        assert_eq!((st, body.as_str()), (StatusCode::OK, "RT:quote"));
     }
 }

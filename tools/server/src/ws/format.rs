@@ -70,10 +70,12 @@ pub(super) fn fpss_event_to_ws_json(
                     ask,
                     ask_condition,
                     date,
-                    received_at_ns,
                     ..
                 } => (
                     "QUOTE",
+                    // Field set matches `EventSerializer.serializeQuote`
+                    // exactly. The terminal's quote frame carries no
+                    // `received_at_ns`; a strict client never sees it.
                     sonic_rs::json!({
                         "ms_of_day": ms_of_day,
                         "bid_size": bid_size,
@@ -85,46 +87,36 @@ pub(super) fn fpss_event_to_ws_json(
                         "ask": ask,
                         "ask_condition": ask_condition,
                         "date": date,
-                        "received_at_ns": received_at_ns,
                     }),
                 ),
                 StreamData::Trade {
                     ms_of_day,
                     sequence,
-                    ext_condition1,
-                    ext_condition2,
-                    ext_condition3,
-                    ext_condition4,
                     condition,
                     size,
                     exchange,
                     price,
-                    condition_flags,
-                    price_flags,
-                    volume_type,
-                    records_back,
                     date,
-                    received_at_ns,
                     ..
                 } => (
                     "TRADE",
+                    // Field set matches `EventSerializer.serializeTrade`
+                    // exactly: `ms_of_day, sequence, size, condition,
+                    // price, exchange, date`. The terminal's trade frame
+                    // does NOT carry the extended-condition columns
+                    // (`ext_condition1..4`), the `condition_flags` /
+                    // `price_flags` bitsets, `volume_type`, `records_back`,
+                    // or `received_at_ns`; those stay on the REST/Arrow
+                    // surface so a strict terminal WS client sees only the
+                    // columns it parses.
                     sonic_rs::json!({
                         "ms_of_day": ms_of_day,
                         "sequence": sequence,
-                        "ext_condition1": ext_condition1,
-                        "ext_condition2": ext_condition2,
-                        "ext_condition3": ext_condition3,
-                        "ext_condition4": ext_condition4,
-                        "condition": condition,
                         "size": size,
-                        "exchange": exchange,
+                        "condition": condition,
                         "price": price,
-                        "condition_flags": condition_flags,
-                        "price_flags": price_flags,
-                        "volume_type": volume_type,
-                        "records_back": records_back,
+                        "exchange": exchange,
                         "date": date,
-                        "received_at_ns": received_at_ns,
                     }),
                 ),
                 StreamData::Ohlcvc {
@@ -136,10 +128,11 @@ pub(super) fn fpss_event_to_ws_json(
                     volume,
                     count,
                     date,
-                    received_at_ns,
                     ..
                 } => (
                     "OHLC",
+                    // Field set matches `EventSerializer.serializeOhlc`
+                    // exactly. No `received_at_ns` on the terminal's bar.
                     sonic_rs::json!({
                         "ms_of_day": ms_of_day,
                         "open": open,
@@ -149,22 +142,6 @@ pub(super) fn fpss_event_to_ws_json(
                         "volume": volume,
                         "count": count,
                         "date": date,
-                        "received_at_ns": received_at_ns,
-                    }),
-                ),
-                StreamData::OpenInterest {
-                    ms_of_day,
-                    open_interest,
-                    date,
-                    received_at_ns,
-                    ..
-                } => (
-                    "OPEN_INTEREST",
-                    sonic_rs::json!({
-                        "ms_of_day": ms_of_day,
-                        "open_interest": open_interest,
-                        "date": date,
-                        "received_at_ns": received_at_ns,
                     }),
                 ),
                 StreamData::MarketValue {
@@ -173,19 +150,26 @@ pub(super) fn fpss_event_to_ws_json(
                     market_ask,
                     market_price,
                     date,
-                    received_at_ns,
                     ..
                 } => (
                     "MARKET_VALUE",
+                    // Field set matches `EventSerializer.serializeMarketValue`
+                    // exactly. No `received_at_ns` on the terminal frame.
                     sonic_rs::json!({
+                        "date": date,
                         "ms_of_day": ms_of_day,
                         "market_bid": market_bid,
                         "market_ask": market_ask,
                         "market_price": market_price,
-                        "date": date,
-                        "received_at_ns": received_at_ns,
                     }),
                 ),
+                // The terminal's `EventSerializer` defines no open-interest
+                // WS frame: it serializes only STATUS / TRADE / QUOTE / OHLC
+                // / MARKET_VALUE / REQ_RESPONSE / STATE. Open-interest ticks
+                // therefore never become a WS frame here — emitting an
+                // `OPEN_INTEREST` frame would hand a strict terminal client
+                // a `header.type` it does not recognize. The data stays
+                // available on the REST / Arrow surfaces.
                 _ => return None,
             };
 
@@ -228,20 +212,12 @@ pub(super) fn fpss_event_to_ws_json(
         }
 
         StreamEvent::Control(ctrl) => match ctrl {
-            StreamControl::ContractAssigned { id, contract } => {
-                let msg = sonic_rs::json!({
-                    "header": { "type": "CONTRACT" },
-                    "contract": contract_to_json(contract),
-                    "id": id,
-                });
-                try_serialize(&msg)
-            }
             StreamControl::ReqResponse { req_id, result } => {
                 // Publish the stream-verification token, never the Rust
                 // variant identifier: clients match on the documented
                 // vocabulary (`SUBSCRIBED` / `ERROR` / `MAX_STREAMS_REACHED`
                 // / `INVALID_PERMS`), which `as_wire_str` is the single
-                // source of.
+                // source of. Shape mirrors `EventSerializer.serializeResponse`.
                 let msg = sonic_rs::json!({
                     "header": {
                         "type": "REQ_RESPONSE",
@@ -251,35 +227,48 @@ pub(super) fn fpss_event_to_ws_json(
                 });
                 try_serialize(&msg)
             }
+            // The terminal signals stream start/stop with a `STATE` frame
+            // (`EventSerializer.serializeState`), driven by the FPSS
+            // `START` (code 30) / `STOP` (code 32) lifecycle frames. The
+            // SDK decodes those same two frame codes to `MarketOpen` /
+            // `MarketClose`, so they map onto the terminal's STATE START /
+            // STOP — not a bespoke `STATUS:MARKET_OPEN` / `MARKET_CLOSE`,
+            // which is a `header.status` value the terminal never emits.
             StreamControl::MarketOpen => {
                 let msg = sonic_rs::json!({
-                    "header": { "type": "STATUS", "status": "MARKET_OPEN" }
+                    "header": { "type": "STATE", "state": "START" }
                 });
                 try_serialize(&msg)
             }
             StreamControl::MarketClose => {
                 let msg = sonic_rs::json!({
-                    "header": { "type": "STATUS", "status": "MARKET_CLOSE" }
+                    "header": { "type": "STATE", "state": "STOP" }
                 });
                 try_serialize(&msg)
             }
-            StreamControl::ServerError { message } => {
+            StreamControl::Disconnected { .. } => {
+                // The terminal's heartbeat reports the connection state via
+                // a `STATUS` frame whose `status` is one of `CONNECTED` /
+                // `UNVERIFIED` / `DISCONNECTED` (`serializeStatus`). It
+                // carries no `reason` field, so the disconnect surfaces as a
+                // bare `STATUS:DISCONNECTED` here — the per-second heartbeat
+                // already reports the live state, and the extra `reason`
+                // token is an our-only field a strict terminal client never
+                // sees.
                 let msg = sonic_rs::json!({
-                    "header": { "type": "ERROR" },
-                    "error": message.as_str(),
+                    "header": { "type": "STATUS", "status": "DISCONNECTED" }
                 });
                 try_serialize(&msg)
             }
-            StreamControl::Disconnected { reason } => {
-                // Surface the stable wire token for the disconnect cause,
-                // never the Rust variant identifier. `as_wire_str` is the
-                // single source of the disconnect-reason vocabulary.
-                let msg = sonic_rs::json!({
-                    "header": { "type": "STATUS", "status": "DISCONNECTED" },
-                    "reason": reason.as_wire_str(),
-                });
-                try_serialize(&msg)
-            }
+            // `ContractAssigned` (the terminal carries the contract inline
+            // on every tick frame, never as a standalone `CONTRACT` frame),
+            // `ServerError` (no `header.type=ERROR` in the terminal's
+            // serializer — errors surface as a `REQ_RESPONSE` with
+            // `response=ERROR`), and every other control variant have no
+            // terminal WS frame, so they emit nothing. This keeps the
+            // emitted `header.type` set to exactly the terminal's:
+            // STATUS / TRADE / QUOTE / OHLC / MARKET_VALUE / REQ_RESPONSE /
+            // STATE.
             _ => None,
         },
 
@@ -308,21 +297,33 @@ fn parse_unresolved_contract_id(symbol: &str) -> Option<i32> {
         .and_then(|s| s.parse::<i32>().ok())
 }
 
-/// Convert a `Contract` to the JSON format the JVM terminal uses.
+/// Convert a `Contract` to the terminal's v3 WebSocket contract object.
+///
+/// Field set and key names mirror `EventSerializer.readContract` exactly
+/// so a client written against the terminal stream reads the contract
+/// envelope without a remap:
+///
+/// - `security_type` / `root` are always present (the terminal names the
+///   keys `security_type` and `root`, not `sec_type` / `symbol`).
+/// - `expiration` / `strike` / `right` are present only for options.
+/// - `strike` is the raw fixed-point integer in thousandths of a dollar —
+///   a `$550.00` strike serializes as `550000`. The terminal carries the
+///   strike as a bare `int` on the wire in both directions
+///   (`Contract.strike` is `int`; `readContract` emits `c.getStrike()`),
+///   so the integer is the contract, not a dollars float.
 fn contract_to_json(c: &Contract) -> sonic_rs::Value {
     let mut obj = sonic_rs::Object::new();
-    obj.insert("symbol", sonic_rs::Value::from(&*c.symbol));
-    obj.insert("sec_type", sonic_rs::Value::from(c.sec_type.as_str()));
+    obj.insert("security_type", sonic_rs::Value::from(c.sec_type.as_str()));
+    obj.insert("root", sonic_rs::Value::from(&*c.symbol));
     if let Some(exp) = c.expiration {
         obj.insert("expiration", sonic_rs::Value::from(exp));
     }
-    // `strike` is dollars on every public surface; the wire's
-    // fixed-point integer never leaves the codec layer.
-    if let Some(strike) = c.strike_dollars() {
-        obj.insert(
-            "strike",
-            sonic_rs::to_value(&strike).expect("f64 should serialize"),
-        );
+    // Emit the raw thousandths integer the terminal puts on the wire,
+    // never the dollars float: the terminal's `Contract.strike` is an
+    // `int` and `readContract` serializes `c.getStrike()` verbatim, so a
+    // strict terminal client parses `strike` with `getAsInt()`.
+    if let Some(strike) = c.strike_thousandths {
+        obj.insert("strike", sonic_rs::Value::from(strike));
     }
     if let Some(is_call) = c.is_call {
         obj.insert(
@@ -395,37 +396,43 @@ mod tests {
         })
     }
 
-    /// The WS Trade frame must carry every wire column the `Trade` tick
-    /// defines, matching the REST trade formatter's keys. A truncated arm
-    /// silently drops the extended-condition, flag, volume-type, and
-    /// records-back columns that downstream consumers parse.
+    /// The WS Trade frame carries exactly the columns
+    /// `EventSerializer.serializeTrade` emits — no more. The terminal's
+    /// trade frame is `ms_of_day, sequence, size, condition, price,
+    /// exchange, date`; the extended-condition columns, the flag bitsets,
+    /// `volume_type`, `records_back`, and `received_at_ns` stay on the
+    /// REST / Arrow surface and must NOT appear, so a strict terminal WS
+    /// client sees only the field set it parses.
     #[test]
-    fn trade_frame_carries_every_wire_column() {
+    fn trade_frame_matches_terminal_field_set() {
         let contract = Arc::new(Contract::stock("AAPL"));
         let event = make_trade(Arc::clone(&contract));
         let json = fpss_event_to_ws_json(&event, Some(&contract))
             .expect("Trade serialization must succeed");
 
         for key in [
-            "ms_of_day",
-            "sequence",
-            "ext_condition1",
-            "ext_condition2",
-            "ext_condition3",
-            "ext_condition4",
-            "condition",
-            "size",
-            "exchange",
-            "price",
-            "condition_flags",
-            "price_flags",
-            "volume_type",
-            "records_back",
-            "date",
+            "ms_of_day", "sequence", "size", "condition", "price", "exchange", "date",
         ] {
             assert!(
                 json.contains(&format!("\"{key}\":")),
                 "Trade frame must carry the `{key}` column: {json}"
+            );
+        }
+        // Columns the terminal's trade frame never emits.
+        for key in [
+            "ext_condition1",
+            "ext_condition2",
+            "ext_condition3",
+            "ext_condition4",
+            "condition_flags",
+            "price_flags",
+            "volume_type",
+            "records_back",
+            "received_at_ns",
+        ] {
+            assert!(
+                !json.contains(&format!("\"{key}\":")),
+                "Trade frame must NOT carry the our-only `{key}` column: {json}"
             );
         }
         assert!(
@@ -444,26 +451,24 @@ mod tests {
         let json = fpss_event_to_ws_json(&event, Some(&contract))
             .expect("MARKET_VALUE serialization must succeed");
 
-        for key in [
-            "ms_of_day",
-            "market_bid",
-            "market_ask",
-            "market_price",
-            "date",
-            "received_at_ns",
-        ] {
+        for key in ["ms_of_day", "market_bid", "market_ask", "market_price", "date"] {
             assert!(
                 json.contains(&format!("\"{key}\":")),
                 "MARKET_VALUE frame must carry the `{key}` column: {json}"
             );
         }
         assert!(
+            !json.contains("\"received_at_ns\":"),
+            "MARKET_VALUE frame must NOT carry the our-only `received_at_ns`: {json}"
+        );
+        assert!(
             json.contains("\"header\":{\"type\":\"MARKET_VALUE\"}"),
             "MARKET_VALUE frame header type: {json}"
         );
+        // The terminal names the contract key `root`, not `symbol`.
         assert!(
-            json.contains("\"symbol\":\"SPX\""),
-            "MARKET_VALUE frame must carry its contract: {json}"
+            json.contains("\"root\":\"SPX\""),
+            "MARKET_VALUE frame must carry its contract under `root`: {json}"
         );
     }
 
@@ -481,8 +486,8 @@ mod tests {
         let json = fpss_event_to_ws_json(&event, Some(&peeked))
             .expect("serialization must succeed with the event's contract");
         assert!(
-            json.contains("\"symbol\":\"AAPL\""),
-            "serialized JSON must include the event's contract symbol: {json}"
+            json.contains("\"root\":\"AAPL\""),
+            "serialized JSON must include the event's contract under `root`: {json}"
         );
     }
 
@@ -574,37 +579,147 @@ mod tests {
         }
     }
 
-    /// Disconnect frames publish the stable SCREAMING_SNAKE reason token,
-    /// never the Rust `RemoveReason` variant identifier.
+    /// A disconnect surfaces as the terminal's bare `STATUS:DISCONNECTED`
+    /// frame (`serializeStatus`) — `header.type=STATUS`,
+    /// `header.status=DISCONNECTED`, and no `reason` field, since the
+    /// terminal's status frame carries only the status string. The Rust
+    /// `RemoveReason` variant must never leak onto the wire.
     #[test]
-    fn disconnect_reason_serializes_to_wire_token() {
+    fn disconnect_serializes_as_terminal_status_frame() {
         use thetadatadx::RemoveReason;
 
-        for (reason, token) in [
-            (RemoveReason::Unspecified, "UNSPECIFIED"),
-            (RemoveReason::InvalidCredentials, "INVALID_CREDENTIALS"),
-            (RemoveReason::TooManyRequests, "TOO_MANY_REQUESTS"),
-            (RemoveReason::ServerRestarting, "SERVER_RESTARTING"),
-            (
-                RemoveReason::InvalidCredentialsNullUser,
-                "INVALID_CREDENTIALS_NULL_USER",
-            ),
+        for reason in [
+            RemoveReason::Unspecified,
+            RemoveReason::InvalidCredentials,
+            RemoveReason::TooManyRequests,
+            RemoveReason::ServerRestarting,
+            RemoveReason::InvalidCredentialsNullUser,
         ] {
-            assert_eq!(reason.as_wire_str(), token, "{reason:?}");
-
             let event =
                 StreamEvent::Control(thetadatadx::fpss::StreamControl::Disconnected { reason });
             let json = fpss_event_to_ws_json(&event, None)
                 .expect("DISCONNECTED control frame must serialise");
+            // Key order inside the header object is serializer-defined;
+            // assert on content, not byte-exact key ordering.
             assert!(
-                json.contains(&format!("\"reason\":\"{token}\"")),
-                "DISCONNECTED must publish the wire token {token}: {json}"
+                json.contains("\"type\":\"STATUS\"") && json.contains("\"status\":\"DISCONNECTED\""),
+                "disconnect must be a bare STATUS:DISCONNECTED frame: {json}"
+            );
+            // The terminal's STATUS frame carries no `reason` field.
+            assert!(
+                !json.contains("\"reason\":"),
+                "STATUS:DISCONNECTED must not carry an our-only `reason` field: {json}"
             );
             assert!(
                 !json.contains(&format!("{reason:?}")),
                 "the Rust variant name must not leak onto the wire: {json}"
             );
         }
+    }
+
+    /// The contract envelope uses the terminal's key names and unit: an
+    /// option carries `security_type` / `root` (not `sec_type` / `symbol`)
+    /// and `strike` as the raw thousandths integer (a `$550.00` strike is
+    /// `550000`), matching `EventSerializer.readContract` emitting
+    /// `c.getStrike()` verbatim.
+    #[test]
+    fn option_contract_envelope_uses_terminal_keys_and_raw_strike() {
+        let contract = Arc::new(Contract::option_raw("SPY", 20_260_417, true, 550_000));
+        let event = make_quote(Arc::clone(&contract));
+        let json = fpss_event_to_ws_json(&event, Some(&contract))
+            .expect("Quote serialization must succeed");
+
+        assert!(
+            json.contains("\"security_type\":\"OPTION\""),
+            "contract must carry `security_type`, not `sec_type`: {json}"
+        );
+        assert!(
+            json.contains("\"root\":\"SPY\""),
+            "contract must carry `root`, not `symbol`: {json}"
+        );
+        // Raw thousandths integer, NOT a dollars float (`550.0`).
+        assert!(
+            json.contains("\"strike\":550000"),
+            "strike must serialize as the raw thousandths integer: {json}"
+        );
+        assert!(
+            !json.contains("\"strike\":550.0") && !json.contains("\"strike\":550,"),
+            "strike must NOT serialize as a dollars float: {json}"
+        );
+        assert!(json.contains("\"expiration\":20260417"), "{json}");
+        assert!(json.contains("\"right\":\"C\""), "{json}");
+        // The old key names must be gone entirely.
+        assert!(!json.contains("\"sec_type\":"), "{json}");
+        assert!(!json.contains("\"symbol\":"), "{json}");
+    }
+
+    /// The FPSS START / STOP lifecycle frames (decoded to `MarketOpen` /
+    /// `MarketClose`) serialize as the terminal's `STATE` frame
+    /// (`serializeState`), `state` = `START` / `STOP`. They must NOT
+    /// serialize as the bespoke `STATUS:MARKET_OPEN` / `MARKET_CLOSE`
+    /// values the terminal never emits.
+    #[test]
+    fn market_lifecycle_serializes_as_state_frame() {
+        for (ctrl, state) in [
+            (thetadatadx::fpss::StreamControl::MarketOpen, "START"),
+            (thetadatadx::fpss::StreamControl::MarketClose, "STOP"),
+        ] {
+            let event = StreamEvent::Control(ctrl);
+            let json =
+                fpss_event_to_ws_json(&event, None).expect("STATE control frame must serialise");
+            // Key order inside the header object is serializer-defined;
+            // assert on content, not byte-exact key ordering.
+            assert!(
+                json.contains("\"type\":\"STATE\"") && json.contains(&format!("\"state\":\"{state}\"")),
+                "lifecycle must be a STATE/{state} frame: {json}"
+            );
+            assert!(
+                !json.contains("MARKET_OPEN") && !json.contains("MARKET_CLOSE"),
+                "must not emit the our-only STATUS:MARKET_* value: {json}"
+            );
+        }
+    }
+
+    /// The terminal's `EventSerializer` emits no `CONTRACT`, `ERROR`, or
+    /// `OPEN_INTEREST` `header.type`. Those control / data events must
+    /// serialize to nothing here so a strict terminal client never
+    /// receives a `header.type` it cannot recognize.
+    #[test]
+    fn our_only_frame_types_are_not_emitted() {
+        // ServerError -> no ERROR frame.
+        let server_error =
+            StreamEvent::Control(thetadatadx::fpss::StreamControl::ServerError {
+                message: "boom".to_string(),
+            });
+        assert!(
+            fpss_event_to_ws_json(&server_error, None).is_none(),
+            "ServerError must not emit a header.type=ERROR frame"
+        );
+
+        // ContractAssigned -> no standalone CONTRACT frame.
+        let assigned =
+            StreamEvent::Control(thetadatadx::fpss::StreamControl::ContractAssigned {
+                id: 7,
+                contract: Arc::new(Contract::stock("AAPL")),
+            });
+        assert!(
+            fpss_event_to_ws_json(&assigned, None).is_none(),
+            "ContractAssigned must not emit a standalone CONTRACT frame"
+        );
+
+        // OpenInterest tick -> no OPEN_INTEREST frame.
+        let oi = StreamEvent::Data(StreamData::OpenInterest {
+            contract: Arc::new(Contract::option_raw("SPY", 20_260_417, true, 550_000)),
+            ms_of_day: 1,
+            open_interest: 123,
+            date: 20_260_417,
+            received_at_ns: 0,
+        });
+        assert!(
+            fpss_event_to_ws_json(&oi, Some(&Contract::option_raw("SPY", 20_260_417, true, 550_000)))
+                .is_none(),
+            "OpenInterest must not emit an OPEN_INTEREST frame"
+        );
     }
 
     /// A resolved Quote whose `peeked_contract` is the live mapped
@@ -617,7 +732,7 @@ mod tests {
         let json = fpss_event_to_ws_json(&event, Some(&resolved))
             .expect("serialization must succeed for a resolved contract");
 
-        assert!(json.contains("\"symbol\":\"SPY\""));
+        assert!(json.contains("\"root\":\"SPY\""));
         assert!(
             !json.contains("\"unresolved_contract_id\""),
             "resolved-contract path must NOT emit the unresolved diagnostic: {json}"

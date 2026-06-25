@@ -2587,25 +2587,31 @@ impl OptionListStrikesBuilder {
     }
 }
 
-/// List all option contracts for a symbol on a given date.
+/// List all option contracts traded or quoted on a given date, optionally filtered to a symbol.
 ///
 /// Lists all contracts that were traded or quoted on a particular date.
 ///
 /// If the ``symbol`` parameter is specified, the returned contracts will be filtered to match the symbol.
-/// Multiple symbols can be specified by separating them with commas such as ``symbol=AAPL,SPY,AMD``
+/// When ``symbol`` is omitted the full universe of contracts for that date is returned.
 /// This endpoint is updated real-time.
 #[pyclass(module = "thetadatadx", name = "OptionListContractsBuilder")]
 pub struct OptionListContractsBuilder {
     client: std::sync::Arc<thetadatadx::Client>,
     request_type: String,
-    symbol: String,
     date: String,
+    symbol: Option<String>,
     max_dte: Option<i32>,
     timeout_ms: Option<u64>,
 }
 
 #[pymethods]
 impl OptionListContractsBuilder {
+    /// Set `symbol` on the pending request.
+    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
+        slf.symbol = Some(value.into_string());
+        slf
+    }
+
     /// Set `max_dte` on the pending request.
     fn max_dte<'py>(mut slf: PyRefMut<'py, Self>, value: i32) -> PyRefMut<'py, Self> {
         slf.max_dte = Some(value);
@@ -2615,12 +2621,6 @@ impl OptionListContractsBuilder {
     /// Replace the required `request_type` on the pending request.
     fn request_type<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
         slf.request_type = value.into_string();
-        slf
-    }
-
-    /// Replace the required `symbol` on the pending request.
-    fn symbol<'py>(mut slf: PyRefMut<'py, Self>, value: PyStringArg) -> PyRefMut<'py, Self> {
-        slf.symbol = value.into_string();
         slf
     }
 
@@ -2643,12 +2643,15 @@ impl OptionListContractsBuilder {
     fn list(&self, py: Python<'_>) -> PyResult<Py<OptionContractList>> {
         let client = self.client.clone();
         let request_type = self.request_type.clone();
-        let symbol = self.symbol.clone();
         let date = self.date.clone();
+        let symbol = self.symbol.clone();
         let max_dte = self.max_dte;
         let timeout_ms = self.timeout_ms;
         let ticks = run_blocking(py, async move {
-            let mut request = client.historical().option_list_contracts(&request_type, &symbol, &date);
+            let mut request = client.historical().option_list_contracts(&request_type, &date);
+            if let Some(value) = &symbol {
+                request = request.symbol(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -2664,12 +2667,15 @@ impl OptionListContractsBuilder {
     fn list_async<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let request_type = self.request_type.clone();
-        let symbol = self.symbol.clone();
         let date = self.date.clone();
+        let symbol = self.symbol.clone();
         let max_dte = self.max_dte;
         let timeout_ms = self.timeout_ms;
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_list_contracts(&request_type, &symbol, &date);
+            let mut request = client.historical().option_list_contracts(&request_type, &date);
+            if let Some(value) = &symbol {
+                request = request.symbol(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -2684,8 +2690,8 @@ impl OptionListContractsBuilder {
     fn stream(&self, py: Python<'_>, handler: Py<PyAny>) -> PyResult<()> {
         let client = self.client.clone();
         let request_type = self.request_type.clone();
-        let symbol = self.symbol.clone();
         let date = self.date.clone();
+        let symbol = self.symbol.clone();
         let max_dte = self.max_dte;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
@@ -2698,7 +2704,10 @@ impl OptionListContractsBuilder {
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         run_blocking(py, async move {
-            let mut request = client.historical().option_list_contracts(&request_type, &symbol, &date);
+            let mut request = client.historical().option_list_contracts(&request_type, &date);
+            if let Some(value) = &symbol {
+                request = request.symbol(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -2737,8 +2746,8 @@ impl OptionListContractsBuilder {
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let request_type = self.request_type.clone();
-        let symbol = self.symbol.clone();
         let date = self.date.clone();
+        let symbol = self.symbol.clone();
         let max_dte = self.max_dte;
         let timeout_ms = self.timeout_ms;
         let handler_arc = std::sync::Arc::new(handler);
@@ -2748,7 +2757,10 @@ impl OptionListContractsBuilder {
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
         let cb_err_for_convert = std::sync::Arc::clone(&callback_error);
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_list_contracts(&request_type, &symbol, &date);
+            let mut request = client.historical().option_list_contracts(&request_type, &date);
+            if let Some(value) = &symbol {
+                request = request.symbol(value.as_str());
+            }
             if let Some(value) = &max_dte {
                 request = request.max_dte(*value);
             }
@@ -15867,24 +15879,27 @@ impl HistoricalView {
         }
     }
 
-    /// List all option contracts for a symbol on a given date.
+    /// List all option contracts traded or quoted on a given date, optionally filtered to a symbol.
     ///
     /// Lists all contracts that were traded or quoted on a particular date.
     ///
     /// If the ``symbol`` parameter is specified, the returned contracts will be filtered to match the symbol.
-    /// Multiple symbols can be specified by separating them with commas such as ``symbol=AAPL,SPY,AMD``
+    /// When ``symbol`` is omitted the full universe of contracts for that date is returned.
     /// This endpoint is updated real-time.
-    #[pyo3(signature = (request_type, symbol, date, *, max_dte=None, timeout_ms=None))]
+    #[pyo3(signature = (request_type, date, *, symbol=None, max_dte=None, timeout_ms=None))]
     fn option_list_contracts(
         &self,
         py: Python<'_>,
         request_type: PyStringArg,
-        symbol: PyStringArg,
         date: PyDateArg,
+        symbol: Option<PyStringArg>,
         max_dte: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Py<OptionContractList>> {
-        let mut request = self.client.historical().option_list_contracts(request_type.as_str(), symbol.as_str(), date.as_str());
+        let mut request = self.client.historical().option_list_contracts(request_type.as_str(), date.as_str());
+        if let Some(value) = symbol {
+            request = request.symbol(value.as_str());
+        }
         if let Some(value) = max_dte {
             request = request.max_dte(value);
         }
@@ -15895,31 +15910,34 @@ impl HistoricalView {
         option_contracts_to_pyclass_list(py, ticks)
     }
 
-    /// List all option contracts for a symbol on a given date.
+    /// List all option contracts traded or quoted on a given date, optionally filtered to a symbol.
     ///
     /// Lists all contracts that were traded or quoted on a particular date.
     ///
     /// If the ``symbol`` parameter is specified, the returned contracts will be filtered to match the symbol.
-    /// Multiple symbols can be specified by separating them with commas such as ``symbol=AAPL,SPY,AMD``
+    /// When ``symbol`` is omitted the full universe of contracts for that date is returned.
     /// This endpoint is updated real-time.
     ///
     ///
     /// Async companion — returns an awaitable (`asyncio.Future`).
     /// Shares the same shared tokio runtime as the sync variant; no
     /// second runtime is created per call.
-    #[pyo3(signature = (request_type, symbol, date, *, max_dte=None, timeout_ms=None))]
+    #[pyo3(signature = (request_type, date, *, symbol=None, max_dte=None, timeout_ms=None))]
     fn option_list_contracts_async<'py>(
         &self,
         py: Python<'py>,
         request_type: PyStringArg,
-        symbol: PyStringArg,
         date: PyDateArg,
+        symbol: Option<PyStringArg>,
         max_dte: Option<i32>,
         timeout_ms: Option<u64>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         spawn_awaitable(py, async move {
-            let mut request = client.historical().option_list_contracts(request_type.as_str(), symbol.as_str(), date.as_str());
+            let mut request = client.historical().option_list_contracts(request_type.as_str(), date.as_str());
+            if let Some(value) = symbol {
+                request = request.symbol(value.as_str());
+            }
             if let Some(value) = max_dte {
                 request = request.max_dte(value);
             }
@@ -15936,18 +15954,17 @@ impl HistoricalView {
     /// / `.to_pandas()` / `.to_polars()`.
     ///
     /// See `option_list_contracts()` for the sync signature; `option_list_contracts_async()` for the awaitable companion.
-    #[pyo3(signature = (request_type, symbol, date))]
+    #[pyo3(signature = (request_type, date))]
     fn option_list_contracts_builder(
         &self,
         request_type: PyStringArg,
-        symbol: PyStringArg,
         date: PyDateArg,
     ) -> OptionListContractsBuilder {
         OptionListContractsBuilder {
             client: self.client.clone(),
             request_type: request_type.into_string(),
-            symbol: symbol.into_string(),
             date: date.into_string(),
+            symbol: None,
             max_dte: None,
             timeout_ms: None,
         }

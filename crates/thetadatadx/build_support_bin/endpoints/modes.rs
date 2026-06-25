@@ -101,6 +101,7 @@ fn with_optional_rationale(param_name: &str, literal: &str) -> String {
     let label = match param_name {
         "max_dte" | "strike" | "right" | "interval" | "strike_range" | "min_time" | "exclusive"
         | "start_time" | "end_time" | "start_date" | "end_date" => "optional filter wiring",
+        "symbol" => "optional symbol-filter wiring",
         "venue" => "optional venue selector wiring",
         "annual_dividend" | "rate_type" | "rate_value" | "stock_price" => {
             "optional Greeks-input wiring"

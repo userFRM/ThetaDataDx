@@ -166,6 +166,23 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
     let req_type_val = obj.get("req_type").unwrap_or(&null_val);
     let req_type = req_type_val.as_str().unwrap_or("").to_uppercase();
 
+    // Bulk (full security-type-wide trade stream). The terminal triggers
+    // it when `msg_type` CONTAINS "BULK" with `req_type=TRADE`
+    // (`WSEvents.onWebSocketText`: `msg_type.toUpperCase().contains("BULK")`
+    // gated on `req == ReqType.TRADE`), routing to
+    // `requestFullTradeWS(sec, id, !isAdd)`. A bulk command addresses a
+    // whole security type, not a single contract, so it is handled before
+    // the per-contract `contract` envelope is read. Our SDK's documented
+    // `req_type=FULL_TRADES` token maps to the same full-trade stream and
+    // stays accepted on the per-contract path below; this branch adds the
+    // terminal's substring shape so a terminal WS client repoints
+    // unchanged.
+    if msg_type.contains("BULK") && req_type == "TRADE" {
+        let resp = apply_bulk_trade(state, &sec_type, is_add, req_id);
+        send_response(socket, &resp, "bulk_trade_reply").await;
+        return;
+    }
+
     let contract_obj = obj.get("contract").unwrap_or(&null_val);
     // Accept the v3 `"symbol"` key first, fall back to legacy `"root"`
     // so existing consumers keep working without an envelope rewrite.
@@ -299,12 +316,15 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
             send_response(socket, &resp, "bad_request_reply").await;
             return;
         }
-        // `strike` is the price in dollars — the same unit every other
-        // public surface speaks. The wire's fixed-point conversion is
-        // the SDK's job (`parse_strike_dollars` scales to thousandths
-        // internally before `Contract::option_raw`).
+        // `strike` is the raw fixed-point integer in thousandths of a
+        // dollar — the exact value the terminal puts on the wire in both
+        // directions (`Contract.strike` is `int`; `WSEvents` parses it
+        // with `conObj.get("strike").getAsInt()`). A `$550.00` strike is
+        // the integer `550000`. The SDK stores thousandths internally, so
+        // the parsed integer flows straight into `Contract::option_raw`
+        // with no dollar scaling.
         let strike_val = contract_obj.get("strike").unwrap_or(&null_val);
-        let strike = match parse_strike_dollars(strike_val.as_f64()) {
+        let strike = match parse_strike_thousandths(strike_val) {
             Ok(v) => v,
             Err(err_msg) => {
                 tracing::warn!(error = %err_msg, "WS subscribe: invalid option 'strike'");
@@ -473,6 +493,58 @@ fn build_stop_response(state: &AppState, req_id: i64) -> sonic_rs::Value {
     }
 }
 
+/// Apply a bulk (full security-type-wide) trade subscribe / unsubscribe and
+/// build the `REQ_RESPONSE` acknowledgement.
+///
+/// Mirrors the terminal's `requestFullTradeWS(sec, id, !isAdd)`: a single
+/// full-trade stream scoped to the resolved security type, added when
+/// `add` is true and removed otherwise. Like every other subscribe, it can
+/// only be honored on a live stream; a command arriving before streaming
+/// has started installs nothing and is rejected with `ERROR` rather than a
+/// false-positive `SUBSCRIBED`.
+fn apply_bulk_trade(
+    state: &AppState,
+    sec_type: &str,
+    is_add: bool,
+    req_id: i64,
+) -> sonic_rs::Value {
+    use thetadatadx::fpss::protocol::{FullSubscriptionKind, Subscription};
+
+    let st = match sec_type {
+        "OPTION" => SecType::Option,
+        "INDEX" => SecType::Index,
+        _ => SecType::Stock,
+    };
+    let subscriptions = vec![Subscription::Full {
+        sec_type: st,
+        kind: FullSubscriptionKind::Trades,
+    }];
+
+    let stream = state.client().stream();
+    if !stream.is_streaming() {
+        tracing::warn!("FPSS streaming not started; bulk trade command rejected");
+        return build_req_response(
+            ReqResponse::Error,
+            req_id,
+            Some("streaming is not started; no subscription was installed"),
+        );
+    }
+
+    let result = if is_add {
+        stream.subscribe_many(subscriptions)
+    } else {
+        stream.unsubscribe_many(subscriptions)
+    };
+    match result {
+        Ok(()) => build_req_response(ReqResponse::Subscribed, req_id, None),
+        Err(e) => {
+            tracing::warn!(error = %e, "bulk trade subscription failed");
+            let err_msg = e.to_string();
+            build_req_response(ReqResponse::Error, req_id, Some(err_msg.as_str()))
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 //  Pure command -> subscription planning (testable without a socket)
 // ---------------------------------------------------------------------------
@@ -490,44 +562,36 @@ const ACCEPTED_REQ_TYPES: &[&str] = &[
     "FULL_OPEN_INTEREST",
 ];
 
-/// Parse the option `strike` field (dollars, JSON number) into the
-/// FPSS wire's fixed-point thousandths integer.
+/// Parse the option `strike` field — the FPSS wire's fixed-point integer
+/// in thousandths of a dollar — into the `i32` the contract codec stores.
 ///
-/// Accepts any positive finite number at or above the smallest
-/// representable strike; rejects missing / non-numeric values,
-/// non-positive strikes, positive strikes that round to zero in the
-/// thousandths unit (the smallest valid strike is $0.001), and values
-/// whose thousandths scaling overflows `i32`. Dollars are the only
-/// accepted unit; clients holding the wire integer divide by 1000
-/// before subscribing.
-fn parse_strike_dollars(raw: Option<f64>) -> Result<i32, String> {
-    let dollars = raw.ok_or_else(|| {
-        "'strike' must be a number in dollars (e.g. 550 or 550.5), got: <missing or non-numeric>"
+/// The terminal carries `strike` as a bare integer on the wire and reads
+/// it with `conObj.get("strike").getAsInt()` (`WSEvents.onWebSocketText`),
+/// so a `$550.00` strike arrives as the JSON integer `550000`. This parser
+/// mirrors that: it requires an integer JSON value (a fractional value like
+/// `550.5` is rejected — thousandths are already whole units, so a
+/// fractional thousandths value is malformed), and the value must be a
+/// positive `i32` (the smallest real strike is `1` = $0.001; a non-positive
+/// strike is not a real instrument). Values outside `i32` range are
+/// rejected rather than silently narrowed.
+fn parse_strike_thousandths(raw: &sonic_rs::Value) -> Result<i32, String> {
+    // `as_i64` succeeds only for an integer JSON number, so a fractional
+    // `strike` (e.g. `550.5`) falls through to the error below — the wire
+    // unit is whole thousandths, never a fraction of one.
+    let thousandths = raw.as_i64().ok_or_else(|| {
+        "'strike' must be an integer in thousandths of a dollar (e.g. 550000 for $550.00), \
+         got: <missing, non-numeric, or fractional>"
             .to_string()
     })?;
-    if !dollars.is_finite() || dollars <= 0.0 {
+    if thousandths <= 0 {
         return Err(format!(
-            "'strike' must be a positive number in dollars (got {dollars})"
+            "'strike' must be a positive integer in thousandths of a dollar \
+             (e.g. 550000 for $550.00), got {thousandths}"
         ));
     }
-    let scaled = (dollars * 1000.0).round();
-    // A positive strike below half the smallest representable unit
-    // rounds to zero thousandths. A zero strike is not a real
-    // instrument, so reject it rather than silently collapse the
-    // contract to a $0.00 strike.
-    if scaled < 1.0 {
-        return Err(format!(
-            "'strike' {dollars} is below the smallest representable strike ($0.001)"
-        ));
-    }
-    if scaled > f64::from(i32::MAX) {
-        return Err(format!(
-            "'strike' {dollars} exceeds the representable range after fixed-point scaling"
-        ));
-    }
-    // Reason: bounds checked above; positivity checked above.
-    #[allow(clippy::cast_possible_truncation)]
-    Ok(scaled as i32)
+    i32::try_from(thousandths).map_err(|_| {
+        format!("'strike' {thousandths} thousandths exceeds the representable i32 range")
+    })
 }
 
 /// Parse the option `right` field into the contract sides to subscribe.
@@ -679,42 +743,59 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    //  strike dollars -> fixed-point thousandths
+    //  strike: raw thousandths integer on the wire (matches the terminal)
     // -----------------------------------------------------------------------
 
     #[test]
-    fn strike_accepts_smallest_representable_and_normal_values() {
-        // $0.001 is the smallest representable strike: it maps to the
-        // smallest nonzero thousandths value.
-        assert_eq!(parse_strike_dollars(Some(0.001)).unwrap(), 1);
-        // Ordinary strikes round-trip through the thousandths scaling.
-        assert_eq!(parse_strike_dollars(Some(550.0)).unwrap(), 550_000);
-        assert_eq!(parse_strike_dollars(Some(550.5)).unwrap(), 550_500);
-        assert_eq!(parse_strike_dollars(Some(0.5)).unwrap(), 500);
+    fn strike_accepts_raw_thousandths_integer() {
+        // The terminal puts `strike` on the wire as the raw thousandths
+        // integer (a `$550.00` strike is `550000`), read via `getAsInt()`.
+        assert_eq!(
+            parse_strike_thousandths(&sonic_rs::json!(550_000)).unwrap(),
+            550_000
+        );
+        // Smallest real strike: 1 thousandth = $0.001.
+        assert_eq!(parse_strike_thousandths(&sonic_rs::json!(1)).unwrap(), 1);
+        // Fractional-dollar strike, still a whole thousandths integer.
+        assert_eq!(
+            parse_strike_thousandths(&sonic_rs::json!(550_500)).unwrap(),
+            550_500
+        );
+        assert_eq!(parse_strike_thousandths(&sonic_rs::json!(500)).unwrap(), 500);
     }
 
     #[test]
-    fn strike_rejects_sub_smallest_unit_positive_value() {
-        // 0.0004 dollars scales to 0.4 thousandths, which rounds to 0.
-        // A 0-strike contract is not a real instrument, so the value
-        // must be rejected rather than silently collapsed to zero.
-        let err = parse_strike_dollars(Some(0.0004)).unwrap_err();
+    fn strike_rejects_dollars_float_shape() {
+        // A dollars float like `550.5` is NOT the wire shape: thousandths
+        // are whole units, so a fractional value is malformed and must be
+        // rejected rather than silently truncated.
+        let err = parse_strike_thousandths(&sonic_rs::json!(550.5)).unwrap_err();
         assert!(
-            err.contains("smallest representable strike"),
-            "diagnostic must explain the sub-unit floor: {err}"
+            err.contains("integer in thousandths"),
+            "diagnostic must name the wire unit: {err}"
         );
-        // The boundary: anything in (0, 0.0005) rounds to 0 and is
-        // rejected; $0.0005 rounds up to the smallest valid unit.
-        assert!(parse_strike_dollars(Some(0.0001)).is_err());
-        assert!(parse_strike_dollars(Some(0.0005)).is_ok());
+        // A whole-number-valued float (`550.0`) is likewise not an integer
+        // JSON number under `as_i64`; the wire carries a bare integer.
+        assert!(parse_strike_thousandths(&sonic_rs::json!(550.0)).is_err());
     }
 
     #[test]
     fn strike_rejects_non_positive_and_non_numeric() {
-        assert!(parse_strike_dollars(Some(0.0)).is_err());
-        assert!(parse_strike_dollars(Some(-1.0)).is_err());
-        assert!(parse_strike_dollars(Some(f64::NAN)).is_err());
-        assert!(parse_strike_dollars(None).is_err());
+        assert!(parse_strike_thousandths(&sonic_rs::json!(0)).is_err());
+        assert!(parse_strike_thousandths(&sonic_rs::json!(-1)).is_err());
+        assert!(parse_strike_thousandths(&sonic_rs::json!("550000")).is_err());
+        assert!(parse_strike_thousandths(&sonic_rs::Value::default()).is_err());
+    }
+
+    #[test]
+    fn strike_rejects_out_of_i32_range() {
+        // Beyond i32::MAX thousandths must be rejected, never narrowed.
+        let too_big = i64::from(i32::MAX) + 1;
+        let err = parse_strike_thousandths(&sonic_rs::json!(too_big)).unwrap_err();
+        assert!(
+            err.contains("i32 range"),
+            "diagnostic must name the range bound: {err}"
+        );
     }
 
     // -----------------------------------------------------------------------

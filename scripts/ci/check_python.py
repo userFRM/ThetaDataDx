@@ -160,10 +160,16 @@ CELLS = [
     ("option_list_strikes", "basic", "free", "list/calendar/rate baseline call — no parameter variation", lambda: client.option_list_strikes("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_list_contracts::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_list_contracts", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_list_contracts("TRADE", "SPY", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_list_contracts", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_list_contracts("TRADE", "20250303", timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_list_contracts::with_symbol
+    #   rationale: symbol=SPY optional symbol-filter wiring
+    ("option_list_contracts", "with_symbol", "value", "symbol=SPY optional symbol-filter wiring", lambda: client.option_list_contracts("TRADE", "20250303", symbol="SPY", timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_list_contracts::with_max_dte
     #   rationale: max_dte=30 optional filter wiring
-    ("option_list_contracts", "with_max_dte", "value", "max_dte=30 optional filter wiring", lambda: client.option_list_contracts("TRADE", "SPY", "20250303", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    ("option_list_contracts", "with_max_dte", "value", "max_dte=30 optional filter wiring", lambda: client.option_list_contracts("TRADE", "20250303", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
+    # option_list_contracts::all_optionals
+    #   rationale: every applicable optional set at once — proves multi-optional wiring
+    ("option_list_contracts", "all_optionals", "value", "every applicable optional set at once — proves multi-optional wiring", lambda: client.option_list_contracts("TRADE", "20250303", symbol="SPY", max_dte=30, timeout_ms=PER_CELL_TIMEOUT_MS)),
     # option_snapshot_ohlc::concrete
     #   rationale: required params set, no optionals — baseline wire path
     ("option_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", lambda: client.option_snapshot_ohlc("SPY", "20250321", timeout_ms=PER_CELL_TIMEOUT_MS)),

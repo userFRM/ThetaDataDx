@@ -221,7 +221,16 @@ fn expand_fields(fields: &[ProtoField]) -> Vec<(String, String, String, bool)> {
             );
         } else {
             let (param_type, desc) = map_field(&f.name, &f.proto_type, f.is_repeated);
-            let required = !f.is_optional;
+            // A `repeated` field is inherently optional on the wire: an empty
+            // list is a valid, fully-omitted value (proto3 has no presence
+            // bit for repeated fields). Treating it as wire-required would
+            // forbid a surface from relaxing it even when upstream accepts
+            // the omission — e.g. `option/list/contracts`, where dropping the
+            // symbol filter lists the full date universe. Endpoints that do
+            // require the field still declare `required = true` on their
+            // surface param, which stays valid (a surface may be stricter
+            // than the wire, never looser).
+            let required = !f.is_optional && !f.is_repeated;
             push(
                 &mut params,
                 &mut seen,

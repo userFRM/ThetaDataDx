@@ -103,7 +103,7 @@ CELLS = [
     ("option_list_strikes", "basic", "free", "list/calendar/rate baseline call — no parameter variation", ["option", "list_strikes", "SPY", "20250321"], False),
     # option_list_contracts::concrete
     #   rationale: required params set, no optionals — baseline wire path
-    ("option_list_contracts", "concrete", "value", "required params set, no optionals — baseline wire path", ["option", "list_contracts", "TRADE", "SPY", "20250303"], False),
+    ("option_list_contracts", "concrete", "value", "required params set, no optionals — baseline wire path", ["option", "list_contracts", "TRADE", "20250303"], False),
     # option_snapshot_ohlc::concrete
     #   rationale: required params set, no optionals — baseline wire path
     ("option_snapshot_ohlc", "concrete", "value", "required params set, no optionals — baseline wire path", ["option", "snapshot_ohlc", "SPY", "20250321"], False),

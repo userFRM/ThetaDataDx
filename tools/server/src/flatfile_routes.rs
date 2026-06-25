@@ -42,7 +42,9 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::Router;
 use serde::Deserialize;
-use thetadatadx::flatfiles::{flat_file_serves, FlatFileFormat, ReqType, SecType};
+use thetadatadx::flatfiles::{
+    flat_file_serves, FlatFileFormat, FlatFilesUnavailableReason, ReqType, SecType,
+};
 use tokio_util::io::ReaderStream;
 
 use crate::format;
@@ -334,6 +336,73 @@ async fn handle_post(
     serve_flatfile(state, sec_type, req_type, &body.date, format).await
 }
 
+/// Map an SDK flat-file error onto the HTTP `(status, error_type)` the
+/// route answers with.
+///
+/// Three classes, each with a distinct status so a client can tell them
+/// apart from the response code alone rather than parsing the message:
+///
+/// * **400 `bad_request`** — the request never reached the upstream. The
+///   SDK's local dataset gate rejected an unserved `(sec_type, req_type)`
+///   pair (a typed invalid-parameter [`thetadatadx::Error::Config`]).
+/// * **404 `flatfiles_no_data`** — the upstream answered, but no flat file
+///   is available to this account for the requested `date`: the daily
+///   snapshot has not been generated yet, or the account's history
+///   entitlement does not cover that date (the upstream returns a
+///   `PERMISSION` rejection naming the first accessible date). This is a
+///   normal "nothing here for you" outcome, not a gateway failure — a 502
+///   would wrongly signal the upstream is broken and invite a retry that
+///   cannot succeed.
+/// * **502 `flatfiles_unavailable`** — a genuine upstream/transport fault
+///   (mid-stream truncation, auth rejection, connection drop). The upstream
+///   is the failing dependency, so `Bad Gateway` is the honest status.
+fn classify_flatfile_error(e: &thetadatadx::Error) -> (StatusCode, &'static str) {
+    match e {
+        thetadatadx::Error::Config { kind, .. } if kind.is_invalid_parameter() => {
+            (StatusCode::BAD_REQUEST, "bad_request")
+        }
+        // No-data arrives two ways: an `ERROR` frame whose diagnostic names
+        // the reason (`RequestRejected`, message-classified), or a
+        // connection-scoped `DISCONNECTED` whose `RemoveReason` is a no-data
+        // code such as `NoStartDate` (`AuthRejected`, reason-classified by
+        // the SDK). Both are "nothing here for this account/date", not a
+        // gateway fault, so both map to 404 — otherwise the same no-data
+        // condition answers 404 via one frame type and 502 via the other.
+        thetadatadx::Error::FlatFilesUnavailable(FlatFilesUnavailableReason::RequestRejected {
+            server_message,
+        }) if rejection_is_no_data(server_message) => {
+            (StatusCode::NOT_FOUND, "flatfiles_no_data")
+        }
+        thetadatadx::Error::FlatFilesUnavailable(reason) if reason.is_no_data() => {
+            (StatusCode::NOT_FOUND, "flatfiles_no_data")
+        }
+        _ => (StatusCode::BAD_GATEWAY, "flatfiles_unavailable"),
+    }
+}
+
+/// Whether an upstream `RequestRejected` message describes a "no flat file
+/// available for this account/date" condition rather than a transport
+/// fault.
+///
+/// The upstream tags these with a leading reason token. `PERMISSION:`
+/// covers the history-entitlement boundary (`"Invalid permissions for
+/// date. Your first access date is: YYYYMMDD ..."`); `NO_START_DATE`
+/// covers a date with no generated snapshot. Matching the tagged prefix
+/// keeps the classifier from sweeping a genuinely malformed-request
+/// rejection (`INVALID_PARAMS`) into the no-data bucket — that stays a 502
+/// so it is not silently masked as an empty result.
+///
+/// The leading reason is a tagged prefix, so the match is anchored on the
+/// prefix rather than a whitespace/`:`-split first token: a leading space
+/// would split to an empty token (wrongly 502), and prose like
+/// `"PERMISSION denied"` would match a bare `PERMISSION` token (wrongly
+/// 404). `trim()` then `starts_with` the exact `PERMISSION:` /
+/// `NO_START_DATE` tags avoids both.
+fn rejection_is_no_data(server_message: &str) -> bool {
+    let trimmed = server_message.trim();
+    trimmed.starts_with("PERMISSION:") || trimmed.starts_with("NO_START_DATE")
+}
+
 async fn serve_flatfile(
     state: State<AppState>,
     sec_type: SecType,
@@ -366,18 +435,7 @@ async fn serve_flatfile(
         Ok(p) => p,
         Err(e) => {
             let _ = tokio::fs::remove_file(&scratch_path).await;
-            // An unserved (sec_type, req_type) pair fails the SDK's local
-            // dataset gate with a typed invalid-parameter error before any
-            // upstream call — that is a client request fault (400), not an
-            // upstream outage (502).
-            let (status, error_type) = if matches!(
-                &e,
-                thetadatadx::Error::Config { kind, .. } if kind.is_invalid_parameter()
-            ) {
-                (StatusCode::BAD_REQUEST, "bad_request")
-            } else {
-                (StatusCode::BAD_GATEWAY, "flatfiles_unavailable")
-            };
+            let (status, error_type) = classify_flatfile_error(&e);
             return error_response(status, error_type, &e.to_string());
         }
     };
@@ -430,8 +488,23 @@ async fn serve_flatfile(
 }
 
 /// Add the FLATFILES routes onto an existing axum router.
+///
+/// Two GET path shapes serve the same `handle_get` logic:
+///
+/// - `/v3/{sec_type}/flat_file/{req_type}` — the v3 form the JVM terminal
+///   serves (e.g. `/v3/option/flat_file/trade_quote`). The terminal carries
+///   `date` + `format` in the query string and `sec_type` / `req_type` in
+///   the path, which is exactly `handle_get`'s shape, so the same handler
+///   serves both this and the convenience form below. An unserved
+///   `(sec_type, req_type)` pair (stock `open_interest`, any `index`) still
+///   fails the served-matrix gate as a `400 bad_request`.
+/// - `/v3/flatfile/{sec_type}/{req_type}` — the original convenience form,
+///   kept so existing callers do not break.
+///
+/// The generic `POST /v3/flatfile/request` form is retained alongside both.
 pub(crate) fn add_flatfile_routes(router: Router<AppState>) -> Router<AppState> {
     router
+        .route("/v3/{sec_type}/flat_file/{req_type}", get(handle_get))
         .route("/v3/flatfile/{sec_type}/{req_type}", get(handle_get))
         .route("/v3/flatfile/request", post(handle_post))
 }
@@ -477,10 +550,131 @@ pub(crate) fn flatfile_paths(
 mod tests {
     use super::*;
 
+    /// An upstream history-entitlement / no-snapshot rejection is a normal
+    /// "nothing here for this account/date" outcome, not a gateway failure.
+    /// It must map to `404 flatfiles_no_data` so a client distinguishes it
+    /// from a real upstream outage by status code alone — the boundary the
+    /// confusing `502 unexpected response id=-1` previously erased.
+    #[test]
+    fn no_data_rejection_maps_to_404() {
+        for msg in [
+            "PERMISSION:Invalid permissions for date. Your first access date is: 20260618 \
+             for flat files. Reach out to sales to inquire about deeper history.",
+            "NO_START_DATE:no flat file generated for the requested date",
+        ] {
+            let e = thetadatadx::Error::FlatFilesUnavailable(
+                FlatFilesUnavailableReason::RequestRejected {
+                    server_message: msg.to_string(),
+                },
+            );
+            assert_eq!(
+                classify_flatfile_error(&e),
+                (StatusCode::NOT_FOUND, "flatfiles_no_data"),
+                "no-data rejection must be a 404, not a 502: {msg}"
+            );
+        }
+    }
+
+    /// A genuine upstream/transport or auth fault stays `502
+    /// flatfiles_unavailable`, and a malformed-request rejection is NOT
+    /// swept into the no-data bucket — masking a bad request as an empty
+    /// result would hide the fault. All must surface as 502. `AuthRejected
+    /// { 15 }` is `ServerRestarting` — a transient outage, not a no-data
+    /// condition. `AuthRejected { 3 }` is `GeneralValidationError` — a
+    /// login-phase credential/auth failure the upstream handles like
+    /// `InvalidCredentials`; classing it no-data would mask an auth failure
+    /// behind a `404`, so it must stay 502.
+    #[test]
+    fn transport_and_malformed_faults_stay_502() {
+        let cases = [
+            FlatFilesUnavailableReason::StreamTruncated {
+                bytes_received: 4096,
+            },
+            FlatFilesUnavailableReason::AuthRejected { reason_code: 15 },
+            FlatFilesUnavailableReason::AuthRejected { reason_code: 3 },
+            FlatFilesUnavailableReason::RequestRejected {
+                server_message: "INVALID_PARAMS:Invalid request type".to_string(),
+            },
+        ];
+        for reason in cases {
+            let e = thetadatadx::Error::FlatFilesUnavailable(reason.clone());
+            assert_eq!(
+                classify_flatfile_error(&e),
+                (StatusCode::BAD_GATEWAY, "flatfiles_unavailable"),
+                "transport / malformed fault must stay 502: {reason:?}"
+            );
+        }
+    }
+
+    /// A no-data `DISCONNECTED` arrives as `AuthRejected` carrying a
+    /// no-data `RemoveReason` (13 = NoStartDate, the out-of-window /
+    /// snapshot-not-generated condition). It is the same "nothing here for
+    /// this account/date" outcome as the `ERROR`-frame no-data, so it must
+    /// also map to `404 flatfiles_no_data` — not the `502` the default arm
+    /// would give. This is the server half of the regression fix: before,
+    /// a no-data `DISCONNECTED` ran the full retry ladder and then answered
+    /// `502`, while the same no-data via an `ERROR` frame answered `404`.
+    #[test]
+    fn no_data_disconnect_maps_to_404() {
+        let e = thetadatadx::Error::FlatFilesUnavailable(
+            FlatFilesUnavailableReason::AuthRejected { reason_code: 13 },
+        );
+        assert_eq!(
+            classify_flatfile_error(&e),
+            (StatusCode::NOT_FOUND, "flatfiles_no_data"),
+            "NoStartDate DISCONNECTED must be a 404, not a 502",
+        );
+    }
+
+    /// `rejection_is_no_data` matches the upstream's tagged reason prefix
+    /// robustly against whitespace and prose. A leading space must not
+    /// blank the match (regression: a whitespace/`:`-split first token went
+    /// empty → wrong 502), and `"PERMISSION denied"` prose must NOT match
+    /// (regression: a bare `PERMISSION` token → wrong 404). Only the exact
+    /// `PERMISSION:` / `NO_START_DATE` tags count.
+    #[test]
+    fn rejection_is_no_data_is_whitespace_and_prose_robust() {
+        // Tagged no-data reasons, including a leading-space variant.
+        assert!(rejection_is_no_data(
+            "PERMISSION:Invalid permissions for date. Your first access date is: 20260618"
+        ));
+        assert!(rejection_is_no_data("NO_START_DATE:no snapshot for date"));
+        assert!(
+            rejection_is_no_data("  PERMISSION:leading whitespace"),
+            "a leading space must not blank the no-data match"
+        );
+        assert!(rejection_is_no_data("\tNO_START_DATE:tab-led"));
+
+        // Prose / unrelated reasons must NOT be swept into no-data.
+        assert!(
+            !rejection_is_no_data("PERMISSION denied: contact support"),
+            "`PERMISSION denied` prose must not match the `PERMISSION:` tag"
+        );
+        assert!(!rejection_is_no_data("INVALID_PARAMS:Invalid request type"));
+        assert!(!rejection_is_no_data(""));
+        assert!(!rejection_is_no_data("   "));
+    }
+
+    /// The SDK's local dataset gate rejects an unserved pair before any
+    /// upstream call — a client request fault that stays `400 bad_request`.
+    #[test]
+    fn local_invalid_parameter_maps_to_400() {
+        let e = thetadatadx::Error::config_invalid(
+            "flatfiles.dataset",
+            "flat-file service does not serve index trade_quote",
+        );
+        assert_eq!(
+            classify_flatfile_error(&e),
+            (StatusCode::BAD_REQUEST, "bad_request"),
+        );
+    }
+
     /// The served-matrix gate accepts every pair the distribution serves and
     /// rejects everything else — including a pair whose security and request
     /// types are each individually served but not as a pair (stock
-    /// open_interest), and any `INDEX` pair. The rejection names the dataset.
+    /// open_interest). Index serves only EOD, so `(Index, Eod)` is accepted
+    /// while every non-EOD index pair is rejected. The rejection names the
+    /// dataset.
     #[test]
     fn unserved_dataset_is_rejected_at_the_boundary() {
         for (sec, req) in [
@@ -489,6 +683,7 @@ mod tests {
             (SecType::Option, ReqType::Eod),
             (SecType::Stock, ReqType::TradeQuote),
             (SecType::Stock, ReqType::Eod),
+            (SecType::Index, ReqType::Eod),
         ] {
             assert!(
                 reject_unserved_dataset(sec, req).is_ok(),
@@ -502,8 +697,8 @@ mod tests {
             (SecType::Option, ReqType::Quote),
             (SecType::Option, ReqType::Trade),
             (SecType::Option, ReqType::Ohlc),
-            (SecType::Index, ReqType::Eod),
             (SecType::Index, ReqType::TradeQuote),
+            (SecType::Index, ReqType::OpenInterest),
         ] {
             let err = reject_unserved_dataset(sec, req).expect_err(&format!(
                 "unserved pair {sec} {} must be rejected",

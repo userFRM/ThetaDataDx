@@ -540,6 +540,12 @@ pub(super) fn mdds_query_field_expr(
         "symbol" if field.is_repeated => {
             if param.param_type == "Symbols" {
                 "symbols.clone()".into()
+            } else if !is_method_param && param.default.is_none() {
+                // Optional builder symbol stored as `Option<String>`: an
+                // unset filter sends an empty repeated field (proto3 omits
+                // it), which the server reads as "list the full universe".
+                // A set filter sends the single supplied symbol.
+                format!("{arg_name}.iter().cloned().collect()")
             } else if list_context {
                 format!("vec![{arg_name}.to_string()]")
             } else {

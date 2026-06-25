@@ -33,6 +33,8 @@ pub struct ThetaDataDxEndpointRequestOptions {
     pub strike: *const c_char,
     /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
     pub right: *const c_char,
+    /// Ticker symbol to filter by (e.g. AAPL). Omit to list every contract for the date.
+    pub symbol: *const c_char,
     /// Maximum days to expiration
     pub max_dte: i32,
     /// Presence flag for `max_dte`; set to `1` to apply the value.
@@ -94,6 +96,7 @@ fn apply_endpoint_request_options(
     }
     insert_optional_str_arg(args, "strike", options.strike)?;
     insert_optional_str_arg(args, "right", options.right)?;
+    insert_optional_str_arg(args, "symbol", options.symbol)?;
     if options.has_max_dte != 0 {
         insert_int_arg(args, "max_dte", options.max_dte);
     }

@@ -124,11 +124,32 @@ def served_v3_routes() -> set[str]:
     return routes
 
 
+# Served routes that are deliberately NOT documented in the public OpenAPI
+# contract: the two terminal management-status paths whose path segment is the
+# vendor's transport codename. The server mounts them only for drop-in parity
+# with the JVM terminal's mgmt surface (router.rs registers them to the SAME
+# handlers as the documented `/v3/terminal/{streaming,historical}/status`
+# routes), so a generated client never needs them — the documented aliases
+# cover the identical behaviour. They are kept out of the spec because those
+# codenames are banned client-facing vocabulary (enforced by
+# `check_client_facing_vocab.py`, which sweeps this YAML): writing them into the
+# public contract would leak an internal transport name into a client-rendered
+# surface. This allowlist is intentionally exactly these two paths; it does not
+# loosen the served-vs-documented equality for anything else.
+OPENAPI_UNDOCUMENTED_PARITY_ALIASES = {
+    "/v3/terminal/fpss/status",
+    "/v3/terminal/mdds/status",
+}
+
 # Routes the server serves beyond the upstream-tracking registry endpoints:
 # the system status / lifecycle routes and the flat-file download routes. These
 # are documented in the OpenAPI contract (they are real served routes) but are
-# not in `REST_PATHS`. Derived, not hand-listed, so it cannot drift.
-SERVER_ONLY_PATHS = served_v3_routes() - REST_PATHS
+# not in `REST_PATHS`. Derived, not hand-listed, so it cannot drift. The
+# vendor-parity aliases above are subtracted: they are served but intentionally
+# undocumented (their documented equivalents carry the identical behaviour).
+SERVER_ONLY_PATHS = (
+    served_v3_routes() - REST_PATHS - OPENAPI_UNDOCUMENTED_PARITY_ALIASES
+)
 
 # operationIds for the server-only routes documented in the OpenAPI contract.
 # The upstream endpoints derive their operationId from the registry name; the
@@ -142,13 +163,48 @@ SERVER_ONLY_OPERATION_IDS = {
     "systemStreamingStatus",
     "flatfileGet",
     "flatfileRequest",
+    # Terminal-compatible plain-text status routes. Distinct ids from the JSON
+    # `system*Status` siblings because they are separate operations.
+    "terminalStreamingStatus",
+    "terminalHistoricalStatus",
+    # Path-segment / renamed `/v3` aliases mounted at the server level for
+    # endpoints the registry already exposes under a query-form or shorter
+    # path. Each dispatches to the same registry endpoint as its sibling but
+    # is a distinct OpenAPI operation, so it carries its own id rather than
+    # reusing the sibling's (operationIds must be unique).
+    "stockListDatesByRequestType",
+    "optionListDatesByRequestType",
+    "optionListContractsByRequestType",
+    "calendarToday",
+    "calendarYearHolidays",
+    "interestRateHistoryEodPath",
+    "flatfileGetBySecType",
 }
-BUILDER_PARAMS = {
-    param["name"]
-    for group in SURFACE["param_groups"].values()
-    for param in group.get("params", [])
-    if param.get("binding") == "builder"
-}
+# Builder-bound params (the optional fluent setters that materialize as fields
+# on the `*EndpointRequestOptions` structs) come from two places in the surface:
+# the reusable `[param_groups.*]` definitions AND inline `[[endpoints.params]]`
+# entries that declare a param directly (a `name = ...` row) rather than
+# referencing a group (`use = ...`). An endpoint that needs a one-off optional
+# param (e.g. an optional `symbol` filter on a single listing endpoint) declares
+# it inline, so collecting only the group params would let that field escape the
+# FFI/SDK option-struct parity check. Both sources feed `BUILDER_PARAMS`; the
+# `use = ...` references are already covered via their group, so only inline
+# `name`-carrying params are read here.
+def _builder_param_names() -> set[str]:
+    names = {
+        param["name"]
+        for group in SURFACE["param_groups"].values()
+        for param in group.get("params", [])
+        if param.get("binding") == "builder"
+    }
+    for endpoint in SURFACE.get("endpoints", []):
+        for param in endpoint.get("params", []):
+            if "name" in param and param.get("binding") == "builder":
+                names.add(param["name"])
+    return names
+
+
+BUILDER_PARAMS = _builder_param_names()
 
 # Global request-level options (not per-endpoint builder params, but still
 # required fields on `ThetaDataDxEndpointRequestOptions` / `EndpointRequestOptions`
@@ -533,6 +589,14 @@ def check_openapi() -> None:
     # router source. A route the binary serves but the spec omits leaves a
     # generated client unable to call it; a spec path the binary does not serve
     # is a dangling contract. Either direction trips.
+    #
+    # The only served routes excluded from `expected_paths` are the two
+    # vendor-parity status aliases in `OPENAPI_UNDOCUMENTED_PARITY_ALIASES`
+    # (already subtracted out of `SERVER_ONLY_PATHS`): they are served for
+    # drop-in parity with the JVM terminal and dispatch to the same handlers as
+    # the documented `/v3/terminal/{streaming,historical}/status` routes, while
+    # their path segments are banned client-facing vocabulary that must not
+    # appear in this public spec. See that constant for the full rationale.
     expected_paths = REST_PATHS | SERVER_ONLY_PATHS
     if actual_paths != expected_paths:
         missing = sorted(expected_paths - actual_paths)
