@@ -705,7 +705,7 @@ pub async fn generic_with_overrides(
                 "attachment; filename=\"{}\"",
                 csv_attachment_filename(ep, &params)
             );
-            let body = format::json_to_csv(&rows).unwrap_or_default();
+            let body = format::json_to_csv(ep, &rows).unwrap_or_default();
             (
                 StatusCode::OK,
                 [
