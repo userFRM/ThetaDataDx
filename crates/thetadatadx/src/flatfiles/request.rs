@@ -33,7 +33,7 @@ use tokio::io::{AsyncWriteExt, BufWriter};
 use crate::auth::Credentials;
 use crate::config::FlatFilesConfig;
 use crate::error::Error;
-use crate::flatfiles::framing::{msg, read_frame};
+use crate::flatfiles::framing::{msg, read_frame, Frame};
 use crate::flatfiles::mdds_spki::{ALLOWED_MDDS_HOSTS, MDDS_PORTS};
 use crate::flatfiles::session::{connect_and_login, MddsHost};
 use crate::flatfiles::types::{
@@ -325,47 +325,14 @@ async fn run_one_attempt(
                 return Err(e);
             }
         };
-        if frame.id != request_id && frame.msg != msg::PING {
-            // The server may interleave heartbeats; everything else with a
-            // foreign id is a protocol violation we want to surface.
-            return Err(Error::config_internal(format!(
-                "flatfiles: unexpected response id={} (expected {request_id}) msg={}",
-                frame.id, frame.msg
-            )));
-        }
-        match frame.msg {
-            msg::FLAT_FILE => {
+        match classify_stream_frame(&frame, request_id, total)? {
+            FrameAction::Append => {
                 out.write_all(&frame.payload).await?;
                 total += frame.payload.len() as u64;
                 chunks += 1;
             }
-            msg::FLAT_FILE_END => {
-                break;
-            }
-            msg::ERROR => {
-                let server_message = String::from_utf8_lossy(&frame.payload).into_owned();
-                return Err(Error::FlatFilesUnavailable(
-                    FlatFilesUnavailableReason::RequestRejected { server_message },
-                ));
-            }
-            msg::PING => {
-                // Ignore — server-initiated heartbeat.
-            }
-            msg::DISCONNECTED => {
-                let reason_code = if frame.payload.len() >= 2 {
-                    u16::from_be_bytes([frame.payload[0], frame.payload[1]])
-                } else {
-                    0
-                };
-                return Err(Error::FlatFilesUnavailable(
-                    FlatFilesUnavailableReason::AuthRejected { reason_code },
-                ));
-            }
-            other => {
-                return Err(Error::config_internal(format!(
-                    "flatfiles: unexpected msg={other} during FLAT_FILE stream"
-                )));
-            }
+            FrameAction::Ignore => {}
+            FrameAction::EndOfStream => break,
         }
     }
     out.flush().await?;
@@ -378,9 +345,158 @@ async fn run_one_attempt(
     Ok(output_path.to_path_buf())
 }
 
+/// What [`run_one_attempt`] should do with a decoded stream frame.
+#[derive(Debug)]
+enum FrameAction {
+    /// A `FLAT_FILE` data chunk: append its payload to the output.
+    Append,
+    /// A frame that advances no state (a server `PING` heartbeat).
+    Ignore,
+    /// `FLAT_FILE_END`: the response is complete, stop reading.
+    EndOfStream,
+}
+
+/// Decide what a single decoded frame means inside an in-flight FLAT_FILE
+/// response, or surface the typed error it represents.
+///
+/// The frame layout (see [`crate::flatfiles::framing`]) scopes frames in
+/// two ways. The *data* frames — `FLAT_FILE` chunks and the terminating
+/// `FLAT_FILE_END` — carry the request id the client assigned, so a foreign
+/// id on those is a genuine correlation fault and is rejected. The *control*
+/// frames the server can interleave — `ERROR`, `DISCONNECTED`, `PING` — are
+/// connection-scoped and carry the sentinel `id=-1`; they are dispatched by
+/// message code alone. Gating the id check on message code is what keeps a
+/// connection-scoped `DISCONNECTED` (`id=-1`, `msg=102`) — the server's way
+/// of declining to serve a slice, e.g. when the daily snapshot is not yet
+/// generated — from being misreported as an `unexpected response id=-1`
+/// correlation error instead of its real `RemoveReason`.
+///
+/// `bytes_received` is threaded in only for the `DISCONNECTED` debug log so
+/// operators can see how far a declined stream got before the server cut it.
+fn classify_stream_frame(
+    frame: &Frame,
+    request_id: i64,
+    bytes_received: u64,
+) -> Result<FrameAction, Error> {
+    match frame.msg {
+        // Data frames are request-scoped: a foreign id is a framing fault.
+        msg::FLAT_FILE | msg::FLAT_FILE_END if frame.id != request_id => {
+            Err(Error::config_internal(format!(
+                "flatfiles: unexpected response id={} (expected {request_id}) msg={}",
+                frame.id, frame.msg
+            )))
+        }
+        msg::FLAT_FILE => Ok(FrameAction::Append),
+        msg::FLAT_FILE_END => Ok(FrameAction::EndOfStream),
+        msg::ERROR => {
+            let server_message = String::from_utf8_lossy(&frame.payload).into_owned();
+            Err(Error::FlatFilesUnavailable(
+                FlatFilesUnavailableReason::RequestRejected { server_message },
+            ))
+        }
+        msg::PING => Ok(FrameAction::Ignore),
+        msg::DISCONNECTED => {
+            let reason_code = if frame.payload.len() >= 2 {
+                u16::from_be_bytes([frame.payload[0], frame.payload[1]])
+            } else {
+                0
+            };
+            tracing::debug!(
+                target: "flatfiles",
+                request_id,
+                reason_code,
+                bytes_received,
+                "FLAT_FILE stream ended with DISCONNECTED",
+            );
+            Err(Error::FlatFilesUnavailable(
+                FlatFilesUnavailableReason::AuthRejected { reason_code },
+            ))
+        }
+        other => Err(Error::config_internal(format!(
+            "flatfiles: unexpected msg={other} during FLAT_FILE stream"
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Build a bare [`Frame`] for the dispatch-classifier tests.
+    fn frame(msg: u16, id: i64, payload: Vec<u8>) -> Frame {
+        Frame { msg, id, payload }
+    }
+
+    /// A `DISCONNECTED` (msg=102) and an `ERROR` (msg=101) arrive
+    /// connection-scoped with the sentinel `id=-1`, never the request id.
+    /// The classifier must decode them by message code — into the typed
+    /// `AuthRejected` / `RequestRejected` reasons — rather than tripping the
+    /// request-id correlation guard. This is the exact frame that surfaced
+    /// as `unexpected response id=-1 (expected N) msg=102` before the fix.
+    #[test]
+    fn connection_scoped_control_frames_dispatch_by_code_not_id() {
+        let request_id = 7;
+
+        // DISCONNECTED with id=-1 and a 2-byte RemoveReason payload.
+        let disc = frame(msg::DISCONNECTED, -1, 9u16.to_be_bytes().to_vec());
+        match classify_stream_frame(&disc, request_id, 0) {
+            Err(Error::FlatFilesUnavailable(FlatFilesUnavailableReason::AuthRejected {
+                reason_code,
+            })) => assert_eq!(reason_code, 9, "RemoveReason ordinal must decode from payload"),
+            other => panic!("DISCONNECTED id=-1 must decode to AuthRejected, got {other:?}"),
+        }
+
+        // ERROR with id=-1 carrying a server diagnostic string.
+        let err = frame(msg::ERROR, -1, b"PERMISSION:Invalid permissions for date".to_vec());
+        match classify_stream_frame(&err, request_id, 4096) {
+            Err(Error::FlatFilesUnavailable(FlatFilesUnavailableReason::RequestRejected {
+                server_message,
+            })) => assert!(
+                server_message.starts_with("PERMISSION:"),
+                "server diagnostic must be preserved verbatim, got {server_message:?}"
+            ),
+            other => panic!("ERROR id=-1 must decode to RequestRejected, got {other:?}"),
+        }
+    }
+
+    /// A `PING` heartbeat (also connection-scoped, `id=-1`) is ignored, and
+    /// a request-scoped data frame carrying the matching id is handled
+    /// normally — `FLAT_FILE` appends, `FLAT_FILE_END` ends the stream.
+    #[test]
+    fn data_frames_and_heartbeats_classify_normally() {
+        let request_id = 42;
+        assert!(matches!(
+            classify_stream_frame(&frame(msg::PING, -1, vec![]), request_id, 0),
+            Ok(FrameAction::Ignore)
+        ));
+        assert!(matches!(
+            classify_stream_frame(&frame(msg::FLAT_FILE, request_id, vec![1, 2, 3]), request_id, 0),
+            Ok(FrameAction::Append)
+        ));
+        assert!(matches!(
+            classify_stream_frame(&frame(msg::FLAT_FILE_END, request_id, vec![]), request_id, 99),
+            Ok(FrameAction::EndOfStream)
+        ));
+    }
+
+    /// The request-id correlation guard still fires — but only for the
+    /// request-scoped *data* frames. A `FLAT_FILE` / `FLAT_FILE_END` whose
+    /// id does not match the request is a genuine framing fault and must
+    /// surface the `unexpected response` internal error.
+    #[test]
+    fn foreign_id_on_data_frame_is_still_a_correlation_fault() {
+        let request_id = 5;
+        for code in [msg::FLAT_FILE, msg::FLAT_FILE_END] {
+            let wrong = frame(code, 999, vec![]);
+            let err = classify_stream_frame(&wrong, request_id, 0)
+                .err()
+                .expect("a data frame with a foreign id must be rejected");
+            assert!(
+                err.to_string().contains("unexpected response id=999"),
+                "foreign-id data frame must name the correlation fault, got {err}"
+            );
+        }
+    }
 
     #[test]
     fn payload_is_canonical_ascii() {
