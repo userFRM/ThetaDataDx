@@ -710,6 +710,42 @@ paths:
           source: |
             auto dates = client.historical().stock_list_dates("TRADE", "AAPL");
 
+  /v3/stock/list/dates/{request_type}:
+    x-min-subscription: free
+    get:
+      operationId: stockListDatesByRequestType
+      summary: List available dates for a stock (path form)
+      description: |
+        Path-segment form of `/v3/stock/list/dates`: the request type rides the
+        URL path instead of a query parameter. Same endpoint and response; this
+        is the terminal-compatible `/v3/stock/list/dates/{request_type}` spelling.
+        gRPC: GetStockListDates
+      tags: [Stock / List]
+      parameters:
+        - name: request_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [EOD, TRADE, QUOTE, OHLC, OPEN_INTEREST]
+          description: The type of data request (case-insensitive).
+        - *symbol-param
+      responses:
+        '200': *date-list-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let dates = client.historical().stock_list_dates("TRADE", "AAPL").await?;
+        - lang: python
+          label: Python
+          source: |
+            dates = client.historical.stock_list_dates("TRADE", "AAPL")
+        - lang: cpp
+          label: C++
+          source: |
+            auto dates = client.historical().stock_list_dates("TRADE", "AAPL");
+
   # =========================================================================
   # STOCK / SNAPSHOT
   # =========================================================================
@@ -1194,6 +1230,45 @@ paths:
           source: |
             auto dates = client.historical().option_list_dates("TRADE", "SPY", "20240419", "500", "C");
 
+  /v3/option/list/dates/{request_type}:
+    x-min-subscription: free
+    get:
+      operationId: optionListDatesByRequestType
+      summary: List available dates for an option contract (path form)
+      description: |
+        Path-segment form of `/v3/option/list/dates`: the request type rides the
+        URL path instead of a query parameter. Same endpoint and response; this
+        is the terminal-compatible `/v3/option/list/dates/{request_type}` spelling.
+        gRPC: GetOptionListDates
+      tags: [Option / List]
+      parameters:
+        - name: request_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [EOD, TRADE, QUOTE, OHLC, OPEN_INTEREST]
+          description: The type of data request (case-insensitive).
+        - *symbol-param
+        - *expiration-param
+        - *strike-param
+        - *right-param
+      responses:
+        '200': *date-list-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let dates = client.historical().option_list_dates("TRADE", "SPY", "20240419", "500", "C").await?;
+        - lang: python
+          label: Python
+          source: |
+            dates = client.historical.option_list_dates("TRADE", "SPY", "20240419", "500", "C")
+        - lang: cpp
+          label: C++
+          source: |
+            auto dates = client.historical().option_list_dates("TRADE", "SPY", "20240419", "500", "C");
+
   /v3/option/list/expirations:
     x-min-subscription: free
     get:
@@ -1268,6 +1343,45 @@ paths:
       tags: [Option / List]
       parameters:
         - *request_type-param
+        - *symbol-param
+        - *date-param
+        - *max_dte-param
+      responses:
+        '200': *option-contract-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let contracts = client.historical().option_list_contracts("TRADE", "SPY", "20240315").await?;
+        - lang: python
+          label: Python
+          source: |
+            contracts = client.historical.option_list_contracts("TRADE", "SPY", "20240315")
+        - lang: cpp
+          label: C++
+          source: |
+            auto contracts = client.historical().option_list_contracts("TRADE", "SPY", "20240315");
+
+  /v3/option/list/contracts/{request_type}:
+    x-min-subscription: free
+    get:
+      operationId: optionListContractsByRequestType
+      summary: List all option contracts for a date (path form)
+      description: |
+        Path-segment form of `/v3/option/list/contracts`: the request type rides
+        the URL path instead of a query parameter. Same endpoint and response;
+        this is the terminal-compatible
+        `/v3/option/list/contracts/{request_type}` spelling.
+        gRPC: GetOptionListContracts
+      tags: [Option / List]
+      parameters:
+        - name: request_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [EOD, TRADE, QUOTE, OHLC, OPEN_INTEREST]
+          description: The type of data request (case-insensitive).
         - *symbol-param
         - *date-param
         - *max_dte-param
@@ -2935,6 +3049,68 @@ paths:
           source: |
             auto cal = client.historical().calendar_year("2024");
 
+  /v3/calendar/today:
+    x-min-subscription: free
+    get:
+      operationId: calendarToday
+      summary: Is the market open today?
+      description: |
+        Path alias of `/v3/calendar/open_today`: returns whether the market is
+        open today. Same endpoint, same response; this is the `/v3` path name.
+        gRPC: GetCalendarOpenToday
+      tags: [Calendar]
+      parameters: []
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let open = client.historical().calendar_open_today().await?;
+        - lang: python
+          label: Python
+          source: |
+            open = client.historical.calendar_open_today()
+        - lang: cpp
+          label: C++
+          source: |
+            auto open = client.historical().calendar_open_today();
+
+  /v3/calendar/year_holidays:
+    x-min-subscription: free
+    get:
+      operationId: calendarYearHolidays
+      summary: Calendar for an entire year
+      description: |
+        Path alias of `/v3/calendar/year`: returns full calendar information for
+        all trading days in a year. Same endpoint, same response; this is the
+        `/v3` path name.
+        gRPC: GetCalendarYear
+      tags: [Calendar]
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}$'
+          description: Four-digit year (e.g. "2024")
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let cal = client.historical().calendar_year("2024").await?;
+        - lang: python
+          label: Python
+          source: |
+            cal = client.historical.calendar_year("2024")
+        - lang: cpp
+          label: C++
+          source: |
+            auto cal = client.historical().calendar_year("2024");
+
   # =========================================================================
   # INTEREST RATE
   # =========================================================================
@@ -2946,6 +3122,37 @@ paths:
       summary: Interest rate EOD history
       description: |
         End-of-day interest rate history for a given rate symbol (e.g. "SOFR").
+        gRPC: GetInterestRateHistoryEod
+      tags: [Interest Rate]
+      parameters:
+        - *symbol-param
+        - *start_date-param
+        - *end_date-param
+      responses:
+        '200': *data-table-response
+      x-code-examples:
+        - lang: rust
+          label: Rust
+          source: |
+            let rates = client.historical().interest_rate_history_eod("SOFR", "20240101", "20240301").await?;
+        - lang: python
+          label: Python
+          source: |
+            rates = client.historical.interest_rate_history_eod("SOFR", "20240101", "20240301")
+        - lang: cpp
+          label: C++
+          source: |
+            auto rates = client.historical().interest_rate_history_eod("SOFR", "20240101", "20240301");
+
+  /v3/interest_rate/history/eod:
+    x-min-subscription: free
+    get:
+      operationId: interestRateHistoryEodPath
+      summary: Interest rate EOD history
+      description: |
+        Path alias of `/v3/rate/history/eod`: end-of-day interest rate history
+        for a given rate symbol (e.g. "SOFR"). Same endpoint, same response;
+        this is the spelled-out `/v3` path name.
         gRPC: GetInterestRateHistoryEod
       tags: [Interest Rate]
       parameters:
@@ -3084,6 +3291,53 @@ paths:
           description: Too many attempts (rate-limited)
 
   # =========================================================================
+  # TERMINAL (drop-in management compatibility)
+  # =========================================================================
+  # These routes mirror the management status paths the Theta Terminal serves,
+  # so operator tooling that scrapes the terminal's mgmt surface works against
+  # this server unchanged. Each returns a one-word `text/plain` body
+  # (CONNECTED / DISCONNECTED) — the plain-text sibling of the JSON
+  # /v3/system/{streaming,historical}/status routes above.
+
+  /v3/terminal/streaming/status:
+    get:
+      operationId: terminalStreamingStatus
+      tags: [Terminal]
+      summary: Streaming connection status (text/plain)
+      description: |
+        Terminal-compatible streaming connection status as a bare `text/plain`
+        body. Returns `CONNECTED` or `DISCONNECTED` — the plain-text sibling of
+        the JSON `/v3/system/streaming/status` route.
+      parameters: []
+      responses:
+        '200':
+          description: Streaming connection state as a one-word plain-text body.
+          content:
+            text/plain:
+              schema:
+                type: string
+                enum: [CONNECTED, DISCONNECTED]
+
+  /v3/terminal/historical/status:
+    get:
+      operationId: terminalHistoricalStatus
+      tags: [Terminal]
+      summary: Historical connection status (text/plain)
+      description: |
+        Terminal-compatible historical connection status as a bare `text/plain`
+        body. Returns `CONNECTED` or `DISCONNECTED` — the plain-text sibling of
+        the JSON `/v3/system/historical/status` route.
+      parameters: []
+      responses:
+        '200':
+          description: Historical connection state as a one-word plain-text body.
+          content:
+            text/plain:
+              schema:
+                type: string
+                enum: [CONNECTED, DISCONNECTED]
+
+  # =========================================================================
   # FLAT FILES
   # =========================================================================
 
@@ -3098,17 +3352,18 @@ paths:
         case-insensitively. The response body is the file bytes, streamed as an
         attachment. Only these pairs are served (any other pairing returns 400):
         `option/trade_quote`, `option/open_interest`, `option/eod`,
-        `stock/trade_quote`, `stock/eod`. The path form takes the parameters
-        independently, so an unserved pairing (for example `stock/open_interest`)
-        is accepted by the route but rejected at request time with 400; the body
-        form constrains the served pairs in the schema itself.
+        `stock/trade_quote`, `stock/eod`, `index/eod`. The path form takes the
+        parameters independently, so an unserved pairing (for example
+        `stock/open_interest`) is accepted by the route but rejected at request
+        time with 400; the body form constrains the served pairs in the schema
+        itself.
       parameters:
         - name: sec_type
           in: path
           required: true
           schema:
             type: string
-            enum: [option, stock]
+            enum: [option, stock, index]
           description: Security type (case-insensitive).
         - name: req_type
           in: path
@@ -3118,7 +3373,74 @@ paths:
             enum: [trade_quote, open_interest, eod]
           description: |
             Request type (case-insensitive). `open_interest` is served for
-            `option` only.
+            `option` only; `index` serves `eod` only.
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Trading date in YYYYMMDD format.
+        - name: format
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [csv, jsonl]
+            default: csv
+          description: On-disk format. Defaults to csv.
+      responses:
+        '200':
+          description: |
+            Flat-file bytes streamed as an attachment. Content type is
+            `text/csv` for csv or `application/x-ndjson` for jsonl.
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/x-ndjson:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Unknown security type, request type, format, or date, or an unserved pair.
+        '502':
+          description: The flat-file distribution is unavailable upstream.
+
+  /v3/{sec_type}/flat_file/{req_type}:
+    get:
+      operationId: flatfileGetBySecType
+      tags: [Flat Files]
+      summary: Download a daily flat file (sec_type/flat_file/req_type path form)
+      description: |
+        Terminal-compatible spelling of `/v3/flatfile/{sec_type}/{req_type}`:
+        the security type leads the path and `flat_file` separates it from the
+        request type. Same handler, parameters, and response as the other path
+        form. The `sec_type` and `req_type` segments are matched
+        case-insensitively. The response body is the file bytes, streamed as an
+        attachment. Only these pairs are served (any other pairing returns 400):
+        `option/trade_quote`, `option/open_interest`, `option/eod`,
+        `stock/trade_quote`, `stock/eod`, `index/eod`. The path form takes the
+        parameters independently, so an unserved pairing (for example
+        `stock/open_interest`) is accepted by the route but rejected at request
+        time with 400.
+      parameters:
+        - name: sec_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [option, stock, index]
+          description: Security type (case-insensitive).
+        - name: req_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [trade_quote, open_interest, eod]
+          description: |
+            Request type (case-insensitive). `open_interest` is served for
+            `option` only; `index` serves `eod` only.
         - name: date
           in: query
           required: true
@@ -3175,8 +3497,8 @@ paths:
                 The `oneOf` branches constrain `req_type` to the request types
                 served for each `sec_type`: `option` serves `trade_quote`,
                 `open_interest`, and `eod`; `stock` serves `trade_quote` and
-                `eod`. The `sec_type` and `req_type` fields are matched
-                case-insensitively.
+                `eod`; `index` serves `eod`. The `sec_type` and `req_type`
+                fields are matched case-insensitively.
               properties:
                 date:
                   type: string
@@ -3209,6 +3531,17 @@ paths:
                       type: string
                       enum: [trade_quote, eod]
                       description: Request type served for stock flat files.
+                - title: index
+                  required: [sec_type, req_type]
+                  properties:
+                    sec_type:
+                      type: string
+                      enum: [index]
+                      description: Security type (case-insensitive).
+                    req_type:
+                      type: string
+                      enum: [eod]
+                      description: Request type served for index flat files.
       responses:
         '200':
           description: |
