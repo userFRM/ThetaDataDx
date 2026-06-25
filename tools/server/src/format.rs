@@ -1,14 +1,22 @@
-//! Response formatting that matches the JVM terminal's JSON output exactly.
+//! Response formatting for the v3 REST contract.
 //!
 //! Uses `sonic_rs` (SIMD-accelerated) instead of `serde_json` for all
-//! serialization. The JVM terminal wraps every REST response in:
+//! serialization. The v3 success body is `{ "response": [ ... ] }` with
+//! no `header` key. Option / contract endpoints group their rows under
+//! the owning contract:
 //!
 //! ```json
 //! {
-//!     "header": { "format": "json", "error_type": "null" },
-//!     "response": [ ... ]
+//!     "response": [
+//!         { "contract": { "symbol": "AAPL", "strike": 550.0,
+//!                         "expiration": "2026-06-18", "right": "CALL" },
+//!           "data": [ { "timestamp": "2024-01-02T17:17:53.606", ... } ] }
+//!     ]
 //! }
 //! ```
+//!
+//! Stock and index endpoints stay flat. Timestamps are ISO strings and
+//! the option `right` is spelled `CALL` / `PUT`.
 
 use sonic_rs::prelude::*;
 use thetadatadx::endpoint::EndpointOutput;

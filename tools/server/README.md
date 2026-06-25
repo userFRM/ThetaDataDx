@@ -108,33 +108,26 @@ POST /v3/system/shutdown        # requires X-Shutdown-Token header
 
 ### Response format
 
-Every registry endpoint accepts a `format` query parameter: `json` (default), `csv` (RFC 4180 with a header row), and `ndjson` / `jsonl` (one JSON object per row, `\n`-delimited, `Content-Type: application/x-ndjson; charset=utf-8`). Unknown `format` values return 400 with the supported set.
+Every registry endpoint accepts a `format` query parameter: `csv` (default, RFC 4180 with a header row and CRLF line endings), `json`, and `ndjson` / `jsonl` (one JSON object per row, `\n`-delimited). Unknown `format` values return 400 with the supported set.
 
-JSON responses use the terminal envelope with `Content-Type: application/json` (bare media type, no `charset` parameter — UTF-8 is implied per RFC 8259):
+JSON responses carry the v3 body `{ "response": [ ... ] }` (no `header` key), `Content-Type: application/json`. Stock and index rows are flat; option / contract endpoints group their rows under the owning contract:
 
 ```json
 {
-    "header": {
-        "format": "json",
-        "error_type": "null"
-    },
     "response": [
-        {"ms_of_day": 34200000, "open": 150.25, ...}
+        {
+            "contract": {"symbol": "AAPL", "strike": 550.0, "expiration": "2026-06-18", "right": "CALL"},
+            "data": [
+                {"timestamp": "2024-01-02T17:17:53.606", "open": 150.25}
+            ]
+        }
     ]
 }
 ```
 
-Failures use one canonical error envelope across every route family (registry endpoints, flat files, rate-limit rejections), so a single error parser covers the whole surface:
+Timestamps are ISO strings (the v2 `ms_of_day` / `date` columns are folded into them) and the option `right` is `CALL` / `PUT`.
 
-```json
-{
-    "header": {
-        "error_type": "bad_request",
-        "error_msg": "missing required parameter: 'date' (Date YYYYMMDD)"
-    },
-    "response": []
-}
-```
+Failures on the data routes return the HTTP status with a plain-text (`text/plain`) description. Framework-level rejections (rate-limit `429`, malformed requests, the shutdown token) still return a JSON `{ "header": { "error_type", "error_msg" }, "response": [] }` envelope.
 
 ## WebSocket
 
