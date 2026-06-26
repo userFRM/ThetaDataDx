@@ -16,20 +16,59 @@ use super::super::sdk_helpers::{to_camel_case, to_pascal_case};
 /// One generated accessor. `set` produces a unit-returning setter via
 /// `require_config_mut!`; `get` produces an `i32`-returning getter with
 /// the dual null-check.
+///
+/// Beyond the uniform scalar `set` / `get`, five carve-out KINDs share
+/// one reusable template each, parameterised purely by TOML data (a
+/// variant table, a limit-field name, an ABI shape) — never by a
+/// per-field emitter branch:
+///
+/// * `policy_limit` — a `ReconnectAttemptLimits` field reached through
+///   `ReconnectPolicy::Auto`; the setter mutates only under `Auto`, the
+///   getter falls back to `ReconnectAttemptLimits::default()`.
+///
+/// The enum / string / Option language-binding surfaces stay
+/// hand-written: their bodies diverge per binding (int codes vs string
+/// labels vs `(has_value, n)` vs `std::optional`) in ways that are not a
+/// single reusable template. The FFI layer is where the uniformity
+/// lives, so the carve-out KINDs generate the FFI entry points and the
+/// thin C++ pass-through wrappers; the richer per-language idioms stay
+/// hand-written.
 #[derive(Debug, Deserialize)]
 struct Accessor {
     symbol: String,
     kind: String,
     param: String,
     abi_type: String,
+    #[serde(default)]
     path: String,
-    /// `ms` / `secs` Duration wrap (setter) or `.as_secs()` read (getter).
+    /// `ms` / `secs` Duration wrap (setter) or `.as_secs()` / `.as_millis()`
+    /// read (getter). `ms` getters emit the saturating `u64::try_from`
+    /// millisecond read used by the `retry.*` `Duration` fields.
     #[serde(default)]
     duration_unit: Option<String>,
     /// Per-site `// SAFETY:` block for the getter write, when it differs
     /// from the canonical one-liner. Carries its own indentation.
     #[serde(default)]
     out_safety: Option<String>,
+    /// Carve-out template selector, orthogonal to `kind` (which stays the
+    /// set/get discriminator). Absent = the uniform scalar / duration
+    /// accessor. `"policy_limit"` reaches a `ReconnectAttemptLimits` field
+    /// through `ReconnectPolicy::Auto`; `"string"` is a UTF-8 `String`
+    /// field with the owned-`*mut c_char` getter convention.
+    #[serde(default)]
+    shape: Option<String>,
+    /// `policy_limit` only: the `ReconnectAttemptLimits` field this
+    /// accessor reads / writes (e.g. `max_attempts`, `stable_window`).
+    #[serde(default)]
+    limit_field: Option<String>,
+    /// `string` setter only: route the value through a `&mut self` method
+    /// (e.g. `set_historical_host`) instead of a direct `path` assignment.
+    #[serde(default)]
+    setter_call: Option<String>,
+    /// `string` getter only: read the value through a `&self` method
+    /// (e.g. `historical_host`) instead of a direct `path` read.
+    #[serde(default)]
+    getter_call: Option<String>,
     doc: String,
     cpp_doc: String,
     /// Verbatim PyO3 `#[setter]`/`#[getter]` doc block (no `///` prefix).
@@ -83,6 +122,43 @@ fn cpp_doc(buf: &mut String, indent: &str, text: &str) {
     }
 }
 
+/// The reconnect-limit getter fallback: `ReconnectPolicy::Manual` /
+/// `Custom` carry no limits, so the getter reports the `Auto` defaults
+/// (the per-class budgets only apply under `Auto`, and the setters are
+/// no-ops there too).
+const LIMIT_DEFAULT: &str = "thetadatadx::ReconnectAttemptLimits::default()";
+
+/// The Rust read expression for one getter (the value written into the
+/// out-parameter), keyed by KIND. Scalar / duration reads come straight
+/// off `config.inner.<path>`; the `policy_limit` read walks
+/// `reconnect.policy` and falls back to the `Auto` defaults.
+fn ffi_get_read_expr(a: &Accessor) -> String {
+    if a.shape.as_deref() == Some("policy_limit") {
+        let field = a
+            .limit_field
+            .as_deref()
+            .expect("policy_limit needs limit_field");
+        let suffix = if a.duration_unit.as_deref() == Some("secs") {
+            ".as_secs()"
+        } else {
+            ""
+        };
+        return format!(
+            "match &config.inner.reconnect.policy {{\n            thetadatadx::ReconnectPolicy::Auto(limits) => limits.{field}{suffix},\n            _ => {LIMIT_DEFAULT}.{field}{suffix},\n        }}"
+        );
+    }
+    match a.duration_unit.as_deref() {
+        // The `retry.*` `Duration` fields cross the ABI as `u64` ms via a
+        // saturating `as_millis` clamp; `secs` fields read `.as_secs()`.
+        Some("ms") => format!(
+            "u64::try_from(config.inner.{}.as_millis()).unwrap_or(u64::MAX)",
+            a.path
+        ),
+        Some("secs") => format!("config.inner.{}.as_secs()", a.path),
+        _ => format!("config.inner.{}", a.path),
+    }
+}
+
 /// The FFI Rust file: one `#[no_mangle]` entry point per accessor.
 pub(super) fn render_ffi_config_accessors() -> Result<String, Box<dyn std::error::Error>> {
     let accessors = load()?;
@@ -93,34 +169,92 @@ pub(super) fn render_ffi_config_accessors() -> Result<String, Box<dyn std::error
     for a in &accessors {
         rust_doc(&mut out, &a.doc);
         out.push_str("#[no_mangle]\n");
-        if a.kind == "set" {
-            let rhs = match a.duration_unit.as_deref() {
-                Some("ms") => format!("std::time::Duration::from_millis({})", a.param),
-                Some("secs") => format!("std::time::Duration::from_secs({})", a.param),
-                _ => a.param.clone(),
-            };
-            write!(
-                out,
-                "pub unsafe extern \"C\" fn {sym}(\n    config: *mut ThetaDataDxConfig,\n    {p}: {ty},\n) {{\n    ffi_boundary!((), {{\n        let config = require_config_mut!(config);\n        config.inner.{path} = {rhs};\n    }})\n}}\n\n",
-                sym = a.symbol, p = a.param, ty = a.abi_type, path = a.path,
-            )?;
-        } else {
-            let suffix = if a.duration_unit.as_deref() == Some("secs") {
-                ".as_secs()"
-            } else {
-                ""
-            };
-            let out_safety = a
-                .out_safety
-                .as_deref()
-                .map(|s| s.trim_end_matches('\n'))
-                .unwrap_or(OUT_SAFETY);
-            write!(
-                out,
-                "pub unsafe extern \"C\" fn {sym}(\n    config: *const ThetaDataDxConfig,\n    {p}: *mut {ty},\n) -> i32 {{\n    ffi_boundary!(-1, {{\n        if config.is_null() || {p}.is_null() {{\n            set_error(\"config or out-parameter pointer is null\");\n            return -1;\n        }}\n{cfg}\n        let config = unsafe {{ &*config }};\n{outs}\n        unsafe {{\n            *{p} = config.inner.{path}{suffix};\n        }}\n        0\n    }})\n}}\n\n",
-                sym = a.symbol, p = a.param, ty = a.abi_type, path = a.path,
-                cfg = CFG_SAFETY, outs = out_safety, suffix = suffix,
-            )?;
+        match (a.shape.as_deref(), a.kind.as_str()) {
+            (Some("string"), "set") => {
+                // `*const c_char` → validated UTF-8 → `String`. `path`
+                // assigns the field directly; `setter_call` routes the
+                // value through a `&mut self` method instead.
+                let assign = match a.setter_call.as_deref() {
+                    Some(call) => format!("config.inner.{call}({p}.to_string());", p = a.param),
+                    None => format!(
+                        "config.inner.{path} = {p}.to_string();",
+                        path = a.path,
+                        p = a.param
+                    ),
+                };
+                write!(
+                    out,
+                    "pub unsafe extern \"C\" fn {sym}(\n    config: *mut ThetaDataDxConfig,\n    {p}: *const c_char,\n) -> i32 {{\n    ffi_boundary!(-1, {{\n        if config.is_null() {{\n            set_error(\"config handle is null\");\n            return -1;\n        }}\n        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.\n        let {p} = match unsafe {{ cstr_to_str({p}) }} {{\n            Ok(Some(s)) => s,\n            Ok(None) => {{\n                set_error(\"{p} is null\");\n                return -1;\n            }}\n            Err(e) => {{\n                set_error(&format!(\"{p} is not valid UTF-8: {{e}}\"));\n                return -1;\n            }}\n        }};\n        // SAFETY: config is a non-null pointer returned by thetadatadx_config_* and not yet freed.\n        let config = unsafe {{ &mut *config }};\n        {assign}\n        0\n    }})\n}}\n\n",
+                    sym = a.symbol, p = a.param, assign = assign,
+                )?;
+            }
+            (Some("string"), _) => {
+                // Heap-owned `*mut c_char` the caller frees with
+                // `thetadatadx_string_free`; rejects an interior NUL.
+                let read = match a.getter_call.as_deref() {
+                    Some(call) => format!("config.inner.{call}()"),
+                    None => format!("config.inner.{}.as_str()", a.path),
+                };
+                write!(
+                    out,
+                    "pub unsafe extern \"C\" fn {sym}(\n    config: *const ThetaDataDxConfig,\n) -> *mut c_char {{\n    ffi_boundary!(ptr::null_mut(), {{\n        if config.is_null() {{\n            set_error(\"config handle is null\");\n            return ptr::null_mut();\n        }}\n        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.\n        let config = unsafe {{ &*config }};\n        match std::ffi::CString::new({read}) {{\n            Ok(c) => c.into_raw(),\n            Err(e) => {{\n                set_error(&format!(\"{field} contains an interior NUL: {{e}}\"));\n                ptr::null_mut()\n            }}\n        }}\n    }})\n}}\n\n",
+                    sym = a.symbol, read = read, field = field_name(a),
+                )?;
+            }
+            (_, "set") => {
+                // Scalar / duration / `policy_limit` setter.
+                let rhs = match a.duration_unit.as_deref() {
+                    Some("ms") => format!("std::time::Duration::from_millis({})", a.param),
+                    Some("secs") => format!("std::time::Duration::from_secs({})", a.param),
+                    _ => a.param.clone(),
+                };
+                let body = if a.shape.as_deref() == Some("policy_limit") {
+                    let field = a
+                        .limit_field
+                        .as_deref()
+                        .expect("policy_limit needs limit_field");
+                    format!(
+                        "        let config = require_config_mut!(config);\n        if let thetadatadx::ReconnectPolicy::Auto(ref mut limits) = config.inner.reconnect.policy {{\n            limits.{field} = {rhs};\n        }}"
+                    )
+                } else {
+                    format!(
+                        "        let config = require_config_mut!(config);\n        config.inner.{path} = {rhs};",
+                        path = a.path
+                    )
+                };
+                write!(
+                    out,
+                    "pub unsafe extern \"C\" fn {sym}(\n    config: *mut ThetaDataDxConfig,\n    {p}: {ty},\n) {{\n    ffi_boundary!((), {{\n{body}\n    }})\n}}\n\n",
+                    sym = a.symbol, p = a.param, ty = a.abi_type, body = body,
+                )?;
+            }
+            (_, _) => {
+                // Scalar / duration / `policy_limit` getter: one
+                // dual-null-check skeleton, the read expression varies.
+                // The `policy_limit` read is a multi-arm `match`, so it is
+                // bound to a `let value` before the `unsafe` write to keep
+                // the output rustfmt-stable (matching the hand-written
+                // scalar-via-local shape); scalar reads inline directly.
+                let out_safety = a
+                    .out_safety
+                    .as_deref()
+                    .map(|s| s.trim_end_matches('\n'))
+                    .unwrap_or(OUT_SAFETY);
+                let (pre, read) = if a.shape.as_deref() == Some("policy_limit") {
+                    (
+                        format!("        let value = {};\n", ffi_get_read_expr(a)),
+                        "value".to_string(),
+                    )
+                } else {
+                    (String::new(), ffi_get_read_expr(a))
+                };
+                write!(
+                    out,
+                    "pub unsafe extern \"C\" fn {sym}(\n    config: *const ThetaDataDxConfig,\n    {p}: *mut {ty},\n) -> i32 {{\n    ffi_boundary!(-1, {{\n        if config.is_null() || {p}.is_null() {{\n            set_error(\"config or out-parameter pointer is null\");\n            return -1;\n        }}\n{cfg}\n        let config = unsafe {{ &*config }};\n{pre}{outs}\n        unsafe {{\n            *{p} = {read};\n        }}\n        0\n    }})\n}}\n\n",
+                    sym = a.symbol, p = a.param, ty = a.abi_type,
+                    cfg = CFG_SAFETY, pre = pre, outs = out_safety, read = read,
+                )?;
+            }
         }
     }
     Ok(out)
@@ -149,24 +283,49 @@ pub(super) fn render_cpp_config_accessors() -> Result<String, Box<dyn std::error
     );
     for a in &accessors {
         let method = a.symbol.strip_prefix("thetadatadx_config_").unwrap();
-        let ty = cpp_type(&a.abi_type);
         out.push('\n');
         cpp_doc(&mut out, "    ", &a.cpp_doc);
-        if a.kind == "set" {
-            write!(
-                out,
-                "    void {method}({ty} {p}) {{\n        {sym}(handle_.get(), {p});\n    }}\n",
-                method = method,
-                ty = ty,
-                p = a.param,
-                sym = a.symbol,
-            )?;
-        } else {
-            write!(
-                out,
-                "    {ty} {method}() const {{\n        {ty} out{{}};\n        {sym}(handle_.get(), &out);\n        return out;\n    }}\n",
-                ty = ty, method = method, sym = a.symbol,
-            )?;
+        match (a.shape.as_deref(), a.kind.as_str()) {
+            (Some("string"), "set") => {
+                // `std::string` → `const char*`; the FFI rejects a null
+                // handle or non-UTF-8 with a nonzero code routed through
+                // the typed error leaf.
+                write!(
+                    out,
+                    "    void {method}(const std::string& {p}) {{\n        if ({sym}(handle_.get(), {p}.c_str()) != 0) {{\n            detail::throw_last_ffi_error();\n        }}\n    }}\n",
+                    method = method, p = a.param, sym = a.symbol,
+                )?;
+            }
+            (Some("string"), _) => {
+                // Owned `char*` adopted by `FfiString` (auto-freed);
+                // empty string on a null handle or interior-NUL value.
+                write!(
+                    out,
+                    "    std::string {method}() const {{\n        detail::FfiString s({sym}(handle_.get()));\n        return s.str();\n    }}\n",
+                    method = method, sym = a.symbol,
+                )?;
+            }
+            (_, "set") => {
+                // Scalar / duration / `policy_limit` pass-through setter.
+                let ty = cpp_type(&a.abi_type);
+                write!(
+                    out,
+                    "    void {method}({ty} {p}) {{\n        {sym}(handle_.get(), {p});\n    }}\n",
+                    method = method,
+                    ty = ty,
+                    p = a.param,
+                    sym = a.symbol,
+                )?;
+            }
+            (_, _) => {
+                // Scalar / duration / `policy_limit` pass-through getter.
+                let ty = cpp_type(&a.abi_type);
+                write!(
+                    out,
+                    "    {ty} {method}() const {{\n        {ty} out{{}};\n        {sym}(handle_.get(), &out);\n        return out;\n    }}\n",
+                    ty = ty, method = method, sym = a.symbol,
+                )?;
+            }
         }
     }
     Ok(out)
@@ -220,35 +379,108 @@ pub(super) fn render_python_config_accessors() -> Result<String, Box<dyn std::er
     );
     for a in &accessors {
         let field = field_name(a);
-        let ty = py_type(&a.abi_type);
         indented_doc(&mut out, "    ", &a.py_doc);
-        if a.kind == "set" {
-            let param = a.py_param.as_deref().expect("setter row needs py_param");
-            let rhs = match a.duration_unit.as_deref() {
-                Some("ms") => format!("std::time::Duration::from_millis({param})"),
-                Some("secs") => format!("std::time::Duration::from_secs({param})"),
-                _ => param.to_string(),
-            };
-            write!(
-                out,
-                "    #[setter]\n    fn set_{field}(&self, {param}: {ty}) {{\n{LOCK}\n        guard.{path} = {rhs};\n    }}\n\n",
-                field = field, param = param, ty = ty, path = a.path, rhs = rhs,
-            )?;
-        } else {
-            let read = if a.duration_unit.as_deref() == Some("secs") {
-                format!("guard.{}.as_secs()", a.path)
-            } else {
-                format!("guard.{}", a.path)
-            };
-            write!(
-                out,
-                "    #[getter]\n    fn get_{field}(&self) -> {ty} {{\n{RLOCK}\n        {read}\n    }}\n\n",
-                field = field, ty = ty, read = read,
-            )?;
+        match (a.shape.as_deref(), a.kind.as_str()) {
+            (Some("string"), "set") => {
+                // `String` field assignment; `setter_call` routes the
+                // value through a `&mut self` method instead.
+                let param = a.py_param.as_deref().expect("setter row needs py_param");
+                let assign = match a.setter_call.as_deref() {
+                    Some(call) => format!("guard.{call}({param});"),
+                    None => format!("guard.{path} = {param};", path = a.path),
+                };
+                write!(
+                    out,
+                    "    #[setter]\n    fn set_{field}(&self, {param}: String) {{\n{LOCK}\n        {assign}\n    }}\n\n",
+                    field = field, param = param, assign = assign,
+                )?;
+            }
+            (Some("string"), _) => {
+                // Owned `String` read; `getter_call` routes through a
+                // `&self` method instead of a direct field clone.
+                let read = match a.getter_call.as_deref() {
+                    Some(call) => format!("guard.{call}().to_string()"),
+                    None => format!("guard.{}.clone()", a.path),
+                };
+                write!(
+                    out,
+                    "    #[getter]\n    fn get_{field}(&self) -> String {{\n{RLOCK}\n        {read}\n    }}\n\n",
+                    field = field, read = read,
+                )?;
+            }
+            (_, "set") => {
+                let ty = py_type(&a.abi_type);
+                let param = a.py_param.as_deref().expect("setter row needs py_param");
+                let rhs = match a.duration_unit.as_deref() {
+                    Some("ms") => format!("std::time::Duration::from_millis({param})"),
+                    Some("secs") => format!("std::time::Duration::from_secs({param})"),
+                    _ => param.to_string(),
+                };
+                let body = if a.shape.as_deref() == Some("policy_limit") {
+                    let lf = a
+                        .limit_field
+                        .as_deref()
+                        .expect("policy_limit needs limit_field");
+                    format!(
+                        "        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {{\n            limits.{lf} = {rhs};\n        }}"
+                    )
+                } else {
+                    format!("        guard.{path} = {rhs};", path = a.path)
+                };
+                write!(
+                    out,
+                    "    #[setter]\n    fn set_{field}(&self, {param}: {ty}) {{\n{LOCK}\n{body}\n    }}\n\n",
+                    field = field, param = param, ty = ty, body = body,
+                )?;
+            }
+            (_, _) => {
+                let ty = py_type(&a.abi_type);
+                let read = py_get_read(a);
+                write!(
+                    out,
+                    "    #[getter]\n    fn get_{field}(&self) -> {ty} {{\n{RLOCK}\n        {read}\n    }}\n\n",
+                    field = field, ty = ty, read = read,
+                )?;
+            }
         }
     }
     out.push_str("}\n");
     Ok(out)
+}
+
+/// The Python getter read expression (the value the `#[getter]` returns),
+/// keyed by `shape` and `duration_unit`.
+fn py_get_read(a: &Accessor) -> String {
+    if a.shape.as_deref() == Some("policy_limit") {
+        let lf = a
+            .limit_field
+            .as_deref()
+            .expect("policy_limit needs limit_field");
+        let suffix = if a.duration_unit.as_deref() == Some("secs") {
+            ".as_secs()"
+        } else {
+            ""
+        };
+        // The fallback default is split across lines to match rustfmt's
+        // method-chain wrap for the `secs` variants.
+        return if suffix.is_empty() {
+            format!(
+                "match &guard.reconnect.policy {{\n            config::ReconnectPolicy::Auto(limits) => limits.{lf},\n            _ => config::ReconnectAttemptLimits::default().{lf},\n        }}"
+            )
+        } else {
+            format!(
+                "match &guard.reconnect.policy {{\n            config::ReconnectPolicy::Auto(limits) => limits.{lf}{suffix},\n            _ => config::ReconnectAttemptLimits::default()\n                .{lf}\n                {suffix},\n        }}"
+            )
+        };
+    }
+    match a.duration_unit.as_deref() {
+        Some("ms") => format!(
+            "u64::try_from(guard.{}.as_millis()).unwrap_or(u64::MAX)",
+            a.path
+        ),
+        Some("secs") => format!("guard.{}.as_secs()", a.path),
+        _ => format!("guard.{}", a.path),
+    }
 }
 
 /// The TypeScript SDK config accessors: a `#[napi] impl Config` block
@@ -268,9 +500,66 @@ pub(super) fn render_typescript_config_accessors() -> Result<String, Box<dyn std
     for a in &accessors {
         let field = field_name(a);
         indented_doc(&mut out, "    ", &a.ts_doc);
+        // ── string carve-out (parity with the FFI `*const c_char`
+        //    surface; the JS surface takes / returns a plain `string`) ──
+        if a.shape.as_deref() == Some("string") {
+            if a.kind == "set" {
+                let param = a.ts_param.as_deref().expect("setter row needs ts_param");
+                let set_js = format!("set{}", to_pascal_case(field));
+                let assign = match a.setter_call.as_deref() {
+                    Some(call) => format!("guard.{call}({param});"),
+                    None => format!("guard.{path} = {param};", path = a.path),
+                };
+                write!(
+                    out,
+                    "    #[napi(js_name = \"{set_js}\")]\n    pub fn set_{field}(&self, {param}: String) -> napi::Result<()> {{\n{LOCK}\n        {assign}\n        Ok(())\n    }}\n\n",
+                    set_js = set_js, field = field, param = param, assign = assign,
+                )?;
+            } else {
+                let get_js = to_camel_case(field);
+                let read = match a.getter_call.as_deref() {
+                    Some(call) => format!("guard.{call}().to_string()"),
+                    None => format!("guard.{}.clone()", a.path),
+                };
+                write!(
+                    out,
+                    "    #[napi(getter, js_name = \"{get_js}\")]\n    pub fn {field}(&self) -> napi::Result<String> {{\n{RLOCK}\n        Ok({read})\n    }}\n\n",
+                    get_js = get_js, field = field, read = read,
+                )?;
+            }
+            continue;
+        }
         if a.kind == "set" {
             let param = a.ts_param.as_deref().expect("setter row needs ts_param");
             let set_js = format!("set{}", to_pascal_case(field));
+            // `policy_limit` setters share the scalar BigInt/number decode
+            // but assign into `ReconnectPolicy::Auto(limits)` rather than a
+            // bare field; emit the decode + the `if let Auto` body.
+            if a.shape.as_deref() == Some("policy_limit") {
+                let lf = a
+                    .limit_field
+                    .as_deref()
+                    .expect("policy_limit needs limit_field");
+                let (arg_ty, decode, value_expr) = match a.abi_type.as_str() {
+                    "u64" => (
+                        "napi::bindgen_prelude::BigInt",
+                        format!("        let value = bigint_to_u64(\"{set_js}\", &{param})?;\n"),
+                        match a.duration_unit.as_deref() {
+                            Some("secs") => "std::time::Duration::from_secs(value)".to_string(),
+                            _ => "value".to_string(),
+                        },
+                    ),
+                    "u32" => ("u32", String::new(), param.to_string()),
+                    other => panic!("config_surface: policy_limit abi '{other}'"),
+                };
+                write!(
+                    out,
+                    "    #[napi(js_name = \"{set_js}\")]\n    pub fn set_{field}(&self, {param}: {arg_ty}) -> napi::Result<()> {{\n{decode}{LOCK}\n        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {{\n            limits.{lf} = {value_expr};\n        }}\n        Ok(())\n    }}\n\n",
+                    set_js = set_js, field = field, param = param, arg_ty = arg_ty,
+                    decode = decode, lf = lf, value_expr = value_expr,
+                )?;
+                continue;
+            }
             let (arg_ty, decode, value_expr) = match a.abi_type.as_str() {
                 // u64 knobs arrive as a JS BigInt; decode losslessly.
                 "u64" => (
@@ -310,12 +599,44 @@ pub(super) fn render_typescript_config_accessors() -> Result<String, Box<dyn std
             )?;
         } else {
             let get_js = to_camel_case(field);
+            // `policy_limit` getters read through `ReconnectPolicy::Auto`,
+            // falling back to the `Auto` defaults; the value then wraps the
+            // same way as the matching scalar abi (BigInt for secs / u32).
+            if a.shape.as_deref() == Some("policy_limit") {
+                let lf = a
+                    .limit_field
+                    .as_deref()
+                    .expect("policy_limit needs limit_field");
+                let matched = format!(
+                    "match &guard.reconnect.policy {{\n            config::ReconnectPolicy::Auto(limits) => limits.{lf},\n            _ => config::ReconnectAttemptLimits::default().{lf},\n        }}"
+                );
+                let (ret_ty, body) = match a.abi_type.as_str() {
+                    "u64" => (
+                        "napi::bindgen_prelude::BigInt",
+                        format!(
+                            "        let value = {matched};\n        Ok(napi::bindgen_prelude::BigInt::from(value.as_secs()))\n"
+                        ),
+                    ),
+                    "u32" => ("u32", format!("        Ok({matched})\n")),
+                    other => panic!("config_surface: policy_limit abi '{other}'"),
+                };
+                write!(
+                    out,
+                    "    #[napi(getter, js_name = \"{get_js}\")]\n    pub fn {field}(&self) -> napi::Result<{ret_ty}> {{\n{RLOCK}\n{body}    }}\n\n",
+                    get_js = get_js, field = field, ret_ty = ret_ty, body = body,
+                )?;
+                continue;
+            }
             let (ret_ty, body) = match a.abi_type.as_str() {
                 "u64" => {
-                    let read = if a.duration_unit.as_deref() == Some("secs") {
-                        format!("guard.{}.as_secs()", a.path)
-                    } else {
-                        format!("guard.{}", a.path)
+                    let read = match a.duration_unit.as_deref() {
+                        // `retry.*` `Duration` fields read as saturating `u64` ms.
+                        Some("ms") => format!(
+                            "u64::try_from(guard.{}.as_millis()).unwrap_or(u64::MAX)",
+                            a.path
+                        ),
+                        Some("secs") => format!("guard.{}.as_secs()", a.path),
+                        _ => format!("guard.{}", a.path),
                     };
                     (
                         "napi::bindgen_prelude::BigInt".to_string(),

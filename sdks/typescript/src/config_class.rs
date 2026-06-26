@@ -149,77 +149,6 @@ impl Config {
         Ok(())
     }
 
-    /// Set the per-class transient-failure attempt budget for the
-    /// auto-reconnect path. Default `30`. No effect unless the
-    /// reconnect policy is `Auto`.
-    #[napi(js_name = "setReconnectMaxAttempts")]
-    pub fn set_reconnect_max_attempts(&self, max_attempts: u32) -> napi::Result<()> {
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
-            limits.max_attempts = max_attempts;
-        }
-        Ok(())
-    }
-
-    /// Set the per-class rate-limited (`TooManyRequests`) attempt
-    /// budget for the auto-reconnect path. Default `100`. No effect
-    /// unless the reconnect policy is `Auto`.
-    #[napi(js_name = "setReconnectMaxRateLimitedAttempts")]
-    pub fn set_reconnect_max_rate_limited_attempts(
-        &self,
-        max_rate_limited_attempts: u32,
-    ) -> napi::Result<()> {
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
-            limits.max_rate_limited_attempts = max_rate_limited_attempts;
-        }
-        Ok(())
-    }
-
-    /// Set the continuous successful-data-flow window (in seconds)
-    /// after which the auto-reconnect attempt counters reset. Default
-    /// `60`. No effect unless the reconnect policy is `Auto`.
-    ///
-    /// Accepts a `bigint` for parity with the Python / C++ / FFI
-    /// surface, which uses a 64-bit unsigned integer. JavaScript `Number` callers should wrap their
-    /// value: `setReconnectStableWindowSecs(BigInt(60))`.
-    #[napi(js_name = "setReconnectStableWindowSecs")]
-    pub fn set_reconnect_stable_window_secs(
-        &self,
-        secs: napi::bindgen_prelude::BigInt,
-    ) -> napi::Result<()> {
-        // BigInt → u64. napi's `BigInt` represents value as
-        // `sign_bit + words[Vec<u64>]`; the magnitude is the
-        // first word when the value fits in 64 bits, with all
-        // subsequent words required to be zero.
-        if secs.sign_bit && !secs.words.iter().all(|w| *w == 0) {
-            return Err(napi::Error::from_reason(
-                "setReconnectStableWindowSecs: negative BigInt rejected; \
-                 stable_window seconds must be non-negative",
-            ));
-        }
-        if secs.words.len() > 1 {
-            return Err(napi::Error::from_reason(
-                "setReconnectStableWindowSecs: BigInt magnitude above u64::MAX",
-            ));
-        }
-        let value = secs.words.first().copied().unwrap_or(0);
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
-            limits.stable_window = std::time::Duration::from_secs(value);
-        }
-        Ok(())
-    }
-
     /// Set the jitter strategy applied to every reconnect delay.
     /// Accepts `"full"` (default), `"equal"`, `"decorrelated"`, or
     /// `"none"` (case-insensitive).
@@ -248,72 +177,6 @@ impl Config {
         Ok(guard.reconnect.jitter.as_str())
     }
 
-    /// Set the wall-clock reconnect envelope (seconds) for the
-    /// generic-transient and server-restart classes, measured from the
-    /// first attempt of a consecutive-reconnect sequence. `0n` disables
-    /// the envelope (attempt budgets only). Default `300n`. No effect
-    /// unless the reconnect policy is `Auto`.
-    #[napi(js_name = "setReconnectMaxElapsedSecs")]
-    pub fn set_reconnect_max_elapsed_secs(
-        &self,
-        secs: napi::bindgen_prelude::BigInt,
-    ) -> napi::Result<()> {
-        let value = bigint_to_u64("setReconnectMaxElapsedSecs", &secs)?;
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
-            limits.max_elapsed = std::time::Duration::from_secs(value);
-        }
-        Ok(())
-    }
-
-    /// Current wall-clock reconnect envelope in seconds (default
-    /// `300n`; `0n` = disabled). Reads the default-limits value when
-    /// the policy is not `Auto`.
-    #[napi(getter, js_name = "reconnectMaxElapsedSecs")]
-    pub fn reconnect_max_elapsed_secs(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        let value = match &guard.reconnect.policy {
-            config::ReconnectPolicy::Auto(limits) => limits.max_elapsed,
-            _ => config::ReconnectAttemptLimits::default().max_elapsed,
-        };
-        Ok(napi::bindgen_prelude::BigInt::from(value.as_secs()))
-    }
-
-    /// Set the `ServerRestarting` reconnect attempt budget. Default
-    /// `60`. No effect unless the reconnect policy is `Auto`.
-    #[napi(js_name = "setReconnectMaxServerRestartAttempts")]
-    pub fn set_reconnect_max_server_restart_attempts(&self, n: u32) -> napi::Result<()> {
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
-            limits.max_server_restart_attempts = n;
-        }
-        Ok(())
-    }
-
-    /// Current `ServerRestarting` reconnect attempt budget (default
-    /// `60`). Reads the default-limits value when the policy is not
-    /// `Auto`.
-    #[napi(getter, js_name = "reconnectMaxServerRestartAttempts")]
-    pub fn reconnect_max_server_restart_attempts(&self) -> napi::Result<u32> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(match &guard.reconnect.policy {
-            config::ReconnectPolicy::Auto(limits) => limits.max_server_restart_attempts,
-            _ => config::ReconnectAttemptLimits::default().max_server_restart_attempts,
-        })
-    }
-
     /// Current reconnect policy as a string (`"auto"`, `"manual"`, or
     /// `"custom"`).
     #[napi(getter, js_name = "reconnectPolicy")]
@@ -327,50 +190,6 @@ impl Config {
             config::ReconnectPolicy::Manual => "manual",
             _ => "custom",
         })
-    }
-
-    /// Current generic-transient reconnect attempt budget (default
-    /// `30`). Reads the default-limits value when the policy is not
-    /// `Auto`.
-    #[napi(getter, js_name = "reconnectMaxAttempts")]
-    pub fn reconnect_max_attempts(&self) -> napi::Result<u32> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(match &guard.reconnect.policy {
-            config::ReconnectPolicy::Auto(limits) => limits.max_attempts,
-            _ => config::ReconnectAttemptLimits::default().max_attempts,
-        })
-    }
-
-    /// Current rate-limited reconnect attempt budget (default `100`).
-    /// Reads the default-limits value when the policy is not `Auto`.
-    #[napi(getter, js_name = "reconnectMaxRateLimitedAttempts")]
-    pub fn reconnect_max_rate_limited_attempts(&self) -> napi::Result<u32> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(match &guard.reconnect.policy {
-            config::ReconnectPolicy::Auto(limits) => limits.max_rate_limited_attempts,
-            _ => config::ReconnectAttemptLimits::default().max_rate_limited_attempts,
-        })
-    }
-
-    /// Current stable-window reset interval in seconds (default `60n`).
-    /// Reads the default-limits value when the policy is not `Auto`.
-    #[napi(getter, js_name = "reconnectStableWindowSecs")]
-    pub fn reconnect_stable_window_secs(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        let value = match &guard.reconnect.policy {
-            config::ReconnectPolicy::Auto(limits) => limits.stable_window,
-            _ => config::ReconnectAttemptLimits::default().stable_window,
-        };
-        Ok(napi::bindgen_prelude::BigInt::from(value.as_secs()))
     }
 
     /// Install a custom reconnect policy driven by a JS callback.
@@ -585,111 +404,10 @@ impl Config {
         })
     }
 
-    // ── RetryPolicy field setters/getters ─────────────────────────
-
-    /// Current `retry.initial_delay` value (ms, returned as BigInt).
-    #[napi(getter, js_name = "retryInitialDelayMs")]
-    pub fn retry_initial_delay_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        let ms = u64::try_from(guard.retry.initial_delay.as_millis()).unwrap_or(u64::MAX);
-        Ok(napi::bindgen_prelude::BigInt::from(ms))
-    }
-
-    /// Current `retry.max_delay` value (ms, returned as BigInt).
-    #[napi(getter, js_name = "retryMaxDelayMs")]
-    pub fn retry_max_delay_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        let ms = u64::try_from(guard.retry.max_delay.as_millis()).unwrap_or(u64::MAX);
-        Ok(napi::bindgen_prelude::BigInt::from(ms))
-    }
-
-    // ── FlatFilesConfig field setters/getters ─────────────────────
-
-    // ── AuthConfig field setters/getters ──────────────────────────
-
-    /// Set the Nexus auth URL. Default matches the upstream
-    /// production endpoint; override to redirect at a staging
-    /// cluster for testing.
-    #[napi(js_name = "setNexusUrl")]
-    pub fn set_nexus_url(&self, url: String) -> napi::Result<()> {
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.auth.nexus_url = url;
-        Ok(())
-    }
-
-    /// Current `auth.nexus_url` value.
-    #[napi(getter, js_name = "nexusUrl")]
-    pub fn nexus_url(&self) -> napi::Result<String> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.auth.nexus_url.clone())
-    }
-
-    /// Set the `QueryInfo.client_type` identifier. Default is
-    /// `"rust-thetadatadx"`; override to identify a deployment fleet
-    /// in server-side dashboards.
-    #[napi(js_name = "setClientType")]
-    pub fn set_client_type(&self, client_type: String) -> napi::Result<()> {
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.auth.client_type = client_type;
-        Ok(())
-    }
-
-    /// Current `auth.client_type` value.
-    #[napi(getter, js_name = "clientType")]
-    pub fn client_type(&self) -> napi::Result<String> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.auth.client_type.clone())
-    }
-
-    // ── HistoricalConfig advanced endpoint overrides ────────────────────
-    //
-    // `historical_host` / `historical_port` point the historical gRPC channel at an
-    // explicit endpoint. Used by structural tests that need to aim the
-    // historical channel at a known-refused endpoint to prove the
-    // streaming-only surface never opens it; production code paths keep
-    // the `Config.production()` default. Mirrors the Python
-    // `Config.historical_host` / `.historical_port`, the C++ `set_historical_host` /
-    // `set_historical_port`, and the C ABI `thetadatadx_config_set_historical_host` /
-    // `thetadatadx_config_set_historical_port`.
-
-    /// Override the historical gRPC host. Companion to `setHistoricalPort`.
-    #[napi(js_name = "setHistoricalHost")]
-    pub fn set_historical_host(&self, host: String) -> napi::Result<()> {
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.set_historical_host(host);
-        Ok(())
-    }
-
-    /// Current historical gRPC host.
-    #[napi(getter, js_name = "historicalHost")]
-    pub fn historical_host(&self) -> napi::Result<String> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.historical_host().to_string())
-    }
+    // `retry.initial_delay` / `retry.max_delay` (ms) getters, the
+    // `auth.nexus_url` / `auth.client_type` string accessors, and the
+    // `historical_host` string accessor are generated from
+    // config_surface.toml (the `ms` / `string` carve-out kinds).
 
     // ── MetricsConfig field setter/getter ─────────────────────────
 
@@ -937,10 +655,12 @@ impl Config {
     }
 }
 
-// Mechanical scalar config setters/getters (`config_surface.toml`), in a
-// second `#[napi] impl Config` block. The divergent accessors above (enum,
-// string, `Option`, policy-aware) stay hand-written; only the assign/read
-// pairs are projected from the SSOT.
+// Mechanical config setters/getters (`config_surface.toml`), in a second
+// `#[napi] impl Config` block: the scalar / duration pairs plus the
+// `policy_limit` (reconnect `Auto`-limit) and `string` carve-out kinds.
+// The divergent accessors above (enum string labels, `Option`, policy
+// selector) stay hand-written; only the assign/read pairs are projected
+// from the SSOT.
 include!("_generated/config_accessors.rs");
 
 #[cfg(test)]

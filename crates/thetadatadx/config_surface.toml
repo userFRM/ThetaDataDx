@@ -1518,3 +1518,546 @@ Current historical `request_timeout_secs` setting in seconds
 (default `300n`; `0n` = no default deadline).
 """
 
+
+# ── retry Duration getters (ms) ────────────────────────────────────
+#
+# The two `retry.*` `Duration` getters whose setters already generate
+# above (`duration_unit = "ms"`). The getter reads the saturating
+# `u64::try_from(.as_millis())` clamp.
+
+[[accessor]]
+symbol = "thetadatadx_config_get_retry_initial_delay_ms"
+kind = "get"
+param = "out_ms"
+abi_type = "u64"
+path = "retry.initial_delay"
+duration_unit = "ms"
+out_safety = """
+        // SAFETY: out_ms checked non-null above; FFI contract pins the
+        // `u64` storage for the call. The `as_millis` read is a saturating
+        // `u64` clamp, so the write is layout-compatible with the pointee.
+"""
+doc = """
+Read the current `retry.initial_delay` setting (ms). Returns `0` on
+success, `-1` if either pointer is null.
+"""
+cpp_doc = ""
+py_doc = """
+Current ``retry.initial_delay`` value in ms.
+"""
+ts_doc = """
+Current `retry.initial_delay` value (ms, returned as BigInt).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_retry_max_delay_ms"
+kind = "get"
+param = "out_ms"
+abi_type = "u64"
+path = "retry.max_delay"
+duration_unit = "ms"
+out_safety = """
+        // SAFETY: out_ms checked non-null above; FFI contract pins the
+        // `u64` storage for the call. The `as_millis` read is a saturating
+        // `u64` clamp, so the write is layout-compatible with the pointee.
+"""
+doc = """
+Read the current `retry.max_delay` setting (ms).
+"""
+cpp_doc = ""
+py_doc = """
+Current ``retry.max_delay`` value in ms.
+"""
+ts_doc = """
+Current `retry.max_delay` value (ms, returned as BigInt).
+"""
+
+# ── Reconnect Auto-policy attempt limits (policy_limit) ─────────────
+#
+# The five `ReconnectAttemptLimits` fields reached through
+# `ReconnectPolicy::Auto`. The setter mutates only under `Auto` (a
+# silent no-op otherwise); the getter falls back to
+# `ReconnectAttemptLimits::default()` when the policy is `Manual` /
+# `Custom`. The FFI carries the limit logic; C++ is a thin pass-through.
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_max_attempts"
+kind = "set"
+shape = "policy_limit"
+limit_field = "max_attempts"
+param = "max_attempts"
+abi_type = "u32"
+doc = """
+Set the per-class transient-failure attempt budget for the
+auto-reconnect path. Default `30`. No effect unless the reconnect
+policy is `Auto`.
+"""
+cpp_doc = """
+Set the per-class transient-failure attempt budget. Default 30.
+"""
+py_doc = """
+Set the per-class transient-failure attempt budget for the
+auto-reconnect path. Default `30`. No effect unless the
+reconnect policy is `Auto`.
+"""
+ts_doc = """
+Set the per-class transient-failure attempt budget for the
+auto-reconnect path. Default `30`. No effect unless the
+reconnect policy is `Auto`.
+"""
+py_param = "max_attempts"
+ts_param = "max_attempts"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_max_attempts"
+kind = "get"
+shape = "policy_limit"
+limit_field = "max_attempts"
+param = "out"
+abi_type = "u32"
+doc = """
+Read the generic-transient reconnect attempt budget. Default `30`.
+
+Writes the configured value into `*out`. When the reconnect policy
+is not `Auto`, writes the default-limits value (the budgets only
+apply under the `Auto` policy). Returns `0` on success, `-1` if
+either pointer is null.
+"""
+cpp_doc = """
+Current generic-transient reconnect attempt budget (default 30).
+"""
+py_doc = """
+Current generic-transient reconnect attempt budget (default
+`30`). Reads the default-limits value when the policy is not
+`Auto`.
+"""
+ts_doc = """
+Current generic-transient reconnect attempt budget (default
+`30`). Reads the default-limits value when the policy is not
+`Auto`.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_max_rate_limited_attempts"
+kind = "set"
+shape = "policy_limit"
+limit_field = "max_rate_limited_attempts"
+param = "max_rate_limited_attempts"
+abi_type = "u32"
+doc = """
+Set the per-class rate-limited (`TooManyRequests`) attempt budget
+for the auto-reconnect path. Default `100`. No effect unless the
+reconnect policy is `Auto`.
+"""
+cpp_doc = """
+Set the rate-limited (TooManyRequests) attempt budget. Default 100.
+"""
+py_doc = """
+Set the per-class rate-limited (`TooManyRequests`) attempt budget
+for the auto-reconnect path. Default `100`. No effect unless the
+reconnect policy is `Auto`.
+"""
+ts_doc = """
+Set the per-class rate-limited (`TooManyRequests`) attempt
+budget for the auto-reconnect path. Default `100`. No effect
+unless the reconnect policy is `Auto`.
+"""
+py_param = "max_rate_limited_attempts"
+ts_param = "max_rate_limited_attempts"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_max_rate_limited_attempts"
+kind = "get"
+shape = "policy_limit"
+limit_field = "max_rate_limited_attempts"
+param = "out"
+abi_type = "u32"
+doc = """
+Read the rate-limited (`TooManyRequests`) reconnect attempt budget. Default `100`.
+
+Writes the configured value into `*out`. When the reconnect policy
+is not `Auto`, writes the default-limits value (the budgets only
+apply under the `Auto` policy). Returns `0` on success, `-1` if
+either pointer is null.
+"""
+cpp_doc = """
+Current rate-limited reconnect attempt budget (default 100).
+"""
+py_doc = """
+Current rate-limited reconnect attempt budget (default `100`).
+Reads the default-limits value when the policy is not `Auto`.
+"""
+ts_doc = """
+Current rate-limited reconnect attempt budget (default `100`).
+Reads the default-limits value when the policy is not `Auto`.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_max_server_restart_attempts"
+kind = "set"
+shape = "policy_limit"
+limit_field = "max_server_restart_attempts"
+param = "n"
+abi_type = "u32"
+doc = """
+Set the `ServerRestarting` reconnect attempt budget. Default `60`. No effect unless the reconnect policy is `Auto`.
+"""
+cpp_doc = """
+Set the ServerRestarting reconnect attempt budget. Default 60.
+"""
+py_doc = """
+Set the ``ServerRestarting`` reconnect attempt budget. Default
+``60``. No effect unless the reconnect policy is ``Auto``.
+"""
+ts_doc = """
+Set the `ServerRestarting` reconnect attempt budget. Default
+`60`. No effect unless the reconnect policy is `Auto`.
+"""
+py_param = "n"
+ts_param = "n"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_max_server_restart_attempts"
+kind = "get"
+shape = "policy_limit"
+limit_field = "max_server_restart_attempts"
+param = "out"
+abi_type = "u32"
+doc = """
+Read the `ServerRestarting` reconnect attempt budget. Default `60`.
+
+Writes the configured value into `*out`. When the reconnect policy
+is not `Auto`, writes the default-limits value (the budgets only
+apply under the `Auto` policy). Returns `0` on success, `-1` if
+either pointer is null.
+"""
+cpp_doc = """
+Current ServerRestarting reconnect attempt budget (default 60).
+"""
+py_doc = """
+Current ``ServerRestarting`` reconnect attempt budget (default
+``60``). Reads the default-limits value when the policy is not
+``Auto``.
+"""
+ts_doc = """
+Current `ServerRestarting` reconnect attempt budget (default
+`60`). Reads the default-limits value when the policy is not
+`Auto`.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_max_elapsed_secs"
+kind = "set"
+shape = "policy_limit"
+limit_field = "max_elapsed"
+param = "secs"
+abi_type = "u64"
+duration_unit = "secs"
+doc = """
+Set the wall-clock reconnect envelope (seconds) for the generic-transient and server-restart classes, measured from the first attempt of a consecutive-reconnect sequence. `0` disables the envelope (attempt budgets only). Default `300`. No effect unless the reconnect policy is `Auto`.
+"""
+cpp_doc = """
+Set the wall-clock reconnect envelope (seconds) for the
+generic-transient and server-restart classes. 0 disables the
+envelope (attempt budgets only). Default 300.
+"""
+py_doc = """
+Set the wall-clock reconnect envelope (seconds) for the
+generic-transient and server-restart classes, measured from the
+first attempt of a consecutive-reconnect sequence. ``0``
+disables the envelope (attempt budgets only). Default ``300``.
+No effect unless the reconnect policy is ``Auto``.
+"""
+ts_doc = """
+Set the wall-clock reconnect envelope (seconds) for the
+generic-transient and server-restart classes, measured from the
+first attempt of a consecutive-reconnect sequence. `0n` disables
+the envelope (attempt budgets only). Default `300n`. No effect
+unless the reconnect policy is `Auto`.
+"""
+py_param = "secs"
+ts_param = "secs"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_max_elapsed_secs"
+kind = "get"
+shape = "policy_limit"
+limit_field = "max_elapsed"
+param = "out"
+abi_type = "u64"
+duration_unit = "secs"
+doc = """
+Read the wall-clock reconnect envelope (seconds). `0` means the envelope is disabled. Default `300`.
+
+Writes the configured value into `*out`. When the reconnect policy
+is not `Auto`, writes the default-limits value (the budgets only
+apply under the `Auto` policy). Returns `0` on success, `-1` if
+either pointer is null.
+"""
+cpp_doc = """
+Current wall-clock reconnect envelope in seconds (default 300;
+0 = disabled).
+"""
+py_doc = """
+Current wall-clock reconnect envelope in seconds (default
+``300``; ``0`` = disabled). Reads the default-limits value when
+the policy is not ``Auto``.
+"""
+ts_doc = """
+Current wall-clock reconnect envelope in seconds (default
+`300n`; `0n` = disabled). Reads the default-limits value when
+the policy is not `Auto`.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_stable_window_secs"
+kind = "set"
+shape = "policy_limit"
+limit_field = "stable_window"
+param = "secs"
+abi_type = "u64"
+duration_unit = "secs"
+doc = """
+Set the continuous successful-data-flow window (in seconds) after
+which the auto-reconnect attempt counters reset. Default `60`. No
+effect unless the reconnect policy is `Auto`.
+"""
+cpp_doc = """
+Set the stable-window timer (seconds) after which the
+auto-reconnect attempt counters reset. Default 60.
+"""
+py_doc = """
+Set the continuous successful-data-flow window (in seconds)
+after which the auto-reconnect attempt counters reset. Default
+``60``. No effect unless the reconnect policy is ``Auto``.
+"""
+ts_doc = """
+Set the continuous successful-data-flow window (in seconds)
+after which the auto-reconnect attempt counters reset. Default
+`60`. No effect unless the reconnect policy is `Auto`.
+
+Accepts a `bigint` for parity with the Python / C++ / FFI
+surface, which uses a 64-bit unsigned integer. JavaScript `Number` callers should wrap their
+value: `setReconnectStableWindowSecs(BigInt(60))`.
+"""
+py_param = "secs"
+ts_param = "secs"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_stable_window_secs"
+kind = "get"
+shape = "policy_limit"
+limit_field = "stable_window"
+param = "out"
+abi_type = "u64"
+duration_unit = "secs"
+doc = """
+Read the stable-window reset interval (seconds). Default `60`.
+
+Writes the configured value into `*out`. When the reconnect policy
+is not `Auto`, writes the default-limits value (the budgets only
+apply under the `Auto` policy). Returns `0` on success, `-1` if
+either pointer is null.
+"""
+cpp_doc = """
+Current stable-window reset interval in seconds (default 60).
+"""
+py_doc = """
+Current stable-window reset interval in seconds (default `60`).
+Reads the default-limits value when the policy is not `Auto`.
+"""
+ts_doc = """
+Current stable-window reset interval in seconds (default `60n`).
+Reads the default-limits value when the policy is not `Auto`.
+"""
+
+# ── String config fields (string) ──────────────────────────────────
+#
+# UTF-8 `String` fields. The FFI setter validates a non-null UTF-8
+# `*const c_char`; the getter returns a heap-owned `*mut c_char` the
+# caller frees with `thetadatadx_string_free`. `historical_host` routes
+# through the `set_historical_host` / `historical_host` methods rather
+# than a direct field assignment.
+
+[[accessor]]
+symbol = "thetadatadx_config_set_nexus_url"
+kind = "set"
+shape = "string"
+param = "url"
+abi_type = "string"
+path = "auth.nexus_url"
+doc = """
+Set the Nexus auth URL on a config handle.
+
+`url` must be a non-null, NUL-terminated, valid-UTF-8 C string.
+Returns `0` on success, `-1` if `config` is null or `url` is
+null / not valid UTF-8 (the diagnostic is written to thread-local
+storage retrievable via `thetadatadx_last_error()`).
+"""
+cpp_doc = """
+Set the Nexus auth URL. Default is the upstream production
+endpoint; redirect at a staging cluster for testing.
+
+Throws a @c thetadatadx::ThetaDataError leaf if the FFI rejects the value
+(null handle or non-UTF-8 input), routing through the typed class
+the FFI error code selects.
+"""
+py_doc = """
+Set the Nexus auth URL. Default matches the upstream production
+endpoint; override to redirect at a staging cluster.
+"""
+ts_doc = """
+Set the Nexus auth URL. Default matches the upstream
+production endpoint; override to redirect at a staging
+cluster for testing.
+"""
+py_param = "url"
+ts_param = "url"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_nexus_url"
+kind = "get"
+shape = "string"
+param = "out"
+abi_type = "string"
+path = "auth.nexus_url"
+doc = """
+Read the current `auth.nexus_url` setting.
+
+On success, returns a heap-owned NUL-terminated C string the
+caller MUST release with `thetadatadx_string_free`. Returns null if
+`config` is null or the stored value contains an interior NUL
+(the diagnostic is written to `thetadatadx_last_error()`).
+"""
+cpp_doc = """
+Current @c auth.nexus_url. Returns an empty string if the FFI
+getter returns null (null handle or interior-NUL value).
+"""
+py_doc = """
+Current ``auth.nexus_url`` value.
+"""
+ts_doc = """
+Current `auth.nexus_url` value.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_client_type"
+kind = "set"
+shape = "string"
+param = "client_type"
+abi_type = "string"
+path = "auth.client_type"
+doc = """
+Set the `QueryInfo.client_type` identifier on a config handle.
+
+`client_type` must be a non-null, NUL-terminated, valid-UTF-8 C
+string. Returns `0` on success, `-1` if `config` is null or
+`client_type` is null / not valid UTF-8 (the diagnostic is written
+to thread-local storage retrievable via `thetadatadx_last_error()`).
+"""
+cpp_doc = """
+Set the QueryInfo.client_type identifier. Default is
+@c "rust-thetadatadx"; override to identify a deployment fleet
+in server-side dashboards.
+
+Throws a @c thetadatadx::ThetaDataError leaf if the FFI rejects the value
+(null handle or non-UTF-8 input), routing through the typed class
+the FFI error code selects.
+"""
+py_doc = """
+Set the ``QueryInfo.client_type`` identifier. Default is
+``"rust-thetadatadx"``; override to identify a deployment fleet
+in server-side dashboards.
+"""
+ts_doc = """
+Set the `QueryInfo.client_type` identifier. Default is
+`"rust-thetadatadx"`; override to identify a deployment fleet
+in server-side dashboards.
+"""
+py_param = "client_type"
+ts_param = "client_type"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_client_type"
+kind = "get"
+shape = "string"
+param = "out"
+abi_type = "string"
+path = "auth.client_type"
+doc = """
+Read the current `auth.client_type` setting.
+
+On success, returns a heap-owned NUL-terminated C string the
+caller MUST release with `thetadatadx_string_free`. Returns null if
+`config` is null or the stored value contains an interior NUL
+(the diagnostic is written to `thetadatadx_last_error()`).
+"""
+cpp_doc = """
+Current @c auth.client_type. Returns an empty string if the FFI
+getter returns null (null handle or interior-NUL value).
+"""
+py_doc = """
+Current ``auth.client_type`` value.
+"""
+ts_doc = """
+Current `auth.client_type` value.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_historical_host"
+kind = "set"
+shape = "string"
+param = "host"
+abi_type = "string"
+setter_call = "set_historical_host"
+doc = """
+Set the historical gRPC host on a config handle.
+
+`host` must be a non-null, NUL-terminated, valid-UTF-8 C string.
+Returns `0` on success, `-1` if `config` is null or `host` is
+null / not valid UTF-8 (the diagnostic is written to thread-local
+storage retrievable via `thetadatadx_last_error()`).
+"""
+cpp_doc = """
+Set the historical gRPC host. Defaults to the upstream
+production endpoint; redirect the historical channel at a known
+host for testing. Throws a @c thetadatadx::ThetaDataError leaf if the FFI
+rejects the value (null handle or non-UTF-8 input).
+"""
+py_doc = """
+Override the historical gRPC host. Used by structural tests that
+need to point the historical channel at a known-refused endpoint
+to prove the streaming-only surface never opens it; production
+code paths should keep the `Config::production()` default.
+"""
+ts_doc = """
+Override the historical gRPC host. Companion to `setHistoricalPort`.
+"""
+py_param = "host"
+ts_param = "host"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_historical_host"
+kind = "get"
+shape = "string"
+param = "out"
+abi_type = "string"
+getter_call = "historical_host"
+doc = """
+Read the current historical gRPC host.
+
+On success, returns a heap-owned NUL-terminated C string the caller
+MUST release with `thetadatadx_string_free`. Returns null if `config` is
+null or the stored value contains an interior NUL (the diagnostic is
+written to `thetadatadx_last_error()`).
+"""
+cpp_doc = """
+Current historical gRPC host. Returns an empty string if
+the FFI getter returns null (null handle or interior-NUL value).
+"""
+py_doc = """
+Current historical gRPC host.
+"""
+ts_doc = """
+Current historical gRPC host.
+"""

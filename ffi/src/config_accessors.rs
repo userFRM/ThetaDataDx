@@ -1071,3 +1071,462 @@ pub unsafe extern "C" fn thetadatadx_config_get_request_timeout_secs(
     })
 }
 
+/// Read the current `retry.initial_delay` setting (ms). Returns `0` on
+/// success, `-1` if either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_retry_initial_delay_ms(
+    config: *const ThetaDataDxConfig,
+    out_ms: *mut u64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_ms.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // SAFETY: out_ms checked non-null above; FFI contract pins the
+        // `u64` storage for the call. The `as_millis` read is a saturating
+        // `u64` clamp, so the write is layout-compatible with the pointee.
+        unsafe {
+            *out_ms = u64::try_from(config.inner.retry.initial_delay.as_millis()).unwrap_or(u64::MAX);
+        }
+        0
+    })
+}
+
+/// Read the current `retry.max_delay` setting (ms).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_retry_max_delay_ms(
+    config: *const ThetaDataDxConfig,
+    out_ms: *mut u64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out_ms.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        // SAFETY: out_ms checked non-null above; FFI contract pins the
+        // `u64` storage for the call. The `as_millis` read is a saturating
+        // `u64` clamp, so the write is layout-compatible with the pointee.
+        unsafe {
+            *out_ms = u64::try_from(config.inner.retry.max_delay.as_millis()).unwrap_or(u64::MAX);
+        }
+        0
+    })
+}
+
+/// Set the per-class transient-failure attempt budget for the
+/// auto-reconnect path. Default `30`. No effect unless the reconnect
+/// policy is `Auto`.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_max_attempts(
+    config: *mut ThetaDataDxConfig,
+    max_attempts: u32,
+) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        if let thetadatadx::ReconnectPolicy::Auto(ref mut limits) = config.inner.reconnect.policy {
+            limits.max_attempts = max_attempts;
+        }
+    })
+}
+
+/// Read the generic-transient reconnect attempt budget. Default `30`.
+///
+/// Writes the configured value into `*out`. When the reconnect policy
+/// is not `Auto`, writes the default-limits value (the budgets only
+/// apply under the `Auto` policy). Returns `0` on success, `-1` if
+/// either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_reconnect_max_attempts(
+    config: *const ThetaDataDxConfig,
+    out: *mut u32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        let value = match &config.inner.reconnect.policy {
+            thetadatadx::ReconnectPolicy::Auto(limits) => limits.max_attempts,
+            _ => thetadatadx::ReconnectAttemptLimits::default().max_attempts,
+        };
+        // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
+        unsafe {
+            *out = value;
+        }
+        0
+    })
+}
+
+/// Set the per-class rate-limited (`TooManyRequests`) attempt budget
+/// for the auto-reconnect path. Default `100`. No effect unless the
+/// reconnect policy is `Auto`.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_max_rate_limited_attempts(
+    config: *mut ThetaDataDxConfig,
+    max_rate_limited_attempts: u32,
+) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        if let thetadatadx::ReconnectPolicy::Auto(ref mut limits) = config.inner.reconnect.policy {
+            limits.max_rate_limited_attempts = max_rate_limited_attempts;
+        }
+    })
+}
+
+/// Read the rate-limited (`TooManyRequests`) reconnect attempt budget. Default `100`.
+///
+/// Writes the configured value into `*out`. When the reconnect policy
+/// is not `Auto`, writes the default-limits value (the budgets only
+/// apply under the `Auto` policy). Returns `0` on success, `-1` if
+/// either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_reconnect_max_rate_limited_attempts(
+    config: *const ThetaDataDxConfig,
+    out: *mut u32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        let value = match &config.inner.reconnect.policy {
+            thetadatadx::ReconnectPolicy::Auto(limits) => limits.max_rate_limited_attempts,
+            _ => thetadatadx::ReconnectAttemptLimits::default().max_rate_limited_attempts,
+        };
+        // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
+        unsafe {
+            *out = value;
+        }
+        0
+    })
+}
+
+/// Set the `ServerRestarting` reconnect attempt budget. Default `60`. No effect unless the reconnect policy is `Auto`.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_max_server_restart_attempts(
+    config: *mut ThetaDataDxConfig,
+    n: u32,
+) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        if let thetadatadx::ReconnectPolicy::Auto(ref mut limits) = config.inner.reconnect.policy {
+            limits.max_server_restart_attempts = n;
+        }
+    })
+}
+
+/// Read the `ServerRestarting` reconnect attempt budget. Default `60`.
+///
+/// Writes the configured value into `*out`. When the reconnect policy
+/// is not `Auto`, writes the default-limits value (the budgets only
+/// apply under the `Auto` policy). Returns `0` on success, `-1` if
+/// either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_reconnect_max_server_restart_attempts(
+    config: *const ThetaDataDxConfig,
+    out: *mut u32,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        let value = match &config.inner.reconnect.policy {
+            thetadatadx::ReconnectPolicy::Auto(limits) => limits.max_server_restart_attempts,
+            _ => thetadatadx::ReconnectAttemptLimits::default().max_server_restart_attempts,
+        };
+        // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
+        unsafe {
+            *out = value;
+        }
+        0
+    })
+}
+
+/// Set the wall-clock reconnect envelope (seconds) for the generic-transient and server-restart classes, measured from the first attempt of a consecutive-reconnect sequence. `0` disables the envelope (attempt budgets only). Default `300`. No effect unless the reconnect policy is `Auto`.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_max_elapsed_secs(
+    config: *mut ThetaDataDxConfig,
+    secs: u64,
+) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        if let thetadatadx::ReconnectPolicy::Auto(ref mut limits) = config.inner.reconnect.policy {
+            limits.max_elapsed = std::time::Duration::from_secs(secs);
+        }
+    })
+}
+
+/// Read the wall-clock reconnect envelope (seconds). `0` means the envelope is disabled. Default `300`.
+///
+/// Writes the configured value into `*out`. When the reconnect policy
+/// is not `Auto`, writes the default-limits value (the budgets only
+/// apply under the `Auto` policy). Returns `0` on success, `-1` if
+/// either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_reconnect_max_elapsed_secs(
+    config: *const ThetaDataDxConfig,
+    out: *mut u64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        let value = match &config.inner.reconnect.policy {
+            thetadatadx::ReconnectPolicy::Auto(limits) => limits.max_elapsed.as_secs(),
+            _ => thetadatadx::ReconnectAttemptLimits::default().max_elapsed.as_secs(),
+        };
+        // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
+        unsafe {
+            *out = value;
+        }
+        0
+    })
+}
+
+/// Set the continuous successful-data-flow window (in seconds) after
+/// which the auto-reconnect attempt counters reset. Default `60`. No
+/// effect unless the reconnect policy is `Auto`.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_reconnect_stable_window_secs(
+    config: *mut ThetaDataDxConfig,
+    secs: u64,
+) {
+    ffi_boundary!((), {
+        let config = require_config_mut!(config);
+        if let thetadatadx::ReconnectPolicy::Auto(ref mut limits) = config.inner.reconnect.policy {
+            limits.stable_window = std::time::Duration::from_secs(secs);
+        }
+    })
+}
+
+/// Read the stable-window reset interval (seconds). Default `60`.
+///
+/// Writes the configured value into `*out`. When the reconnect policy
+/// is not `Auto`, writes the default-limits value (the budgets only
+/// apply under the `Auto` policy). Returns `0` on success, `-1` if
+/// either pointer is null.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_reconnect_stable_window_secs(
+    config: *const ThetaDataDxConfig,
+    out: *mut u64,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() || out.is_null() {
+            set_error("config or out-parameter pointer is null");
+            return -1;
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        let value = match &config.inner.reconnect.policy {
+            thetadatadx::ReconnectPolicy::Auto(limits) => limits.stable_window.as_secs(),
+            _ => thetadatadx::ReconnectAttemptLimits::default().stable_window.as_secs(),
+        };
+        // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
+        unsafe {
+            *out = value;
+        }
+        0
+    })
+}
+
+/// Set the Nexus auth URL on a config handle.
+///
+/// `url` must be a non-null, NUL-terminated, valid-UTF-8 C string.
+/// Returns `0` on success, `-1` if `config` is null or `url` is
+/// null / not valid UTF-8 (the diagnostic is written to thread-local
+/// storage retrievable via `thetadatadx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_nexus_url(
+    config: *mut ThetaDataDxConfig,
+    url: *const c_char,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            set_error("config handle is null");
+            return -1;
+        }
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
+        let url = match unsafe { cstr_to_str(url) } {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                set_error("url is null");
+                return -1;
+            }
+            Err(e) => {
+                set_error(&format!("url is not valid UTF-8: {e}"));
+                return -1;
+            }
+        };
+        // SAFETY: config is a non-null pointer returned by thetadatadx_config_* and not yet freed.
+        let config = unsafe { &mut *config };
+        config.inner.auth.nexus_url = url.to_string();
+        0
+    })
+}
+
+/// Read the current `auth.nexus_url` setting.
+///
+/// On success, returns a heap-owned NUL-terminated C string the
+/// caller MUST release with `thetadatadx_string_free`. Returns null if
+/// `config` is null or the stored value contains an interior NUL
+/// (the diagnostic is written to `thetadatadx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_nexus_url(
+    config: *const ThetaDataDxConfig,
+) -> *mut c_char {
+    ffi_boundary!(ptr::null_mut(), {
+        if config.is_null() {
+            set_error("config handle is null");
+            return ptr::null_mut();
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        match std::ffi::CString::new(config.inner.auth.nexus_url.as_str()) {
+            Ok(c) => c.into_raw(),
+            Err(e) => {
+                set_error(&format!("nexus_url contains an interior NUL: {e}"));
+                ptr::null_mut()
+            }
+        }
+    })
+}
+
+/// Set the `QueryInfo.client_type` identifier on a config handle.
+///
+/// `client_type` must be a non-null, NUL-terminated, valid-UTF-8 C
+/// string. Returns `0` on success, `-1` if `config` is null or
+/// `client_type` is null / not valid UTF-8 (the diagnostic is written
+/// to thread-local storage retrievable via `thetadatadx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_client_type(
+    config: *mut ThetaDataDxConfig,
+    client_type: *const c_char,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            set_error("config handle is null");
+            return -1;
+        }
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
+        let client_type = match unsafe { cstr_to_str(client_type) } {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                set_error("client_type is null");
+                return -1;
+            }
+            Err(e) => {
+                set_error(&format!("client_type is not valid UTF-8: {e}"));
+                return -1;
+            }
+        };
+        // SAFETY: config is a non-null pointer returned by thetadatadx_config_* and not yet freed.
+        let config = unsafe { &mut *config };
+        config.inner.auth.client_type = client_type.to_string();
+        0
+    })
+}
+
+/// Read the current `auth.client_type` setting.
+///
+/// On success, returns a heap-owned NUL-terminated C string the
+/// caller MUST release with `thetadatadx_string_free`. Returns null if
+/// `config` is null or the stored value contains an interior NUL
+/// (the diagnostic is written to `thetadatadx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_client_type(
+    config: *const ThetaDataDxConfig,
+) -> *mut c_char {
+    ffi_boundary!(ptr::null_mut(), {
+        if config.is_null() {
+            set_error("config handle is null");
+            return ptr::null_mut();
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        match std::ffi::CString::new(config.inner.auth.client_type.as_str()) {
+            Ok(c) => c.into_raw(),
+            Err(e) => {
+                set_error(&format!("client_type contains an interior NUL: {e}"));
+                ptr::null_mut()
+            }
+        }
+    })
+}
+
+/// Set the historical gRPC host on a config handle.
+///
+/// `host` must be a non-null, NUL-terminated, valid-UTF-8 C string.
+/// Returns `0` on success, `-1` if `config` is null or `host` is
+/// null / not valid UTF-8 (the diagnostic is written to thread-local
+/// storage retrievable via `thetadatadx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_set_historical_host(
+    config: *mut ThetaDataDxConfig,
+    host: *const c_char,
+) -> i32 {
+    ffi_boundary!(-1, {
+        if config.is_null() {
+            set_error("config handle is null");
+            return -1;
+        }
+        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
+        let host = match unsafe { cstr_to_str(host) } {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                set_error("host is null");
+                return -1;
+            }
+            Err(e) => {
+                set_error(&format!("host is not valid UTF-8: {e}"));
+                return -1;
+            }
+        };
+        // SAFETY: config is a non-null pointer returned by thetadatadx_config_* and not yet freed.
+        let config = unsafe { &mut *config };
+        config.inner.set_historical_host(host.to_string());
+        0
+    })
+}
+
+/// Read the current historical gRPC host.
+///
+/// On success, returns a heap-owned NUL-terminated C string the caller
+/// MUST release with `thetadatadx_string_free`. Returns null if `config` is
+/// null or the stored value contains an interior NUL (the diagnostic is
+/// written to `thetadatadx_last_error()`).
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_config_get_historical_host(
+    config: *const ThetaDataDxConfig,
+) -> *mut c_char {
+    ffi_boundary!(ptr::null_mut(), {
+        if config.is_null() {
+            set_error("config handle is null");
+            return ptr::null_mut();
+        }
+        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        let config = unsafe { &*config };
+        match std::ffi::CString::new(config.inner.historical_host()) {
+            Ok(c) => c.into_raw(),
+            Err(e) => {
+                set_error(&format!("historical_host contains an interior NUL: {e}"));
+                ptr::null_mut()
+            }
+        }
+    })
+}
+
