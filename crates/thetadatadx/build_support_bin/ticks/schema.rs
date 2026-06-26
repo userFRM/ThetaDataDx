@@ -160,17 +160,12 @@ pub(crate) struct ColumnDef {
     pub(crate) doc: Option<String>,
 }
 
-/// Every per-language binding name a renderer needs for one tick type.
-/// Single TOML row replaces the parallel match arms previously hand-coded
-/// across `helpers.rs` and `ticks/mod.rs::pyclass_name`.
-///
-/// Underscore-prefixed fields are schema-validation-only at this seam:
-/// the per-language binding name they hold is read elsewhere (the
-/// endpoint emitters' `sdk_helpers` reparses the same TOML for FFI / C++
-/// / Python emit paths), but the per-tick emitters in this tree only
-/// reach for `collection`, the pyclass / Vec / Arrow projections, and
-/// `ts_class_vec`. Keeping the full shape here lets `deny_unknown_fields`
-/// (added at this tree's load seam) reject typos at TOML-load time.
+/// The per-language binding names the per-tick emitters in this tree read
+/// for one tick type: the pyclass / Vec / Arrow projections and the
+/// TypeScript class vec. The other binding names in the same TOML row
+/// (FFI / C++ / direct) are read by the endpoint emitters' `sdk_helpers`,
+/// which reparses the TOML independently; serde ignores the keys this
+/// struct does not name, so they are not redeclared here.
 #[derive(Debug, Deserialize, Clone)]
 pub(crate) struct TickRenderDef {
     /// Wire-collection plural keying every renderer call (e.g. `"GreeksTicks"`).
@@ -178,31 +173,9 @@ pub(crate) struct TickRenderDef {
     /// `endpoint_surface.toml`. Build-time validator rejects duplicates and
     /// strays.
     pub(crate) collection: String,
-    #[serde(rename = "direct")]
-    _direct: String,
-    #[serde(rename = "parser")]
-    _parser: String,
-    #[serde(rename = "ffi_array")]
-    _ffi_array: String,
-    #[serde(rename = "ffi_output_variant")]
-    _ffi_output_variant: String,
-    #[serde(rename = "ffi_from_vec_array")]
-    _ffi_from_vec_array: String,
-    #[serde(rename = "ffi_header_return")]
-    _ffi_header_return: String,
-    #[serde(rename = "ffi_free_fn")]
-    _ffi_free_fn: String,
-    #[serde(rename = "cpp_value")]
-    _cpp_value: String,
-    #[serde(rename = "python_converter")]
-    _python_converter: String,
-    #[serde(rename = "python_columnar")]
-    _python_columnar: String,
     pub(crate) python_pyclass_list: String,
     pub(crate) python_vec_to_pylist: String,
     pub(crate) python_slice_arrow: String,
-    #[serde(rename = "ts_class")]
-    _ts_class: String,
     pub(crate) ts_class_vec: String,
     pub(crate) pyclass: String,
 }

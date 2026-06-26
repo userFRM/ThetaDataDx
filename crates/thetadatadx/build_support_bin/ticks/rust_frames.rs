@@ -28,6 +28,9 @@
 
 use std::fmt::Write as _;
 
+use super::python_arrow::{
+    arrow_array_ctor, arrow_data_type_expr, column_push_expr, tick_struct_field_type,
+};
 use super::schema::{Schema, TickTypeDef};
 use super::sorted_type_names;
 
@@ -300,53 +303,4 @@ fn render_polars_impl(type_name: &str, def: &TickTypeDef) -> String {
     out.push_str("}\n");
 
     out
-}
-
-// ── Type-mapping helpers (mirror of python_arrow.rs) ────────────────────
-
-fn tick_struct_field_type(column_type: &str) -> &'static str {
-    match column_type {
-        "i32" | "eod_num" | "eod_date" => "i32",
-        "i64" | "eod_num64" => "i64",
-        "f64" | "price" | "eod_price" => "f64",
-        "String" | "right" | "calendar_status" => "String",
-        "bool" => "bool",
-        other => panic!("unsupported tick-struct field type '{other}'"),
-    }
-}
-
-/// Per-column push expression — mirrors
-/// `python_arrow::column_push_expr` so the Rust and Python columnar
-/// outputs project logical columns identically.
-fn column_push_expr(column_type: &str, field: &str) -> String {
-    match column_type {
-        "right" => {
-            format!("if t.{field} == '\\0' {{ String::new() }} else {{ t.{field}.to_string() }}")
-        }
-        "calendar_status" => format!("t.{field}.as_str().to_string()"),
-        "String" => format!("t.{field}.clone()"),
-        _ => format!("t.{field}"),
-    }
-}
-
-fn arrow_data_type_expr(column_type: &str) -> &'static str {
-    match column_type {
-        "i32" | "eod_num" | "eod_date" => "DataType::Int32",
-        "i64" | "eod_num64" => "DataType::Int64",
-        "f64" | "price" | "eod_price" => "DataType::Float64",
-        "String" | "right" | "calendar_status" => "DataType::Utf8",
-        "bool" => "DataType::Boolean",
-        other => panic!("unsupported Arrow data type for column type '{other}'"),
-    }
-}
-
-fn arrow_array_ctor(column_type: &str) -> &'static str {
-    match column_type {
-        "i32" | "eod_num" | "eod_date" => "Int32Array",
-        "i64" | "eod_num64" => "Int64Array",
-        "f64" | "price" | "eod_price" => "Float64Array",
-        "String" | "right" | "calendar_status" => "StringArray",
-        "bool" => "BooleanArray",
-        other => panic!("unsupported Arrow array ctor for column type '{other}'"),
-    }
 }

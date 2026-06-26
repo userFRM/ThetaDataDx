@@ -8,7 +8,7 @@
 
 use std::fmt::Write as _;
 
-use super::common::{is_option, rust_field_type};
+use super::common::{control_rust_variant, is_option, rust_field_type};
 use super::schema::{sorted_control_events, sorted_event_names, EventDef, Schema};
 
 /// Emit the `BufferedEvent` enum + the `fpss_event_to_buffered` converter
@@ -177,18 +177,6 @@ fn render_control_match_arm(event_name: &str, def: &EventDef) -> String {
         out.push_str("            },\n");
     }
     out
-}
-
-/// Core `StreamControl` variant backing a schema control event. The two
-/// names coincide for every variant except `ParseError`, whose core
-/// enum variant keeps the historical `Error` spelling — the public
-/// event class is named `ParseError` so no binding ships a class that
-/// collides with the language's own error types.
-fn control_rust_variant(event_name: &str) -> &str {
-    match event_name {
-        "ParseError" => "Error",
-        other => other,
-    }
 }
 
 /// Per-variant Rust-pattern + field-assignment mapping. Keeps the

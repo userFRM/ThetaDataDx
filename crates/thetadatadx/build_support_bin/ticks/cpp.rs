@@ -2,6 +2,8 @@
 
 use std::fmt::Write as _;
 
+use heck::ToSnakeCase;
+
 use super::idents::c_field_ident;
 use super::layout::{tick_ffi_offsets, tick_ffi_size_and_align};
 use super::schema::Schema;
@@ -54,25 +56,6 @@ pub(super) fn render_cpp_tick_layout_asserts(schema: &Schema) -> String {
     out
 }
 
-/// PascalCase → snake_case for deriving the C ABI symbol from a tick
-/// collection name (`EodTicks` → `eod_ticks`, `IndexPriceAtTimeTicks` →
-/// `index_price_at_time_ticks`). Local to the C++ emitter so it stays
-/// independent of the fpss_events `snake_case` helper.
-fn pascal_to_snake(name: &str) -> String {
-    let mut out = String::new();
-    for (i, ch) in name.chars().enumerate() {
-        if ch.is_ascii_uppercase() {
-            if i != 0 {
-                out.push('_');
-            }
-            out.push(ch.to_ascii_lowercase());
-        } else {
-            out.push(ch);
-        }
-    }
-    out
-}
-
 /// Emit `sdks/cpp/include/tick_arrow_ipc.hpp.inc` — the C++ free functions
 /// that serialise a `std::vector<Tick>` history result to Arrow IPC bytes,
 /// mirroring the `FlatFileRowList::to_arrow_ipc()` terminal. Each wraps the
@@ -93,7 +76,7 @@ pub(super) fn render_cpp_tick_arrow_ipc(schema: &Schema) -> String {
         }
         let def = &schema.types[type_name];
         let collection = &def.render.collection;
-        let snake = pascal_to_snake(collection);
+        let snake = collection.to_snake_case();
         let c_fn = format!("thetadatadx_{snake}_to_arrow_ipc");
         writeln!(
             out,

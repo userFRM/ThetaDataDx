@@ -3,6 +3,8 @@
 
 use std::fmt::Write as _;
 
+use heck::ToLowerCamelCase;
+
 use super::common::{generated_header, greek_result_fields, push_rust_doc_comment, ts_field_ident};
 use super::spec::{MethodKind, MethodSpec, UtilityKind, UtilitySpec};
 
@@ -325,17 +327,7 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
 }
 
 fn to_ts_camel_case(name: &str) -> String {
-    let mut parts = name.split('_');
-    let first = parts.next().unwrap_or_default();
-    let mut result = first.to_string();
-    for part in parts {
-        if !part.is_empty() {
-            let mut chars = part.chars();
-            result.push(chars.next().unwrap().to_uppercase().next().unwrap());
-            result.extend(chars);
-        }
-    }
-    result
+    name.to_lower_camel_case()
 }
 
 /// Renders the TypeScript utility functions source: the `AllGreeks` napi object and the offline utility free functions.

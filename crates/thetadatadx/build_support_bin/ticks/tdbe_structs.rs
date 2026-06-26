@@ -22,6 +22,8 @@
 
 use std::fmt::Write as _;
 
+use heck::ToSnakeCase;
+
 use super::idents::rust_field_ident;
 use super::layout::{tick_ffi_offsets, tick_ffi_size_and_align};
 use super::schema::{Schema, TickTypeDef};
@@ -151,7 +153,7 @@ pub(super) fn render_tdbe_layout_asserts(schema: &Schema) -> String {
         }
         let def = &schema.types[type_name];
         let (size, align) = tick_ffi_size_and_align(type_name, def);
-        let snake = pascal_to_snake(type_name);
+        let snake = type_name.to_snake_case();
 
         writeln!(out, "    #[test]").unwrap();
         writeln!(out, "    fn {snake}_layout() {{").unwrap();
@@ -173,24 +175,6 @@ pub(super) fn render_tdbe_layout_asserts(schema: &Schema) -> String {
     }
 
     out.push_str("}\n");
-    out
-}
-
-/// Convert a PascalCase tick type name (`GreeksFirstOrderTick`) to the
-/// snake_case form used in test names (`greeks_first_order_tick`). Pure
-/// helper -- not exported.
-fn pascal_to_snake(name: &str) -> String {
-    let mut out = String::new();
-    for (i, ch) in name.chars().enumerate() {
-        if ch.is_ascii_uppercase() {
-            if i != 0 {
-                out.push('_');
-            }
-            out.push(ch.to_ascii_lowercase());
-        } else {
-            out.push(ch);
-        }
-    }
     out
 }
 

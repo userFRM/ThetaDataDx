@@ -389,22 +389,7 @@ fn generate_endpoint_stream_dispatch_arm(out: &mut String, endpoint: &GeneratedE
     )
     .unwrap();
 
-    for param in builder_params {
-        let getter = optional_getter_name(&param.param_type);
-        writeln!(
-            out,
-            "            if let Some(value) = args.{getter}(\"{}\")? {{",
-            param.name
-        )
-        .unwrap();
-        writeln!(
-            out,
-            "                builder = builder.{}(value);",
-            param.name
-        )
-        .unwrap();
-        out.push_str("            }\n");
-    }
+    emit_optional_setters(out, &builder_params);
 
     emit_builder_deadline(out);
 
@@ -546,22 +531,7 @@ fn generate_endpoint_dispatch_arm(out: &mut String, endpoint: &GeneratedEndpoint
         )
         .unwrap();
 
-        for param in builder_params {
-            let getter = optional_getter_name(&param.param_type);
-            writeln!(
-                out,
-                "            if let Some(value) = args.{getter}(\"{}\")? {{",
-                param.name
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "                builder = builder.{}(value);",
-                param.name
-            )
-            .unwrap();
-            out.push_str("            }\n");
-        }
+        emit_optional_setters(out, &builder_params);
 
         emit_builder_deadline(out);
         out.push_str("            let mut result = Vec::new();\n");
@@ -588,22 +558,7 @@ fn generate_endpoint_dispatch_arm(out: &mut String, endpoint: &GeneratedEndpoint
     )
     .unwrap();
 
-    for param in builder_params {
-        let getter = optional_getter_name(&param.param_type);
-        writeln!(
-            out,
-            "            if let Some(value) = args.{getter}(\"{}\")? {{",
-            param.name
-        )
-        .unwrap();
-        writeln!(
-            out,
-            "                builder = builder.{}(value);",
-            param.name
-        )
-        .unwrap();
-        out.push_str("            }\n");
-    }
+    emit_optional_setters(out, &builder_params);
 
     emit_builder_deadline(out);
     out.push_str("            let result = builder.await?;\n");
@@ -653,4 +608,28 @@ fn emit_required_arg(out: &mut String, _endpoint: &GeneratedEndpoint, param: &Ge
         param.name, param.name
     )
     .unwrap();
+}
+
+/// Emit the optional-parameter setter chain: for each builder param, read it
+/// from `args` via its typed optional getter and forward it onto `builder`
+/// only when present. Shared by every dispatch-arm emitter so the generated
+/// setter block reads identically across the registry, snapshot, and stream
+/// paths.
+fn emit_optional_setters(out: &mut String, builder_params: &[&GeneratedParam]) {
+    for param in builder_params {
+        let getter = optional_getter_name(&param.param_type);
+        writeln!(
+            out,
+            "            if let Some(value) = args.{getter}(\"{}\")? {{",
+            param.name
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "                builder = builder.{}(value);",
+            param.name
+        )
+        .unwrap();
+        out.push_str("            }\n");
+    }
 }

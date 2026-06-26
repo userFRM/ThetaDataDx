@@ -24,6 +24,8 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
+use heck::ToUpperCamelCase;
+
 use super::model::{GeneratedEndpoint, GeneratedParam};
 
 // ─────────────────────────── Render-map loader ─────────────────────────────
@@ -235,17 +237,7 @@ fn render_param_defaults_block(endpoint: &GeneratedEndpoint) -> String {
 
 /// Converts a `snake_case` identifier to `PascalCase`.
 pub(super) fn to_pascal_case(value: &str) -> String {
-    value
-        .split('_')
-        .filter(|segment| !segment.is_empty())
-        .map(|segment| {
-            let mut chars = segment.chars();
-            match chars.next() {
-                Some(first) => first.to_uppercase().to_string() + chars.as_str(),
-                None => String::new(),
-            }
-        })
-        .collect::<String>()
+    value.to_upper_camel_case()
 }
 
 // ───────────────────────── Direct (Rust) client tick map lookup ───────────

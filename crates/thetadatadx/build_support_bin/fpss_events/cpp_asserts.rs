@@ -8,7 +8,6 @@
 
 use std::fmt::Write as _;
 
-use super::common::snake_case;
 use super::layout::{
     c_struct_offsets, c_struct_size, contract_field_offsets, contract_size, fpss_event_offsets,
     fpss_event_size,
@@ -42,7 +41,6 @@ fn render_contract_asserts(out: &mut String) {
 
 fn render_event_asserts(out: &mut String, event_name: &str, def: &EventDef) {
     let alias = format!("ThetaDataDxStream{event_name}");
-    let field = snake_case(event_name);
     if def.columns.is_empty() {
         // Empty control variants have a single `_padding` byte. Emit a
         // size-only assert; offsetof on `_padding == 0` is implicit.
@@ -71,7 +69,6 @@ fn render_event_asserts(out: &mut String, event_name: &str, def: &EventDef) {
         )
         .unwrap();
     }
-    let _ = field;
     out.push('\n');
 }
 

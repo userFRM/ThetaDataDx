@@ -2,22 +2,25 @@
 //!
 //! Case conversion + per-language Rust type mapping for schema columns.
 
+use heck::ToSnakeCase;
+
 /// Convert a PascalCase event name to snake_case ("OpenInterest" → "open_interest")
 /// so the `kind` discriminator exposed to Python matches the wire tag the
 /// existing dict-based `next_event` emits.
 pub(super) fn snake_case(name: &str) -> String {
-    let mut out = String::with_capacity(name.len() + 2);
-    for (i, ch) in name.chars().enumerate() {
-        if ch.is_ascii_uppercase() {
-            if i > 0 {
-                out.push('_');
-            }
-            out.push(ch.to_ascii_lowercase());
-        } else {
-            out.push(ch);
-        }
+    name.to_snake_case()
+}
+
+/// Core `StreamControl` variant backing a schema control event. The two
+/// names coincide for every variant except `ParseError`, whose core
+/// enum variant keeps the historical `Error` spelling — the public
+/// event class is named `ParseError` so no binding ships a class that
+/// collides with the language's own error types.
+pub(super) fn control_rust_variant(event_name: &str) -> &str {
+    match event_name {
+        "ParseError" => "Error",
+        other => other,
     }
-    out
 }
 
 /// Maps a schema column type to the Rust field type emitted on the Python `#[pyclass]` struct.
