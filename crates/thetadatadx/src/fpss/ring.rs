@@ -164,16 +164,6 @@ impl AdaptiveWaitStrategy {
         }
     }
 
-    /// Alias for [`Self::low_latency`] naming the historical fixed FPSS
-    /// strategy, kept for the in-crate tests that assert the default
-    /// preset reproduces it byte-for-byte. Production code constructs the
-    /// strategy from config via [`Self::from_mode`].
-    #[cfg(any(test, feature = "__test-helpers"))]
-    #[must_use]
-    pub fn fpss_default() -> Self {
-        Self::low_latency()
-    }
-
     /// Return a copy of this strategy with the spin / yield / park
     /// counts replaced, clamping each to its sane upper bound and
     /// preserving the [`WaitMode`].
@@ -526,17 +516,13 @@ mod tests {
     }
 
     #[test]
-    fn fpss_default_strategy() {
-        // `low_latency` (== the historical `fpss_default`) MUST keep the
-        // 100-spin / 10-yield tuning and the LowLatency phase shape.
-        let s = AdaptiveWaitStrategy::fpss_default();
+    fn low_latency_strategy_shape() {
+        // `low_latency` MUST keep the 100-spin / 10-yield tuning and the
+        // LowLatency phase shape.
+        let s = AdaptiveWaitStrategy::low_latency();
         assert_eq!(s.mode, WaitMode::LowLatency);
         assert_eq!(s.spin_iters, 100);
         assert_eq!(s.yield_iters, 10);
-        let direct = AdaptiveWaitStrategy::low_latency();
-        assert_eq!(direct.mode, WaitMode::LowLatency);
-        assert_eq!(direct.spin_iters, 100);
-        assert_eq!(direct.yield_iters, 10);
     }
 
     #[test]
@@ -643,7 +629,7 @@ mod tests {
         let counter_clone = Arc::clone(&counter);
 
         let factory = RingEvent::default;
-        let wait_strategy = AdaptiveWaitStrategy::fpss_default();
+        let wait_strategy = AdaptiveWaitStrategy::low_latency();
 
         let mut producer = build_single_producer(64, factory, wait_strategy)
             .handle_events_with(
@@ -681,7 +667,7 @@ mod tests {
         let received_clone = Arc::clone(&received);
 
         let factory = RingEvent::default;
-        let wait_strategy = AdaptiveWaitStrategy::fpss_default();
+        let wait_strategy = AdaptiveWaitStrategy::low_latency();
 
         let mut producer = build_single_producer(64, factory, wait_strategy)
             .handle_events_with(
@@ -739,7 +725,7 @@ mod tests {
         let received_clone = Arc::clone(&received);
 
         let factory = RingEvent::default;
-        let wait_strategy = AdaptiveWaitStrategy::fpss_default();
+        let wait_strategy = AdaptiveWaitStrategy::low_latency();
 
         let mut producer = build_single_producer(64, factory, wait_strategy)
             .handle_events_with(
@@ -775,7 +761,7 @@ mod tests {
         let counter_clone = Arc::clone(&counter);
 
         let factory = RingEvent::default;
-        let wait_strategy = AdaptiveWaitStrategy::fpss_default();
+        let wait_strategy = AdaptiveWaitStrategy::low_latency();
 
         let mut producer = build_single_producer(4096, factory, wait_strategy)
             .handle_events_with(
@@ -828,7 +814,7 @@ mod tests {
         let counter_clone = Arc::clone(&counter);
 
         let factory = RingEvent::default;
-        let wait_strategy = AdaptiveWaitStrategy::fpss_default();
+        let wait_strategy = AdaptiveWaitStrategy::low_latency();
 
         let mut producer = build_single_producer(64, factory, wait_strategy)
             .handle_events_with(

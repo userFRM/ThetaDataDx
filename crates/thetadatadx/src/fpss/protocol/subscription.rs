@@ -201,32 +201,6 @@ pub enum Subscription {
     },
 }
 
-impl Subscription {
-    /// Construct a per-contract subscription.
-    #[must_use]
-    pub fn for_contract(contract: Contract, kind: SubscriptionKind) -> Self {
-        Self::Contract { contract, kind }
-    }
-
-    /// Construct a full-stream subscription.
-    ///
-    /// Only [`SecType::Stock`] and [`SecType::Option`] are accepted: those
-    /// are the only security types delivered as a full-stream broadcast
-    /// upstream. Constructing the value is infallible, but passing a
-    /// subscription with any other `sec_type` to
-    /// [`crate::StreamSurface::subscribe`] returns an [`Error::Config`]
-    /// at subscribe time, because the server has no full broadcast for it —
-    /// it would answer `Subscribed` and then never stream a tick. Subscribe
-    /// to indices and rates per-contract instead (for example
-    /// `Contract::index("VIX").trade()`).
-    ///
-    /// [`Error::Config`]: crate::error::Error::Config
-    #[must_use]
-    pub fn full(sec_type: SecType, kind: FullSubscriptionKind) -> Self {
-        Self::Full { sec_type, kind }
-    }
-}
-
 /// Fluent constructors on [`Contract`] for the per-contract subscription
 /// shapes accepted by [`crate::StreamSurface::subscribe`].
 ///
@@ -489,31 +463,6 @@ mod tests {
                 kind: FullSubscriptionKind::OpenInterest,
             }
         );
-    }
-
-    #[test]
-    fn subscription_for_contract_constructor() {
-        let c = Contract::stock("MSFT");
-        let sub = Subscription::for_contract(c.clone(), SubscriptionKind::Trade);
-        assert_eq!(
-            sub,
-            Subscription::Contract {
-                contract: c,
-                kind: SubscriptionKind::Trade,
-            }
-        );
-    }
-
-    #[test]
-    fn subscription_full_constructor() {
-        let sub = Subscription::full(SecType::Index, FullSubscriptionKind::Trades);
-        assert!(matches!(
-            sub,
-            Subscription::Full {
-                sec_type: SecType::Index,
-                kind: FullSubscriptionKind::Trades,
-            }
-        ));
     }
 
     #[test]

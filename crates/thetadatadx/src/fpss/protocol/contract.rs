@@ -114,17 +114,6 @@ impl Contract {
         }
     }
 
-    /// Create a rate contract.
-    pub fn rate(symbol: &str) -> Self {
-        Self {
-            symbol: Arc::from(symbol),
-            sec_type: SecType::Rate,
-            expiration: None,
-            is_call: None,
-            strike_thousandths: None,
-        }
-    }
-
     /// Create an option contract from string-formatted parameters.
     ///
     /// The expiration / strike / right travel as a named [`OptionLeg`] so

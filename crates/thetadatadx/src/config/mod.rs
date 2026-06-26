@@ -1119,149 +1119,18 @@ impl DirectConfig {
     }
 }
 
-// ── Read accessors (back-compat for the old flat field names) ────────────
-//
-// External callers that still spell config reads as `config.historical_host(...)`
-// should call these accessor methods. Field-syntax reads (`config.historical_host`)
-// no longer compile and must migrate to the nested form
-// (`config.historical.host`); see the commit body for the migration table.
+// ── Read accessors ───────────────────────────────────────────────────────
 impl DirectConfig {
     /// Historical hostname.
     #[must_use]
     pub fn historical_host(&self) -> &str {
         &self.historical.host
     }
-    /// Historical port.
-    #[must_use]
-    pub fn historical_port(&self) -> u16 {
-        self.historical.port
-    }
-    /// Whether historical uses TLS.
-    #[must_use]
-    pub fn historical_tls(&self) -> bool {
-        self.historical.tls
-    }
-    /// Historical max inbound message size, in bytes.
-    #[must_use]
-    pub fn historical_max_message_size(&self) -> usize {
-        self.historical.max_message_size
-    }
-    /// Historical keepalive ping interval, in seconds.
-    #[must_use]
-    pub fn historical_keepalive_secs(&self) -> u64 {
-        self.historical.keepalive_secs
-    }
-    /// Historical keepalive ping timeout, in seconds.
-    #[must_use]
-    pub fn historical_keepalive_timeout_secs(&self) -> u64 {
-        self.historical.keepalive_timeout_secs
-    }
-    /// Historical HTTP/2 stream window size, in KB.
-    #[must_use]
-    pub fn historical_window_size_kb(&self) -> usize {
-        self.historical.window_size_kb
-    }
-    /// Historical HTTP/2 connection window size, in KB.
-    #[must_use]
-    pub fn historical_connection_window_size_kb(&self) -> usize {
-        self.historical.connection_window_size_kb
-    }
-    /// Historical TCP connect timeout, in seconds.
-    #[must_use]
-    pub fn historical_connect_timeout_secs(&self) -> u64 {
-        self.historical.connect_timeout_secs
-    }
 
     /// Streaming host list.
     #[must_use]
     pub fn streaming_hosts(&self) -> &[(String, u16)] {
         &self.streaming.hosts
-    }
-    /// Streaming read timeout, in milliseconds.
-    #[must_use]
-    pub fn streaming_timeout_ms(&self) -> u64 {
-        self.streaming.timeout_ms
-    }
-    /// Streaming event ring buffer size.
-    #[must_use]
-    pub fn streaming_ring_size(&self) -> usize {
-        self.streaming.ring_size
-    }
-    /// Streaming heartbeat ping interval, in milliseconds.
-    #[must_use]
-    pub fn streaming_ping_interval_ms(&self) -> u64 {
-        self.streaming.ping_interval_ms
-    }
-    /// Streaming connect timeout, in milliseconds.
-    #[must_use]
-    pub fn streaming_connect_timeout_ms(&self) -> u64 {
-        self.streaming.connect_timeout_ms
-    }
-    /// Streaming write-buffer flush mode.
-    #[must_use]
-    pub fn streaming_flush_mode(&self) -> StreamingFlushMode {
-        self.streaming.flush_mode
-    }
-    /// Streaming event-ring consumer wait strategy.
-    #[must_use]
-    pub fn streaming_wait_strategy(&self) -> StreamingWaitStrategy {
-        self.streaming.wait_strategy
-    }
-    /// Optional CPU core the streaming consumer thread is pinned to;
-    /// `None` leaves it under the OS scheduler.
-    #[must_use]
-    pub fn streaming_consumer_cpu(&self) -> Option<usize> {
-        self.streaming.consumer_cpu
-    }
-    /// Whether to derive OHLCVC bars locally from trade events.
-    #[must_use]
-    pub fn derive_ohlcvc_enabled(&self) -> bool {
-        self.streaming.derive_ohlcvc
-    }
-
-    /// Streaming reconnect wait, in milliseconds.
-    #[must_use]
-    pub fn reconnect_wait_ms(&self) -> u64 {
-        self.reconnect.wait_ms
-    }
-    /// Streaming reconnect wait after `TooManyRequests`, in milliseconds.
-    #[must_use]
-    pub fn reconnect_wait_rate_limited_ms(&self) -> u64 {
-        self.reconnect.wait_rate_limited_ms
-    }
-    /// Streaming reconnect policy.
-    #[must_use]
-    pub fn reconnect_policy(&self) -> &ReconnectPolicy {
-        &self.reconnect.policy
-    }
-
-    /// Historical retry policy.
-    #[must_use]
-    pub fn retry_policy(&self) -> RetryPolicy {
-        self.retry
-    }
-
-    /// Nexus auth URL.
-    #[must_use]
-    pub fn nexus_url(&self) -> &str {
-        &self.auth.nexus_url
-    }
-    /// `QueryInfo.client_type` value.
-    #[must_use]
-    pub fn client_type(&self) -> &str {
-        &self.auth.client_type
-    }
-
-    /// Prometheus exporter port (`None` disables the exporter).
-    #[must_use]
-    pub fn metrics_port(&self) -> Option<u16> {
-        self.metrics.port
-    }
-
-    /// Tokio worker thread count (`None` = tokio default).
-    #[must_use]
-    pub fn tokio_worker_threads(&self) -> Option<usize> {
-        self.runtime.tokio_worker_threads
     }
 
     /// Target historical environment (production or staging).
@@ -1853,13 +1722,7 @@ mod tests {
         clear_env_matrix();
         let config = DirectConfig::production();
         assert_eq!(config.historical_host(), config.historical.host.as_str());
-        assert_eq!(config.streaming_ring_size(), config.streaming.ring_size);
-        assert_eq!(config.metrics_port(), config.metrics.port);
-        assert_eq!(
-            config.tokio_worker_threads(),
-            config.runtime.tokio_worker_threads
-        );
-        assert_eq!(config.nexus_url(), config.auth.nexus_url.as_str());
+        assert_eq!(config.streaming_hosts(), config.streaming.hosts.as_slice());
     }
 
     #[test]
