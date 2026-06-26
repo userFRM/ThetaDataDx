@@ -701,7 +701,7 @@ fn insert_contract_id_fields(row: &mut Row, expiration: i32, strike: f64, right:
 // ---------------------------------------------------------------------------
 
 /// Convert EOD ticks to ordered rows matching the JVM terminal format.
-pub fn eod_ticks_to_json(ticks: &[EodTick]) -> Vec<Row> {
+pub(crate) fn eod_ticks_to_json(ticks: &[EodTick]) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
@@ -739,7 +739,7 @@ pub fn eod_ticks_to_json(ticks: &[EodTick]) -> Vec<Row> {
 /// `timestamp,(symbol,)open,high,low,close,volume,count` with no `vwap`
 /// column. The shared tick type carries `vwap` either way, so the snapshot
 /// shape omits it from the row rather than emitting a column the spec doesn't.
-pub fn ohlc_ticks_to_json(ticks: &[OhlcTick], shape: RowShape) -> Vec<Row> {
+pub(crate) fn ohlc_ticks_to_json(ticks: &[OhlcTick], shape: RowShape) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
@@ -775,7 +775,7 @@ pub fn ohlc_ticks_to_json(ticks: &[OhlcTick], shape: RowShape) -> Vec<Row> {
 /// execution record). The shared tick type carries every field, so the
 /// trimmed shape omits the extras rather than emitting columns the v3
 /// snapshot-trade schema doesn't list.
-pub fn trade_ticks_to_json(ticks: &[TradeTick], shape: RowShape) -> Vec<Row> {
+pub(crate) fn trade_ticks_to_json(ticks: &[TradeTick], shape: RowShape) -> Vec<Row> {
     // Only the non-option snapshot trade (stock / index) trims the extended
     // columns; option snapshot trade keeps the full execution set.
     let trim_execution_columns = shape.is_snapshot && !shape.is_option;
@@ -817,7 +817,7 @@ pub fn trade_ticks_to_json(ticks: &[TradeTick], shape: RowShape) -> Vec<Row> {
 }
 
 /// Convert quote ticks to ordered rows.
-pub fn quote_ticks_to_json(ticks: &[QuoteTick]) -> Vec<Row> {
+pub(crate) fn quote_ticks_to_json(ticks: &[QuoteTick]) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
@@ -842,7 +842,7 @@ pub fn quote_ticks_to_json(ticks: &[QuoteTick]) -> Vec<Row> {
 }
 
 /// Convert trade+quote ticks to JSON array.
-pub fn trade_quote_ticks_to_json(ticks: &[TradeQuoteTick]) -> Vec<Row> {
+pub(crate) fn trade_quote_ticks_to_json(ticks: &[TradeQuoteTick]) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
@@ -881,7 +881,7 @@ pub fn trade_quote_ticks_to_json(ticks: &[TradeQuoteTick]) -> Vec<Row> {
 }
 
 /// Convert open interest ticks to ordered rows.
-pub fn open_interest_ticks_to_json(ticks: &[OpenInterestTick]) -> Vec<Row> {
+pub(crate) fn open_interest_ticks_to_json(ticks: &[OpenInterestTick]) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
@@ -906,7 +906,7 @@ pub fn open_interest_ticks_to_json(ticks: &[OpenInterestTick]) -> Vec<Row> {
 /// triple (`market_bid`, `market_ask`, `market_price`); the *index* shape
 /// publishes only `market_price` (the SIPs report an index value, not a
 /// two-sided market), so bid / ask are omitted there.
-pub fn market_value_ticks_to_json(ticks: &[MarketValueTick], shape: RowShape) -> Vec<Row> {
+pub(crate) fn market_value_ticks_to_json(ticks: &[MarketValueTick], shape: RowShape) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
@@ -935,7 +935,7 @@ pub fn market_value_ticks_to_json(ticks: &[MarketValueTick], shape: RowShape) ->
 
 /// Convert full-union Greeks ticks (`option_*_greeks_all`,
 /// `option_*_greeks_eod`) to JSON array.
-pub fn greeks_all_ticks_to_json(ticks: &[GreeksAllTick]) -> Vec<Row> {
+pub(crate) fn greeks_all_ticks_to_json(ticks: &[GreeksAllTick]) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
@@ -987,7 +987,7 @@ pub fn greeks_all_ticks_to_json(ticks: &[GreeksAllTick]) -> Vec<Row> {
 /// -- so downstream MCP-side / REST-side consumers see the full EOD
 /// trade-quote context that the earlier routing dropped; the current schema restores the
 /// full schema.
-pub fn greeks_eod_ticks_to_json(ticks: &[GreeksEodTick]) -> Vec<Row> {
+pub(crate) fn greeks_eod_ticks_to_json(ticks: &[GreeksEodTick]) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
@@ -1044,7 +1044,7 @@ pub fn greeks_eod_ticks_to_json(ticks: &[GreeksEodTick]) -> Vec<Row> {
 
 /// Convert first-order Greeks subset ticks
 /// (`option_*_greeks_first_order`) to JSON array.
-pub fn greeks_first_order_ticks_to_json(ticks: &[GreeksFirstOrderTick]) -> Vec<Row> {
+pub(crate) fn greeks_first_order_ticks_to_json(ticks: &[GreeksFirstOrderTick]) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
@@ -1074,7 +1074,7 @@ pub fn greeks_first_order_ticks_to_json(ticks: &[GreeksFirstOrderTick]) -> Vec<R
 
 /// Convert second-order Greeks subset ticks
 /// (`option_*_greeks_second_order`) to JSON array.
-pub fn greeks_second_order_ticks_to_json(ticks: &[GreeksSecondOrderTick]) -> Vec<Row> {
+pub(crate) fn greeks_second_order_ticks_to_json(ticks: &[GreeksSecondOrderTick]) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
@@ -1104,7 +1104,7 @@ pub fn greeks_second_order_ticks_to_json(ticks: &[GreeksSecondOrderTick]) -> Vec
 /// Convert third-order Greeks subset ticks
 /// (`option_*_greeks_third_order`) to JSON array. The vendor's
 /// third-order schema does not publish `vera`, hence its absence here.
-pub fn greeks_third_order_ticks_to_json(ticks: &[GreeksThirdOrderTick]) -> Vec<Row> {
+pub(crate) fn greeks_third_order_ticks_to_json(ticks: &[GreeksThirdOrderTick]) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
@@ -1135,7 +1135,7 @@ pub fn greeks_third_order_ticks_to_json(ticks: &[GreeksThirdOrderTick]) -> Vec<R
 /// trade-side execution columns alongside every Greek the server
 /// publishes -- distinct from the interval-sampled `GreeksAllTick`
 /// JSON whose rows carry the bid/ask quote pair instead.
-pub fn trade_greeks_all_ticks_to_json(ticks: &[TradeGreeksAllTick]) -> Vec<Row> {
+pub(crate) fn trade_greeks_all_ticks_to_json(ticks: &[TradeGreeksAllTick]) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
@@ -1186,7 +1186,7 @@ pub fn trade_greeks_all_ticks_to_json(ticks: &[TradeGreeksAllTick]) -> Vec<Row> 
 
 /// Convert per-OPRA-trade first-order Greeks ticks
 /// (`option_history_trade_greeks_first_order`) to JSON array.
-pub fn trade_greeks_first_order_ticks_to_json(
+pub(crate) fn trade_greeks_first_order_ticks_to_json(
     ticks: &[TradeGreeksFirstOrderTick],
 ) -> Vec<Row> {
     ticks
@@ -1225,7 +1225,7 @@ pub fn trade_greeks_first_order_ticks_to_json(
 
 /// Convert per-OPRA-trade second-order Greeks ticks
 /// (`option_history_trade_greeks_second_order`) to JSON array.
-pub fn trade_greeks_second_order_ticks_to_json(
+pub(crate) fn trade_greeks_second_order_ticks_to_json(
     ticks: &[TradeGreeksSecondOrderTick],
 ) -> Vec<Row> {
     ticks
@@ -1264,7 +1264,7 @@ pub fn trade_greeks_second_order_ticks_to_json(
 /// Convert per-OPRA-trade third-order Greeks ticks
 /// (`option_history_trade_greeks_third_order`) to JSON array. The
 /// vendor's third-order schema does not publish `vera`.
-pub fn trade_greeks_third_order_ticks_to_json(
+pub(crate) fn trade_greeks_third_order_ticks_to_json(
     ticks: &[TradeGreeksThirdOrderTick],
 ) -> Vec<Row> {
     ticks
@@ -1303,7 +1303,7 @@ pub fn trade_greeks_third_order_ticks_to_json(
 /// (`option_history_trade_greeks_implied_volatility`) to JSON array.
 /// Carries only the single `implied_volatility` + `iv_error` pair
 /// (NOT the bid/mid/ask IV triple of the interval-sampled `IvTick`).
-pub fn trade_greeks_implied_volatility_ticks_to_json(
+pub(crate) fn trade_greeks_implied_volatility_ticks_to_json(
     ticks: &[TradeGreeksImpliedVolatilityTick],
 ) -> Vec<Row> {
     ticks
@@ -1346,7 +1346,7 @@ pub fn trade_greeks_implied_volatility_ticks_to_json(
 /// the `IvTick` type, so the snapshot shape omits the bid/mid/ask-IV columns
 /// from the row rather than emitting columns the v3 snapshot schema doesn't
 /// list.
-pub fn iv_ticks_to_json(ticks: &[IvTick], shape: RowShape) -> Vec<Row> {
+pub(crate) fn iv_ticks_to_json(ticks: &[IvTick], shape: RowShape) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
@@ -1408,7 +1408,7 @@ pub fn iv_ticks_to_json(ticks: &[IvTick], shape: RowShape) -> Vec<Row> {
 }
 
 /// Convert price ticks to ordered rows.
-pub fn price_ticks_to_json(ticks: &[PriceTick]) -> Vec<Row> {
+pub(crate) fn price_ticks_to_json(ticks: &[PriceTick]) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
@@ -1429,7 +1429,7 @@ pub fn price_ticks_to_json(ticks: &[PriceTick]) -> Vec<Row> {
 /// `ms_of_day`, `price`, and `date` -- so downstream MCP-side /
 /// REST-side consumers see the per-row SIP-exchange attribution that
 /// the earlier routing dropped; the current schema restores the full schema.
-pub fn index_price_at_time_ticks_to_json(ticks: &[IndexPriceAtTimeTick]) -> Vec<Row> {
+pub(crate) fn index_price_at_time_ticks_to_json(ticks: &[IndexPriceAtTimeTick]) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
@@ -1461,7 +1461,7 @@ pub fn index_price_at_time_ticks_to_json(ticks: &[IndexPriceAtTimeTick]) -> Vec<
 /// `open` / `close` are `HH:mm:ss` clock strings on trading days and
 /// `null` on fully-closed days, so a consumer can branch on a present
 /// time vs an explicit null rather than a sentinel midnight.
-pub fn calendar_days_to_json(days: &[CalendarDay]) -> Vec<Row> {
+pub(crate) fn calendar_days_to_json(days: &[CalendarDay]) -> Vec<Row> {
     days.iter()
         .map(|d| {
             let (open, close) = if d.status.is_open() {
@@ -1488,7 +1488,7 @@ pub fn calendar_days_to_json(days: &[CalendarDay]) -> Vec<Row> {
 }
 
 /// Convert interest rate ticks to JSON array.
-pub fn interest_rate_ticks_to_json(ticks: &[InterestRateTick]) -> Vec<Row> {
+pub(crate) fn interest_rate_ticks_to_json(ticks: &[InterestRateTick]) -> Vec<Row> {
     ticks
         .iter()
         .map(|t| {
@@ -1504,7 +1504,7 @@ pub fn interest_rate_ticks_to_json(ticks: &[InterestRateTick]) -> Vec<Row> {
 }
 
 /// Convert option contracts to JSON array.
-pub fn option_contracts_to_json(contracts: &[OptionContract]) -> Vec<Row> {
+pub(crate) fn option_contracts_to_json(contracts: &[OptionContract]) -> Vec<Row> {
     contracts
         .iter()
         .map(|c| {

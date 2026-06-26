@@ -46,7 +46,7 @@ use super::super::helpers::{compose_endpoint_doc, endpoint_streams, is_streaming
 use super::super::model::GeneratedEndpoint;
 use super::super::sdk_helpers::{
     builder_params, is_time_arg, method_params, render_rust_doc_block, sdk_method_arg_name,
-    to_camel_case, to_pascal_case, ts_class_name, ts_class_vec_converter,
+    to_camel_case, to_pascal_case, ts_class_name, ts_class_vec_converter, write_timeout_call,
 };
 
 /// napi classes that carry the historical endpoint surface. Both wrap an
@@ -337,16 +337,7 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
             name = endpoint.name,
         )
         .unwrap();
-        out.push_str("            if let Some(ms) = timeout_ms {\n");
-        out.push_str("                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {\n");
-        out.push_str("                    Ok(inner) => inner,\n");
-        out.push_str(
-            "                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),\n",
-        );
-        out.push_str("                }\n");
-        out.push_str("            } else {\n");
-        out.push_str("                call.await\n");
-        out.push_str("            }\n");
+        write_timeout_call(&mut out, "            ");
         out.push_str("        })\n");
         out.push_str("        .await\n");
         out.push_str("    }\n");

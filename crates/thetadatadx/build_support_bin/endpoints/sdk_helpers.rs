@@ -179,6 +179,32 @@ pub(super) fn render_rust_doc_block(indent: &str, doc: &str) -> String {
     out
 }
 
+/// Emit the timeout-aware await of a local `call` future: race it against
+/// `tokio::time::timeout` when `timeout_ms` is `Some`, plain `.await`
+/// otherwise. `indent` is the leading whitespace of the `if let` line; the
+/// match body nests at `indent + 4` / `indent + 8`. Shared by every list /
+/// snapshot dispatch emitter (Python and TypeScript) so the generated
+/// timeout race reads identically across surfaces.
+pub(super) fn write_timeout_call(out: &mut String, indent: &str) {
+    use std::fmt::Write as _;
+    writeln!(out, "{indent}if let Some(ms) = timeout_ms {{").unwrap();
+    writeln!(
+        out,
+        "{indent}    match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {{"
+    )
+    .unwrap();
+    writeln!(out, "{indent}        Ok(inner) => inner,").unwrap();
+    writeln!(
+        out,
+        "{indent}        Err(_) => Err(thetadatadx::Error::Timeout {{ duration_ms: ms }}),"
+    )
+    .unwrap();
+    writeln!(out, "{indent}    }}").unwrap();
+    writeln!(out, "{indent}}} else {{").unwrap();
+    writeln!(out, "{indent}    call.await").unwrap();
+    writeln!(out, "{indent}}}").unwrap();
+}
+
 // ───────────────────────── Casing ────────────────────────────────────────────
 
 /// Returns the PascalCase form of a single name segment, keeping known

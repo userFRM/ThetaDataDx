@@ -44,7 +44,7 @@ use super::super::sdk_helpers::{
     builder_params, is_snapshot_endpoint, method_params, python_method_arg_decl,
     python_optional_type, python_pyclass_list_class, python_pyclass_list_converter,
     python_string_arg_type, python_vec_to_pylist_converter, render_rust_doc_block,
-    sdk_method_arg_name,
+    sdk_method_arg_name, write_timeout_call,
 };
 
 /// Emit `sdks/python/src/_generated/decode_bench.rs` — the offline decode hook.
@@ -321,16 +321,10 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
             })
             .collect::<Vec<_>>()
             .join(", ");
-        let leading_comma_args = if positional_args.is_empty() {
-            String::new()
-        } else {
-            format!(", {positional_args}")
-        };
         let column = endpoint
             .list_column
             .as_deref()
             .expect("list endpoint must declare list_column");
-        let _ = leading_comma_args;
         out.push_str("        let values: Vec<String> = run_blocking(py, async move {\n");
         writeln!(
             out,
@@ -338,16 +332,7 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
             endpoint.name, positional_args
         )
         .unwrap();
-        out.push_str("            if let Some(ms) = timeout_ms {\n");
-        out.push_str("                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {\n");
-        out.push_str("                    Ok(inner) => inner,\n");
-        out.push_str(
-            "                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),\n",
-        );
-        out.push_str("                }\n");
-        out.push_str("            } else {\n");
-        out.push_str("                call.await\n");
-        out.push_str("            }\n");
+        write_timeout_call(&mut out, "            ");
         out.push_str("        })?;\n");
         writeln!(
             out,
@@ -528,32 +513,17 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
             })
             .collect::<Vec<_>>()
             .join(", ");
-        let leading_comma_args = if positional_args.is_empty() {
-            String::new()
-        } else {
-            format!(", {positional_args}")
-        };
         let column = endpoint
             .list_column
             .as_deref()
             .expect("list endpoint must declare list_column");
-        let _ = leading_comma_args;
         writeln!(
             out,
             "            let call = client.historical().{}({});",
             endpoint.name, positional_args
         )
         .unwrap();
-        out.push_str("            if let Some(ms) = timeout_ms {\n");
-        out.push_str("                match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {\n");
-        out.push_str("                    Ok(inner) => inner,\n");
-        out.push_str(
-            "                    Err(_) => Err(thetadatadx::Error::Timeout { duration_ms: ms }),\n",
-        );
-        out.push_str("                }\n");
-        out.push_str("            } else {\n");
-        out.push_str("                call.await\n");
-        out.push_str("            }\n");
+        write_timeout_call(&mut out, "            ");
         // Wrap the returned `Vec<String>` in a typed `StringList` with
         // the semantic column name so the caller can chain `.to_polars()`
         // into a single-column frame with a sensible header. `.into_any()`
@@ -1278,11 +1248,6 @@ fn render_python_builder_constructor(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("            timeout_ms: None,\n");
     out.push_str("        }\n");
     out.push_str("    }\n");
-    // The `_ = builder_params` discard is a concession to the "unused
-    // `method_params` alias" warning when `builder_params` is empty
-    // (list endpoints). Consolidating the let-binding keeps the emitter
-    // linear and avoids per-endpoint conditional code.
-    let _ = builder_params;
 
     out
 }
@@ -1305,22 +1270,6 @@ fn write_sync_list_dispatch(
         )
         .unwrap();
     }
-    let positional_args = method_params
-        .iter()
-        .map(|param| {
-            if param.param_type == "Symbols" {
-                "&refs".into()
-            } else {
-                format!("self.{}.as_str()", param.name)
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(", ");
-    let leading_comma_args = if positional_args.is_empty() {
-        String::new()
-    } else {
-        format!(", {positional_args}")
-    };
     writeln!(out, "{indent}let client = self.client.clone();").unwrap();
     writeln!(out, "{indent}let timeout_ms = self.timeout_ms;").unwrap();
     // Rebuild the args vector inside the closure so the closure owns every
@@ -1364,36 +1313,13 @@ fn write_sync_list_dispatch(
         })
         .collect::<Vec<_>>()
         .join(", ");
-    let leading_comma_args_closure = if positional_args_closure.is_empty() {
-        String::new()
-    } else {
-        format!(", {positional_args_closure}")
-    };
-    let _ = leading_comma_args;
-    let _ = positional_args;
-    let _ = leading_comma_args_closure;
     writeln!(
         out,
         "{indent}    let call = client.historical().{}({});",
         endpoint.name, positional_args_closure
     )
     .unwrap();
-    writeln!(out, "{indent}    if let Some(ms) = timeout_ms {{").unwrap();
-    writeln!(
-        out,
-        "{indent}        match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {{"
-    )
-    .unwrap();
-    writeln!(out, "{indent}            Ok(inner) => inner,").unwrap();
-    writeln!(
-        out,
-        "{indent}            Err(_) => Err(thetadatadx::Error::Timeout {{ duration_ms: ms }}),"
-    )
-    .unwrap();
-    writeln!(out, "{indent}        }}").unwrap();
-    writeln!(out, "{indent}    }} else {{").unwrap();
-    writeln!(out, "{indent}        call.await").unwrap();
-    writeln!(out, "{indent}    }}").unwrap();
+    write_timeout_call(out, &format!("{indent}    "));
     write!(out, "{indent}}})").unwrap();
 }
 
@@ -1444,34 +1370,13 @@ fn write_async_list_dispatch(
         })
         .collect::<Vec<_>>()
         .join(", ");
-    let leading_comma_args = if positional_args.is_empty() {
-        String::new()
-    } else {
-        format!(", {positional_args}")
-    };
-    let _ = leading_comma_args;
     writeln!(
         out,
         "{indent}    let call = client.historical().{}({});",
         endpoint.name, positional_args
     )
     .unwrap();
-    writeln!(out, "{indent}    if let Some(ms) = timeout_ms {{").unwrap();
-    writeln!(
-        out,
-        "{indent}        match tokio::time::timeout(std::time::Duration::from_millis(ms), call).await {{"
-    )
-    .unwrap();
-    writeln!(out, "{indent}            Ok(inner) => inner,").unwrap();
-    writeln!(
-        out,
-        "{indent}            Err(_) => Err(thetadatadx::Error::Timeout {{ duration_ms: ms }}),"
-    )
-    .unwrap();
-    writeln!(out, "{indent}        }}").unwrap();
-    writeln!(out, "{indent}    }} else {{").unwrap();
-    writeln!(out, "{indent}        call.await").unwrap();
-    writeln!(out, "{indent}    }}").unwrap();
+    write_timeout_call(out, &format!("{indent}    "));
     // Convert the resolved `Vec<String>` into the typed `StringList` and
     // coerce up to `Py<PyAny>` to satisfy the helper's convert signature.
     writeln!(

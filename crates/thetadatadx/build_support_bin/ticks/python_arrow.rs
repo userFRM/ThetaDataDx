@@ -141,7 +141,7 @@ fn render_python_slice_to_arrow_converters(schema: &Schema) -> String {
 /// columnar projections: `right` and `calendar_status` buffer `String`
 /// (built into `StringArray`), `bool` buffers `bool` (built into
 /// `BooleanArray`).
-fn tick_struct_field_type(column_type: &str) -> &'static str {
+pub(super) fn tick_struct_field_type(column_type: &str) -> &'static str {
     match column_type {
         "i32" | "eod_num" | "eod_date" => "i32",
         "i64" | "eod_num64" => "i64",
@@ -156,7 +156,7 @@ fn tick_struct_field_type(column_type: &str) -> &'static str {
 /// buffer. Logical columns project here: `right` chars become one-char
 /// strings (`'\0'` -> `""`), the calendar status enum becomes its
 /// vendor-vocabulary string.
-fn column_push_expr(column_type: &str, field: &str) -> String {
+pub(super) fn column_push_expr(column_type: &str, field: &str) -> String {
     match column_type {
         "right" => {
             format!("if t.{field} == '\\0' {{ String::new() }} else {{ t.{field}.to_string() }}")
@@ -339,7 +339,7 @@ fn render_python_slice_public_helper(type_name: &str) -> String {
 /// `eod_num64` (i64) are distinct on the Rust side because one is
 /// widened for volume/count; they preserve that distinction into
 /// Arrow.
-fn arrow_data_type_expr(column_type: &str) -> &'static str {
+pub(super) fn arrow_data_type_expr(column_type: &str) -> &'static str {
     match column_type {
         "i32" | "eod_num" | "eod_date" => "DataType::Int32",
         "i64" | "eod_num64" => "DataType::Int64",
@@ -354,7 +354,7 @@ fn arrow_data_type_expr(column_type: &str) -> &'static str {
 /// constructor we call when materializing a column. Parallel to
 /// `arrow_data_type_expr`; the caller wraps the result in
 /// `Arc::new(...) as ArrayRef`.
-fn arrow_array_ctor(column_type: &str) -> &'static str {
+pub(super) fn arrow_array_ctor(column_type: &str) -> &'static str {
     match column_type {
         "i32" | "eod_num" | "eod_date" => "Int32Array",
         "i64" | "eod_num64" => "Int64Array",

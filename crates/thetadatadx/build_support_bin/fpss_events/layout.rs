@@ -150,13 +150,6 @@ pub(super) fn contract_align() -> usize {
         .unwrap_or(1)
 }
 
-/// Alignment requirement of a control-variant struct, computed from its
-/// columns. Empty-column control variants fall back to align=1 (one
-/// `_padding` byte).
-pub(super) fn control_struct_align(columns: &[ColumnDef]) -> usize {
-    struct_align(columns)
-}
-
 /// Returns the total C struct size, in bytes, of the tagged `ThetaDataDxStreamEvent` wrapper.
 pub(super) fn fpss_event_size(schema: &Schema) -> usize {
     c_layout(
@@ -209,7 +202,7 @@ fn fpss_event_fields(schema: &Schema) -> Vec<(String, CFieldLayout)> {
             snake_case(event_name),
             CFieldLayout {
                 size: c_struct_size(&def.columns),
-                align: control_struct_align(&def.columns),
+                align: struct_align(&def.columns),
             },
         ));
     }

@@ -12,8 +12,8 @@
 use std::fmt::Write as _;
 
 use super::common::{
-    is_byte_buffer, is_contract, rust_ffi_scalar, rust_ffi_zero_literal, snake_case,
-    zero_const_name,
+    control_rust_variant, is_byte_buffer, is_contract, rust_ffi_scalar, rust_ffi_zero_literal,
+    snake_case, zero_const_name,
 };
 use super::layout::{
     c_struct_size, contract_align, contract_size, fpss_event_align, fpss_event_size, struct_align,
@@ -570,13 +570,7 @@ fn control_variant_mapping(event_name: &str) -> (&'static str, Vec<&'static str>
 }
 
 fn render_control_arm(out: &mut String, schema: &Schema, event_name: &str, def: &EventDef) {
-    // Core enum variant backing the schema event — the two names
-    // coincide except for `ParseError`, whose core `StreamControl`
-    // variant keeps the `Error` spelling.
-    let rust_variant = match event_name {
-        "ParseError" => "Error",
-        other => other,
-    };
+    let rust_variant = control_rust_variant(event_name);
     let (rust_pattern, field_assigns) = control_variant_mapping(event_name);
     let has_string = control_has_string(&def.columns);
     let has_bytes = control_has_byte_buffer(&def.columns);

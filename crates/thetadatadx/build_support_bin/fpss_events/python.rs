@@ -10,7 +10,7 @@
 
 use std::fmt::Write as _;
 
-use super::common::{is_contract, python_rust_field_type, snake_case};
+use super::common::{control_rust_variant, is_contract, python_rust_field_type, snake_case};
 use super::schema::{
     sorted_control_events, sorted_data_events, sorted_event_names, ColumnDef, EventDef, Schema,
 };
@@ -408,7 +408,6 @@ fn render_control_arm(event_name: &str, def: &EventDef) -> String {
         .unwrap();
         return out;
     }
-    let has_contract = def.columns.iter().any(|c| is_contract(&c.r#type));
     let (rust_pattern, field_assigns) = control_variant_mapping(event_name);
     writeln!(
         out,
@@ -421,9 +420,6 @@ fn render_control_arm(event_name: &str, def: &EventDef) -> String {
         writeln!(out, "                    {assign},").unwrap();
     }
     out.push_str("                },\n            )\n            .map(|p| p.into_any()),\n");
-    // `has_contract` only affects how the assignment table is written;
-    // it is encoded in `control_variant_mapping` already.
-    let _ = has_contract;
     out
 }
 
@@ -440,18 +436,6 @@ fn field_rhs(column_type: &str, name: &str) -> String {
         "Contract" => format!("(**{name}).clone()"),
         // `Copy` primitives (including `Option<i32>`) — deref the binding.
         _ => format!("*{name}"),
-    }
-}
-
-/// Core `StreamControl` variant backing a schema control event. The two
-/// names coincide for every variant except `ParseError`, whose core
-/// enum variant keeps the historical `Error` spelling — the public
-/// event class is named `ParseError` so no binding ships a class that
-/// collides with the language's own error types.
-fn control_rust_variant(event_name: &str) -> &str {
-    match event_name {
-        "ParseError" => "Error",
-        other => other,
     }
 }
 

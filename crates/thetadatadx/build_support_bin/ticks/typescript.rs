@@ -14,6 +14,8 @@
 
 use std::fmt::Write as _;
 
+use heck::{ToLowerCamelCase, ToSnakeCase};
+
 use super::idents::rust_field_ident;
 use super::python_classes::strip_field_count_from_doc;
 use super::schema::{render_for_type, Schema, TickTypeDef};
@@ -76,8 +78,8 @@ fn render_ts_tick_arrow_ipc(type_name: &str, def: &TickTypeDef) -> Option<String
     if type_name == "OptionContract" {
         return None;
     }
-    let fn_name = format!("{}_to_arrow_ipc", to_snake_case(type_name));
-    let js_name = format!("{}ToArrowIpc", to_lower_camel(type_name));
+    let fn_name = format!("{}_to_arrow_ipc", type_name.to_snake_case());
+    let js_name = format!("{}ToArrowIpc", type_name.to_lower_camel_case());
     let mut out = String::new();
     writeln!(
         out,
@@ -216,33 +218,6 @@ fn ts_arrow_reconstruct_is_fallible(def: &TickTypeDef) -> bool {
             .columns
             .iter()
             .any(|column| matches!(column.r#type.as_str(), "right" | "calendar_status"))
-}
-
-/// PascalCase tick type name → snake_case fn-name stem (`EodTick` →
-/// `eod_tick`).
-fn to_snake_case(name: &str) -> String {
-    let mut out = String::new();
-    for (i, ch) in name.chars().enumerate() {
-        if ch.is_ascii_uppercase() {
-            if i != 0 {
-                out.push('_');
-            }
-            out.push(ch.to_ascii_lowercase());
-        } else {
-            out.push(ch);
-        }
-    }
-    out
-}
-
-/// PascalCase tick type name → lowerCamelCase JS stem (`EodTick` →
-/// `eodTick`).
-fn to_lower_camel(name: &str) -> String {
-    let mut chars = name.chars();
-    match chars.next() {
-        Some(first) => first.to_ascii_lowercase().to_string() + chars.as_str(),
-        None => String::new(),
-    }
 }
 
 fn render_ts_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {
