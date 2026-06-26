@@ -10,6 +10,7 @@
 ///
 /// `volume` and `count` use `i64` to avoid overflow on high-volume symbols
 /// (e.g. SPY) where per-session cumulative volume can exceed `i32::MAX`.
+#[derive(Default)]
 pub(super) struct OhlcvcAccumulator {
     pub(super) open: i32,
     pub(super) high: i32,
@@ -24,21 +25,6 @@ pub(super) struct OhlcvcAccumulator {
 }
 
 impl OhlcvcAccumulator {
-    pub(super) fn new() -> Self {
-        Self {
-            open: 0,
-            high: 0,
-            low: 0,
-            close: 0,
-            volume: 0,
-            count: 0,
-            price_type: 0,
-            date: 0,
-            ms_of_day: 0,
-            initialized: false,
-        }
-    }
-
     #[allow(clippy::too_many_arguments)] // Reason: OHLCVC bar has many fields from server init message
     pub(super) fn init_from_server(
         &mut self,
@@ -86,12 +72,8 @@ impl OhlcvcAccumulator {
         // not seen, so it is folded into the current bar when initialized.
         if self.initialized && date == self.date && records_back != 0 {
             let adjusted_price = change_price_type(price, price_type, self.price_type);
-            if adjusted_price > self.high {
-                self.high = adjusted_price;
-            }
-            if adjusted_price < self.low {
-                self.low = adjusted_price;
-            }
+            self.high = self.high.max(adjusted_price);
+            self.low = self.low.min(adjusted_price);
             self.close = adjusted_price;
             return;
         }
@@ -107,12 +89,8 @@ impl OhlcvcAccumulator {
             let adjusted_price = change_price_type(price, price_type, self.price_type);
             self.volume += i64::from(size);
             self.count += 1;
-            if adjusted_price > self.high {
-                self.high = adjusted_price;
-            }
-            if adjusted_price < self.low {
-                self.low = adjusted_price;
-            }
+            self.high = self.high.max(adjusted_price);
+            self.low = self.low.min(adjusted_price);
             self.close = adjusted_price;
         } else {
             self.open = price;
@@ -194,7 +172,7 @@ mod tests {
 
     #[test]
     fn ohlcvc_accumulator_first_trade_initializes() {
-        let mut acc = OhlcvcAccumulator::new();
+        let mut acc = OhlcvcAccumulator::default();
         assert!(!acc.initialized);
         acc.process_trade(34200000, 15025, 100, 8, 20240315, 0);
         assert!(acc.initialized);
@@ -208,7 +186,7 @@ mod tests {
 
     #[test]
     fn ohlcvc_accumulator_updates() {
-        let mut acc = OhlcvcAccumulator::new();
+        let mut acc = OhlcvcAccumulator::default();
         acc.process_trade(34200000, 15025, 100, 8, 20240315, 0);
         acc.process_trade(34200100, 15100, 200, 8, 20240315, 0);
         acc.process_trade(34200200, 14950, 50, 8, 20240315, 0);
@@ -222,7 +200,7 @@ mod tests {
 
     #[test]
     fn ohlcvc_accumulator_server_init_then_trade() {
-        let mut acc = OhlcvcAccumulator::new();
+        let mut acc = OhlcvcAccumulator::default();
         acc.init_from_server(
             34200000, 15000, 15100, 14900, 15050, 1000_i64, 10_i64, 8, 20240315,
         );
@@ -235,7 +213,7 @@ mod tests {
 
     #[test]
     fn ohlcvc_accumulator_no_overflow_on_high_volume() {
-        let mut acc = OhlcvcAccumulator::new();
+        let mut acc = OhlcvcAccumulator::default();
         acc.process_trade(34200000, 15025, i32::MAX, 8, 20240315, 0);
         acc.process_trade(34200100, 15100, i32::MAX, 8, 20240315, 0);
         // Would overflow i32 (2 * 2_147_483_647 = 4_294_967_294), fine in i64
@@ -255,7 +233,7 @@ mod tests {
         let count = i64::from((-2_008_126_979_i32) as u32);
         assert_eq!(volume, 2_225_611_194_i64);
         assert_eq!(count, 2_286_840_317_i64);
-        let mut acc = OhlcvcAccumulator::new();
+        let mut acc = OhlcvcAccumulator::default();
         acc.init_from_server(
             34200000, 15000, 15100, 14900, 15050, volume, count, 8, 20240315,
         );
@@ -270,7 +248,7 @@ mod tests {
     /// path, no intervening server bar or clear).
     #[test]
     fn ohlcvc_accumulator_rolls_on_date_change() {
-        let mut acc = OhlcvcAccumulator::new();
+        let mut acc = OhlcvcAccumulator::default();
         // Day 1: two trades accumulate.
         acc.process_trade(57_600_000, 15_025, 100, 8, 20240315, 0);
         acc.process_trade(57_600_100, 15_100, 200, 8, 20240315, 0);
@@ -300,7 +278,7 @@ mod tests {
     /// low, or last.
     #[test]
     fn ohlcvc_accumulator_correction_does_not_double_count() {
-        let mut acc = OhlcvcAccumulator::new();
+        let mut acc = OhlcvcAccumulator::default();
         acc.process_trade(34_200_000, 15_025, 100, 8, 20240315, 0);
         acc.process_trade(34_200_100, 15_100, 200, 8, 20240315, 0);
         assert_eq!(acc.volume, 300);
@@ -331,7 +309,7 @@ mod tests {
     /// correction can never masquerade as a bar reset.
     #[test]
     fn ohlcvc_accumulator_correction_adjusts_low_without_reset() {
-        let mut acc = OhlcvcAccumulator::new();
+        let mut acc = OhlcvcAccumulator::default();
         acc.process_trade(34_200_000, 15_025, 100, 8, 20240315, 0);
         acc.process_trade(34_200_100, 15_100, 200, 8, 20240315, 2);
         assert_eq!(acc.open, 15_025, "correction must not reset the open");
@@ -386,7 +364,7 @@ mod tests {
     /// 71_396_865 * 10_000 wraps to +1_004_078_864 (see test above).
     #[test]
     fn ohlcvc_accumulator_rescale_matches_java_wrap() {
-        let mut acc = OhlcvcAccumulator::new();
+        let mut acc = OhlcvcAccumulator::default();
         acc.process_trade(34200000, 71_396_865, 1, 4, 20240315, 0);
         assert_eq!(acc.price_type, 4);
         assert_eq!(acc.high, 71_396_865);

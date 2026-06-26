@@ -319,13 +319,6 @@ impl EndpointArgs {
         Ok(Some(value))
     }
 
-    /// Read a required interval argument.
-    pub fn required_interval(&self, key: &str) -> Result<&str, EndpointError> {
-        let value = self.required_str(key)?;
-        validate_interval(value, key)?;
-        Ok(value)
-    }
-
     /// Read an optional interval argument.
     pub fn optional_interval(&self, key: &str) -> Result<Option<&str>, EndpointError> {
         let Some(value) = self.optional_str(key)? else {
@@ -358,23 +351,6 @@ impl EndpointArgs {
         Ok(value)
     }
 
-    /// Read a required integer argument and narrow it to `i32`.
-    pub fn required_int32(&self, key: &str) -> Result<i32, EndpointError> {
-        let raw = match self.required_value(key)? {
-            EndpointArgValue::Int(value) => *value,
-            _ => {
-                return Err(EndpointError::InvalidParams(format!(
-                    "required integer argument '{key}' must be an integer"
-                )))
-            }
-        };
-        i32::try_from(raw).map_err(|_| {
-            EndpointError::InvalidParams(format!(
-                "required integer argument '{key}' is out of range for i32: {raw}"
-            ))
-        })
-    }
-
     /// Read an optional integer argument and narrow it to `i32`.
     pub fn optional_int32(&self, key: &str) -> Result<Option<i32>, EndpointError> {
         let Some(value) = self.optional_value(key) else {
@@ -396,19 +372,6 @@ impl EndpointArgs {
         Ok(Some(narrowed))
     }
 
-    /// Read a required floating-point argument.
-    ///
-    /// Accepts both `Float` and `Int` values. `Int` is widened to `f64`.
-    pub fn required_float64(&self, key: &str) -> Result<f64, EndpointError> {
-        match self.required_value(key)? {
-            EndpointArgValue::Float(value) => Ok(*value),
-            EndpointArgValue::Int(value) => Ok(*value as f64),
-            _ => Err(EndpointError::InvalidParams(format!(
-                "required number argument '{key}' must be a number"
-            ))),
-        }
-    }
-
     /// Read an optional floating-point argument.
     ///
     /// Accepts both `Float` and `Int` values. `Int` is widened to `f64`.
@@ -419,16 +382,6 @@ impl EndpointArgs {
             Some(EndpointArgValue::Int(value)) => Ok(Some(*value as f64)),
             Some(_) => Err(EndpointError::InvalidParams(format!(
                 "optional number argument '{key}' must be a number"
-            ))),
-        }
-    }
-
-    /// Read a required boolean argument.
-    pub fn required_bool(&self, key: &str) -> Result<bool, EndpointError> {
-        match self.required_value(key)? {
-            EndpointArgValue::Bool(value) => Ok(*value),
-            _ => Err(EndpointError::InvalidParams(format!(
-                "required boolean argument '{key}' must be a boolean"
             ))),
         }
     }

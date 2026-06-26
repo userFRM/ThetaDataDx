@@ -95,11 +95,7 @@ pub(super) fn required_getter_name(param_type: &str) -> &'static str {
         "Date" => "required_date",
         "Expiration" => "required_expiration",
         "Strike" => "required_strike",
-        "Interval" => "required_interval",
         "Right" => "required_right",
-        "Int" => "required_int32",
-        "Float" => "required_float64",
-        "Bool" => "required_bool",
         "Year" => "required_year",
         _ => "required_str",
     }
