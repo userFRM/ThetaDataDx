@@ -55,30 +55,11 @@ impl SubscriptionTier {
             _ => None,
         }
     }
-
-    /// Wire-format integer for round-tripping back to the Nexus shape.
-    #[must_use]
-    pub const fn as_wire(self) -> i32 {
-        self as i32
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::SubscriptionTier;
-
-    #[test]
-    fn from_wire_round_trip() {
-        for tier in [
-            SubscriptionTier::Free,
-            SubscriptionTier::Value,
-            SubscriptionTier::Standard,
-            SubscriptionTier::Pro,
-        ] {
-            let wire = tier.as_wire();
-            assert_eq!(SubscriptionTier::from_wire(wire), Some(tier));
-        }
-    }
 
     #[test]
     fn from_wire_rejects_unknown() {
@@ -96,10 +77,16 @@ mod tests {
     }
 
     #[test]
-    fn discriminants_match_wire() {
-        assert_eq!(SubscriptionTier::Free.as_wire(), 0);
-        assert_eq!(SubscriptionTier::Value.as_wire(), 1);
-        assert_eq!(SubscriptionTier::Standard.as_wire(), 2);
-        assert_eq!(SubscriptionTier::Pro.as_wire(), 3);
+    fn from_wire_maps_known_discriminants() {
+        assert_eq!(SubscriptionTier::from_wire(0), Some(SubscriptionTier::Free));
+        assert_eq!(
+            SubscriptionTier::from_wire(1),
+            Some(SubscriptionTier::Value)
+        );
+        assert_eq!(
+            SubscriptionTier::from_wire(2),
+            Some(SubscriptionTier::Standard)
+        );
+        assert_eq!(SubscriptionTier::from_wire(3), Some(SubscriptionTier::Pro));
     }
 }
