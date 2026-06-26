@@ -2486,7 +2486,13 @@ fn join_extracted_session(handle: &ThetaDataDxStreamHandle, session: FfpssDispat
 /// the handle terminal under the `dispatcher` lock before extracting
 /// `session`.
 fn retire_session(handle: &ThetaDataDxStreamHandle, session: FfpssDispatcherSession) {
-    if let Some(client) = handle.inner.lock_recover().take() {
+    // Bind the take to a `let` so the `inner` guard drops at the end of THIS
+    // statement, before `shutdown()`/`drop()` — keeping a dispatcher that
+    // re-enters `handle.inner` via the user callback from observing the lock
+    // held. Holding it across the if-let block (scrutinee form) would extend
+    // the guard over the teardown and break the lock-free re-entry invariant.
+    let taken = handle.inner.lock_recover().take();
+    if let Some(client) = taken {
         handle
             .prev_drained
             .lock_recover()
