@@ -2944,6 +2944,11 @@ pub unsafe extern "C" fn thetadatadx_streaming_free(handle: *mut ThetaDataDxStre
                 let session = extract_dispatcher_session(&mut disp_guard);
                 drop(disp_guard);
                 retire_session(h, session);
+            } else {
+                // Already terminal: nothing to retire, but the drain wait
+                // below must run lock-free on this path too, so release the
+                // dispatcher lock here rather than holding it to scope end.
+                drop(disp_guard);
             }
 
             // Wait for every superseded session's consumer thread to
