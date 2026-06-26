@@ -286,14 +286,6 @@ heck = "0.5.0"
 toml = "1.1.2"
 serde = { version = "1.0.228", features = ["derive"] }
 
-# POSIX `pipe2` / `write` / `close` for the asyncio wake-fd bridge used
-# by the Python SDK's `streaming_async()` surface (see
-# `src/fpss/wake.rs`). Pure libc — no abstraction layer — because we
-# only need three syscalls and want the wake path to stay
-# zero-allocation.
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
-
 [[bench]]
 # Drives `thetadatadx::wire` proto types + `thetadatadx::decode` cell
 # extractors against fixture-built `DataTable` payloads; gated on

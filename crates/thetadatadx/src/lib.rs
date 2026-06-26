@@ -143,7 +143,7 @@ pub mod grpc;
 pub(crate) mod observability;
 
 // The binary-encoding data layer — tick types, enums, `Price`, the
-// FIT/FIE codecs, Black-Scholes Greeks, and the condition / exchange /
+// FIT codec, Black-Scholes Greeks, and the condition / exchange /
 // sequence lookups. The crate root re-exports its public surface under
 // stable `thetadatadx::*` paths (see the re-export blocks below); the
 // `tdbe` name itself stays internal so the SDK ships as one crate with
@@ -151,7 +151,7 @@ pub(crate) mod observability;
 // the `tdbe` path consumers must not depend on.
 //
 // The layer carries the complete data-format API: some entry points
-// (the per-Greek Black-Scholes primitives, the FIE encoder, the
+// (the per-Greek Black-Scholes primitives, the FIT codec, the
 // canonical-JSON helpers, a handful of enum/error constructors) have no
 // caller inside a default-feature build — they are reached by the
 // `__internal` re-exports below (workspace tools and bindings) and by the
@@ -499,7 +499,7 @@ pub mod utils {
 // (`tools/cli`, `tools/server`, `tools/mcp`), bindings (`ffi`,
 // `sdks/python`, `sdks/typescript`), and the bench harnesses reach a few
 // more data-layer items: the DST-aware epoch math, the canonical JSON
-// finite-or-null sanitiser, the FIT/FIE codecs, and the calendar-status
+// finite-or-null sanitiser, the FIT codec, and the calendar-status
 // enum the generated tick constructors validate against. These are gated
 // on `__internal` so they stay out of the SemVer commitment and rendered
 // rustdoc; external crates MUST NOT enable that feature. The `tdbe` name
@@ -525,7 +525,7 @@ pub use crate::tdbe::time;
 #[doc(hidden)]
 pub use crate::tdbe::json_canon;
 
-/// FIT/FIE 4-bit nibble codecs for FPSS tick compression.
+/// FIT 4-bit nibble codec for FPSS tick compression.
 ///
 /// Only available when the `__internal` feature is enabled. NOT a stable
 /// public surface — for workspace tools and bindings only.
