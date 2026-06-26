@@ -34,7 +34,7 @@ struct EndpointRequestOptions {
     std::optional<bool> exclusive;
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     std::optional<std::string> strike;
-    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     std::optional<std::string> right;
     /// Ticker symbol to filter by (e.g. AAPL). Omit to list every contract for the date.
     std::optional<std::string> symbol;

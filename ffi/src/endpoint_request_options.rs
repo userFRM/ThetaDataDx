@@ -31,7 +31,7 @@ pub struct ThetaDataDxEndpointRequestOptions {
     pub has_exclusive: i32,
     /// Strike price in dollars as a string (e.g. 500 or 17.5). Use `*` for wildcard selection.
     pub strike: *const c_char,
-    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`.
+    /// Option side. Use `both` or `*` (alias) for calls and puts. Accepted values: `call`, `put`, `both`, `*`.
     pub right: *const c_char,
     /// Ticker symbol to filter by (e.g. AAPL). Omit to list every contract for the date.
     pub symbol: *const c_char,

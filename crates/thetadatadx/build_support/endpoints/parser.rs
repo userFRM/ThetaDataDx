@@ -688,11 +688,21 @@ fn resolved_param_description(param: &SurfaceParam, enums: &[GeneratedEnum]) -> 
     let Some(enum_spec) = enums.iter().find(|candidate| candidate.name == enum_name) else {
         return param.description.clone();
     };
-    let joined = enum_spec
+    let mut accepted: Vec<String> = enum_spec
         .variants
         .iter()
         .map(|variant| format!("`{}`", variant.wire))
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!("{} Accepted values: {}.", param.description, joined)
+        .collect();
+    // `Right` accepts `*` as a public-surface alias for `both` (the same
+    // alias its `TryFrom<&str>` parses and the param description documents),
+    // but it is not a distinct enum variant, so list it explicitly here to
+    // keep the accepted-values text in sync with what callers may pass.
+    if enum_name == "Right" {
+        accepted.push("`*`".to_string());
+    }
+    format!(
+        "{} Accepted values: {}.",
+        param.description,
+        accepted.join(", ")
+    )
 }

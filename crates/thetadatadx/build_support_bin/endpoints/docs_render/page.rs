@@ -123,7 +123,16 @@ const EXPIRATION_WILDCARD_NOTE: &str =
 fn param_description_cell(param: &GeneratedParam, supports_expiration_wildcard: bool) -> String {
     let base = param.description.replace('\n', " ");
     if param.name == "expiration" && supports_expiration_wildcard {
-        format!("{base} {EXPIRATION_WILDCARD_NOTE}")
+        // Join the note to the base with a sentence break unless the base
+        // already ends in terminal punctuation, so every endpoint renders a
+        // clean `… YYYYMMDD. Pass \`*\` …` instead of a run-on space.
+        let trimmed = base.trim_end();
+        let sep = if trimmed.ends_with(['.', '!', '?', ':']) {
+            " "
+        } else {
+            ". "
+        };
+        format!("{trimmed}{sep}{EXPIRATION_WILDCARD_NOTE}")
     } else {
         base
     }
