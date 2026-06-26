@@ -14,7 +14,8 @@ use super::super::parser::load_endpoint_specs;
 use super::super::sdk_helpers::collect_builder_params;
 use super::super::test_fixtures::load_test_fixtures;
 use super::{
-    cli_validate, cpp, cpp_validate, enums, ffi, python, python_stub, python_validate, typescript,
+    cli_validate, config_accessors, cpp, cpp_validate, enums, ffi, python, python_stub,
+    python_validate, typescript,
 };
 
 struct GeneratedSourceFile {
@@ -143,6 +144,14 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         GeneratedSourceFile {
             relative_path: "ffi/src/endpoint_stream.rs",
             contents: ffi::render_ffi_stream_endpoints(&parsed.endpoints),
+        },
+        GeneratedSourceFile {
+            relative_path: "ffi/src/config_accessors.rs",
+            contents: config_accessors::render_ffi_config_accessors()?,
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/cpp/include/config_accessors.hpp.inc",
+            contents: config_accessors::render_cpp_config_accessors()?,
         },
         GeneratedSourceFile {
             relative_path: "sdks/cpp/include/endpoint_request_options.h.inc",

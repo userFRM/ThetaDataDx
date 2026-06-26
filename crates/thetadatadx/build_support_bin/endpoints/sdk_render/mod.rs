@@ -5,6 +5,7 @@
 //! this tree — only the `generate_sdk_surfaces` binary reaches here.
 
 mod cli_validate;
+mod config_accessors;
 mod cpp;
 mod cpp_validate;
 mod doc;

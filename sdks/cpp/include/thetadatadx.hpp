@@ -834,33 +834,7 @@ public:
         thetadatadx_config_set_reconnect_stable_window_secs(handle_.get(), secs);
     }
 
-    /** Set the reconnect delay (ms) honoured for generic transient
-     *  disconnects (TimedOut, ServerRestarting, Unspecified, ...).
-     *  Default 250. */
-    void set_reconnect_wait_ms(uint64_t ms) {
-        thetadatadx_config_set_reconnect_wait_ms(handle_.get(), ms);
-    }
-
-    /** Current reconnect wait_ms (default 250). Returns the default on
-     *  a null config handle. */
-    uint64_t get_reconnect_wait_ms() const {
-        uint64_t out{};
-        thetadatadx_config_get_reconnect_wait_ms(handle_.get(), &out);
-        return out;
-    }
-
-    /** Set the reconnect delay (ms) honoured for `TooManyRequests`
-     *  rate-limited disconnects. Default 130_000. */
-    void set_reconnect_wait_rate_limited_ms(uint64_t ms) {
-        thetadatadx_config_set_reconnect_wait_rate_limited_ms(handle_.get(), ms);
-    }
-
-    /** Current reconnect wait_rate_limited_ms (default 130_000). */
-    uint64_t get_reconnect_wait_rate_limited_ms() const {
-        uint64_t out{};
-        thetadatadx_config_get_reconnect_wait_rate_limited_ms(handle_.get(), &out);
-        return out;
-    }
+    #include "config_accessors.hpp.inc"
 
     /** Current reconnect policy selector: 0=Auto, 1=Manual, 2=Custom. */
     int32_t get_reconnect_policy() const {
@@ -917,32 +891,6 @@ public:
         return out;
     }
 
-    /** Set the cap (ms) on the exponential generic-transient reconnect
-     *  ladder. Default 30_000. */
-    void set_reconnect_wait_max_ms(uint64_t ms) {
-        thetadatadx_config_set_reconnect_wait_max_ms(handle_.get(), ms);
-    }
-
-    /** Current reconnect wait_max_ms (default 30_000). */
-    uint64_t get_reconnect_wait_max_ms() const {
-        uint64_t out{};
-        thetadatadx_config_get_reconnect_wait_max_ms(handle_.get(), &out);
-        return out;
-    }
-
-    /** Set the flat reconnect cadence (ms) for ServerRestarting
-     *  disconnects. Default 5_000. */
-    void set_reconnect_wait_server_restart_ms(uint64_t ms) {
-        thetadatadx_config_set_reconnect_wait_server_restart_ms(handle_.get(), ms);
-    }
-
-    /** Current reconnect wait_server_restart_ms (default 5_000). */
-    uint64_t get_reconnect_wait_server_restart_ms() const {
-        uint64_t out{};
-        thetadatadx_config_get_reconnect_wait_server_restart_ms(handle_.get(), &out);
-        return out;
-    }
-
     /** Set the reconnect jitter mode: 0=Full (default), 1=Equal,
      *  2=Decorrelated, 3=None. Throws @c thetadatadx::InvalidParameterError on
      *  an out-of-domain mode (and @c thetadatadx::ThetaDataError on a null
@@ -961,32 +909,6 @@ public:
         return out;
     }
 
-    /** Set the subscription-replay burst size used after an
-     *  auto-reconnect. Minimum 1 (validated at connect). Default 50. */
-    void set_reconnect_replay_burst_size(uint32_t n) {
-        thetadatadx_config_set_reconnect_replay_burst_size(handle_.get(), n);
-    }
-
-    /** Current replay_burst_size (default 50). */
-    uint32_t get_reconnect_replay_burst_size() const {
-        uint32_t out{};
-        thetadatadx_config_get_reconnect_replay_burst_size(handle_.get(), &out);
-        return out;
-    }
-
-    /** Set the pause (ms) between subscription-replay bursts. 0
-     *  removes the pause. Default 5. */
-    void set_reconnect_replay_pace_ms(uint64_t ms) {
-        thetadatadx_config_set_reconnect_replay_pace_ms(handle_.get(), ms);
-    }
-
-    /** Current replay_pace_ms (default 5). */
-    uint64_t get_reconnect_replay_pace_ms() const {
-        uint64_t out{};
-        thetadatadx_config_get_reconnect_replay_pace_ms(handle_.get(), &out);
-        return out;
-    }
-
     /** Install a custom reconnect policy driven by a C callback.
      *  Permanent disconnect reasons never reach the callback; it runs
      *  on the SDK's streaming I/O thread and must be thread-safe.
@@ -996,123 +918,11 @@ public:
         return thetadatadx_config_set_reconnect_callback(handle_.get(), cb, user_data);
     }
 
-    /** Set the streaming read timeout (ms): the no-frames deadline after
-     *  which the streaming I/O loop reconnects. Default 3_000;
-     *  validated to [100, 60_000] at connect. */
-    void set_streaming_timeout_ms(uint64_t ms) {
-        thetadatadx_config_set_streaming_timeout_ms(handle_.get(), ms);
-    }
-
-    /** Current streaming timeout_ms (default 3_000). */
-    uint64_t get_streaming_timeout_ms() const {
-        uint64_t out{};
-        thetadatadx_config_get_streaming_timeout_ms(handle_.get(), &out);
-        return out;
-    }
-
-    /** Set the per-server connect timeout (ms) for the streaming
-     *  connection. Default 2_000; validated to [1_000, 60_000] at
-     *  connect. */
-    void set_streaming_connect_timeout_ms(uint64_t ms) {
-        thetadatadx_config_set_streaming_connect_timeout_ms(handle_.get(), ms);
-    }
-
-    /** Current streaming connect_timeout_ms (default 2_000). */
-    uint64_t get_streaming_connect_timeout_ms() const {
-        uint64_t out{};
-        thetadatadx_config_get_streaming_connect_timeout_ms(handle_.get(), &out);
-        return out;
-    }
-
-    /** Set the streaming heartbeat ping interval (ms). Default 250;
-     *  validated to [100, 300_000] at connect. */
-    void set_streaming_ping_interval_ms(uint64_t ms) {
-        thetadatadx_config_set_streaming_ping_interval_ms(handle_.get(), ms);
-    }
-
-    /** Current streaming ping_interval_ms (default 250). */
-    uint64_t get_streaming_ping_interval_ms() const {
-        uint64_t out{};
-        thetadatadx_config_get_streaming_ping_interval_ms(handle_.get(), &out);
-        return out;
-    }
-
-    /** Set the per-iteration blocking-read slice (ms) for the
-     *  streaming I/O loop. Default 25; validated to [10, 500]. */
-    void set_streaming_io_read_slice_ms(uint64_t ms) {
-        thetadatadx_config_set_streaming_io_read_slice_ms(handle_.get(), ms);
-    }
-
-    /** Current streaming io_read_slice_ms (default 25). */
-    uint64_t get_streaming_io_read_slice_ms() const {
-        uint64_t out{};
-        thetadatadx_config_get_streaming_io_read_slice_ms(handle_.get(), &out);
-        return out;
-    }
-
-    /** Set the last-frame watchdog (ms); 0 disables. Default 30_000. */
-    void set_streaming_data_watchdog_ms(uint64_t ms) {
-        thetadatadx_config_set_streaming_data_watchdog_ms(handle_.get(), ms);
-    }
-
-    /** Current streaming data_watchdog_ms (default 30_000; 0 = disabled). */
-    uint64_t get_streaming_data_watchdog_ms() const {
-        uint64_t out{};
-        thetadatadx_config_get_streaming_data_watchdog_ms(handle_.get(), &out);
-        return out;
-    }
-
-    /** Set the TCP keepalive idle time (seconds). Default 5; validated
-     *  to [1, 7_200] at connect. */
-    void set_streaming_keepalive_idle_secs(uint64_t secs) {
-        thetadatadx_config_set_streaming_keepalive_idle_secs(handle_.get(), secs);
-    }
-
-    /** Current streaming keepalive_idle_secs (default 5). */
-    uint64_t get_streaming_keepalive_idle_secs() const {
-        uint64_t out{};
-        thetadatadx_config_get_streaming_keepalive_idle_secs(handle_.get(), &out);
-        return out;
-    }
-
-    /** Set the TCP keepalive probe interval (seconds). Default 2;
-     *  validated to [1, 75] at connect. */
-    void set_streaming_keepalive_interval_secs(uint64_t secs) {
-        thetadatadx_config_set_streaming_keepalive_interval_secs(handle_.get(), secs);
-    }
-
-    /** Current streaming keepalive_interval_secs (default 2). */
-    uint64_t get_streaming_keepalive_interval_secs() const {
-        uint64_t out{};
-        thetadatadx_config_get_streaming_keepalive_interval_secs(handle_.get(), &out);
-        return out;
-    }
-
-    /** Set the TCP keepalive probe count before the kernel declares
-     *  the peer dead. Default 2; validated to [1, 10] at connect. */
-    void set_streaming_keepalive_retries(uint32_t n) {
-        thetadatadx_config_set_streaming_keepalive_retries(handle_.get(), n);
-    }
-
-    /** Current streaming keepalive_retries (default 2). */
-    uint32_t get_streaming_keepalive_retries() const {
-        uint32_t out{};
-        thetadatadx_config_get_streaming_keepalive_retries(handle_.get(), &out);
-        return out;
-    }
-
     /** Set the streaming event ring size (slots). Must be a power of two
      *  >= 64; invalid values are rejected (thetadatadx_last_error). Default
      *  131_072. */
     void set_streaming_ring_size(size_t n) {
         thetadatadx_config_set_streaming_ring_size(handle_.get(), n);
-    }
-
-    /** Current streaming ring_size (default 131_072). */
-    size_t get_streaming_ring_size() const {
-        size_t out{};
-        thetadatadx_config_get_streaming_ring_size(handle_.get(), &out);
-        return out;
     }
 
     /** Set the streaming host-selection policy: 0=Shuffled (default),
@@ -1151,32 +961,6 @@ public:
         return has_value ? std::optional<uint64_t>{seed} : std::nullopt;
     }
 
-    /** Set the wall-clock envelope (seconds) for one
-     *  historical-channel retry sequence. 0 disables. Default 300. */
-    void set_retry_max_elapsed_secs(uint64_t secs) {
-        thetadatadx_config_set_retry_max_elapsed_secs(handle_.get(), secs);
-    }
-
-    /** Current retry max_elapsed in seconds (default 300; 0 = disabled). */
-    uint64_t get_retry_max_elapsed_secs() const {
-        uint64_t out{};
-        thetadatadx_config_get_retry_max_elapsed_secs(handle_.get(), &out);
-        return out;
-    }
-
-    /** Toggle AWS-style full jitter on the flatfile retry ladder.
-     *  Default true. */
-    void set_flatfiles_jitter(bool jitter) {
-        thetadatadx_config_set_flatfiles_jitter(handle_.get(), jitter);
-    }
-
-    /** Current flatfiles jitter setting (default true). */
-    bool get_flatfiles_jitter() const {
-        bool out{};
-        thetadatadx_config_get_flatfiles_jitter(handle_.get(), &out);
-        return out;
-    }
-
 
     /** Set the async worker-thread count using the (has_value, n) shape
      *  that preserves an explicit 0 across the C boundary. has_value=false
@@ -1200,102 +984,15 @@ public:
 
     // ── RetryPolicy field setters/getters ──
 
-    /** Initial backoff delay (ms) for the historical retry policy. Default 250. */
-    void set_retry_initial_delay_ms(uint64_t ms) {
-        thetadatadx_config_set_retry_initial_delay_ms(handle_.get(), ms);
-    }
     uint64_t get_retry_initial_delay_ms() const {
         uint64_t out{};
         thetadatadx_config_get_retry_initial_delay_ms(handle_.get(), &out);
         return out;
     }
 
-    /** Upper-bound backoff delay (ms). Default 30_000 (30 s). */
-    void set_retry_max_delay_ms(uint64_t ms) {
-        thetadatadx_config_set_retry_max_delay_ms(handle_.get(), ms);
-    }
     uint64_t get_retry_max_delay_ms() const {
         uint64_t out{};
         thetadatadx_config_get_retry_max_delay_ms(handle_.get(), &out);
-        return out;
-    }
-
-    /** Total attempt budget. 1 disables retry. Default 20. */
-    void set_retry_max_attempts(uint32_t n) {
-        thetadatadx_config_set_retry_max_attempts(handle_.get(), n);
-    }
-    uint32_t get_retry_max_attempts() const {
-        uint32_t out{};
-        thetadatadx_config_get_retry_max_attempts(handle_.get(), &out);
-        return out;
-    }
-
-    /** AWS-style full jitter toggle. Default true. */
-    void set_retry_jitter(bool jitter) {
-        thetadatadx_config_set_retry_jitter(handle_.get(), jitter);
-    }
-    bool get_retry_jitter() const {
-        bool out{};
-        thetadatadx_config_get_retry_jitter(handle_.get(), &out);
-        return out;
-    }
-
-    // ── FlatFilesConfig field setters/getters ──
-
-    /** Total attempt budget for the flatfile driver retry loop.
-     *  1 disables retry. Default 10. Validated to [1, 100]. */
-    void set_flatfiles_max_attempts(uint32_t n) {
-        thetadatadx_config_set_flatfiles_max_attempts(handle_.get(), n);
-    }
-    uint32_t get_flatfiles_max_attempts() const {
-        uint32_t out{};
-        thetadatadx_config_get_flatfiles_max_attempts(handle_.get(), &out);
-        return out;
-    }
-
-    /** Initial backoff delay (seconds). Doubles per attempt up to
-     *  max_backoff_secs. Default 1. */
-    void set_flatfiles_initial_backoff_secs(uint64_t secs) {
-        thetadatadx_config_set_flatfiles_initial_backoff_secs(handle_.get(), secs);
-    }
-    uint64_t get_flatfiles_initial_backoff_secs() const {
-        uint64_t out{};
-        thetadatadx_config_get_flatfiles_initial_backoff_secs(handle_.get(), &out);
-        return out;
-    }
-
-    /** Upper-bound backoff delay (seconds). Default 30. Must be >=
-     *  initial_backoff_secs (rejected at connect-time validate). */
-    void set_flatfiles_max_backoff_secs(uint64_t secs) {
-        thetadatadx_config_set_flatfiles_max_backoff_secs(handle_.get(), secs);
-    }
-    uint64_t get_flatfiles_max_backoff_secs() const {
-        uint64_t out{};
-        thetadatadx_config_get_flatfiles_max_backoff_secs(handle_.get(), &out);
-        return out;
-    }
-
-    /** TCP + TLS connect timeout (seconds) for one flatfile-host attempt.
-     *  Bounds the connect/auth handshake before the next host (or the
-     *  retry ladder) takes over. Default 10. */
-    void set_flatfiles_connect_timeout_secs(uint64_t secs) {
-        thetadatadx_config_set_flatfiles_connect_timeout_secs(handle_.get(), secs);
-    }
-    uint64_t get_flatfiles_connect_timeout_secs() const {
-        uint64_t out{};
-        thetadatadx_config_get_flatfiles_connect_timeout_secs(handle_.get(), &out);
-        return out;
-    }
-
-    /** Read timeout (seconds) for a single flatfile response frame. Bounds
-     *  the wait for the next chunk so a mid-stream stall fails over
-     *  instead of blocking forever. Default 60. */
-    void set_flatfiles_read_timeout_secs(uint64_t secs) {
-        thetadatadx_config_set_flatfiles_read_timeout_secs(handle_.get(), secs);
-    }
-    uint64_t get_flatfiles_read_timeout_secs() const {
-        uint64_t out{};
-        thetadatadx_config_get_flatfiles_read_timeout_secs(handle_.get(), &out);
         return out;
     }
 
@@ -1507,18 +1204,6 @@ public:
         return core;
     }
 
-    /** Set whether to derive OHLCVC bars locally from trades. */
-    void set_derive_ohlcvc(bool enabled) { thetadatadx_config_set_derive_ohlcvc(handle_.get(), enabled); }
-
-    /** Read the current OHLCVC-derivation flag. Returns `false` on a
-     *  null handle (matching the C ABI's `-1` failure mapping at the
-     *  boundary). */
-    bool get_derive_ohlcvc() const {
-        bool enabled = false;
-        thetadatadx_config_get_derive_ohlcvc(handle_.get(), &enabled);
-        return enabled;
-    }
-
     // ── Historical endpoint ──
 
     /** Set the historical gRPC host. Defaults to the upstream
@@ -1536,71 +1221,6 @@ public:
     std::string get_historical_host() const {
         detail::FfiString s(thetadatadx_config_get_historical_host(handle_.get()));
         return s.str();
-    }
-
-    /** Set the historical gRPC port. Companion to
-     *  @c set_historical_host. */
-    void set_historical_port(std::uint16_t port) {
-        thetadatadx_config_set_historical_port(handle_.get(), port);
-    }
-
-    /** Current historical gRPC port. Returns 0 on a null handle. */
-    std::uint16_t get_historical_port() const {
-        std::uint16_t port = 0;
-        thetadatadx_config_get_historical_port(handle_.get(), &port);
-        return port;
-    }
-
-    // ── Historical tuning ──
-
-    /**
-     * Set the warn_on_buffered_threshold_bytes ceiling.
-     *
-     * Buffered (non-streaming) endpoints log a warning when a response's
-     * decoded total exceeds this threshold, guiding users to the streaming
-     * variant. The payload is still delivered.
-     *
-     * @p n = 0 disables the warning entirely.
-     * Default is `100 * 1024 * 1024` (100 MiB).
-     */
-    void set_warn_on_buffered_threshold_bytes(std::size_t n) {
-        thetadatadx_config_set_warn_on_buffered_threshold_bytes(handle_.get(), n);
-    }
-
-    /**
-     * Read the current `warn_on_buffered_threshold_bytes` setting.
-     *
-     * Returns the configured byte count, or `0` on a null handle
-     * (matching the C ABI's `-1` failure mapping at the boundary).
-     */
-    std::size_t get_warn_on_buffered_threshold_bytes() const {
-        std::size_t n = 0;
-        thetadatadx_config_get_warn_on_buffered_threshold_bytes(handle_.get(), &n);
-        return n;
-    }
-
-    /**
-     * Set the default per-request deadline (seconds) for historical queries.
-     *
-     * Bounds every request that did not set its own deadline, so a
-     * live-but-silent stream resolves to a timeout instead of blocking
-     * forever. @p secs = 0 disables the default. Default is `300`.
-     */
-    void set_request_timeout_secs(std::uint64_t secs) {
-        thetadatadx_config_set_request_timeout_secs(handle_.get(), secs);
-    }
-
-    /**
-     * Read the current historical `request_timeout_secs` setting.
-     *
-     * Returns the configured seconds (`0` = no default deadline), or
-     * `0` on a null handle (matching the C ABI's `-1` failure mapping
-     * at the boundary).
-     */
-    std::uint64_t get_request_timeout_secs() const {
-        std::uint64_t secs = 0;
-        thetadatadx_config_get_request_timeout_secs(handle_.get(), &secs);
-        return secs;
     }
 
     /** Get the raw handle. */
