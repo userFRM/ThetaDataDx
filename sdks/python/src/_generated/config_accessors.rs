@@ -675,7 +675,8 @@ impl Config {
     /// per-frame syscall cost).
     #[setter]
     fn set_flush_mode(&self, mode: &str) -> PyResult<()> {
-        let parsed = config::StreamingFlushMode::parse(mode).ok_or_else(|| {
+        let mode = mode.to_ascii_lowercase();
+        let parsed = config::StreamingFlushMode::parse(&mode).ok_or_else(|| {
             PyValueError::new_err(format!(
                 "flush_mode must be \"batched\" or \"immediate\"; got {mode:?}"
             ))

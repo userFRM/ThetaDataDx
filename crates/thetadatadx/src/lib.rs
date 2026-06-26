@@ -107,9 +107,10 @@ pub mod config;
 pub mod error;
 pub mod flatfiles;
 // The streaming implementation lives here, but `thetadatadx::streaming` is the
-// canonical public path for the streaming surface. `fpss` stays `pub` so existing
-// `use thetadatadx::fpss::...` imports keep compiling, and is `#[doc(hidden)]` so
-// the vendor protocol name no longer fronts the rendered API.
+// canonical public path for the streaming surface. `fpss` stays `pub` so the
+// `streaming` re-exports resolve through it, and is `#[doc(hidden)]` so the
+// vendor protocol name no longer fronts the rendered API. The set of items it
+// re-exports tracks the public surface and is not itself a stability contract.
 #[doc(hidden)]
 pub mod fpss;
 #[cfg(any(feature = "polars", feature = "arrow"))]

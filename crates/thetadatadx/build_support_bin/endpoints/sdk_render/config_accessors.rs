@@ -82,6 +82,12 @@ struct Accessor {
     /// with its enum-specific oxford-comma grammar).
     #[serde(default)]
     enum_expected: Option<String>,
+    /// `enum` setter only: typed code for the null-handle leaf. `"config"`
+    /// (default) pins `THETADATADX_ERR_CONFIG`; `"other"` falls back to the
+    /// untyped `set_error` (`THETADATADX_ERR_OTHER`). Selects per setter so
+    /// the generated null-handle classification stays byte-stable.
+    #[serde(default)]
+    null_err: Option<String>,
     /// `enum` / `option` setter only: the Python `ValueError` body for a
     /// rejected value, verbatim (the per-accessor prose stays byte-stable
     /// across bindings). `{…}` placeholders interpolate the setter param /
@@ -92,6 +98,17 @@ struct Accessor {
     /// body for a rejected value, verbatim.
     #[serde(default)]
     ts_err: Option<String>,
+    /// `enum` getter only: the int the `#[non_exhaustive]` `_` arm maps a
+    /// future/unknown core variant to. Absent = the last listed variant's
+    /// int. Every known variant is still matched explicitly; the `_` arm
+    /// only ever fires for a variant added to the core after this table.
+    #[serde(default)]
+    catch_all_int: Option<i32>,
+    /// `enum` setter only: lowercase the binding-string param before
+    /// `parse` + the rejection-message interpolation, so the diagnostic
+    /// echoes the normalized value (`got "bogus"`, not `"BOGUS"`).
+    #[serde(default)]
+    lowercase_err: bool,
     /// `enum` only: the int ↔ variant ↔ lowercase-label bijection. Drives
     /// the FFI `match` both ways and the variant arms the C++ doc and the
     /// Python / TypeScript surfaces reference.
@@ -130,7 +147,41 @@ struct ConfigSurface {
 fn load() -> Result<Vec<Accessor>, Box<dyn std::error::Error>> {
     let spec_str = std::fs::read_to_string("config_surface.toml")?;
     let spec: ConfigSurface = toml::from_str(&spec_str)?;
+    for a in &spec.accessor {
+        assert_unsupported_shape(a);
+    }
     Ok(spec.accessor)
+}
+
+/// Fail the build on a TOML row whose shape the templates do not handle,
+/// rather than emit Rust that silently miscompiles. These branches are
+/// reachable only by a future field, so the guard is the contract that
+/// such a field must extend the emitter first.
+///
+/// * `policy_limit` + `duration_unit = "ms"` — the policy read only
+///   wraps `secs`; an `ms` limit would write a raw `Duration` into a
+///   `u64` out-parameter.
+/// * `bool`-typed `option` — the `None` sentinel is the integer `0`,
+///   which is not a `bool` (Rust) / triggers `-Wbool-conversion` (C++).
+/// * `Option<Duration>` (`option` + `duration_unit`) — the option
+///   branch ignores `duration_unit`, so it would move a raw `u64` into
+///   an `Option<Duration>` and read a `Duration` into a `u64` out-param.
+fn assert_unsupported_shape(a: &Accessor) {
+    assert!(
+        !(a.shape.as_deref() == Some("policy_limit") && a.duration_unit.as_deref() == Some("ms")),
+        "config_surface: policy_limit '{}' has duration_unit=\"ms\"; the policy-limit getter only wraps secs — extend ffi_get_read_expr / py_get_read / the TS policy_limit arm before adding an ms limit",
+        a.symbol
+    );
+    assert!(
+        !(a.kind == "option" && a.abi_type == "bool"),
+        "config_surface: option '{}' is bool-typed; the None sentinel `0` is not a bool — give the option getter a Default-based sentinel before adding a bool option",
+        a.symbol
+    );
+    assert!(
+        !(a.kind == "option" && a.duration_unit.is_some()),
+        "config_surface: option '{}' carries duration_unit; the option branch ignores it and would mishandle Option<Duration> — add the Duration wrap/unwrap before adding one",
+        a.symbol
+    );
 }
 
 const CFG_SAFETY: &str = "        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.";
@@ -197,6 +248,21 @@ fn policy_get_match(
     )
 }
 
+/// The `enum` setter null-handle leaf. `null_err = "other"` reproduces
+/// the untyped `set_error` (`ERR_OTHER`); the default pins `ERR_CONFIG`.
+/// Both spellings carry the identical `"{sym}: config handle is null"`
+/// text — only the typed code differs.
+fn ffi_enum_null_leaf(a: &Accessor) -> String {
+    match a.null_err.as_deref() {
+        Some("other") => format!("set_error(\"{sym}: config handle is null\");", sym = a.symbol),
+        Some("config") | None => format!(
+            "crate::error::set_error_with_code(\n                \"{sym}: config handle is null\",\n                crate::error::THETADATADX_ERR_CONFIG,\n            );",
+            sym = a.symbol,
+        ),
+        Some(other) => panic!("config_surface: unknown null_err '{other}' on {}", a.symbol),
+    }
+}
+
 /// The `enum` setter int→variant decode `match` (with the typed-error
 /// `_` arm), emitted into the FFI setter body. `set_error_with_code`
 /// keeps the rejected-int path on `INVALID_PARAMETER` across every
@@ -218,19 +284,21 @@ fn ffi_enum_set_match(a: &Accessor) -> String {
 }
 
 /// The `enum` getter variant→int decode `match`, emitted into the FFI
-/// getter body. The final arm folds to `_ => <last int>` so a
-/// `#[non_exhaustive]` core enum stays covered without an extra arm.
+/// getter body. Every known variant is matched explicitly; a trailing
+/// `_ => <catch_all_int>` covers the `#[non_exhaustive]` core enum
+/// (mandatory across the crate boundary) and pins the int a future
+/// variant decodes to, instead of silently inheriting the last listed
+/// variant's code.
 fn ffi_enum_get_match(a: &Accessor) -> String {
     let ty = a.enum_type.as_deref().expect("enum needs enum_type");
     let mut arms = String::new();
-    let last = a.variant.len() - 1;
-    for (i, v) in a.variant.iter().enumerate() {
-        if i == last {
-            writeln!(arms, "            _ => {},", v.int).unwrap();
-        } else {
-            writeln!(arms, "            {ty}::{} => {},", v.rust, v.int).unwrap();
-        }
+    for v in &a.variant {
+        writeln!(arms, "            {ty}::{} => {},", v.rust, v.int).unwrap();
     }
+    let catch_all = a
+        .catch_all_int
+        .unwrap_or_else(|| a.variant.last().expect("enum needs variants").int);
+    writeln!(arms, "            _ => {catch_all},").unwrap();
     format!(
         "let value = match {recv}.{path} {{\n{arms}        }};",
         recv = "config.inner",
@@ -282,13 +350,14 @@ pub(super) fn render_ffi_config_accessors() -> Result<String, Box<dyn std::error
         out.push_str("#[no_mangle]\n");
         match (a.shape.as_deref(), a.kind.as_str()) {
             (_, "enum") if is_setter(a) => {
-                // `i32` code → core variant. A null handle carries
-                // `ERR_CONFIG`; a rejected int carries
+                // `i32` code → core variant. The null-handle leaf is typed
+                // per setter (`null_err`); a rejected int carries
                 // `ERR_INVALID_PARAMETER` (unified across all four enums).
                 write!(
                     out,
-                    "pub unsafe extern \"C\" fn {sym}(\n    config: *mut ThetaDataDxConfig,\n    {p}: {ty},\n) -> i32 {{\n    ffi_boundary!(-1, {{\n        if config.is_null() {{\n            crate::error::set_error_with_code(\n                \"{sym}: config handle is null\",\n                crate::error::THETADATADX_ERR_CONFIG,\n            );\n            return -1;\n        }}\n        {decode}\n        // SAFETY: config is a non-null pointer returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.\n        let config = unsafe {{ &mut *config }};\n        config.inner.{path} = value;\n        0\n    }})\n}}\n\n",
+                    "pub unsafe extern \"C\" fn {sym}(\n    config: *mut ThetaDataDxConfig,\n    {p}: {ty},\n) -> i32 {{\n    ffi_boundary!(-1, {{\n        if config.is_null() {{\n            {null_leaf}\n            return -1;\n        }}\n        {decode}\n        // SAFETY: config is a non-null pointer returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.\n        let config = unsafe {{ &mut *config }};\n        config.inner.{path} = value;\n        0\n    }})\n}}\n\n",
                     sym = a.symbol, p = a.param, ty = a.abi_type,
+                    null_leaf = ffi_enum_null_leaf(a),
                     decode = ffi_enum_set_match(a), path = a.path,
                 )?;
             }
@@ -333,10 +402,12 @@ pub(super) fn render_ffi_config_accessors() -> Result<String, Box<dyn std::error
                         p = a.param
                     ),
                 };
+                // Diagnostics name the logical field (`nexus_url`,
+                // `historical_host`), not the local C param (`url`, `host`).
                 write!(
                     out,
-                    "pub unsafe extern \"C\" fn {sym}(\n    config: *mut ThetaDataDxConfig,\n    {p}: *const c_char,\n) -> i32 {{\n    ffi_boundary!(-1, {{\n        if config.is_null() {{\n            set_error(\"config handle is null\");\n            return -1;\n        }}\n        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.\n        let {p} = match unsafe {{ cstr_to_str({p}) }} {{\n            Ok(Some(s)) => s,\n            Ok(None) => {{\n                set_error(\"{p} is null\");\n                return -1;\n            }}\n            Err(e) => {{\n                set_error(&format!(\"{p} is not valid UTF-8: {{e}}\"));\n                return -1;\n            }}\n        }};\n        // SAFETY: config is a non-null pointer returned by thetadatadx_config_* and not yet freed.\n        let config = unsafe {{ &mut *config }};\n        {assign}\n        0\n    }})\n}}\n\n",
-                    sym = a.symbol, p = a.param, assign = assign,
+                    "pub unsafe extern \"C\" fn {sym}(\n    config: *mut ThetaDataDxConfig,\n    {p}: *const c_char,\n) -> i32 {{\n    ffi_boundary!(-1, {{\n        if config.is_null() {{\n            set_error(\"config handle is null\");\n            return -1;\n        }}\n        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.\n        let {p} = match unsafe {{ cstr_to_str({p}) }} {{\n            Ok(Some(s)) => s,\n            Ok(None) => {{\n                set_error(\"{field} is null\");\n                return -1;\n            }}\n            Err(e) => {{\n                set_error(&format!(\"{field} is not valid UTF-8: {{e}}\"));\n                return -1;\n            }}\n        }};\n        // SAFETY: config is a non-null pointer returned by thetadatadx_config_* and not yet freed.\n        let config = unsafe {{ &mut *config }};\n        {assign}\n        0\n    }})\n}}\n\n",
+                    sym = a.symbol, p = a.param, field = field_name(a), assign = assign,
                 )?;
             }
             (Some("string"), _) => {
@@ -579,13 +650,27 @@ pub(super) fn render_python_config_accessors() -> Result<String, Box<dyn std::er
             (_, "enum") if is_setter(a) => {
                 // Lowercase string → core variant via `parse`; the same
                 // path for every enum (no inline per-enum match).
+                // `lowercase_err` shadows the param so the rejection
+                // message echoes the normalized value.
                 let param = a.py_param.as_deref().expect("setter row needs py_param");
                 let core = a.enum_core.as_deref().expect("enum needs enum_core");
                 let err = rust_lit(a.py_err.as_deref().expect("enum setter needs py_err"));
+                // The lowercased shadow is an owned `String`; `parse` takes
+                // `&str`, so reborrow it. The raw-param path passes the
+                // `&str` arg through unchanged.
+                let (lower, parse_arg) = if a.lowercase_err {
+                    (
+                        format!("        let {param} = {param}.to_ascii_lowercase();\n"),
+                        format!("&{param}"),
+                    )
+                } else {
+                    (String::new(), param.to_string())
+                };
                 write!(
                     out,
-                    "    #[setter]\n    fn set_{field}(&self, {param}: &str) -> PyResult<()> {{\n        let parsed = {core}::parse({param}).ok_or_else(|| {{\n            PyValueError::new_err(format!(\n                \"{err}\"\n            ))\n        }})?;\n{LOCK}\n        guard.{path} = parsed;\n        Ok(())\n    }}\n\n",
+                    "    #[setter]\n    fn set_{field}(&self, {param}: &str) -> PyResult<()> {{\n{lower}        let parsed = {core}::parse({parse_arg}).ok_or_else(|| {{\n            PyValueError::new_err(format!(\n                \"{err}\"\n            ))\n        }})?;\n{LOCK}\n        guard.{path} = parsed;\n        Ok(())\n    }}\n\n",
                     field = field, param = param, core = core, err = err, path = a.path,
+                    lower = lower, parse_arg = parse_arg,
                 )?;
             }
             (_, "enum") => {
@@ -756,10 +841,18 @@ pub(super) fn render_typescript_config_accessors() -> Result<String, Box<dyn std
                 let set_js = format!("set{}", to_pascal_case(field));
                 let core = a.enum_core.as_deref().expect("enum needs enum_core");
                 let err = rust_lit(a.ts_err.as_deref().expect("enum setter needs ts_err"));
+                // `lowercase_err` normalizes the value so the rejection
+                // message echoes the lowercased input (parity with Python).
+                let lower = if a.lowercase_err {
+                    format!("        let {param} = {param}.to_ascii_lowercase();\n")
+                } else {
+                    String::new()
+                };
                 write!(
                     out,
-                    "    #[napi(js_name = \"{set_js}\")]\n    pub fn set_{field}(&self, {param}: String) -> napi::Result<()> {{\n        let parsed = {core}::parse(&{param}).ok_or_else(|| {{\n            crate::invalid_parameter_err(format!(\n                \"{err}\"\n            ))\n        }})?;\n{LOCK}\n        guard.{path} = parsed;\n        Ok(())\n    }}\n\n",
+                    "    #[napi(js_name = \"{set_js}\")]\n    pub fn set_{field}(&self, {param}: String) -> napi::Result<()> {{\n{lower}        let parsed = {core}::parse(&{param}).ok_or_else(|| {{\n            crate::invalid_parameter_err(format!(\n                \"{err}\"\n            ))\n        }})?;\n{LOCK}\n        guard.{path} = parsed;\n        Ok(())\n    }}\n\n",
                     set_js = set_js, field = field, param = param, core = core, err = err, path = a.path,
+                    lower = lower,
                 )?;
             } else {
                 let get_js = to_camel_case(field);

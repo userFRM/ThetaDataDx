@@ -1,6 +1,6 @@
 # Benchmarks
 
-43 benchmarks covering every module in thetadatadx, measured with [Criterion.rs](https://github.com/bheisler/criterion.rs).
+39 benchmarks covering every module in thetadatadx, measured with [Criterion.rs](https://github.com/bheisler/criterion.rs).
 
 ## Hardware
 
@@ -24,15 +24,6 @@
 | `fit_decode_100_rows` | 4.51 us | 45.1 ns/row | 100 trade tick rows |
 | `fit_decode_1000_rows_scalar` | 45.5 us | 45.5 ns/row | 1000 rows, scalar path |
 | `fit_delta_decompression` | 3.95 ns | - | apply_deltas on 16-field tick |
-
-### FIE Encoder (`codec/fie.rs`) - 4 benchmarks
-
-| Benchmark | Median | Description |
-|-----------|--------|-------------|
-| `fie_encode` | 29.5 ns | Encode 10-char string to nibble bytes |
-| `fie_try_encode` | 28.2 ns | Same with Result error path |
-| `fie_encode_long` | 44.8 ns | Encode 50-char string |
-| `fie_decode` | 34.4 ns | Decode nibble bytes back to string |
 
 ### Price (`types/price.rs`) - 5 benchmarks
 
@@ -123,7 +114,7 @@
 ## Running
 
 ```bash
-# Run all 43 benchmarks
+# Run all 39 benchmarks
 cargo bench -p thetadatadx --bench bench
 
 # Run a specific group
