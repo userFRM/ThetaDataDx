@@ -129,37 +129,6 @@ export declare class Config {
    */
   static fromDotenv(path: string): Config
   /**
-   * Set the warning threshold (in bytes) for buffered (non-streaming)
-   * historical responses. Endpoints whose decoded total exceeds this
-   * value log a warning pointing the caller at the
-   * matching `<endpoint>Stream(...)` method (e.g. `optionHistoryTradeStream`),
-   * which delivers the same rows chunk-by-chunk through a callback with
-   * memory bounded to a single chunk; the buffered data is still
-   * delivered. `0n` disables the warning entirely. Default is
-   * `100n * 1024n * 1024n` (100 MiB). Byte budgets can exceed the
-   * 32-bit unsigned range, so the setter takes a `BigInt`.
-   */
-  setWarnOnBufferedThresholdBytes(n: bigint): void
-  /**
-   * Current `warn_on_buffered_threshold_bytes` setting (bytes,
-   * returned as a `BigInt`).
-   */
-  get warnOnBufferedThresholdBytes(): bigint
-  /**
-   * Set the default per-request deadline (seconds) for historical
-   * queries. Bounds every request that did not set its own deadline,
-   * so a live-but-silent stream resolves to a timeout instead of
-   * blocking forever. `0n` disables the default. Default `300n`
-   * (5 minutes). Seconds are taken as a `BigInt` for parity with the
-   * other `*Secs` knobs.
-   */
-  setRequestTimeoutSecs(secs: bigint): void
-  /**
-   * Current historical `request_timeout_secs` setting in seconds
-   * (default `300n`; `0n` = no default deadline).
-   */
-  get requestTimeoutSecs(): bigint
-  /**
    * Set the streaming reconnect policy.
    *
    * - `"auto"` (default): auto-reconnect with the per-class attempt
@@ -190,39 +159,6 @@ export declare class Config {
    * value: `setReconnectStableWindowSecs(BigInt(60))`.
    */
   setReconnectStableWindowSecs(secs: bigint): void
-  /**
-   * Set the reconnect delay (ms) honoured for generic transient
-   * disconnects (TimedOut, ServerRestarting, Unspecified, …).
-   * Plumbed through to the streaming I/O loop at connect time.
-   * Default `250`.
-   *
-   * Accepts a `bigint` for parity with the other bindings, which use a 64-bit unsigned integer.
-   */
-  setReconnectWaitMs(ms: bigint): void
-  /** Current reconnect `wait_ms` value (default `250`). */
-  get reconnectWaitMs(): bigint
-  /**
-   * Set the reconnect delay (ms) honoured for `TooManyRequests`
-   * rate-limited disconnects. Default `130_000`.
-   */
-  setReconnectWaitRateLimitedMs(ms: bigint): void
-  /** Current reconnect `wait_rate_limited_ms` value (default `130_000`). */
-  get reconnectWaitRateLimitedMs(): bigint
-  /**
-   * Set the cap (ms) on the exponential generic-transient reconnect
-   * ladder. The ladder starts at `reconnectWaitMs` and doubles per
-   * consecutive attempt up to this value. Default `30_000n`.
-   */
-  setReconnectWaitMaxMs(ms: bigint): void
-  /** Current reconnect `wait_max_ms` value (default `30_000n`). */
-  get reconnectWaitMaxMs(): bigint
-  /**
-   * Set the flat reconnect cadence (ms) for `ServerRestarting`
-   * disconnects. Default `5_000n`.
-   */
-  setReconnectWaitServerRestartMs(ms: bigint): void
-  /** Current reconnect `wait_server_restart_ms` value (default `5_000n`). */
-  get reconnectWaitServerRestartMs(): bigint
   /**
    * Set the jitter strategy applied to every reconnect delay.
    * Accepts `"full"` (default), `"equal"`, `"decorrelated"`, or
@@ -278,22 +214,6 @@ export declare class Config {
    */
   get reconnectStableWindowSecs(): bigint
   /**
-   * Set the subscription-replay burst size used after an
-   * auto-reconnect: frames are written in bursts of this many, each
-   * burst flushed and followed by a jittered `replayPaceMs` pause.
-   * Minimum `1` (validated at connect). Default `50`.
-   */
-  setReconnectReplayBurstSize(n: number): void
-  /** Current `replay_burst_size` value (default `50`). */
-  get reconnectReplayBurstSize(): number
-  /**
-   * Set the pause (ms) between subscription-replay bursts after an
-   * auto-reconnect. `0n` removes the pause. Default `5n`.
-   */
-  setReconnectReplayPaceMs(ms: bigint): void
-  /** Current `replay_pace_ms` value (default `5n`). */
-  get reconnectReplayPaceMs(): bigint
-  /**
    * Install a custom reconnect policy driven by a JS callback.
    *
    * `callback(reason: number, attempt: number)` is invoked (on the
@@ -311,43 +231,6 @@ export declare class Config {
    * the stream stops reconnecting and emits the terminal event.
    */
   setReconnectCallback(callback?: (((arg: ReconnectDecisionArgs) => number | null)) | undefined | null): void
-  /** Set the streaming read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000n`; validated to `[100, 60_000]` at connect. */
-  setStreamingTimeoutMs(ms: bigint): void
-  /** Current `streaming.timeout_ms` value (default `3_000n`). */
-  get streamingTimeoutMs(): bigint
-  /** Set the per-server connect timeout (ms) for the streaming connection. Default `2_000n`; validated to `[1_000, 60_000]` at connect. */
-  setStreamingConnectTimeoutMs(ms: bigint): void
-  /** Current `streaming.connect_timeout_ms` value (default `2_000n`). */
-  get streamingConnectTimeoutMs(): bigint
-  /** Set the streaming heartbeat ping interval (ms). Default `250n`; validated to `[100, 300_000]` at connect. */
-  setStreamingPingIntervalMs(ms: bigint): void
-  /** Current `streaming.ping_interval_ms` value (default `250n`). */
-  get streamingPingIntervalMs(): bigint
-  /** Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Default `25n`; validated to `[10, 500]` at connect. */
-  setStreamingIoReadSliceMs(ms: bigint): void
-  /** Current `streaming.io_read_slice_ms` value (default `25n`). */
-  get streamingIoReadSliceMs(): bigint
-  /** Set the last-frame watchdog (ms): when no frame of any kind has arrived for this long the I/O loop force-reconnects. `0n` disables. Default `30_000n`. */
-  setStreamingDataWatchdogMs(ms: bigint): void
-  /** Current `streaming.data_watchdog_ms` value (default `30_000n`; `0n` = disabled). */
-  get streamingDataWatchdogMs(): bigint
-  /** Set the TCP keepalive idle time (seconds) before the first kernel probe on a silent streaming socket. Default `5n`; validated to `[1, 7_200]` at connect. */
-  setStreamingKeepaliveIdleSecs(ms: bigint): void
-  /** Current `streaming.keepalive_idle_secs` value (default `5n`). */
-  get streamingKeepaliveIdleSecs(): bigint
-  /** Set the interval (seconds) between TCP keepalive probes. Default `2n`; validated to `[1, 75]` at connect. */
-  setStreamingKeepaliveIntervalSecs(ms: bigint): void
-  /** Current `streaming.keepalive_interval_secs` value (default `2n`). */
-  get streamingKeepaliveIntervalSecs(): bigint
-  /**
-   * Set the number of unanswered TCP keepalive probes after which
-   * the kernel declares the streaming connection dead (where the
-   * platform exposes the knob). Default `2`; validated to `[1, 10]`
-   * at connect.
-   */
-  setStreamingKeepaliveRetries(n: number): void
-  /** Current `streaming.keepalive_retries` value (default `2`). */
-  get streamingKeepaliveRetries(): number
   /**
    * Set the streaming event ring buffer size (slots). Must be a power of
    * two `>= 64`; invalid values are rejected immediately. The slot count
@@ -356,11 +239,6 @@ export declare class Config {
    * Default `131_072`.
    */
   setStreamingRingSize(n: bigint): void
-  /**
-   * Current `streaming.ring_size` value (returned as a `BigInt`; default
-   * `131_072`).
-   */
-  get streamingRingSize(): bigint
   /**
    * Set the streaming host-selection policy. Accepts `"shuffled"`
    * (default — fault-domain-aware per-client shuffle) or
@@ -383,26 +261,6 @@ export declare class Config {
    */
   get streamingHostShuffleSeed(): bigint | null
   /**
-   * Set the wall-clock envelope (seconds) for one
-   * historical-channel retry sequence, measured from the first
-   * attempt. `0n` disables the envelope (attempt budget only).
-   * Default `300n`.
-   */
-  setRetryMaxElapsedSecs(secs: bigint): void
-  /**
-   * Current `retry.max_elapsed` value in seconds (default `300n`;
-   * `0n` = disabled).
-   */
-  get retryMaxElapsedSecs(): bigint
-  /**
-   * Toggle AWS-style full jitter on the flatfile retry ladder.
-   * Default `true`; `false` gives the deterministic schedule,
-   * useful for tests that assert exact timings.
-   */
-  setFlatfilesJitter(jitter: boolean): void
-  /** Current `flatfiles.jitter` value (default `true`). */
-  get flatfilesJitter(): boolean
-  /**
    * Set the async worker-thread count for embedded runtimes.
    * `hasValue=false` defers to the default sizing; `hasValue=true`
    * pins worker count to `n` (with `n=0` preserved verbatim rather
@@ -420,95 +278,10 @@ export declare class Config {
    * `hasValue=false` encodes the unset (auto) sentinel.
    */
   get workerThreads(): WorkerThreadsSetting
-  /**
-   * Set the initial backoff delay (ms) for the historical-channel retry policy.
-   * Default `250n`. Subsequent retries double from here, capped at
-   * `retryMaxDelayMs`.
-   */
-  setRetryInitialDelayMs(ms: bigint): void
   /** Current `retry.initial_delay` value (ms, returned as BigInt). */
   get retryInitialDelayMs(): bigint
-  /**
-   * Set the upper-bound backoff delay (ms) for the historical retry
-   * policy. Default `30_000n` (30 s).
-   */
-  setRetryMaxDelayMs(ms: bigint): void
   /** Current `retry.max_delay` value (ms, returned as BigInt). */
   get retryMaxDelayMs(): bigint
-  /**
-   * Set the total attempt budget for the historical-channel retry policy. `1`
-   * disables retry; higher values permit retries up to
-   * `maxAttempts - 1` after the initial call. Default `20`.
-   */
-  setRetryMaxAttempts(n: number): void
-  /** Current `retry.max_attempts` value. */
-  get retryMaxAttempts(): number
-  /**
-   * Toggle AWS-style full-jitter on the historical-channel retry policy. Default
-   * `true`. `false` gives the deterministic backoff schedule
-   * `min(max_delay, initial * 2^attempt)`, useful for tests that
-   * need to assert exact timings.
-   */
-  setRetryJitter(jitter: boolean): void
-  /** Current `retry.jitter` value. */
-  get retryJitter(): boolean
-  /**
-   * Set the total attempt budget for the flatfile driver retry
-   * loop. `1` disables retry (single call only); higher values
-   * permit retries up to `maxAttempts - 1` after the initial call.
-   * Default `10`. Validated to the range `[1, 100]` at connect time.
-   */
-  setFlatfilesMaxAttempts(n: number): void
-  /** Current `flatfiles.max_attempts` value. */
-  get flatfilesMaxAttempts(): number
-  /**
-   * Set the initial backoff delay (seconds) for the flatfile
-   * driver retry loop. Doubles per attempt up to
-   * `flatfilesMaxBackoffSecs`. Default `1n`.
-   *
-   * Accepts a `bigint` for parity with the other bindings, which
-   * use a 64-bit unsigned integer.
-   */
-  setFlatfilesInitialBackoffSecs(secs: bigint): void
-  /** Current `flatfiles.initial_backoff` value (seconds, returned as BigInt). */
-  get flatfilesInitialBackoffSecs(): bigint
-  /**
-   * Set the upper-bound backoff delay (seconds) for the flatfile
-   * driver retry loop. The doubling schedule never exceeds this
-   * value regardless of attempt number. Default `30n`. Must be
-   * greater than or equal to `flatfilesInitialBackoffSecs`
-   * (rejected at connect-time validate otherwise).
-   *
-   * Accepts a `bigint` for parity with the other bindings, which
-   * use a 64-bit unsigned integer.
-   */
-  setFlatfilesMaxBackoffSecs(secs: bigint): void
-  /** Current `flatfiles.max_backoff` value (seconds, returned as BigInt). */
-  get flatfilesMaxBackoffSecs(): bigint
-  /**
-   * Set the TCP + TLS connect timeout (seconds) for one flatfile-host
-   * attempt. Bounds the connect/auth handshake before the attempt is
-   * abandoned and the next host (or the retry ladder) takes over.
-   * Default `10n`.
-   *
-   * Accepts a `bigint` for parity with the other bindings, which
-   * use a 64-bit unsigned integer.
-   */
-  setFlatfilesConnectTimeoutSecs(secs: bigint): void
-  /** Current `flatfiles.connect_timeout_secs` value (seconds, returned as BigInt). */
-  get flatfilesConnectTimeoutSecs(): bigint
-  /**
-   * Set the read timeout (seconds) for a single flatfile response
-   * frame. Bounds the wait for the next chunk once streaming has begun
-   * so a mid-stream stall fails over instead of blocking forever.
-   * Default `60n`.
-   *
-   * Accepts a `bigint` for parity with the other bindings, which
-   * use a 64-bit unsigned integer.
-   */
-  setFlatfilesReadTimeoutSecs(secs: bigint): void
-  /** Current `flatfiles.read_timeout_secs` value (seconds, returned as BigInt). */
-  get flatfilesReadTimeoutSecs(): bigint
   /**
    * Set the Nexus auth URL. Default matches the upstream
    * production endpoint; override to redirect at a staging
@@ -529,14 +302,6 @@ export declare class Config {
   setHistoricalHost(host: string): void
   /** Current historical gRPC host. */
   get historicalHost(): string
-  /**
-   * Override the historical data port. Companion to `setHistoricalHost` —
-   * same test-only rationale. Rejects values outside the `0..=65535`
-   * port range.
-   */
-  setHistoricalPort(port: number): void
-  /** Current historical gRPC port. */
-  get historicalPort(): number
   /**
    * Set the Prometheus exporter port. Pass `null` or `undefined`
    * to leave the exporter disabled (the default); pass a
@@ -635,6 +400,145 @@ export declare class Config {
   /** Current streaming consumer-thread CPU pin, or `null` if unpinned. */
   get consumerCpu(): number | null
   /**
+   * Set the reconnect delay (ms) honoured for generic transient
+   * disconnects (TimedOut, ServerRestarting, Unspecified, …).
+   * Plumbed through to the streaming I/O loop at connect time.
+   * Default `250`.
+   *
+   * Accepts a `bigint` for parity with the other bindings, which use a 64-bit unsigned integer.
+   */
+  setReconnectWaitMs(ms: bigint): void
+  /** Current reconnect `wait_ms` value (default `250`). */
+  get reconnectWaitMs(): bigint
+  /**
+   * Set the reconnect delay (ms) honoured for `TooManyRequests`
+   * rate-limited disconnects. Default `130_000`.
+   */
+  setReconnectWaitRateLimitedMs(ms: bigint): void
+  /** Current reconnect `wait_rate_limited_ms` value (default `130_000`). */
+  get reconnectWaitRateLimitedMs(): bigint
+  /**
+   * Set the cap (ms) on the exponential generic-transient reconnect
+   * ladder. The ladder starts at `reconnectWaitMs` and doubles per
+   * consecutive attempt up to this value. Default `30_000n`.
+   */
+  setReconnectWaitMaxMs(ms: bigint): void
+  /** Current reconnect `wait_max_ms` value (default `30_000n`). */
+  get reconnectWaitMaxMs(): bigint
+  /**
+   * Set the flat reconnect cadence (ms) for `ServerRestarting`
+   * disconnects. Default `5_000n`.
+   */
+  setReconnectWaitServerRestartMs(ms: bigint): void
+  /** Current reconnect `wait_server_restart_ms` value (default `5_000n`). */
+  get reconnectWaitServerRestartMs(): bigint
+  /**
+   * Set the subscription-replay burst size used after an
+   * auto-reconnect: frames are written in bursts of this many, each
+   * burst flushed and followed by a jittered `replayPaceMs` pause.
+   * Minimum `1` (validated at connect). Default `50`.
+   */
+  setReconnectReplayBurstSize(n: number): void
+  /** Current `replay_burst_size` value (default `50`). */
+  get reconnectReplayBurstSize(): number
+  /**
+   * Set the pause (ms) between subscription-replay bursts after an
+   * auto-reconnect. `0n` removes the pause. Default `5n`.
+   */
+  setReconnectReplayPaceMs(ms: bigint): void
+  /** Current `replay_pace_ms` value (default `5n`). */
+  get reconnectReplayPaceMs(): bigint
+  /** Set the streaming read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000n`; validated to `[100, 60_000]` at connect. */
+  setStreamingTimeoutMs(ms: bigint): void
+  /** Current `streaming.timeout_ms` value (default `3_000n`). */
+  get streamingTimeoutMs(): bigint
+  /** Set the per-server connect timeout (ms) for the streaming connection. Default `2_000n`; validated to `[1_000, 60_000]` at connect. */
+  setStreamingConnectTimeoutMs(ms: bigint): void
+  /** Current `streaming.connect_timeout_ms` value (default `2_000n`). */
+  get streamingConnectTimeoutMs(): bigint
+  /** Set the streaming heartbeat ping interval (ms). Default `250n`; validated to `[100, 300_000]` at connect. */
+  setStreamingPingIntervalMs(ms: bigint): void
+  /** Current `streaming.ping_interval_ms` value (default `250n`). */
+  get streamingPingIntervalMs(): bigint
+  /** Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Default `25n`; validated to `[10, 500]` at connect. */
+  setStreamingIoReadSliceMs(ms: bigint): void
+  /** Current `streaming.io_read_slice_ms` value (default `25n`). */
+  get streamingIoReadSliceMs(): bigint
+  /** Set the last-frame watchdog (ms): when no frame of any kind has arrived for this long the I/O loop force-reconnects. `0n` disables. Default `30_000n`. */
+  setStreamingDataWatchdogMs(ms: bigint): void
+  /** Current `streaming.data_watchdog_ms` value (default `30_000n`; `0n` = disabled). */
+  get streamingDataWatchdogMs(): bigint
+  /** Set the TCP keepalive idle time (seconds) before the first kernel probe on a silent streaming socket. Default `5n`; validated to `[1, 7_200]` at connect. */
+  setStreamingKeepaliveIdleSecs(ms: bigint): void
+  /** Current `streaming.keepalive_idle_secs` value (default `5n`). */
+  get streamingKeepaliveIdleSecs(): bigint
+  /** Set the interval (seconds) between TCP keepalive probes. Default `2n`; validated to `[1, 75]` at connect. */
+  setStreamingKeepaliveIntervalSecs(ms: bigint): void
+  /** Current `streaming.keepalive_interval_secs` value (default `2n`). */
+  get streamingKeepaliveIntervalSecs(): bigint
+  /**
+   * Set the number of unanswered TCP keepalive probes after which
+   * the kernel declares the streaming connection dead (where the
+   * platform exposes the knob). Default `2`; validated to `[1, 10]`
+   * at connect.
+   */
+  setStreamingKeepaliveRetries(n: number): void
+  /** Current `streaming.keepalive_retries` value (default `2`). */
+  get streamingKeepaliveRetries(): number
+  /**
+   * Current `streaming.ring_size` value (returned as a `BigInt`; default
+   * `131_072`).
+   */
+  get streamingRingSize(): bigint
+  /**
+   * Set the wall-clock envelope (seconds) for one
+   * historical-channel retry sequence, measured from the first
+   * attempt. `0n` disables the envelope (attempt budget only).
+   * Default `300n`.
+   */
+  setRetryMaxElapsedSecs(secs: bigint): void
+  /**
+   * Current `retry.max_elapsed` value in seconds (default `300n`;
+   * `0n` = disabled).
+   */
+  get retryMaxElapsedSecs(): bigint
+  /**
+   * Toggle AWS-style full jitter on the flatfile retry ladder.
+   * Default `true`; `false` gives the deterministic schedule,
+   * useful for tests that assert exact timings.
+   */
+  setFlatfilesJitter(jitter: boolean): void
+  /** Current `flatfiles.jitter` value (default `true`). */
+  get flatfilesJitter(): boolean
+  /**
+   * Set the initial backoff delay (ms) for the historical-channel retry policy.
+   * Default `250n`. Subsequent retries double from here, capped at
+   * `retryMaxDelayMs`.
+   */
+  setRetryInitialDelayMs(ms: bigint): void
+  /**
+   * Set the upper-bound backoff delay (ms) for the historical retry
+   * policy. Default `30_000n` (30 s).
+   */
+  setRetryMaxDelayMs(ms: bigint): void
+  /**
+   * Set the total attempt budget for the historical-channel retry policy. `1`
+   * disables retry; higher values permit retries up to
+   * `maxAttempts - 1` after the initial call. Default `20`.
+   */
+  setRetryMaxAttempts(n: number): void
+  /** Current `retry.max_attempts` value. */
+  get retryMaxAttempts(): number
+  /**
+   * Toggle AWS-style full-jitter on the historical-channel retry policy. Default
+   * `true`. `false` gives the deterministic backoff schedule
+   * `min(max_delay, initial * 2^attempt)`, useful for tests that
+   * need to assert exact timings.
+   */
+  setRetryJitter(jitter: boolean): void
+  /** Current `retry.jitter` value. */
+  get retryJitter(): boolean
+  /**
    * Set whether to derive OHLCVC bars locally from trade events.
    * When `false`, only server-sent OHLCVC frames are emitted,
    * reducing per-trade throughput overhead. Default `true`.
@@ -642,6 +546,102 @@ export declare class Config {
   setDeriveOhlcvc(enabled: boolean): void
   /** Current OHLCVC derivation setting. */
   get deriveOhlcvc(): boolean
+  /**
+   * Set the total attempt budget for the flatfile driver retry
+   * loop. `1` disables retry (single call only); higher values
+   * permit retries up to `maxAttempts - 1` after the initial call.
+   * Default `10`. Validated to the range `[1, 100]` at connect time.
+   */
+  setFlatfilesMaxAttempts(n: number): void
+  /** Current `flatfiles.max_attempts` value. */
+  get flatfilesMaxAttempts(): number
+  /**
+   * Set the initial backoff delay (seconds) for the flatfile
+   * driver retry loop. Doubles per attempt up to
+   * `flatfilesMaxBackoffSecs`. Default `1n`.
+   *
+   * Accepts a `bigint` for parity with the other bindings, which
+   * use a 64-bit unsigned integer.
+   */
+  setFlatfilesInitialBackoffSecs(secs: bigint): void
+  /** Current `flatfiles.initial_backoff` value (seconds, returned as BigInt). */
+  get flatfilesInitialBackoffSecs(): bigint
+  /**
+   * Set the upper-bound backoff delay (seconds) for the flatfile
+   * driver retry loop. The doubling schedule never exceeds this
+   * value regardless of attempt number. Default `30n`. Must be
+   * greater than or equal to `flatfilesInitialBackoffSecs`
+   * (rejected at connect-time validate otherwise).
+   *
+   * Accepts a `bigint` for parity with the other bindings, which
+   * use a 64-bit unsigned integer.
+   */
+  setFlatfilesMaxBackoffSecs(secs: bigint): void
+  /** Current `flatfiles.max_backoff` value (seconds, returned as BigInt). */
+  get flatfilesMaxBackoffSecs(): bigint
+  /**
+   * Set the TCP + TLS connect timeout (seconds) for one flatfile-host
+   * attempt. Bounds the connect/auth handshake before the attempt is
+   * abandoned and the next host (or the retry ladder) takes over.
+   * Default `10n`.
+   *
+   * Accepts a `bigint` for parity with the other bindings, which
+   * use a 64-bit unsigned integer.
+   */
+  setFlatfilesConnectTimeoutSecs(secs: bigint): void
+  /** Current `flatfiles.connect_timeout_secs` value (seconds, returned as BigInt). */
+  get flatfilesConnectTimeoutSecs(): bigint
+  /**
+   * Set the read timeout (seconds) for a single flatfile response
+   * frame. Bounds the wait for the next chunk once streaming has begun
+   * so a mid-stream stall fails over instead of blocking forever.
+   * Default `60n`.
+   *
+   * Accepts a `bigint` for parity with the other bindings, which
+   * use a 64-bit unsigned integer.
+   */
+  setFlatfilesReadTimeoutSecs(secs: bigint): void
+  /** Current `flatfiles.read_timeout_secs` value (seconds, returned as BigInt). */
+  get flatfilesReadTimeoutSecs(): bigint
+  /**
+   * Override the historical data port. Companion to `setHistoricalHost` —
+   * same test-only rationale. Rejects values outside the `0..=65535`
+   * port range.
+   */
+  setHistoricalPort(port: number): void
+  /** Current historical gRPC port. */
+  get historicalPort(): number
+  /**
+   * Set the warning threshold (in bytes) for buffered (non-streaming)
+   * historical responses. Endpoints whose decoded total exceeds this
+   * value log a warning pointing the caller at the
+   * matching `<endpoint>Stream(...)` method (e.g. `optionHistoryTradeStream`),
+   * which delivers the same rows chunk-by-chunk through a callback with
+   * memory bounded to a single chunk; the buffered data is still
+   * delivered. `0n` disables the warning entirely. Default is
+   * `100n * 1024n * 1024n` (100 MiB). Byte budgets can exceed the
+   * 32-bit unsigned range, so the setter takes a `BigInt`.
+   */
+  setWarnOnBufferedThresholdBytes(n: bigint): void
+  /**
+   * Current `warn_on_buffered_threshold_bytes` setting (bytes,
+   * returned as a `BigInt`).
+   */
+  get warnOnBufferedThresholdBytes(): bigint
+  /**
+   * Set the default per-request deadline (seconds) for historical
+   * queries. Bounds every request that did not set its own deadline,
+   * so a live-but-silent stream resolves to a timeout instead of
+   * blocking forever. `0n` disables the default. Default `300n`
+   * (5 minutes). Seconds are taken as a `BigInt` for parity with the
+   * other `*Secs` knobs.
+   */
+  setRequestTimeoutSecs(secs: bigint): void
+  /**
+   * Current historical `request_timeout_secs` setting in seconds
+   * (default `300n`; `0n` = no default deadline).
+   */
+  get requestTimeoutSecs(): bigint
 }
 
 /**

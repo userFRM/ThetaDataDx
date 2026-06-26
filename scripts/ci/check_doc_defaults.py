@@ -640,8 +640,16 @@ def build_surfaces() -> list[Surface]:
     ]
     surfaces.append(cpp_h)
 
-    # TypeScript NAPI docstrings (generate index.d.ts).
-    ts = Surface("typescript", pathlib.Path("sdks/typescript/src/config_class.rs"))
+    # TypeScript NAPI docstrings (generate index.d.ts). The mechanical
+    # setters live in the generated `_generated/config_accessors.rs`; the
+    # hand-written reconnect knobs stay in `config_class.rs`. Scan both.
+    ts = Surface(
+        "typescript",
+        pathlib.Path("sdks/typescript/src/config_class.rs"),
+        extra_paths=[
+            pathlib.Path("sdks/typescript/src/_generated/config_accessors.rs")
+        ],
+    )
     ts.fields = [
         SurfaceField("reconnect.max_attempts", _re(r"setReconnectMaxAttempts\b")),
         SurfaceField(
