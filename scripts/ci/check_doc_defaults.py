@@ -308,6 +308,12 @@ class Surface:
     # Fields documented on this surface that are deliberately NOT a
     # single literal: {field_id: reason}.
     skips: dict[str, str] = field(default_factory=dict)
+    # Sibling source files whose lines extend the same surface — the
+    # generator splits the FFI config accessors across `auth.rs` (the
+    # hand-written reconnect knobs) and the emitted `config_accessors.rs`.
+    # Their lines are scanned alongside ``rel_path`` so an anchor that
+    # moved into a generated fragment is still found.
+    extra_paths: list[pathlib.Path] = field(default_factory=list)
 
 
 def _find_defaults_for_anchor(
@@ -414,8 +420,11 @@ def check_surface(
     surface: Surface, canon: dict[str, int], root: pathlib.Path
 ) -> list[Mismatch]:
     mismatches: list[Mismatch] = []
-    text = (root / surface.rel_path).read_text(encoding="utf-8")
-    lines = text.splitlines()
+    lines = (root / surface.rel_path).read_text(encoding="utf-8").splitlines()
+    for extra in surface.extra_paths:
+        p = root / extra
+        if p.is_file():
+            lines += p.read_text(encoding="utf-8").splitlines()
     rel = surface.rel_path.as_posix()
     for sf in surface.fields:
         if sf.field_id in surface.skips:
@@ -484,7 +493,11 @@ def build_surfaces() -> list[Surface]:
     # FFI doc comments (`thetadatadx_config_set_*`). The setters carry the
     # canonical doc; many getters echo `(default N)` inline and are
     # caught by the same anchor's window.
-    ffi = Surface("ffi", pathlib.Path("ffi/src/auth.rs"))
+    ffi = Surface(
+        "ffi",
+        pathlib.Path("ffi/src/auth.rs"),
+        extra_paths=[pathlib.Path("ffi/src/config_accessors.rs")],
+    )
     ffi.fields = [
         SurfaceField("reconnect.max_attempts", _re(r"set_reconnect_max_attempts\b")),
         SurfaceField(

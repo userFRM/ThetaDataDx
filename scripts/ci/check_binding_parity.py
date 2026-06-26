@@ -1086,7 +1086,10 @@ def _collect_cpp_setters(cpp_hpp: pathlib.Path, cpp_h: pathlib.Path) -> set[str]
     """
     cpp_setters: set[str] = set()
     if cpp_hpp.is_file():
-        text = _read_source(cpp_hpp)
+        # Inline the `.inc` fragments (`config_accessors.hpp.inc` extends
+        # the `Config` body with generator-emitted setters) before the
+        # scan, matching `_collect_cpp_getters` / `_collect_cpp_class_methods`.
+        text = _read_cpp_expanded(cpp_hpp)
         for m in re.finditer(r"\bvoid\s+set_(\w+)\s*\(", text):
             cpp_setters.add(m.group(1))
         # Some C++ setters return `int32_t` for status codes (the

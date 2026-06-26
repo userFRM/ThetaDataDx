@@ -1,0 +1,960 @@
+# Static config accessor surface for the FFI + C++ codegen.
+#
+# One [[accessor]] per generated `thetadatadx_config_{set,get}_*` entry point.
+# `generate_sdk_surfaces` renders the Rust fns (ffi/src/config_accessors.rs)
+# and the C++ inline methods (sdks/cpp/include/config_accessors.hpp.inc) from
+# this file. Divergent accessors (string, enum, Option-widened, policy-aware,
+# validated) stay hand-written in ffi/src/auth.rs and thetadatadx.hpp.
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_wait_ms"
+kind = "set"
+param = "ms"
+abi_type = "u64"
+path = "reconnect.wait_ms"
+doc = """
+Set the reconnect delay (ms) honoured for generic transient
+disconnects (TimedOut, ServerRestarting, Unspecified, …). Plumbed
+through to the streaming I/O loop at connect time and consumed by the
+`Auto` reconnect arm via `reconnect_delay_for`. Default `250`.
+"""
+cpp_doc = """
+Set the reconnect delay (ms) honoured for generic transient
+disconnects (TimedOut, ServerRestarting, Unspecified, ...).
+Default 250.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_wait_ms"
+kind = "get"
+param = "out_ms"
+abi_type = "u64"
+path = "reconnect.wait_ms"
+out_safety = """
+        // SAFETY: out_ms checked non-null at line 238; FFI contract pins
+        // the `u64` storage for the call. Writing the `reconnect.wait_ms`
+        // field cannot tear under a concurrent reader because the FFI
+        // surface is not thread-safe on a single config handle.
+"""
+doc = """
+Read the current reconnect `wait_ms` setting.
+
+Writes the configured millisecond delay into `*out_ms`. Returns
+`0` on success, `-1` if either pointer is null.
+"""
+cpp_doc = """
+Current reconnect wait_ms (default 250). Returns the default on
+a null config handle.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_wait_rate_limited_ms"
+kind = "set"
+param = "ms"
+abi_type = "u64"
+path = "reconnect.wait_rate_limited_ms"
+doc = """
+Set the reconnect delay (ms) honoured for `TooManyRequests`
+rate-limited disconnects. Plumbed through to the streaming I/O loop at
+connect time and consumed by the `Auto` reconnect arm via
+`reconnect_delay_for`. Default `130_000` (matches the JVM terminal's
+130 s rate-limit cooldown).
+"""
+cpp_doc = """
+Set the reconnect delay (ms) honoured for `TooManyRequests`
+rate-limited disconnects. Default 130_000.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_wait_rate_limited_ms"
+kind = "get"
+param = "out_ms"
+abi_type = "u64"
+path = "reconnect.wait_rate_limited_ms"
+out_safety = """
+        // SAFETY: out_ms checked non-null at line 279; FFI contract pins
+        // the `u64` storage for the call. Writing
+        // `reconnect.wait_rate_limited_ms` cannot tear under a concurrent
+        // reader — FFI handles are not thread-safe per the public contract.
+"""
+doc = """
+Read the current reconnect `wait_rate_limited_ms` setting. Same
+shape as [`thetadatadx_config_get_reconnect_wait_ms`].
+"""
+cpp_doc = """
+Current reconnect wait_rate_limited_ms (default 130_000).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_wait_max_ms"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "reconnect.wait_max_ms"
+doc = """
+Set the cap (ms) on the exponential generic-transient reconnect ladder. The ladder starts at `reconnect_wait_ms` and doubles per consecutive attempt up to this value. Default `30_000`.
+"""
+cpp_doc = """
+Set the cap (ms) on the exponential generic-transient reconnect
+ladder. Default 30_000.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_wait_max_ms"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "reconnect.wait_max_ms"
+doc = """
+Read the current reconnect `wait_max_ms` setting (default `30_000`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current reconnect wait_max_ms (default 30_000).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_wait_server_restart_ms"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "reconnect.wait_server_restart_ms"
+doc = """
+Set the flat reconnect cadence (ms) for `ServerRestarting` disconnects. Default `5_000`.
+"""
+cpp_doc = """
+Set the flat reconnect cadence (ms) for ServerRestarting
+disconnects. Default 5_000.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_wait_server_restart_ms"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "reconnect.wait_server_restart_ms"
+doc = """
+Read the current reconnect `wait_server_restart_ms` setting (default `5_000`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current reconnect wait_server_restart_ms (default 5_000).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_replay_burst_size"
+kind = "set"
+param = "n"
+abi_type = "u32"
+path = "reconnect.replay_burst_size"
+doc = """
+Set the subscription-replay burst size used after an
+auto-reconnect: frames are written in bursts of this many, each
+burst flushed and followed by a jittered `replay_pace_ms` pause.
+Minimum `1` (validated at connect). Default `50`.
+"""
+cpp_doc = """
+Set the subscription-replay burst size used after an
+auto-reconnect. Minimum 1 (validated at connect). Default 50.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_replay_burst_size"
+kind = "get"
+param = "out"
+abi_type = "u32"
+path = "reconnect.replay_burst_size"
+doc = """
+Read the current `replay_burst_size` setting (default `50`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current replay_burst_size (default 50).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_replay_pace_ms"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "reconnect.replay_pace_ms"
+doc = """
+Set the pause (ms) between subscription-replay bursts after an auto-reconnect. `0` removes the pause. Default `5`.
+"""
+cpp_doc = """
+Set the pause (ms) between subscription-replay bursts. 0
+removes the pause. Default 5.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_replay_pace_ms"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "reconnect.replay_pace_ms"
+doc = """
+Read the current `replay_pace_ms` setting (default `5`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current replay_pace_ms (default 5).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_timeout_ms"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "streaming.timeout_ms"
+doc = """
+Set the streaming read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000`; validated to `[100, 60_000]` at connect.
+"""
+cpp_doc = """
+Set the streaming read timeout (ms): the no-frames deadline after
+which the streaming I/O loop reconnects. Default 3_000;
+validated to [100, 60_000] at connect.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_timeout_ms"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "streaming.timeout_ms"
+doc = """
+Read the current streaming `timeout_ms` setting (default `3_000`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming timeout_ms (default 3_000).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_connect_timeout_ms"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "streaming.connect_timeout_ms"
+doc = """
+Set the per-server streaming TCP connect timeout (ms). Default `2_000`; validated to `[1_000, 60_000]` at connect.
+"""
+cpp_doc = """
+Set the per-server connect timeout (ms) for the streaming
+connection. Default 2_000; validated to [1_000, 60_000] at
+connect.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_connect_timeout_ms"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "streaming.connect_timeout_ms"
+doc = """
+Read the current streaming `connect_timeout_ms` setting (default `2_000`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming connect_timeout_ms (default 2_000).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_ping_interval_ms"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "streaming.ping_interval_ms"
+doc = """
+Set the streaming heartbeat ping interval (ms). Default `250`; validated to `[100, 300_000]` at connect.
+"""
+cpp_doc = """
+Set the streaming heartbeat ping interval (ms). Default 250;
+validated to [100, 300_000] at connect.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_ping_interval_ms"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "streaming.ping_interval_ms"
+doc = """
+Read the current streaming `ping_interval_ms` setting (default `250`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming ping_interval_ms (default 250).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_io_read_slice_ms"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "streaming.io_read_slice_ms"
+doc = """
+Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Shorter slices service outbound commands more promptly at slightly higher idle CPU. Default `25`; validated to `[10, 500]` at connect.
+"""
+cpp_doc = """
+Set the per-iteration blocking-read slice (ms) for the
+streaming I/O loop. Default 25; validated to [10, 500].
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_io_read_slice_ms"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "streaming.io_read_slice_ms"
+doc = """
+Read the current streaming `io_read_slice_ms` setting (default `25`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming io_read_slice_ms (default 25).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_data_watchdog_ms"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "streaming.data_watchdog_ms"
+doc = """
+Set the last-frame watchdog (ms): when no frame of any kind has arrived for this long the I/O loop force-reconnects, regardless of the read-timeout accounting. `0` disables. Default `30_000`.
+"""
+cpp_doc = """
+Set the last-frame watchdog (ms); 0 disables. Default 30_000.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_data_watchdog_ms"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "streaming.data_watchdog_ms"
+doc = """
+Read the current streaming `data_watchdog_ms` setting (default `30_000`; `0` = disabled).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming data_watchdog_ms (default 30_000; 0 = disabled).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_keepalive_idle_secs"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "streaming.keepalive_idle_secs"
+doc = """
+Set the TCP keepalive idle time (seconds) before the kernel sends the first probe on a silent streaming socket. Default `5`; validated to `[1, 7_200]` at connect.
+"""
+cpp_doc = """
+Set the TCP keepalive idle time (seconds). Default 5; validated
+to [1, 7_200] at connect.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_keepalive_idle_secs"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "streaming.keepalive_idle_secs"
+doc = """
+Read the current streaming `keepalive_idle_secs` setting (default `5`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming keepalive_idle_secs (default 5).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_keepalive_interval_secs"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "streaming.keepalive_interval_secs"
+doc = """
+Set the interval (seconds) between TCP keepalive probes. Default `2`; validated to `[1, 75]` at connect.
+"""
+cpp_doc = """
+Set the TCP keepalive probe interval (seconds). Default 2;
+validated to [1, 75] at connect.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_keepalive_interval_secs"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "streaming.keepalive_interval_secs"
+doc = """
+Read the current streaming `keepalive_interval_secs` setting (default `2`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming keepalive_interval_secs (default 2).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_keepalive_retries"
+kind = "set"
+param = "v"
+abi_type = "u32"
+path = "streaming.keepalive_retries"
+doc = """
+Set the number of unanswered TCP keepalive probes after which the kernel declares the streaming connection dead (where the platform exposes the knob). Default `2`; validated to `[1, 10]` at connect.
+"""
+cpp_doc = """
+Set the TCP keepalive probe count before the kernel declares
+the peer dead. Default 2; validated to [1, 10] at connect.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_keepalive_retries"
+kind = "get"
+param = "out"
+abi_type = "u32"
+path = "streaming.keepalive_retries"
+doc = """
+Read the current streaming `keepalive_retries` setting (default `2`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming keepalive_retries (default 2).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_ring_size"
+kind = "get"
+param = "out"
+abi_type = "usize"
+path = "streaming.ring_size"
+doc = """
+Read the current streaming `ring_size` setting (default `131_072`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming ring_size (default 131_072).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_retry_max_elapsed_secs"
+kind = "set"
+param = "secs"
+abi_type = "u64"
+path = "retry.max_elapsed"
+duration_unit = "secs"
+doc = """
+Set the wall-clock envelope (seconds) for one historical-channel
+retry sequence, measured from the first attempt. `0` disables the
+envelope (attempt budget only). Default `300`.
+"""
+cpp_doc = """
+Set the wall-clock envelope (seconds) for one
+historical-channel retry sequence. 0 disables. Default 300.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_retry_max_elapsed_secs"
+kind = "get"
+param = "out_secs"
+abi_type = "u64"
+path = "retry.max_elapsed"
+duration_unit = "secs"
+doc = """
+Read the current `retry.max_elapsed` value in seconds (default
+`300`; `0` = disabled). Returns `0` on success, `-1` if either
+pointer is null.
+"""
+cpp_doc = """
+Current retry max_elapsed in seconds (default 300; 0 = disabled).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_flatfiles_jitter"
+kind = "set"
+param = "jitter"
+abi_type = "bool"
+path = "flatfiles.jitter"
+doc = """
+Toggle AWS-style full jitter on the flatfile retry ladder. Default
+`true`; `false` gives the deterministic schedule, useful for tests
+that assert exact timings.
+"""
+cpp_doc = """
+Toggle AWS-style full jitter on the flatfile retry ladder.
+Default true.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_flatfiles_jitter"
+kind = "get"
+param = "out_jitter"
+abi_type = "bool"
+path = "flatfiles.jitter"
+doc = """
+Read the current `flatfiles.jitter` value (default `true`).
+Returns `0` on success, `-1` if either pointer is null.
+"""
+cpp_doc = """
+Current flatfiles jitter setting (default true).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_retry_initial_delay_ms"
+kind = "set"
+param = "ms"
+abi_type = "u64"
+path = "retry.initial_delay"
+duration_unit = "ms"
+doc = """
+Set the initial backoff delay (ms) for the historical retry policy.
+Default `250`. Subsequent retries double from here, capped at
+`thetadatadx_config_set_retry_max_delay_ms`.
+"""
+cpp_doc = """
+Initial backoff delay (ms) for the historical retry policy. Default 250.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_retry_max_delay_ms"
+kind = "set"
+param = "ms"
+abi_type = "u64"
+path = "retry.max_delay"
+duration_unit = "ms"
+doc = """
+Set the upper-bound backoff delay (ms) for the historical retry policy.
+Default `30_000` (30 s). The exponential schedule never exceeds
+this value regardless of attempt number.
+"""
+cpp_doc = """
+Upper-bound backoff delay (ms). Default 30_000 (30 s).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_retry_max_attempts"
+kind = "set"
+param = "n"
+abi_type = "u32"
+path = "retry.max_attempts"
+doc = """
+Set the total attempt budget for the historical retry policy. `1`
+disables retry (single call only); higher values permit
+retries up to `max_attempts - 1` after the initial call. Default
+`20`.
+"""
+cpp_doc = """
+Total attempt budget. 1 disables retry. Default 20.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_retry_max_attempts"
+kind = "get"
+param = "out_n"
+abi_type = "u32"
+path = "retry.max_attempts"
+out_safety = """
+        // SAFETY: out_n null-checked above; caller pins the storage for the call duration.
+"""
+doc = """
+Read the current `retry.max_attempts` setting.
+"""
+cpp_doc = ""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_retry_jitter"
+kind = "set"
+param = "jitter"
+abi_type = "bool"
+path = "retry.jitter"
+doc = """
+Toggle AWS-style full-jitter on the historical retry policy. Default
+`true`. With `jitter=false` the backoff schedule is deterministic
+(`min(max_delay, initial * 2^attempt)`), which is useful for tests
+that need to assert exact timings.
+"""
+cpp_doc = """
+AWS-style full jitter toggle. Default true.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_retry_jitter"
+kind = "get"
+param = "out_jitter"
+abi_type = "bool"
+path = "retry.jitter"
+out_safety = """
+        // SAFETY: out_jitter null-checked above; caller pins the storage for the call duration.
+"""
+doc = """
+Read the current `retry.jitter` setting.
+"""
+cpp_doc = ""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_derive_ohlcvc"
+kind = "set"
+param = "enabled"
+abi_type = "bool"
+path = "streaming.derive_ohlcvc"
+doc = """
+Set streaming OHLCVC derivation on a config handle.
+
+- `enabled = true` (default): derive OHLCVC bars locally from trade events
+- `enabled = false`: only emit server-sent OHLCVC frames (lower overhead)
+"""
+cpp_doc = """
+Set whether to derive OHLCVC bars locally from trades.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_derive_ohlcvc"
+kind = "get"
+param = "out_enabled"
+abi_type = "bool"
+path = "streaming.derive_ohlcvc"
+out_safety = """
+        // SAFETY: out pointer checked non-null above; caller pins the storage for the call duration.
+"""
+doc = """
+Read the configured streaming OHLCVC-derivation flag. Writes `true` /
+`false` into `*out_enabled`. Returns `0` on success, `-1` if either
+pointer is null.
+"""
+cpp_doc = """
+Read the current OHLCVC-derivation flag. Returns `false` on a
+null handle (matching the C ABI's `-1` failure mapping at the
+boundary).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_flatfiles_max_attempts"
+kind = "set"
+param = "n"
+abi_type = "u32"
+path = "flatfiles.max_attempts"
+doc = """
+Set the total attempt budget for the flatfile driver retry loop.
+`1` disables retry (single call only); higher values permit
+retries up to `max_attempts - 1` after the initial call. Default
+`10`. Validated to the range `[1, 100]` at
+[`thetadatadx::DirectConfig::validate`] time.
+"""
+cpp_doc = """
+Total attempt budget for the flatfile driver retry loop.
+1 disables retry. Default 10. Validated to [1, 100].
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_flatfiles_max_attempts"
+kind = "get"
+param = "out_n"
+abi_type = "u32"
+path = "flatfiles.max_attempts"
+out_safety = """
+        // SAFETY: out_n null-checked above; FFI contract pins the `u32`
+        // storage for the call. `flatfiles.max_attempts` is a `u32`
+        // field, so the write is layout-compatible with the pointee.
+"""
+doc = """
+Read the current `flatfiles.max_attempts` setting. Returns `0` on
+success, `-1` if either pointer is null.
+"""
+cpp_doc = ""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_flatfiles_initial_backoff_secs"
+kind = "set"
+param = "secs"
+abi_type = "u64"
+path = "flatfiles.initial_backoff"
+duration_unit = "secs"
+doc = """
+Set the initial backoff delay (seconds) for the flatfile driver
+retry loop. Doubles per attempt up to `max_backoff_secs`. Default
+`1`.
+"""
+cpp_doc = """
+Initial backoff delay (seconds). Doubles per attempt up to
+max_backoff_secs. Default 1.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_flatfiles_initial_backoff_secs"
+kind = "get"
+param = "out_secs"
+abi_type = "u64"
+path = "flatfiles.initial_backoff"
+duration_unit = "secs"
+out_safety = """
+        // SAFETY: out_secs null-checked above. `Duration::as_secs`
+        // returns a `u64` (the seconds component truncates the
+        // sub-second remainder), so the write is layout-compatible
+        // with the caller-pinned `u64` storage.
+"""
+doc = """
+Read the current `flatfiles.initial_backoff` setting (seconds).
+Returns `0` on success, `-1` if either pointer is null.
+"""
+cpp_doc = ""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_flatfiles_max_backoff_secs"
+kind = "set"
+param = "secs"
+abi_type = "u64"
+path = "flatfiles.max_backoff"
+duration_unit = "secs"
+doc = """
+Set the upper-bound backoff delay (seconds) for the flatfile
+driver retry loop. The doubling schedule never exceeds this value
+regardless of attempt number. Default `30`. Must be greater than
+or equal to `initial_backoff_secs` (rejected at
+[`thetadatadx::DirectConfig::validate`] time otherwise).
+"""
+cpp_doc = """
+Upper-bound backoff delay (seconds). Default 30. Must be >=
+initial_backoff_secs (rejected at connect-time validate).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_flatfiles_max_backoff_secs"
+kind = "get"
+param = "out_secs"
+abi_type = "u64"
+path = "flatfiles.max_backoff"
+duration_unit = "secs"
+out_safety = """
+        // SAFETY: out_secs null-checked above. The flatfile retry-loop
+        // upper bound is a whole-second value (validated against
+        // `initial_backoff` at connect time), so `Duration::as_secs()`
+        // round-trips losslessly into the caller-pinned `u64`.
+"""
+doc = """
+Read the current `flatfiles.max_backoff` setting (seconds). Returns
+`0` on success, `-1` if either pointer is null.
+"""
+cpp_doc = ""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_flatfiles_connect_timeout_secs"
+kind = "set"
+param = "secs"
+abi_type = "u64"
+path = "flatfiles.connect_timeout_secs"
+doc = """
+Set the TCP + TLS connect timeout (seconds) for one flatfile-host
+attempt. Bounds the connect/auth handshake before the attempt is
+abandoned and the next host (or the retry ladder) takes over.
+Default `10`.
+"""
+cpp_doc = """
+TCP + TLS connect timeout (seconds) for one flatfile-host attempt.
+Bounds the connect/auth handshake before the next host (or the
+retry ladder) takes over. Default 10.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_flatfiles_connect_timeout_secs"
+kind = "get"
+param = "out_secs"
+abi_type = "u64"
+path = "flatfiles.connect_timeout_secs"
+out_safety = """
+        // SAFETY: out_secs null-checked above. The field is a `u64`, so
+        // the write is layout-compatible with the caller-pinned storage.
+"""
+doc = """
+Read the current `flatfiles.connect_timeout_secs` setting (seconds).
+Returns `0` on success, `-1` if either pointer is null.
+"""
+cpp_doc = ""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_flatfiles_read_timeout_secs"
+kind = "set"
+param = "secs"
+abi_type = "u64"
+path = "flatfiles.read_timeout_secs"
+doc = """
+Set the read timeout (seconds) for a single flatfile response frame.
+Bounds the wait for the next chunk once streaming has begun so a
+mid-stream stall fails over instead of blocking forever. Default
+`60`.
+"""
+cpp_doc = """
+Read timeout (seconds) for a single flatfile response frame. Bounds
+the wait for the next chunk so a mid-stream stall fails over
+instead of blocking forever. Default 60.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_flatfiles_read_timeout_secs"
+kind = "get"
+param = "out_secs"
+abi_type = "u64"
+path = "flatfiles.read_timeout_secs"
+out_safety = """
+        // SAFETY: out_secs null-checked above. The field is a `u64`, so
+        // the write is layout-compatible with the caller-pinned storage.
+"""
+doc = """
+Read the current `flatfiles.read_timeout_secs` setting (seconds).
+Returns `0` on success, `-1` if either pointer is null.
+"""
+cpp_doc = ""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_historical_port"
+kind = "set"
+param = "port"
+abi_type = "u16"
+path = "historical.port"
+doc = """
+Set the historical gRPC port on a config handle.
+"""
+cpp_doc = """
+Set the historical gRPC port. Companion to
+@c set_historical_host.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_historical_port"
+kind = "get"
+param = "out_port"
+abi_type = "u16"
+path = "historical.port"
+out_safety = """
+        // SAFETY: out pointer checked non-null above; caller pins the storage for the call duration.
+"""
+doc = """
+Read the configured historical gRPC port. Writes the value
+into `*out_port`. Returns `0` on success, `-1` if either pointer is
+null.
+"""
+cpp_doc = """
+Current historical gRPC port. Returns 0 on a null handle.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_warn_on_buffered_threshold_bytes"
+kind = "set"
+param = "n"
+abi_type = "usize"
+path = "historical.warn_on_buffered_threshold_bytes"
+doc = """
+Set the `warn_on_buffered_threshold_bytes` ceiling on a config
+handle. Streaming endpoints log a `tracing::warn!` when a
+pre-stream-API caller receives a buffered response whose decoded
+total size exceeds this threshold (default 100 MiB). The warning
+guides users towards the `.stream()` surface on large pulls; the
+data is still delivered.
+
+`n = 0` disables the warning entirely.
+"""
+cpp_doc = """
+Set the warn_on_buffered_threshold_bytes ceiling.
+
+Buffered (non-streaming) endpoints log a warning when a response's
+decoded total exceeds this threshold, guiding users to the streaming
+variant. The payload is still delivered.
+
+@p n = 0 disables the warning entirely.
+Default is `100 * 1024 * 1024` (100 MiB).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_warn_on_buffered_threshold_bytes"
+kind = "get"
+param = "out_n"
+abi_type = "usize"
+path = "historical.warn_on_buffered_threshold_bytes"
+out_safety = """
+        // SAFETY: out_n null-checked above; caller pins the storage for the call duration.
+"""
+doc = """
+Read the current `warn_on_buffered_threshold_bytes` setting.
+
+Writes the configured byte count into `*out_n`. Returns `0` on
+success, `-1` if either pointer is null.
+"""
+cpp_doc = """
+Read the current `warn_on_buffered_threshold_bytes` setting.
+
+Returns the configured byte count, or `0` on a null handle
+(matching the C ABI's `-1` failure mapping at the boundary).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_request_timeout_secs"
+kind = "set"
+param = "secs"
+abi_type = "u64"
+path = "historical.request_timeout_secs"
+doc = """
+Set the default per-request deadline (seconds) for historical queries
+on a config handle.
+
+Bounds every request that did not call `with_deadline(...)`, so a
+live-but-silent stream resolves to a timeout instead of blocking
+forever (the gRPC keepalive PING only detects a fully dead peer).
+`secs = 0` disables the default (no deadline unless the caller sets
+one). Default `300`.
+"""
+cpp_doc = """
+Set the default per-request deadline (seconds) for historical queries.
+
+Bounds every request that did not set its own deadline, so a
+live-but-silent stream resolves to a timeout instead of blocking
+forever. @p secs = 0 disables the default. Default is `300`.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_request_timeout_secs"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "historical.request_timeout_secs"
+doc = """
+Read the current historical `request_timeout_secs` setting (default
+`300`; `0` = no default deadline).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Read the current historical `request_timeout_secs` setting.
+
+Returns the configured seconds (`0` = no default deadline), or
+`0` on a null handle (matching the C ABI's `-1` failure mapping
+at the boundary).
+"""
