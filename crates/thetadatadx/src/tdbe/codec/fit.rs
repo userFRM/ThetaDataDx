@@ -99,19 +99,6 @@ impl FitRows {
     pub fn iter(&self) -> impl Iterator<Item = &[i32]> + '_ {
         self.data.chunks_exact(self.num_columns.max(1))
     }
-
-    /// Consume into a `Vec<Vec<i32>>`. Reallocates per row; prefer
-    /// [`iter`](Self::iter) or [`row`](Self::row).
-    #[must_use]
-    pub fn into_vec_of_vec(self) -> Vec<Vec<i32>> {
-        if self.num_columns == 0 {
-            return Vec::new();
-        }
-        self.data
-            .chunks_exact(self.num_columns)
-            .map(<[i32]>::to_vec)
-            .collect()
-    }
 }
 
 /// Decode a FIT buffer in bulk, returning all rows in a single flat
@@ -175,18 +162,6 @@ impl<'a> FitReader<'a> {
         Self {
             buf,
             pos: 0,
-            is_date: false,
-            row_complete: false,
-        }
-    }
-
-    /// Create a new reader starting at an explicit byte offset.
-    #[inline]
-    #[must_use]
-    pub fn with_offset(buf: &'a [u8], offset: usize) -> Self {
-        Self {
-            buf,
-            pos: offset,
             is_date: false,
             row_complete: false,
         }
@@ -738,18 +713,6 @@ mod tests {
         assert_eq!(alloc[11], 0); // records_back
         assert_eq!(alloc[12], 1); // price_type
         assert_eq!(alloc[13], 20240315); // date
-    }
-
-    #[test]
-    fn with_offset_starts_at_given_position() {
-        // Prefix garbage [0xFF, 0xFF], then "5\n" starting at offset 2.
-        let data = [0xFF, 0xFF, pack(5, END)];
-        let mut alloc = [0i32; 4];
-        let mut reader = FitReader::with_offset(&data, 2);
-        let n = reader.read_changes(&mut alloc);
-        assert_eq!(n, 1);
-        assert_eq!(alloc[0], 5);
-        assert_eq!(reader.position(), 3);
     }
 
     #[test]

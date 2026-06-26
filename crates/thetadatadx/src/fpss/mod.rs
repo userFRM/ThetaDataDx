@@ -45,7 +45,6 @@ pub(crate) mod pinning;
 pub mod protocol;
 pub(crate) mod ring;
 mod session;
-pub mod wake;
 
 pub use self::decode::UNRESOLVED_CONTRACT_SYMBOL_PREFIX;
 use self::events::IoCommand;

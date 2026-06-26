@@ -17,7 +17,7 @@ use std::fmt;
 
 /// Highest valid `price_type` discriminant. The encoded power-of-ten
 /// `exp = price_type - 10` ranges from -10 to +9 across the valid set
-/// (`price_type` 0 means "unset" — at the boundary, see [`Price::is_unset`]).
+/// (`price_type` 0 means "unset" — at the boundary).
 /// The constant bounds [`PriceType`]'s checked constructors and matches the
 /// size of the `POW10_*` tables (20 entries / indices 0..=19), so any index
 /// derived from a `PriceType` is in range by construction.
@@ -60,7 +60,7 @@ impl std::error::Error for PriceError {}
 pub struct PriceType(u8);
 
 impl PriceType {
-    /// The "unset" exponent (`price_type == 0`); see [`Price::is_unset`].
+    /// The "unset" exponent (`price_type == 0`).
     pub const UNSET: Self = Self(0);
 
     /// Construct a `PriceType`, rejecting anything outside
@@ -230,35 +230,6 @@ impl Price {
     #[must_use]
     pub const fn price_type(&self) -> i32 {
         self.price_type.get()
-    }
-
-    /// Whether this `Price` carries the "unset" sentinel
-    /// (`price_type == 0`). Distinct from a legitimate
-    /// `0.0` price with a non-zero `price_type`; use [`Self::is_zero_value`]
-    /// for that.
-    #[inline]
-    #[must_use]
-    pub const fn is_unset(&self) -> bool {
-        self.price_type.get() == 0
-    }
-
-    /// Whether this `Price` represents a real zero (mantissa == 0 with
-    /// a non-zero `price_type`). Distinct from the "unset" sentinel
-    /// surfaced by [`Self::is_unset`].
-    #[inline]
-    #[must_use]
-    pub const fn is_zero_value(&self) -> bool {
-        self.value == 0 && self.price_type.get() != 0
-    }
-
-    /// Whether this `Price` represents zero by either signal — sentinel
-    /// (`price_type == 0`) or real zero mantissa. Kept for backwards
-    /// compatibility with pre-fix callers; new code should call
-    /// [`Self::is_unset`] / [`Self::is_zero_value`] explicitly so the
-    /// "no quote yet" vs "zero price" branches stay distinguishable.
-    #[must_use]
-    pub fn is_zero(&self) -> bool {
-        self.value == 0 || self.price_type.get() == 0
     }
 
     /// Convert to f64. This is lossy but useful for display/calculations.
@@ -481,24 +452,6 @@ mod tests {
             Price::with_value_and_type(1, i32::MAX),
             Err(PriceError::PriceTypeOutOfRange(_))
         ));
-    }
-
-    /// `is_unset` and `is_zero_value` are distinct signals: a fresh
-    /// `price_type = 0` is unset; a real zero needs `price_type != 0`
-    /// with mantissa 0.
-    #[test]
-    fn is_unset_vs_is_zero_value() {
-        let unset = Price::new(0, 0);
-        assert!(unset.is_unset());
-        assert!(!unset.is_zero_value());
-
-        let real_zero = Price::new(0, 8);
-        assert!(!real_zero.is_unset());
-        assert!(real_zero.is_zero_value());
-
-        let nonzero = Price::new(15025, 8);
-        assert!(!nonzero.is_unset());
-        assert!(!nonzero.is_zero_value());
     }
 
     /// `Price::new`'s saturating behaviour: out-of-range `price_type`

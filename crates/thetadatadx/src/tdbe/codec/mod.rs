@@ -1,8 +1,7 @@
-//! FIT/FIE codec for `ThetaData`'s FPSS streaming protocol.
+//! FIT codec for `ThetaData`'s FPSS streaming protocol.
 //!
-//! Matches the JVM terminal byte-for-byte on the wire:
-//! - FIT — nibble-oriented variable-length integer decoder
-//! - FIE — string-to-nibble encoder for request building
+//! Matches the JVM terminal byte-for-byte on the wire: a nibble-oriented
+//! variable-length integer decoder.
 //!
 //! FIT (Field-Indexed Tick) is a nibble-oriented (4-bit) compression format
 //! used to encode integer fields in FPSS tick data. Each byte packs two nibbles
@@ -13,5 +12,4 @@
 //! values, and subsequent rows contain deltas that are added to the previous
 //! row's values.
 
-pub mod fie;
 pub mod fit;
