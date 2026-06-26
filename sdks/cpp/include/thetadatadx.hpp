@@ -817,77 +817,12 @@ public:
         }
     }
 
-    /** Set the per-class transient-failure attempt budget. Default 30. */
-    void set_reconnect_max_attempts(uint32_t max_attempts) {
-        thetadatadx_config_set_reconnect_max_attempts(handle_.get(), max_attempts);
-    }
-
-    /** Set the rate-limited (TooManyRequests) attempt budget. Default 100. */
-    void set_reconnect_max_rate_limited_attempts(uint32_t max_rate_limited_attempts) {
-        thetadatadx_config_set_reconnect_max_rate_limited_attempts(handle_.get(),
-                                                            max_rate_limited_attempts);
-    }
-
-    /** Set the stable-window timer (seconds) after which the auto-reconnect
-     *  attempt counters reset. Default 60. */
-    void set_reconnect_stable_window_secs(uint64_t secs) {
-        thetadatadx_config_set_reconnect_stable_window_secs(handle_.get(), secs);
-    }
-
     #include "config_accessors.hpp.inc"
 
     /** Current reconnect policy selector: 0=Auto, 1=Manual, 2=Custom. */
     int32_t get_reconnect_policy() const {
         int32_t out{};
         thetadatadx_config_get_reconnect_policy(handle_.get(), &out);
-        return out;
-    }
-
-    /** Current generic-transient reconnect attempt budget (default 30). */
-    uint32_t get_reconnect_max_attempts() const {
-        uint32_t out{};
-        thetadatadx_config_get_reconnect_max_attempts(handle_.get(), &out);
-        return out;
-    }
-
-    /** Current rate-limited reconnect attempt budget (default 100). */
-    uint32_t get_reconnect_max_rate_limited_attempts() const {
-        uint32_t out{};
-        thetadatadx_config_get_reconnect_max_rate_limited_attempts(handle_.get(), &out);
-        return out;
-    }
-
-    /** Set the ServerRestarting reconnect attempt budget. Default 60. */
-    void set_reconnect_max_server_restart_attempts(uint32_t n) {
-        thetadatadx_config_set_reconnect_max_server_restart_attempts(handle_.get(), n);
-    }
-
-    /** Current ServerRestarting reconnect attempt budget (default 60). */
-    uint32_t get_reconnect_max_server_restart_attempts() const {
-        uint32_t out{};
-        thetadatadx_config_get_reconnect_max_server_restart_attempts(handle_.get(), &out);
-        return out;
-    }
-
-    /** Current stable-window reset interval in seconds (default 60). */
-    uint64_t get_reconnect_stable_window_secs() const {
-        uint64_t out{};
-        thetadatadx_config_get_reconnect_stable_window_secs(handle_.get(), &out);
-        return out;
-    }
-
-    /** Set the wall-clock reconnect envelope (seconds) for the
-     *  generic-transient and server-restart classes. 0 disables the
-     *  envelope (attempt budgets only). Default 300. */
-    void set_reconnect_max_elapsed_secs(uint64_t secs) {
-        thetadatadx_config_set_reconnect_max_elapsed_secs(handle_.get(), secs);
-    }
-
-    /** Current wall-clock reconnect envelope in seconds (default 300;
-     *  0 = disabled). */
-    uint64_t get_reconnect_max_elapsed_secs() const {
-        uint64_t out{};
-        thetadatadx_config_get_reconnect_max_elapsed_secs(handle_.get(), &out);
         return out;
     }
 
@@ -982,64 +917,9 @@ public:
         return has_value ? std::optional<size_t>{n} : std::nullopt;
     }
 
-    // ── RetryPolicy field setters/getters ──
-
-    uint64_t get_retry_initial_delay_ms() const {
-        uint64_t out{};
-        thetadatadx_config_get_retry_initial_delay_ms(handle_.get(), &out);
-        return out;
-    }
-
-    uint64_t get_retry_max_delay_ms() const {
-        uint64_t out{};
-        thetadatadx_config_get_retry_max_delay_ms(handle_.get(), &out);
-        return out;
-    }
-
-    // ── AuthConfig field setters/getters ──
-
-    /**
-     * Set the Nexus auth URL. Default is the upstream production
-     * endpoint; redirect at a staging cluster for testing.
-     *
-     * Throws a @c thetadatadx::ThetaDataError leaf if the FFI rejects the value
-     * (null handle or non-UTF-8 input), routing through the typed class
-     * the FFI error code selects.
-     */
-    void set_nexus_url(const std::string& url) {
-        if (thetadatadx_config_set_nexus_url(handle_.get(), url.c_str()) != 0) {
-            detail::throw_last_ffi_error();
-        }
-    }
-
-    /** Current @c auth.nexus_url. Returns an empty string if the FFI
-     *  getter returns null (null handle or interior-NUL value). */
-    std::string get_nexus_url() const {
-        detail::FfiString s(thetadatadx_config_get_nexus_url(handle_.get()));
-        return s.str();
-    }
-
-    /**
-     * Set the QueryInfo.client_type identifier. Default is
-     * @c "rust-thetadatadx"; override to identify a deployment fleet
-     * in server-side dashboards.
-     *
-     * Throws a @c thetadatadx::ThetaDataError leaf if the FFI rejects the value
-     * (null handle or non-UTF-8 input), routing through the typed class
-     * the FFI error code selects.
-     */
-    void set_client_type(const std::string& client_type) {
-        if (thetadatadx_config_set_client_type(handle_.get(), client_type.c_str()) != 0) {
-            detail::throw_last_ffi_error();
-        }
-    }
-
-    /** Current @c auth.client_type. Returns an empty string if the FFI
-     *  getter returns null (null handle or interior-NUL value). */
-    std::string get_client_type() const {
-        detail::FfiString s(thetadatadx_config_get_client_type(handle_.get()));
-        return s.str();
-    }
+    // `retry.initial_delay` / `retry.max_delay` (ms) getters and the
+    // `auth.nexus_url` / `auth.client_type` string accessors are generated
+    // into config_accessors.hpp.inc from config_surface.toml.
 
     // ── MetricsConfig field setter/getter ──
 
@@ -1204,24 +1084,7 @@ public:
         return core;
     }
 
-    // ── Historical endpoint ──
-
-    /** Set the historical gRPC host. Defaults to the upstream
-     *  production endpoint; redirect the historical channel at a known
-     *  host for testing. Throws a @c thetadatadx::ThetaDataError leaf if the FFI
-     *  rejects the value (null handle or non-UTF-8 input). */
-    void set_historical_host(const std::string& host) {
-        if (thetadatadx_config_set_historical_host(handle_.get(), host.c_str()) != 0) {
-            detail::throw_last_ffi_error();
-        }
-    }
-
-    /** Current historical gRPC host. Returns an empty string if
-     *  the FFI getter returns null (null handle or interior-NUL value). */
-    std::string get_historical_host() const {
-        detail::FfiString s(thetadatadx_config_get_historical_host(handle_.get()));
-        return s.str();
-    }
+    // `historical_host` (string) is generated into config_accessors.hpp.inc.
 
     /** Get the raw handle. */
     ThetaDataDxConfig* get() const { return handle_.get(); }

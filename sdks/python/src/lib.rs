@@ -365,45 +365,6 @@ impl Config {
         }
     }
 
-    /// Set the per-class transient-failure attempt budget for the
-    /// auto-reconnect path. Default `30`. No effect unless the
-    /// reconnect policy is `Auto`.
-    #[setter]
-    fn set_reconnect_max_attempts(&self, max_attempts: u32) -> PyResult<()> {
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
-            limits.max_attempts = max_attempts;
-        }
-        Ok(())
-    }
-
-    /// Set the per-class rate-limited (`TooManyRequests`) attempt budget
-    /// for the auto-reconnect path. Default `100`. No effect unless the
-    /// reconnect policy is `Auto`.
-    #[setter]
-    fn set_reconnect_max_rate_limited_attempts(
-        &self,
-        max_rate_limited_attempts: u32,
-    ) -> PyResult<()> {
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
-            limits.max_rate_limited_attempts = max_rate_limited_attempts;
-        }
-        Ok(())
-    }
-
-    /// Set the continuous successful-data-flow window (in seconds)
-    /// after which the auto-reconnect attempt counters reset. Default
-    /// `60`. No effect unless the reconnect policy is `Auto`.
-    #[setter]
-    fn set_reconnect_stable_window_secs(&self, secs: u64) -> PyResult<()> {
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
-            limits.stable_window = std::time::Duration::from_secs(secs);
-        }
-        Ok(())
-    }
-
     /// Set the jitter strategy applied to every reconnect delay.
     /// Accepts ``"full"`` (default), ``"equal"``, ``"decorrelated"``,
     /// or ``"none"`` (case-insensitive).
@@ -424,91 +385,6 @@ impl Config {
     fn get_reconnect_jitter(&self) -> &'static str {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.reconnect.jitter.as_str()
-    }
-
-    /// Set the wall-clock reconnect envelope (seconds) for the
-    /// generic-transient and server-restart classes, measured from the
-    /// first attempt of a consecutive-reconnect sequence. ``0``
-    /// disables the envelope (attempt budgets only). Default ``300``.
-    /// No effect unless the reconnect policy is ``Auto``.
-    #[setter]
-    fn set_reconnect_max_elapsed_secs(&self, secs: u64) {
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
-            limits.max_elapsed = std::time::Duration::from_secs(secs);
-        }
-    }
-
-    /// Current wall-clock reconnect envelope in seconds (default
-    /// ``300``; ``0`` = disabled). Reads the default-limits value when
-    /// the policy is not ``Auto``.
-    #[getter]
-    fn get_reconnect_max_elapsed_secs(&self) -> u64 {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        match &guard.reconnect.policy {
-            config::ReconnectPolicy::Auto(limits) => limits.max_elapsed.as_secs(),
-            _ => config::ReconnectAttemptLimits::default()
-                .max_elapsed
-                .as_secs(),
-        }
-    }
-
-    /// Set the ``ServerRestarting`` reconnect attempt budget. Default
-    /// ``60``. No effect unless the reconnect policy is ``Auto``.
-    #[setter]
-    fn set_reconnect_max_server_restart_attempts(&self, n: u32) {
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
-            limits.max_server_restart_attempts = n;
-        }
-    }
-
-    /// Current ``ServerRestarting`` reconnect attempt budget (default
-    /// ``60``). Reads the default-limits value when the policy is not
-    /// ``Auto``.
-    #[getter]
-    fn get_reconnect_max_server_restart_attempts(&self) -> u32 {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        match &guard.reconnect.policy {
-            config::ReconnectPolicy::Auto(limits) => limits.max_server_restart_attempts,
-            _ => config::ReconnectAttemptLimits::default().max_server_restart_attempts,
-        }
-    }
-
-    /// Current generic-transient reconnect attempt budget (default
-    /// ``30``). Reads the default-limits value when the policy is not
-    /// ``Auto``.
-    #[getter]
-    fn get_reconnect_max_attempts(&self) -> u32 {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        match &guard.reconnect.policy {
-            config::ReconnectPolicy::Auto(limits) => limits.max_attempts,
-            _ => config::ReconnectAttemptLimits::default().max_attempts,
-        }
-    }
-
-    /// Current rate-limited reconnect attempt budget (default ``100``).
-    /// Reads the default-limits value when the policy is not ``Auto``.
-    #[getter]
-    fn get_reconnect_max_rate_limited_attempts(&self) -> u32 {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        match &guard.reconnect.policy {
-            config::ReconnectPolicy::Auto(limits) => limits.max_rate_limited_attempts,
-            _ => config::ReconnectAttemptLimits::default().max_rate_limited_attempts,
-        }
-    }
-
-    /// Current stable-window reset interval in seconds (default ``60``).
-    /// Reads the default-limits value when the policy is not ``Auto``.
-    #[getter]
-    fn get_reconnect_stable_window_secs(&self) -> u64 {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        match &guard.reconnect.policy {
-            config::ReconnectPolicy::Auto(limits) => limits.stable_window.as_secs(),
-            _ => config::ReconnectAttemptLimits::default()
-                .stable_window
-                .as_secs(),
-        }
     }
 
     /// Install a custom reconnect policy driven by a Python callable.
@@ -643,72 +519,10 @@ impl Config {
         guard.runtime.tokio_worker_threads
     }
 
-    // ── RetryPolicy field setters/getters ─────────────────────────────
-    //
-    // Per-field access on ``DirectConfig.retry`` mirrors the FFI / C++
-    // / TypeScript surface. The ``delay_for_attempt`` / ``capped_backoff``
-    // methods stay Rust-only — they are method-shape helpers that
-    // callers can recompute from the four field values if needed.
-
-    /// Current ``retry.initial_delay`` value in ms.
-    #[getter]
-    fn get_retry_initial_delay_ms(&self) -> u64 {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        u64::try_from(guard.retry.initial_delay.as_millis()).unwrap_or(u64::MAX)
-    }
-
-    /// Current ``retry.max_delay`` value in ms.
-    #[getter]
-    fn get_retry_max_delay_ms(&self) -> u64 {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        u64::try_from(guard.retry.max_delay.as_millis()).unwrap_or(u64::MAX)
-    }
-
-    // ── FlatFilesConfig field setters/getters ─────────────────────────
-    //
-    // Per-field access on ``DirectConfig.flatfiles`` mirrors the FFI /
-    // C++ / TypeScript surface. The two ``Duration`` fields cross the
-    // binding boundary as ``u64`` seconds (matching the
-    // human-meaningful units ``FlatFilesConfig`` documents); the
-    // ``backoff_for_attempt`` / ``production_defaults`` helpers stay
-    // Rust-only.
-
-    // ── AuthConfig field setters/getters ──────────────────────────────
-    //
-    // Per-field access on ``DirectConfig.auth``. Both fields are
-    // ``str``. Defaults: the upstream production Nexus URL and the
-    // canonical ``"rust-thetadatadx"`` client type.
-
-    /// Set the Nexus auth URL. Default matches the upstream production
-    /// endpoint; override to redirect at a staging cluster.
-    #[setter]
-    fn set_nexus_url(&self, url: String) {
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.auth.nexus_url = url;
-    }
-
-    /// Current ``auth.nexus_url`` value.
-    #[getter]
-    fn get_nexus_url(&self) -> String {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.auth.nexus_url.clone()
-    }
-
-    /// Set the ``QueryInfo.client_type`` identifier. Default is
-    /// ``"rust-thetadatadx"``; override to identify a deployment fleet
-    /// in server-side dashboards.
-    #[setter]
-    fn set_client_type(&self, client_type: String) {
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.auth.client_type = client_type;
-    }
-
-    /// Current ``auth.client_type`` value.
-    #[getter]
-    fn get_client_type(&self) -> String {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.auth.client_type.clone()
-    }
+    // ``DirectConfig.retry`` ms getters (``initial_delay`` / ``max_delay``)
+    // and the ``DirectConfig.auth`` string fields (``nexus_url`` /
+    // ``client_type``) are the generated ``ms`` / ``string`` accessors in
+    // config_surface.toml.
 
     // ── MetricsConfig field setter/getter ─────────────────────────────
     //
@@ -901,22 +715,8 @@ impl Config {
         guard.streaming.consumer_cpu
     }
 
-    /// Override the historical gRPC host. Used by structural tests that
-    /// need to point the historical channel at a known-refused endpoint
-    /// to prove the streaming-only surface never opens it; production
-    /// code paths should keep the `Config::production()` default.
-    #[setter]
-    fn set_historical_host(&self, host: String) {
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.set_historical_host(host);
-    }
-
-    /// Current historical gRPC host.
-    #[getter]
-    fn get_historical_host(&self) -> String {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.historical_host().to_string()
-    }
+    // `historical_host` (string) is the generated `string` accessor in
+    // config_surface.toml.
 
     fn __repr__(&self) -> String {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
@@ -929,10 +729,12 @@ impl Config {
     }
 }
 
-// Mechanical scalar config setters/getters (`config_surface.toml`), in a
-// second `#[pymethods] impl Config` block enabled by `multiple-pymethods`.
-// The divergent accessors above (enum, string, `Option`, policy-aware) stay
-// hand-written; only the assign/read pairs are projected from the SSOT.
+// Mechanical config setters/getters (`config_surface.toml`), in a second
+// `#[pymethods] impl Config` block enabled by `multiple-pymethods`: the
+// scalar / duration pairs plus the `policy_limit` (reconnect `Auto`-limit)
+// and `string` carve-outs. The divergent accessors above (enum string
+// labels, `Option`, policy selector) stay hand-written; only the
+// assign/read pairs are projected from the SSOT.
 include!("_generated/config_accessors.rs");
 
 // ── Typed-pyclass tick definitions (generated from tick_schema.toml) ──

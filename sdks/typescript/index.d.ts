@@ -138,28 +138,6 @@ export declare class Config {
    */
   setReconnectPolicy(policy: string): void
   /**
-   * Set the per-class transient-failure attempt budget for the
-   * auto-reconnect path. Default `30`. No effect unless the
-   * reconnect policy is `Auto`.
-   */
-  setReconnectMaxAttempts(maxAttempts: number): void
-  /**
-   * Set the per-class rate-limited (`TooManyRequests`) attempt
-   * budget for the auto-reconnect path. Default `100`. No effect
-   * unless the reconnect policy is `Auto`.
-   */
-  setReconnectMaxRateLimitedAttempts(maxRateLimitedAttempts: number): void
-  /**
-   * Set the continuous successful-data-flow window (in seconds)
-   * after which the auto-reconnect attempt counters reset. Default
-   * `60`. No effect unless the reconnect policy is `Auto`.
-   *
-   * Accepts a `bigint` for parity with the Python / C++ / FFI
-   * surface, which uses a 64-bit unsigned integer. JavaScript `Number` callers should wrap their
-   * value: `setReconnectStableWindowSecs(BigInt(60))`.
-   */
-  setReconnectStableWindowSecs(secs: bigint): void
-  /**
    * Set the jitter strategy applied to every reconnect delay.
    * Accepts `"full"` (default), `"equal"`, `"decorrelated"`, or
    * `"none"` (case-insensitive).
@@ -168,51 +146,10 @@ export declare class Config {
   /** Current reconnect jitter mode as a lowercase string. */
   get reconnectJitter(): string
   /**
-   * Set the wall-clock reconnect envelope (seconds) for the
-   * generic-transient and server-restart classes, measured from the
-   * first attempt of a consecutive-reconnect sequence. `0n` disables
-   * the envelope (attempt budgets only). Default `300n`. No effect
-   * unless the reconnect policy is `Auto`.
-   */
-  setReconnectMaxElapsedSecs(secs: bigint): void
-  /**
-   * Current wall-clock reconnect envelope in seconds (default
-   * `300n`; `0n` = disabled). Reads the default-limits value when
-   * the policy is not `Auto`.
-   */
-  get reconnectMaxElapsedSecs(): bigint
-  /**
-   * Set the `ServerRestarting` reconnect attempt budget. Default
-   * `60`. No effect unless the reconnect policy is `Auto`.
-   */
-  setReconnectMaxServerRestartAttempts(n: number): void
-  /**
-   * Current `ServerRestarting` reconnect attempt budget (default
-   * `60`). Reads the default-limits value when the policy is not
-   * `Auto`.
-   */
-  get reconnectMaxServerRestartAttempts(): number
-  /**
    * Current reconnect policy as a string (`"auto"`, `"manual"`, or
    * `"custom"`).
    */
   get reconnectPolicy(): string
-  /**
-   * Current generic-transient reconnect attempt budget (default
-   * `30`). Reads the default-limits value when the policy is not
-   * `Auto`.
-   */
-  get reconnectMaxAttempts(): number
-  /**
-   * Current rate-limited reconnect attempt budget (default `100`).
-   * Reads the default-limits value when the policy is not `Auto`.
-   */
-  get reconnectMaxRateLimitedAttempts(): number
-  /**
-   * Current stable-window reset interval in seconds (default `60n`).
-   * Reads the default-limits value when the policy is not `Auto`.
-   */
-  get reconnectStableWindowSecs(): bigint
   /**
    * Install a custom reconnect policy driven by a JS callback.
    *
@@ -278,30 +215,6 @@ export declare class Config {
    * `hasValue=false` encodes the unset (auto) sentinel.
    */
   get workerThreads(): WorkerThreadsSetting
-  /** Current `retry.initial_delay` value (ms, returned as BigInt). */
-  get retryInitialDelayMs(): bigint
-  /** Current `retry.max_delay` value (ms, returned as BigInt). */
-  get retryMaxDelayMs(): bigint
-  /**
-   * Set the Nexus auth URL. Default matches the upstream
-   * production endpoint; override to redirect at a staging
-   * cluster for testing.
-   */
-  setNexusUrl(url: string): void
-  /** Current `auth.nexus_url` value. */
-  get nexusUrl(): string
-  /**
-   * Set the `QueryInfo.client_type` identifier. Default is
-   * `"rust-thetadatadx"`; override to identify a deployment fleet
-   * in server-side dashboards.
-   */
-  setClientType(clientType: string): void
-  /** Current `auth.client_type` value. */
-  get clientType(): string
-  /** Override the historical gRPC host. Companion to `setHistoricalPort`. */
-  setHistoricalHost(host: string): void
-  /** Current historical gRPC host. */
-  get historicalHost(): string
   /**
    * Set the Prometheus exporter port. Pass `null` or `undefined`
    * to leave the exporter disabled (the default); pass a
@@ -642,6 +555,93 @@ export declare class Config {
    * (default `300n`; `0n` = no default deadline).
    */
   get requestTimeoutSecs(): bigint
+  /** Current `retry.initial_delay` value (ms, returned as BigInt). */
+  get retryInitialDelayMs(): bigint
+  /** Current `retry.max_delay` value (ms, returned as BigInt). */
+  get retryMaxDelayMs(): bigint
+  /**
+   * Set the per-class transient-failure attempt budget for the
+   * auto-reconnect path. Default `30`. No effect unless the
+   * reconnect policy is `Auto`.
+   */
+  setReconnectMaxAttempts(maxAttempts: number): void
+  /**
+   * Current generic-transient reconnect attempt budget (default
+   * `30`). Reads the default-limits value when the policy is not
+   * `Auto`.
+   */
+  get reconnectMaxAttempts(): number
+  /**
+   * Set the per-class rate-limited (`TooManyRequests`) attempt
+   * budget for the auto-reconnect path. Default `100`. No effect
+   * unless the reconnect policy is `Auto`.
+   */
+  setReconnectMaxRateLimitedAttempts(maxRateLimitedAttempts: number): void
+  /**
+   * Current rate-limited reconnect attempt budget (default `100`).
+   * Reads the default-limits value when the policy is not `Auto`.
+   */
+  get reconnectMaxRateLimitedAttempts(): number
+  /**
+   * Set the `ServerRestarting` reconnect attempt budget. Default
+   * `60`. No effect unless the reconnect policy is `Auto`.
+   */
+  setReconnectMaxServerRestartAttempts(n: number): void
+  /**
+   * Current `ServerRestarting` reconnect attempt budget (default
+   * `60`). Reads the default-limits value when the policy is not
+   * `Auto`.
+   */
+  get reconnectMaxServerRestartAttempts(): number
+  /**
+   * Set the wall-clock reconnect envelope (seconds) for the
+   * generic-transient and server-restart classes, measured from the
+   * first attempt of a consecutive-reconnect sequence. `0n` disables
+   * the envelope (attempt budgets only). Default `300n`. No effect
+   * unless the reconnect policy is `Auto`.
+   */
+  setReconnectMaxElapsedSecs(secs: bigint): void
+  /**
+   * Current wall-clock reconnect envelope in seconds (default
+   * `300n`; `0n` = disabled). Reads the default-limits value when
+   * the policy is not `Auto`.
+   */
+  get reconnectMaxElapsedSecs(): bigint
+  /**
+   * Set the continuous successful-data-flow window (in seconds)
+   * after which the auto-reconnect attempt counters reset. Default
+   * `60`. No effect unless the reconnect policy is `Auto`.
+   *
+   * Accepts a `bigint` for parity with the Python / C++ / FFI
+   * surface, which uses a 64-bit unsigned integer. JavaScript `Number` callers should wrap their
+   * value: `setReconnectStableWindowSecs(BigInt(60))`.
+   */
+  setReconnectStableWindowSecs(secs: bigint): void
+  /**
+   * Current stable-window reset interval in seconds (default `60n`).
+   * Reads the default-limits value when the policy is not `Auto`.
+   */
+  get reconnectStableWindowSecs(): bigint
+  /**
+   * Set the Nexus auth URL. Default matches the upstream
+   * production endpoint; override to redirect at a staging
+   * cluster for testing.
+   */
+  setNexusUrl(url: string): void
+  /** Current `auth.nexus_url` value. */
+  get nexusUrl(): string
+  /**
+   * Set the `QueryInfo.client_type` identifier. Default is
+   * `"rust-thetadatadx"`; override to identify a deployment fleet
+   * in server-side dashboards.
+   */
+  setClientType(clientType: string): void
+  /** Current `auth.client_type` value. */
+  get clientType(): string
+  /** Override the historical gRPC host. Companion to `setHistoricalPort`. */
+  setHistoricalHost(host: string): void
+  /** Current historical gRPC host. */
+  get historicalHost(): string
 }
 
 /**
