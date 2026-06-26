@@ -5,7 +5,9 @@ use std::fmt::Write as _;
 use super::common::{
     generated_header, greek_result_fields, push_rust_doc_comment, python_field_ident, python_type,
 };
-use super::spec::{ForwardReturn, MethodKind, MethodSpec, UtilityKind, UtilitySpec};
+use super::spec::{
+    assert_forwarder_code_params, ForwardReturn, MethodKind, MethodSpec, UtilityKind, UtilitySpec,
+};
 
 /// Renders the Python streaming methods source: the FPSS method-name inventory const and the `#[pymethods]` block on `Client`.
 pub(super) fn render_python_streaming_methods(methods: &[&MethodSpec]) -> String {
@@ -564,6 +566,7 @@ fn python_utility_function(utility: &UtilitySpec) -> String {
     }
     match utility.kind {
         UtilityKind::Forwarder => {
+            assert_forwarder_code_params(utility);
             let ret = match utility.forward_return.expect("forwarder return validated") {
                 ForwardReturn::Str => "&'static str",
                 ForwardReturn::Bool => "bool",

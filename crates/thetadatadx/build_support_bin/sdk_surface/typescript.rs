@@ -6,7 +6,9 @@ use std::fmt::Write as _;
 use heck::ToLowerCamelCase;
 
 use super::common::{generated_header, greek_result_fields, push_rust_doc_comment, ts_field_ident};
-use super::spec::{ForwardReturn, MethodKind, MethodSpec, UtilityKind, UtilitySpec};
+use super::spec::{
+    assert_forwarder_code_params, ForwardReturn, MethodKind, MethodSpec, UtilityKind, UtilitySpec,
+};
 
 /// Renders the TypeScript streaming methods source: the `#[napi]` block on `StreamView`.
 pub(super) fn render_ts_streaming_methods(methods: &[&MethodSpec]) -> String {
@@ -338,6 +340,7 @@ fn ts_util_method(utility: &UtilitySpec) -> String {
     let js_name = to_ts_camel_case(&utility.name);
     match utility.kind {
         UtilityKind::Forwarder => {
+            assert_forwarder_code_params(utility);
             push_rust_doc_comment(&mut out, "    ", &utility.doc);
             writeln!(out, "    #[napi(js_name = \"{js_name}\")]").unwrap();
             let call = utility

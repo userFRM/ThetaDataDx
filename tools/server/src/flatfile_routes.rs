@@ -370,9 +370,7 @@ fn classify_flatfile_error(e: &thetadatadx::Error) -> (StatusCode, &'static str)
         // condition answers 404 via one frame type and 502 via the other.
         thetadatadx::Error::FlatFilesUnavailable(FlatFilesUnavailableReason::RequestRejected {
             server_message,
-        }) if rejection_is_no_data(server_message) => {
-            (StatusCode::NOT_FOUND, "flatfiles_no_data")
-        }
+        }) if rejection_is_no_data(server_message) => (StatusCode::NOT_FOUND, "flatfiles_no_data"),
         thetadatadx::Error::FlatFilesUnavailable(reason) if reason.is_no_data() => {
             (StatusCode::NOT_FOUND, "flatfiles_no_data")
         }
@@ -616,9 +614,10 @@ mod tests {
     /// `502`, while the same no-data via an `ERROR` frame answered `404`.
     #[test]
     fn no_data_disconnect_maps_to_404() {
-        let e = thetadatadx::Error::FlatFilesUnavailable(
-            FlatFilesUnavailableReason::AuthRejected { reason_code: 13 },
-        );
+        let e =
+            thetadatadx::Error::FlatFilesUnavailable(FlatFilesUnavailableReason::AuthRejected {
+                reason_code: 13,
+            });
         assert_eq!(
             classify_flatfile_error(&e),
             (StatusCode::NOT_FOUND, "flatfiles_no_data"),

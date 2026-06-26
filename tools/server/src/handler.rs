@@ -1116,7 +1116,10 @@ mod tests {
         let exp_at = body.find("exp -> expiration").expect("exp mapped");
         let ivl_at = body.find("ivl -> interval").expect("ivl mapped");
         let csv_at = body.find("use_csv -> format").expect("use_csv mapped");
-        assert!(exp_at < ivl_at && ivl_at < csv_at, "entries must be sorted: {body}");
+        assert!(
+            exp_at < ivl_at && ivl_at < csv_at,
+            "entries must be sorted: {body}"
+        );
     }
 
     #[test]
