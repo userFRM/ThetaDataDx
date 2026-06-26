@@ -1747,7 +1747,6 @@ dependencies = [
  "heck",
  "http",
  "hyper-util",
- "libc",
  "metrics",
  "prost",
  "prost-build",
