@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 use super::common::{
     generated_header, greek_result_fields, push_rust_doc_comment, python_field_ident, python_type,
 };
-use super::spec::{MethodKind, MethodSpec, UtilityKind, UtilitySpec};
+use super::spec::{ForwardReturn, MethodKind, MethodSpec, UtilityKind, UtilitySpec};
 
 /// Renders the Python streaming methods source: the FPSS method-name inventory const and the `#[pymethods]` block on `Client`.
 pub(super) fn render_python_streaming_methods(methods: &[&MethodSpec]) -> String {
@@ -40,15 +40,41 @@ pub(super) fn render_python_streaming_methods(methods: &[&MethodSpec]) -> String
     out
 }
 
-/// Renders the Python utility functions source: the `AllGreeks` pyclass, the `#[pyfunction]` wrappers, and their module registration helper.
+/// Whether a utility kind lives in the `thetadatadx.util` submodule (the
+/// lookup-table helpers) rather than as a top-level `#[pyfunction]` on the
+/// root module (the offline Greeks calculators).
+fn is_util_submodule_kind(kind: UtilityKind) -> bool {
+    matches!(
+        kind,
+        UtilityKind::Forwarder
+            | UtilityKind::CalendarStatusName
+            | UtilityKind::TimestampMs
+            | UtilityKind::SequenceSignedToUnsigned
+            | UtilityKind::SequenceUnsignedToSigned
+    )
+}
+
+/// Renders the Python utility functions source: the `AllGreeks` pyclass, the `#[pyfunction]` wrappers, and their module registration helpers.
 pub(super) fn render_python_utility_functions(utilities: &[&UtilitySpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());
 
+    // Two registration scopes: the offline Greeks calculators bind on the
+    // root module; the lookup-table helpers bind on the `thetadatadx.util`
+    // submodule. Partition once so each renders into its own helper.
+    let root: Vec<&&UtilitySpec> = utilities
+        .iter()
+        .filter(|u| !is_util_submodule_kind(u.kind))
+        .collect();
+    let util_mod: Vec<&&UtilitySpec> = utilities
+        .iter()
+        .filter(|u| is_util_submodule_kind(u.kind))
+        .collect();
+
     // Emit the AllGreeks pyclass wrapper BEFORE any `#[pyfunction]` that
     // returns it. Mirrors the typed-pyclass policy applied to every other
     // Python return path — no PyDict leaks into the public Python surface.
-    let has_all_greeks = utilities
+    let has_all_greeks = root
         .iter()
         .any(|u| matches!(u.kind, UtilityKind::AllGreeks));
     if has_all_greeks {
@@ -56,7 +82,7 @@ pub(super) fn render_python_utility_functions(utilities: &[&UtilitySpec]) -> Str
         out.push('\n');
     }
 
-    for utility in utilities {
+    for utility in &root {
         out.push_str(&python_utility_function(utility));
         out.push('\n');
     }
@@ -66,7 +92,7 @@ pub(super) fn render_python_utility_functions(utilities: &[&UtilitySpec]) -> Str
     if has_all_greeks {
         out.push_str("    m.add_class::<AllGreeks>()?;\n");
     }
-    for utility in utilities {
+    for utility in &root {
         writeln!(
             out,
             "    m.add_function(wrap_pyfunction!({}, m)?)?;",
@@ -74,6 +100,54 @@ pub(super) fn render_python_utility_functions(utilities: &[&UtilitySpec]) -> Str
         )
         .unwrap();
     }
+    out.push_str("    Ok(())\n");
+    out.push_str("}\n\n");
+
+    for utility in &util_mod {
+        out.push_str(&python_utility_function(utility));
+        out.push('\n');
+    }
+    out.push_str(&render_util_submodule_register(&util_mod));
+    out
+}
+
+/// Emit `register_generated_util_submodule(parent)` — builds the
+/// `thetadatadx.util` child module, adds every lookup-table helper, and
+/// registers it both as a submodule and under the dotted `sys.modules`
+/// name so `import thetadatadx.util` works like a pure-Python submodule.
+fn render_util_submodule_register(utilities: &[&&UtilitySpec]) -> String {
+    let mut out = String::new();
+    out.push_str(
+        "/// Register the `thetadatadx.util` submodule on the parent module.\n\
+         ///\n\
+         /// All functions are added to a child PyModule named `util`, then that\n\
+         /// child is registered both as a submodule of the parent and (so\n\
+         /// `import thetadatadx.util` works) inserted into `sys.modules` under\n\
+         /// the dotted name. This is the standard pyo3 idiom for native Python\n\
+         /// submodules.\n",
+    );
+    out.push_str(
+        "pub(crate) fn register_generated_util_submodule(parent: &Bound<'_, PyModule>) -> PyResult<()> {\n",
+    );
+    out.push_str("    let py = parent.py();\n");
+    out.push_str("    let util = PyModule::new(py, \"util\")?;\n");
+    for utility in utilities {
+        writeln!(
+            out,
+            "    util.add_function(wrap_pyfunction!({}, &util)?)?;",
+            utility.name
+        )
+        .unwrap();
+    }
+    out.push('\n');
+    out.push_str(
+        "    // Insert under the dotted name so `import thetadatadx.util` works\n\
+         \x20   // identically to a pure-Python submodule.\n",
+    );
+    out.push_str("    let sys_modules = py.import(\"sys\")?.getattr(\"modules\")?;\n");
+    out.push_str("    sys_modules.set_item(\"thetadatadx.util\", &util)?;\n");
+    out.push('\n');
+    out.push_str("    parent.add_submodule(&util)?;\n");
     out.push_str("    Ok(())\n");
     out.push_str("}\n");
     out
@@ -426,9 +500,62 @@ fn python_streaming_method(method: &MethodSpec) -> String {
     out
 }
 
+/// The doc comment text for a Python utility, or `None` when the surface
+/// is intentionally undocumented (the lookup-table forwarders, whose
+/// user-facing text lives in the `util.pyi` stub). The four special
+/// helpers carry Python-specific doc that differs from the TypeScript
+/// phrasing.
+fn python_utility_doc(utility: &UtilitySpec) -> Option<&str> {
+    match utility.kind {
+        UtilityKind::AllGreeks | UtilityKind::ImpliedVolatility => Some(&utility.doc),
+        UtilityKind::CalendarStatusName => Some(
+            "Vendor vocabulary text for a calendar-day `status` code (`0` ->\n\
+             `\"open\"`, `1` -> `\"early_close\"`, `2` -> `\"full_close\"`, `3` ->\n\
+             `\"weekend\"`). Returns the literal `\"UNKNOWN\"` for codes outside the\n\
+             table. Mirrors the C++ `thetadatadx::calendar_status_name` and the C ABI\n\
+             `thetadatadx_calendar_status_name`.",
+        ),
+        UtilityKind::TimestampMs => Some(
+            "Combine an Eastern-Time `YYYYMMDD` date and milliseconds-of-day into\n\
+             Unix epoch milliseconds (UTC, DST-aware). Usable with any\n\
+             `(date, *_ms_of_day)` pair on the tick structs. Returns `None` when\n\
+             `date` is absent (`0`) or either input is out of domain — the same\n\
+             `std::nullopt` contract the C++ `thetadatadx::timestamp_ms` returns (the C\n\
+             ABI `thetadatadx_timestamp_ms` encodes that absence as the `-1` sentinel).",
+        ),
+        UtilityKind::SequenceSignedToUnsigned => Some(
+            "Convert a signed wire-encoded trade-sequence value to its unsigned\n\
+             monotonic form. `signed_value` must lie in the i32 wire range\n\
+             (`-2_147_483_648 ..= 2_147_483_647`): the upstream terminal encodes\n\
+             trade sequences as i32, so a value outside that domain is not a wire\n\
+             sequence and is rejected with `ValueError` rather than silently\n\
+             reinterpreted into a look-correct-but-wrong id. A value that does not\n\
+             fit the `i64` parameter type still surfaces as the built-in\n\
+             `OverflowError` from argument coercion, unchanged.",
+        ),
+        UtilityKind::SequenceUnsignedToSigned => Some(
+            "Convert an unsigned monotonic trade-sequence value back to its signed\n\
+             wire encoding. `unsigned_value` must lie in the unsigned wire range\n\
+             (`0 ..= 2^32 - 1`): the monotonic sequence id is never wider than one\n\
+             i32 cycle, so a value above that domain is rejected with `ValueError`\n\
+             rather than silently reinterpreted. A negative argument still\n\
+             surfaces as the built-in `OverflowError` from `u64` coercion,\n\
+             unchanged.",
+        ),
+        UtilityKind::Forwarder => None,
+        other => panic!("python_utility_doc: unsupported kind {other:?}"),
+    }
+}
+
 fn python_utility_function(utility: &UtilitySpec) -> String {
     let mut out = String::new();
-    push_rust_doc_comment(&mut out, "", &utility.doc);
+    // Doc policy differs by kind: the Greeks calculators carry the shared
+    // cross-language `doc`; the four special helpers carry Python-specific
+    // doc; the lookup-table forwarders are self-evident and undocumented
+    // on the Python surface (the `.pyi` stub holds the user-facing text).
+    if let Some(doc) = python_utility_doc(utility) {
+        push_rust_doc_comment(&mut out, "", doc);
+    }
     out.push_str("#[pyfunction]\n");
     if utility.params.len() > 6 {
         out.push_str(
@@ -436,6 +563,79 @@ fn python_utility_function(utility: &UtilitySpec) -> String {
         );
     }
     match utility.kind {
+        UtilityKind::Forwarder => {
+            let ret = match utility.forward_return.expect("forwarder return validated") {
+                ForwardReturn::Str => "&'static str",
+                ForwardReturn::Bool => "bool",
+            };
+            let call = utility
+                .forward_call
+                .as_deref()
+                .expect("forwarder call validated");
+            writeln!(out, "fn {}(code: i32) -> {ret} {{", utility.name).unwrap();
+            writeln!(out, "    {call}(code)").unwrap();
+            out.push_str("}\n");
+        }
+        UtilityKind::CalendarStatusName => {
+            writeln!(out, "fn {}(code: i32) -> &'static str {{", utility.name).unwrap();
+            out.push_str("    thetadatadx::CalendarStatus::from_code(code)\n");
+            out.push_str("        .map_or(\"UNKNOWN\", thetadatadx::CalendarStatus::as_str)\n");
+            out.push_str("}\n");
+        }
+        UtilityKind::TimestampMs => {
+            writeln!(
+                out,
+                "fn {}(date: i32, ms_of_day: i32) -> Option<i64> {{",
+                utility.name
+            )
+            .unwrap();
+            out.push_str("    thetadatadx::time::date_ms_to_epoch_ms(date, ms_of_day)\n");
+            out.push_str("}\n");
+        }
+        UtilityKind::SequenceSignedToUnsigned => {
+            writeln!(
+                out,
+                "fn {}(signed_value: i64) -> PyResult<u64> {{",
+                utility.name
+            )
+            .unwrap();
+            out.push_str(
+                "    if !(thetadatadx::utils::sequences::SEQUENCE_MIN..=thetadatadx::utils::sequences::SEQUENCE_MAX)\n",
+            );
+            out.push_str("        .contains(&signed_value)\n");
+            out.push_str("    {\n");
+            out.push_str("        return Err(PyValueError::new_err(format!(\n");
+            out.push_str(
+                "            \"sequence_signed_to_unsigned: {signed_value} is outside the i32 wire range \\\n",
+            );
+            out.push_str("             (-2_147_483_648 ..= 2_147_483_647)\"\n");
+            out.push_str("        )));\n");
+            out.push_str("    }\n");
+            out.push_str("    Ok(thetadatadx::utils::sequences::signed_to_unsigned(\n");
+            out.push_str("        signed_value,\n");
+            out.push_str("    ))\n");
+            out.push_str("}\n");
+        }
+        UtilityKind::SequenceUnsignedToSigned => {
+            writeln!(
+                out,
+                "fn {}(unsigned_value: u64) -> PyResult<i64> {{",
+                utility.name
+            )
+            .unwrap();
+            out.push_str("    if unsigned_value > u64::from(u32::MAX) {\n");
+            out.push_str("        return Err(PyValueError::new_err(format!(\n");
+            out.push_str(
+                "            \"sequence_unsigned_to_signed: {unsigned_value} is above the unsigned wire range \\\n",
+            );
+            out.push_str("             (0 ..= 2^32 - 1)\"\n");
+            out.push_str("        )));\n");
+            out.push_str("    }\n");
+            out.push_str("    Ok(thetadatadx::utils::sequences::unsigned_to_signed(\n");
+            out.push_str("        unsigned_value,\n");
+            out.push_str("    ))\n");
+            out.push_str("}\n");
+        }
         UtilityKind::AllGreeks => {
             writeln!(out, "fn {}(", utility.name).unwrap();
             for param in &utility.params {

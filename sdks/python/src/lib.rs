@@ -21,7 +21,6 @@ mod fpss_client;
 mod logging_bridge;
 mod mdds_client;
 mod streaming_batches;
-mod util_helpers;
 
 // These imports look unused at source level — they are pulled in by
 // the `include!("_generated/historical_methods.rs")` and
@@ -2108,7 +2107,7 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     register_generated_utility_functions(m)?;
     register_generated_historical_builders(m)?;
     coerce::register_string_enums(m)?;
-    util_helpers::register(m)?;
+    register_generated_util_submodule(m)?;
 
     // Typed exception hierarchy — exports `thetadatadx.ThetaDataError`,
     // `thetadatadx.AuthenticationError`, etc. See [`errors`] for the

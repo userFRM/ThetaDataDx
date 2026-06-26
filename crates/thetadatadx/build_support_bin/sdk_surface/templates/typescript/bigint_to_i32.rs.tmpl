@@ -1,0 +1,23 @@
+/// Decode a napi `BigInt` into the i32 wire range, accepting the
+/// asymmetric `i32::MIN` boundary. Returns `None` for any value
+/// outside `[i32::MIN, i32::MAX]`.
+fn bigint_to_i32(value: &napi::bindgen_prelude::BigInt) -> Option<i32> {
+    if value.words.len() > 1 {
+        return None;
+    }
+    let magnitude = value.words.first().copied().unwrap_or(0);
+    if value.sign_bit {
+        if magnitude == 0 {
+            Some(0)
+        } else if magnitude <= i32::MAX as u64 {
+            // SAFETY: `magnitude` fits in i32 here.
+            Some(-(magnitude as i32))
+        } else if magnitude == (i32::MAX as u64) + 1 {
+            Some(i32::MIN)
+        } else {
+            None
+        }
+    } else {
+        i32::try_from(magnitude).ok()
+    }
+}

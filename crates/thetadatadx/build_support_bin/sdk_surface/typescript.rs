@@ -6,7 +6,7 @@ use std::fmt::Write as _;
 use heck::ToLowerCamelCase;
 
 use super::common::{generated_header, greek_result_fields, push_rust_doc_comment, ts_field_ident};
-use super::spec::{MethodKind, MethodSpec, UtilityKind, UtilitySpec};
+use super::spec::{ForwardReturn, MethodKind, MethodSpec, UtilityKind, UtilitySpec};
 
 /// Renders the TypeScript streaming methods source: the `#[napi]` block on `StreamView`.
 pub(super) fn render_ts_streaming_methods(methods: &[&MethodSpec]) -> String {
@@ -330,17 +330,199 @@ fn to_ts_camel_case(name: &str) -> String {
     name.to_lower_camel_case()
 }
 
-/// Renders the TypeScript utility functions source: the `AllGreeks` napi object and the offline utility free functions.
+/// Emit one `Util` static method (4-space indent inside the impl block).
+/// Forwarders share a single shape; the four special helpers carry
+/// TypeScript-specific docs and bodies (BigInt at the JS boundary).
+fn ts_util_method(utility: &UtilitySpec) -> String {
+    let mut out = String::new();
+    let js_name = to_ts_camel_case(&utility.name);
+    match utility.kind {
+        UtilityKind::Forwarder => {
+            push_rust_doc_comment(&mut out, "    ", &utility.doc);
+            writeln!(out, "    #[napi(js_name = \"{js_name}\")]").unwrap();
+            let call = utility
+                .forward_call
+                .as_deref()
+                .expect("forwarder call validated");
+            match utility.forward_return.expect("forwarder return validated") {
+                ForwardReturn::Str => {
+                    writeln!(out, "    pub fn {}(code: i32) -> String {{", utility.name).unwrap();
+                    writeln!(out, "        {call}(code).to_string()").unwrap();
+                }
+                ForwardReturn::Bool => {
+                    writeln!(out, "    pub fn {}(code: i32) -> bool {{", utility.name).unwrap();
+                    writeln!(out, "        {call}(code)").unwrap();
+                }
+            }
+            out.push_str("    }\n");
+        }
+        UtilityKind::CalendarStatusName => {
+            push_rust_doc_comment(
+                &mut out,
+                "    ",
+                "Vendor vocabulary text for a calendar-day `status` code (`0` ->\n\
+                 `\"open\"`, `1` -> `\"early_close\"`, `2` -> `\"full_close\"`, `3` ->\n\
+                 `\"weekend\"`). Returns the literal `\"UNKNOWN\"` for codes outside\n\
+                 the table.",
+            );
+            writeln!(out, "    #[napi(js_name = \"{js_name}\")]").unwrap();
+            writeln!(out, "    pub fn {}(code: i32) -> String {{", utility.name).unwrap();
+            out.push_str("        thetadatadx::CalendarStatus::from_code(code)\n");
+            out.push_str("            .map_or(\"UNKNOWN\", thetadatadx::CalendarStatus::as_str)\n");
+            out.push_str("            .to_string()\n");
+            out.push_str("    }\n");
+        }
+        UtilityKind::TimestampMs => {
+            push_rust_doc_comment(
+                &mut out,
+                "    ",
+                "Combine an Eastern-Time `YYYYMMDD` date and milliseconds-of-day\n\
+                 into Unix epoch milliseconds (UTC, DST-aware) as a JS BigInt.\n\
+                 Usable with any `(date, *_ms_of_day)` pair on the tick structs.\n\
+                 Returns `null` when `date` is absent (`0`) or either input is out\n\
+                 of domain. BigInt matches the `*TimestampMs` tick accessors so the\n\
+                 epoch domain is uniform.",
+            );
+            writeln!(out, "    #[napi(js_name = \"{js_name}\")]").unwrap();
+            writeln!(
+                out,
+                "    pub fn {}(date: i32, ms_of_day: i32) -> Option<napi::bindgen_prelude::BigInt> {{",
+                utility.name
+            )
+            .unwrap();
+            out.push_str(
+                "        thetadatadx::time::date_ms_to_epoch_ms(date, ms_of_day).map(napi::bindgen_prelude::BigInt::from)\n",
+            );
+            out.push_str("    }\n");
+        }
+        UtilityKind::SequenceSignedToUnsigned => {
+            push_rust_doc_comment(
+                &mut out,
+                "    ",
+                "Convert a signed wire-encoded trade-sequence value to its unsigned\n\
+                 monotonic form. Accepts a JS BigInt in the **32-bit signed wire\n\
+                 range** (`-2_147_483_648 ..= 2_147_483_647`) — the upstream feed\n\
+                 encodes trade sequences as a 32-bit signed integer. Returns a JS\n\
+                 BigInt because the unsigned monotonic sequence id can exceed\n\
+                 `Number.MAX_SAFE_INTEGER`. Inputs outside the wire range throw so\n\
+                 silent coercion cannot produce a look-correct-but-wrong sequence id\n\
+                 downstream.",
+            );
+            writeln!(out, "    #[napi(js_name = \"{js_name}\")]").unwrap();
+            writeln!(
+                out,
+                "    pub fn {}(signed_value: napi::bindgen_prelude::BigInt) -> napi::Result<napi::bindgen_prelude::BigInt> {{",
+                utility.name
+            )
+            .unwrap();
+            out.push_str(
+                "        let signed: i64 = bigint_to_i32(&signed_value).map(i64::from).ok_or_else(|| {\n",
+            );
+            out.push_str("            crate::invalid_parameter_err(\n");
+            out.push_str(
+                "                \"sequenceSignedToUnsigned: BigInt outside the i32 wire range \\\n",
+            );
+            out.push_str("                 (-2_147_483_648 ..= 2_147_483_647)\",\n");
+            out.push_str("            )\n");
+            out.push_str("        })?;\n");
+            out.push_str("        Ok(napi::bindgen_prelude::BigInt::from(\n");
+            out.push_str(
+                "            thetadatadx::utils::sequences::signed_to_unsigned(signed),\n",
+            );
+            out.push_str("        ))\n");
+            out.push_str("    }\n");
+        }
+        UtilityKind::SequenceUnsignedToSigned => {
+            push_rust_doc_comment(
+                &mut out,
+                "    ",
+                "Convert an unsigned monotonic trade-sequence value back to its\n\
+                 signed wire encoding. Accepts a JS BigInt in the unsigned wire\n\
+                 range (`0 ..= 2^32 - 1`); returns a JS BigInt for symmetry with\n\
+                 `sequenceSignedToUnsigned`. Negative inputs and inputs above the\n\
+                 wire range throw — the unsigned monotonic sequence id is always\n\
+                 non-negative and never wider than the 32-bit wire range.",
+            );
+            writeln!(out, "    #[napi(js_name = \"{js_name}\")]").unwrap();
+            writeln!(
+                out,
+                "    pub fn {}(unsigned_value: napi::bindgen_prelude::BigInt) -> napi::Result<napi::bindgen_prelude::BigInt> {{",
+                utility.name
+            )
+            .unwrap();
+            out.push_str(
+                "        if unsigned_value.sign_bit && !unsigned_value.words.iter().all(|w| *w == 0) {\n",
+            );
+            out.push_str("            return Err(crate::invalid_parameter_err(\n");
+            out.push_str(
+                "                \"sequenceUnsignedToSigned: negative BigInt rejected; the unsigned \\\n",
+            );
+            out.push_str("                 monotonic sequence id is always non-negative\",\n");
+            out.push_str("            ));\n");
+            out.push_str("        }\n");
+            out.push_str("        if unsigned_value.words.len() > 1 {\n");
+            out.push_str("            return Err(crate::invalid_parameter_err(\n");
+            out.push_str(
+                "                \"sequenceUnsignedToSigned: BigInt above the wire range \\\n",
+            );
+            out.push_str("                 (0 ..= 2^32 - 1)\",\n");
+            out.push_str("            ));\n");
+            out.push_str("        }\n");
+            out.push_str(
+                "        let value = unsigned_value.words.first().copied().unwrap_or(0);\n",
+            );
+            out.push_str("        if value > u32::MAX as u64 {\n");
+            out.push_str("            return Err(crate::invalid_parameter_err(\n");
+            out.push_str(
+                "                \"sequenceUnsignedToSigned: BigInt above the wire range \\\n",
+            );
+            out.push_str("                 (0 ..= 2^32 - 1)\",\n");
+            out.push_str("            ));\n");
+            out.push_str("        }\n");
+            out.push_str("        Ok(napi::bindgen_prelude::BigInt::from(\n");
+            out.push_str("            thetadatadx::utils::sequences::unsigned_to_signed(value),\n");
+            out.push_str("        ))\n");
+            out.push_str("    }\n");
+        }
+        other => panic!("unsupported TypeScript Util method kind: {other:?}"),
+    }
+    out
+}
+
+/// Whether a utility kind is exposed as a `Util` static method (the
+/// lookup-table helpers) rather than a top-level napi free function (the
+/// offline Greeks calculators).
+fn is_util_class_kind(kind: UtilityKind) -> bool {
+    matches!(
+        kind,
+        UtilityKind::Forwarder
+            | UtilityKind::CalendarStatusName
+            | UtilityKind::TimestampMs
+            | UtilityKind::SequenceSignedToUnsigned
+            | UtilityKind::SequenceUnsignedToSigned
+    )
+}
+
+/// Renders the TypeScript utility functions source: the `AllGreeks` napi object, the offline utility free functions, and the `Util` lookup-table class.
 pub(super) fn render_ts_utility_functions(utilities: &[&UtilitySpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());
+
+    let free: Vec<&&UtilitySpec> = utilities
+        .iter()
+        .filter(|u| !is_util_class_kind(u.kind))
+        .collect();
+    let class: Vec<&&UtilitySpec> = utilities
+        .iter()
+        .filter(|u| is_util_class_kind(u.kind))
+        .collect();
 
     // Emit the typed `AllGreeks` napi object before any function that
     // returns it, mirroring the Python typed-pyclass policy. napi-rs
     // lowers the `#[napi(object)]` struct to a TypeScript interface in
     // `index.d.ts`, so `allGreeks(...)` returns a concrete object type —
     // never `any` or a loose record.
-    let has_all_greeks = utilities
+    let has_all_greeks = free
         .iter()
         .any(|u| matches!(u.kind, UtilityKind::AllGreeks));
     if has_all_greeks {
@@ -348,10 +530,38 @@ pub(super) fn render_ts_utility_functions(utilities: &[&UtilitySpec]) -> String 
         out.push('\n');
     }
 
-    for utility in utilities {
+    for utility in &free {
         out.push_str(&ts_utility_function(utility));
         out.push('\n');
     }
+
+    if !class.is_empty() {
+        out.push_str(&render_util_napi_class(&class));
+    }
+    out
+}
+
+/// Emit the `Util` napi class: a unit struct plus a `#[napi] impl` block
+/// of static lookup-table methods, then the `bigint_to_i32` BigInt
+/// decoder the sequence converters use. The class mirrors the Python
+/// `thetadatadx.util` submodule one-for-one under camelCase JS names.
+fn render_util_napi_class(utilities: &[&&UtilitySpec]) -> String {
+    let mut out = String::new();
+    out.push_str(
+        "/// Cross-language lookup-table namespace. Exposes the static condition,\n\
+         /// exchange, calendar, timestamp, and sequence helpers as `Util.*` static\n\
+         /// methods so the JS surface mirrors the Python / C++ / C ABI utility sets.\n",
+    );
+    out.push_str("#[napi(js_name = \"Util\")]\n");
+    out.push_str("pub struct Util;\n\n");
+    out.push_str("#[napi]\n");
+    out.push_str("impl Util {\n");
+    for utility in utilities {
+        out.push_str(&ts_util_method(utility));
+        out.push('\n');
+    }
+    out.push_str("}\n\n");
+    out.push_str(include_str!("templates/typescript/bigint_to_i32.rs.tmpl"));
     out
 }
 
@@ -453,6 +663,7 @@ fn ts_param_type(param: &super::spec::ParamSpec) -> &'static str {
         ParamType::String => "String",
         ParamType::F64 => "f64",
         ParamType::I32 => "i32",
+        ParamType::I64 => "i64",
         ParamType::U64 => "u32",
         ParamType::CredentialsRef | ParamType::ConfigRef => {
             panic!("credentials/config refs are not valid for TypeScript utility emitters")
