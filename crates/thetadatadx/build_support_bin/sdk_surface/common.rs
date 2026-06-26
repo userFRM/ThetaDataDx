@@ -120,6 +120,7 @@ pub(super) fn python_type(param_type: ParamType) -> &'static str {
         ParamType::String => "&str",
         ParamType::F64 => "f64",
         ParamType::I32 => "i32",
+        ParamType::I64 => "i64",
         ParamType::U64 => "u64",
         ParamType::CredentialsRef | ParamType::ConfigRef => {
             panic!("credentials/config refs are not valid for Python emitters")
@@ -133,6 +134,7 @@ pub(super) fn cpp_type(param_type: ParamType) -> &'static str {
         ParamType::String => "const std::string&",
         ParamType::F64 => "double",
         ParamType::I32 => "int",
+        ParamType::I64 => "int64_t",
         ParamType::U64 => "uint64_t",
         ParamType::CredentialsRef => "const Credentials&",
         ParamType::ConfigRef => "const Config&",
@@ -201,7 +203,7 @@ pub(super) fn mcp_json_type(param_type: ParamType) -> &'static str {
     match param_type {
         ParamType::String => "string",
         ParamType::F64 => "number",
-        ParamType::I32 | ParamType::U64 => "integer",
+        ParamType::I32 | ParamType::I64 | ParamType::U64 => "integer",
         ParamType::CredentialsRef | ParamType::ConfigRef => {
             panic!("credentials/config refs are not valid for MCP emitters")
         }

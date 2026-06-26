@@ -162,6 +162,13 @@ fn cli_dispatch_arm(utility: &UtilitySpec) -> String {
             out.push_str("        }\n");
         }
         UtilityKind::Ping => panic!("ping is MCP-only"),
+        UtilityKind::Forwarder
+        | UtilityKind::CalendarStatusName
+        | UtilityKind::TimestampMs
+        | UtilityKind::SequenceSignedToUnsigned
+        | UtilityKind::SequenceUnsignedToSigned => {
+            panic!("lookup-table helpers target python/typescript only, not CLI")
+        }
     }
     out
 }

@@ -1186,12 +1186,6 @@ pub use streaming_batches::RecordBatchStreamHandle;
 mod fluent;
 pub use fluent::{ContractRef, SecType, Subscription};
 
-// Cross-language utility helpers. Adds the `Util` napi class
-// re-exporting `thetadatadx::utils::{conditions, exchange, sequences}` lookup tables
-// under camelCase JS method names.
-mod util_helpers;
-pub use util_helpers::Util;
-
 // Standalone streaming-only client. Adds the `StreamingClient` napi class
 // over `thetadatadx::fpss::StreamingClient` (the streaming primitive), mirroring the
 // Python `StreamingClient` and the C++ `thetadatadx::StreamingClient`. It opens only the streaming

@@ -95,6 +95,15 @@ pub(super) struct UtilitySpec {
     pub(super) cli_about: Option<String>,
     #[serde(default)]
     pub(super) mcp_description: Option<String>,
+    /// Core function path forwarded to by a `Forwarder` utility, e.g.
+    /// `thetadatadx::utils::conditions::condition_name`. Required for the
+    /// `Forwarder` kind and forbidden on every other kind.
+    #[serde(default)]
+    pub(super) forward_call: Option<String>,
+    /// Scalar return type of a `Forwarder` utility. Required for the
+    /// `Forwarder` kind and forbidden on every other kind.
+    #[serde(default)]
+    pub(super) forward_return: Option<ForwardReturn>,
 }
 
 /// Semantic kind of an offline utility, driving its expected name, allowed targets, and emitted code template.
@@ -105,6 +114,29 @@ pub(super) enum UtilityKind {
     Ping,
     AllGreeks,
     ImpliedVolatility,
+    /// Thin one-line forward into a `thetadatadx::utils::*` lookup table.
+    /// Body, params, and return type come from `forward_call` /
+    /// `forward_return` plus the declared `params`, so the 10 lookup
+    /// helpers share one emitter arm instead of one per name.
+    Forwarder,
+    /// `calendar_status_name` — `CalendarStatus::from_code(...).map_or`.
+    CalendarStatusName,
+    /// `timestamp_ms` — `(date, ms-of-day)` to epoch ms (Python `i64`,
+    /// TypeScript `BigInt`).
+    TimestampMs,
+    /// `sequence_signed_to_unsigned` — wire-range-checked re-encoding.
+    SequenceSignedToUnsigned,
+    /// `sequence_unsigned_to_signed` — wire-range-checked re-encoding.
+    SequenceUnsignedToSigned,
+}
+
+/// Scalar return type of a `Forwarder` utility, projected per binding
+/// (Python `&'static str` / `bool`; TypeScript `String` / `bool`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum ForwardReturn {
+    Str,
+    Bool,
 }
 
 /// Render target a utility projects to (Python, TypeScript, C++, MCP, or CLI).
@@ -143,6 +175,7 @@ pub(super) enum ParamType {
     String,
     F64,
     I32,
+    I64,
     U64,
     CredentialsRef,
     ConfigRef,
@@ -442,36 +475,84 @@ fn validate_utility_spec(utility: &UtilitySpec) -> Result<(), Box<dyn std::error
         }
     }
 
+    // `forward_call` / `forward_return` belong only to the Forwarder kind.
+    let is_forwarder = utility.kind == UtilityKind::Forwarder;
+    if is_forwarder {
+        if utility.forward_call.is_none() || utility.forward_return.is_none() {
+            return Err(format!(
+                "forwarder utility '{}' must declare forward_call and forward_return",
+                utility.name
+            )
+            .into());
+        }
+    } else if utility.forward_call.is_some() || utility.forward_return.is_some() {
+        return Err(format!(
+            "utility '{}' declares forward_call/forward_return but is not a forwarder",
+            utility.name
+        )
+        .into());
+    }
+
     use UtilityTarget::{Cli, Cpp, Mcp, Python, Typescript};
     let greeks_params = offline_greeks_param_layout();
+    const CODE: &[(&str, ParamType)] = &[("code", ParamType::I32)];
+    // Forwarders are name-agnostic (the name is the forwarded helper's
+    // name); `expected_name = None` skips the fixed-name check below.
     let (expected_name, allowed_targets, exact_targets, params): (
-        &str,
+        Option<&str>,
         &[UtilityTarget],
         bool,
         &[(&str, ParamType)],
     ) = match utility.kind {
-        UtilityKind::Auth => ("auth", &[Cli], true, &[]),
-        UtilityKind::Ping => ("ping", &[Mcp], true, &[]),
+        UtilityKind::Auth => (Some("auth"), &[Cli], true, &[]),
+        UtilityKind::Ping => (Some("ping"), &[Mcp], true, &[]),
         UtilityKind::AllGreeks => (
-            "all_greeks",
+            Some("all_greeks"),
             &[Python, Typescript, Cpp, Mcp, Cli],
             false,
             &greeks_params,
         ),
         UtilityKind::ImpliedVolatility => (
-            "implied_volatility",
+            Some("implied_volatility"),
             &[Python, Typescript, Cpp, Mcp, Cli],
             false,
             &greeks_params,
         ),
+        UtilityKind::Forwarder => (None, &[Python, Typescript], true, CODE),
+        UtilityKind::CalendarStatusName => (
+            Some("calendar_status_name"),
+            &[Python, Typescript],
+            true,
+            CODE,
+        ),
+        UtilityKind::TimestampMs => (
+            Some("timestamp_ms"),
+            &[Python, Typescript],
+            true,
+            &[("date", ParamType::I32), ("ms_of_day", ParamType::I32)],
+        ),
+        UtilityKind::SequenceSignedToUnsigned => (
+            Some("sequence_signed_to_unsigned"),
+            &[Python, Typescript],
+            true,
+            &[("signed_value", ParamType::I64)],
+        ),
+        UtilityKind::SequenceUnsignedToSigned => (
+            Some("sequence_unsigned_to_signed"),
+            &[Python, Typescript],
+            true,
+            &[("unsigned_value", ParamType::U64)],
+        ),
     };
 
-    if utility.name != expected_name {
-        return Err(format!(
-            "utility kind {:?} must use name '{expected_name}', got '{}'",
-            utility.kind, utility.name
-        )
-        .into());
+    if let Some(expected) = expected_name {
+        if utility.name != expected {
+            return Err(format!(
+                "utility kind {:?} must use name '{expected}', got '{}'",
+                utility.kind, utility.name
+            )
+            .into());
+        }
     }
     check_utility_targets(utility, allowed_targets, exact_targets)?;
     check_param_layout(&utility.name, "utility", &utility.params, params)?;

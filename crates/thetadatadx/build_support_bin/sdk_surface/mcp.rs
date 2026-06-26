@@ -220,6 +220,13 @@ fn mcp_execute_arm(utility: &UtilitySpec) -> String {
             out.push_str("            })))\n");
         }
         UtilityKind::Auth => panic!("auth is CLI-only"),
+        UtilityKind::Forwarder
+        | UtilityKind::CalendarStatusName
+        | UtilityKind::TimestampMs
+        | UtilityKind::SequenceSignedToUnsigned
+        | UtilityKind::SequenceUnsignedToSigned => {
+            panic!("lookup-table helpers target python/typescript only, not MCP")
+        }
     }
     out.push_str("        }\n");
     out
