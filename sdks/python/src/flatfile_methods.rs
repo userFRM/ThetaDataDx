@@ -24,7 +24,7 @@
 
 use std::sync::Arc;
 
-use pyo3::exceptions::{PyImportError, PyValueError};
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 
@@ -32,8 +32,8 @@ use thetadatadx::flatfiles::{self, FlatFileFormat, FlatFileRow, FlatFileValue, R
 
 use crate::async_runtime::spawn_awaitable;
 use crate::errors::to_py_err;
-use crate::record_batch_to_pyarrow_table;
 use crate::run_blocking;
+use crate::{pyarrow_table_to_pandas, pyarrow_table_to_polars, record_batch_to_pyarrow_table};
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
@@ -77,30 +77,6 @@ fn rows_to_pyarrow_table(py: Python<'_>, rows: &[FlatFileRow]) -> PyResult<Py<Py
     record_batch_to_pyarrow_table(py, batch)
 }
 
-fn pyarrow_table_to_pandas_local(py: Python<'_>, table: Py<PyAny>) -> PyResult<Py<PyAny>> {
-    let bound = table.bind(py);
-    let df = bound.call_method0("to_pandas").map_err(|e| {
-        if e.is_instance_of::<PyImportError>(py) {
-            PyImportError::new_err(
-                "pandas is required for .to_pandas(). Install with: pip install thetadatadx[pandas]",
-            )
-        } else {
-            e
-        }
-    })?;
-    Ok(df.unbind())
-}
-
-fn pyarrow_table_to_polars_local(py: Python<'_>, table: Py<PyAny>) -> PyResult<Py<PyAny>> {
-    let polars = py.import("polars").map_err(|_| {
-        PyImportError::new_err(
-            "polars is not installed. Install it with: pip install thetadatadx[polars]",
-        )
-    })?;
-    let df = polars.call_method1("from_arrow", (table,))?;
-    Ok(df.unbind())
-}
-
 // ── FlatFileRowList ────────────────────────────────────────────────────
 
 /// Result of a decoded flat-file pull. Wraps `Vec<FlatFileRow>` and
@@ -135,13 +111,13 @@ impl FlatFileRowList {
     /// Return a `pandas.DataFrame`. Requires pandas + pyarrow.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = rows_to_pyarrow_table(py, &self.rows)?;
-        pyarrow_table_to_pandas_local(py, table)
+        pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame`. Requires polars + pyarrow.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         let table = rows_to_pyarrow_table(py, &self.rows)?;
-        pyarrow_table_to_polars_local(py, table)
+        pyarrow_table_to_polars(py, table)
     }
 
     /// Return a plain Python list of dicts, one per row. Useful for

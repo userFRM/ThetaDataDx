@@ -83,6 +83,36 @@ pub(crate) fn invalid_parameter_err(message: impl std::fmt::Display) -> napi::Er
     napi::Error::from_reason(format!("[InvalidParameterError] {message}"))
 }
 
+/// Project the core's active full-subscription set into the cross-binding
+/// `[{ kind, contract }]` JSON shape returned by `activeFullSubscriptions()`
+/// on both the unified `Client` and the standalone `StreamingClient`. `kind`
+/// is `"full_trades"` / `"full_open_interest"`; `contract` carries the
+/// wire-level security type. Quote is never a valid full-stream kind on the
+/// streaming wire, so any such row is dropped to keep the projection clean.
+pub(crate) fn project_full_subscriptions(
+    subs: Vec<(
+        thetadatadx::fpss::protocol::SubscriptionKind,
+        thetadatadx::SecType,
+    )>,
+) -> serde_json::Value {
+    use thetadatadx::fpss::protocol::SubscriptionKind;
+    serde_json::json!(subs
+        .into_iter()
+        .filter_map(|(kind, sec_type)| {
+            let kind_str = match kind {
+                SubscriptionKind::Trade => "full_trades",
+                SubscriptionKind::OpenInterest => "full_open_interest",
+                SubscriptionKind::Quote => return None,
+                _ => return None,
+            };
+            Some(serde_json::json!({
+                "kind": kind_str,
+                "contract": format!("{sec_type:?}"),
+            }))
+        })
+        .collect::<Vec<_>>())
+}
+
 // ── Credentials ──
 //
 // A first-class credentials handle mirroring the Python `Credentials`
@@ -373,8 +403,9 @@ pub(crate) fn validate_timeout_ms(timeout_ms: f64) -> napi::Result<u64> {
     Ok(timeout_ms as u64)
 }
 
-/// Validate a non-negative integer query parameter and convert it to the
-/// `i32` domain the core request builders take.
+/// Validate an optional non-negative integer query parameter and convert
+/// it to the `i32` domain the core request builders take, leaving an
+/// omitted value (`None`) untouched.
 ///
 /// The bounded integer filters (`maxDte`, `strikeRange` — days-to-expiry
 /// and strike windows that are counts, never negative) ride in the options
@@ -388,7 +419,11 @@ pub(crate) fn validate_timeout_ms(timeout_ms: f64) -> napi::Result<u64> {
 /// identical input) rather than coercing them, so a caller's
 /// `catch (e instanceof InvalidParameterError)` branch ports across
 /// bindings. `param` names the camelCase key in the rejection message.
-pub(crate) fn validate_nonneg_i32(param: &str, value: f64) -> napi::Result<i32> {
+pub(crate) fn validate_optional_nonneg_i32(
+    param: &str,
+    value: Option<f64>,
+) -> napi::Result<Option<i32>> {
+    let Some(value) = value else { return Ok(None) };
     if !value.is_finite() {
         return Err(invalid_parameter_err(format!(
             "{param} must be a non-negative whole number; got {value}"
@@ -409,21 +444,7 @@ pub(crate) fn validate_nonneg_i32(param: &str, value: f64) -> napi::Result<i32> 
             "{param} exceeds the representable range; got {value}"
         )));
     }
-    Ok(value as i32)
-}
-
-/// Validate an optional non-negative integer query parameter, leaving an
-/// omitted value (`None`) untouched. Thin `Option` wrapper over
-/// [`validate_nonneg_i32`] so the generated method bodies validate
-/// optional `Int` filters with a single expression.
-pub(crate) fn validate_optional_nonneg_i32(
-    param: &str,
-    value: Option<f64>,
-) -> napi::Result<Option<i32>> {
-    match value {
-        Some(v) => Ok(Some(validate_nonneg_i32(param, v)?)),
-        None => Ok(None),
-    }
+    Ok(Some(value as i32))
 }
 
 /// Run an endpoint round-trip off the runtime's execution thread and
@@ -989,7 +1010,8 @@ impl StreamView {
     ) -> napi::Result<()> {
         // Reject a negative or over-u64 BigInt rather than silently passing a
         // wrapped/truncated value, matching the config setters' lossless check.
-        let value = crate::config_class::bigint_to_u64("setSlowCallbackThresholdUs", &threshold_us)?;
+        let value =
+            crate::config_class::bigint_to_u64("setSlowCallbackThresholdUs", &threshold_us)?;
         self.client
             .stream()
             .set_slow_callback_threshold(std::time::Duration::from_micros(value));
@@ -1018,30 +1040,10 @@ impl StreamView {
     /// Empty array when streaming has not started.
     #[napi(js_name = "activeFullSubscriptions")]
     pub fn active_full_subscriptions(&self) -> napi::Result<serde_json::Value> {
-        use thetadatadx::fpss::protocol::SubscriptionKind;
         self.client
             .stream()
             .active_full_subscriptions()
-            .map(|subs| {
-                serde_json::json!(subs
-                    .into_iter()
-                    .filter_map(|(kind, sec_type)| {
-                        let kind_str = match kind {
-                            SubscriptionKind::Trade => "full_trades",
-                            SubscriptionKind::OpenInterest => "full_open_interest",
-                            // Quote is not a valid full-stream kind on
-                            // the streaming wire, drop the row to keep the
-                            // projection cross-binding clean.
-                            SubscriptionKind::Quote => return None,
-                            _ => return None,
-                        };
-                        Some(serde_json::json!({
-                            "kind": kind_str,
-                            "contract": format!("{sec_type:?}"),
-                        }))
-                    })
-                    .collect::<Vec<_>>())
-            })
+            .map(project_full_subscriptions)
             .map_err(to_napi_err)
     }
 }

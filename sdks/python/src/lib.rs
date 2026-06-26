@@ -1642,7 +1642,7 @@ include!("_generated/decode_bench.rs");
 /// pyarrow.Table -> pandas.DataFrame. pandas 2.x is required for the
 /// numpy-backed zero-copy path (see `pyproject.toml` extras for the
 /// version pin).
-fn pyarrow_table_to_pandas(py: Python<'_>, table: Py<PyAny>) -> PyResult<Py<PyAny>> {
+pub(crate) fn pyarrow_table_to_pandas(py: Python<'_>, table: Py<PyAny>) -> PyResult<Py<PyAny>> {
     // We don't import `pandas` explicitly -- `pyarrow.Table.to_pandas()`
     // does that internally and raises its own ImportError if pandas is
     // missing, which we re-wrap so the message guides users to the right
@@ -1665,7 +1665,7 @@ fn pyarrow_table_to_pandas(py: Python<'_>, table: Py<PyAny>) -> PyResult<Py<PyAn
 
 /// pyarrow.Table -> polars.DataFrame via `polars.from_arrow`. Requires
 /// polars >= 0.20 (see `pyproject.toml`).
-fn pyarrow_table_to_polars(py: Python<'_>, table: Py<PyAny>) -> PyResult<Py<PyAny>> {
+pub(crate) fn pyarrow_table_to_polars(py: Python<'_>, table: Py<PyAny>) -> PyResult<Py<PyAny>> {
     let polars = py.import("polars").map_err(|_| {
         pyo3::exceptions::PyImportError::new_err(
             "polars is not installed. Install it with: pip install thetadatadx[polars]",

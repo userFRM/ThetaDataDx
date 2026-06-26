@@ -651,7 +651,7 @@ fn napi_field_camel(snake: &str) -> String {
 fn ts_napi_optional_type(param: &super::super::model::GeneratedParam) -> &'static str {
     match param.param_type.as_str() {
         // `Int` filters ride in as a JS `number` (f64) and are validated +
-        // narrowed to `i32` in the method body via `validate_nonneg_i32`,
+        // narrowed to `i32` in the method body via `validate_optional_nonneg_i32`,
         // rather than typed `i32` here where V8's `ToInt32` would silently
         // wrap a hostile or oversized input instead of rejecting it.
         "Int" => "Option<f64>",

@@ -48,7 +48,6 @@ use std::time::{Duration, Instant};
 
 use thetadatadx::auth::{self, Credentials as RustCredentials};
 use thetadatadx::config::DirectConfig;
-use thetadatadx::fpss::protocol::SubscriptionKind;
 use thetadatadx::fpss::{self, StreamingClient as RustStreamingClient};
 use thetadatadx::DispatcherSession;
 
@@ -734,22 +733,9 @@ impl StreamingClient {
         let Some(client) = guard.as_ref() else {
             return Ok(serde_json::json!([]));
         };
-        Ok(serde_json::json!(client
-            .active_full_subscriptions()
-            .into_iter()
-            .filter_map(|(kind, sec_type)| {
-                let kind_str = match kind {
-                    SubscriptionKind::Trade => "full_trades",
-                    SubscriptionKind::OpenInterest => "full_open_interest",
-                    SubscriptionKind::Quote => return None,
-                    _ => return None,
-                };
-                Some(serde_json::json!({
-                    "kind": kind_str,
-                    "contract": format!("{sec_type:?}"),
-                }))
-            })
-            .collect::<Vec<_>>()))
+        Ok(crate::project_full_subscriptions(
+            client.active_full_subscriptions(),
+        ))
     }
 
     /// Cumulative count of streaming events the TLS reader could not publish into
@@ -806,7 +792,8 @@ impl StreamingClient {
     ) -> napi::Result<()> {
         // Reject a negative or over-u64 BigInt rather than silently passing a
         // wrapped/truncated value, matching the config setters' lossless check.
-        let value = crate::config_class::bigint_to_u64("setSlowCallbackThresholdUs", &threshold_us)?;
+        let value =
+            crate::config_class::bigint_to_u64("setSlowCallbackThresholdUs", &threshold_us)?;
         let guard = self.lock_inner();
         if let Some(c) = guard.as_ref() {
             c.set_slow_callback_threshold(std::time::Duration::from_micros(value));

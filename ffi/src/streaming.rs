@@ -2254,17 +2254,16 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
         // free-path drain budget; on timeout we surface the error
         // rather than racing.
         if let Some(flag) = prev_drain_flag {
-            let deadline = std::time::Instant::now() + std::time::Duration::from_millis(5_000);
-            while !flag.load(std::sync::atomic::Ordering::Acquire) {
-                if std::time::Instant::now() >= deadline {
-                    set_error(
-                        "reconnect drain barrier timed out after 5s — \
-                         previous callback is still in flight; refusing \
-                         to bind the new session to the same ctx",
-                    );
-                    return -1;
-                }
-                std::thread::sleep(std::time::Duration::from_millis(1));
+            if !await_flags(
+                std::slice::from_ref(&flag),
+                std::time::Duration::from_millis(5_000),
+            ) {
+                set_error(
+                    "reconnect drain barrier timed out after 5s — \
+                     previous callback is still in flight; refusing \
+                     to bind the new session to the same ctx",
+                );
+                return -1;
             }
         }
 

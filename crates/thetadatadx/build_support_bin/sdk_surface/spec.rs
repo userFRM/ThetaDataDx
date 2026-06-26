@@ -449,6 +449,34 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
     Ok(())
 }
 
+/// The single `(code, i32)` parameter shape that every lookup-table
+/// `Forwarder` (and the `CalendarStatusName` helper) takes. Both the
+/// spec validator and the per-language emitters key on this: `validate`
+/// pins a forwarder's declared params to it, and the emitters hardcode
+/// `(code: i32)` in the generated body, so any other shape must fail the
+/// build rather than silently mis-emit.
+pub(super) const FORWARDER_CODE_PARAMS: &[(&str, ParamType)] = &[("code", ParamType::I32)];
+
+/// Assert at emit time that a `Forwarder` utility's params are exactly the
+/// `(code, i32)` shape the emitters hardcode. `validate_spec` already
+/// enforces this, but the emitters bake `(code: i32)` in directly; this
+/// guard makes that assumption self-failing so a future differently-shaped
+/// forwarder panics here instead of emitting a body that ignores its spec.
+pub(super) fn assert_forwarder_code_params(utility: &UtilitySpec) {
+    let ok = utility.params.len() == FORWARDER_CODE_PARAMS.len()
+        && utility
+            .params
+            .iter()
+            .zip(FORWARDER_CODE_PARAMS)
+            .all(|(param, (name, kind))| param.name == *name && param.param_type == *kind);
+    assert!(
+        ok,
+        "forwarder '{}' emits a hardcoded (code: i32) body but declares params {:?}; \
+         only the (code, i32) shape is supported",
+        utility.name, utility.params
+    );
+}
+
 fn validate_utility_spec(utility: &UtilitySpec) -> Result<(), Box<dyn std::error::Error>> {
     if utility.targets.is_empty() {
         return Err(format!(
@@ -495,7 +523,6 @@ fn validate_utility_spec(utility: &UtilitySpec) -> Result<(), Box<dyn std::error
 
     use UtilityTarget::{Cli, Cpp, Mcp, Python, Typescript};
     let greeks_params = offline_greeks_param_layout();
-    const CODE: &[(&str, ParamType)] = &[("code", ParamType::I32)];
     // Forwarders are name-agnostic (the name is the forwarded helper's
     // name); `expected_name = None` skips the fixed-name check below.
     let (expected_name, allowed_targets, exact_targets, params): (
@@ -518,12 +545,12 @@ fn validate_utility_spec(utility: &UtilitySpec) -> Result<(), Box<dyn std::error
             false,
             &greeks_params,
         ),
-        UtilityKind::Forwarder => (None, &[Python, Typescript], true, CODE),
+        UtilityKind::Forwarder => (None, &[Python, Typescript], true, FORWARDER_CODE_PARAMS),
         UtilityKind::CalendarStatusName => (
             Some("calendar_status_name"),
             &[Python, Typescript],
             true,
-            CODE,
+            FORWARDER_CODE_PARAMS,
         ),
         UtilityKind::TimestampMs => (
             Some("timestamp_ms"),
