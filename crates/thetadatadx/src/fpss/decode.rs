@@ -14,7 +14,6 @@ use crate::tdbe::types::enums::StreamMsgType;
 use crate::tdbe::types::price::Price;
 use metrics::Counter;
 
-use super::accumulator::OhlcvcAccumulator;
 use super::delta::{DeltaState, TickFields, OHLCVC_FIELDS, OI_FIELDS, QUOTE_FIELDS, TRADE_FIELDS};
 use super::events::{FpssEventInternal, StreamControl, StreamData};
 use super::framing;
@@ -628,10 +627,7 @@ pub fn decode_frame(
                     // being sign-extended into a negative number.
                     let volume = i64::from(buf[5] as u32);
                     let count = i64::from(buf[6] as u32);
-                    let acc = delta_state
-                        .ohlcvc
-                        .entry(contract_id)
-                        .or_insert_with(OhlcvcAccumulator::new);
+                    let acc = delta_state.ohlcvc.entry(contract_id).or_default();
                     acc.init_from_server(
                         buf[0], buf[1], buf[2], buf[3], buf[4], volume, count, buf[7], buf[8],
                     );
@@ -1255,7 +1251,7 @@ mod tests {
         // `delta_state.clear()` actually ran on the Restart arm.
         delta_state
             .ohlcvc
-            .insert(42, super::super::accumulator::OhlcvcAccumulator::new());
+            .insert(42, super::super::accumulator::OhlcvcAccumulator::default());
         assert!(delta_state.ohlcvc.contains_key(&42));
 
         let (primary, _) = decode_frame(

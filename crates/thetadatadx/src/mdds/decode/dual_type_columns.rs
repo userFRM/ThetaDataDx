@@ -10,7 +10,9 @@
 use crate::proto;
 use crate::tdbe::types::tick::{CalendarDay, OptionContract};
 
-use super::cell::{cell_type, row_price_f64, row_text};
+use super::cell::{
+    cell_type, row_contract_expiration, row_contract_right, row_date, row_price_f64, row_text,
+};
 use super::error::{observed_name, DecodeError};
 use super::headers::find_header;
 
@@ -64,40 +66,9 @@ pub fn parse_option_contracts_v3(
             let symbol = row_text(row, symbol_idx)?.unwrap_or_default();
 
             // Expiration: `Number` carries YYYYMMDD directly; `Text`
-            // carries an ISO "YYYY-MM-DD". Both pass through
-            // `is_valid_yyyymmdd` after the wire `int64` is bounds-
-            // checked against `i32`. `NullValue` -> 0.
+            // carries an ISO "YYYY-MM-DD". `NullValue` / absent column -> 0.
             let expiration = match exp_idx {
-                Some(i) => match cell_type(row, i)? {
-                    Some(proto::data_value::DataType::Number(n)) => {
-                        let n32 = match i32::try_from(*n) {
-                            Ok(v) => v,
-                            Err(_) => {
-                                return Err(DecodeError::InvalidDate { raw: n.to_string() });
-                            }
-                        };
-                        if !crate::tdbe::time::is_valid_yyyymmdd(n32) {
-                            return Err(DecodeError::InvalidDate { raw: n.to_string() });
-                        }
-                        n32
-                    }
-                    Some(proto::data_value::DataType::Text(s)) => parse_iso_date(s)?,
-                    Some(proto::data_value::DataType::NullValue(_)) => 0,
-                    None => {
-                        return Err(DecodeError::TypeMismatch {
-                            column: i,
-                            expected: "Number|Text",
-                            observed: "Unset",
-                        });
-                    }
-                    other => {
-                        return Err(DecodeError::TypeMismatch {
-                            column: i,
-                            expected: "Number|Text",
-                            observed: observed_name(other),
-                        });
-                    }
-                },
+                Some(i) => row_contract_expiration(row, i)?.unwrap_or(0),
                 None => 0,
             };
 
@@ -109,45 +80,10 @@ pub fn parse_option_contracts_v3(
             // Right: both wire encodings decode to the logical
             // character — `Number` carries the ASCII code (67 / 80),
             // `Text` carries "PUT"/"CALL"/"P"/"C". Any other value
-            // surfaces as `UnknownEnumVariant`. `NullValue` -> '\0'.
+            // surfaces as `UnknownEnumVariant`. `NullValue` / absent
+            // column -> '\0'.
             let right = match right_idx {
-                Some(i) => match cell_type(row, i)? {
-                    Some(proto::data_value::DataType::Number(n)) => match *n {
-                        67 => 'C',
-                        80 => 'P',
-                        other => {
-                            return Err(DecodeError::UnknownEnumVariant {
-                                field: "right",
-                                raw: other.to_string(),
-                            });
-                        }
-                    },
-                    Some(proto::data_value::DataType::Text(s)) => match s.as_str() {
-                        "CALL" | "C" => 'C',
-                        "PUT" | "P" => 'P',
-                        other => {
-                            return Err(DecodeError::UnknownEnumVariant {
-                                field: "right",
-                                raw: other.to_string(),
-                            });
-                        }
-                    },
-                    Some(proto::data_value::DataType::NullValue(_)) => '\0',
-                    None => {
-                        return Err(DecodeError::TypeMismatch {
-                            column: i,
-                            expected: "Number|Text",
-                            observed: "Unset",
-                        });
-                    }
-                    other => {
-                        return Err(DecodeError::TypeMismatch {
-                            column: i,
-                            expected: "Number|Text",
-                            observed: observed_name(other),
-                        });
-                    }
-                },
+                Some(i) => row_contract_right(row, i)?.unwrap_or('\0'),
                 None => '\0',
             };
 
@@ -301,42 +237,9 @@ pub fn parse_calendar_days_v3(
             // date: Number carries YYYYMMDD (bounds-checked against i32
             // then validated as a Gregorian date), Timestamp converts to
             // ET date, Text "YYYY-MM-DD" parses to YYYYMMDD. `NullValue`
-            // -> 0.
+            // / absent column -> 0.
             let date = match date_idx {
-                Some(i) => match cell_type(row, i)? {
-                    Some(proto::data_value::DataType::Number(n)) => {
-                        let n32 = match i32::try_from(*n) {
-                            Ok(v) => v,
-                            Err(_) => {
-                                return Err(DecodeError::InvalidDate { raw: n.to_string() });
-                            }
-                        };
-                        if !crate::tdbe::time::is_valid_yyyymmdd(n32) {
-                            return Err(DecodeError::InvalidDate { raw: n.to_string() });
-                        }
-                        n32
-                    }
-                    Some(proto::data_value::DataType::Timestamp(ts)) => {
-                        crate::tdbe::time::try_timestamp_to_date(ts.epoch_ms)
-                            .ok_or(DecodeError::TimestampOutOfRange { raw: ts.epoch_ms })?
-                    }
-                    Some(proto::data_value::DataType::Text(s)) => parse_iso_date(s)?,
-                    Some(proto::data_value::DataType::NullValue(_)) => 0,
-                    None => {
-                        return Err(DecodeError::TypeMismatch {
-                            column: i,
-                            expected: "Number|Timestamp|Text",
-                            observed: "Unset",
-                        });
-                    }
-                    other => {
-                        return Err(DecodeError::TypeMismatch {
-                            column: i,
-                            expected: "Number|Timestamp|Text",
-                            observed: observed_name(other),
-                        });
-                    }
-                },
+                Some(i) => row_date(row, i)?.unwrap_or(0),
                 None => 0,
             };
 
