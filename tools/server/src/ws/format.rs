@@ -411,7 +411,13 @@ mod tests {
             .expect("Trade serialization must succeed");
 
         for key in [
-            "ms_of_day", "sequence", "size", "condition", "price", "exchange", "date",
+            "ms_of_day",
+            "sequence",
+            "size",
+            "condition",
+            "price",
+            "exchange",
+            "date",
         ] {
             assert!(
                 json.contains(&format!("\"{key}\":")),
@@ -451,7 +457,13 @@ mod tests {
         let json = fpss_event_to_ws_json(&event, Some(&contract))
             .expect("MARKET_VALUE serialization must succeed");
 
-        for key in ["ms_of_day", "market_bid", "market_ask", "market_price", "date"] {
+        for key in [
+            "ms_of_day",
+            "market_bid",
+            "market_ask",
+            "market_price",
+            "date",
+        ] {
             assert!(
                 json.contains(&format!("\"{key}\":")),
                 "MARKET_VALUE frame must carry the `{key}` column: {json}"
@@ -602,7 +614,8 @@ mod tests {
             // Key order inside the header object is serializer-defined;
             // assert on content, not byte-exact key ordering.
             assert!(
-                json.contains("\"type\":\"STATUS\"") && json.contains("\"status\":\"DISCONNECTED\""),
+                json.contains("\"type\":\"STATUS\"")
+                    && json.contains("\"status\":\"DISCONNECTED\""),
                 "disconnect must be a bare STATUS:DISCONNECTED frame: {json}"
             );
             // The terminal's STATUS frame carries no `reason` field.
@@ -670,7 +683,8 @@ mod tests {
             // Key order inside the header object is serializer-defined;
             // assert on content, not byte-exact key ordering.
             assert!(
-                json.contains("\"type\":\"STATE\"") && json.contains(&format!("\"state\":\"{state}\"")),
+                json.contains("\"type\":\"STATE\"")
+                    && json.contains(&format!("\"state\":\"{state}\"")),
                 "lifecycle must be a STATE/{state} frame: {json}"
             );
             assert!(
@@ -687,21 +701,19 @@ mod tests {
     #[test]
     fn our_only_frame_types_are_not_emitted() {
         // ServerError -> no ERROR frame.
-        let server_error =
-            StreamEvent::Control(thetadatadx::fpss::StreamControl::ServerError {
-                message: "boom".to_string(),
-            });
+        let server_error = StreamEvent::Control(thetadatadx::fpss::StreamControl::ServerError {
+            message: "boom".to_string(),
+        });
         assert!(
             fpss_event_to_ws_json(&server_error, None).is_none(),
             "ServerError must not emit a header.type=ERROR frame"
         );
 
         // ContractAssigned -> no standalone CONTRACT frame.
-        let assigned =
-            StreamEvent::Control(thetadatadx::fpss::StreamControl::ContractAssigned {
-                id: 7,
-                contract: Arc::new(Contract::stock("AAPL")),
-            });
+        let assigned = StreamEvent::Control(thetadatadx::fpss::StreamControl::ContractAssigned {
+            id: 7,
+            contract: Arc::new(Contract::stock("AAPL")),
+        });
         assert!(
             fpss_event_to_ws_json(&assigned, None).is_none(),
             "ContractAssigned must not emit a standalone CONTRACT frame"
@@ -716,8 +728,11 @@ mod tests {
             received_at_ns: 0,
         });
         assert!(
-            fpss_event_to_ws_json(&oi, Some(&Contract::option_raw("SPY", 20_260_417, true, 550_000)))
-                .is_none(),
+            fpss_event_to_ws_json(
+                &oi,
+                Some(&Contract::option_raw("SPY", 20_260_417, true, 550_000))
+            )
+            .is_none(),
             "OpenInterest must not emit an OPEN_INTEREST frame"
         );
     }

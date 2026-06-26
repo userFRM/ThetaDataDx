@@ -269,9 +269,11 @@ fn trade_ticks_to_arrow_ipc(rows: &[thetadatadx::TradeTick]) -> napi::Result<Vec
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
     let mut buf: Vec<u8> = Vec::new();
     {
-        let mut writer =
-            arrow_ipc::writer::StreamWriter::try_new(std::io::Cursor::new(&mut buf), &batch.schema())
-                .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
         writer
             .write(&batch)
             .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;

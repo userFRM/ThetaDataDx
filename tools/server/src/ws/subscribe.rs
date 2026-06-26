@@ -708,7 +708,10 @@ mod tests {
             parse_strike_thousandths(&sonic_rs::json!(550_500)).unwrap(),
             550_500
         );
-        assert_eq!(parse_strike_thousandths(&sonic_rs::json!(500)).unwrap(), 500);
+        assert_eq!(
+            parse_strike_thousandths(&sonic_rs::json!(500)).unwrap(),
+            500
+        );
     }
 
     #[test]

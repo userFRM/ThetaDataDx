@@ -266,8 +266,14 @@ pub fn build(state: AppState, rate_limit: Option<RateLimit>) -> Router {
     // governor; the rest fall under the global governor attached below.
     app = app
         .route("/v3/system/status", get(handler::system_status))
-        .route("/v3/system/historical/status", get(handler::system_historical_status))
-        .route("/v3/system/streaming/status", get(handler::system_streaming_status))
+        .route(
+            "/v3/system/historical/status",
+            get(handler::system_historical_status),
+        )
+        .route(
+            "/v3/system/streaming/status",
+            get(handler::system_streaming_status),
+        )
         .route(
             "/v3/system/shutdown",
             post(handler::system_shutdown).route_layer(
@@ -721,9 +727,7 @@ mod tests {
         async fn flat_marker() -> &'static str {
             "FLAT"
         }
-        async fn rt_marker(
-            axum::extract::Path(rt): axum::extract::Path<String>,
-        ) -> String {
+        async fn rt_marker(axum::extract::Path(rt): axum::extract::Path<String>) -> String {
             format!("RT:{rt}")
         }
 

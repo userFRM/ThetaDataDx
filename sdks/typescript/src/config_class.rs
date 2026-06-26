@@ -491,7 +491,10 @@ mod bigint_to_u64_tests {
     #[test]
     fn accepts_in_range_values() {
         assert_eq!(bigint_to_u64("test", &BigInt::from(0u64)).unwrap(), 0);
-        assert_eq!(bigint_to_u64("test", &BigInt::from(50_000u64)).unwrap(), 50_000);
+        assert_eq!(
+            bigint_to_u64("test", &BigInt::from(50_000u64)).unwrap(),
+            50_000
+        );
         assert_eq!(
             bigint_to_u64("test", &BigInt::from(u64::MAX)).unwrap(),
             u64::MAX,

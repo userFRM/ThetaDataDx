@@ -217,7 +217,11 @@ where
 /// one `call1` per delivered event. Returns `(delivered, elapsed_ns)`; the
 /// caller asserts `delivered == n` (zero-drop).
 #[pyfunction]
-pub(crate) fn __bench_flood_events(py: Python<'_>, n: u64, callback: Py<PyAny>) -> PyResult<(u64, u64)> {
+pub(crate) fn __bench_flood_events(
+    py: Python<'_>,
+    n: u64,
+    callback: Py<PyAny>,
+) -> PyResult<(u64, u64)> {
     let dispatch_cb = Arc::new(callback);
     let body = move |evt: &StreamEvent| {
         Python::attach(|py| {
