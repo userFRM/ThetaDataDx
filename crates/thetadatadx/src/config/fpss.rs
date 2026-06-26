@@ -12,6 +12,29 @@ pub enum StreamingFlushMode {
     Immediate,
 }
 
+impl StreamingFlushMode {
+    /// Canonical lowercase string for this mode, matching the
+    /// cross-binding encoding.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Batched => "batched",
+            Self::Immediate => "immediate",
+        }
+    }
+
+    /// Parse the cross-binding string encoding (case-insensitive).
+    /// Returns `None` for unrecognised input.
+    #[must_use]
+    pub fn parse(s: &str) -> Option<Self> {
+        match s.to_ascii_lowercase().as_str() {
+            "batched" => Some(Self::Batched),
+            "immediate" => Some(Self::Immediate),
+            _ => None,
+        }
+    }
+}
+
 /// How the streaming client orders the configured streaming hosts for the
 /// initial connect and every reconnect.
 ///

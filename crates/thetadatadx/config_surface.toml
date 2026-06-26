@@ -2061,3 +2061,575 @@ Current historical gRPC host.
 ts_doc = """
 Current historical gRPC host.
 """
+
+# ── Enum config fields (enum) ───────────────────────────────────────
+#
+# Plain string<->variant bijection enums. One [[accessor.variant]] table
+# per int code carries the FFI int <-> core-variant mapping and the
+# lowercase cross-binding label. The FFI surface speaks `i32` codes
+# (set: `match int { N => Variant, _ => typed error }`; get: `match
+# variant { Variant => N }`); C++ passes the int through; Python / TS
+# speak the lowercase string via the core enum `parse` / `as_str`. The
+# null-handle path is uniform across all four (`set_error_with_code`
+# with `THETADATADX_ERR_CONFIG`); a rejected int carries
+# `THETADATADX_ERR_INVALID_PARAMETER`.
+
+[[accessor]]
+symbol = "thetadatadx_config_set_flush_mode"
+kind = "enum"
+param = "mode"
+abi_type = "i32"
+path = "streaming.flush_mode"
+enum_type = "thetadatadx::StreamingFlushMode"
+enum_core = "config::StreamingFlushMode"
+enum_expected = "expected 0 (Batched) or 1 (Immediate)"
+py_err = 'flush_mode must be "batched" or "immediate"; got {mode:?}'
+ts_err = 'setFlushMode: mode must be "batched" or "immediate"; got {mode:?}'
+doc = """
+Set streaming flush mode on a config handle.
+
+- `mode = 0`: Batched (default) -- flush only on PING every 100ms
+- `mode = 1`: Immediate -- flush after every frame write (lowest latency)
+
+Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when
+`mode` is outside the documented `{0, 1}` set or when `config` is
+null. A rejected `mode` value carries
+`thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` (the same typed
+class the Python / TypeScript bindings raise for a bad enum value);
+a null `config` carries `THETADATADX_ERR_CONFIG`.
+"""
+cpp_doc = """
+Set streaming flush mode. 0=Batched (default), 1=Immediate. Throws
+@c thetadatadx::InvalidParameterError when @p mode is outside the
+documented `{0, 1}` set (and @c thetadatadx::ThetaDataError on a null
+handle), routing through the typed leaf the FFI error code
+selects.
+"""
+py_doc = """
+Set the streaming write-flush policy.
+
+Accepts ``"batched"`` (default, flushes on the PING heartbeat,
+roughly every 100 ms — best throughput) or ``"immediate"``
+(flushes after every wire write — lowest latency, higher
+per-frame syscall cost).
+"""
+ts_doc = """
+Set the streaming write-flush policy.
+
+Accepts `"batched"` (default — flushes on the PING heartbeat,
+roughly every 100 ms — best throughput) or `"immediate"`
+(flushes after every wire write — lowest latency, higher
+per-frame syscall cost).
+"""
+py_param = "mode"
+ts_param = "mode"
+[[accessor.variant]]
+int = 0
+rust = "Batched"
+label = "batched"
+[[accessor.variant]]
+int = 1
+rust = "Immediate"
+label = "immediate"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_flush_mode"
+kind = "enum"
+param = "out_mode"
+abi_type = "i32"
+path = "streaming.flush_mode"
+enum_type = "thetadatadx::StreamingFlushMode"
+enum_core = "config::StreamingFlushMode"
+doc = """
+Read the configured streaming flush mode. Same encoding as
+`thetadatadx_config_set_flush_mode`: writes `0` (`Batched`) or `1`
+(`Immediate`) into `*out_mode`. Returns `0` on success, `-1` if
+either pointer is null.
+"""
+cpp_doc = """
+Read the current streaming flush mode. Same encoding as
+@c set_flush_mode: `0` = Batched, `1` = Immediate. Returns `0`
+(Batched) on a null handle (matching the C ABI's `-1` failure
+mapping at the boundary).
+"""
+py_doc = """
+Current streaming write-flush policy (``"batched"`` or
+``"immediate"``).
+"""
+ts_doc = """
+Current streaming write-flush policy (`"batched"` or
+`"immediate"`).
+"""
+[[accessor.variant]]
+int = 0
+rust = "Batched"
+label = "batched"
+[[accessor.variant]]
+int = 1
+rust = "Immediate"
+label = "immediate"
+
+[[accessor]]
+symbol = "thetadatadx_config_set_wait_strategy"
+kind = "enum"
+param = "mode"
+abi_type = "i32"
+path = "streaming.wait_strategy"
+enum_type = "thetadatadx::StreamingWaitStrategy"
+enum_core = "config::StreamingWaitStrategy"
+enum_expected = "expected 0 (LowLatency), 1 (Balanced), 2 (Efficient), or 3 (BusySpin)"
+py_err = 'wait_strategy must be "low_latency", "balanced", "efficient", or "busy_spin"; got {strategy:?}'
+ts_err = 'setWaitStrategy: strategy must be "low_latency", "balanced", "efficient", or "busy_spin"; got {strategy:?}'
+doc = """
+Set the streaming event-ring consumer wait strategy on a config
+handle.
+
+- `mode = 0`: LowLatency (default) — spin, yield, then a `spin_loop`
+  hint; never sleeps. Lowest latency, highest idle CPU.
+- `mode = 1`: Balanced — short spin then a brief timed park. Low idle
+  CPU, slightly higher tail latency.
+- `mode = 2`: Efficient — minimal spin then a longer timed park.
+  Lowest idle CPU.
+- `mode = 3`: BusySpin — pure spin, no yield or sleep. Absolute
+  minimum latency; pins a core while idle.
+
+Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error`
+when `mode` is outside the documented `{0, 1, 2, 3}` set (code
+`THETADATADX_ERR_INVALID_PARAMETER`) or when `config` is null (code
+`THETADATADX_ERR_CONFIG`).
+"""
+cpp_doc = """
+Set the streaming event-ring consumer wait strategy.
+0=LowLatency (default), 1=Balanced, 2=Efficient, 3=BusySpin
+(see the @c THETADATADX_WAIT_* constants). Throws
+@c thetadatadx::InvalidParameterError when @p mode is outside the
+documented `{0, 1, 2, 3}` set (and @c thetadatadx::ThetaDataError
+on a null handle).
+"""
+py_doc = """
+Set the streaming event-ring consumer wait strategy — the
+latency-vs-CPU knob applied on each ring-empty poll.
+
+Accepts ``"low_latency"`` (default, never sleeps — lowest
+latency, highest idle CPU), ``"balanced"`` (brief park — low idle
+CPU), ``"efficient"`` (longer park — lowest idle CPU), or
+``"busy_spin"`` (pure spin — pins a core). Tune the individual
+spin / yield / park counts via ``wait_spin_iters`` /
+``wait_yield_iters`` / ``wait_park_us``.
+"""
+ts_doc = """
+Set the streaming event-ring consumer wait strategy — the
+latency-vs-CPU knob applied on each ring-empty poll.
+
+Accepts `"low_latency"` (default — never sleeps, lowest latency,
+highest idle CPU), `"balanced"` (brief park — low idle CPU),
+`"efficient"` (longer park — lowest idle CPU), or `"busy_spin"`
+(pure spin — pins a core). Tune the spin / yield / park counts via
+`setWaitSpinIters` / `setWaitYieldIters` / `setWaitParkUs`.
+"""
+py_param = "strategy"
+ts_param = "strategy"
+[[accessor.variant]]
+int = 0
+rust = "LowLatency"
+label = "low_latency"
+[[accessor.variant]]
+int = 1
+rust = "Balanced"
+label = "balanced"
+[[accessor.variant]]
+int = 2
+rust = "Efficient"
+label = "efficient"
+[[accessor.variant]]
+int = 3
+rust = "BusySpin"
+label = "busy_spin"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_wait_strategy"
+kind = "enum"
+param = "out_mode"
+abi_type = "i32"
+path = "streaming.wait_strategy"
+enum_type = "thetadatadx::StreamingWaitStrategy"
+enum_core = "config::StreamingWaitStrategy"
+doc = """
+Read the configured streaming wait strategy. Same encoding as
+`thetadatadx_config_set_wait_strategy`: writes `0` (LowLatency), `1`
+(Balanced), `2` (Efficient), or `3` (BusySpin) into `*out_mode`.
+Returns `0` on success, `-1` if either pointer is null.
+"""
+cpp_doc = """
+Read the current streaming wait strategy. Same encoding as
+@c set_wait_strategy. Returns `0` (LowLatency) on a null handle.
+"""
+py_doc = """
+Current streaming wait strategy (``"low_latency"``,
+``"balanced"``, ``"efficient"``, or ``"busy_spin"``).
+"""
+ts_doc = """
+Current streaming wait strategy (`"low_latency"`, `"balanced"`,
+`"efficient"`, or `"busy_spin"`).
+"""
+[[accessor.variant]]
+int = 0
+rust = "LowLatency"
+label = "low_latency"
+[[accessor.variant]]
+int = 1
+rust = "Balanced"
+label = "balanced"
+[[accessor.variant]]
+int = 2
+rust = "Efficient"
+label = "efficient"
+[[accessor.variant]]
+int = 3
+rust = "BusySpin"
+label = "busy_spin"
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_jitter"
+kind = "enum"
+param = "mode"
+abi_type = "i32"
+path = "reconnect.jitter"
+enum_type = "thetadatadx::JitterMode"
+enum_core = "config::JitterMode"
+enum_expected = "expected 0 (Full), 1 (Equal), 2 (Decorrelated), or 3 (None)"
+py_err = 'unknown reconnect_jitter: {mode:?} (expected "full", "equal", "decorrelated", or "none")'
+ts_err = 'setReconnectJitter: unknown mode {mode:?}; expected "full", "equal", "decorrelated", or "none"'
+doc = """
+Set the jitter strategy applied to every reconnect delay.
+
+- `mode = 0`: Full (default) — sample uniformly from `[0, delay]`.
+- `mode = 1`: Equal — `delay/2 + uniform(0, delay/2)`.
+- `mode = 2`: Decorrelated — walk relative to the previous delay.
+- `mode = 3`: None — deterministic delays (tests only).
+
+Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when
+`mode` is outside the documented `{0, 1, 2, 3}` set or `config` is
+null. A rejected `mode` value carries
+`thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` so an out-of-domain
+enum int surfaces the same typed class across every binding.
+"""
+cpp_doc = """
+Set the reconnect jitter mode: 0=Full (default), 1=Equal,
+2=Decorrelated, 3=None. Throws @c thetadatadx::InvalidParameterError on
+an out-of-domain mode (and @c thetadatadx::ThetaDataError on a null
+handle), routing through the typed leaf the FFI error code
+selects.
+"""
+py_doc = """
+Set the jitter strategy applied to every reconnect delay.
+Accepts ``"full"`` (default), ``"equal"``, ``"decorrelated"``,
+or ``"none"`` (case-insensitive).
+"""
+ts_doc = """
+Set the jitter strategy applied to every reconnect delay.
+Accepts `"full"` (default), `"equal"`, `"decorrelated"`, or
+`"none"` (case-insensitive).
+"""
+py_param = "mode"
+ts_param = "mode"
+[[accessor.variant]]
+int = 0
+rust = "Full"
+label = "full"
+[[accessor.variant]]
+int = 1
+rust = "Equal"
+label = "equal"
+[[accessor.variant]]
+int = 2
+rust = "Decorrelated"
+label = "decorrelated"
+[[accessor.variant]]
+int = 3
+rust = "None"
+label = "none"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_jitter"
+kind = "enum"
+param = "out_mode"
+abi_type = "i32"
+path = "reconnect.jitter"
+enum_type = "thetadatadx::JitterMode"
+enum_core = "config::JitterMode"
+doc = """
+Read the configured reconnect jitter mode. Same encoding as
+`thetadatadx_config_set_reconnect_jitter`. Returns `0` on success, `-1` if
+either pointer is null.
+"""
+cpp_doc = """
+Current reconnect jitter mode (same encoding as the setter).
+"""
+py_doc = """
+Current reconnect jitter mode as a lowercase string.
+"""
+ts_doc = """
+Current reconnect jitter mode as a lowercase string.
+"""
+[[accessor.variant]]
+int = 0
+rust = "Full"
+label = "full"
+[[accessor.variant]]
+int = 1
+rust = "Equal"
+label = "equal"
+[[accessor.variant]]
+int = 2
+rust = "Decorrelated"
+label = "decorrelated"
+[[accessor.variant]]
+int = 3
+rust = "None"
+label = "none"
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_host_selection"
+kind = "enum"
+param = "policy"
+abi_type = "i32"
+path = "streaming.host_selection"
+enum_type = "thetadatadx::HostSelectionPolicy"
+enum_core = "config::HostSelectionPolicy"
+enum_expected = "expected 0 (Shuffled) or 1 (FixedOrder)"
+py_err = 'unknown streaming_host_selection: {policy:?} (expected "shuffled" or "fixed_order")'
+ts_err = 'setStreamingHostSelection: unknown policy {policy:?}; expected "shuffled" or "fixed_order"'
+doc = """
+Set the streaming host-selection policy.
+
+- `policy = 0`: Shuffled (default) — fault-domain-aware per-client
+  shuffle; a fleet spreads across hosts and consecutive failover
+  attempts cross physical machines.
+- `policy = 1`: FixedOrder — use the declared host order verbatim.
+
+Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error`
+when `policy` is outside the documented `{0, 1}` set or `config`
+is null. A rejected `policy` value carries
+`thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` so an out-of-domain
+enum int surfaces the same typed class across every binding.
+"""
+cpp_doc = """
+Set the streaming host-selection policy: 0=Shuffled (default),
+1=FixedOrder. Throws @c thetadatadx::InvalidParameterError on an
+out-of-domain policy (and @c thetadatadx::ThetaDataError on a null
+handle), routing through the typed leaf the FFI error code
+selects.
+"""
+py_doc = """
+Set the streaming host-selection policy. Accepts ``"shuffled"``
+(default — fault-domain-aware per-client shuffle) or
+``"fixed_order"`` (declared order verbatim), case-insensitive.
+"""
+ts_doc = """
+Set the streaming host-selection policy. Accepts `"shuffled"`
+(default — fault-domain-aware per-client shuffle) or
+`"fixed_order"` (declared order verbatim), case-insensitive.
+"""
+py_param = "policy"
+ts_param = "policy"
+[[accessor.variant]]
+int = 0
+rust = "Shuffled"
+label = "shuffled"
+[[accessor.variant]]
+int = 1
+rust = "FixedOrder"
+label = "fixed_order"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_host_selection"
+kind = "enum"
+param = "out_policy"
+abi_type = "i32"
+path = "streaming.host_selection"
+enum_type = "thetadatadx::HostSelectionPolicy"
+enum_core = "config::HostSelectionPolicy"
+doc = """
+Read the configured streaming host-selection policy. Same encoding as
+`thetadatadx_config_set_streaming_host_selection`. Returns `0` on success, `-1`
+if either pointer is null.
+"""
+cpp_doc = """
+Current streaming host-selection policy (same encoding as the
+setter).
+"""
+py_doc = """
+Current streaming host-selection policy as a lowercase string.
+"""
+ts_doc = """
+Current streaming host-selection policy as a lowercase string.
+"""
+[[accessor.variant]]
+int = 0
+rust = "Shuffled"
+label = "shuffled"
+[[accessor.variant]]
+int = 1
+rust = "FixedOrder"
+label = "fixed_order"
+
+# ── Option config fields (option) ───────────────────────────────────
+#
+# Plain `(has_value, N)` <-> `Option<T>` accessors. The FFI carries the
+# widened `(has_value: bool, value: T)` shape that preserves the `None`
+# sentinel across C; C++ wraps it as `std::optional<T>`; Python / TS
+# expose `Optional[int]` / `T | null`. `abi_type` selects the scalar
+# decode on the JS surface (`number` for u16, `BigInt` for u64), the
+# same switch the scalar accessor already runs.
+
+[[accessor]]
+symbol = "thetadatadx_config_set_metrics_port"
+kind = "option"
+param = "port"
+abi_type = "u16"
+path = "metrics.port"
+py_err = 'metrics_port must be in 0..=65535; got {v}'
+ts_err = 'setMetricsPort: port must be in 0..=65535; got {v}'
+doc = """
+Set the Prometheus exporter port on a config handle.
+
+* `has_value = false` encodes `None`: the exporter stays disabled
+  even when the `metrics-prometheus` cargo feature is compiled in.
+  `port` is ignored.
+* `has_value = true` encodes `Some(port)`: the exporter binds an
+  HTTP listener on `0.0.0.0:<port>` whose `/metrics` endpoint
+  exposes every counter and histogram recorded through the
+  `metrics` crate.
+
+Returns `0` on success, `-1` if `config` is null.
+"""
+cpp_doc = """
+Set the Prometheus exporter port. Pass @c std::nullopt to leave
+the exporter disabled (the @c None default); pass an explicit
+@c std::uint16_t to bind an HTTP listener on @c 0.0.0.0:<port>
+when the @c metrics-prometheus feature is compiled in.
+
+Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
+routing through the typed class the FFI error code selects.
+"""
+py_doc = """
+Set the Prometheus exporter port. ``None`` (the default) keeps
+the exporter disabled; an ``int`` binds an HTTP listener whose
+``/metrics`` endpoint exposes every counter and histogram.
+
+Raises ``ValueError`` if the value is outside the ``u16`` range
+(``0..=65535``).
+"""
+ts_doc = """
+Set the Prometheus exporter port. Pass `null` or `undefined`
+to leave the exporter disabled (the default); pass a
+`number` to bind an HTTP listener on `0.0.0.0:<port>` when the
+`metrics-prometheus` feature is compiled in.
+
+Rejects values outside the `0..=65535` port range.
+"""
+py_param = "port"
+ts_param = "port"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_metrics_port"
+kind = "option"
+param = "out_port"
+abi_type = "u16"
+path = "metrics.port"
+doc = """
+Read the current `metrics.port` setting.
+
+* `*out_has_value = false` → the config holds `None` (exporter
+  disabled). `*out_port` is left as `0`.
+* `*out_has_value = true` → the config holds `Some(*out_port)`.
+
+Returns `0` on success, `-1` if any pointer is null.
+"""
+cpp_doc = """
+Read the current @c metrics.port setting. Returns
+@c std::nullopt for the disabled sentinel; returns the wrapped
+@c std::uint16_t when an explicit port is set.
+
+Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
+routing through the typed class the FFI error code selects.
+"""
+py_doc = """
+Current ``metrics.port`` setting. ``None`` means the exporter is
+disabled; an ``int`` is the bound port.
+"""
+ts_doc = """
+Current `metrics.port` setting. `null` means the exporter is
+disabled; a `number` is the bound port.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_host_shuffle_seed"
+kind = "option"
+param = "seed"
+abi_type = "u64"
+path = "streaming.host_shuffle_seed"
+doc = """
+Set the streaming host-shuffle seed using the `(has_value, seed)`
+widened ABI shape that preserves the `None` sentinel across the C
+boundary.
+
+* `has_value = false` → `None` (default): every client derives a
+  fresh per-instance seed, so a fleet shuffles independently.
+  `seed` is ignored.
+* `has_value = true` → `Some(seed)`: the shuffled order becomes
+  deterministic — useful for fleet sharding and tests.
+
+Ignored under the `FixedOrder` host-selection policy. Returns `0`
+on success, `-1` if `config` is null.
+"""
+cpp_doc = """
+Set the streaming host-shuffle seed using the (has_value, seed)
+shape. has_value=false derives a fresh per-client seed;
+has_value=true makes the shuffled order deterministic.
+"""
+py_doc = """
+Set the streaming host-shuffle seed. ``None`` (default) derives a
+fresh per-client seed so a fleet shuffles independently; an
+explicit value makes the shuffled order deterministic — useful
+for fleet sharding and tests. Ignored under ``"fixed_order"``.
+"""
+ts_doc = """
+Set the streaming host-shuffle seed. `null` (default) derives a
+fresh per-client seed so a fleet shuffles independently; an
+explicit `bigint` makes the shuffled order deterministic —
+useful for fleet sharding and tests. Ignored under
+`"fixed_order"`.
+"""
+py_param = "seed"
+ts_param = "seed"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_host_shuffle_seed"
+kind = "option"
+param = "out_seed"
+abi_type = "u64"
+path = "streaming.host_shuffle_seed"
+doc = """
+Read the current streaming host-shuffle seed. Same `(has_value, seed)`
+ABI as `thetadatadx_config_set_streaming_host_shuffle_seed`:
+
+* `*out_has_value = false` → `None` (per-client entropy). `*out_seed` is left `0`.
+* `*out_has_value = true` → `Some(*out_seed)`.
+
+Returns `0` on success, `-1` if any pointer is null.
+"""
+cpp_doc = """
+Read the streaming host-shuffle seed back. Returns @c std::nullopt for
+the per-client-entropy sentinel (no pinned seed); returns the
+wrapped seed when the shuffled order is deterministic.
+"""
+py_doc = """
+Current ``streaming.host_shuffle_seed`` value (``None`` = per-client
+entropy).
+"""
+ts_doc = """
+Current `streaming.host_shuffle_seed` value (`null` = per-client
+entropy).
+"""

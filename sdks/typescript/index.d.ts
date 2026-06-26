@@ -138,14 +138,6 @@ export declare class Config {
    */
   setReconnectPolicy(policy: string): void
   /**
-   * Set the jitter strategy applied to every reconnect delay.
-   * Accepts `"full"` (default), `"equal"`, `"decorrelated"`, or
-   * `"none"` (case-insensitive).
-   */
-  setReconnectJitter(mode: string): void
-  /** Current reconnect jitter mode as a lowercase string. */
-  get reconnectJitter(): string
-  /**
    * Current reconnect policy as a string (`"auto"`, `"manual"`, or
    * `"custom"`).
    */
@@ -177,27 +169,6 @@ export declare class Config {
    */
   setStreamingRingSize(n: bigint): void
   /**
-   * Set the streaming host-selection policy. Accepts `"shuffled"`
-   * (default — fault-domain-aware per-client shuffle) or
-   * `"fixed_order"` (declared order verbatim), case-insensitive.
-   */
-  setStreamingHostSelection(policy: string): void
-  /** Current streaming host-selection policy as a lowercase string. */
-  get streamingHostSelection(): string
-  /**
-   * Set the streaming host-shuffle seed. `null` (default) derives a
-   * fresh per-client seed so a fleet shuffles independently; an
-   * explicit `bigint` makes the shuffled order deterministic —
-   * useful for fleet sharding and tests. Ignored under
-   * `"fixed_order"`.
-   */
-  setStreamingHostShuffleSeed(seed?: bigint | undefined | null): void
-  /**
-   * Current `streaming.host_shuffle_seed` value (`null` = per-client
-   * entropy).
-   */
-  get streamingHostShuffleSeed(): bigint | null
-  /**
    * Set the async worker-thread count for embedded runtimes.
    * `hasValue=false` defers to the default sizing; `hasValue=true`
    * pins worker count to `n` (with `n=0` preserved verbatim rather
@@ -215,34 +186,6 @@ export declare class Config {
    * `hasValue=false` encodes the unset (auto) sentinel.
    */
   get workerThreads(): WorkerThreadsSetting
-  /**
-   * Set the Prometheus exporter port. Pass `null` or `undefined`
-   * to leave the exporter disabled (the default); pass a
-   * `number` to bind an HTTP listener on `0.0.0.0:<port>` when the
-   * `metrics-prometheus` feature is compiled in.
-   *
-   * Rejects values outside the `0..=65535` port range.
-   */
-  setMetricsPort(port?: number | undefined | null): void
-  /**
-   * Current `metrics.port` setting. `null` means the exporter is
-   * disabled; a `number` is the bound port.
-   */
-  get metricsPort(): number | null
-  /**
-   * Set the streaming write-flush policy.
-   *
-   * Accepts `"batched"` (default — flushes on the PING heartbeat,
-   * roughly every 100 ms — best throughput) or `"immediate"`
-   * (flushes after every wire write — lowest latency, higher
-   * per-frame syscall cost).
-   */
-  setFlushMode(mode: string): void
-  /**
-   * Current streaming write-flush policy (`"batched"` or
-   * `"immediate"`).
-   */
-  get flushMode(): string
   /**
    * Target historical environment carried by this configuration:
    * `"PROD"` for the production cluster or `"STAGE"` for staging. The
@@ -263,22 +206,6 @@ export declare class Config {
    * `streamingType` string the inline `Client.connectWith` factory accepts.
    */
   get streamingEnvironment(): string
-  /**
-   * Set the streaming event-ring consumer wait strategy — the
-   * latency-vs-CPU knob applied on each ring-empty poll.
-   *
-   * Accepts `"low_latency"` (default — never sleeps, lowest latency,
-   * highest idle CPU), `"balanced"` (brief park — low idle CPU),
-   * `"efficient"` (longer park — lowest idle CPU), or `"busy_spin"`
-   * (pure spin — pins a core). Tune the spin / yield / park counts via
-   * `setWaitSpinIters` / `setWaitYieldIters` / `setWaitParkUs`.
-   */
-  setWaitStrategy(strategy: string): void
-  /**
-   * Current streaming wait strategy (`"low_latency"`, `"balanced"`,
-   * `"efficient"`, or `"busy_spin"`).
-   */
-  get waitStrategy(): string
   /** Set the wait-strategy spin iteration count. */
   setWaitSpinIters(iters: number): void
   /** Current wait-strategy spin iteration count. */
@@ -642,6 +569,79 @@ export declare class Config {
   setHistoricalHost(host: string): void
   /** Current historical gRPC host. */
   get historicalHost(): string
+  /**
+   * Set the streaming write-flush policy.
+   *
+   * Accepts `"batched"` (default — flushes on the PING heartbeat,
+   * roughly every 100 ms — best throughput) or `"immediate"`
+   * (flushes after every wire write — lowest latency, higher
+   * per-frame syscall cost).
+   */
+  setFlushMode(mode: string): void
+  /**
+   * Current streaming write-flush policy (`"batched"` or
+   * `"immediate"`).
+   */
+  get flushMode(): string
+  /**
+   * Set the streaming event-ring consumer wait strategy — the
+   * latency-vs-CPU knob applied on each ring-empty poll.
+   *
+   * Accepts `"low_latency"` (default — never sleeps, lowest latency,
+   * highest idle CPU), `"balanced"` (brief park — low idle CPU),
+   * `"efficient"` (longer park — lowest idle CPU), or `"busy_spin"`
+   * (pure spin — pins a core). Tune the spin / yield / park counts via
+   * `setWaitSpinIters` / `setWaitYieldIters` / `setWaitParkUs`.
+   */
+  setWaitStrategy(strategy: string): void
+  /**
+   * Current streaming wait strategy (`"low_latency"`, `"balanced"`,
+   * `"efficient"`, or `"busy_spin"`).
+   */
+  get waitStrategy(): string
+  /**
+   * Set the jitter strategy applied to every reconnect delay.
+   * Accepts `"full"` (default), `"equal"`, `"decorrelated"`, or
+   * `"none"` (case-insensitive).
+   */
+  setReconnectJitter(mode: string): void
+  /** Current reconnect jitter mode as a lowercase string. */
+  get reconnectJitter(): string
+  /**
+   * Set the streaming host-selection policy. Accepts `"shuffled"`
+   * (default — fault-domain-aware per-client shuffle) or
+   * `"fixed_order"` (declared order verbatim), case-insensitive.
+   */
+  setStreamingHostSelection(policy: string): void
+  /** Current streaming host-selection policy as a lowercase string. */
+  get streamingHostSelection(): string
+  /**
+   * Set the Prometheus exporter port. Pass `null` or `undefined`
+   * to leave the exporter disabled (the default); pass a
+   * `number` to bind an HTTP listener on `0.0.0.0:<port>` when the
+   * `metrics-prometheus` feature is compiled in.
+   *
+   * Rejects values outside the `0..=65535` port range.
+   */
+  setMetricsPort(port?: number | undefined | null): void
+  /**
+   * Current `metrics.port` setting. `null` means the exporter is
+   * disabled; a `number` is the bound port.
+   */
+  get metricsPort(): number | null
+  /**
+   * Set the streaming host-shuffle seed. `null` (default) derives a
+   * fresh per-client seed so a fleet shuffles independently; an
+   * explicit `bigint` makes the shuffled order deterministic —
+   * useful for fleet sharding and tests. Ignored under
+   * `"fixed_order"`.
+   */
+  setStreamingHostShuffleSeed(seed?: bigint | undefined | null): void
+  /**
+   * Current `streaming.host_shuffle_seed` value (`null` = per-client
+   * entropy).
+   */
+  get streamingHostShuffleSeed(): bigint | null
 }
 
 /**

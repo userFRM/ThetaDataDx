@@ -667,4 +667,148 @@ impl Config {
         guard.historical_host().to_string()
     }
 
+    /// Set the streaming write-flush policy.
+    ///
+    /// Accepts ``"batched"`` (default, flushes on the PING heartbeat,
+    /// roughly every 100 ms — best throughput) or ``"immediate"``
+    /// (flushes after every wire write — lowest latency, higher
+    /// per-frame syscall cost).
+    #[setter]
+    fn set_flush_mode(&self, mode: &str) -> PyResult<()> {
+        let parsed = config::StreamingFlushMode::parse(mode).ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "flush_mode must be \"batched\" or \"immediate\"; got {mode:?}"
+            ))
+        })?;
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.flush_mode = parsed;
+        Ok(())
+    }
+
+    /// Current streaming write-flush policy (``"batched"`` or
+    /// ``"immediate"``).
+    #[getter]
+    fn get_flush_mode(&self) -> &'static str {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.flush_mode.as_str()
+    }
+
+    /// Set the streaming event-ring consumer wait strategy — the
+    /// latency-vs-CPU knob applied on each ring-empty poll.
+    ///
+    /// Accepts ``"low_latency"`` (default, never sleeps — lowest
+    /// latency, highest idle CPU), ``"balanced"`` (brief park — low idle
+    /// CPU), ``"efficient"`` (longer park — lowest idle CPU), or
+    /// ``"busy_spin"`` (pure spin — pins a core). Tune the individual
+    /// spin / yield / park counts via ``wait_spin_iters`` /
+    /// ``wait_yield_iters`` / ``wait_park_us``.
+    #[setter]
+    fn set_wait_strategy(&self, strategy: &str) -> PyResult<()> {
+        let parsed = config::StreamingWaitStrategy::parse(strategy).ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "wait_strategy must be \"low_latency\", \"balanced\", \"efficient\", or \"busy_spin\"; got {strategy:?}"
+            ))
+        })?;
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.wait_strategy = parsed;
+        Ok(())
+    }
+
+    /// Current streaming wait strategy (``"low_latency"``,
+    /// ``"balanced"``, ``"efficient"``, or ``"busy_spin"``).
+    #[getter]
+    fn get_wait_strategy(&self) -> &'static str {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.wait_strategy.as_str()
+    }
+
+    /// Set the jitter strategy applied to every reconnect delay.
+    /// Accepts ``"full"`` (default), ``"equal"``, ``"decorrelated"``,
+    /// or ``"none"`` (case-insensitive).
+    #[setter]
+    fn set_reconnect_jitter(&self, mode: &str) -> PyResult<()> {
+        let parsed = config::JitterMode::parse(mode).ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "unknown reconnect_jitter: {mode:?} (expected \"full\", \"equal\", \"decorrelated\", or \"none\")"
+            ))
+        })?;
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.jitter = parsed;
+        Ok(())
+    }
+
+    /// Current reconnect jitter mode as a lowercase string.
+    #[getter]
+    fn get_reconnect_jitter(&self) -> &'static str {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.reconnect.jitter.as_str()
+    }
+
+    /// Set the streaming host-selection policy. Accepts ``"shuffled"``
+    /// (default — fault-domain-aware per-client shuffle) or
+    /// ``"fixed_order"`` (declared order verbatim), case-insensitive.
+    #[setter]
+    fn set_streaming_host_selection(&self, policy: &str) -> PyResult<()> {
+        let parsed = config::HostSelectionPolicy::parse(policy).ok_or_else(|| {
+            PyValueError::new_err(format!(
+                "unknown streaming_host_selection: {policy:?} (expected \"shuffled\" or \"fixed_order\")"
+            ))
+        })?;
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.host_selection = parsed;
+        Ok(())
+    }
+
+    /// Current streaming host-selection policy as a lowercase string.
+    #[getter]
+    fn get_streaming_host_selection(&self) -> &'static str {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.host_selection.as_str()
+    }
+
+    /// Set the Prometheus exporter port. ``None`` (the default) keeps
+    /// the exporter disabled; an ``int`` binds an HTTP listener whose
+    /// ``/metrics`` endpoint exposes every counter and histogram.
+    ///
+    /// Raises ``ValueError`` if the value is outside the ``u16`` range
+    /// (``0..=65535``).
+    #[setter]
+    fn set_metrics_port(&self, port: Option<u32>) -> PyResult<()> {
+        let resolved = match port {
+            Some(v) => Some(u16::try_from(v).map_err(|_| {
+                PyValueError::new_err(format!("metrics_port must be in 0..=65535; got {v}"))
+            })?),
+            None => None,
+        };
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.metrics.port = resolved;
+        Ok(())
+    }
+
+    /// Current ``metrics.port`` setting. ``None`` means the exporter is
+    /// disabled; an ``int`` is the bound port.
+    #[getter]
+    fn get_metrics_port(&self) -> Option<u16> {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.metrics.port
+    }
+
+    /// Set the streaming host-shuffle seed. ``None`` (default) derives a
+    /// fresh per-client seed so a fleet shuffles independently; an
+    /// explicit value makes the shuffled order deterministic — useful
+    /// for fleet sharding and tests. Ignored under ``"fixed_order"``.
+    #[setter]
+    fn set_streaming_host_shuffle_seed(&self, seed: Option<u64>) {
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.host_shuffle_seed = seed;
+    }
+
+    /// Current ``streaming.host_shuffle_seed`` value (``None`` = per-client
+    /// entropy).
+    #[getter]
+    fn get_streaming_host_shuffle_seed(&self) -> Option<u64> {
+        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        guard.streaming.host_shuffle_seed
+    }
+
 }

@@ -69,6 +69,34 @@ struct Accessor {
     /// (e.g. `historical_host`) instead of a direct `path` read.
     #[serde(default)]
     getter_call: Option<String>,
+    /// `enum` only: the FFI-side enum type (`thetadatadx::`-prefixed,
+    /// e.g. `thetadatadx::StreamingFlushMode`) the int code maps to / from.
+    #[serde(default)]
+    enum_type: Option<String>,
+    /// `enum` only: the binding-side enum type (`config::`-prefixed) whose
+    /// `parse` / `as_str` the Python / TypeScript string surfaces use.
+    #[serde(default)]
+    enum_core: Option<String>,
+    /// `enum` setter only: the trailing `expected …` clause of the
+    /// `INVALID_PARAMETER` rejection message (the int-domain list spelled
+    /// with its enum-specific oxford-comma grammar).
+    #[serde(default)]
+    enum_expected: Option<String>,
+    /// `enum` / `option` setter only: the Python `ValueError` body for a
+    /// rejected value, verbatim (the per-accessor prose stays byte-stable
+    /// across bindings). `{…}` placeholders interpolate the setter param /
+    /// the matched value.
+    #[serde(default)]
+    py_err: Option<String>,
+    /// `enum` / `option` setter only: the TypeScript `invalid_parameter_err`
+    /// body for a rejected value, verbatim.
+    #[serde(default)]
+    ts_err: Option<String>,
+    /// `enum` only: the int ↔ variant ↔ lowercase-label bijection. Drives
+    /// the FFI `match` both ways and the variant arms the C++ doc and the
+    /// Python / TypeScript surfaces reference.
+    #[serde(default)]
+    variant: Vec<EnumVariant>,
     doc: String,
     cpp_doc: String,
     /// Verbatim PyO3 `#[setter]`/`#[getter]` doc block (no `///` prefix).
@@ -83,6 +111,15 @@ struct Accessor {
     /// `py_param`, but a few `*_secs` knobs spell it `ms` for back-compat.
     #[serde(default)]
     ts_param: Option<String>,
+}
+
+/// One `int` code of an `enum` accessor and its core-variant identifier.
+#[derive(Debug, Deserialize)]
+struct EnumVariant {
+    /// The wire/ABI integer code.
+    int: i32,
+    /// The variant identifier without the enum path (e.g. `Batched`).
+    rust: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -128,23 +165,97 @@ fn cpp_doc(buf: &mut String, indent: &str, text: &str) {
 /// no-ops there too).
 const LIMIT_DEFAULT: &str = "thetadatadx::ReconnectAttemptLimits::default()";
 
+/// The `ReconnectAttemptLimits` field a `policy_limit` accessor touches.
+fn limit_field(a: &Accessor) -> &str {
+    a.limit_field
+        .as_deref()
+        .expect("policy_limit needs limit_field")
+}
+
+/// `true` when this row is a setter (its symbol carries the `set_`
+/// prefix). The scalar / string carve-outs key off `kind == "set"`, but
+/// the `enum` / `option` kinds use one `kind` value for both directions,
+/// so they branch on the symbol instead.
+fn is_setter(a: &Accessor) -> bool {
+    a.symbol.contains("_config_set_")
+}
+
+/// The `policy_limit` getter read: a two-arm `match` on
+/// `<receiver>.reconnect.policy` reading `limits.<field><suffix>`, with
+/// the `Auto`-defaults fallback. `receiver` is the binding's config
+/// expression (`config.inner` / `guard`) and `limits_default` its
+/// `ReconnectAttemptLimits::default()` spelling.
+fn policy_get_match(
+    receiver: &str,
+    policy_ty: &str,
+    limits_default: &str,
+    field: &str,
+    suffix: &str,
+) -> String {
+    format!(
+        "match &{receiver}.reconnect.policy {{\n            {policy_ty}::Auto(limits) => limits.{field}{suffix},\n            _ => {limits_default}.{field}{suffix},\n        }}"
+    )
+}
+
+/// The `enum` setter int→variant decode `match` (with the typed-error
+/// `_` arm), emitted into the FFI setter body. `set_error_with_code`
+/// keeps the rejected-int path on `INVALID_PARAMETER` across every
+/// binding.
+fn ffi_enum_set_match(a: &Accessor) -> String {
+    let ty = a.enum_type.as_deref().expect("enum needs enum_type");
+    let mut arms = String::new();
+    for v in &a.variant {
+        writeln!(arms, "            {} => {ty}::{},", v.int, v.rust).unwrap();
+    }
+    let expected = a
+        .enum_expected
+        .as_deref()
+        .expect("enum setter needs enum_expected");
+    format!(
+        "let value = match {p} {{\n{arms}            other => {{\n                crate::error::set_error_with_code(\n                    &format!(\n                        \"{sym}: invalid {p} {{other}}; {expected}\"\n                    ),\n                    crate::error::THETADATADX_ERR_INVALID_PARAMETER,\n                );\n                return -1;\n            }}\n        }};",
+        p = a.param, sym = a.symbol,
+    )
+}
+
+/// The `enum` getter variant→int decode `match`, emitted into the FFI
+/// getter body. The final arm folds to `_ => <last int>` so a
+/// `#[non_exhaustive]` core enum stays covered without an extra arm.
+fn ffi_enum_get_match(a: &Accessor) -> String {
+    let ty = a.enum_type.as_deref().expect("enum needs enum_type");
+    let mut arms = String::new();
+    let last = a.variant.len() - 1;
+    for (i, v) in a.variant.iter().enumerate() {
+        if i == last {
+            writeln!(arms, "            _ => {},", v.int).unwrap();
+        } else {
+            writeln!(arms, "            {ty}::{} => {},", v.rust, v.int).unwrap();
+        }
+    }
+    format!(
+        "let value = match {recv}.{path} {{\n{arms}        }};",
+        recv = "config.inner",
+        path = a.path,
+    )
+}
+
 /// The Rust read expression for one getter (the value written into the
 /// out-parameter), keyed by KIND. Scalar / duration reads come straight
 /// off `config.inner.<path>`; the `policy_limit` read walks
 /// `reconnect.policy` and falls back to the `Auto` defaults.
 fn ffi_get_read_expr(a: &Accessor) -> String {
     if a.shape.as_deref() == Some("policy_limit") {
-        let field = a
-            .limit_field
-            .as_deref()
-            .expect("policy_limit needs limit_field");
+        let field = limit_field(a);
         let suffix = if a.duration_unit.as_deref() == Some("secs") {
             ".as_secs()"
         } else {
             ""
         };
-        return format!(
-            "match &config.inner.reconnect.policy {{\n            thetadatadx::ReconnectPolicy::Auto(limits) => limits.{field}{suffix},\n            _ => {LIMIT_DEFAULT}.{field}{suffix},\n        }}"
+        return policy_get_match(
+            "config.inner",
+            "thetadatadx::ReconnectPolicy",
+            LIMIT_DEFAULT,
+            field,
+            suffix,
         );
     }
     match a.duration_unit.as_deref() {
@@ -170,6 +281,46 @@ pub(super) fn render_ffi_config_accessors() -> Result<String, Box<dyn std::error
         rust_doc(&mut out, &a.doc);
         out.push_str("#[no_mangle]\n");
         match (a.shape.as_deref(), a.kind.as_str()) {
+            (_, "enum") if is_setter(a) => {
+                // `i32` code → core variant. A null handle carries
+                // `ERR_CONFIG`; a rejected int carries
+                // `ERR_INVALID_PARAMETER` (unified across all four enums).
+                write!(
+                    out,
+                    "pub unsafe extern \"C\" fn {sym}(\n    config: *mut ThetaDataDxConfig,\n    {p}: {ty},\n) -> i32 {{\n    ffi_boundary!(-1, {{\n        if config.is_null() {{\n            crate::error::set_error_with_code(\n                \"{sym}: config handle is null\",\n                crate::error::THETADATADX_ERR_CONFIG,\n            );\n            return -1;\n        }}\n        {decode}\n        // SAFETY: config is a non-null pointer returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.\n        let config = unsafe {{ &mut *config }};\n        config.inner.{path} = value;\n        0\n    }})\n}}\n\n",
+                    sym = a.symbol, p = a.param, ty = a.abi_type,
+                    decode = ffi_enum_set_match(a), path = a.path,
+                )?;
+            }
+            (_, "enum") => {
+                // Core variant → `i32` code. Dual null-check, then the
+                // variant `match` folded onto the canonical out-write.
+                write!(
+                    out,
+                    "pub unsafe extern \"C\" fn {sym}(\n    config: *const ThetaDataDxConfig,\n    {p}: *mut {ty},\n) -> i32 {{\n    ffi_boundary!(-1, {{\n        if config.is_null() || {p}.is_null() {{\n            set_error(\"config or out-parameter pointer is null\");\n            return -1;\n        }}\n{cfg}\n        let config = unsafe {{ &*config }};\n        {decode}\n{outs}\n        unsafe {{\n            *{p} = value;\n        }}\n        0\n    }})\n}}\n\n",
+                    sym = a.symbol, p = a.param, ty = a.abi_type,
+                    cfg = CFG_SAFETY, decode = ffi_enum_get_match(a), outs = OUT_SAFETY,
+                )?;
+            }
+            (_, "option") if is_setter(a) => {
+                // `(has_value, value)` widened ABI → `Option<T>`; the
+                // `None` sentinel survives the C boundary.
+                write!(
+                    out,
+                    "pub unsafe extern \"C\" fn {sym}(\n    config: *mut ThetaDataDxConfig,\n    has_value: bool,\n    {p}: {ty},\n) -> i32 {{\n    ffi_boundary!(-1, {{\n        if config.is_null() {{\n            set_error(\"config handle is null\");\n            return -1;\n        }}\n        // SAFETY: config is a non-null pointer returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.\n        let config = unsafe {{ &mut *config }};\n        config.inner.{path} = if has_value {{ Some({p}) }} else {{ None }};\n        0\n    }})\n}}\n\n",
+                    sym = a.symbol, p = a.param, ty = a.abi_type, path = a.path,
+                )?;
+            }
+            (_, "option") => {
+                // `Option<T>` → `(has_value, value)`; `None` writes
+                // `(false, 0)`.
+                write!(
+                    out,
+                    "pub unsafe extern \"C\" fn {sym}(\n    config: *const ThetaDataDxConfig,\n    out_has_value: *mut bool,\n    {p}: *mut {ty},\n) -> i32 {{\n    ffi_boundary!(-1, {{\n        if config.is_null() || out_has_value.is_null() || {p}.is_null() {{\n            set_error(\"config or out-parameter pointer is null\");\n            return -1;\n        }}\n{cfg}\n        let config = unsafe {{ &*config }};\n        let (has_value, value) = match config.inner.{path} {{\n            Some(v) => (true, v),\n            None => (false, 0),\n        }};\n        // SAFETY: out_has_value / {p} null-checked above; caller pins the storage they point at for the call duration.\n        unsafe {{\n            *out_has_value = has_value;\n            *{p} = value;\n        }}\n        0\n    }})\n}}\n\n",
+                    sym = a.symbol, p = a.param, ty = a.abi_type, path = a.path,
+                    cfg = CFG_SAFETY,
+                )?;
+            }
             (Some("string"), "set") => {
                 // `*const c_char` → validated UTF-8 → `String`. `path`
                 // assigns the field directly; `setter_call` routes the
@@ -209,10 +360,7 @@ pub(super) fn render_ffi_config_accessors() -> Result<String, Box<dyn std::error
                     _ => a.param.clone(),
                 };
                 let body = if a.shape.as_deref() == Some("policy_limit") {
-                    let field = a
-                        .limit_field
-                        .as_deref()
-                        .expect("policy_limit needs limit_field");
+                    let field = limit_field(a);
                     format!(
                         "        let config = require_config_mut!(config);\n        if let thetadatadx::ReconnectPolicy::Auto(ref mut limits) = config.inner.reconnect.policy {{\n            limits.{field} = {rhs};\n        }}"
                     )
@@ -286,6 +434,46 @@ pub(super) fn render_cpp_config_accessors() -> Result<String, Box<dyn std::error
         out.push('\n');
         cpp_doc(&mut out, "    ", &a.cpp_doc);
         match (a.shape.as_deref(), a.kind.as_str()) {
+            (_, "enum") if is_setter(a) => {
+                // Int passthrough; the FFI rejects an out-of-domain code
+                // or null handle with a nonzero code routed through the
+                // typed error leaf.
+                write!(
+                    out,
+                    "    void {method}(int {p}) {{\n        if ({sym}(handle_.get(), {p}) != 0) {{\n            detail::throw_last_ffi_error();\n        }}\n    }}\n",
+                    method = method, p = a.param, sym = a.symbol,
+                )?;
+            }
+            (_, "enum") => {
+                // Int passthrough getter; the FFI writes the default code
+                // on a null handle.
+                write!(
+                    out,
+                    "    int {method}() const {{\n        int32_t out{{}};\n        {sym}(handle_.get(), &out);\n        return out;\n    }}\n",
+                    method = method, sym = a.symbol,
+                )?;
+            }
+            (_, "option") if is_setter(a) => {
+                // `std::optional<T>` → `(has_value, value)`; the FFI
+                // rejects a null handle through the typed error leaf.
+                let ty = cpp_type(&a.abi_type);
+                write!(
+                    out,
+                    "    void {method}(std::optional<{ty}> {p}) {{\n        const bool has_value = {p}.has_value();\n        const {ty} arg = {p}.value_or(0);\n        if ({sym}(handle_.get(), has_value, arg) != 0) {{\n            detail::throw_last_ffi_error();\n        }}\n    }}\n",
+                    method = method, ty = ty, p = a.param, sym = a.symbol,
+                )?;
+            }
+            (_, "option") => {
+                // `(has_value, value)` → `std::optional<T>`; `std::nullopt`
+                // for the `None` sentinel.
+                let ty = cpp_type(&a.abi_type);
+                let val = a.param.strip_prefix("out_").unwrap_or(&a.param);
+                write!(
+                    out,
+                    "    std::optional<{ty}> {method}() const {{\n        bool has_value = false;\n        {ty} {val} = 0;\n        if ({sym}(handle_.get(), &has_value, &{val}) != 0) {{\n            detail::throw_last_ffi_error();\n        }}\n        return has_value ? std::optional<{ty}>{{{val}}} : std::nullopt;\n    }}\n",
+                    method = method, ty = ty, val = val, sym = a.symbol,
+                )?;
+            }
             (Some("string"), "set") => {
                 // `std::string` → `const char*`; the FFI rejects a null
                 // handle or non-UTF-8 with a nonzero code routed through
@@ -340,6 +528,13 @@ fn field_name(a: &Accessor) -> &str {
         .expect("config symbol must carry the canonical set_/get_ prefix")
 }
 
+/// Embed a raw error message (carrying literal `"`) inside a Rust
+/// `format!("…")` literal: escape the double quotes; the `{…}` braces
+/// stay verbatim as format placeholders.
+fn rust_lit(raw: &str) -> String {
+    raw.replace('"', "\\\"")
+}
+
 /// The Rust scalar type each abi maps to on the PyO3 surface.
 fn py_type(abi: &str) -> &'static str {
     match abi {
@@ -381,6 +576,59 @@ pub(super) fn render_python_config_accessors() -> Result<String, Box<dyn std::er
         let field = field_name(a);
         indented_doc(&mut out, "    ", &a.py_doc);
         match (a.shape.as_deref(), a.kind.as_str()) {
+            (_, "enum") if is_setter(a) => {
+                // Lowercase string → core variant via `parse`; the same
+                // path for every enum (no inline per-enum match).
+                let param = a.py_param.as_deref().expect("setter row needs py_param");
+                let core = a.enum_core.as_deref().expect("enum needs enum_core");
+                let err = rust_lit(a.py_err.as_deref().expect("enum setter needs py_err"));
+                write!(
+                    out,
+                    "    #[setter]\n    fn set_{field}(&self, {param}: &str) -> PyResult<()> {{\n        let parsed = {core}::parse({param}).ok_or_else(|| {{\n            PyValueError::new_err(format!(\n                \"{err}\"\n            ))\n        }})?;\n{LOCK}\n        guard.{path} = parsed;\n        Ok(())\n    }}\n\n",
+                    field = field, param = param, core = core, err = err, path = a.path,
+                )?;
+            }
+            (_, "enum") => {
+                // Core variant → lowercase string via `as_str` (uniform).
+                write!(
+                    out,
+                    "    #[getter]\n    fn get_{field}(&self) -> &'static str {{\n{RLOCK}\n        guard.{path}.as_str()\n    }}\n\n",
+                    field = field, path = a.path,
+                )?;
+            }
+            (_, "option") if is_setter(a) => {
+                let param = a.py_param.as_deref().expect("setter row needs py_param");
+                match a.abi_type.as_str() {
+                    // u16 fields narrow from a Python `int`; a value outside
+                    // `0..=65535` raises `ValueError`.
+                    "u16" => {
+                        let err =
+                            rust_lit(a.py_err.as_deref().expect("option u16 setter needs py_err"));
+                        write!(
+                            out,
+                            "    #[setter]\n    fn set_{field}(&self, {param}: Option<u32>) -> PyResult<()> {{\n        let resolved = match {param} {{\n            Some(v) => Some(u16::try_from(v).map_err(|_| {{\n                PyValueError::new_err(format!(\"{err}\"))\n            }})?),\n            None => None,\n        }};\n{LOCK}\n        guard.{path} = resolved;\n        Ok(())\n    }}\n\n",
+                            field = field, param = param, err = err, path = a.path,
+                        )?;
+                    }
+                    // Wider fields take the matching `Option<T>` verbatim.
+                    other => {
+                        let ty = py_type(other);
+                        write!(
+                            out,
+                            "    #[setter]\n    fn set_{field}(&self, {param}: Option<{ty}>) {{\n{LOCK}\n        guard.{path} = {param};\n    }}\n\n",
+                            field = field, param = param, ty = ty, path = a.path,
+                        )?;
+                    }
+                }
+            }
+            (_, "option") => {
+                let ty = py_type(&a.abi_type);
+                write!(
+                    out,
+                    "    #[getter]\n    fn get_{field}(&self) -> Option<{ty}> {{\n{RLOCK}\n        guard.{path}\n    }}\n\n",
+                    field = field, ty = ty, path = a.path,
+                )?;
+            }
             (Some("string"), "set") => {
                 // `String` field assignment; `setter_call` routes the
                 // value through a `&mut self` method instead.
@@ -500,6 +748,78 @@ pub(super) fn render_typescript_config_accessors() -> Result<String, Box<dyn std
     for a in &accessors {
         let field = field_name(a);
         indented_doc(&mut out, "    ", &a.ts_doc);
+        // ── enum carve-out (lowercase string ↔ core variant via the
+        //    core enum `parse` / `as_str`; uniform across every enum) ──
+        if a.kind == "enum" {
+            if is_setter(a) {
+                let param = a.ts_param.as_deref().expect("setter row needs ts_param");
+                let set_js = format!("set{}", to_pascal_case(field));
+                let core = a.enum_core.as_deref().expect("enum needs enum_core");
+                let err = rust_lit(a.ts_err.as_deref().expect("enum setter needs ts_err"));
+                write!(
+                    out,
+                    "    #[napi(js_name = \"{set_js}\")]\n    pub fn set_{field}(&self, {param}: String) -> napi::Result<()> {{\n        let parsed = {core}::parse(&{param}).ok_or_else(|| {{\n            crate::invalid_parameter_err(format!(\n                \"{err}\"\n            ))\n        }})?;\n{LOCK}\n        guard.{path} = parsed;\n        Ok(())\n    }}\n\n",
+                    set_js = set_js, field = field, param = param, core = core, err = err, path = a.path,
+                )?;
+            } else {
+                let get_js = to_camel_case(field);
+                write!(
+                    out,
+                    "    #[napi(getter, js_name = \"{get_js}\")]\n    pub fn {field}(&self) -> napi::Result<&'static str> {{\n{RLOCK}\n        Ok(guard.{path}.as_str())\n    }}\n\n",
+                    get_js = get_js, field = field, path = a.path,
+                )?;
+            }
+            continue;
+        }
+        // ── option carve-out (`Option<T>` ↔ `T | null`; the abi switch
+        //    picks `number` vs `BigInt`, the same the scalar arm runs) ──
+        if a.kind == "option" {
+            if is_setter(a) {
+                let param = a.ts_param.as_deref().expect("setter row needs ts_param");
+                let set_js = format!("set{}", to_pascal_case(field));
+                match a.abi_type.as_str() {
+                    // u16 ports arrive as `number`; range-checked to u16.
+                    "u16" => {
+                        let err =
+                            rust_lit(a.ts_err.as_deref().expect("option u16 setter needs ts_err"));
+                        write!(
+                            out,
+                            "    #[napi(js_name = \"{set_js}\")]\n    pub fn set_{field}(&self, {param}: Option<u32>) -> napi::Result<()> {{\n        let resolved = match {param} {{\n            Some(v) => Some(u16::try_from(v).map_err(|_| {{\n                crate::invalid_parameter_err(format!(\n                    \"{err}\"\n                ))\n            }})?),\n            None => None,\n        }};\n{LOCK}\n        guard.{path} = resolved;\n        Ok(())\n    }}\n\n",
+                            set_js = set_js, field = field, param = param, err = err, path = a.path,
+                        )?;
+                    }
+                    // Wider seeds arrive as `BigInt`; decoded losslessly.
+                    "u64" => {
+                        write!(
+                            out,
+                            "    #[napi(js_name = \"{set_js}\")]\n    pub fn set_{field}(\n        &self,\n        {param}: Option<napi::bindgen_prelude::BigInt>,\n    ) -> napi::Result<()> {{\n        let resolved = match {param} {{\n            Some(v) => Some(bigint_to_u64(\"{set_js}\", &v)?),\n            None => None,\n        }};\n{LOCK}\n        guard.{path} = resolved;\n        Ok(())\n    }}\n\n",
+                            set_js = set_js, field = field, param = param, path = a.path,
+                        )?;
+                    }
+                    other => panic!("config_surface: option abi '{other}'"),
+                }
+            } else {
+                let get_js = to_camel_case(field);
+                match a.abi_type.as_str() {
+                    "u16" => {
+                        write!(
+                            out,
+                            "    #[napi(getter, js_name = \"{get_js}\")]\n    pub fn {field}(&self) -> napi::Result<Option<u32>> {{\n{RLOCK}\n        Ok(guard.{path}.map(u32::from))\n    }}\n\n",
+                            get_js = get_js, field = field, path = a.path,
+                        )?;
+                    }
+                    "u64" => {
+                        write!(
+                            out,
+                            "    #[napi(getter, js_name = \"{get_js}\")]\n    pub fn {field}(\n        &self,\n    ) -> napi::Result<Option<napi::bindgen_prelude::BigInt>> {{\n{RLOCK}\n        Ok(guard.{path}.map(napi::bindgen_prelude::BigInt::from))\n    }}\n\n",
+                            get_js = get_js, field = field, path = a.path,
+                        )?;
+                    }
+                    other => panic!("config_surface: option abi '{other}'"),
+                }
+            }
+            continue;
+        }
         // ── string carve-out (parity with the FFI `*const c_char`
         //    surface; the JS surface takes / returns a plain `string`) ──
         if a.shape.as_deref() == Some("string") {

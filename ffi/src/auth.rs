@@ -321,83 +321,6 @@ pub unsafe extern "C" fn thetadatadx_config_free(config: *mut ThetaDataDxConfig)
     })
 }
 
-/// Set streaming flush mode on a config handle.
-///
-/// - `mode = 0`: Batched (default) -- flush only on PING every 100ms
-/// - `mode = 1`: Immediate -- flush after every frame write (lowest latency)
-///
-/// Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when
-/// `mode` is outside the documented `{0, 1}` set or when `config` is
-/// null. A rejected `mode` value carries
-/// `thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` (the same typed
-/// class the Python / TypeScript bindings raise for a bad enum value);
-/// a null `config` carries `THETADATADX_ERR_CONFIG`.
-#[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_flush_mode(
-    config: *mut ThetaDataDxConfig,
-    mode: i32,
-) -> i32 {
-    ffi_boundary!(-1, {
-        if config.is_null() {
-            crate::error::set_error_with_code(
-                "thetadatadx_config_set_flush_mode: config handle is null",
-                crate::error::THETADATADX_ERR_CONFIG,
-            );
-            return -1;
-        }
-        let value = match mode {
-            0 => thetadatadx::StreamingFlushMode::Batched,
-            1 => thetadatadx::StreamingFlushMode::Immediate,
-            other => {
-                crate::error::set_error_with_code(
-                    &format!(
-                        "thetadatadx_config_set_flush_mode: invalid mode {other}; expected 0 (Batched) or 1 (Immediate)"
-                    ),
-                    crate::error::THETADATADX_ERR_INVALID_PARAMETER,
-                );
-                return -1;
-            }
-        };
-        // SAFETY: caller passes a pointer returned by `thetadatadx_direct_config_new`
-        // that has not been freed; null was rejected above; `&mut *` produces a
-        // unique reference valid for the call duration because the caller owns
-        // the Box and the FFI contract forbids concurrent calls on the same
-        // handle.
-        let config = unsafe { &mut *config };
-        config.inner.streaming.flush_mode = value;
-        0
-    })
-}
-
-/// Read the configured streaming flush mode. Same encoding as
-/// `thetadatadx_config_set_flush_mode`: writes `0` (`Batched`) or `1`
-/// (`Immediate`) into `*out_mode`. Returns `0` on success, `-1` if
-/// either pointer is null.
-#[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_flush_mode(
-    config: *const ThetaDataDxConfig,
-    out_mode: *mut i32,
-) -> i32 {
-    ffi_boundary!(-1, {
-        if config.is_null() || out_mode.is_null() {
-            set_error("config or out-parameter pointer is null");
-            return -1;
-        }
-        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
-        let config = unsafe { &*config };
-        let value = match config.inner.streaming.flush_mode {
-            thetadatadx::StreamingFlushMode::Batched => 0,
-            thetadatadx::StreamingFlushMode::Immediate => 1,
-            _ => 0,
-        };
-        // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
-        unsafe {
-            *out_mode = value;
-        }
-        0
-    })
-}
-
 /// Read the historical environment carried by the config.
 ///
 /// On success, returns a heap-owned NUL-terminated C string (`"PROD"` or
@@ -416,7 +339,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_historical_environment(
             set_error("config handle is null");
             return ptr::null_mut();
         }
-        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: see `thetadatadx_config_get_flush_mode`.
         let config = unsafe { &*config };
         // `HistoricalEnvironment::as_str` is a `'static` label free of
         // interior NULs, so `CString::new` never fails here.
@@ -450,7 +373,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_streaming_environment(
             set_error("config handle is null");
             return ptr::null_mut();
         }
-        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: see `thetadatadx_config_get_flush_mode`.
         let config = unsafe { &*config };
         // `StreamingEnvironment::as_str` is a `'static` label free of
         // interior NULs, so `CString::new` never fails here.
@@ -463,84 +386,6 @@ pub unsafe extern "C" fn thetadatadx_config_get_streaming_environment(
                 ptr::null_mut()
             }
         }
-    })
-}
-
-/// Set the streaming event-ring consumer wait strategy on a config
-/// handle.
-///
-/// `mode` selects a preset: `0` = LowLatency (default, never sleeps),
-/// `1` = Balanced (brief park), `2` = Efficient (longer park), `3` =
-/// BusySpin (pure spin, pins a core). Tune the individual spin / yield /
-/// park counts via the `thetadatadx_config_set_wait_*` knobs.
-///
-/// Returns `0` on success. Returns `-1` with `thetadatadx_last_error`
-/// set when `mode` is outside the documented `{0, 1, 2, 3}` set (code
-/// `THETADATADX_ERR_INVALID_PARAMETER`) or when `config` is null (code
-/// `THETADATADX_ERR_CONFIG`).
-#[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_wait_strategy(
-    config: *mut ThetaDataDxConfig,
-    mode: i32,
-) -> i32 {
-    ffi_boundary!(-1, {
-        if config.is_null() {
-            crate::error::set_error_with_code(
-                "thetadatadx_config_set_wait_strategy: config handle is null",
-                crate::error::THETADATADX_ERR_CONFIG,
-            );
-            return -1;
-        }
-        let value = match mode {
-            0 => thetadatadx::StreamingWaitStrategy::LowLatency,
-            1 => thetadatadx::StreamingWaitStrategy::Balanced,
-            2 => thetadatadx::StreamingWaitStrategy::Efficient,
-            3 => thetadatadx::StreamingWaitStrategy::BusySpin,
-            other => {
-                crate::error::set_error_with_code(
-                    &format!(
-                        "thetadatadx_config_set_wait_strategy: invalid mode {other}; expected 0 (LowLatency), 1 (Balanced), 2 (Efficient), or 3 (BusySpin)"
-                    ),
-                    crate::error::THETADATADX_ERR_INVALID_PARAMETER,
-                );
-                return -1;
-            }
-        };
-        // SAFETY: see `thetadatadx_config_set_flush_mode`.
-        let config = unsafe { &mut *config };
-        config.inner.streaming.wait_strategy = value;
-        0
-    })
-}
-
-/// Read the configured streaming wait strategy. Same encoding as
-/// `thetadatadx_config_set_wait_strategy`: writes `0` (LowLatency), `1`
-/// (Balanced), `2` (Efficient), or `3` (BusySpin) into `*out_mode`.
-/// Returns `0` on success, `-1` if either pointer is null.
-#[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_wait_strategy(
-    config: *const ThetaDataDxConfig,
-    out_mode: *mut i32,
-) -> i32 {
-    ffi_boundary!(-1, {
-        if config.is_null() || out_mode.is_null() {
-            set_error("config or out-parameter pointer is null");
-            return -1;
-        }
-        // SAFETY: see `thetadatadx_config_get_flush_mode`.
-        let config = unsafe { &*config };
-        let value = match config.inner.streaming.wait_strategy {
-            thetadatadx::StreamingWaitStrategy::LowLatency => 0,
-            thetadatadx::StreamingWaitStrategy::Balanced => 1,
-            thetadatadx::StreamingWaitStrategy::Efficient => 2,
-            thetadatadx::StreamingWaitStrategy::BusySpin => 3,
-            _ => 0,
-        };
-        // SAFETY: out pointer checked non-null above.
-        unsafe {
-            *out_mode = value;
-        }
-        0
     })
 }
 
@@ -812,7 +657,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_policy(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: see `thetadatadx_config_get_flush_mode`.
         let config = unsafe { &*config };
         let value = match &config.inner.reconnect.policy {
             thetadatadx::ReconnectPolicy::Auto(_) => 0,
@@ -827,89 +672,14 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_policy(
     })
 }
 
-// ── Reconnect cadence + replay pacing ──────────────────────────────
-
-/// Set the jitter strategy applied to every reconnect delay.
-///
-/// - `mode = 0`: Full (default) — sample uniformly from `[0, delay]`.
-/// - `mode = 1`: Equal — `delay/2 + uniform(0, delay/2)`.
-/// - `mode = 2`: Decorrelated — walk relative to the previous delay.
-/// - `mode = 3`: None — deterministic delays (tests only).
-///
-/// Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when
-/// `mode` is outside the documented `{0, 1, 2, 3}` set or `config` is
-/// null. A rejected `mode` value carries
-/// `thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` so an out-of-domain
-/// enum int surfaces the same typed class across every binding.
-#[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_reconnect_jitter(
-    config: *mut ThetaDataDxConfig,
-    mode: i32,
-) -> i32 {
-    ffi_boundary!(-1, {
-        if config.is_null() {
-            set_error("thetadatadx_config_set_reconnect_jitter: config handle is null");
-            return -1;
-        }
-        let value = match mode {
-            0 => thetadatadx::JitterMode::Full,
-            1 => thetadatadx::JitterMode::Equal,
-            2 => thetadatadx::JitterMode::Decorrelated,
-            3 => thetadatadx::JitterMode::None,
-            other => {
-                crate::error::set_error_with_code(
-                    &format!(
-                        "thetadatadx_config_set_reconnect_jitter: invalid mode {other}; expected 0 (Full), 1 (Equal), 2 (Decorrelated), or 3 (None)"
-                    ),
-                    crate::error::THETADATADX_ERR_INVALID_PARAMETER,
-                );
-                return -1;
-            }
-        };
-        // SAFETY: config is a non-null pointer returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
-        let config = unsafe { &mut *config };
-        config.inner.reconnect.jitter = value;
-        0
-    })
-}
-
-/// Read the configured reconnect jitter mode. Same encoding as
-/// `thetadatadx_config_set_reconnect_jitter`. Returns `0` on success, `-1` if
-/// either pointer is null.
-#[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_reconnect_jitter(
-    config: *const ThetaDataDxConfig,
-    out_mode: *mut i32,
-) -> i32 {
-    ffi_boundary!(-1, {
-        if config.is_null() || out_mode.is_null() {
-            set_error("config or out-parameter pointer is null");
-            return -1;
-        }
-        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
-        let config = unsafe { &*config };
-        let value = match config.inner.reconnect.jitter {
-            thetadatadx::JitterMode::Full => 0,
-            thetadatadx::JitterMode::Equal => 1,
-            thetadatadx::JitterMode::Decorrelated => 2,
-            _ => 3,
-        };
-        // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
-        unsafe {
-            *out_mode = value;
-        }
-        0
-    })
-}
-
 // ── Streaming transport knobs ────────────────────────────────────────────
 //
 // Scalar tuning on `StreamingConfig` exposed for embedded callers: read
 // timeout, connect timeout, ping cadence, ring size, the I/O read
-// slice, the last-frame watchdog, the TCP keepalive schedule, and the
-// host-selection policy. Out-of-range values are rejected at connect
-// time by the core validator; the setters here store verbatim so the
-// rejection carries the canonical bounds message.
+// slice, the last-frame watchdog, and the TCP keepalive schedule.
+// Out-of-range values are rejected at connect time by the core
+// validator; the setters here store verbatim so the rejection carries
+// the canonical bounds message.
 
 /// Set the streaming event ring buffer size (slots).
 ///
@@ -942,142 +712,6 @@ pub unsafe extern "C" fn thetadatadx_config_set_streaming_ring_size(
         // SAFETY: config is a non-null pointer returned by thetadatadx_config_* and not yet freed.
         let config = unsafe { &mut *config };
         config.inner.streaming.ring_size = n;
-    })
-}
-
-/// Set the streaming host-selection policy.
-///
-/// - `policy = 0`: Shuffled (default) — fault-domain-aware per-client
-///   shuffle; a fleet spreads across hosts and consecutive failover
-///   attempts cross physical machines.
-/// - `policy = 1`: FixedOrder — use the declared host order verbatim.
-///
-/// Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error`
-/// when `policy` is outside the documented `{0, 1}` set or `config`
-/// is null. A rejected `policy` value carries
-/// `thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` so an out-of-domain
-/// enum int surfaces the same typed class across every binding.
-#[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_streaming_host_selection(
-    config: *mut ThetaDataDxConfig,
-    policy: i32,
-) -> i32 {
-    ffi_boundary!(-1, {
-        if config.is_null() {
-            set_error("thetadatadx_config_set_streaming_host_selection: config handle is null");
-            return -1;
-        }
-        let value = match policy {
-            0 => thetadatadx::HostSelectionPolicy::Shuffled,
-            1 => thetadatadx::HostSelectionPolicy::FixedOrder,
-            other => {
-                crate::error::set_error_with_code(
-                    &format!(
-                        "thetadatadx_config_set_streaming_host_selection: invalid policy {other}; expected 0 (Shuffled) or 1 (FixedOrder)"
-                    ),
-                    crate::error::THETADATADX_ERR_INVALID_PARAMETER,
-                );
-                return -1;
-            }
-        };
-        // SAFETY: config is a non-null pointer returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
-        let config = unsafe { &mut *config };
-        config.inner.streaming.host_selection = value;
-        0
-    })
-}
-
-/// Read the configured streaming host-selection policy. Same encoding as
-/// `thetadatadx_config_set_streaming_host_selection`. Returns `0` on success, `-1`
-/// if either pointer is null.
-#[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_streaming_host_selection(
-    config: *const ThetaDataDxConfig,
-    out_policy: *mut i32,
-) -> i32 {
-    ffi_boundary!(-1, {
-        if config.is_null() || out_policy.is_null() {
-            set_error("config or out-parameter pointer is null");
-            return -1;
-        }
-        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
-        let config = unsafe { &*config };
-        let value = match config.inner.streaming.host_selection {
-            thetadatadx::HostSelectionPolicy::Shuffled => 0,
-            _ => 1,
-        };
-        // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
-        unsafe {
-            *out_policy = value;
-        }
-        0
-    })
-}
-
-/// Set the streaming host-shuffle seed using the `(has_value, seed)`
-/// widened ABI shape that preserves the `None` sentinel across the C
-/// boundary.
-///
-/// * `has_value = false` → `None` (default): every client derives a
-///   fresh per-instance seed, so a fleet shuffles independently.
-///   `seed` is ignored.
-/// * `has_value = true` → `Some(seed)`: the shuffled order becomes
-///   deterministic — useful for fleet sharding and tests.
-///
-/// Ignored under the `FixedOrder` host-selection policy. Returns `0`
-/// on success, `-1` if `config` is null.
-#[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_streaming_host_shuffle_seed(
-    config: *mut ThetaDataDxConfig,
-    has_value: bool,
-    seed: u64,
-) -> i32 {
-    ffi_boundary!(-1, {
-        if config.is_null() {
-            set_error("config handle is null");
-            return -1;
-        }
-        // SAFETY: config is a non-null pointer returned by `thetadatadx_config_*` and not yet freed; `&mut *` produces a unique reference valid for the call duration because the caller owns the Box and the FFI contract forbids concurrent calls on the same handle.
-        let config = unsafe { &mut *config };
-        config.inner.streaming.host_shuffle_seed = if has_value { Some(seed) } else { None };
-        0
-    })
-}
-
-/// Read the current streaming host-shuffle seed. Same `(has_value, seed)`
-/// ABI as `thetadatadx_config_set_streaming_host_shuffle_seed`:
-///
-/// * `*out_has_value = false` → `None` (per-client entropy). `*out_seed` is left `0`.
-/// * `*out_has_value = true` → `Some(*out_seed)`.
-///
-/// Returns `0` on success, `-1` if any pointer is null.
-#[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_streaming_host_shuffle_seed(
-    config: *const ThetaDataDxConfig,
-    out_has_value: *mut bool,
-    out_seed: *mut u64,
-) -> i32 {
-    ffi_boundary!(-1, {
-        if config.is_null() || out_has_value.is_null() || out_seed.is_null() {
-            set_error("config or out-parameter pointer is null");
-            return -1;
-        }
-        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
-        let config = unsafe { &*config };
-        // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
-        unsafe {
-            match config.inner.streaming.host_shuffle_seed {
-                Some(seed) => {
-                    *out_has_value = true;
-                    *out_seed = seed;
-                }
-                None => {
-                    *out_has_value = false;
-                    *out_seed = 0;
-                }
-            }
-        }
-        0
     })
 }
 
@@ -1249,7 +883,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_worker_threads(
             set_error("config or out-parameter pointer is null");
             return -1;
         }
-        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
+        // SAFETY: see `thetadatadx_config_get_flush_mode`.
         let config = unsafe { &*config };
         let (has_value, n) = match config.inner.runtime.tokio_worker_threads {
             Some(v) => (true, v),
@@ -1274,88 +908,17 @@ pub unsafe extern "C" fn thetadatadx_config_get_worker_threads(
 // validated `*const c_char`, the getter returns an owned `*mut c_char` the
 // caller frees with `thetadatadx_string_free`.
 
-// ── MetricsConfig ──────────────────────────────────────────────────
-//
-// `MetricsConfig.port` is `Option<u16>`. The widened
-// `(has_value: bool, port: u16)` ABI shape mirrors the `Option`
-// fields already on the C surface (`tokio_worker_threads`):
-// `has_value = false` encodes the `None`
-// (exporter disabled) sentinel; `has_value = true` encodes
-// `Some(port)`.
-
-/// Set the Prometheus exporter port on a config handle.
-///
-/// * `has_value = false` encodes `None`: the exporter stays disabled
-///   even when the `metrics-prometheus` cargo feature is compiled in.
-///   `port` is ignored.
-/// * `has_value = true` encodes `Some(port)`: the exporter binds an
-///   HTTP listener on `0.0.0.0:<port>` whose `/metrics` endpoint
-///   exposes every counter and histogram recorded through the
-///   `metrics` crate.
-///
-/// Returns `0` on success, `-1` if `config` is null.
-#[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_metrics_port(
-    config: *mut ThetaDataDxConfig,
-    has_value: bool,
-    port: u16,
-) -> i32 {
-    ffi_boundary!(-1, {
-        if config.is_null() {
-            set_error("config handle is null");
-            return -1;
-        }
-        // SAFETY: config is a non-null pointer returned by
-        // thetadatadx_config_production / thetadatadx_config_dev / thetadatadx_config_stage
-        // and not yet freed.
-        let config = unsafe { &mut *config };
-        config.inner.metrics.port = if has_value { Some(port) } else { None };
-        0
-    })
-}
-
-/// Read the current `metrics.port` setting.
-///
-/// * `*out_has_value = false` → the config holds `None` (exporter
-///   disabled). `*out_port` is left as `0`.
-/// * `*out_has_value = true` → the config holds `Some(*out_port)`.
-///
-/// Returns `0` on success, `-1` if any pointer is null.
-#[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_metrics_port(
-    config: *const ThetaDataDxConfig,
-    out_has_value: *mut bool,
-    out_port: *mut u16,
-) -> i32 {
-    ffi_boundary!(-1, {
-        if config.is_null() || out_has_value.is_null() || out_port.is_null() {
-            set_error("config or out-parameter pointer is null");
-            return -1;
-        }
-        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
-        let config = unsafe { &*config };
-        let (has_value, port) = match config.inner.metrics.port {
-            Some(v) => (true, v),
-            None => (false, 0),
-        };
-        // SAFETY: out_has_value / out_port null-checked above; caller pins the storage they point at for the call duration.
-        unsafe {
-            *out_has_value = has_value;
-            *out_port = port;
-        }
-        0
-    })
-}
-
 // `DirectConfig` historical endpoint overrides (`historical_host` string
 // via `set_historical_host`, `historical_port` `u16`) are the generated
 // `string` / scalar accessors in config_surface.toml.
 
 // The uniform static config accessors — scalar / duration setters and
-// getters, plus the `policy_limit` (reconnect `Auto`-limit) and `string`
-// carve-outs — are generated from `config_surface.toml`. The divergent
-// accessors above (enum int/label, `Option`-widened, policy-selector,
-// validated, callback) stay hand-written.
+// getters, plus the `policy_limit` (reconnect `Auto`-limit), `string`,
+// `enum` (int code ↔ core variant), and `option` (`(has_value, value)` ↔
+// `Option<T>`) carve-outs — are generated from `config_surface.toml`.
+// The genuinely divergent accessors above (validated `ring_size`,
+// `consumer_cpu` sentinel, the `(has_value, n)` worker-thread setting,
+// and the reconnect-policy callback) stay hand-written.
 include!("config_accessors.rs");
 
 // ── HistoricalClient ──
