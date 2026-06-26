@@ -154,6 +154,14 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
             contents: config_accessors::render_cpp_config_accessors()?,
         },
         GeneratedSourceFile {
+            relative_path: "sdks/python/src/_generated/config_accessors.rs",
+            contents: config_accessors::render_python_config_accessors()?,
+        },
+        GeneratedSourceFile {
+            relative_path: "sdks/typescript/src/_generated/config_accessors.rs",
+            contents: config_accessors::render_typescript_config_accessors()?,
+        },
+        GeneratedSourceFile {
             relative_path: "sdks/cpp/include/endpoint_request_options.h.inc",
             contents: ffi::render_c_endpoint_request_options(&builder_params),
         },

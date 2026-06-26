@@ -36,6 +36,8 @@ sdks/cpp/examples/validate.cpp       text eol=lf linguist-generated=true
 # Generated config-accessor surfaces (config_surface.toml -> build.rs).
 ffi/src/config_accessors.rs              text eol=lf linguist-generated=true
 sdks/cpp/include/config_accessors.hpp.inc text eol=lf linguist-generated=true
+sdks/python/src/_generated/config_accessors.rs text eol=lf linguist-generated=true
+sdks/typescript/src/_generated/config_accessors.rs text eol=lf linguist-generated=true
 # The accessor doc strings are read out of this TOML and rendered verbatim
 # into the surfaces above; it must stay LF so a Windows checkout emits the
 # same bytes as Linux and `generate_sdk_surfaces --check` doesn't false-positive.
