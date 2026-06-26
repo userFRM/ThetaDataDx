@@ -11,6 +11,7 @@
 //! processor threads, which this crate does not spawn, so pinning is
 //! applied here on the real drain thread instead.
 
+#[cfg(any(test, feature = "__test-helpers"))]
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 
 /// Records the most recent core id the consumer drain loop attempted to
@@ -24,10 +25,6 @@ use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 #[cfg(any(test, feature = "__test-helpers"))]
 pub(crate) static LAST_PINNED_CORE: AtomicI64 = AtomicI64::new(-1);
 
-#[cfg(not(any(test, feature = "__test-helpers")))]
-#[allow(dead_code)]
-static LAST_PINNED_CORE: AtomicI64 = AtomicI64::new(-1);
-
 /// Cumulative count of `Some(core)` pin attempts, as a test seam. Lets a
 /// unit test distinguish "pinned once and stayed put" from "re-pinned
 /// after a drain-owner handoff" without depending on real affinity
@@ -35,10 +32,6 @@ static LAST_PINNED_CORE: AtomicI64 = AtomicI64::new(-1);
 /// inheriting a stale core binding.
 #[cfg(any(test, feature = "__test-helpers"))]
 pub(crate) static PIN_ATTEMPTS: AtomicU64 = AtomicU64::new(0);
-
-#[cfg(not(any(test, feature = "__test-helpers")))]
-#[allow(dead_code)]
-static PIN_ATTEMPTS: AtomicU64 = AtomicU64::new(0);
 
 /// Pin the calling thread to `core`, if requested.
 ///
@@ -57,10 +50,13 @@ pub(crate) fn pin_consumer_thread(core: Option<usize>) {
     };
 
     // Record the attempt for the test seam regardless of outcome.
-    if let Ok(recorded) = i64::try_from(core_id) {
-        LAST_PINNED_CORE.store(recorded, Ordering::Relaxed);
+    #[cfg(any(test, feature = "__test-helpers"))]
+    {
+        if let Ok(recorded) = i64::try_from(core_id) {
+            LAST_PINNED_CORE.store(recorded, Ordering::Relaxed);
+        }
+        PIN_ATTEMPTS.fetch_add(1, Ordering::Relaxed);
     }
-    PIN_ATTEMPTS.fetch_add(1, Ordering::Relaxed);
 
     let available = core_affinity::get_core_ids().unwrap_or_default();
     match available.into_iter().find(|c| c.id == core_id) {
