@@ -31,11 +31,29 @@ use std::ffi::CString;
 use std::os::raw::{c_char, c_void};
 use std::ptr;
 use std::sync::atomic::{AtomicU8, Ordering as AtomicOrdering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::error::{set_error, set_error_from};
 use crate::types::{ThetaDataDxConfig, ThetaDataDxCredentials, ThetaDataDxHistoricalClient};
 use thetadatadx::DispatcherSession as FfpssDispatcherSession;
+
+/// Lock a `Mutex`, recovering the guard through poisoning rather than
+/// propagating a panic across the C ABI. A poisoned lock here means some
+/// other thread panicked while holding it; the FFI handles only own plain
+/// data (callback slots, the dispatcher state machine, drain flags), so the
+/// inner value stays usable and the consistent behaviour is to keep serving
+/// the C caller. `into_inner` returns that still-valid guard.
+trait LockRecover<T> {
+    fn lock_recover(&self) -> MutexGuard<'_, T>;
+}
+
+impl<T> LockRecover<T> for Mutex<T> {
+    #[inline]
+    fn lock_recover(&self) -> MutexGuard<'_, T> {
+        self.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
 
 // ── Callback C ABI types ──
 
@@ -609,10 +627,7 @@ pub unsafe extern "C" fn thetadatadx_client_set_callback(
         // stored registration. The dispatcher invokes the `cb` captured by
         // copy below, never reading this mutex, so holding it across
         // `start_streaming` does not deadlock the first delivered event.
-        let mut guard = handle
-            .callback
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut guard = handle.callback.lock_recover();
         // Registration is one-shot while a session is live: reject a second
         // call without disturbing the live session's stored `(callback, ctx)`.
         // Replacement is only permitted after `thetadatadx_client_stop_streaming`
@@ -938,10 +953,7 @@ pub unsafe extern "C" fn thetadatadx_client_reconnect(handle: *const ThetaDataDx
         // a prior `set_callback` — without one there is no destination
         // for the new stream's events.
         let cb = {
-            let guard = handle
-                .callback
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let guard = handle.callback.lock_recover();
             match *guard {
                 Some(cb) => cb,
                 None => {
@@ -1693,10 +1705,7 @@ fn open_fpss<F>(
 where
     F: FnMut(&thetadatadx::fpss::StreamEvent) + Send + 'static,
 {
-    let mut guard = handle
-        .inner
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut guard = handle.inner.lock_recover();
     if guard.is_some() {
         // Belt-and-suspenders: reject_if_not_fresh should already have
         // caught this at the C ABI entry point. Keep the check so a
@@ -1721,10 +1730,7 @@ where
             // returned and the dispatcher is running.
             *guard = Some(std::sync::Arc::clone(&client_arc));
             if let Some(cb) = callback {
-                let mut cb_guard = handle
-                    .callback
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                let mut cb_guard = handle.callback.lock_recover();
                 *cb_guard = Some(cb);
             }
             handle
@@ -1765,10 +1771,7 @@ where
                         client.shutdown();
                         drop(client);
                     }
-                    *handle
-                        .callback
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+                    *handle.callback.lock_recover() = None;
                     set_error(&format!("failed to spawn streaming dispatcher thread: {e}"));
                     Err(())
                 }
@@ -1855,7 +1858,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_set_callback(
         // Serialise concurrent installs: `dispatcher` mutex prevents two
         // racing callers from each publishing a client into `handle.inner`
         // and orphaning one another's dispatcher.
-        let mut dispatcher_guard = handle.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+        let mut dispatcher_guard = handle.dispatcher.lock_recover();
         if !reject_if_not_fresh(handle) {
             return -1;
         }
@@ -1912,16 +1915,13 @@ pub unsafe extern "C" fn thetadatadx_streaming_is_streaming(
         // Snapshot the one bit we need from `inner`, drop that guard, then
         // take `dispatcher` -- the two locks are never held at once here.
         let has_session = {
-            let inner_guard = handle
-                .inner
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let inner_guard = handle.inner.lock_recover();
             inner_guard.as_ref().is_some()
         };
         if !has_session {
             return 0;
         }
-        let session = handle.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+        let session = handle.dispatcher.lock_recover();
         if let FfpssDispatcherSession::Failed { reason } = &*session {
             tracing::debug!(
                 target: "thetadatadx::ffi",
@@ -1953,10 +1953,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_is_authenticated(
         // the opposite order is the lock-order inversion that can deadlock
         // against a concurrent mutator.
         let authenticated = {
-            let inner_guard = handle
-                .inner
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let inner_guard = handle.inner.lock_recover();
             match inner_guard.as_ref() {
                 Some(c) => c.is_authenticated(),
                 None => return 0,
@@ -1965,7 +1962,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_is_authenticated(
         // A panicked dispatcher folds back to `!authenticated` so status
         // readers see a visible failed state instead of "authenticated with
         // no callbacks".
-        let session = handle.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+        let session = handle.dispatcher.lock_recover();
         let dispatcher_failed = if let FfpssDispatcherSession::Failed { reason } = &*session {
             tracing::debug!(
                 target: "thetadatadx::ffi",
@@ -1995,10 +1992,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_active_subscriptions(
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
-        let guard = handle
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let guard = handle.inner.lock_recover();
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
@@ -2036,10 +2030,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_active_full_subscriptions(
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
-        let guard = handle
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let guard = handle.inner.lock_recover();
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
@@ -2079,10 +2070,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_subscribe(
         };
         // SAFETY: `handle` is a non-null `*const ThetaDataDxStreamHandle` returned by `thetadatadx_streaming_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let handle = unsafe { &*handle };
-        let guard = handle
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let guard = handle.inner.lock_recover();
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
@@ -2121,10 +2109,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_unsubscribe(
         };
         // SAFETY: `handle` is a non-null `*const ThetaDataDxStreamHandle` returned by `thetadatadx_streaming_new` and not yet freed; `&*` produces a shared reference valid for the call duration.
         let handle = unsafe { &*handle };
-        let guard = handle
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let guard = handle.inner.lock_recover();
         let client = if let Some(c) = guard.as_ref() {
             c
         } else {
@@ -2187,7 +2172,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
         // Serialise concurrent reconnects: `dispatcher` mutex prevents two
         // callers from each building a replacement client and racing on the
         // inner-slot publish.
-        let mut dispatcher_guard = handle.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+        let mut dispatcher_guard = handle.dispatcher.lock_recover();
         if !reject_if_shutdown(handle) {
             return -1;
         }
@@ -2197,10 +2182,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
         // make forward progress without one — `StreamingClient::connect`
         // requires an event handler at construction time.
         let cb = {
-            let guard = handle
-                .callback
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let guard = handle.callback.lock_recover();
             match *guard {
                 Some(cb) => cb,
                 None => {
@@ -2215,10 +2197,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
 
         // 1. Save active subscriptions from the current client (if any).
         let (saved_subs, saved_full_subs) = {
-            let guard = handle
-                .inner
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let guard = handle.inner.lock_recover();
             match guard.as_ref() {
                 Some(c) => (c.active_subscriptions(), c.active_full_subscriptions()),
                 None => (Vec::new(), Vec::new()),
@@ -2236,11 +2215,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
         // a callback re-entering any `thetadatadx_streaming_*` API that needs
         // `handle.inner.lock()` never sees the lock held while the old
         // session tears down.
-        let taken_old = handle
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .take();
+        let taken_old = handle.inner.lock_recover().take();
         // Extract the old dispatcher session and RELEASE the dispatcher lock
         // before the join: the old dispatcher keeps draining ring-buffered
         // events through the user callback until it observes the shutdown, and
@@ -2253,11 +2228,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
         drop(dispatcher_guard);
         let prev_drain_flag = if let Some(old) = taken_old {
             let flag = old.drained_flag();
-            handle
-                .prev_drained
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .push(flag.clone());
+            handle.prev_drained.lock_recover().push(flag.clone());
             old.shutdown();
             drop(old);
             // Join the OLD dispatcher (lock-free) BEFORE spawning the
@@ -2314,7 +2285,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
         // / `_free` could have run in the lock-free window and flipped the
         // handle terminal; re-check and bail (shutting the freshly built client)
         // rather than resurrecting a shut-down handle with a new dispatcher.
-        let mut dispatcher_guard = handle.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+        let mut dispatcher_guard = handle.dispatcher.lock_recover();
         if handle.state.load(AtomicOrdering::Relaxed) == STREAM_STATE_SHUTDOWN {
             drop(dispatcher_guard);
             new_client.shutdown();
@@ -2338,10 +2309,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
         // and never touches `handle.inner`, so the held guard does
         // NOT deadlock the dispatcher.
         let spawn_result = {
-            let mut guard = handle
-                .inner
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut guard = handle.inner.lock_recover();
             *guard = Some(std::sync::Arc::clone(&new_client));
 
             let dispatcher_client = std::sync::Arc::clone(&new_client);
@@ -2437,6 +2405,28 @@ fn extract_dispatcher_session(session: &mut FfpssDispatcherSession) -> FfpssDisp
     std::mem::replace(session, FfpssDispatcherSession::Idle)
 }
 
+/// Spin-poll a set of quiescence flags until every one reads `true` or the
+/// `timeout` elapses, sleeping 1 ms between polls. Returns `true` when all
+/// flags drained, `false` on timeout. `checked_add` overflow on an extreme
+/// `timeout` is treated as "effectively never" — the wait proceeds without
+/// a deadline rather than panicking. Callers own any pre-snapshot, logging,
+/// or post-drain cleanup around this barrier.
+fn await_flags(flags: &[Arc<std::sync::atomic::AtomicBool>], timeout: std::time::Duration) -> bool {
+    let deadline = std::time::Instant::now().checked_add(timeout);
+    loop {
+        if flags
+            .iter()
+            .all(|f| f.load(std::sync::atomic::Ordering::Acquire))
+        {
+            return true;
+        }
+        if deadline.is_some_and(|d| std::time::Instant::now() >= d) {
+            return false;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+
 /// Phase 2 of teardown: join the extracted dispatcher thread with NO lock
 /// held. `handle` is taken only to RE-ACQUIRE the `dispatcher` lock on a panic
 /// join, to publish `Failed`. Defers to detach via the `prev_drained` chain
@@ -2480,11 +2470,32 @@ fn join_extracted_session(handle: &ThetaDataDxStreamHandle, session: FfpssDispat
         // now-superseded OLD session, so overwriting unconditionally would
         // clobber the new session's `JoinHandle` (orphaning its thread) and
         // falsely report a healthy live session as failed.
-        let mut guard = handle.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+        let mut guard = handle.dispatcher.lock_recover();
         if matches!(*guard, FfpssDispatcherSession::Idle) {
             *guard = FfpssDispatcherSession::Failed { reason };
         }
     }
+}
+
+/// Tear down a live FPSS session: take the `StreamingClient` out of
+/// `handle.inner` (a different lock than `dispatcher`), record its drain
+/// flag in `prev_drained`, signal shutdown, drop it, then join the extracted
+/// dispatcher thread lock-free. Ordering the take + shutdown ahead of the
+/// join keeps a dispatcher re-entering `handle.inner` or `dispatcher` via the
+/// user callback from observing either lock held, so the join cannot
+/// deadlock. The caller must already hold no relevant lock and have flipped
+/// the handle terminal under the `dispatcher` lock before extracting
+/// `session`.
+fn retire_session(handle: &ThetaDataDxStreamHandle, session: FfpssDispatcherSession) {
+    if let Some(client) = handle.inner.lock_recover().take() {
+        handle
+            .prev_drained
+            .lock_recover()
+            .push(client.drained_flag());
+        client.shutdown();
+        drop(client);
+    }
+    join_extracted_session(handle, session);
 }
 
 /// Downcast a thread-panic payload to a human-readable string.
@@ -2516,10 +2527,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_millis_since_last_event(
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
         let value = {
-            let guard = handle
-                .inner
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let guard = handle.inner.lock_recover();
             guard.as_ref().and_then(|c| c.millis_since_last_event())
         };
         match value {
@@ -2555,10 +2563,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_last_event_received_at_unix_nanos
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
-        let guard = handle
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let guard = handle.inner.lock_recover();
         guard
             .as_ref()
             .map_or(0, |c| c.last_event_received_at_unix_nanos())
@@ -2581,10 +2586,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_last_connected_addr(
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
         let addr = {
-            let guard = handle
-                .inner
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let guard = handle.inner.lock_recover();
             guard.as_ref().map(|c| c.last_connected_addr())
         };
         match addr {
@@ -2616,10 +2618,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_dropped_events(
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
-        let guard = handle
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let guard = handle.inner.lock_recover();
         guard.as_ref().map_or(0, |c| c.dropped_count())
     })
 }
@@ -2645,10 +2644,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_ring_occupancy(
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
-        let guard = handle
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let guard = handle.inner.lock_recover();
         guard.as_ref().map_or(0, |c| c.ring_occupancy() as u64)
     })
 }
@@ -2670,10 +2666,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_ring_capacity(
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
-        let guard = handle
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let guard = handle.inner.lock_recover();
         guard.as_ref().map_or(0, |c| c.ring_capacity() as u64)
     })
 }
@@ -2698,10 +2691,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_panic_count(
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
-        let guard = handle
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let guard = handle.inner.lock_recover();
         guard.as_ref().map_or(0, |c| c.panic_count())
     })
 }
@@ -2728,10 +2718,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_set_slow_callback_threshold_us(
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
-        let guard = handle
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let guard = handle.inner.lock_recover();
         if let Some(c) = guard.as_ref() {
             c.set_slow_callback_threshold(std::time::Duration::from_micros(threshold_us));
         }
@@ -2756,10 +2743,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_slow_callback_count(
         }
         // SAFETY: handle is a non-null pointer returned by the matching thetadatadx_*_new and not yet passed to thetadatadx_*_free.
         let handle = unsafe { &*handle };
-        let guard = handle
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let guard = handle.inner.lock_recover();
         guard.as_ref().map_or(0, |c| c.slow_callback_count())
     })
 }
@@ -2792,7 +2776,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_shutdown(handle: *const ThetaData
         // reconnect could resurrect the handle with a new dispatcher
         // and keep firing the C callback on a handle that
         // `thetadatadx_last_error()` already reports as shut down.
-        let mut dispatcher_guard = handle.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+        let mut dispatcher_guard = handle.dispatcher.lock_recover();
         if !reject_if_shutdown(handle) {
             // Double-shutdown -- error already set, nothing to drop.
             return;
@@ -2810,28 +2794,13 @@ pub unsafe extern "C" fn thetadatadx_streaming_shutdown(handle: *const ThetaData
             .store(STREAM_STATE_SHUTDOWN, AtomicOrdering::Relaxed);
         let session = extract_dispatcher_session(&mut dispatcher_guard);
         drop(dispatcher_guard);
-        // Take the StreamingClient Arc OUT of `handle.inner` (a different lock),
-        // then signal shutdown so a dispatcher attempting to re-enter
-        // `handle.inner` via the user callback never sees that lock held either.
-        let taken_client = handle
-            .inner
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .take();
-        if let Some(client) = taken_client {
-            handle
-                .prev_drained
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .push(client.drained_flag());
-            client.shutdown();
-            drop(client);
-        }
-        // Join the dispatcher with NO lock held, AFTER the producer-drop signal
-        // has propagated through the ring shutdown to the iterator, so the
-        // `for ... in &client` loop returns `Ok(None)` and the thread exits
-        // cleanly while any re-entrant status read proceeds lock-free.
-        join_extracted_session(handle, session);
+        // Take the client out of `handle.inner`, push its drain flag, signal
+        // shutdown, drop, then join lock-free — see `retire_session`. The join
+        // runs AFTER the producer-drop signal has propagated through the ring
+        // shutdown to the iterator, so the `for ... in &client` loop returns
+        // `Ok(None)` and the thread exits cleanly while any re-entrant status
+        // read proceeds lock-free.
+        retire_session(handle, session);
     })
 }
 
@@ -2875,44 +2844,21 @@ pub unsafe extern "C" fn thetadatadx_streaming_await_drain(
         // outstanding when I started", which mirrors the in-process
         // `Client::await_drain` contract.
         let initial = {
-            let guard = handle
-                .prev_drained
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let guard = handle.prev_drained.lock_recover();
             if guard.is_empty() {
                 return 0;
             }
             guard.clone()
         };
-        // `checked_add` returns `None` on an extreme `timeout_ms` (near
-        // `u64::MAX`), which we treat as "effectively never": the wait
-        // proceeds without a deadline rather than panicking on overflow.
-        let timeout = std::time::Duration::from_millis(timeout_ms);
-        let deadline = std::time::Instant::now().checked_add(timeout);
-        loop {
-            // All flags drained?
-            if initial
-                .iter()
-                .all(|f| f.load(std::sync::atomic::Ordering::Acquire))
-            {
-                // Lazy GC of the shared Vec so a long-lived handle that
-                // cycles through many sessions does not accumulate
-                // entries. Take the lock briefly; this is a clean-up
-                // path, never on the hot tick path.
-                let mut guard = handle
-                    .prev_drained
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
-                guard.retain(|f| !f.load(std::sync::atomic::Ordering::Acquire));
-                return 1;
-            }
-            // A `None` deadline (overflow on an extreme timeout) never fires,
-            // matching the "effectively never" contract.
-            if deadline.is_some_and(|d| std::time::Instant::now() >= d) {
-                return 0;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(1));
+        if !await_flags(&initial, std::time::Duration::from_millis(timeout_ms)) {
+            return 0;
         }
+        // Lazy GC of the shared Vec so a long-lived handle that cycles through
+        // many sessions does not accumulate entries. Take the lock briefly;
+        // this is a clean-up path, never on the hot tick path.
+        let mut guard = handle.prev_drained.lock_recover();
+        guard.retain(|f| !f.load(std::sync::atomic::Ordering::Acquire));
+        1
     })
 }
 
@@ -2980,7 +2926,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_free(handle: *mut ThetaDataDxStre
             // for the lock-free join, so a concurrent install that later
             // acquires the lock observes SHUTDOWN and bails out before touching
             // freed memory. The drain wait further down runs lock-free.
-            let mut disp_guard = h.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+            let mut disp_guard = h.dispatcher.lock_recover();
             if h.state.load(AtomicOrdering::Relaxed) != STREAM_STATE_SHUTDOWN {
                 // Flip terminal + extract the session under the lock, then
                 // RELEASE the lock before the join: a dispatcher draining
@@ -2992,20 +2938,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_free(handle: *mut ThetaDataDxStre
                     .store(STREAM_STATE_SHUTDOWN, AtomicOrdering::Relaxed);
                 let session = extract_dispatcher_session(&mut disp_guard);
                 drop(disp_guard);
-                let taken_client = h
-                    .inner
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .take();
-                if let Some(client) = taken_client {
-                    h.prev_drained
-                        .lock()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner)
-                        .push(client.drained_flag());
-                    client.shutdown();
-                    drop(client);
-                }
-                join_extracted_session(h, session);
+                retire_session(h, session);
             }
 
             // Wait for every superseded session's consumer thread to
@@ -3015,26 +2948,11 @@ pub unsafe extern "C" fn thetadatadx_streaming_free(handle: *mut ThetaDataDxStre
             // path.
             const FREE_DRAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
             let pending: Vec<Arc<std::sync::atomic::AtomicBool>> = {
-                let guard = h
-                    .prev_drained
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                let guard = h.prev_drained.lock_recover();
                 guard.clone()
             };
             if !pending.is_empty() {
-                let deadline = std::time::Instant::now() + FREE_DRAIN_TIMEOUT;
-                let drained = loop {
-                    if pending
-                        .iter()
-                        .all(|f| f.load(std::sync::atomic::Ordering::Acquire))
-                    {
-                        break true;
-                    }
-                    if std::time::Instant::now() >= deadline {
-                        break false;
-                    }
-                    std::thread::sleep(std::time::Duration::from_millis(1));
-                };
+                let drained = await_flags(&pending, FREE_DRAIN_TIMEOUT);
                 if !drained {
                     tracing::error!(
                         target: "thetadatadx::ffi",
@@ -3354,7 +3272,7 @@ mod teardown_deadlock_tests {
 
     use super::{
         extract_dispatcher_session, join_extracted_session, FfiCallback, FfpssDispatcherSession,
-        StreamingConnectParams, ThetaDataDxStreamCallback, ThetaDataDxStreamEvent,
+        LockRecover, StreamingConnectParams, ThetaDataDxStreamCallback, ThetaDataDxStreamEvent,
         ThetaDataDxStreamHandle, STREAM_STATE_ACTIVE,
     };
     use std::ffi::c_void;
@@ -3410,7 +3328,7 @@ mod teardown_deadlock_tests {
                     // Re-enter the dispatcher lock, as a status reader called
                     // from the user callback would. Blocks until the worker
                     // releases the guard.
-                    let guard = handle.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+                    let guard = handle.dispatcher.lock_recover();
                     // With the fix the worker drops the guard before joining, so
                     // we get in only after `released` is set. With the old
                     // join-under-lock code the worker never releases before the
@@ -3427,7 +3345,7 @@ mod teardown_deadlock_tests {
 
         // Install the running session carrying the stand-in thread's handle.
         {
-            let mut guard = handle.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+            let mut guard = handle.dispatcher.lock_recover();
             *guard = FfpssDispatcherSession::Running {
                 handle: dispatcher_handle,
                 on_teardown: None,
@@ -3444,7 +3362,7 @@ mod teardown_deadlock_tests {
             let attempt_gate = Arc::clone(&attempt_gate);
             std::thread::spawn(move || {
                 // Phase 1: acquire the guard and extract the session.
-                let mut guard = handle.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+                let mut guard = handle.dispatcher.lock_recover();
                 let session = extract_dispatcher_session(&mut guard);
                 // While STILL holding the guard, release the stand-in to attempt
                 // the lock. It now blocks on a lock we hold — the precise

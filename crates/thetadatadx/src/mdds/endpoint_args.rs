@@ -160,21 +160,6 @@ impl EndpointArgs {
         };
     }
 
-    /// Configured per-call deadline in milliseconds.
-    ///
-    /// Returns `Some(n)` only for an explicit positive deadline
-    /// ([`DeadlineSetting::Millis`]); both [`DeadlineSetting::Unset`] and the
-    /// explicit-opt-out [`DeadlineSetting::Disabled`] return `None`. Callers
-    /// that must tell those two apart (the generated dispatch) read
-    /// [`Self::deadline_setting`] instead.
-    #[must_use]
-    pub fn timeout_ms(&self) -> Option<u64> {
-        match self.deadline {
-            DeadlineSetting::Millis(ms) => Some(ms),
-            DeadlineSetting::Unset | DeadlineSetting::Disabled => None,
-        }
-    }
-
     /// Per-call deadline state, distinguishing "unset" (fall back to the
     /// configured default) from "explicitly disabled" (run unbounded). The
     /// generated dispatch reads this to honour `with_timeout_ms(0)` as the
@@ -682,14 +667,12 @@ mod tests {
     #[test]
     fn endpoint_args_default_has_no_timeout() {
         let args = EndpointArgs::new();
-        assert_eq!(args.timeout_ms(), None);
         assert_eq!(args.deadline_setting(), DeadlineSetting::Unset);
     }
 
     #[test]
     fn with_timeout_ms_attaches_deadline() {
         let args = EndpointArgs::new().with_timeout_ms(60_000);
-        assert_eq!(args.timeout_ms(), Some(60_000));
         assert_eq!(args.deadline_setting(), DeadlineSetting::Millis(60_000));
     }
 
@@ -697,21 +680,19 @@ mod tests {
     fn clear_timeout_drops_deadline() {
         let mut args = EndpointArgs::new().with_timeout_ms(60_000);
         args.clear_timeout();
-        assert_eq!(args.timeout_ms(), None);
         // Clearing returns to "unset" — the configured default applies on
         // the next dispatch, NOT the disabled (unbounded) state.
         assert_eq!(args.deadline_setting(), DeadlineSetting::Unset);
     }
 
     /// `timeout_ms == 0` is the deadline opt-out: it records `Disabled`, a
-    /// state distinct from `Unset`. Both report `timeout_ms() == None`, but
-    /// the generated dispatch reads `deadline_setting()` to tell them apart —
-    /// `Disabled` runs the call unbounded while `Unset` falls back to the
-    /// configured `request_timeout_secs` default.
+    /// state distinct from `Unset`. The generated dispatch reads
+    /// `deadline_setting()` to tell them apart — `Disabled` runs the call
+    /// unbounded while `Unset` falls back to the configured
+    /// `request_timeout_secs` default.
     #[test]
     fn with_timeout_ms_zero_records_disabled() {
         let args = EndpointArgs::new().with_timeout_ms(0);
-        assert_eq!(args.timeout_ms(), None);
         assert_eq!(args.deadline_setting(), DeadlineSetting::Disabled);
     }
 
@@ -720,7 +701,6 @@ mod tests {
     fn set_timeout_ms_zero_records_disabled() {
         let mut args = EndpointArgs::new().with_timeout_ms(60_000);
         args.set_timeout_ms(0);
-        assert_eq!(args.timeout_ms(), None);
         assert_eq!(args.deadline_setting(), DeadlineSetting::Disabled);
     }
 
@@ -728,7 +708,6 @@ mod tests {
     #[test]
     fn with_timeout_ms_positive_value_stored() {
         let args = EndpointArgs::new().with_timeout_ms(1);
-        assert_eq!(args.timeout_ms(), Some(1));
         assert_eq!(args.deadline_setting(), DeadlineSetting::Millis(1));
     }
 

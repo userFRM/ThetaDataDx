@@ -18,30 +18,8 @@ pub unsafe extern "C" fn thetadatadx_credentials_from_email(
     password: *const c_char,
 ) -> *mut ThetaDataDxCredentials {
     ffi_boundary!(ptr::null_mut(), {
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
-        let email = match unsafe { cstr_to_str(email) } {
-            Ok(Some(s)) => s,
-            Ok(None) => {
-                set_error("email is null");
-                return ptr::null_mut();
-            }
-            Err(e) => {
-                set_error(&format!("email is not valid UTF-8: {e}"));
-                return ptr::null_mut();
-            }
-        };
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
-        let password = match unsafe { cstr_to_str(password) } {
-            Ok(Some(s)) => s,
-            Ok(None) => {
-                set_error("password is null");
-                return ptr::null_mut();
-            }
-            Err(e) => {
-                set_error(&format!("password is not valid UTF-8: {e}"));
-                return ptr::null_mut();
-            }
-        };
+        let email = require_cstr!(email, ptr::null_mut());
+        let password = require_cstr!(password, ptr::null_mut());
         let creds = thetadatadx::Credentials::new(email, password);
         Box::into_raw(Box::new(ThetaDataDxCredentials { inner: creds }))
     })
@@ -58,18 +36,7 @@ pub unsafe extern "C" fn thetadatadx_credentials_from_api_key(
     api_key: *const c_char,
 ) -> *mut ThetaDataDxCredentials {
     ffi_boundary!(ptr::null_mut(), {
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
-        let api_key = match unsafe { cstr_to_str(api_key) } {
-            Ok(Some(s)) => s,
-            Ok(None) => {
-                set_error("api_key is null");
-                return ptr::null_mut();
-            }
-            Err(e) => {
-                set_error(&format!("api_key is not valid UTF-8: {e}"));
-                return ptr::null_mut();
-            }
-        };
+        let api_key = require_cstr!(api_key, ptr::null_mut());
         let creds = thetadatadx::Credentials::api_key(api_key);
         Box::into_raw(Box::new(ThetaDataDxCredentials { inner: creds }))
     })
@@ -89,30 +56,8 @@ pub unsafe extern "C" fn thetadatadx_credentials_from_api_key_with_email(
     api_key: *const c_char,
 ) -> *mut ThetaDataDxCredentials {
     ffi_boundary!(ptr::null_mut(), {
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
-        let email = match unsafe { cstr_to_str(email) } {
-            Ok(Some(s)) => s,
-            Ok(None) => {
-                set_error("email is null");
-                return ptr::null_mut();
-            }
-            Err(e) => {
-                set_error(&format!("email is not valid UTF-8: {e}"));
-                return ptr::null_mut();
-            }
-        };
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
-        let api_key = match unsafe { cstr_to_str(api_key) } {
-            Ok(Some(s)) => s,
-            Ok(None) => {
-                set_error("api_key is null");
-                return ptr::null_mut();
-            }
-            Err(e) => {
-                set_error(&format!("api_key is not valid UTF-8: {e}"));
-                return ptr::null_mut();
-            }
-        };
+        let email = require_cstr!(email, ptr::null_mut());
+        let api_key = require_cstr!(api_key, ptr::null_mut());
         let creds = thetadatadx::Credentials::api_key_with_email(email, api_key);
         Box::into_raw(Box::new(ThetaDataDxCredentials { inner: creds }))
     })
@@ -126,18 +71,7 @@ pub unsafe extern "C" fn thetadatadx_credentials_from_file(
     path: *const c_char,
 ) -> *mut ThetaDataDxCredentials {
     ffi_boundary!(ptr::null_mut(), {
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
-        let path = match unsafe { cstr_to_str(path) } {
-            Ok(Some(s)) => s,
-            Ok(None) => {
-                set_error("path is null");
-                return ptr::null_mut();
-            }
-            Err(e) => {
-                set_error(&format!("path is not valid UTF-8: {e}"));
-                return ptr::null_mut();
-            }
-        };
+        let path = require_cstr!(path, ptr::null_mut());
         match thetadatadx::Credentials::from_file(path) {
             Ok(creds) => Box::into_raw(Box::new(ThetaDataDxCredentials { inner: creds })),
             Err(e) => {
@@ -183,18 +117,7 @@ pub unsafe extern "C" fn thetadatadx_credentials_from_env_or_file(
     path: *const c_char,
 ) -> *mut ThetaDataDxCredentials {
     ffi_boundary!(ptr::null_mut(), {
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
-        let path = match unsafe { cstr_to_str(path) } {
-            Ok(Some(s)) => s,
-            Ok(None) => {
-                set_error("path is null");
-                return ptr::null_mut();
-            }
-            Err(e) => {
-                set_error(&format!("path is not valid UTF-8: {e}"));
-                return ptr::null_mut();
-            }
-        };
+        let path = require_cstr!(path, ptr::null_mut());
         match thetadatadx::Credentials::from_env_or_file(path) {
             Ok(creds) => Box::into_raw(Box::new(ThetaDataDxCredentials { inner: creds })),
             Err(e) => {
@@ -219,18 +142,7 @@ pub unsafe extern "C" fn thetadatadx_credentials_from_dotenv(
     path: *const c_char,
 ) -> *mut ThetaDataDxCredentials {
     ffi_boundary!(ptr::null_mut(), {
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
-        let path = match unsafe { cstr_to_str(path) } {
-            Ok(Some(s)) => s,
-            Ok(None) => {
-                set_error("path is null");
-                return ptr::null_mut();
-            }
-            Err(e) => {
-                set_error(&format!("path is not valid UTF-8: {e}"));
-                return ptr::null_mut();
-            }
-        };
+        let path = require_cstr!(path, ptr::null_mut());
         match thetadatadx::Credentials::from_dotenv(path) {
             Ok(creds) => Box::into_raw(Box::new(ThetaDataDxCredentials { inner: creds })),
             Err(e) => {
@@ -387,18 +299,7 @@ pub unsafe extern "C" fn thetadatadx_config_from_dotenv(
     path: *const c_char,
 ) -> *mut ThetaDataDxConfig {
     ffi_boundary!(ptr::null_mut(), {
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
-        let path = match unsafe { cstr_to_str(path) } {
-            Ok(Some(s)) => s,
-            Ok(None) => {
-                set_error("path is null");
-                return ptr::null_mut();
-            }
-            Err(e) => {
-                set_error(&format!("path is not valid UTF-8: {e}"));
-                return ptr::null_mut();
-            }
-        };
+        let path = require_cstr!(path, ptr::null_mut());
         match thetadatadx::DirectConfig::from_dotenv(path) {
             Ok(config) => Box::into_raw(Box::new(ThetaDataDxConfig { inner: config })),
             Err(e) => {
@@ -1739,18 +1640,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_client_type(
             set_error("config handle is null");
             return -1;
         }
-        // SAFETY: caller supplies a NUL-terminated C string allocated by the host runtime; cstr_to_str validates non-null + UTF-8.
-        let client_type = match unsafe { cstr_to_str(client_type) } {
-            Ok(Some(s)) => s,
-            Ok(None) => {
-                set_error("client_type is null");
-                return -1;
-            }
-            Err(e) => {
-                set_error(&format!("client_type is not valid UTF-8: {e}"));
-                return -1;
-            }
-        };
+        let client_type = require_cstr!(client_type, -1);
         // SAFETY: config is a non-null pointer returned by
         // thetadatadx_config_production / thetadatadx_config_dev / thetadatadx_config_stage
         // and not yet freed.
