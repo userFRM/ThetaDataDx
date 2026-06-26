@@ -149,34 +149,6 @@ impl Config {
         Ok(())
     }
 
-    /// Set the jitter strategy applied to every reconnect delay.
-    /// Accepts `"full"` (default), `"equal"`, `"decorrelated"`, or
-    /// `"none"` (case-insensitive).
-    #[napi(js_name = "setReconnectJitter")]
-    pub fn set_reconnect_jitter(&self, mode: String) -> napi::Result<()> {
-        let parsed = config::JitterMode::parse(&mode).ok_or_else(|| {
-            crate::invalid_parameter_err(format!(
-                "setReconnectJitter: unknown mode {mode:?}; expected \"full\", \"equal\", \"decorrelated\", or \"none\""
-            ))
-        })?;
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.reconnect.jitter = parsed;
-        Ok(())
-    }
-
-    /// Current reconnect jitter mode as a lowercase string.
-    #[napi(getter, js_name = "reconnectJitter")]
-    pub fn reconnect_jitter(&self) -> napi::Result<&'static str> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.reconnect.jitter.as_str())
-    }
-
     /// Current reconnect policy as a string (`"auto"`, `"manual"`, or
     /// `"custom"`).
     #[napi(getter, js_name = "reconnectPolicy")]
@@ -298,72 +270,6 @@ impl Config {
         Ok(())
     }
 
-    /// Set the streaming host-selection policy. Accepts `"shuffled"`
-    /// (default — fault-domain-aware per-client shuffle) or
-    /// `"fixed_order"` (declared order verbatim), case-insensitive.
-    #[napi(js_name = "setStreamingHostSelection")]
-    pub fn set_streaming_host_selection(&self, policy: String) -> napi::Result<()> {
-        let parsed = config::HostSelectionPolicy::parse(&policy).ok_or_else(|| {
-            crate::invalid_parameter_err(format!(
-                "setStreamingHostSelection: unknown policy {policy:?}; expected \"shuffled\" or \"fixed_order\""
-            ))
-        })?;
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.streaming.host_selection = parsed;
-        Ok(())
-    }
-
-    /// Current streaming host-selection policy as a lowercase string.
-    #[napi(getter, js_name = "streamingHostSelection")]
-    pub fn streaming_host_selection(&self) -> napi::Result<&'static str> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.streaming.host_selection.as_str())
-    }
-
-    /// Set the streaming host-shuffle seed. `null` (default) derives a
-    /// fresh per-client seed so a fleet shuffles independently; an
-    /// explicit `bigint` makes the shuffled order deterministic —
-    /// useful for fleet sharding and tests. Ignored under
-    /// `"fixed_order"`.
-    #[napi(js_name = "setStreamingHostShuffleSeed")]
-    pub fn set_streaming_host_shuffle_seed(
-        &self,
-        seed: Option<napi::bindgen_prelude::BigInt>,
-    ) -> napi::Result<()> {
-        let resolved = match seed {
-            Some(v) => Some(bigint_to_u64("setStreamingHostShuffleSeed", &v)?),
-            None => None,
-        };
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.streaming.host_shuffle_seed = resolved;
-        Ok(())
-    }
-
-    /// Current `streaming.host_shuffle_seed` value (`null` = per-client
-    /// entropy).
-    #[napi(getter, js_name = "streamingHostShuffleSeed")]
-    pub fn streaming_host_shuffle_seed(
-        &self,
-    ) -> napi::Result<Option<napi::bindgen_prelude::BigInt>> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard
-            .streaming
-            .host_shuffle_seed
-            .map(napi::bindgen_prelude::BigInt::from))
-    }
-
     /// Set the async worker-thread count for embedded runtimes.
     /// `hasValue=false` defers to the default sizing; `hasValue=true`
     /// pins worker count to `n` (with `n=0` preserved verbatim rather
@@ -409,82 +315,10 @@ impl Config {
     // `historical_host` string accessor are generated from
     // config_surface.toml (the `ms` / `string` carve-out kinds).
 
-    // ── MetricsConfig field setter/getter ─────────────────────────
-
-    /// Set the Prometheus exporter port. Pass `null` or `undefined`
-    /// to leave the exporter disabled (the default); pass a
-    /// `number` to bind an HTTP listener on `0.0.0.0:<port>` when the
-    /// `metrics-prometheus` feature is compiled in.
-    ///
-    /// Rejects values outside the `0..=65535` port range.
-    #[napi(js_name = "setMetricsPort")]
-    pub fn set_metrics_port(&self, port: Option<u32>) -> napi::Result<()> {
-        let resolved = match port {
-            Some(v) => Some(u16::try_from(v).map_err(|_| {
-                crate::invalid_parameter_err(format!(
-                    "setMetricsPort: port must be in 0..=65535; got {v}"
-                ))
-            })?),
-            None => None,
-        };
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.metrics.port = resolved;
-        Ok(())
-    }
-
-    /// Current `metrics.port` setting. `null` means the exporter is
-    /// disabled; a `number` is the bound port.
-    #[napi(getter, js_name = "metricsPort")]
-    pub fn metrics_port(&self) -> napi::Result<Option<u32>> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.metrics.port.map(u32::from))
-    }
-
-    /// Set the streaming write-flush policy.
-    ///
-    /// Accepts `"batched"` (default — flushes on the PING heartbeat,
-    /// roughly every 100 ms — best throughput) or `"immediate"`
-    /// (flushes after every wire write — lowest latency, higher
-    /// per-frame syscall cost).
-    #[napi(js_name = "setFlushMode")]
-    pub fn set_flush_mode(&self, mode: String) -> napi::Result<()> {
-        let parsed = match mode.to_ascii_lowercase().as_str() {
-            "batched" => config::StreamingFlushMode::Batched,
-            "immediate" => config::StreamingFlushMode::Immediate,
-            other => {
-                return Err(crate::invalid_parameter_err(format!(
-                    "setFlushMode: mode must be \"batched\" or \"immediate\"; got {other:?}"
-                )));
-            }
-        };
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.streaming.flush_mode = parsed;
-        Ok(())
-    }
-
-    /// Current streaming write-flush policy (`"batched"` or
-    /// `"immediate"`).
-    #[napi(getter, js_name = "flushMode")]
-    pub fn flush_mode(&self) -> napi::Result<&'static str> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(match guard.streaming.flush_mode {
-            config::StreamingFlushMode::Batched => "batched",
-            config::StreamingFlushMode::Immediate => "immediate",
-            _ => "unknown",
-        })
-    }
+    // `metrics.port` (`Option<number>` exporter port), the
+    // `streaming.flushMode` / `waitStrategy` enums, and the
+    // `reconnectJitter` / `streamingHostSelection` enums are the
+    // generated `enum` / `option` accessors from config_surface.toml.
 
     /// Target historical environment carried by this configuration:
     /// `"PROD"` for the production cluster or `"STAGE"` for staging. The
@@ -516,41 +350,6 @@ impl Config {
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
         Ok(guard.streaming_environment().as_str())
-    }
-
-    /// Set the streaming event-ring consumer wait strategy — the
-    /// latency-vs-CPU knob applied on each ring-empty poll.
-    ///
-    /// Accepts `"low_latency"` (default — never sleeps, lowest latency,
-    /// highest idle CPU), `"balanced"` (brief park — low idle CPU),
-    /// `"efficient"` (longer park — lowest idle CPU), or `"busy_spin"`
-    /// (pure spin — pins a core). Tune the spin / yield / park counts via
-    /// `setWaitSpinIters` / `setWaitYieldIters` / `setWaitParkUs`.
-    #[napi(js_name = "setWaitStrategy")]
-    pub fn set_wait_strategy(&self, strategy: String) -> napi::Result<()> {
-        let parsed = config::StreamingWaitStrategy::parse(&strategy).ok_or_else(|| {
-            crate::invalid_parameter_err(format!(
-                "setWaitStrategy: strategy must be \"low_latency\", \"balanced\", \
-                 \"efficient\", or \"busy_spin\"; got {strategy:?}"
-            ))
-        })?;
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.streaming.wait_strategy = parsed;
-        Ok(())
-    }
-
-    /// Current streaming wait strategy (`"low_latency"`, `"balanced"`,
-    /// `"efficient"`, or `"busy_spin"`).
-    #[napi(getter, js_name = "waitStrategy")]
-    pub fn wait_strategy(&self) -> napi::Result<&'static str> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.streaming.wait_strategy.as_str())
     }
 
     /// Set the wait-strategy spin iteration count.

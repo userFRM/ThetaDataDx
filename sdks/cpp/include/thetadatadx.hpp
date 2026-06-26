@@ -826,24 +826,6 @@ public:
         return out;
     }
 
-    /** Set the reconnect jitter mode: 0=Full (default), 1=Equal,
-     *  2=Decorrelated, 3=None. Throws @c thetadatadx::InvalidParameterError on
-     *  an out-of-domain mode (and @c thetadatadx::ThetaDataError on a null
-     *  handle), routing through the typed leaf the FFI error code
-     *  selects. */
-    void set_reconnect_jitter(int32_t mode) {
-        if (thetadatadx_config_set_reconnect_jitter(handle_.get(), mode) != 0) {
-            detail::throw_last_ffi_error();
-        }
-    }
-
-    /** Current reconnect jitter mode (same encoding as the setter). */
-    int32_t get_reconnect_jitter() const {
-        int32_t out{};
-        thetadatadx_config_get_reconnect_jitter(handle_.get(), &out);
-        return out;
-    }
-
     /** Install a custom reconnect policy driven by a C callback.
      *  Permanent disconnect reasons never reach the callback; it runs
      *  on the SDK's streaming I/O thread and must be thread-safe.
@@ -859,43 +841,6 @@ public:
     void set_streaming_ring_size(size_t n) {
         thetadatadx_config_set_streaming_ring_size(handle_.get(), n);
     }
-
-    /** Set the streaming host-selection policy: 0=Shuffled (default),
-     *  1=FixedOrder. Throws @c thetadatadx::InvalidParameterError on an
-     *  out-of-domain policy (and @c thetadatadx::ThetaDataError on a null
-     *  handle), routing through the typed leaf the FFI error code
-     *  selects. */
-    void set_streaming_host_selection(int32_t policy) {
-        if (thetadatadx_config_set_streaming_host_selection(handle_.get(), policy) != 0) {
-            detail::throw_last_ffi_error();
-        }
-    }
-
-    /** Current streaming host-selection policy (same encoding as the
-     *  setter). */
-    int32_t get_streaming_host_selection() const {
-        int32_t out{};
-        thetadatadx_config_get_streaming_host_selection(handle_.get(), &out);
-        return out;
-    }
-
-    /** Set the streaming host-shuffle seed using the (has_value, seed)
-     *  shape. has_value=false derives a fresh per-client seed;
-     *  has_value=true makes the shuffled order deterministic. */
-    int32_t set_streaming_host_shuffle_seed(bool has_value, uint64_t seed) {
-        return thetadatadx_config_set_streaming_host_shuffle_seed(handle_.get(), has_value, seed);
-    }
-
-    /** Read the streaming host-shuffle seed back. Returns @c std::nullopt for
-     *  the per-client-entropy sentinel (no pinned seed); returns the
-     *  wrapped seed when the shuffled order is deterministic. */
-    std::optional<uint64_t> get_streaming_host_shuffle_seed() const {
-        bool has_value = false;
-        uint64_t seed = 0;
-        thetadatadx_config_get_streaming_host_shuffle_seed(handle_.get(), &has_value, &seed);
-        return has_value ? std::optional<uint64_t>{seed} : std::nullopt;
-    }
-
 
     /** Set the async worker-thread count using the (has_value, n) shape
      *  that preserves an explicit 0 across the C boundary. has_value=false
@@ -921,63 +866,6 @@ public:
     // `auth.nexus_url` / `auth.client_type` string accessors are generated
     // into config_accessors.hpp.inc from config_surface.toml.
 
-    // ── MetricsConfig field setter/getter ──
-
-    /**
-     * Set the Prometheus exporter port. Pass @c std::nullopt to leave
-     * the exporter disabled (the @c None default); pass an explicit
-     * @c std::uint16_t to bind an HTTP listener on @c 0.0.0.0:<port>
-     * when the @c metrics-prometheus feature is compiled in.
-     *
-     * Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
-     * routing through the typed class the FFI error code selects.
-     */
-    void set_metrics_port(std::optional<std::uint16_t> port) {
-        const bool has_value = port.has_value();
-        const std::uint16_t arg = port.value_or(0);
-        if (thetadatadx_config_set_metrics_port(handle_.get(), has_value, arg) != 0) {
-            detail::throw_last_ffi_error();
-        }
-    }
-
-    /**
-     * Read the current @c metrics.port setting. Returns
-     * @c std::nullopt for the disabled sentinel; returns the wrapped
-     * @c std::uint16_t when an explicit port is set.
-     *
-     * Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
-     * routing through the typed class the FFI error code selects.
-     */
-    std::optional<std::uint16_t> get_metrics_port() const {
-        bool has_value = false;
-        std::uint16_t port = 0;
-        if (thetadatadx_config_get_metrics_port(handle_.get(), &has_value, &port) != 0) {
-            detail::throw_last_ffi_error();
-        }
-        return has_value ? std::optional<std::uint16_t>{port} : std::nullopt;
-    }
-
-    /** Set streaming flush mode. 0=Batched (default), 1=Immediate. Throws
-     *  @c thetadatadx::InvalidParameterError when @p mode is outside the
-     *  documented `{0, 1}` set (and @c thetadatadx::ThetaDataError on a null
-     *  handle), routing through the typed leaf the FFI error code
-     *  selects. */
-    void set_flush_mode(int mode) {
-        if (thetadatadx_config_set_flush_mode(handle_.get(), mode) != 0) {
-            detail::throw_last_ffi_error();
-        }
-    }
-
-    /** Read the current streaming flush mode. Same encoding as
-     *  @c set_flush_mode: `0` = Batched, `1` = Immediate. Returns `0`
-     *  (Batched) on a null handle (matching the C ABI's `-1` failure
-     *  mapping at the boundary). */
-    int get_flush_mode() const {
-        int32_t mode = 0;
-        thetadatadx_config_get_flush_mode(handle_.get(), &mode);
-        return mode;
-    }
-
     /** Target historical environment carried by this configuration:
      *  `"PROD"` for the production cluster or `"STAGE"` for staging. The
      *  historical and streaming environments are selected independently;
@@ -1000,26 +888,6 @@ public:
     std::string get_streaming_environment() const {
         detail::FfiString s(thetadatadx_config_get_streaming_environment(handle_.get()));
         return s.str();
-    }
-
-    /** Set the streaming event-ring consumer wait strategy.
-     *  0=LowLatency (default), 1=Balanced, 2=Efficient, 3=BusySpin
-     *  (see the @c THETADATADX_WAIT_* constants). Throws
-     *  @c thetadatadx::InvalidParameterError when @p mode is outside the
-     *  documented `{0, 1, 2, 3}` set (and @c thetadatadx::ThetaDataError
-     *  on a null handle). */
-    void set_wait_strategy(int mode) {
-        if (thetadatadx_config_set_wait_strategy(handle_.get(), mode) != 0) {
-            detail::throw_last_ffi_error();
-        }
-    }
-
-    /** Read the current streaming wait strategy. Same encoding as
-     *  @c set_wait_strategy. Returns `0` (LowLatency) on a null handle. */
-    int get_wait_strategy() const {
-        int32_t mode = 0;
-        thetadatadx_config_get_wait_strategy(handle_.get(), &mode);
-        return mode;
     }
 
     /** Set the wait-strategy spin iteration count. Throws on a null handle. */
