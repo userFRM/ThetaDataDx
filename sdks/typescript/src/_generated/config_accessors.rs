@@ -963,6 +963,7 @@ impl Config {
     /// per-frame syscall cost).
     #[napi(js_name = "setFlushMode")]
     pub fn set_flush_mode(&self, mode: String) -> napi::Result<()> {
+        let mode = mode.to_ascii_lowercase();
         let parsed = config::StreamingFlushMode::parse(&mode).ok_or_else(|| {
             crate::invalid_parameter_err(format!(
                 "setFlushMode: mode must be \"batched\" or \"immediate\"; got {mode:?}"

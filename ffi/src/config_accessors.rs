@@ -1364,11 +1364,11 @@ pub unsafe extern "C" fn thetadatadx_config_set_nexus_url(
         let url = match unsafe { cstr_to_str(url) } {
             Ok(Some(s)) => s,
             Ok(None) => {
-                set_error("url is null");
+                set_error("nexus_url is null");
                 return -1;
             }
             Err(e) => {
-                set_error(&format!("url is not valid UTF-8: {e}"));
+                set_error(&format!("nexus_url is not valid UTF-8: {e}"));
                 return -1;
             }
         };
@@ -1488,11 +1488,11 @@ pub unsafe extern "C" fn thetadatadx_config_set_historical_host(
         let host = match unsafe { cstr_to_str(host) } {
             Ok(Some(s)) => s,
             Ok(None) => {
-                set_error("host is null");
+                set_error("historical_host is null");
                 return -1;
             }
             Err(e) => {
-                set_error(&format!("host is not valid UTF-8: {e}"));
+                set_error(&format!("historical_host is not valid UTF-8: {e}"));
                 return -1;
             }
         };
@@ -1592,7 +1592,8 @@ pub unsafe extern "C" fn thetadatadx_config_get_flush_mode(
         let config = unsafe { &*config };
         let value = match config.inner.streaming.flush_mode {
             thetadatadx::StreamingFlushMode::Batched => 0,
-            _ => 1,
+            thetadatadx::StreamingFlushMode::Immediate => 1,
+            _ => 0,
         };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
@@ -1673,7 +1674,8 @@ pub unsafe extern "C" fn thetadatadx_config_get_wait_strategy(
             thetadatadx::StreamingWaitStrategy::LowLatency => 0,
             thetadatadx::StreamingWaitStrategy::Balanced => 1,
             thetadatadx::StreamingWaitStrategy::Efficient => 2,
-            _ => 3,
+            thetadatadx::StreamingWaitStrategy::BusySpin => 3,
+            _ => 0,
         };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
         unsafe {
@@ -1702,10 +1704,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_reconnect_jitter(
 ) -> i32 {
     ffi_boundary!(-1, {
         if config.is_null() {
-            crate::error::set_error_with_code(
-                "thetadatadx_config_set_reconnect_jitter: config handle is null",
-                crate::error::THETADATADX_ERR_CONFIG,
-            );
+            set_error("thetadatadx_config_set_reconnect_jitter: config handle is null");
             return -1;
         }
         let value = match mode {
@@ -1749,6 +1748,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_jitter(
             thetadatadx::JitterMode::Full => 0,
             thetadatadx::JitterMode::Equal => 1,
             thetadatadx::JitterMode::Decorrelated => 2,
+            thetadatadx::JitterMode::None => 3,
             _ => 3,
         };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
@@ -1778,10 +1778,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_streaming_host_selection(
 ) -> i32 {
     ffi_boundary!(-1, {
         if config.is_null() {
-            crate::error::set_error_with_code(
-                "thetadatadx_config_set_streaming_host_selection: config handle is null",
-                crate::error::THETADATADX_ERR_CONFIG,
-            );
+            set_error("thetadatadx_config_set_streaming_host_selection: config handle is null");
             return -1;
         }
         let value = match policy {
@@ -1821,6 +1818,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_streaming_host_selection(
         let config = unsafe { &*config };
         let value = match config.inner.streaming.host_selection {
             thetadatadx::HostSelectionPolicy::Shuffled => 0,
+            thetadatadx::HostSelectionPolicy::FixedOrder => 1,
             _ => 1,
         };
         // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
