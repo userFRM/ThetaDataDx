@@ -115,18 +115,14 @@ pub(super) async fn handle_socket(mut socket: WebSocket, state: AppState) {
 ///
 /// Never sends an empty WS frame on serialization failure -- logs the
 /// error instead. The socket is left open so the client can retry the
-/// command. Callers that must close on serialize failure should inspect
-/// the return value (`false` = not sent) and propagate.
-pub(super) async fn send_response(
-    socket: &mut WebSocket,
-    resp: &sonic_rs::Value,
-    ctx: &str,
-) -> bool {
+/// command.
+pub(super) async fn send_response(socket: &mut WebSocket, resp: &sonic_rs::Value, ctx: &str) {
     match sonic_rs::to_string(resp) {
-        Ok(s) => socket.send(Message::Text(s.into())).await.is_ok(),
+        Ok(s) => {
+            let _ = socket.send(Message::Text(s.into())).await;
+        }
         Err(e) => {
             tracing::error!(error = %e, context = %ctx, "ws response serialize failed; dropping");
-            false
         }
     }
 }

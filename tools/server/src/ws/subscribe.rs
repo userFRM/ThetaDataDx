@@ -115,14 +115,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
             "text frame exceeds maximum of {WS_MAX_TEXT_BYTES} bytes (got {})",
             text.len()
         );
-        let resp = sonic_rs::json!({
-            "header": {
-                "type": "REQ_RESPONSE",
-                "response": ReqResponse::Error.as_str(),
-                "req_id": 0,
-                "error": err_msg.as_str(),
-            }
-        });
+        let resp = build_req_response(ReqResponse::Error, 0, Some(err_msg.as_str()));
         send_response(socket, &resp, "oversize_text_reply").await;
         return;
     }
@@ -131,13 +124,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
         Ok(v) => v,
         Err(_) => {
             tracing::warn!("invalid WebSocket JSON: {}", text);
-            let resp = sonic_rs::json!({
-                "header": {
-                    "type": "REQ_RESPONSE",
-                    "response": ReqResponse::Error.as_str(),
-                    "req_id": 0
-                }
-            });
+            let resp = build_req_response(ReqResponse::Error, 0, None);
             send_response(socket, &resp, "invalid_json_reply").await;
             return;
         }
@@ -229,14 +216,11 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
             Some(v) => v,
             None => {
                 tracing::warn!("WS subscribe: option expiration missing or not an integer");
-                let resp = sonic_rs::json!({
-                    "header": {
-                        "type": "REQ_RESPONSE",
-                        "response": ReqResponse::Error.as_str(),
-                        "req_id": req_id,
-                        "error": "expiration must be an integer",
-                    }
-                });
+                let resp = build_req_response(
+                    ReqResponse::Error,
+                    req_id,
+                    Some("expiration must be an integer"),
+                );
                 send_response(socket, &resp, "bad_request_reply").await;
                 return;
             }
@@ -249,14 +233,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
                     "WS subscribe: option expiration out of i32 range"
                 );
                 let err_msg = format!("expiration {exp_i64} exceeds i32 range");
-                let resp = sonic_rs::json!({
-                    "header": {
-                        "type": "REQ_RESPONSE",
-                        "response": ReqResponse::Error.as_str(),
-                        "req_id": req_id,
-                        "error": err_msg.as_str(),
-                    }
-                });
+                let resp = build_req_response(ReqResponse::Error, req_id, Some(err_msg.as_str()));
                 send_response(socket, &resp, "bad_request_reply").await;
                 return;
             }
@@ -284,14 +261,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
                 "'exp' out of range (expected YYYYMMDD {}..={}; got {exp})",
                 MIN_OPTION_EXP, MAX_OPTION_EXP
             );
-            let resp = sonic_rs::json!({
-                "header": {
-                    "type": "REQ_RESPONSE",
-                    "response": ReqResponse::Error.as_str(),
-                    "req_id": req_id,
-                    "error": err_msg.as_str(),
-                }
-            });
+            let resp = build_req_response(ReqResponse::Error, req_id, Some(err_msg.as_str()));
             send_response(socket, &resp, "bad_request_reply").await;
             return;
         }
@@ -305,14 +275,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
                  reject reason: month/day decomposition is not a real \
                  Gregorian day, e.g. Feb 30 or Apr 31)"
             );
-            let resp = sonic_rs::json!({
-                "header": {
-                    "type": "REQ_RESPONSE",
-                    "response": ReqResponse::Error.as_str(),
-                    "req_id": req_id,
-                    "error": err_msg.as_str(),
-                }
-            });
+            let resp = build_req_response(ReqResponse::Error, req_id, Some(err_msg.as_str()));
             send_response(socket, &resp, "bad_request_reply").await;
             return;
         }
@@ -328,14 +291,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
             Ok(v) => v,
             Err(err_msg) => {
                 tracing::warn!(error = %err_msg, "WS subscribe: invalid option 'strike'");
-                let resp = sonic_rs::json!({
-                    "header": {
-                        "type": "REQ_RESPONSE",
-                        "response": ReqResponse::Error.as_str(),
-                        "req_id": req_id,
-                        "error": err_msg.as_str(),
-                    }
-                });
+                let resp = build_req_response(ReqResponse::Error, req_id, Some(err_msg.as_str()));
                 send_response(socket, &resp, "bad_request_reply").await;
                 return;
             }
@@ -345,14 +301,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
             Ok(sides) => sides,
             Err(err_msg) => {
                 tracing::warn!(error = %err_msg, "WS subscribe: invalid option 'right'");
-                let resp = sonic_rs::json!({
-                    "header": {
-                        "type": "REQ_RESPONSE",
-                        "response": ReqResponse::Error.as_str(),
-                        "req_id": req_id,
-                        "error": err_msg.as_str(),
-                    }
-                });
+                let resp = build_req_response(ReqResponse::Error, req_id, Some(err_msg.as_str()));
                 send_response(socket, &resp, "bad_request_reply").await;
                 return;
             }
@@ -372,14 +321,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
         Ok(subs) => subs,
         Err(err_msg) => {
             tracing::warn!(req_type = %req_type, "WS subscribe: unsupported req_type");
-            let resp = sonic_rs::json!({
-                "header": {
-                    "type": "REQ_RESPONSE",
-                    "response": ReqResponse::Error.as_str(),
-                    "req_id": req_id,
-                    "error": err_msg.as_str(),
-                }
-            });
+            let resp = build_req_response(ReqResponse::Error, req_id, Some(err_msg.as_str()));
             send_response(socket, &resp, "bad_request_reply").await;
             return;
         }
@@ -510,13 +452,8 @@ fn apply_bulk_trade(
 ) -> sonic_rs::Value {
     use thetadatadx::fpss::protocol::{FullSubscriptionKind, Subscription};
 
-    let st = match sec_type {
-        "OPTION" => SecType::Option,
-        "INDEX" => SecType::Index,
-        _ => SecType::Stock,
-    };
     let subscriptions = vec![Subscription::Full {
-        sec_type: st,
+        sec_type: sec_type_from_str(sec_type),
         kind: FullSubscriptionKind::Trades,
     }];
 
@@ -617,6 +554,18 @@ fn parse_right_sides(raw: Option<&str>) -> Result<Vec<bool>, String> {
     })
 }
 
+/// Resolve a client `sec_type` token to the wire [`SecType`]. Unknown
+/// values default to `Stock`, matching the wire default for a root with no
+/// security type. Options are addressed by the same `"OPTION"` token used on
+/// the per-contract path.
+fn sec_type_from_str(sec_type: &str) -> SecType {
+    match sec_type {
+        "OPTION" => SecType::Option,
+        "INDEX" => SecType::Index,
+        _ => SecType::Stock,
+    }
+}
+
 /// Build the per-contract contract for a non-option subscribe.
 ///
 /// The FPSS contract wire encoding carries a load-bearing sec_type: an
@@ -665,12 +614,10 @@ fn subscription_plan(
     };
 
     let full = |kind: FullSubscriptionKind| {
-        let st = match sec_type {
-            "OPTION" => SecType::Option,
-            "INDEX" => SecType::Index,
-            _ => SecType::Stock,
-        };
-        vec![Subscription::Full { sec_type: st, kind }]
+        vec![Subscription::Full {
+            sec_type: sec_type_from_str(sec_type),
+            kind,
+        }]
     };
 
     match req_type {
