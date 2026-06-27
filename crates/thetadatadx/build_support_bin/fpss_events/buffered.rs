@@ -8,7 +8,7 @@
 
 use std::fmt::Write as _;
 
-use super::common::{control_rust_variant, is_option, rust_field_type};
+use super::common::{control_rust_variant, rust_field_type};
 use super::schema::{sorted_control_events, sorted_event_names, EventDef, Schema};
 
 /// Emit the `BufferedEvent` enum + the `fpss_event_to_buffered` converter
@@ -114,7 +114,6 @@ fn render_data_match_arm(event_name: &str, def: &EventDef) -> String {
             // so the per-language dispatcher can construct a fresh
             // language-native object without holding the Arc.
             "Contract" => format!("(**{field}).clone()", field = column.name),
-            t if is_option(t) => format!("{field}.clone()", field = column.name),
             _ => format!("*{field}", field = column.name),
         };
         writeln!(out, "                {}: {rhs},", column.name).unwrap();

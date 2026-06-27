@@ -422,17 +422,7 @@ fn extract_param_name(ref_tail: &str) -> Option<&str> {
 /// Accepts either the double-quoted or single-quoted form as upstream has
 /// mixed both historically.
 fn ref_points_at(ref_tail: &str, name: &str) -> bool {
-    // Strip the leading quote (" or ') and trailing quote.
-    let stripped = ref_tail
-        .strip_prefix('"')
-        .and_then(|s| s.strip_suffix('"'))
-        .or_else(|| {
-            ref_tail
-                .strip_prefix('\'')
-                .and_then(|s| s.strip_suffix('\''))
-        });
-    let target = stripped.unwrap_or(ref_tail);
-    target == format!("#/components/parameters/{name}")
+    extract_param_name(ref_tail) == Some(name)
 }
 
 #[cfg(test)]

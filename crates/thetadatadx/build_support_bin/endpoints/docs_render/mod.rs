@@ -111,7 +111,7 @@ fn render_all(repo_root: &Path) -> Result<Vec<DocFile>, Box<dyn std::error::Erro
     let stream_pages = streaming::render_stream_pages()?;
     files.push(DocFile {
         relative_path: "docs-site/docs/.vitepress/generated/streaming-sidebar.json".into(),
-        contents: streaming::render_streaming_sidebar(&stream_pages),
+        contents: streaming::render_streaming_sidebar(),
     });
     for (path, contents) in stream_pages {
         files.push(DocFile {

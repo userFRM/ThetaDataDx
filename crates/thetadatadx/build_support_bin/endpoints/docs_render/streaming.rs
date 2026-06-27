@@ -521,8 +521,7 @@ pub(super) fn render_stream_pages() -> Result<Vec<(String, String)>, Box<dyn std
 
 /// Sidebar items for the generated stream-type pages, grouped by
 /// security type. Imported by `config.ts` into the Streaming section.
-pub(super) fn render_streaming_sidebar(pages: &[(String, String)]) -> String {
-    let _ = pages;
+pub(super) fn render_streaming_sidebar() -> String {
     let mut json = String::from("[\n");
     let groups = ["Stocks", "Options", "Indices"];
     for (gi, group) in groups.iter().enumerate() {

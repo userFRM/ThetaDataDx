@@ -24,7 +24,7 @@ use std::fmt::Write as _;
 use super::super::helpers::{compose_endpoint_doc, is_streaming_endpoint, to_pascal_case};
 use super::super::model::{GeneratedEndpoint, GeneratedParam};
 use super::super::sdk_helpers::{
-    builder_params, is_snapshot_endpoint, method_params, python_pyclass_list_class,
+    builder_params, is_snapshot_endpoint, is_time_arg, method_params, python_pyclass_list_class,
     python_pyclass_row_class, sdk_method_arg_name,
 };
 
@@ -290,7 +290,7 @@ fn stub_arg_type(param: &GeneratedParam) -> &'static str {
     match param.param_type.as_str() {
         "Symbols" => "Union[str, Sequence[str]]",
         "Date" | "Expiration" => "Union[str, date, datetime]",
-        _ if is_time_param(param) => "Union[str, time, datetime]",
+        _ if is_time_arg(param) => "Union[str, time, datetime]",
         _ => "str",
     }
 }
@@ -304,7 +304,7 @@ fn stub_optional_inner_type(param: &GeneratedParam) -> &'static str {
         "Float" => "float",
         "Bool" => "bool",
         "Date" | "Expiration" => "Union[str, date, datetime]",
-        _ if is_time_param(param) => "Union[str, time, datetime]",
+        _ if is_time_arg(param) => "Union[str, time, datetime]",
         _ => "str",
     }
 }
@@ -350,11 +350,4 @@ fn stub_kwarg_default(param: &GeneratedParam, honor_defaults: bool) -> String {
         "Int" | "Float" => default.to_string(),
         _ => "None".to_string(),
     }
-}
-
-fn is_time_param(param: &GeneratedParam) -> bool {
-    matches!(
-        param.name.as_str(),
-        "start_time" | "end_time" | "min_time" | "time_of_day"
-    )
 }

@@ -39,7 +39,7 @@ pub(super) fn generate_mdds_list_endpoint(out: &mut String, endpoint: &Generated
         .collect::<Vec<_>>();
     let signature = method_params
         .iter()
-        .map(|param| format!("{}: &str", direct_method_arg_name(endpoint, param)))
+        .map(|param| format!("{}: &str", direct_method_arg_name(param)))
         .collect::<Vec<_>>()
         .join(", ");
     let list_column = endpoint
@@ -142,7 +142,7 @@ pub(super) fn generate_mdds_parsed_endpoint(out: &mut String, endpoint: &Generat
         .map(|param| {
             format!(
                 "{}: {}",
-                direct_method_arg_name(endpoint, param),
+                direct_method_arg_name(param),
                 direct_required_kind(param)
             )
         })
@@ -189,7 +189,7 @@ pub(super) fn generate_mdds_parsed_endpoint(out: &mut String, endpoint: &Generat
 
     let date_args = method_params
         .iter()
-        .filter_map(|param| direct_date_arg_name(endpoint, param))
+        .filter_map(|param| direct_date_arg_name(param))
         .collect::<Vec<_>>();
     if !date_args.is_empty() {
         writeln!(out, "    dates: {};", date_args.join(", ")).unwrap();
@@ -243,7 +243,7 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
         writeln!(
             out,
             "    pub(crate) {}: {},",
-            direct_method_arg_name(endpoint, param),
+            direct_method_arg_name(param),
             direct_required_field_type(param)
         )
         .unwrap();
@@ -287,12 +287,7 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
     writeln!(out, "        let {builder_name} {{").unwrap();
     out.push_str("            client,\n");
     for param in &method_params {
-        writeln!(
-            out,
-            "            {},",
-            direct_method_arg_name(endpoint, param)
-        )
-        .unwrap();
+        writeln!(out, "            {},", direct_method_arg_name(param)).unwrap();
     }
     for param in &optional_params {
         writeln!(out, "            {},", param.name).unwrap();
@@ -302,7 +297,7 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
     out.push_str("        let _ = &client;\n");
     for arg in method_params
         .iter()
-        .filter_map(|param| direct_date_arg_name(endpoint, param))
+        .filter_map(|param| direct_date_arg_name(param))
     {
         writeln!(out, "        validate_date_required(&{arg})?;").unwrap();
     }
@@ -464,7 +459,7 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
         write!(
             out,
             ", {}: {}",
-            direct_method_arg_name(endpoint, param),
+            direct_method_arg_name(param),
             direct_required_param_type(param)
         )
         .unwrap();
@@ -476,8 +471,8 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
         writeln!(
             out,
             "            {}: {},",
-            direct_method_arg_name(endpoint, param),
-            direct_required_store_expr(endpoint, param)
+            direct_method_arg_name(param),
+            direct_required_store_expr(param)
         )
         .unwrap();
     }
@@ -533,7 +528,7 @@ pub(super) fn mdds_query_field_expr(
                 endpoint.name, field.name
             )
         });
-    let arg_name = direct_method_arg_name(endpoint, param);
+    let arg_name = direct_method_arg_name(param);
     let is_method_param = is_method_call_param(param);
 
     match field.name.as_str() {

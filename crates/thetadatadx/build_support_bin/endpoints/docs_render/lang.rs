@@ -61,9 +61,11 @@ fn showcased_builder_params(endpoint: &GeneratedEndpoint) -> Vec<&GeneratedParam
 
 fn rust_item_type(endpoint: &GeneratedEndpoint) -> String {
     match endpoint.return_type.as_str() {
+        // `StringList` does not end in `s`, so it cannot route through the
+        // trailing-`s`-stripping `schema_type_name` fallback below.
         "StringList" => "String".into(),
-        "OptionContracts" => "OptionContract".into(),
-        "CalendarDays" => "CalendarDay".into(),
+        // Every collection plural (`OptionContracts`, `CalendarDays`, the tick
+        // plurals) strips its trailing `s` to the singular item type.
         other => schema_type_name(other),
     }
 }

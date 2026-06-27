@@ -308,12 +308,8 @@ fn fpss_event_repr_fields<'a>(
         {
             continue;
         }
-        // `Option<..>` and `String` types render better with `{:?}`
-        // (quoted strings, explicit `None` / `Some(..)`).
-        let use_debug = matches!(
-            column.r#type.as_str(),
-            "String" | "Option<String>" | "Option<i32>"
-        );
+        // `String` renders better with `{:?}` (quoted).
+        let use_debug = column.r#type == "String";
         fields.push(FpssReprField {
             name: &column.name,
             use_debug,
@@ -429,12 +425,12 @@ fn field_rhs(column_type: &str, name: &str) -> String {
     match column_type {
         // Owned non-`Copy` types clone through the deref of the pattern
         // binding (these materialise exactly once, here).
-        "String" | "Vec<u8>" | "Option<String>" => format!("{name}.clone()"),
+        "String" | "Vec<u8>" => format!("{name}.clone()"),
         // Contract arrives as `&Arc<fpss::protocol::Contract>`; store it
         // inline by value — an `Arc<str>` symbol refcount bump, no heap
         // copy of the symbol bytes.
         "Contract" => format!("(**{name}).clone()"),
-        // `Copy` primitives (including `Option<i32>`) — deref the binding.
+        // `Copy` primitives — deref the binding.
         _ => format!("*{name}"),
     }
 }

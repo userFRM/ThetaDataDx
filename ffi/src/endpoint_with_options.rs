@@ -8,8 +8,8 @@ pub unsafe extern "C" fn thetadatadx_stock_list_symbols_with_options(
     client: *const ThetaDataDxHistoricalClient,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxStringArray {
-    ffi_boundary!(ThetaDataDxStringArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxStringArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxStringArray::EMPTY, {
+        let empty = ThetaDataDxStringArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -53,8 +53,8 @@ pub unsafe extern "C" fn thetadatadx_stock_list_dates_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxStringArray {
-    ffi_boundary!(ThetaDataDxStringArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxStringArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxStringArray::EMPTY, {
+        let empty = ThetaDataDxStringArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -106,8 +106,8 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_ohlc_with_options(
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxOhlcTickArray {
-    ffi_boundary!(ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxOhlcTickArray::EMPTY, {
+        let empty = ThetaDataDxOhlcTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -154,8 +154,8 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_trade_with_options(
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxTradeTickArray {
-    ffi_boundary!(ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxTradeTickArray::EMPTY, {
+        let empty = ThetaDataDxTradeTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -202,8 +202,8 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_quote_with_options(
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxQuoteTickArray {
-    ffi_boundary!(ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxQuoteTickArray::EMPTY, {
+        let empty = ThetaDataDxQuoteTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -250,8 +250,8 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_market_value_with_options(
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxMarketValueTickArray {
-    ffi_boundary!(ThetaDataDxMarketValueTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxMarketValueTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxMarketValueTickArray::EMPTY, {
+        let empty = ThetaDataDxMarketValueTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -302,8 +302,8 @@ pub unsafe extern "C" fn thetadatadx_stock_history_eod_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxEodTickArray {
-    ffi_boundary!(ThetaDataDxEodTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxEodTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxEodTickArray::EMPTY, {
+        let empty = ThetaDataDxEodTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -362,8 +362,8 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxOhlcTickArray {
-    ffi_boundary!(ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxOhlcTickArray::EMPTY, {
+        let empty = ThetaDataDxOhlcTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -417,8 +417,8 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxTradeTickArray {
-    ffi_boundary!(ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxTradeTickArray::EMPTY, {
+        let empty = ThetaDataDxTradeTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -472,8 +472,8 @@ pub unsafe extern "C" fn thetadatadx_stock_history_quote_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxQuoteTickArray {
-    ffi_boundary!(ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxQuoteTickArray::EMPTY, {
+        let empty = ThetaDataDxQuoteTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -527,8 +527,8 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxTradeQuoteTickArray {
-    ffi_boundary!(ThetaDataDxTradeQuoteTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxTradeQuoteTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxTradeQuoteTickArray::EMPTY, {
+        let empty = ThetaDataDxTradeQuoteTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -586,8 +586,8 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxTradeTickArray {
-    ffi_boundary!(ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxTradeTickArray::EMPTY, {
+        let empty = ThetaDataDxTradeTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -655,8 +655,8 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxQuoteTickArray {
-    ffi_boundary!(ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxQuoteTickArray::EMPTY, {
+        let empty = ThetaDataDxQuoteTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -716,8 +716,8 @@ pub unsafe extern "C" fn thetadatadx_option_list_symbols_with_options(
     client: *const ThetaDataDxHistoricalClient,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxStringArray {
-    ffi_boundary!(ThetaDataDxStringArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxStringArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxStringArray::EMPTY, {
+        let empty = ThetaDataDxStringArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -763,8 +763,8 @@ pub unsafe extern "C" fn thetadatadx_option_list_dates_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxStringArray {
-    ffi_boundary!(ThetaDataDxStringArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxStringArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxStringArray::EMPTY, {
+        let empty = ThetaDataDxStringArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -821,8 +821,8 @@ pub unsafe extern "C" fn thetadatadx_option_list_expirations_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxStringArray {
-    ffi_boundary!(ThetaDataDxStringArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxStringArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxStringArray::EMPTY, {
+        let empty = ThetaDataDxStringArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -871,8 +871,8 @@ pub unsafe extern "C" fn thetadatadx_option_list_strikes_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxStringArray {
-    ffi_boundary!(ThetaDataDxStringArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxStringArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxStringArray::EMPTY, {
+        let empty = ThetaDataDxStringArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -926,8 +926,8 @@ pub unsafe extern "C" fn thetadatadx_option_list_contracts_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxOptionContractArray {
-    ffi_boundary!(ThetaDataDxOptionContractArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxOptionContractArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxOptionContractArray::EMPTY, {
+        let empty = ThetaDataDxOptionContractArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -981,8 +981,8 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_ohlc_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxOhlcTickArray {
-    ffi_boundary!(ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxOhlcTickArray::EMPTY, {
+        let empty = ThetaDataDxOhlcTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1036,8 +1036,8 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_trade_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxTradeTickArray {
-    ffi_boundary!(ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxTradeTickArray::EMPTY, {
+        let empty = ThetaDataDxTradeTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1091,8 +1091,8 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_quote_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxQuoteTickArray {
-    ffi_boundary!(ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxQuoteTickArray::EMPTY, {
+        let empty = ThetaDataDxQuoteTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1146,8 +1146,8 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_open_interest_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxOpenInterestTickArray {
-    ffi_boundary!(ThetaDataDxOpenInterestTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxOpenInterestTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxOpenInterestTickArray::EMPTY, {
+        let empty = ThetaDataDxOpenInterestTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1201,8 +1201,8 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_market_value_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxMarketValueTickArray {
-    ffi_boundary!(ThetaDataDxMarketValueTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxMarketValueTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxMarketValueTickArray::EMPTY, {
+        let empty = ThetaDataDxMarketValueTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1256,8 +1256,8 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_implied_volatility_w
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxIvTickArray {
-    ffi_boundary!(ThetaDataDxIvTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxIvTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxIvTickArray::EMPTY, {
+        let empty = ThetaDataDxIvTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1311,8 +1311,8 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_all_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxGreeksAllTickArray {
-    ffi_boundary!(ThetaDataDxGreeksAllTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxGreeksAllTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxGreeksAllTickArray::EMPTY, {
+        let empty = ThetaDataDxGreeksAllTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1366,8 +1366,8 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_first_order_with_opt
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxGreeksFirstOrderTickArray {
-    ffi_boundary!(ThetaDataDxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxGreeksFirstOrderTickArray::EMPTY, {
+        let empty = ThetaDataDxGreeksFirstOrderTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1421,8 +1421,8 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_second_order_with_op
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxGreeksSecondOrderTickArray {
-    ffi_boundary!(ThetaDataDxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxGreeksSecondOrderTickArray::EMPTY, {
+        let empty = ThetaDataDxGreeksSecondOrderTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1476,8 +1476,8 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_third_order_with_opt
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxGreeksThirdOrderTickArray {
-    ffi_boundary!(ThetaDataDxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxGreeksThirdOrderTickArray::EMPTY, {
+        let empty = ThetaDataDxGreeksThirdOrderTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1535,8 +1535,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_eod_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxEodTickArray {
-    ffi_boundary!(ThetaDataDxEodTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxEodTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxEodTickArray::EMPTY, {
+        let empty = ThetaDataDxEodTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1602,8 +1602,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_ohlc_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxOhlcTickArray {
-    ffi_boundary!(ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxOhlcTickArray::EMPTY, {
+        let empty = ThetaDataDxOhlcTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1664,8 +1664,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxTradeTickArray {
-    ffi_boundary!(ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxTradeTickArray::EMPTY, {
+        let empty = ThetaDataDxTradeTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1726,8 +1726,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_quote_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxQuoteTickArray {
-    ffi_boundary!(ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxQuoteTickArray::EMPTY, {
+        let empty = ThetaDataDxQuoteTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1788,8 +1788,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxTradeQuoteTickArray {
-    ffi_boundary!(ThetaDataDxTradeQuoteTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxTradeQuoteTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxTradeQuoteTickArray::EMPTY, {
+        let empty = ThetaDataDxTradeQuoteTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1850,8 +1850,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_open_interest_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxOpenInterestTickArray {
-    ffi_boundary!(ThetaDataDxOpenInterestTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxOpenInterestTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxOpenInterestTickArray::EMPTY, {
+        let empty = ThetaDataDxOpenInterestTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1914,8 +1914,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxGreeksEodTickArray {
-    ffi_boundary!(ThetaDataDxGreeksEodTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxGreeksEodTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxGreeksEodTickArray::EMPTY, {
+        let empty = ThetaDataDxGreeksEodTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1981,8 +1981,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxGreeksAllTickArray {
-    ffi_boundary!(ThetaDataDxGreeksAllTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxGreeksAllTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxGreeksAllTickArray::EMPTY, {
+        let empty = ThetaDataDxGreeksAllTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2043,8 +2043,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_with_option
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxTradeGreeksAllTickArray {
-    ffi_boundary!(ThetaDataDxTradeGreeksAllTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxTradeGreeksAllTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxTradeGreeksAllTickArray::EMPTY, {
+        let empty = ThetaDataDxTradeGreeksAllTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2105,8 +2105,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_with_opti
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxGreeksFirstOrderTickArray {
-    ffi_boundary!(ThetaDataDxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxGreeksFirstOrderTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxGreeksFirstOrderTickArray::EMPTY, {
+        let empty = ThetaDataDxGreeksFirstOrderTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2167,8 +2167,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_wit
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxTradeGreeksFirstOrderTickArray {
-    ffi_boundary!(ThetaDataDxTradeGreeksFirstOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxTradeGreeksFirstOrderTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxTradeGreeksFirstOrderTickArray::EMPTY, {
+        let empty = ThetaDataDxTradeGreeksFirstOrderTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2229,8 +2229,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_with_opt
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxGreeksSecondOrderTickArray {
-    ffi_boundary!(ThetaDataDxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxGreeksSecondOrderTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxGreeksSecondOrderTickArray::EMPTY, {
+        let empty = ThetaDataDxGreeksSecondOrderTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2291,8 +2291,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_wi
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxTradeGreeksSecondOrderTickArray {
-    ffi_boundary!(ThetaDataDxTradeGreeksSecondOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxTradeGreeksSecondOrderTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxTradeGreeksSecondOrderTickArray::EMPTY, {
+        let empty = ThetaDataDxTradeGreeksSecondOrderTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2353,8 +2353,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_with_opti
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxGreeksThirdOrderTickArray {
-    ffi_boundary!(ThetaDataDxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxGreeksThirdOrderTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxGreeksThirdOrderTickArray::EMPTY, {
+        let empty = ThetaDataDxGreeksThirdOrderTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2415,8 +2415,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_wit
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxTradeGreeksThirdOrderTickArray {
-    ffi_boundary!(ThetaDataDxTradeGreeksThirdOrderTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxTradeGreeksThirdOrderTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxTradeGreeksThirdOrderTickArray::EMPTY, {
+        let empty = ThetaDataDxTradeGreeksThirdOrderTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2477,8 +2477,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_wi
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxIvTickArray {
-    ffi_boundary!(ThetaDataDxIvTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxIvTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxIvTickArray::EMPTY, {
+        let empty = ThetaDataDxIvTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2539,8 +2539,8 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatil
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxTradeGreeksImpliedVolatilityTickArray {
-    ffi_boundary!(ThetaDataDxTradeGreeksImpliedVolatilityTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxTradeGreeksImpliedVolatilityTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxTradeGreeksImpliedVolatilityTickArray::EMPTY, {
+        let empty = ThetaDataDxTradeGreeksImpliedVolatilityTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2605,8 +2605,8 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_trade_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxTradeTickArray {
-    ffi_boundary!(ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxTradeTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxTradeTickArray::EMPTY, {
+        let empty = ThetaDataDxTradeTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2681,8 +2681,8 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_quote_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxQuoteTickArray {
-    ffi_boundary!(ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxQuoteTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxQuoteTickArray::EMPTY, {
+        let empty = ThetaDataDxQuoteTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2747,8 +2747,8 @@ pub unsafe extern "C" fn thetadatadx_index_list_symbols_with_options(
     client: *const ThetaDataDxHistoricalClient,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxStringArray {
-    ffi_boundary!(ThetaDataDxStringArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxStringArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxStringArray::EMPTY, {
+        let empty = ThetaDataDxStringArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2790,8 +2790,8 @@ pub unsafe extern "C" fn thetadatadx_index_list_dates_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxStringArray {
-    ffi_boundary!(ThetaDataDxStringArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxStringArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxStringArray::EMPTY, {
+        let empty = ThetaDataDxStringArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2838,8 +2838,8 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_ohlc_with_options(
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxOhlcTickArray {
-    ffi_boundary!(ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxOhlcTickArray::EMPTY, {
+        let empty = ThetaDataDxOhlcTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2886,8 +2886,8 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_price_with_options(
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxPriceTickArray {
-    ffi_boundary!(ThetaDataDxPriceTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxPriceTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxPriceTickArray::EMPTY, {
+        let empty = ThetaDataDxPriceTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2934,8 +2934,8 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_market_value_with_options(
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxMarketValueTickArray {
-    ffi_boundary!(ThetaDataDxMarketValueTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxMarketValueTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxMarketValueTickArray::EMPTY, {
+        let empty = ThetaDataDxMarketValueTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2986,8 +2986,8 @@ pub unsafe extern "C" fn thetadatadx_index_history_eod_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxEodTickArray {
-    ffi_boundary!(ThetaDataDxEodTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxEodTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxEodTickArray::EMPTY, {
+        let empty = ThetaDataDxEodTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3048,8 +3048,8 @@ pub unsafe extern "C" fn thetadatadx_index_history_ohlc_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxOhlcTickArray {
-    ffi_boundary!(ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxOhlcTickArray::EMPTY, {
+        let empty = ThetaDataDxOhlcTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3108,8 +3108,8 @@ pub unsafe extern "C" fn thetadatadx_index_history_price_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxPriceTickArray {
-    ffi_boundary!(ThetaDataDxPriceTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxPriceTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxPriceTickArray::EMPTY, {
+        let empty = ThetaDataDxPriceTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3167,8 +3167,8 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxIndexPriceAtTimeTickArray {
-    ffi_boundary!(ThetaDataDxIndexPriceAtTimeTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxIndexPriceAtTimeTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxIndexPriceAtTimeTickArray::EMPTY, {
+        let empty = ThetaDataDxIndexPriceAtTimeTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3228,8 +3228,8 @@ pub unsafe extern "C" fn thetadatadx_calendar_open_today_with_options(
     client: *const ThetaDataDxHistoricalClient,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxCalendarDayArray {
-    ffi_boundary!(ThetaDataDxCalendarDayArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxCalendarDayArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxCalendarDayArray::EMPTY, {
+        let empty = ThetaDataDxCalendarDayArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3271,8 +3271,8 @@ pub unsafe extern "C" fn thetadatadx_calendar_on_date_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxCalendarDayArray {
-    ffi_boundary!(ThetaDataDxCalendarDayArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxCalendarDayArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxCalendarDayArray::EMPTY, {
+        let empty = ThetaDataDxCalendarDayArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3319,8 +3319,8 @@ pub unsafe extern "C" fn thetadatadx_calendar_year_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxCalendarDayArray {
-    ffi_boundary!(ThetaDataDxCalendarDayArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxCalendarDayArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxCalendarDayArray::EMPTY, {
+        let empty = ThetaDataDxCalendarDayArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3371,8 +3371,8 @@ pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxInterestRateTickArray {
-    ffi_boundary!(ThetaDataDxInterestRateTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxInterestRateTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxInterestRateTickArray::EMPTY, {
+        let empty = ThetaDataDxInterestRateTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3433,8 +3433,8 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_range_with_options(
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
 ) -> ThetaDataDxOhlcTickArray {
-    ffi_boundary!(ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 }, {
-        let empty = ThetaDataDxOhlcTickArray { data: ptr::null(), len: 0 };
+    ffi_boundary!(ThetaDataDxOhlcTickArray::EMPTY, {
+        let empty = ThetaDataDxOhlcTickArray::EMPTY;
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();

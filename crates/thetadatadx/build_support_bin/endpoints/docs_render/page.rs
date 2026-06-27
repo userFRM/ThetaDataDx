@@ -268,7 +268,7 @@ fn category_label(category: &str) -> &'static str {
     }
 }
 
-fn subcategory_label(subcategory: &str) -> &'static str {
+pub(super) fn subcategory_label(subcategory: &str) -> &'static str {
     match subcategory {
         "list" => "List",
         "snapshot" | "snapshot_greeks" => "Snapshot",

@@ -1,9 +1,0 @@
-/// FPSS raw-bytes payload for frames the decoder did not recognise.
-#[must_use]
-#[napi(object)]
-#[derive(Clone)]
-pub struct StreamRawDataPayload {
-    pub code: u32,
-    pub payload: Vec<u8>,
-}
-
