@@ -44,9 +44,9 @@ const SUPPORTED_PROTOCOL_VERSIONS: &[&str] = &["2025-11-25", "2024-11-05"];
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Validated JSON-RPC 2.0 request (built from raw JSON, not via Deserialize).
+/// The `jsonrpc` version is validated to be `"2.0"` during parsing and then
+/// dropped — nothing downstream re-reads it.
 struct JsonRpcRequest {
-    /// Already validated to be "2.0" during parsing.
-    _jsonrpc: String,
     id: Option<Value>,
     method: String,
     params: Value,
@@ -141,17 +141,13 @@ fn parse_jsonrpc_request(line: &str) -> Result<JsonRpcRequest, JsonRpcResponse> 
                 -32600,
                 "Invalid request: missing or non-string 'jsonrpc' field".into(),
             )
-        })?
-        .to_string();
+        })?;
 
     if jsonrpc != "2.0" {
         return Err(JsonRpcResponse::error(
             id_for_error.clone(),
             -32600,
-            format!(
-                "Invalid request: unsupported JSON-RPC version '{}', expected '2.0'",
-                jsonrpc
-            ),
+            format!("Invalid request: unsupported JSON-RPC version '{jsonrpc}', expected '2.0'"),
         ));
     }
 
@@ -192,12 +188,7 @@ fn parse_jsonrpc_request(line: &str) -> Result<JsonRpcRequest, JsonRpcResponse> 
         ));
     }
 
-    Ok(JsonRpcRequest {
-        _jsonrpc: jsonrpc,
-        id,
-        method,
-        params,
-    })
+    Ok(JsonRpcRequest { id, method, params })
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
