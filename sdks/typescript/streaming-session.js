@@ -317,16 +317,6 @@ class StreamingSession {
         if (WRAPPER_OWN.has(prop) || prop === Symbol.asyncDispose) {
           return Reflect.get(target, prop, receiver);
         }
-        if (prop in target && typeof target[prop] !== 'undefined') {
-          // Methods explicitly defined on this class (none today
-          // beyond the dispose symbol; future hand-written shortcuts
-          // would land here).
-          const own = Reflect.get(target, prop, receiver);
-          if (typeof own === 'function') {
-            return own.bind(target);
-          }
-          return own;
-        }
         const client = target._client;
         // The unified client's streaming surface (subscribe, diagnostics,
         // lifecycle) moved onto the `client.stream` sub-namespace view.
