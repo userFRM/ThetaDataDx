@@ -491,8 +491,6 @@ impl Default for RingCursors {
 // ring consumer can share the same contract. Re-export the items here
 // under their historical FPSS paths so existing consumers do not have
 // to change.
-#[cfg(test)]
-use crate::util::ring::RingSizeError;
 pub(crate) use crate::util::ring::{check_ring_size, MIN_RING_SIZE};
 
 // ---------------------------------------------------------------------------
@@ -583,44 +581,6 @@ mod tests {
     fn ring_event_default_is_empty() {
         let e = RingEvent::default();
         assert!(matches!(e.event, FpssEventInternal::Empty));
-    }
-
-    #[test]
-    fn check_ring_size_accepts_powers_of_two() {
-        assert_eq!(check_ring_size(64), Ok(64));
-        assert_eq!(check_ring_size(1024), Ok(1024));
-        assert_eq!(check_ring_size(131_072), Ok(131_072));
-    }
-
-    #[test]
-    fn check_ring_size_rejects_non_power_of_two() {
-        let err = check_ring_size(65).unwrap_err();
-        assert_eq!(
-            err,
-            RingSizeError::NotPowerOfTwo {
-                provided: 65,
-                suggested: 128,
-            }
-        );
-    }
-
-    #[test]
-    fn check_ring_size_rejects_below_minimum() {
-        let err = check_ring_size(32).unwrap_err();
-        assert_eq!(
-            err,
-            RingSizeError::TooSmall {
-                provided: 32,
-                minimum: MIN_RING_SIZE,
-            }
-        );
-    }
-
-    #[test]
-    fn check_ring_size_error_messages_name_offender() {
-        let msg = check_ring_size(1000).unwrap_err().to_string();
-        assert!(msg.contains("1000"));
-        assert!(msg.contains("1024"));
     }
 
     #[test]

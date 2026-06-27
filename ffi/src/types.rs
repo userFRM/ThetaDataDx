@@ -365,11 +365,22 @@ impl ThetaDataDxArrowBytes {
         if buf.is_empty() {
             return Self::EMPTY;
         }
-        let boxed = buf.into_boxed_slice();
-        let len = boxed.len();
-        let data = Box::into_raw(boxed) as *const u8;
+        let (data, len) = box_buf(buf);
         Self { data, len }
     }
+}
+
+/// Leak a non-empty byte buffer as a raw `(ptr, len)` pair owned by the
+/// caller. The pointer comes from `Box::into_raw` on a `Box<[u8]>`, so the
+/// matching free path is `Box::from_raw(slice_from_raw_parts_mut(ptr, len))`.
+/// Shared by [`ThetaDataDxArrowBytes::from_vec`] and
+/// `ThetaDataDxFlatFileBytes::from_vec` (each keeps its own empty-sentinel guard
+/// and distinct `#[repr(C)]` name).
+pub(crate) fn box_buf(buf: Vec<u8>) -> (*const u8, usize) {
+    let boxed = buf.into_boxed_slice();
+    let len = boxed.len();
+    let data = Box::into_raw(boxed) as *const u8;
+    (data, len)
 }
 
 /// Serialise a `&[$tick]` to Arrow IPC bytes through the shared
@@ -409,28 +420,13 @@ macro_rules! tick_array_to_arrow_ipc {
                         return ThetaDataDxArrowBytes::EMPTY;
                     }
                 };
-                let mut buf: Vec<u8> = Vec::new();
-                {
-                    let mut writer = match arrow_ipc::writer::StreamWriter::try_new(
-                        std::io::Cursor::new(&mut buf),
-                        &batch.schema(),
-                    ) {
-                        Ok(w) => w,
-                        Err(e) => {
-                            crate::error::set_error(&format!("arrow ipc writer init failed: {e}"));
-                            return ThetaDataDxArrowBytes::EMPTY;
-                        }
-                    };
-                    if let Err(e) = writer.write(&batch) {
-                        crate::error::set_error(&format!("arrow ipc write failed: {e}"));
-                        return ThetaDataDxArrowBytes::EMPTY;
-                    }
-                    if let Err(e) = writer.finish() {
-                        crate::error::set_error(&format!("arrow ipc finish failed: {e}"));
-                        return ThetaDataDxArrowBytes::EMPTY;
+                match crate::streaming_batches_ipc::bytes_from_batch(&batch) {
+                    Ok(buf) => ThetaDataDxArrowBytes::from_vec(buf),
+                    Err(e) => {
+                        crate::error::set_error(&e);
+                        ThetaDataDxArrowBytes::EMPTY
                     }
                 }
-                ThetaDataDxArrowBytes::from_vec(buf)
             })
         }
     };

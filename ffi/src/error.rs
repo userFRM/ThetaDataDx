@@ -98,7 +98,9 @@ pub(crate) fn set_error_with_code(msg: &str, code: i32) {
 /// on to pick the right exception class. A rate-limit back-off hint, if
 /// the error carries one, is stashed for [`thetadatadx_last_error_retry_after_ms`].
 pub(crate) fn set_error_from(err: &thetadatadx::Error) {
-    set_error_string_only(&err.to_string());
+    LAST_ERROR.with(|e| {
+        *e.borrow_mut() = CString::new(err.to_string()).ok();
+    });
     LAST_ERROR_CODE.with(|c| c.set(error_code_for(err)));
     let retry_after_ms = err
         .retry_after()
@@ -113,16 +115,6 @@ pub(crate) fn set_error_from(err: &thetadatadx::Error) {
 /// failure.
 fn clear_retry_after() {
     LAST_ERROR_RETRY_AFTER_MS.with(|c| c.set(THETADATADX_RETRY_AFTER_NONE));
-}
-
-/// Set the error string without touching the typed code. Used by the
-/// `set_error_from` helper above (which sets the code separately) and
-/// by call sites that surface a non-thetadatadx error (e.g. parse
-/// errors raised inside the FFI before any RPC fires).
-fn set_error_string_only(msg: &str) {
-    LAST_ERROR.with(|e| {
-        *e.borrow_mut() = CString::new(msg).ok();
-    });
 }
 
 /// Map a `thetadatadx::Error` to its typed C ABI discriminant. The

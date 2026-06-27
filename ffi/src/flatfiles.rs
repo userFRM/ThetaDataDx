@@ -16,11 +16,9 @@
 //! so language wrappers can defer the schema-inferring Arrow conversion
 //! until the user picks a representation.
 
-use std::io::Cursor;
 use std::os::raw::c_char;
 use std::ptr;
 
-use arrow_ipc::writer::StreamWriter;
 use thetadatadx::flatfiles::{self, FlatFileFormat, FlatFileRow, ReqType, SecType};
 
 use crate::error::{cstr_to_str, set_error, set_error_from};
@@ -63,9 +61,7 @@ impl ThetaDataDxFlatFileBytes {
                 len: 0,
             };
         }
-        let boxed = buf.into_boxed_slice();
-        let len = boxed.len();
-        let data = Box::into_raw(boxed) as *const u8;
+        let (data, len) = crate::types::box_buf(buf);
         Self { data, len }
     }
 }
@@ -246,35 +242,16 @@ pub unsafe extern "C" fn thetadatadx_flatfile_rows_to_arrow_ipc(
                     };
                 }
             };
-            let schema = batch.schema();
-            let mut buf: Vec<u8> = Vec::new();
-            {
-                let mut writer = match StreamWriter::try_new(Cursor::new(&mut buf), &schema) {
-                    Ok(w) => w,
-                    Err(e) => {
-                        set_error(&format!("arrow ipc writer init failed: {e}"));
-                        return ThetaDataDxFlatFileBytes {
-                            data: ptr::null(),
-                            len: 0,
-                        };
+            match crate::streaming_batches_ipc::bytes_from_batch(&batch) {
+                Ok(buf) => ThetaDataDxFlatFileBytes::from_vec(buf),
+                Err(e) => {
+                    set_error(&e);
+                    ThetaDataDxFlatFileBytes {
+                        data: ptr::null(),
+                        len: 0,
                     }
-                };
-                if let Err(e) = writer.write(&batch) {
-                    set_error(&format!("arrow ipc write failed: {e}"));
-                    return ThetaDataDxFlatFileBytes {
-                        data: ptr::null(),
-                        len: 0,
-                    };
-                }
-                if let Err(e) = writer.finish() {
-                    set_error(&format!("arrow ipc finish failed: {e}"));
-                    return ThetaDataDxFlatFileBytes {
-                        data: ptr::null(),
-                        len: 0,
-                    };
                 }
             }
-            ThetaDataDxFlatFileBytes::from_vec(buf)
         }
     )
 }
