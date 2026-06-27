@@ -40,6 +40,30 @@ pub(crate) fn batch_to_ipc(batch: &RecordBatch) -> Result<Vec<u8>, String> {
     Ok(buf)
 }
 
+/// Serialise a [`RecordBatch`] as an Arrow IPC stream, without the row-count
+/// capacity seed [`batch_to_ipc`] applies. The streaming reader's seed is
+/// calibrated for the fixed 40-column streaming schema, so the per-tick and
+/// flat-file terminals (whose schemas differ) start from an empty buffer and
+/// let the writer grow it.
+///
+/// # Errors
+///
+/// Returns a human-readable message on an IPC writer / write / finish failure.
+pub(crate) fn bytes_from_batch(batch: &RecordBatch) -> Result<Vec<u8>, String> {
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = StreamWriter::try_new(std::io::Cursor::new(&mut buf), &batch.schema())
+            .map_err(|e| format!("arrow ipc writer init failed: {e}"))?;
+        writer
+            .write(batch)
+            .map_err(|e| format!("arrow ipc write failed: {e}"))?;
+        writer
+            .finish()
+            .map_err(|e| format!("arrow ipc finish failed: {e}"))?;
+    }
+    Ok(buf)
+}
+
 /// Serialise just a schema as a schema-only Arrow IPC stream (no batches),
 /// so a reader can report its fixed schema before the first batch.
 ///
