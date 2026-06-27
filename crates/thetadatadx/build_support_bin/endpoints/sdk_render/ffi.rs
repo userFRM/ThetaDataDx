@@ -30,7 +30,7 @@ pub(super) fn render_ffi_endpoint_request_options(params: &[GeneratedParam]) -> 
         if param.description.trim().is_empty() {
             writeln!(out, "    /// Optional `{}` parameter.", param.name).unwrap();
         } else {
-            super::doc::rust_doc_lines(&mut out, "    ", &param.description);
+            super::doc::doc_lines(&mut out, "    ", &param.description);
         }
         writeln!(
             out,
@@ -132,10 +132,10 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     let from_vec_type = ffi_from_vec_array_type(&endpoint.return_type);
     let mut out = String::new();
 
-    // Doc emission goes through `rust_doc_lines` so embedded newlines
+    // Doc emission goes through `doc_lines` so embedded newlines
     // / quote / backslash in the upstream description cannot escape
     // the comment block.
-    super::doc::rust_doc_lines(&mut out, "", &endpoint.description);
+    super::doc::doc_lines(&mut out, "", &endpoint.description);
     out.push_str("///\n/// Accepts optional builder parameters.\n");
     out.push_str("#[no_mangle]\n");
     write!(
@@ -274,7 +274,7 @@ fn render_ffi_stream_endpoint(endpoint: &GeneratedEndpoint) -> String {
     let method_params = method_params(endpoint);
     let mut out = String::new();
 
-    super::doc::rust_doc_lines(&mut out, "", &endpoint.description);
+    super::doc::doc_lines(&mut out, "", &endpoint.description);
     out.push_str("///\n/// Stream the result chunk-by-chunk through `callback` without\n");
     out.push_str("/// materialising the full response. `callback(rows, len, ctx)` is\n");
     out.push_str("/// invoked once per server chunk with a pointer to a contiguous run\n");

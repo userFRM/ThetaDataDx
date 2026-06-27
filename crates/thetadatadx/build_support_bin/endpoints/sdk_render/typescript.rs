@@ -170,7 +170,7 @@ fn render_typescript_endpoint_options_struct(endpoint: &GeneratedEndpoint) -> St
         // generated `.d.ts` interface member (napi-rs propagates `///`
         // comments onto interface fields). Without this the options
         // object would list bare `annualDividend?: number` with no unit.
-        super::doc::rust_doc_lines(&mut out, "    ", &param.description);
+        super::doc::doc_lines(&mut out, "    ", &param.description);
         writeln!(
             out,
             "    pub {}: {},",

@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 
 use heck::ToLowerCamelCase;
 
-use super::common::{generated_header, greek_result_fields, push_rust_doc_comment, ts_field_ident};
+use super::common::{generated_header, greek_result_fields, push_rust_doc_comment};
 use super::spec::{
     assert_forwarder_code_params, ForwardReturn, MethodKind, MethodSpec, UtilityKind, UtilitySpec,
 };
@@ -133,75 +133,6 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             );
             out.push_str("    }\n");
         }
-        MethodKind::StockContractCall => {
-            let param = &method.params[0];
-            let js_name = to_ts_camel_case(&method.name);
-            writeln!(out, "    #[napi(js_name = \"{js_name}\")]").unwrap();
-            writeln!(
-                out,
-                "    pub fn {}(&self, {}: String) -> napi::Result<()> {{",
-                method.name, param.name,
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "        let contract = fpss::protocol::Contract::stock(&{});",
-                param.name
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "        self.client.stream().{}(&contract).map_err(to_napi_err)",
-                method.runtime_call.as_deref().unwrap()
-            )
-            .unwrap();
-            out.push_str("    }\n");
-        }
-        MethodKind::OptionContractCall => {
-            let js_name = to_ts_camel_case(&method.name);
-            writeln!(out, "    #[napi(js_name = \"{js_name}\")]").unwrap();
-            writeln!(out, "    pub fn {}(", method.name).unwrap();
-            out.push_str("        &self,\n");
-            for param in &method.params {
-                writeln!(out, "        {}: String,", param.name).unwrap();
-            }
-            out.push_str("    ) -> napi::Result<()> {\n");
-            writeln!(
-                out,
-                "        let contract = fpss::protocol::Contract::option(&{}, fpss::protocol::OptionLeg {{ expiration: &{}, strike: &{}, right: &{} }}).map_err(to_napi_err)?;",
-                method.params[0].name,
-                method.params[1].name,
-                method.params[2].name,
-                method.params[3].name
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "        self.client.stream().{}(&contract).map_err(to_napi_err)",
-                method.runtime_call.as_deref().unwrap()
-            )
-            .unwrap();
-            out.push_str("    }\n");
-        }
-        MethodKind::FullCall => {
-            let param = &method.params[0];
-            let js_name = to_ts_camel_case(&method.name);
-            writeln!(out, "    #[napi(js_name = \"{js_name}\")]").unwrap();
-            writeln!(
-                out,
-                "    pub fn {}(&self, {}: String) -> napi::Result<()> {{",
-                method.name, param.name,
-            )
-            .unwrap();
-            writeln!(out, "        let st = parse_sec_type(&{})?;", param.name).unwrap();
-            writeln!(
-                out,
-                "        self.client.stream().{}(st).map_err(to_napi_err)",
-                method.runtime_call.as_deref().unwrap()
-            )
-            .unwrap();
-            out.push_str("    }\n");
-        }
         MethodKind::ActiveSubscriptions => {
             writeln!(out, "    #[napi(js_name = \"activeSubscriptions\")]").unwrap();
             writeln!(
@@ -222,17 +153,6 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             out.push_str("            })\n");
             out.push_str("            .map_err(to_napi_err)\n");
             out.push_str("    }\n");
-        }
-        MethodKind::NextEvent => {
-            // The TypeScript binding uses callback registration via
-            // `startStreaming(callback)` rather than a poll-style
-            // `next_event`. The TS target is no longer
-            // in `MethodKind::NextEvent`'s allowed list (see
-            // `spec.rs`), so this arm is unreachable on the TS
-            // surface. Panicking here is the loud failure we want if
-            // someone re-adds `typescript_napi` to `next_event` without
-            // also implementing a poll-style napi method.
-            panic!("MethodKind::NextEvent is not emitted on the TypeScript target after PR D");
         }
         MethodKind::Reconnect => {
             push_rust_doc_comment(
@@ -572,9 +492,9 @@ fn render_util_napi_class(utilities: &[&&UtilitySpec]) -> String {
 /// returns a typed object whose fields mirror
 /// `thetadatadx::greeks::GreeksResult` 1:1. napi-rs camelCases each
 /// snake_case Rust field into the JS property name (`dual_delta` ->
-/// `dualDelta`); the field name passes through [`ts_field_ident`]
-/// unchanged because object keys admit reserved words (`lambda` stays
-/// `lambda`, matching the `GreeksAllTick` tick object).
+/// `dualDelta`); the field name is emitted unchanged because object keys
+/// admit reserved words (`lambda` stays `lambda`, matching the
+/// `GreeksAllTick` tick object).
 fn render_all_greeks_napi_object() -> String {
     let mut out = String::new();
     out.push_str(
@@ -586,7 +506,7 @@ fn render_all_greeks_napi_object() -> String {
     out.push_str("#[derive(Clone)]\n");
     out.push_str("pub struct AllGreeks {\n");
     for (field, _rust_field) in greek_result_fields() {
-        writeln!(out, "    pub {}: f64,", ts_field_ident(field)).unwrap();
+        writeln!(out, "    pub {field}: f64,").unwrap();
     }
     out.push_str("}\n");
     out
@@ -624,7 +544,7 @@ fn ts_utility_function(utility: &UtilitySpec) -> String {
                 // The napi object field carries the TS spelling
                 // (`lambda`); the `GreeksResult` member it reads stays the
                 // bare Rust name (`lambda`).
-                writeln!(out, "        {}: g.{rust_field},", ts_field_ident(field)).unwrap();
+                writeln!(out, "        {field}: g.{rust_field},").unwrap();
             }
             out.push_str("    })\n");
             out.push_str("}\n");

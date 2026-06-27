@@ -17,7 +17,6 @@ use std::fs;
 use std::path::Path;
 
 use serde::Deserialize;
-use toml::Value;
 
 #[derive(Deserialize)]
 struct TradeFile {
@@ -90,11 +89,6 @@ pub fn generate() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|e| panic!("read {}: {e}", trade_toml.display()));
     let quote_src = fs::read_to_string(&quote_toml)
         .unwrap_or_else(|e| panic!("read {}: {e}", quote_toml.display()));
-
-    // Parse via `toml::Value` first to give precise spec errors, then re-deserialize
-    // into typed rows.
-    let _: Value = toml::from_str(&trade_src).expect("trade_conditions.toml: invalid TOML");
-    let _: Value = toml::from_str(&quote_src).expect("quote_conditions.toml: invalid TOML");
 
     let trades: TradeFile =
         toml::from_str(&trade_src).expect("trade_conditions.toml: schema mismatch");

@@ -15,7 +15,7 @@ use super::spec::{ParamSpec, ParamType, UtilitySpec};
 // Re-exported here so the sdk_surface Python / TypeScript emitters route
 // the `GreeksResult` field names through the same policy point the tick
 // emitters already use.
-pub(super) use super::super::ticks::idents::{python_field_ident, ts_field_ident};
+pub(super) use super::super::ticks::idents::python_field_ident;
 
 /// Returns the `@generated DO NOT EDIT` banner prepended to each rendered source file.
 pub(super) fn generated_header() -> &'static str {
@@ -125,19 +125,6 @@ pub(super) fn python_type(param_type: ParamType) -> &'static str {
         ParamType::CredentialsRef | ParamType::ConfigRef => {
             panic!("credentials/config refs are not valid for Python emitters")
         }
-    }
-}
-
-/// Maps a spec param type to the C++ type emitted in declarations and definitions.
-pub(super) fn cpp_type(param_type: ParamType) -> &'static str {
-    match param_type {
-        ParamType::String => "const std::string&",
-        ParamType::F64 => "double",
-        ParamType::I32 => "int",
-        ParamType::I64 => "int64_t",
-        ParamType::U64 => "uint64_t",
-        ParamType::CredentialsRef => "const Credentials&",
-        ParamType::ConfigRef => "const Config&",
     }
 }
 

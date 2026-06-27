@@ -394,7 +394,36 @@ pub(super) fn render_ffi_fpss_event_structs(schema: &Schema) -> String {
         render_event_zero_const(&mut out, event_name, def);
     }
 
+    // Fully-zeroed event used as the `..ZERO_STREAM_EVENT` struct-update base
+    // in the converter: each arm names its `kind` plus the one active payload
+    // field, and this fills every inactive sibling with its zero const.
+    render_zero_stream_event(&mut out, schema);
+
     out
+}
+
+/// Emit the `ZERO_STREAM_EVENT` const: every payload field set to its
+/// matching `ZERO_*` const. Converter arms spread it with
+/// `..ZERO_STREAM_EVENT` after naming `kind` and the active payload, so
+/// the inactive siblings are zeroed in one line instead of listing all of
+/// them per arm. `kind` is `UnknownControl` (the payload-less sentinel) but
+/// every arm overrides it, so the base discriminant is never observed.
+fn render_zero_stream_event(out: &mut String, schema: &Schema) {
+    out.push_str(
+        "pub(crate) const ZERO_STREAM_EVENT: ThetaDataDxStreamEvent = ThetaDataDxStreamEvent {\n",
+    );
+    out.push_str("    kind: ThetaDataDxStreamEventKind::UnknownControl,\n");
+    for (event_name, _) in sorted_data_events(schema) {
+        let field = snake_case(event_name);
+        let zero = zero_const_name(event_name);
+        writeln!(out, "    {field}: {zero},").unwrap();
+    }
+    for (event_name, _) in sorted_control_events(schema) {
+        let field = snake_case(event_name);
+        let zero = zero_const_name(event_name);
+        writeln!(out, "    {field}: {zero},").unwrap();
+    }
+    out.push_str("};\n");
 }
 
 /// True if a control variant carries a backing `String` field — i.e.
@@ -431,7 +460,7 @@ fn control_has_contract(columns: &[ColumnDef]) -> Option<&str> {
 /// Emit the data-event match arm. Each arm fills the matching
 /// `ThetaDataDxStream{Variant}` field, captures the contract symbol into
 /// `_contract_symbol`, and zero-fills every sibling field.
-fn render_data_arm(out: &mut String, schema: &Schema, event_name: &str, def: &EventDef) {
+fn render_data_arm(out: &mut String, event_name: &str, def: &EventDef) {
     let has_contract = def.columns.iter().any(|c| is_contract(&c.r#type));
     writeln!(out, "        StreamEvent::Data(StreamData::{event_name} {{").unwrap();
     for column in &def.columns {
@@ -478,7 +507,7 @@ fn render_data_arm(out: &mut String, schema: &Schema, event_name: &str, def: &Ev
     }
     out.push_str("                    },\n");
     // Zero-fill all sibling data + control + raw fields.
-    render_zero_fill_siblings(out, schema, event_name, "                    ");
+    render_zero_fill_siblings(out, "                    ");
     out.push_str("                },\n");
     render_zero_buffered_storage(
         out,
@@ -508,7 +537,7 @@ fn render_control_arms(out: &mut String, schema: &Schema) {
             // Wildcard arm at the end; StreamControl is #[non_exhaustive].
             continue;
         }
-        render_control_arm(out, schema, event_name, def);
+        render_control_arm(out, event_name, def);
     }
     // UnknownControl wildcard for any future / non-recognised variant.
     out.push_str("            _ => unknown_control_event(),\n");
@@ -569,7 +598,7 @@ fn control_variant_mapping(event_name: &str) -> (&'static str, Vec<&'static str>
     }
 }
 
-fn render_control_arm(out: &mut String, schema: &Schema, event_name: &str, def: &EventDef) {
+fn render_control_arm(out: &mut String, event_name: &str, def: &EventDef) {
     let rust_variant = control_rust_variant(event_name);
     let (rust_pattern, field_assigns) = control_variant_mapping(event_name);
     let has_string = control_has_string(&def.columns);
@@ -647,7 +676,7 @@ fn render_control_arm(out: &mut String, schema: &Schema, event_name: &str, def: 
         writeln!(out, "                            {assign},").unwrap();
     }
     out.push_str("                        },\n");
-    render_zero_fill_siblings(out, schema, event_name, "                        ");
+    render_zero_fill_siblings(out, "                        ");
     out.push_str("                    },\n");
 
     let contract_slot = if has_contract.is_some() {
@@ -682,26 +711,12 @@ fn render_control_arm(out: &mut String, schema: &Schema, event_name: &str, def: 
     out.push_str("            }\n");
 }
 
-/// Helper: render the per-variant zero-fill block listing every sibling
-/// field on the tagged `ThetaDataDxStreamEvent` struct, skipping the active one.
-/// Indent governs how many spaces precede each emitted line.
-fn render_zero_fill_siblings(out: &mut String, schema: &Schema, active_event: &str, indent: &str) {
-    for (other_name, _) in sorted_data_events(schema) {
-        if other_name == active_event {
-            continue;
-        }
-        let other_field = snake_case(other_name);
-        let other_zero = zero_const_name(other_name);
-        writeln!(out, "{indent}{other_field}: {other_zero},").unwrap();
-    }
-    for (other_name, _) in sorted_control_events(schema) {
-        if other_name == active_event {
-            continue;
-        }
-        let other_field = snake_case(other_name);
-        let other_zero = zero_const_name(other_name);
-        writeln!(out, "{indent}{other_field}: {other_zero},").unwrap();
-    }
+/// Helper: zero every inactive sibling field on the tagged
+/// `ThetaDataDxStreamEvent` via one `..ZERO_STREAM_EVENT` struct-update
+/// line. The arm names `kind` and the single active payload above this;
+/// struct-update fills the rest. Indent governs the leading spaces.
+fn render_zero_fill_siblings(out: &mut String, indent: &str) {
+    writeln!(out, "{indent}..ZERO_STREAM_EVENT").unwrap();
 }
 
 /// Helper: render the four backing-storage slot assignments on the
@@ -730,13 +745,13 @@ fn render_zero_buffered_storage(
 /// `StreamEvent`. Surfaces a payload-less `UnknownControl` event so
 /// downstream consumers see every variant the SDK does not yet
 /// recognise without losing the kind discriminator.
-fn render_unknown_control_helper(out: &mut String, schema: &Schema) {
+fn render_unknown_control_helper(out: &mut String) {
     out.push_str("    fn unknown_control_event() -> FfiBufferedEvent {\n");
     out.push_str("        FfiBufferedEvent {\n");
     out.push_str("            event: ThetaDataDxStreamEvent {\n");
     out.push_str("                kind: ThetaDataDxStreamEventKind::UnknownControl,\n");
     out.push_str("                unknown_control: ZERO_UNKNOWN_CONTROL,\n");
-    render_zero_fill_siblings(out, schema, "UnknownControl", "                ");
+    render_zero_fill_siblings(out, "                ");
     out.push_str("            },\n");
     render_zero_buffered_storage(out, "            ", "None", "None", "None", "None");
     out.push_str("        }\n");
@@ -759,12 +774,12 @@ pub(super) fn render_ffi_fpss_event_converter(schema: &Schema) -> String {
     out.push_str("pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBufferedEvent {\n");
     out.push_str("    use thetadatadx::fpss::{StreamControl, StreamData, StreamEvent};\n\n");
 
-    render_unknown_control_helper(&mut out, schema);
+    render_unknown_control_helper(&mut out);
 
     out.push_str("    match event {\n");
 
     for (event_name, def) in sorted_data_events(schema) {
-        render_data_arm(&mut out, schema, event_name, def);
+        render_data_arm(&mut out, event_name, def);
     }
 
     render_control_arms(&mut out, schema);
