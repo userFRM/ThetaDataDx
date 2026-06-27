@@ -34,11 +34,11 @@
 use std::path::PathBuf;
 
 use axum::body::Body;
-use axum::extract::rejection::{JsonRejection, PathRejection, QueryRejection};
+use axum::extract::rejection::{JsonRejection, QueryRejection};
 use axum::extract::{FromRequest, FromRequestParts, Path, Query, Request, State};
 use axum::http::request::Parts;
 use axum::http::{header, StatusCode};
-use axum::response::{IntoResponse, Response};
+use axum::response::Response;
 use axum::routing::{get, post};
 use axum::Router;
 use serde::Deserialize;
@@ -47,7 +47,7 @@ use thetadatadx::flatfiles::{
 };
 use tokio_util::io::ReaderStream;
 
-use crate::format;
+use crate::handler::error_response;
 use crate::state::AppState;
 
 /// Query parameters for the convenience flat-file route
@@ -162,60 +162,6 @@ fn query_rejection_response(rejection: &QueryRejection) -> Response {
     error_response(rejection.status(), "bad_request", &rejection.body_text())
 }
 
-// ── Path extractor with a canonical-envelope rejection ───────────────────
-
-/// `axum::Path` wrapper whose extraction failure renders the server's
-/// canonical error envelope instead of axum's default plain-text 400.
-///
-/// The `{sec_type}/{req_type}` segments deserialize to `String`, which
-/// cannot fail on a UTF-8-valid path that the router already matched, so
-/// this rejection is not reachable from untrusted input in practice. It
-/// is wired through the same envelope helper anyway so that the GET route
-/// has no remaining extractor that could answer with a non-canonical body,
-/// matching the defensiveness of the POST `FlatfileJson` path.
-pub(crate) struct FlatfilePath<T>(pub(crate) T);
-
-impl<S, T> FromRequestParts<S> for FlatfilePath<T>
-where
-    axum::extract::Path<T>: FromRequestParts<S, Rejection = PathRejection>,
-    S: Send + Sync,
-{
-    type Rejection = Response;
-
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        match axum::extract::Path::<T>::from_request_parts(parts, state).await {
-            Ok(Path(value)) => Ok(Self(value)),
-            Err(rejection) => Err(path_rejection_response(&rejection)),
-        }
-    }
-}
-
-/// Map a `PathRejection` onto the canonical error envelope.
-fn path_rejection_response(rejection: &PathRejection) -> Response {
-    error_response(rejection.status(), "bad_request", &rejection.body_text())
-}
-
-// ── Wire-friendly error response ─────────────────────────────────────────
-
-fn error_response(status: StatusCode, error_type: &str, msg: &str) -> Response {
-    let mut body = format::error_envelope(error_type, msg);
-    let json_bytes =
-        thetadatadx::json_canon::canonicalize_and_serialize(&mut body).unwrap_or_else(|err| {
-            tracing::error!(error = %err, "flatfile error envelope serialise failed");
-            format!(
-                "{{\"header\":{{\"error_type\":\"serialization_error\",\
-                 \"error_msg\":\"flatfile error envelope failed: {err}\"}},\
-                 \"response\":[]}}"
-            )
-        });
-    (
-        status,
-        [(header::CONTENT_TYPE, crate::handler::JSON_CONTENT_TYPE)],
-        json_bytes,
-    )
-        .into_response()
-}
-
 // ── Enum parsing ─────────────────────────────────────────────────────────
 
 fn parse_sec_type(s: &str) -> Result<SecType, String> {
@@ -281,7 +227,9 @@ fn content_type_for(format: FlatFileFormat) -> &'static str {
 
 async fn handle_get(
     state: State<AppState>,
-    FlatfilePath((sec_type_s, req_type_s)): FlatfilePath<(String, String)>,
+    // Router-matched UTF-8 path segments deserialize to `String` infallibly,
+    // so plain `Path` never rejects here — no custom envelope wrapper needed.
+    Path((sec_type_s, req_type_s)): Path<(String, String)>,
     FlatfileQueryExtractor(params): FlatfileQueryExtractor<FlatfileQuery>,
 ) -> Response {
     let sec_type = match parse_sec_type(&sec_type_s) {

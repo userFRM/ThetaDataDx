@@ -242,13 +242,6 @@ fn parse_format(value: Option<&str>) -> Result<FlatFileFormat, String> {
     }
 }
 
-fn arg_str(args: &Value, key: &str) -> Result<String, String> {
-    args.get(key)
-        .and_then(sonic_rs::JsonValueTrait::as_str)
-        .map(ToString::to_string)
-        .ok_or_else(|| format!("missing required string argument: {key}"))
-}
-
 fn arg_str_opt(args: &Value, key: &str) -> Option<String> {
     args.get(key)
         .and_then(sonic_rs::JsonValueTrait::as_str)
@@ -288,11 +281,11 @@ pub(crate) async fn try_execute_flatfile_tool(
     args: &Value,
 ) -> Option<Result<Value, ToolError>> {
     let (sec_type, req_type) = if name == "thetadatadx_flatfile_request" {
-        let sec_str = match arg_str(args, "sec_type") {
+        let sec_str = match crate::arg_str(args, "sec_type") {
             Ok(s) => s,
             Err(e) => return Some(Err(ToolError::InvalidParams(e))),
         };
-        let req_str = match arg_str(args, "req_type") {
+        let req_str = match crate::arg_str(args, "req_type") {
             Ok(s) => s,
             Err(e) => return Some(Err(ToolError::InvalidParams(e))),
         };
@@ -321,7 +314,7 @@ pub(crate) async fn try_execute_flatfile_tool(
         ))));
     }
 
-    let date = match arg_str(args, "date") {
+    let date = match crate::arg_str(args, "date") {
         Ok(d) => d,
         Err(e) => return Some(Err(ToolError::InvalidParams(e))),
     };

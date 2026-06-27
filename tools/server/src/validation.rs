@@ -69,22 +69,25 @@ pub const MAX_GENERIC_LEN: usize = 64;
 /// observed length so error responses are actionable.
 #[derive(Debug, Clone)]
 pub struct ValidationError {
-    pub field: &'static str,
+    /// `Cow` so a registry-declared `&'static str` name is borrowed for free,
+    /// while a non-registry query-param name (`validate_query_param`) is kept
+    /// owned without a 19-arm literal-identity round-trip.
+    pub field: std::borrow::Cow<'static, str>,
     pub message: String,
 }
 
 impl ValidationError {
-    fn too_long(field: &'static str, observed: usize, limit: usize) -> Self {
+    fn too_long(field: &str, observed: usize, limit: usize) -> Self {
         Self {
-            field,
             message: format!("'{field}' exceeds maximum length of {limit} bytes (got {observed})"),
+            field: std::borrow::Cow::Owned(field.to_owned()),
         }
     }
 
-    fn invalid_content(field: &'static str, detail: &str) -> Self {
+    fn invalid_content(field: &str, detail: &str) -> Self {
         Self {
-            field,
             message: format!("'{field}' {detail}"),
+            field: std::borrow::Cow::Owned(field.to_owned()),
         }
     }
 }
@@ -129,7 +132,7 @@ impl std::error::Error for ValidationError {}
 /// # Errors
 /// Returns `ValidationError::invalid_content` when `value` contains any
 /// character for which `char::is_control` is true.
-pub fn ensure_no_control_chars(value: &str, field: &'static str) -> Result<(), ValidationError> {
+pub fn ensure_no_control_chars(value: &str, field: &str) -> Result<(), ValidationError> {
     if value.chars().any(|c| c.is_control()) {
         return Err(ValidationError::invalid_content(
             field,
@@ -152,7 +155,7 @@ pub fn ensure_no_control_chars(value: &str, field: &'static str) -> Result<(), V
 /// # Errors
 /// Returns `ValidationError::invalid_content` when `value` contains `/`,
 /// `\`, or the `..` parent reference.
-pub fn ensure_no_path_separators(value: &str, field: &'static str) -> Result<(), ValidationError> {
+pub fn ensure_no_path_separators(value: &str, field: &str) -> Result<(), ValidationError> {
     if value.contains('/') || value.contains('\\') || value.contains("..") {
         return Err(ValidationError::invalid_content(
             field,
@@ -174,7 +177,7 @@ pub fn ensure_no_path_separators(value: &str, field: &'static str) -> Result<(),
 /// # Errors
 /// Returns a `ValidationError` when `value` is empty, exceeds
 /// [`MAX_SYMBOL_LEN`], or contains control characters.
-pub fn validate_symbol(value: &str, field: &'static str) -> Result<(), ValidationError> {
+pub fn validate_symbol(value: &str, field: &str) -> Result<(), ValidationError> {
     if value.is_empty() {
         return Err(ValidationError::invalid_content(field, "must be non-empty"));
     }
@@ -194,7 +197,7 @@ pub fn validate_symbol(value: &str, field: &'static str) -> Result<(), Validatio
 /// # Errors
 /// Returns a `ValidationError` when `value` exceeds [`MAX_SYMBOLS_LEN`] or
 /// contains control characters.
-pub fn validate_symbols_list(value: &str, field: &'static str) -> Result<(), ValidationError> {
+pub fn validate_symbols_list(value: &str, field: &str) -> Result<(), ValidationError> {
     if value.len() > MAX_SYMBOLS_LEN {
         return Err(ValidationError::too_long(
             field,
@@ -214,7 +217,7 @@ pub fn validate_symbols_list(value: &str, field: &'static str) -> Result<(), Val
 /// Returns a `ValidationError` when `value` exceeds [`MAX_DATE_LEN`],
 /// contains control characters, or contains a filesystem path separator
 /// (the date is interpolated into a flatfile artefact path downstream).
-pub fn validate_date(value: &str, field: &'static str) -> Result<(), ValidationError> {
+pub fn validate_date(value: &str, field: &str) -> Result<(), ValidationError> {
     if value.len() > MAX_DATE_LEN {
         return Err(ValidationError::too_long(field, value.len(), MAX_DATE_LEN));
     }
@@ -228,7 +231,7 @@ pub fn validate_date(value: &str, field: &'static str) -> Result<(), ValidationE
 /// # Errors
 /// Returns a `ValidationError` when `value` exceeds [`MAX_STRIKE_LEN`] or
 /// contains control characters.
-pub fn validate_strike(value: &str, field: &'static str) -> Result<(), ValidationError> {
+pub fn validate_strike(value: &str, field: &str) -> Result<(), ValidationError> {
     if value.len() > MAX_STRIKE_LEN {
         return Err(ValidationError::too_long(
             field,
@@ -245,7 +248,7 @@ pub fn validate_strike(value: &str, field: &'static str) -> Result<(), Validatio
 /// # Errors
 /// Returns a `ValidationError` when `value` is empty, exceeds
 /// [`MAX_RIGHT_LEN`], or contains control characters.
-pub fn validate_right(value: &str, field: &'static str) -> Result<(), ValidationError> {
+pub fn validate_right(value: &str, field: &str) -> Result<(), ValidationError> {
     if value.is_empty() {
         return Err(ValidationError::invalid_content(field, "must be non-empty"));
     }
@@ -261,7 +264,7 @@ pub fn validate_right(value: &str, field: &'static str) -> Result<(), Validation
 /// # Errors
 /// Returns a `ValidationError` when `value` exceeds [`MAX_INTERVAL_LEN`] or
 /// contains control characters.
-pub fn validate_interval(value: &str, field: &'static str) -> Result<(), ValidationError> {
+pub fn validate_interval(value: &str, field: &str) -> Result<(), ValidationError> {
     if value.len() > MAX_INTERVAL_LEN {
         return Err(ValidationError::too_long(
             field,
@@ -278,7 +281,7 @@ pub fn validate_interval(value: &str, field: &'static str) -> Result<(), Validat
 /// # Errors
 /// Returns a `ValidationError` when `value` exceeds [`MAX_VENUE_LEN`] or
 /// contains control characters.
-pub fn validate_venue(value: &str, field: &'static str) -> Result<(), ValidationError> {
+pub fn validate_venue(value: &str, field: &str) -> Result<(), ValidationError> {
     if value.len() > MAX_VENUE_LEN {
         return Err(ValidationError::too_long(field, value.len(), MAX_VENUE_LEN));
     }
@@ -310,7 +313,7 @@ pub fn validate_generic_named(value: &str, param_name: &str) -> Result<(), Valid
     if value.len() > MAX_GENERIC_LEN {
         let safe_name: String = sanitize_param_name(param_name);
         return Err(ValidationError {
-            field: "parameter",
+            field: std::borrow::Cow::Borrowed("parameter"),
             message: format!(
                 "'{safe_name}' exceeds maximum length of {MAX_GENERIC_LEN} bytes \
                  (got {observed})",
@@ -323,7 +326,7 @@ pub fn validate_generic_named(value: &str, param_name: &str) -> Result<(), Valid
     if value.chars().any(|c| c.is_control()) {
         let safe_name: String = sanitize_param_name(param_name);
         return Err(ValidationError {
-            field: "parameter",
+            field: std::borrow::Cow::Borrowed("parameter"),
             message: format!("'{safe_name}' contains control characters"),
         });
     }
@@ -394,46 +397,15 @@ pub fn validate_param_value(param: &ParamMeta, value: &str) -> Result<(), Valida
 /// the param routes to (length-cap or control-character rejection).
 pub fn validate_query_param(name: &str, value: &str) -> Result<(), ValidationError> {
     match name {
-        "root" | "symbol" | "ticker" => validate_symbol(value, static_name(name)),
-        "roots" | "symbols" | "tickers" => validate_symbols_list(value, static_name(name)),
-        "exp" | "expiration" | "expiry" => validate_date(value, static_name(name)),
-        "date" | "start_date" | "end_date" | "trade_date" => {
-            validate_date(value, static_name(name))
-        }
-        "strike" => validate_strike(value, static_name(name)),
-        "right" => validate_right(value, static_name(name)),
-        "ivl" | "interval" => validate_interval(value, static_name(name)),
-        "venue" | "exchange" => validate_venue(value, static_name(name)),
+        "root" | "symbol" | "ticker" => validate_symbol(value, name),
+        "roots" | "symbols" | "tickers" => validate_symbols_list(value, name),
+        "exp" | "expiration" | "expiry" => validate_date(value, name),
+        "date" | "start_date" | "end_date" | "trade_date" => validate_date(value, name),
+        "strike" => validate_strike(value, name),
+        "right" => validate_right(value, name),
+        "ivl" | "interval" => validate_interval(value, name),
+        "venue" | "exchange" => validate_venue(value, name),
         _ => validate_generic_named(value, name),
-    }
-}
-
-/// Pick a `'static` label for an error message. We only ever match on the
-/// known param names above, so returning a short static alias for each one
-/// keeps `ValidationError::field` allocation-free and avoids interning the
-/// caller's borrowed string.
-fn static_name(name: &str) -> &'static str {
-    match name {
-        "root" => "root",
-        "symbol" => "symbol",
-        "ticker" => "ticker",
-        "roots" => "roots",
-        "symbols" => "symbols",
-        "tickers" => "tickers",
-        "exp" => "exp",
-        "expiration" => "expiration",
-        "expiry" => "expiry",
-        "date" => "date",
-        "start_date" => "start_date",
-        "end_date" => "end_date",
-        "trade_date" => "trade_date",
-        "strike" => "strike",
-        "right" => "right",
-        "ivl" => "ivl",
-        "interval" => "interval",
-        "venue" => "venue",
-        "exchange" => "exchange",
-        _ => "parameter",
     }
 }
 
@@ -595,7 +567,7 @@ mod tests {
     #[test]
     fn endpoint_error_conversion_preserves_message() {
         let v = ValidationError {
-            field: "root",
+            field: std::borrow::Cow::Borrowed("root"),
             message: "bad root".to_string(),
         };
         let ee: EndpointError = v.into();

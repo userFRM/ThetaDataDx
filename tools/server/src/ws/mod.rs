@@ -48,27 +48,21 @@ use crate::state::AppState;
 pub use broadcast::start_fpss_bridge;
 pub use format::json_serialize_failure_count;
 
-/// Mirrors `router::GLOBAL_CONCURRENCY_LIMIT` — single constant would cross
-/// the module boundary gratuitously. 256 is chosen for the same reason:
-/// enough headroom for bursty clients, tight enough to shed pressure at
-/// the edge before it hits tokio task slots.
-const WS_CONCURRENCY_LIMIT: usize = 256;
-
-/// Mirrors `router::BODY_LIMIT_BYTES`. The WS upgrade request itself is
-/// small; this cap prevents a malicious upgrade handshake from pushing a
-/// multi-MB body through the axum extractor chain.
-const WS_BODY_LIMIT_BYTES: usize = 64 * 1024;
+// The WS router shares the HTTP router's admission caps verbatim so the two
+// surfaces shed pressure identically; import the originals rather than mirror
+// their values.
+use crate::router::{BODY_LIMIT_BYTES, GLOBAL_CONCURRENCY_LIMIT};
 
 /// Build the WebSocket router (single route: `/v1/events`).
 ///
 /// Applies the same hardening layers as `router::build`:
 ///
 /// 1. `ConcurrencyLimitLayer` caps in-flight WS upgrades to
-///    [`WS_CONCURRENCY_LIMIT`]; the single-client invariant is still
+///    [`GLOBAL_CONCURRENCY_LIMIT`]; the single-client invariant is still
 ///    enforced downstream via `state.try_acquire_ws`, but this stops
 ///    attackers from queueing thousands of blocked upgrades.
 /// 2. `DefaultBodyLimit` caps the upgrade request body at
-///    [`WS_BODY_LIMIT_BYTES`].
+///    [`BODY_LIMIT_BYTES`].
 /// 3. `GovernorLayer` keyed on the peer connect-info IP enforces the
 ///    operator's tuned `(per_second, burst)` pair — only when `rate_limit`
 ///    is `Some` (the operator opted in via the rate-limit env vars; see
@@ -79,8 +73,8 @@ const WS_BODY_LIMIT_BYTES: usize = 64 * 1024;
 pub fn router(state: AppState, rate_limit: Option<crate::router::RateLimit>) -> Router {
     let mut app = Router::new()
         .route("/v1/events", get(upgrade::ws_upgrade))
-        .layer(ConcurrencyLimitLayer::new(WS_CONCURRENCY_LIMIT))
-        .layer(DefaultBodyLimit::max(WS_BODY_LIMIT_BYTES));
+        .layer(ConcurrencyLimitLayer::new(GLOBAL_CONCURRENCY_LIMIT))
+        .layer(DefaultBodyLimit::max(BODY_LIMIT_BYTES));
 
     if let Some((per_second, burst_size)) = rate_limit {
         let governor = Arc::new(

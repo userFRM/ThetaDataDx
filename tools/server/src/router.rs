@@ -87,12 +87,12 @@ use crate::state::AppState;
 /// timeout (the future drops, releasing both permits). The full model is
 /// documented in `docs-site/docs/server/http.md` under "Concurrency
 /// model".
-const GLOBAL_CONCURRENCY_LIMIT: usize = 256;
+pub(crate) const GLOBAL_CONCURRENCY_LIMIT: usize = 256;
 
 /// Max request body size. 64 KB comfortably covers any realistic query
 /// string + headers for this API; anything larger is DoS or a broken
 /// client.
-const BODY_LIMIT_BYTES: usize = 64 * 1024;
+pub(crate) const BODY_LIMIT_BYTES: usize = 64 * 1024;
 
 /// Fallback general per-IP quota applied only when the operator opts into
 /// rate limiting by setting one of the two rate-limit env vars but not the
