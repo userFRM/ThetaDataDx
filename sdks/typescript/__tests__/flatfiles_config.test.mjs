@@ -36,9 +36,23 @@ describe('Config.flatFiles* — defaults mirror FlatFilesConfig::production_defa
 describe('Config.setFlatfilesMaxAttempts', () => {
   it('round-trips through the setter across the documented u32 range', () => {
     const cfg = Config.production();
-    for (const n of [0, 1, 3, 5, 10, 100, 1_000]) {
+    // `1` disables retry; the documented valid range is `[1, 100]`, so the
+    // setter floors at 1 (validated at the napi boundary). `0` is rejected
+    // below rather than round-tripped.
+    for (const n of [1, 3, 5, 10, 100, 1_000]) {
       cfg.setFlatfilesMaxAttempts(n);
       assert.equal(cfg.flatfilesMaxAttempts, n);
+    }
+  });
+
+  it('rejects 0 and other hostile inputs at the napi boundary', () => {
+    const cfg = Config.production();
+    for (const bad of [0, -1, 1.5, 2 ** 32, Number.NaN]) {
+      assert.throws(
+        () => cfg.setFlatfilesMaxAttempts(bad),
+        /flatfilesMaxAttempts/,
+        `setFlatfilesMaxAttempts(${bad}) must reject, not silently rewrite via ToUint32`,
+      );
     }
   });
 });

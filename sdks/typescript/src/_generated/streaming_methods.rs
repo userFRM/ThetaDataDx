@@ -270,7 +270,8 @@ impl StreamView {
 
     /// Block until the previous streaming session's consumer thread has finished firing the registered callback. Returns true if the drain completed within the timeout, false otherwise.
     #[napi(js_name = "awaitDrain")]
-    pub async fn await_drain(&self, timeout_ms: u32) -> napi::Result<bool> {
+    pub async fn await_drain(&self, timeout_ms: f64) -> napi::Result<bool> {
+        let timeout_ms = crate::validate_u32_arg("timeoutMs", timeout_ms)?;
         let client = self.client.clone();
         let timeout = std::time::Duration::from_millis(u64::from(timeout_ms));
         tokio::task::spawn_blocking(move || client.stream().await_drain(timeout))

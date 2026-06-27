@@ -16,7 +16,7 @@
 import { Client } from "thetadatadx";
 
 async function main(): Promise<void> {
-  const client = Client.connectFromFile("creds.txt");
+  const client = await Client.connectFromFile("creds.txt");
 
   // End-of-day stock data.
   console.log("=== AAPL EOD (Jan-Mar 2024) ===");

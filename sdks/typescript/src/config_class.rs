@@ -270,7 +270,12 @@ impl Config {
     /// created; clients connected later share the already-built pool, so
     /// setting it on a subsequent config has no effect.
     #[napi(js_name = "setWorkerThreads")]
-    pub fn set_worker_threads(&self, n: Option<u32>) -> napi::Result<()> {
+    pub fn set_worker_threads(&self, n: Option<f64>) -> napi::Result<()> {
+        // `0` is a valid, verbatim choice here (the core clamps it to 1),
+        // so the plain `validate_optional_u32_arg` is used rather than the
+        // `>= 1` floor — but a fractional / negative / over-u32 value is
+        // still rejected instead of being silently rewritten by ToUint32.
+        let n = crate::validate_optional_u32_arg("workerThreads", n)?;
         let mut guard = self
             .inner
             .lock()
@@ -337,7 +342,8 @@ impl Config {
 
     /// Set the wait-strategy spin iteration count.
     #[napi(js_name = "setWaitSpinIters")]
-    pub fn set_wait_spin_iters(&self, iters: u32) -> napi::Result<()> {
+    pub fn set_wait_spin_iters(&self, iters: f64) -> napi::Result<()> {
+        let iters = crate::validate_u32_arg("waitSpinIters", iters)?;
         let mut guard = self
             .inner
             .lock()
@@ -358,7 +364,8 @@ impl Config {
 
     /// Set the wait-strategy yield iteration count.
     #[napi(js_name = "setWaitYieldIters")]
-    pub fn set_wait_yield_iters(&self, iters: u32) -> napi::Result<()> {
+    pub fn set_wait_yield_iters(&self, iters: f64) -> napi::Result<()> {
+        let iters = crate::validate_u32_arg("waitYieldIters", iters)?;
         let mut guard = self
             .inner
             .lock()
@@ -414,7 +421,10 @@ impl Config {
     /// deterministic, low-jitter delivery. An out-of-range or offline
     /// core is a best-effort no-op rather than an error.
     #[napi(js_name = "setConsumerCpu")]
-    pub fn set_consumer_cpu(&self, core: Option<u32>) -> napi::Result<()> {
+    pub fn set_consumer_cpu(&self, core: Option<f64>) -> napi::Result<()> {
+        // Core index `0` is valid (pin to CPU 0); only reject a
+        // non-finite / negative / fractional / over-u32 value.
+        let core = crate::validate_optional_u32_arg("consumerCpu", core)?;
         let mut guard = self
             .inner
             .lock()

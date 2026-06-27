@@ -5,6 +5,7 @@
 #[macro_use]
 extern crate napi_derive;
 
+use std::io;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use napi::Either;
@@ -19,31 +20,46 @@ use thetadatadx::fpss;
 /// connected in the process seeds it from that client's `config.runtime`
 /// via [`runtime_from_config`], so `Config.workerThreads` takes effect for
 /// the first client created in the process.
-static RT: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+///
+/// The build is fallible — `build_runtime` returns an `io::Result` (it can
+/// fail when the OS refuses the worker threads or event loop). The result
+/// is memoised verbatim so a build failure surfaces as a typed error to
+/// the connect caller instead of aborting the process, and so a later
+/// connect re-observes the same outcome rather than racing a second build.
+static RT: OnceLock<io::Result<tokio::runtime::Runtime>> = OnceLock::new();
+
+/// Map a memoised runtime-build outcome to a borrowed runtime or a napi
+/// error. The stored `io::Error` is not `Clone`, so its message is copied
+/// into a fresh napi error on each failing call.
+fn runtime_result(
+    result: &'static io::Result<tokio::runtime::Runtime>,
+) -> napi::Result<&'static tokio::runtime::Runtime> {
+    result
+        .as_ref()
+        .map_err(|e| napi::Error::from_reason(format!("failed to create tokio runtime: {e}")))
+}
 
 /// Build (or return the already-built) process-global runtime, sizing the
 /// worker pool from the first client's [`thetadatadx::RuntimeConfig`].
 ///
 /// The first connect in the process seeds the pool from its
 /// `config.runtime`; later connects share the already-built runtime, so
-/// their `runtime` config is a no-op by design.
+/// their `runtime` config is a no-op by design. A build failure is
+/// returned as a napi error, never a panic.
 pub(crate) fn runtime_from_config(
     cfg: &thetadatadx::RuntimeConfig,
-) -> &'static tokio::runtime::Runtime {
-    RT.get_or_init(|| cfg.build_runtime().expect("failed to create tokio runtime"))
+) -> napi::Result<&'static tokio::runtime::Runtime> {
+    runtime_result(RT.get_or_init(|| cfg.build_runtime()))
 }
 
 /// Return the process-global runtime, building it with tokio default
 /// sizing if no client has seeded it from config yet.
 ///
 /// Connect functions seed the pool via [`runtime_from_config`]; every
-/// post-connect call resolves the already-built runtime here.
-pub(crate) fn runtime() -> &'static tokio::runtime::Runtime {
-    RT.get_or_init(|| {
-        thetadatadx::RuntimeConfig::default()
-            .build_runtime()
-            .expect("failed to create tokio runtime")
-    })
+/// post-connect call resolves the already-built runtime here. A build
+/// failure is returned as a napi error, never a panic.
+pub(crate) fn runtime() -> napi::Result<&'static tokio::runtime::Runtime> {
+    runtime_result(RT.get_or_init(|| thetadatadx::RuntimeConfig::default().build_runtime()))
 }
 
 /// Convert a `thetadatadx::Error` into a napi error whose `reason`
@@ -238,7 +254,7 @@ pub(crate) async fn connect_historical_from_file_core(
     cfg: config::DirectConfig,
 ) -> napi::Result<Arc<thetadatadx::Client>> {
     let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
-    let rt = runtime_from_config(&cfg.runtime);
+    let rt = runtime_from_config(&cfg.runtime)?;
     let client = rt
         .spawn(async move { thetadatadx::Client::connect(&creds, cfg).await })
         .await
@@ -457,6 +473,44 @@ fn validate_nonneg_whole(
     Ok(value)
 }
 
+/// Validate a JS `number` carrying a `u32` domain knob (worker-thread
+/// count, CPU index, attempt budget, …) and narrow it to `u32`.
+///
+/// napi's bare `u32` argument binding is V8 `ToUint32`, which never
+/// rejects: `-1` wraps to `u32::MAX`, `1.5` truncates to `1`, `2**32`
+/// wraps to `0`. Every such rewrite is the opposite of the caller's
+/// intent and the integer-typed bindings (Python / C++ / C ABI) cannot
+/// express the value at all, so we take the argument as `f64` and reject
+/// a non-finite, negative, fractional, or over-`u32` value as
+/// `InvalidParameterError` — the typed class the Python binding raises
+/// (`ValueError`) for the identical input. `name` is the camelCase key.
+pub(crate) fn validate_u32_arg(name: &str, v: f64) -> napi::Result<u32> {
+    Ok(validate_nonneg_whole(name, v, u32::MAX as f64, None)? as u32)
+}
+
+/// Validate a `u32` domain knob that additionally requires `>= 1` (a
+/// burst size or attempt budget where `0` is a degenerate value the core
+/// rejects at connect). Layered on [`validate_u32_arg`] so the
+/// finite/whole/range checks stay in one place; only the extra `0` floor
+/// lives here.
+pub(crate) fn validate_u32_arg_min1(name: &str, v: f64) -> napi::Result<u32> {
+    let value = validate_u32_arg(name, v)?;
+    if value == 0 {
+        return Err(invalid_parameter_err(format!(
+            "{name} must be at least 1; got 0"
+        )));
+    }
+    Ok(value)
+}
+
+/// Validate an optional `u32` domain knob, leaving an omitted value
+/// (`None`) untouched. The pinned-CPU / worker-thread setters take this
+/// shape: `null` defers to the OS / default sizing, a number pins the
+/// value (with `0` a valid choice — verbatim worker/core count).
+pub(crate) fn validate_optional_u32_arg(name: &str, v: Option<f64>) -> napi::Result<Option<u32>> {
+    v.map(|v| validate_u32_arg(name, v)).transpose()
+}
+
 /// Validate a JavaScript `timeoutMs` deadline and convert it to the
 /// integer millisecond domain the Python, C++, and C ABI bindings take.
 pub(crate) fn validate_timeout_ms(timeout_ms: f64) -> napi::Result<u64> {
@@ -504,7 +558,7 @@ where
     F: std::future::Future<Output = Result<T, thetadatadx::Error>> + Send + 'static,
     T: Send + 'static,
 {
-    match runtime().spawn(fut).await {
+    match runtime()?.spawn(fut).await {
         Ok(inner) => inner.map_err(to_napi_err),
         Err(join_err) => Err(napi::Error::from_reason(format!(
             "endpoint task failed to complete: {join_err}"
@@ -847,7 +901,7 @@ impl Client {
         // spawning onto it, then run the connect handshake off the libuv
         // thread. The credentials are cloned so the spawned future owns
         // `'static` data and does not borrow the napi argument.
-        let rt = runtime_from_config(&cfg.runtime);
+        let rt = runtime_from_config(&cfg.runtime)?;
         let creds = creds.inner.clone();
         let client = rt
             .spawn(async move { thetadatadx::Client::connect(&creds, cfg).await })
@@ -901,7 +955,7 @@ impl Client {
     #[napi(js_name = "connectWith")]
     pub async fn connect_with(options: ClientConnectOptions) -> napi::Result<Client> {
         let (creds, cfg) = options.resolve()?;
-        let rt = runtime_from_config(&cfg.runtime);
+        let rt = runtime_from_config(&cfg.runtime)?;
         let client = rt
             .spawn(async move { thetadatadx::Client::connect(&creds, cfg).await })
             .await
@@ -1143,7 +1197,7 @@ impl HistoricalClient {
         config: Option<&Config>,
     ) -> napi::Result<HistoricalClient> {
         let cfg = config_or_production(config);
-        let rt = runtime_from_config(&cfg.runtime);
+        let rt = runtime_from_config(&cfg.runtime)?;
         let creds = creds.inner.clone();
         let client = rt
             .spawn(async move { thetadatadx::Client::connect(&creds, cfg).await })

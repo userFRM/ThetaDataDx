@@ -109,12 +109,13 @@ impl Config {
     /// burst flushed and followed by a jittered `replayPaceMs` pause.
     /// Minimum `1` (validated at connect). Default `50`.
     #[napi(js_name = "setReconnectReplayBurstSize")]
-    pub fn set_reconnect_replay_burst_size(&self, n: u32) -> napi::Result<()> {
+    pub fn set_reconnect_replay_burst_size(&self, n: f64) -> napi::Result<()> {
+        let value = crate::validate_u32_arg_min1("reconnectReplayBurstSize", n)?;
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.reconnect.replay_burst_size = n;
+        guard.reconnect.replay_burst_size = value;
         Ok(())
     }
 
@@ -310,12 +311,13 @@ impl Config {
     /// platform exposes the knob). Default `2`; validated to `[1, 10]`
     /// at connect.
     #[napi(js_name = "setStreamingKeepaliveRetries")]
-    pub fn set_streaming_keepalive_retries(&self, n: u32) -> napi::Result<()> {
+    pub fn set_streaming_keepalive_retries(&self, n: f64) -> napi::Result<()> {
+        let value = crate::validate_u32_arg("streamingKeepaliveRetries", n)?;
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.streaming.keepalive_retries = n;
+        guard.streaming.keepalive_retries = value;
         Ok(())
     }
 
@@ -420,12 +422,13 @@ impl Config {
     /// disables retry; higher values permit retries up to
     /// `maxAttempts - 1` after the initial call. Default `20`.
     #[napi(js_name = "setRetryMaxAttempts")]
-    pub fn set_retry_max_attempts(&self, n: u32) -> napi::Result<()> {
+    pub fn set_retry_max_attempts(&self, n: f64) -> napi::Result<()> {
+        let value = crate::validate_u32_arg_min1("retryMaxAttempts", n)?;
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.retry.max_attempts = n;
+        guard.retry.max_attempts = value;
         Ok(())
     }
 
@@ -491,12 +494,13 @@ impl Config {
     /// permit retries up to `maxAttempts - 1` after the initial call.
     /// Default `10`. Validated to the range `[1, 100]` at connect time.
     #[napi(js_name = "setFlatfilesMaxAttempts")]
-    pub fn set_flatfiles_max_attempts(&self, n: u32) -> napi::Result<()> {
+    pub fn set_flatfiles_max_attempts(&self, n: f64) -> napi::Result<()> {
+        let value = crate::validate_u32_arg_min1("flatfilesMaxAttempts", n)?;
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.flatfiles.max_attempts = n;
+        guard.flatfiles.max_attempts = value;
         Ok(())
     }
 
@@ -735,13 +739,14 @@ impl Config {
     /// auto-reconnect path. Default `30`. No effect unless the
     /// reconnect policy is `Auto`.
     #[napi(js_name = "setReconnectMaxAttempts")]
-    pub fn set_reconnect_max_attempts(&self, max_attempts: u32) -> napi::Result<()> {
+    pub fn set_reconnect_max_attempts(&self, max_attempts: f64) -> napi::Result<()> {
+        let value = crate::validate_u32_arg_min1("reconnectMaxAttempts", max_attempts)?;
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
         if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
-            limits.max_attempts = max_attempts;
+            limits.max_attempts = value;
         }
         Ok(())
     }
@@ -765,13 +770,14 @@ impl Config {
     /// budget for the auto-reconnect path. Default `100`. No effect
     /// unless the reconnect policy is `Auto`.
     #[napi(js_name = "setReconnectMaxRateLimitedAttempts")]
-    pub fn set_reconnect_max_rate_limited_attempts(&self, max_rate_limited_attempts: u32) -> napi::Result<()> {
+    pub fn set_reconnect_max_rate_limited_attempts(&self, max_rate_limited_attempts: f64) -> napi::Result<()> {
+        let value = crate::validate_u32_arg_min1("reconnectMaxRateLimitedAttempts", max_rate_limited_attempts)?;
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
         if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
-            limits.max_rate_limited_attempts = max_rate_limited_attempts;
+            limits.max_rate_limited_attempts = value;
         }
         Ok(())
     }
@@ -793,13 +799,14 @@ impl Config {
     /// Set the `ServerRestarting` reconnect attempt budget. Default
     /// `60`. No effect unless the reconnect policy is `Auto`.
     #[napi(js_name = "setReconnectMaxServerRestartAttempts")]
-    pub fn set_reconnect_max_server_restart_attempts(&self, n: u32) -> napi::Result<()> {
+    pub fn set_reconnect_max_server_restart_attempts(&self, n: f64) -> napi::Result<()> {
+        let value = crate::validate_u32_arg_min1("reconnectMaxServerRestartAttempts", n)?;
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
         if let config::ReconnectPolicy::Auto(ref mut limits) = guard.reconnect.policy {
-            limits.max_server_restart_attempts = n;
+            limits.max_server_restart_attempts = value;
         }
         Ok(())
     }

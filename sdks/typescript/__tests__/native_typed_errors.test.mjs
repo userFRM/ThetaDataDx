@@ -484,3 +484,159 @@ describe('non-negative integer query-param input-validation parity (native)', ()
     }
   });
 });
+
+describe('Config u32 setter input-validation parity (native)', () => {
+  // napi's bare `u32` argument binding is V8 `ToUint32`: it never
+  // rejects, it REWRITES — `-1` wraps to u32::MAX, `1.5` truncates to 1,
+  // `2**32` wraps to 0. Each rewrite is the opposite of the caller's
+  // intent. The `Config` u32 knobs take the argument as `number` and
+  // validate at the napi boundary, rejecting a negative / fractional /
+  // over-u32 value as `InvalidParameterError` (the same class Python's
+  // `ValueError` maps to for the identical input), and the burst-size /
+  // attempt-budget knobs additionally reject `0`. These setters are
+  // reachable without a connection.
+
+  // Knobs where `0` is NOT a legal value (a degenerate burst / budget
+  // the core rejects at connect): `0` must also throw.
+  const minOneSetters = [
+    'setReconnectReplayBurstSize',
+    'setRetryMaxAttempts',
+    'setFlatfilesMaxAttempts',
+    'setReconnectMaxAttempts',
+    'setReconnectMaxRateLimitedAttempts',
+    'setReconnectMaxServerRestartAttempts',
+  ];
+  // Knobs where `0` is a legal value (iteration counts / keepalive
+  // retries): `0` must be accepted; only the hostile shapes throw.
+  const zeroOkSetters = ['setStreamingKeepaliveRetries', 'setWaitSpinIters', 'setWaitYieldIters'];
+
+  const hostile = [
+    ['negative', -1],
+    ['fractional', 1.5],
+    ['overflow (2**32)', 2 ** 32],
+    ['NaN', Number.NaN],
+    ['Infinity', Number.POSITIVE_INFINITY],
+  ];
+
+  for (const setter of [...minOneSetters, ...zeroOkSetters]) {
+    for (const [label, value] of hostile) {
+      it(`${setter} rejects ${label} as InvalidParameterError`, async () => {
+        const mod = await loadWrapped();
+        if (!mod) return;
+        const cfg = mod.Config.production();
+        assert.throws(
+          () => cfg[setter](value),
+          (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
+          `a ${label} ${setter} value must reject, not wrap through ToUint32`,
+        );
+      });
+    }
+
+    it(`${setter} accepts a valid positive value`, async () => {
+      const mod = await loadWrapped();
+      if (!mod) return;
+      const cfg = mod.Config.production();
+      assert.doesNotThrow(() => cfg[setter](7), `a valid ${setter} value must be accepted`);
+    });
+  }
+
+  for (const setter of minOneSetters) {
+    it(`${setter} rejects 0 as InvalidParameterError`, async () => {
+      const mod = await loadWrapped();
+      if (!mod) return;
+      const cfg = mod.Config.production();
+      assert.throws(
+        () => cfg[setter](0),
+        (err) => err instanceof mod.InvalidParameterError,
+        `${setter} requires >= 1, so 0 must reject`,
+      );
+    });
+  }
+
+  for (const setter of zeroOkSetters) {
+    it(`${setter} accepts 0`, async () => {
+      const mod = await loadWrapped();
+      if (!mod) return;
+      const cfg = mod.Config.production();
+      assert.doesNotThrow(() => cfg[setter](0), `${setter} permits 0`);
+    });
+  }
+});
+
+describe('Config optional-u32 setter input-validation parity (native)', () => {
+  // `setWorkerThreads` / `setConsumerCpu` take `number | null`: `null`
+  // defers to the default (and `0` is a verbatim, valid choice), while a
+  // hostile number is rejected at the boundary rather than rewritten.
+  const optSetters = ['setWorkerThreads', 'setConsumerCpu'];
+  const hostile = [
+    ['negative', -1],
+    ['fractional', 2.5],
+    ['overflow (2**32)', 2 ** 32],
+  ];
+
+  for (const setter of optSetters) {
+    for (const [label, value] of hostile) {
+      it(`${setter} rejects ${label} as InvalidParameterError`, async () => {
+        const mod = await loadWrapped();
+        if (!mod) return;
+        const cfg = mod.Config.production();
+        assert.throws(
+          () => cfg[setter](value),
+          (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
+          `a ${label} ${setter} value must reject`,
+        );
+      });
+    }
+
+    it(`${setter} accepts 0 and null`, async () => {
+      const mod = await loadWrapped();
+      if (!mod) return;
+      const cfg = mod.Config.production();
+      assert.doesNotThrow(() => cfg[setter](0), `${setter} permits 0 (verbatim count / core 0)`);
+      assert.doesNotThrow(() => cfg[setter](null), `${setter} permits null (default sizing)`);
+    });
+  }
+});
+
+describe('awaitDrain timeout input-validation parity (native)', () => {
+  // The standalone `StreamingClient.awaitDrain(timeoutMs)` took a bare
+  // `u32`, so a hostile `-1` / `1.5` / `2**32` was silently rewritten by
+  // ToUint32. It now takes `number` and validates at the boundary; `0`
+  // (poll once) stays valid. Reachable without a live session — with no
+  // retired generations the poll resolves immediately.
+  const hostile = [
+    ['negative', -1],
+    ['fractional', 1.5],
+    ['overflow (2**32)', 2 ** 32],
+    ['NaN', Number.NaN],
+  ];
+
+  function streamingClient(mod) {
+    // Build an idle standalone client without connecting: the factory
+    // only snapshots params, the TLS connection is deferred.
+    const creds = mod.Credentials.fromApiKey('td1_example');
+    return mod.StreamingClient.connect(creds);
+  }
+
+  for (const [label, value] of hostile) {
+    it(`awaitDrain rejects ${label} as InvalidParameterError`, async () => {
+      const mod = await loadWrapped();
+      if (!mod) return;
+      const sc = streamingClient(mod);
+      await assert.rejects(
+        sc.awaitDrain(value),
+        (err) => err instanceof mod.InvalidParameterError && err instanceof mod.ThetaDataError,
+        `a ${label} awaitDrain timeout must reject, not wrap through ToUint32`,
+      );
+    });
+  }
+
+  it('awaitDrain accepts 0 (poll once) and a valid timeout', async () => {
+    const mod = await loadWrapped();
+    if (!mod) return;
+    const sc = streamingClient(mod);
+    // No retired generations, so both resolve true immediately.
+    assert.equal(await sc.awaitDrain(0), true, 'a 0ms poll-once drain must be valid');
+    assert.equal(await sc.awaitDrain(100), true, 'a valid timeout must be accepted');
+  });
+});
