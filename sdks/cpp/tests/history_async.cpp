@@ -25,6 +25,30 @@ std::string env_or_empty(const char* key) {
     return raw == nullptr ? std::string() : std::string(raw);
 }
 
+namespace detail {
+
+// Detects whether `<obj>.stock_list_symbols_async()` is well-formed for a given
+// value category of the object. The `_async` companions delete their rvalue
+// overload, so this is true for an lvalue object and false for an rvalue one.
+template <typename T, typename = void>
+struct async_lvalue : std::false_type {};
+template <typename T>
+struct async_lvalue<T, std::void_t<decltype(std::declval<T&>().stock_list_symbols_async())>>
+    : std::true_type {};
+
+template <typename T, typename = void>
+struct async_rvalue : std::false_type {};
+template <typename T>
+struct async_rvalue<T, std::void_t<decltype(std::declval<T&&>().stock_list_symbols_async())>>
+    : std::true_type {};
+
+template <typename T>
+inline constexpr bool async_callable_on_lvalue = async_lvalue<T>::value;
+template <typename T>
+inline constexpr bool async_callable_on_rvalue = async_rvalue<T>::value;
+
+} // namespace detail
+
 } // namespace
 
 TEST_CASE("async query methods return std::future of the sync row type",
@@ -68,6 +92,19 @@ TEST_CASE("async query methods return std::future of the sync row type",
         decltype(std::declval<const Hist&>().stock_list_symbols_async(
             std::declval<thetadatadx::EndpointRequestOptions>()));
     STATIC_REQUIRE(std::is_same_v<ListRet, std::future<std::vector<std::string>>>);
+
+    // Dangling-temporary guard. The `_async` companions have their rvalue
+    // (`&&`) overload deleted, so they are callable on an lvalue view but NOT
+    // on an rvalue one. This makes the natural-looking
+    // `client.historical().foo_async(...)` — where the `Historical` view is a
+    // temporary that dies at the end of the full expression while the detached
+    // task still borrows it — a compile error rather than a use-after-free. A
+    // named `auto h = client.historical();` (an lvalue) keeps working.
+    STATIC_REQUIRE(detail::async_callable_on_lvalue<View>);
+    STATIC_REQUIRE_FALSE(detail::async_callable_on_rvalue<View>);
+    // Same guard on the dedicated historical client.
+    STATIC_REQUIRE(detail::async_callable_on_lvalue<Hist>);
+    STATIC_REQUIRE_FALSE(detail::async_callable_on_rvalue<Hist>);
 }
 
 TEST_CASE("async query resolves to the same rows as the blocking call",

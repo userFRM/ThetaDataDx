@@ -241,9 +241,18 @@ fn render_cpp_async_overload(
     );
     out.push_str("    /// outlive that object. Call on a named `HistoricalClient` (or chain the\n");
     out.push_str("    /// result), never on the temporary returned by `client.historical()`.\n");
+    out.push_str("    ///\n");
+    out.push_str("    /// Lvalue-only: the `&&` overload is deleted, so calling this on a\n");
     writeln!(
         out,
-        "    std::future<std::vector<{row}>> {async_name}({}) const {{",
+        "    /// temporary view (e.g. `client.historical().{async_name}(...)`) is a"
+    )
+    .unwrap();
+    out.push_str("    /// compile error. The detached task borrows the view, which would die\n");
+    out.push_str("    /// at the end of the full expression; bind the view to a variable first.\n");
+    writeln!(
+        out,
+        "    std::future<std::vector<{row}>> {async_name}({}) const& {{",
         decls.join(", ")
     )
     .unwrap();
@@ -262,6 +271,17 @@ fn render_cpp_async_overload(
     .unwrap();
     out.push_str("        });\n");
     out.push_str("    }\n\n");
+
+    // Reject the dangling temporary-view call at compile time: deleting the
+    // rvalue overload turns `client.historical().<name>_async(...)` — a future
+    // that would outlive the temporary `Historical` it borrows — into a hard
+    // error, while named-lvalue clients still resolve to the `const&` overload.
+    writeln!(
+        out,
+        "    std::future<std::vector<{row}>> {async_name}({}) && = delete;\n",
+        decls.join(", ")
+    )
+    .unwrap();
     out
 }
 
