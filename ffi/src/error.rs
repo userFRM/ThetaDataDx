@@ -563,7 +563,7 @@ mod tests {
     }
 
     #[test]
-    fn set_error_string_only_defaults_to_other_code() {
+    fn set_error_defaults_to_other_code() {
         // Plain `set_error` is used by sites that surface a
         // non-thetadatadx error (e.g. UTF-8 parse failures) — the
         // discriminator must default to `THETADATADX_ERR_OTHER` so the C++
