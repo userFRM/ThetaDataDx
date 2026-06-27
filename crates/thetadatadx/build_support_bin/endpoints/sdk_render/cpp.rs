@@ -167,9 +167,13 @@ pub(super) fn render_cpp_historical_decls(endpoints: &[GeneratedEndpoint]) -> St
 ///
 /// Arguments are taken by value and moved into the task closure so the
 /// future stays valid no matter when the caller invokes `get()` — the
-/// closure owns its inputs rather than borrowing the caller's. The blocking
-/// member borrows the client handle only for the duration of the call. The
-/// underlying handle is not thread-safe for concurrent calls (the C ABI
+/// closure owns its inputs rather than borrowing the caller's. The closure
+/// also captures a COPY of the client (`self = *this`) and runs the blocking
+/// member on that copy, so the FFI handle is co-owned for the future's whole
+/// lifetime: a future may safely outlive the object it was launched from
+/// (the captured copy shares the underlying `shared_ptr`, so the handle is
+/// freed only once the last owner — object or in-flight future — drops).
+/// The underlying handle is not thread-safe for concurrent calls (the C ABI
 /// serialises per handle), so an `_async` request must not run concurrently
 /// with another query on the same client; callers that fan out share one
 /// client per in-flight request or synchronise externally, matching the
@@ -237,51 +241,37 @@ fn render_cpp_async_overload(
     forwards.push("options".to_string());
 
     out.push_str(
-        "    /// \\warning The future borrows the object it was called on; do not let it\n",
+        "    /// The detached task captures a copy of this object (`self = *this`), so the\n",
     );
-    out.push_str("    /// outlive that object. Call on a named `HistoricalClient` (or chain the\n");
-    out.push_str("    /// result), never on the temporary returned by `client.historical()`.\n");
-    out.push_str("    ///\n");
-    out.push_str("    /// Lvalue-only: the `&&` overload is deleted, so calling this on a\n");
+    out.push_str(
+        "    /// returned future co-owns the FFI handle and may safely outlive the object\n",
+    );
+    out.push_str(
+        "    /// it was launched from — including a temporary `client.historical()` view.\n",
+    );
+    out.push_str("    /// The handle is freed only once the last owner (this object or the\n");
+    out.push_str("    /// in-flight future) drops, so there is no dangling-`this` window.\n");
     writeln!(
         out,
-        "    /// temporary view (e.g. `client.historical().{async_name}(...)`) is a"
-    )
-    .unwrap();
-    out.push_str("    /// compile error. The detached task borrows the view, which would die\n");
-    out.push_str("    /// at the end of the full expression; bind the view to a variable first.\n");
-    writeln!(
-        out,
-        "    std::future<std::vector<{row}>> {async_name}({}) const& {{",
+        "    std::future<std::vector<{row}>> {async_name}({}) const {{",
         decls.join(", ")
     )
     .unwrap();
     writeln!(
         out,
-        "        return std::async(std::launch::async, [this, {}]() {{",
+        "        return std::async(std::launch::async, [self = *this, {}]() {{",
         captures.join(", ")
     )
     .unwrap();
     writeln!(
         out,
-        "            return this->{}({});",
+        "            return self.{}({});",
         endpoint.name,
         forwards.join(", ")
     )
     .unwrap();
     out.push_str("        });\n");
     out.push_str("    }\n\n");
-
-    // Reject the dangling temporary-view call at compile time: deleting the
-    // rvalue overload turns `client.historical().<name>_async(...)` — a future
-    // that would outlive the temporary `Historical` it borrows — into a hard
-    // error, while named-lvalue clients still resolve to the `const&` overload.
-    writeln!(
-        out,
-        "    std::future<std::vector<{row}>> {async_name}({}) && = delete;\n",
-        decls.join(", ")
-    )
-    .unwrap();
     out
 }
 
