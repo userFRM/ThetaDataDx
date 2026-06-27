@@ -193,18 +193,20 @@ TEST_CASE("async future outlives the destroyed originating object",
 // case proves the mechanism with no network, deterministically, under ASan.
 //
 // The hazard, modelled exactly: a pending `historical().<endpoint>_async`
-// future captures a copy of the `Historical` view. On a unified client that is
-// streaming when destroyed, member destruction runs the handle first (reverse
-// declaration order); the future co-owns the handle, so its deleter — which
-// stops streaming and drains the consumer — is DEFERRED until the future
-// completes. The callback state is destroyed next. If the view co-owns ONLY the
-// handle (the pre-fix shape), the callback node the consumer thread is still
-// firing through is freed here, while the consumer is live and the stop has not
-// run → use-after-free on the next consumer invocation. Co-owning the callback
-// state in the view (the fix) keeps that node alive until the deferred stop
-// runs. Swapping the view's `callback_` member for an empty `shared_ptr` below
-// reproduces the pre-fix UAF (heap-use-after-free under ASan); the shape as
-// shipped is clean.
+// future captures a copy of the `Historical` view, co-owning BOTH the handle
+// and the callback node. The view is the LAST owner of both, so dropping the
+// future destroys the view's members in REVERSE declaration order — and that
+// order is the whole bug. The view must declare `callback_` FIRST and `handle_`
+// SECOND (as the shipped `Client` does): then `handle_` is released first, its
+// deleter stops streaming and JOINS the consumer (the drain barrier), and only
+// after that returns is `callback_` (the node the consumer reads) released. A
+// view that declares `handle_` first instead releases the callback node BEFORE
+// the deleter's stop+join — so the still-live consumer fires through freed node
+// storage: a heap-use-after-free. The reproduction is exactly that swap: flip
+// `HistoricalViewStub`'s two members to handle-first below and ASan reports
+// heap-use-after-free; the shipped callback-first order is clean. The consumer
+// spins in a TIGHT loop with no sleep so the read lands inside the narrow
+// free-node / stop-join window every run.
 namespace {
 
 // Registered callback node — stands in for `CallbackSlot`/`CallbackState`. The
@@ -250,9 +252,14 @@ struct ClientStub {
     std::shared_ptr<HandleStub> handle_;
 
     // The view the async future captures a copy of. Co-owns both members.
+    // Member order mirrors the shipped `Historical`/`Stream` views (and
+    // `ClientStub` above): `callback_` declared FIRST so reverse-destruct
+    // releases `handle_` first — its stop+join deleter runs while the node is
+    // still alive. Flipping these two to handle-first is the regression this
+    // case gates: it frees the node before the deleter joins the consumer.
     struct HistoricalViewStub {
-        std::shared_ptr<HandleStub> handle_;
         std::shared_ptr<CallbackNodeStub> callback_;
+        std::shared_ptr<HandleStub> handle_;
 
         // `_async` shape: capture a copy of the view (`self = *this`), gated on
         // `start` so the caller can destroy the client before the body reads
@@ -266,7 +273,9 @@ struct ClientStub {
     };
 
     HistoricalViewStub historical() const {
-        return HistoricalViewStub{handle_, callback_}; // share BOTH, like the fix
+        // Share BOTH, like the fix. Positional init follows the member
+        // declaration order: callback_ first, then handle_.
+        return HistoricalViewStub{callback_, handle_};
     }
 };
 
@@ -274,56 +283,68 @@ struct ClientStub {
 
 TEST_CASE("async future from a unified client outlives destruction while streaming",
           "[history][async][offline]") {
-    std::atomic<int> frees{0};
-    std::atomic<bool> stop{false};
-    std::promise<void> gate;
-    std::shared_future<void> start = gate.get_future().share();
+    // Repeat the whole destroy-while-streaming cycle many times so a rare
+    // member-order UAF is caught reliably under ASan rather than slipping past
+    // on a lucky interleaving. With the shipped callback-first order every
+    // iteration is clean; flip `HistoricalViewStub` to handle-first and ASan
+    // reports heap-use-after-free within the first handful.
+    constexpr int kIterations = 5000;
+    for (int i = 0; i < kIterations; ++i) {
+        std::atomic<int> frees{0};
+        std::atomic<bool> stop{false};
+        std::promise<void> gate;
+        std::shared_future<void> start = gate.get_future().share();
 
-    std::future<int> fut;
-    std::thread consumer;
-    {
-        auto callback = std::make_shared<CallbackNodeStub>();
+        std::future<int> fut;
+        std::thread consumer;
+        {
+            auto callback = std::make_shared<CallbackNodeStub>();
 
-        // Live "streaming" consumer: fires through the registered node until
-        // streaming is stopped. Captures the raw node pointer it was registered
-        // with (the real consumer holds `&slot->fn`), so a freed node is a UAF.
-        const CallbackNodeStub* registered = callback.get();
-        consumer = std::thread([registered, &stop]() {
-            volatile int sink = 0;
-            while (!stop.load(std::memory_order_acquire)) {
-                sink += registered->value; // UAF here if the node is freed early
-                std::this_thread::sleep_for(std::chrono::microseconds(50));
-            }
-            (void)sink;
-        });
+            // Live "streaming" consumer: fires through the registered node in a
+            // TIGHT loop (no sleep) until streaming is stopped. Captures the raw
+            // node pointer it was registered with (the real consumer holds
+            // `&slot->fn`), so a freed node is a UAF. The unbroken spin keeps a
+            // read landing inside the narrow free-node / stop-join window.
+            const CallbackNodeStub* registered = callback.get();
+            consumer = std::thread([registered, &stop]() {
+                volatile int sink = 0;
+                while (!stop.load(std::memory_order_acquire)) {
+                    sink += registered->value; // UAF here if the node is freed early
+                }
+                (void)sink;
+            });
 
-        ClientStub client{
-            callback,
-            std::make_shared<HandleStub>(&stop, &consumer, &frees),
-        };
+            ClientStub client{
+                callback,
+                std::make_shared<HandleStub>(&stop, &consumer, &frees),
+            };
 
-        // Stored future launched off the view — co-owns handle + callback.
-        fut = client.historical().read_async(start);
+            // Stored future launched off the view — co-owns handle + callback.
+            fut = client.historical().read_async(start);
 
-        // `client` is destroyed HERE while the future is pending and the
-        // consumer is still firing. handle_ destructs first, but the future
-        // co-owns it, so the stop+drain deleter is DEFERRED. callback_
-        // destructs next; the future co-owns it too, so the node the consumer
-        // reads stays alive. (Pre-fix the view co-owned only the handle, so
-        // this drop freed the node under the live consumer → ASan UAF.)
+            // `client` is destroyed HERE while the future is pending and the
+            // consumer is still firing. Its members drop in reverse order
+            // (callback_ declared first → handle_ first), but the future co-owns
+            // both, so neither deleter runs yet.
+        }
+
+        // The handle's deleter (stop + join) has NOT run yet: the future still
+        // co-owns the handle, so streaming is still live and the consumer fires.
+        REQUIRE(frees.load() == 0);
+
+        gate.set_value();          // release the future body; it reads the node
+        REQUIRE(fut.get() == 7);   // correct value, no use-after-free
+
+        // Drop the last owner (the future's captured view). Reverse-destruct
+        // releases handle_ FIRST — its deleter stops streaming and joins the
+        // consumer (drain barrier) — THEN releases callback_, the node the now
+        // -joined consumer was reading. Handle-first member order would free the
+        // node before the join, firing the live consumer through freed storage.
+        fut = {};
+        REQUIRE(frees.load() == 1);
+        // Consumer was joined inside the deleter; nothing left to clean up.
+        REQUIRE_FALSE(consumer.joinable());
     }
-
-    // The handle's deleter (stop + join) has NOT run yet: the future still
-    // co-owns the handle, so streaming is still live and the consumer is firing.
-    REQUIRE(frees.load() == 0);
-
-    gate.set_value();          // release the future body; it reads the node
-    REQUIRE(fut.get() == 7);   // correct value, no use-after-free
-
-    fut = {};                  // drop the last owner → deleter stops + joins now
-    REQUIRE(frees.load() == 1);
-    // Consumer was joined inside the deleter; nothing left to clean up.
-    REQUIRE_FALSE(consumer.joinable());
 }
 
 TEST_CASE("async query resolves to the same rows as the blocking call",

@@ -1481,7 +1481,7 @@ private:
     friend class Client;
     explicit Historical(std::shared_ptr<ThetaDataDxClient> h,
                         std::shared_ptr<CallbackState> callback)
-        : handle_(std::move(h)), callback_(std::move(callback)) {}
+        : callback_(std::move(callback)), handle_(std::move(h)) {}
 
     /// Resolve the historical sub-handle the generated query definitions
     /// call into. Derives it from the unified handle via
@@ -1495,11 +1495,12 @@ private:
         return hist;
     }
 
-    // Co-owns the unified handle (shared with the parent `Client` and any
-    // in-flight async future that captured a copy of this view), so the
-    // handle outlives any future even if the view and its `Client` drop
-    // first. Freed once, when the last shared owner drops.
-    std::shared_ptr<ThetaDataDxClient> handle_;
+    // Member order mirrors `Client` (do not reorder): C++ destructs in
+    // REVERSE declaration order, so `handle_` (declared last) is released
+    // first — its unified deleter runs `thetadatadx_client_free`'s drain
+    // barrier while `callback_` (declared first) is still alive. Reordering
+    // these two reintroduces the use-after-free.
+    //
     // Co-owns the parent `Client`'s callback state — the same node the
     // `Stream` view holds. A pending `<endpoint>_async` future captures a
     // copy of this view, so it co-owns BOTH members. When such a future
@@ -1510,6 +1511,11 @@ private:
     // never fires through freed callback storage. Empty on the standalone
     // `HistoricalClient`, which has no streaming and never reads it.
     std::shared_ptr<CallbackState> callback_;
+    // Co-owns the unified handle (shared with the parent `Client` and any
+    // in-flight async future that captured a copy of this view), so the
+    // handle outlives any future even if the view and its `Client` drop
+    // first. Freed once, when the last shared owner drops.
+    std::shared_ptr<ThetaDataDxClient> handle_;
 };
 
 /// Backing node for a single push-callback registration. The
@@ -2089,7 +2095,7 @@ public:
 private:
     friend class Client;
     Stream(std::shared_ptr<ThetaDataDxClient> h, std::shared_ptr<CallbackState> callback)
-        : handle_(std::move(h)), callback_(std::move(callback)) {}
+        : callback_(std::move(callback)), handle_(std::move(h)) {}
 
     // Static-member shim that the dispatcher invokes. It keeps C++ language
     // linkage (a member cannot be `extern "C"`) but its signature matches the
@@ -2108,13 +2114,12 @@ private:
         }
     }
 
-    // Shared ownership of the parent `Client`'s handle. Sharing (rather than
-    // borrowing a raw pointer) lets the drain-timeout reclaimer in
-    // `set_callback` keep the handle alive past this view and past a
-    // single-threaded `Client` destruction, so the reclaimer's drain-barrier
-    // poll never reads a freed handle. The unified deleter still frees the
-    // handle exactly once, when the last reference drops.
-    std::shared_ptr<ThetaDataDxClient> handle_;
+    // Member order mirrors `Client` (do not reorder): C++ destructs in
+    // REVERSE declaration order, so `handle_` (declared last) is released
+    // first — its unified deleter runs `thetadatadx_client_free`'s drain
+    // barrier while `callback_` (declared first) is still alive. Reordering
+    // these two reintroduces the use-after-free.
+    //
     // Shared ownership of the parent `Client`'s callback state. The state
     // owns the currently-registered node, which lives at a fixed heap
     // address, so the registered dispatcher `ctx` (`&callback_->slot->fn`)
@@ -2122,6 +2127,13 @@ private:
     // lifetime. A replacement installs a fresh node into the shared state,
     // which both the `Client` and this view then observe.
     std::shared_ptr<CallbackState> callback_;
+    // Shared ownership of the parent `Client`'s handle. Sharing (rather than
+    // borrowing a raw pointer) lets the drain-timeout reclaimer in
+    // `set_callback` keep the handle alive past this view and past a
+    // single-threaded `Client` destruction, so the reclaimer's drain-barrier
+    // poll never reads a freed handle. The unified deleter still frees the
+    // handle exactly once, when the last reference drops.
+    std::shared_ptr<ThetaDataDxClient> handle_;
 };
 
 /// Forward declaration for `Client::builder()`; defined immediately after
