@@ -10,7 +10,7 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use super::model::{GeneratedEndpoint, GeneratedParam};
+use super::model::GeneratedParam;
 
 fn is_symbols_param(param: &GeneratedParam) -> bool {
     param.param_type == "Symbols"
@@ -121,11 +121,7 @@ pub(super) fn optional_getter_name(param_type: &str) -> &'static str {
 
 /// Returns the in-house Rust client method argument name for a param,
 /// honoring the `_arg_name` override and falling back to the param name.
-pub(super) fn direct_method_arg_name(
-    endpoint: &GeneratedEndpoint,
-    param: &GeneratedParam,
-) -> String {
-    let _ = endpoint;
+pub(super) fn direct_method_arg_name(param: &GeneratedParam) -> String {
     param
         ._arg_name
         .clone()
@@ -134,12 +130,9 @@ pub(super) fn direct_method_arg_name(
 
 /// Returns the method argument name when the param is a date field
 /// (`date`, `start_date`, `end_date`), and `None` otherwise.
-pub(super) fn direct_date_arg_name(
-    endpoint: &GeneratedEndpoint,
-    param: &GeneratedParam,
-) -> Option<String> {
+pub(super) fn direct_date_arg_name(param: &GeneratedParam) -> Option<String> {
     match param.name.as_str() {
-        "date" | "start_date" | "end_date" => Some(direct_method_arg_name(endpoint, param)),
+        "date" | "start_date" | "end_date" => Some(direct_method_arg_name(param)),
         _ => None,
     }
 }
@@ -259,11 +252,8 @@ pub(super) fn direct_required_param_type(param: &GeneratedParam) -> &'static str
 
 /// Returns the expression that converts a required method argument into its
 /// owned stored form (`Vec<String>` for `Symbols`, `String` otherwise).
-pub(super) fn direct_required_store_expr(
-    endpoint: &GeneratedEndpoint,
-    param: &GeneratedParam,
-) -> String {
-    let arg_name = direct_method_arg_name(endpoint, param);
+pub(super) fn direct_required_store_expr(param: &GeneratedParam) -> String {
+    let arg_name = direct_method_arg_name(param);
     if param.param_type == "Symbols" {
         format!("{arg_name}.into().into_vec()")
     } else {

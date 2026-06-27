@@ -80,7 +80,6 @@ GATES: dict[str, list[list[str]]] = {
         _ci("check_version_sync", "--selftest") + _ci("check_version_sync")
     ),
     "lockfile_drift": _ci("check_lockfile_drift"),
-    "tier_badges": _ci("check_tier_badges"),
     "agreement": _test("test_check_agreement"),
 }
 

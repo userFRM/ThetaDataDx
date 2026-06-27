@@ -94,19 +94,7 @@ fn cli_dispatch_arm(utility: &UtilitySpec) -> String {
                 rust_string_literal(cli_name)
             )
             .unwrap();
-            emit_cli_f64_arg(&mut out, utility, "spot", "spot");
-            emit_cli_f64_arg(&mut out, utility, "strike", "strike");
-            emit_cli_f64_arg(&mut out, utility, "rate", "rate");
-            emit_cli_f64_arg(&mut out, utility, "div_yield", "div_yield");
-            emit_cli_f64_arg(&mut out, utility, "tte", "tte");
-            emit_cli_f64_arg(&mut out, utility, "option_price", "option_price");
-            let right_key = cli_param_name(find_utility_param(utility, "right"));
-            writeln!(
-                out,
-                "            let right = get_arg(sub_m, {});",
-                rust_string_literal(right_key)
-            )
-            .unwrap();
+            emit_cli_greeks_arg_fetch(&mut out, utility);
             out.push_str("            let g = thetadatadx::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, right).map_err(thetadatadx::Error::from)?;\n");
             out.push_str(
                 "            let mut td = TabularData::new(vec![\"greek\", \"value\"]);\n",
@@ -137,19 +125,7 @@ fn cli_dispatch_arm(utility: &UtilitySpec) -> String {
                 rust_string_literal(cli_name)
             )
             .unwrap();
-            emit_cli_f64_arg(&mut out, utility, "spot", "spot");
-            emit_cli_f64_arg(&mut out, utility, "strike", "strike");
-            emit_cli_f64_arg(&mut out, utility, "rate", "rate");
-            emit_cli_f64_arg(&mut out, utility, "div_yield", "div_yield");
-            emit_cli_f64_arg(&mut out, utility, "tte", "tte");
-            emit_cli_f64_arg(&mut out, utility, "option_price", "option_price");
-            let right_key = cli_param_name(find_utility_param(utility, "right"));
-            writeln!(
-                out,
-                "            let right = get_arg(sub_m, {});",
-                rust_string_literal(right_key)
-            )
-            .unwrap();
+            emit_cli_greeks_arg_fetch(&mut out, utility);
             out.push_str("            let (iv, iv_error) = thetadatadx::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, right).map_err(thetadatadx::Error::from)?;\n");
             out.push_str(
                 "            let mut td = TabularData::new(vec![\"iv\", \"iv_error\"]);\n",
@@ -171,4 +147,21 @@ fn cli_dispatch_arm(utility: &UtilitySpec) -> String {
         }
     }
     out
+}
+
+/// Emit the shared argument-fetch preamble for the option-pricing utilities
+/// (`all_greeks` / `implied_volatility`): six `f64` parses binding
+/// `spot`/`strike`/`rate`/`div_yield`/`tte`/`option_price`, then the `right`
+/// string, each keyed by the utility's own CLI parameter name.
+fn emit_cli_greeks_arg_fetch(out: &mut String, utility: &UtilitySpec) {
+    for arg in ["spot", "strike", "rate", "div_yield", "tte", "option_price"] {
+        emit_cli_f64_arg(out, utility, arg);
+    }
+    let right_key = cli_param_name(find_utility_param(utility, "right"));
+    writeln!(
+        out,
+        "            let right = get_arg(sub_m, {});",
+        rust_string_literal(right_key)
+    )
+    .unwrap();
 }

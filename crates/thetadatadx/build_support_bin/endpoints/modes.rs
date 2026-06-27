@@ -159,14 +159,6 @@ fn endpoint_min_tier(name: &str) -> &'static str {
 /// through [`endpoint_min_tier`]'s snapshot lookup.
 fn sdk_only_min_tier(name: &str) -> Option<&'static str> {
     Some(match name {
-        // Streaming endpoints (FPSS, covered by scripts/dev/fpss_smoke.py, not the
-        // live matrix validator). The value here is still used by
-        // `test_modes_for` for display-only `min_tier` on test cells, but the
-        // streaming surface is excluded from the matrix anyway.
-        "stock_history_trade_stream"
-        | "stock_history_quote_stream"
-        | "option_history_trade_stream"
-        | "option_history_quote_stream" => "standard",
         // Synthetic clone sharing a wire RPC with `stock_history_ohlc`.
         "stock_history_ohlc_range" => "value",
         // SDK-only endpoint not documented upstream (FRED-backed, thetadatadx-local).

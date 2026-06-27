@@ -41,7 +41,7 @@ use super::super::helpers::{
 };
 use super::super::model::{GeneratedEndpoint, GeneratedParam};
 use super::super::sdk_helpers::{
-    builder_params, is_snapshot_endpoint, method_params, python_method_arg_decl,
+    builder_params, is_snapshot_endpoint, is_time_arg, method_params, python_method_arg_decl,
     python_optional_type, python_pyclass_list_class, python_pyclass_list_converter,
     python_string_arg_type, python_vec_to_pylist_converter, render_rust_doc_block,
     sdk_method_arg_name, write_timeout_call,
@@ -469,7 +469,7 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
             out,
             "        {}: {},",
             param.name,
-            python_async_optional_type(param)
+            python_optional_type(param)
         )
         .unwrap();
     }
@@ -570,7 +570,7 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
             out,
             "                request = request.{}({});",
             param.name,
-            async_setter_arg_expr(param)
+            sync_setter_arg_expr(param)
         )
         .unwrap();
         out.push_str("            }\n");
@@ -617,23 +617,6 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
     out
 }
 
-fn python_async_optional_type(param: &GeneratedParam) -> &'static str {
-    match param.param_type.as_str() {
-        "Int" => "Option<i32>",
-        "Float" => "Option<f64>",
-        "Bool" => "Option<bool>",
-        "Date" | "Expiration" => "Option<PyDateArg>",
-        _ if matches!(
-            param.name.as_str(),
-            "start_time" | "end_time" | "min_time" | "time_of_day"
-        ) =>
-        {
-            "Option<PyTimeArg>"
-        }
-        _ => "Option<PyStringArg>",
-    }
-}
-
 fn python_signature_kwarg(param: &GeneratedParam) -> String {
     let Some(default) = param.default.as_deref() else {
         return format!("{}=None", param.name);
@@ -647,13 +630,6 @@ fn python_signature_kwarg(param: &GeneratedParam) -> String {
 }
 
 fn sync_setter_arg_expr(param: &GeneratedParam) -> &'static str {
-    match param.param_type.as_str() {
-        "Int" | "Float" | "Bool" => "value",
-        _ => "value.as_str()",
-    }
-}
-
-fn async_setter_arg_expr(param: &GeneratedParam) -> &'static str {
     match param.param_type.as_str() {
         "Int" | "Float" | "Bool" => "value",
         _ => "value.as_str()",
@@ -693,13 +669,7 @@ fn builder_setter_arg_type(param: &GeneratedParam) -> &'static str {
         "Float" => "f64",
         "Bool" => "bool",
         "Date" | "Expiration" => "PyDateArg",
-        _ if matches!(
-            param.name.as_str(),
-            "start_time" | "end_time" | "min_time" | "time_of_day"
-        ) =>
-        {
-            "PyTimeArg"
-        }
+        _ if is_time_arg(param) => "PyTimeArg",
         _ => "PyStringArg",
     }
 }

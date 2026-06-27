@@ -162,18 +162,8 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     // sentinel so callers see the same `data=null, len=0` they already
     // handle for real errors, and the panic payload is surfaced through
     // `thetadatadx_last_error()`.
-    writeln!(
-        out,
-        "    ffi_boundary!({} {{ data: ptr::null(), len: 0 }}, {{",
-        array_type
-    )
-    .unwrap();
-    writeln!(
-        out,
-        "        let empty = {} {{ data: ptr::null(), len: 0 }};",
-        array_type
-    )
-    .unwrap();
+    writeln!(out, "    ffi_boundary!({array_type}::EMPTY, {{").unwrap();
+    writeln!(out, "        let empty = {array_type}::EMPTY;").unwrap();
     out.push_str("        let client = require_client!(client, empty);\n\n");
     out.push_str("        let mut args = thetadatadx::EndpointArgs::new();\n");
 

@@ -124,6 +124,15 @@ macro_rules! tick_array_type {
         }
 
         impl $name {
+            /// The `{ data: null, len: 0 }` sentinel every endpoint returns on
+            /// empty-success, error, and panic. A single definition the
+            /// generated endpoint bodies reference instead of re-spelling the
+            /// literal at each exit.
+            pub(crate) const EMPTY: Self = Self {
+                data: ptr::null(),
+                len: 0,
+            };
+
             /// Infallible for tick types (no `CString` allocation). Returns
             /// `Result` to match the signature of fallible sibling arrays
             /// (`ThetaDataDxStringArray`, `ThetaDataDxOptionContractArray`) so the shared
@@ -569,6 +578,14 @@ const _: () = {
 };
 
 impl ThetaDataDxOptionContractArray {
+    /// The `{ data: null, len: 0 }` sentinel returned on empty-success, error,
+    /// and panic; referenced by the generated endpoint bodies in place of the
+    /// re-spelled literal.
+    pub(crate) const EMPTY: Self = Self {
+        data: ptr::null(),
+        len: 0,
+    };
+
     pub(crate) fn from_vec(
         contracts: Vec<thetadatadx::OptionContract>,
     ) -> Result<Self, std::ffi::NulError> {
@@ -656,6 +673,14 @@ const _: () = {
 };
 
 impl ThetaDataDxStringArray {
+    /// The `{ data: null, len: 0 }` sentinel returned on empty-success, error,
+    /// and panic; referenced by the generated endpoint bodies in place of the
+    /// re-spelled literal.
+    pub(crate) const EMPTY: Self = Self {
+        data: ptr::null(),
+        len: 0,
+    };
+
     pub(crate) fn from_vec(strings: Vec<String>) -> Result<Self, std::ffi::NulError> {
         let len = strings.len();
         if len == 0 {

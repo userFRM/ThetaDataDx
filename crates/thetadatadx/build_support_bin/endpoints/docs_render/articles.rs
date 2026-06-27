@@ -69,13 +69,7 @@ pub(super) fn render_subscriptions_page(
         let mut last_group = String::new();
         for endpoint in &in_category {
             if !flat {
-                let group = match endpoint.subcategory.as_str() {
-                    "list" => "List",
-                    "snapshot" | "snapshot_greeks" => "Snapshot",
-                    "history" | "history_greeks" | "history_trade_greeks" => "History",
-                    "at_time" => "At-Time",
-                    other => panic!("no subscriptions grouping for subcategory {other}"),
-                };
+                let group = page::subcategory_label(&endpoint.subcategory);
                 if group != last_group {
                     let _ = writeln!(out, "| **{group}** |  |  |  |  |");
                     last_group = group.to_string();

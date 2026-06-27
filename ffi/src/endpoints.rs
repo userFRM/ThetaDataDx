@@ -10,7 +10,6 @@
 
 use std::os::raw::c_char;
 use std::os::raw::c_void;
-use std::ptr;
 
 use crate::error::{set_error, set_error_from};
 use crate::runtime;

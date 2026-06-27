@@ -36,8 +36,6 @@ pub(super) fn python_rust_field_type(
         "u8" => "u8",
         "f64" => "f64",
         "String" => "String",
-        "Option<String>" => "Option<String>",
-        "Option<i32>" => "Option<i32>",
         "Vec<u8>" => "Vec<u8>",
         // `Contract` becomes `Py<ContractRef>` on the pyclass — pyo3 cannot
         // expose a struct by value through `#[pyo3(get)]` on a frozen
@@ -71,8 +69,6 @@ pub(super) fn ts_rust_field_type(
         "u8" => "u32",
         "f64" => "f64",
         "String" => "String",
-        "Option<String>" => "Option<String>",
-        "Option<i32>" => "Option<i32>",
         "Vec<u8>" => "Vec<u8>",
         // `Contract` lowers to a nested `#[napi(object)]` struct —
         // emitted once at the top of `fpss_event_classes.rs` and
@@ -82,12 +78,6 @@ pub(super) fn ts_rust_field_type(
             panic!("unsupported FPSS event column type '{other}' in {event_name}.{column_name}")
         }
     }
-}
-
-/// Returns `true` when the column is `Option<...>` on the Rust side and
-/// therefore needs `Copy` handling in move/pattern bindings.
-pub(super) fn is_option(column_type: &str) -> bool {
-    column_type.starts_with("Option<")
 }
 
 /// Field type emitted in the shared `BufferedEvent` enum. Native Rust
@@ -105,8 +95,6 @@ pub(super) fn rust_field_type(
         "u8" => "u8",
         "f64" => "f64",
         "String" => "String",
-        "Option<String>" => "Option<String>",
-        "Option<i32>" => "Option<i32>",
         "Vec<u8>" => "Vec<u8>",
         // `Contract` on the `BufferedEvent` carries the full contract by
         // value so the per-language dispatcher does not need to

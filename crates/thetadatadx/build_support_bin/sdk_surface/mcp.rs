@@ -96,55 +96,7 @@ fn mcp_execute_arm(utility: &UtilitySpec) -> String {
             out.push_str("            })))\n");
         }
         UtilityKind::AllGreeks => {
-            let spot_key = mcp_param_name(find_utility_param(utility, "spot"));
-            let strike_key = mcp_param_name(find_utility_param(utility, "strike"));
-            let rate_key = mcp_param_name(find_utility_param(utility, "rate"));
-            let div_key = mcp_param_name(find_utility_param(utility, "div_yield"));
-            let tte_key = mcp_param_name(find_utility_param(utility, "tte"));
-            let option_price_key = mcp_param_name(find_utility_param(utility, "option_price"));
-            let right_key = mcp_param_name(find_utility_param(utility, "right"));
-            writeln!(
-                out,
-                "            let spot = param_or_return!(arg_f64(args, {}));",
-                rust_string_literal(spot_key)
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "            let strike = param_or_return!(arg_f64(args, {}));",
-                rust_string_literal(strike_key)
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "            let rate = param_or_return!(arg_f64(args, {}));",
-                rust_string_literal(rate_key)
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "            let div_yield = param_or_return!(arg_f64(args, {}));",
-                rust_string_literal(div_key)
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "            let tte = param_or_return!(arg_f64(args, {}));",
-                rust_string_literal(tte_key)
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "            let option_price = param_or_return!(arg_f64(args, {}));",
-                rust_string_literal(option_price_key)
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "            let right = param_or_return!(arg_str(args, {}));",
-                rust_string_literal(right_key)
-            )
-            .unwrap();
+            out.push_str(&emit_greeks_arg_fetch(utility));
             out.push_str("            let g = match thetadatadx::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, &right) {\n");
             out.push_str("                Ok(g) => g,\n");
             out.push_str("                Err(e) => return Some(Err(ToolError::InvalidParams(e.to_string()))),\n");
@@ -161,55 +113,7 @@ fn mcp_execute_arm(utility: &UtilitySpec) -> String {
             out.push_str("            })))\n");
         }
         UtilityKind::ImpliedVolatility => {
-            let spot_key = mcp_param_name(find_utility_param(utility, "spot"));
-            let strike_key = mcp_param_name(find_utility_param(utility, "strike"));
-            let rate_key = mcp_param_name(find_utility_param(utility, "rate"));
-            let div_key = mcp_param_name(find_utility_param(utility, "div_yield"));
-            let tte_key = mcp_param_name(find_utility_param(utility, "tte"));
-            let option_price_key = mcp_param_name(find_utility_param(utility, "option_price"));
-            let right_key = mcp_param_name(find_utility_param(utility, "right"));
-            writeln!(
-                out,
-                "            let spot = param_or_return!(arg_f64(args, {}));",
-                rust_string_literal(spot_key)
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "            let strike = param_or_return!(arg_f64(args, {}));",
-                rust_string_literal(strike_key)
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "            let rate = param_or_return!(arg_f64(args, {}));",
-                rust_string_literal(rate_key)
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "            let div_yield = param_or_return!(arg_f64(args, {}));",
-                rust_string_literal(div_key)
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "            let tte = param_or_return!(arg_f64(args, {}));",
-                rust_string_literal(tte_key)
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "            let option_price = param_or_return!(arg_f64(args, {}));",
-                rust_string_literal(option_price_key)
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "            let right = param_or_return!(arg_str(args, {}));",
-                rust_string_literal(right_key)
-            )
-            .unwrap();
+            out.push_str(&emit_greeks_arg_fetch(utility));
             out.push_str("            let (iv, err) = match thetadatadx::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, &right) {\n");
             out.push_str("                Ok(pair) => pair,\n");
             out.push_str("                Err(e) => return Some(Err(ToolError::InvalidParams(e.to_string()))),\n");
@@ -229,5 +133,35 @@ fn mcp_execute_arm(utility: &UtilitySpec) -> String {
         }
     }
     out.push_str("        }\n");
+    out
+}
+
+/// Emit the shared argument-fetch preamble for the option-pricing utilities
+/// (`all_greeks` / `implied_volatility`): seven `param_or_return!` reads
+/// binding `spot`/`strike`/`rate`/`div_yield`/`tte`/`option_price` (f64) and
+/// `right` (str), each keyed by the utility's own parameter name.
+fn emit_greeks_arg_fetch(utility: &UtilitySpec) -> String {
+    let mut out = String::new();
+    for (local, key) in [
+        ("spot", "spot"),
+        ("strike", "strike"),
+        ("rate", "rate"),
+        ("div_yield", "div_yield"),
+        ("tte", "tte"),
+        ("option_price", "option_price"),
+    ] {
+        writeln!(
+            out,
+            "            let {local} = param_or_return!(arg_f64(args, {}));",
+            rust_string_literal(mcp_param_name(find_utility_param(utility, key)))
+        )
+        .unwrap();
+    }
+    writeln!(
+        out,
+        "            let right = param_or_return!(arg_str(args, {}));",
+        rust_string_literal(mcp_param_name(find_utility_param(utility, "right")))
+    )
+    .unwrap();
     out
 }

@@ -157,18 +157,13 @@ pub(super) fn find_utility_param<'a>(utility: &'a UtilitySpec, name: &str) -> &'
 }
 
 /// Emit a CLI `get_arg(...).parse()` block that fetches the TOML-declared
-/// `cli_name` for `param_name`, binds it to Rust local `rust_local`, and
+/// `cli_name` for `param_name`, binds it to the same-named Rust local, and
 /// formats the "invalid {cli_name}" error message from the CLI-facing key.
-pub(super) fn emit_cli_f64_arg(
-    out: &mut String,
-    utility: &UtilitySpec,
-    param_name: &str,
-    rust_local: &str,
-) {
+pub(super) fn emit_cli_f64_arg(out: &mut String, utility: &UtilitySpec, param_name: &str) {
     let cli_key = cli_param_name(find_utility_param(utility, param_name));
     writeln!(
         out,
-        "            let {rust_local}: f64 = get_arg(sub_m, {})",
+        "            let {param_name}: f64 = get_arg(sub_m, {})",
         rust_string_literal(cli_key)
     )
     .unwrap();

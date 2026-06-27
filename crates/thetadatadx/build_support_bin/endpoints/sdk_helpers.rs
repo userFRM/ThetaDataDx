@@ -322,22 +322,20 @@ pub(super) fn cpp_value_type(return_type: &str) -> String {
 
 /// Returns the C++ expression that converts the FFI array result for a
 /// return type into a `std::vector`, checking the error slot first.
+///
+/// Forwards to the `detail::check_tick_array<Tick>` template, which consults
+/// the error slot before converting: success-empty and failure (e.g. timeout)
+/// both return the `{nullptr, 0}` sentinel, and the generated method
+/// `thetadatadx_clear_error()`s before the FFI call so a stale error isn't
+/// misattributed. The template frees the FFI allocation on every exit path.
+/// `StringList`/`OptionContracts` return types take their own early-return
+/// path in the emitter and never reach this converter.
 pub(super) fn cpp_converter_expr(return_type: &str) -> String {
-    match return_type {
-        "StringList" => "return detail::check_string_array(arr);".into(),
-        "OptionContracts" => "return detail::option_contract_array_to_vector(arr);".into(),
-        other => {
-            // Check `thetadatadx_last_error_raw` before converting: success-empty
-            // and failure (e.g. timeout) both return `{nullptr, 0}` arrays,
-            // so we have to consult the error slot directly. The generated
-            // Client method `thetadatadx_clear_error()`s before the FFI call so a
-            // stale error from a prior call isn't misattributed.
-            let free_fn = render_for(other).ffi_free_fn.clone();
-            format!(
-                "{{\n        const std::string err = detail::last_ffi_error_raw();\n        if (!err.empty()) {{\n            const int32_t code = thetadatadx_last_error_code();\n            {free_fn}(arr);\n            detail::throw_for_code(code, err);\n        }}\n    }}\n    auto result = detail::to_vector(arr.data, arr.len);\n    {free_fn}(arr);\n    return result;"
-            )
-        }
-    }
+    let render = render_for(return_type);
+    format!(
+        "return detail::check_tick_array<{}>(arr, [](auto a){{ return detail::to_vector(a.data, a.len); }}, {});",
+        render.cpp_value, render.ffi_free_fn
+    )
 }
 
 /// Name of the generated `*_to_pyclass_list` converter for a given tick
