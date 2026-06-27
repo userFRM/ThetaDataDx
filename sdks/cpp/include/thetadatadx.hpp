@@ -1437,6 +1437,11 @@ struct UnifiedDeleter {
     }
 };
 
+/// Shared callback indirection between a `Client` and the views it hands
+/// out. Defined in full below; forward-declared here so the `Historical`
+/// view can co-own it by `shared_ptr` alongside the handle.
+struct CallbackState;
+
 /// Historical-data sub-namespace returned by `Client::historical()`.
 ///
 /// Shares the parent `Client`'s `ThetaDataDxClient` handle (by `shared_ptr`)
@@ -1449,6 +1454,17 @@ struct UnifiedDeleter {
 /// `<endpoint>_async` future that captured a copy of it) keeps the handle
 /// alive on its own — a future launched from a `client.historical()` view
 /// stays sound even after that view and its parent `Client` are gone.
+///
+/// On a unified `Client` the view ALSO co-owns the parent's `CallbackState`
+/// (by `shared_ptr`), for the same reason `Stream` does. A pending
+/// `<endpoint>_async` future co-owns the handle, which defers
+/// `thetadatadx_client_free` (and so the streaming-stop drain barrier it
+/// runs) past `~Client`; co-owning the callback state keeps the registered
+/// node the streaming consumer fires through alive until that deferred free
+/// actually stops streaming, closing the use-after-free a handle-only
+/// co-ownership would leave on a `Client` that is streaming when destroyed.
+/// On the standalone `HistoricalClient` (no streaming) the member is an
+/// empty `shared_ptr`, carried but never dereferenced.
 class Historical {
 public:
     /// Generated buffered historical query declarations
@@ -1463,7 +1479,9 @@ public:
 
 private:
     friend class Client;
-    explicit Historical(std::shared_ptr<ThetaDataDxClient> h) : handle_(std::move(h)) {}
+    explicit Historical(std::shared_ptr<ThetaDataDxClient> h,
+                        std::shared_ptr<CallbackState> callback)
+        : callback_(std::move(callback)), handle_(std::move(h)) {}
 
     /// Resolve the historical sub-handle the generated query definitions
     /// call into. Derives it from the unified handle via
@@ -1477,6 +1495,22 @@ private:
         return hist;
     }
 
+    // Member order mirrors `Client` (do not reorder): C++ destructs in
+    // REVERSE declaration order, so `handle_` (declared last) is released
+    // first — its unified deleter runs `thetadatadx_client_free`'s drain
+    // barrier while `callback_` (declared first) is still alive. Reordering
+    // these two reintroduces the use-after-free.
+    //
+    // Co-owns the parent `Client`'s callback state — the same node the
+    // `Stream` view holds. A pending `<endpoint>_async` future captures a
+    // copy of this view, so it co-owns BOTH members. When such a future
+    // outlives `~Client`, its handle reference defers
+    // `thetadatadx_client_free` (and the streaming-stop drain barrier the
+    // unified deleter runs); this reference keeps the registered callback
+    // node alive until that deferred free runs, so the streaming consumer
+    // never fires through freed callback storage. Empty on the standalone
+    // `HistoricalClient`, which has no streaming and never reads it.
+    std::shared_ptr<CallbackState> callback_;
     // Co-owns the unified handle (shared with the parent `Client` and any
     // in-flight async future that captured a copy of this view), so the
     // handle outlives any future even if the view and its `Client` drop
@@ -2061,7 +2095,7 @@ public:
 private:
     friend class Client;
     Stream(std::shared_ptr<ThetaDataDxClient> h, std::shared_ptr<CallbackState> callback)
-        : handle_(std::move(h)), callback_(std::move(callback)) {}
+        : callback_(std::move(callback)), handle_(std::move(h)) {}
 
     // Static-member shim that the dispatcher invokes. It keeps C++ language
     // linkage (a member cannot be `extern "C"`) but its signature matches the
@@ -2080,13 +2114,12 @@ private:
         }
     }
 
-    // Shared ownership of the parent `Client`'s handle. Sharing (rather than
-    // borrowing a raw pointer) lets the drain-timeout reclaimer in
-    // `set_callback` keep the handle alive past this view and past a
-    // single-threaded `Client` destruction, so the reclaimer's drain-barrier
-    // poll never reads a freed handle. The unified deleter still frees the
-    // handle exactly once, when the last reference drops.
-    std::shared_ptr<ThetaDataDxClient> handle_;
+    // Member order mirrors `Client` (do not reorder): C++ destructs in
+    // REVERSE declaration order, so `handle_` (declared last) is released
+    // first — its unified deleter runs `thetadatadx_client_free`'s drain
+    // barrier while `callback_` (declared first) is still alive. Reordering
+    // these two reintroduces the use-after-free.
+    //
     // Shared ownership of the parent `Client`'s callback state. The state
     // owns the currently-registered node, which lives at a fixed heap
     // address, so the registered dispatcher `ctx` (`&callback_->slot->fn`)
@@ -2094,6 +2127,13 @@ private:
     // lifetime. A replacement installs a fresh node into the shared state,
     // which both the `Client` and this view then observe.
     std::shared_ptr<CallbackState> callback_;
+    // Shared ownership of the parent `Client`'s handle. Sharing (rather than
+    // borrowing a raw pointer) lets the drain-timeout reclaimer in
+    // `set_callback` keep the handle alive past this view and past a
+    // single-threaded `Client` destruction, so the reclaimer's drain-barrier
+    // poll never reads a freed handle. The unified deleter still frees the
+    // handle exactly once, when the last reference drops.
+    std::shared_ptr<ThetaDataDxClient> handle_;
 };
 
 /// Forward declaration for `Client::builder()`; defined immediately after
@@ -2238,12 +2278,17 @@ public:
 
     /// Historical-data sub-namespace: `client.historical().stock_history_eod(...)`.
     ///
-    /// Returns a `Historical` view that SHARES this client's handle (by
-    /// `shared_ptr`). No auth round-trip, no second connection. Because the
-    /// view co-owns the handle, an `<endpoint>_async` future launched from it
-    /// stays sound even if the view (and this client) drop before the future
-    /// completes — the captured copy keeps the handle alive.
-    Historical historical() const { return Historical(handle_); }
+    /// Returns a `Historical` view that SHARES this client's handle AND
+    /// callback state (both by `shared_ptr`), exactly as `stream()` shares
+    /// the same pair. No auth round-trip, no second connection. Because the
+    /// view co-owns both, an `<endpoint>_async` future launched from it stays
+    /// sound even if the view (and this client) drop before the future
+    /// completes: the captured copy keeps the handle alive — which defers
+    /// `thetadatadx_client_free` and the streaming stop it performs — and
+    /// keeps the callback node that stop drains alive until then, so a client
+    /// destroyed mid-future while streaming never frees the node the consumer
+    /// is still firing through.
+    Historical historical() const { return Historical(handle_, callback_); }
 
     /// Real-time-streaming sub-namespace: `client.stream().subscribe(...)`,
     /// `client.stream().set_callback(cb)`, …
@@ -2302,6 +2347,15 @@ private:
     // member layout encodes. When instead a reclaimer outlives `~Client`,
     // the reclaimer also holds a `callback_` reference, so the deferred free
     // still observes a live current node (see `Stream::set_callback`).
+    //
+    // The invariant generalizes to every entity that can hold the last
+    // handle reference: it must also hold a `callback_` reference, so the
+    // deferred free's drain barrier always sees a live node. The `Stream`
+    // view and the move-assign / `set_callback` reclaimers each co-own both.
+    // So does the `Historical` view: a stored `historical().<endpoint>_async`
+    // future captures a copy of it, and a future that outlives `~Client`
+    // becomes the last handle holder — co-owning the callback state keeps the
+    // node alive until that future-deferred free stops streaming.
     std::shared_ptr<CallbackState> callback_;
     std::shared_ptr<ThetaDataDxClient> handle_;
 };
