@@ -1946,23 +1946,7 @@ public:
     /// Snapshot the currently-active per-contract subscriptions. Throws on
     /// FFI error.
     std::vector<Subscription> active_subscriptions() const {
-        ThetaDataDxSubscriptionArray* arr = thetadatadx_client_active_subscriptions(handle_.get());
-        if (arr == nullptr) {
-            detail::throw_last_ffi_error();
-        }
-        std::vector<Subscription> out;
-        if (arr->data != nullptr && arr->len > 0) {
-            out.reserve(arr->len);
-            for (size_t i = 0; i < arr->len; ++i) {
-                const ThetaDataDxSubscription& s = arr->data[i];
-                out.push_back(Subscription{
-                    s.kind ? std::string(s.kind) : std::string(),
-                    s.contract ? std::string(s.contract) : std::string(),
-                });
-            }
-        }
-        thetadatadx_subscription_array_free(arr);
-        return out;
+        return detail::subscription_array_to_vector(thetadatadx_client_active_subscriptions(handle_.get()));
     }
 
     /// Cumulative count of user-callback failures contained by the
