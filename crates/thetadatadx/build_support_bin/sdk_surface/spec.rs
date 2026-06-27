@@ -30,10 +30,6 @@ pub(super) struct MethodSpec {
     #[serde(default)]
     pub(super) params: Vec<ParamSpec>,
     #[serde(default)]
-    pub(super) runtime_call: Option<String>,
-    #[serde(default)]
-    pub(super) ffi_call: Option<String>,
-    #[serde(default)]
     pub(super) config_variant: Option<String>,
 }
 
@@ -44,11 +40,7 @@ pub(super) enum MethodKind {
     StartStreaming,
     IsStreaming,
     Batches,
-    StockContractCall,
-    OptionContractCall,
-    FullCall,
     ActiveSubscriptions,
-    NextEvent,
     Reconnect,
     StopStreaming,
     Shutdown,
@@ -185,8 +177,8 @@ pub(super) enum ParamType {
 /// `validate_method_spec`. Name extracted to keep
 /// `clippy::type_complexity` happy and document the structure:
 ///
-/// * `0` — optional fixed method name (`None` when the name varies per
-///   endpoint inside the kind, e.g. `StockContractCall`);
+/// * `0` — optional fixed method name (`None` when the name is
+///   data-dependent, e.g. `ConfigConstructor`'s `config_<variant>`);
 /// * `1` — targets this kind is allowed to project to;
 /// * `2` — `true` when the targets list must be exact (no omissions);
 /// * `3` — required parameter layout `(name, type)` pairs.
@@ -254,10 +246,10 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
     }
 
     // Per-kind shape: (expected_name, allowed_targets, exact_targets, params).
-    // `expected_name = None` means the name varies per endpoint inside the
-    // kind (StockContractCall, OptionContractCall, FullCall). The
-    // runtime_call/ffi_call/config_variant fields aren't validated here —
-    // the code generator fails loudly when it tries to use a missing one.
+    // `expected_name = None` means the name is data-dependent (e.g.
+    // `ConfigConstructor`'s `config_<variant>`). The `config_variant`
+    // field isn't validated here — the code generator fails loudly when it
+    // tries to use a missing one.
     const PY: MethodTarget = MethodTarget::PythonUnified;
     const CPP: MethodTarget = MethodTarget::CppFpss;
     const LIFE: MethodTarget = MethodTarget::CppLifecycle;
@@ -276,45 +268,9 @@ fn validate_method_spec(method: &MethodSpec) -> Result<(), Box<dyn std::error::E
         // wired in each per-language surface, not positional spec params, so
         // the layout here is empty.
         MethodKind::Batches => (Some("batches"), &[PY, TS], true, &[]),
-        MethodKind::StockContractCall => (
-            None,
-            &[PY, TS, CPP],
-            false,
-            &[("symbol", ParamType::String)],
-        ),
-        MethodKind::OptionContractCall => (
-            None,
-            &[PY, TS, CPP],
-            false,
-            &[
-                ("symbol", ParamType::String),
-                ("expiration", ParamType::String),
-                ("strike", ParamType::String),
-                ("right", ParamType::String),
-            ],
-        ),
-        MethodKind::FullCall => (
-            None,
-            &[PY, TS, CPP],
-            false,
-            &[("sec_type", ParamType::String)],
-        ),
         MethodKind::ActiveSubscriptions => {
             (Some("active_subscriptions"), &[PY, TS, CPP], false, &[])
         }
-        MethodKind::NextEvent => (
-            Some("next_event"),
-            // PRs B/C/D (#482) removed every binding's poll-style
-            // `next_event` in favour of callback registration via
-            // `start_streaming(callback)` (Python / TypeScript) or
-            // `set_callback` (C ABI / C++). No target emits this
-            // method any more; the kind is retained only as a
-            // historical entry in the surface schema and any future
-            // re-introduction would have to opt back in here.
-            &[],
-            false,
-            &[("timeout_ms", ParamType::U64)],
-        ),
         MethodKind::Reconnect => (Some("reconnect"), &[PY, TS, CPP], false, &[]),
         MethodKind::StopStreaming => (Some("stop_streaming"), &[PY, TS], true, &[]),
         MethodKind::Shutdown => (Some("shutdown"), &[PY, TS, CPP], false, &[]),

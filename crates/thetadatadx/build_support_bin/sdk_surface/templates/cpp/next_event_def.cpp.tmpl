@@ -1,4 +1,0 @@
-StreamEventPtr StreamingClient::next_event(uint64_t timeout_ms) {
-    auto* raw = thetadatadx_streaming_next_event(handle_.get(), timeout_ms);
-    return StreamEventPtr(raw);
-}

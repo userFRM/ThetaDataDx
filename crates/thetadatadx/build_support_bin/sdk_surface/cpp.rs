@@ -1,8 +1,6 @@
 //! C++ SDK: FPSS declarations + definitions, utilities, lifecycle.
 
-use std::fmt::Write as _;
-
-use super::common::{cpp_type, generated_header, push_cpp_doc_comment};
+use super::common::{generated_header, push_cpp_doc_comment};
 use super::spec::{MethodKind, MethodSpec, UtilityKind, UtilitySpec};
 
 /// Renders the C++ header declarations for the FPSS client methods.
@@ -76,31 +74,9 @@ fn cpp_fpss_decl(method: &MethodSpec) -> String {
                 "    static StreamingClient from_file(const std::string& path, const Config& config = Config::production());\n",
             );
         }
-        MethodKind::StockContractCall | MethodKind::FullCall => {
-            writeln!(
-                out,
-                "    int {}({} {});",
-                method.name,
-                cpp_type(method.params[0].param_type),
-                method.params[0].name
-            )
-            .unwrap();
-        }
-        MethodKind::OptionContractCall => {
-            let params = method
-                .params
-                .iter()
-                .map(|param| format!("{} {}", cpp_type(param.param_type), param.name))
-                .collect::<Vec<_>>()
-                .join(", ");
-            writeln!(out, "    int {}({params});", method.name).unwrap();
-        }
         MethodKind::IsAuthenticated => out.push_str("    bool is_authenticated() const;\n"),
         MethodKind::ActiveSubscriptions => {
             out.push_str("    std::vector<Subscription> active_subscriptions() const;\n");
-        }
-        MethodKind::NextEvent => {
-            out.push_str("    StreamEventPtr next_event(uint64_t timeout_ms);\n");
         }
         MethodKind::Reconnect => out.push_str("    void reconnect();\n"),
         MethodKind::Shutdown => out.push_str("    void shutdown();\n"),
@@ -117,33 +93,6 @@ fn cpp_fpss_def(method: &MethodSpec) -> String {
         MethodKind::FpssConnectFromFile => {
             include_str!("templates/cpp/fpss_connect_from_file_def.cpp.tmpl").to_string()
         }
-        MethodKind::StockContractCall | MethodKind::FullCall => format!(
-            "int StreamingClient::{}({} {}) {{ return thetadatadx_streaming_{}(handle_.get(), {}.c_str()); }}\n",
-            method.name,
-            cpp_type(method.params[0].param_type),
-            method.params[0].name,
-            method.ffi_call.as_deref().unwrap(),
-            method.params[0].name
-        ),
-        MethodKind::OptionContractCall => {
-            let params = method
-                .params
-                .iter()
-                .map(|param| format!("{} {}", cpp_type(param.param_type), param.name))
-                .collect::<Vec<_>>()
-                .join(", ");
-            let ffi_args = method
-                .params
-                .iter()
-                .map(|param| format!("{}.c_str()", param.name))
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!(
-                "int StreamingClient::{}({params}) {{ return thetadatadx_streaming_{}(handle_.get(), {ffi_args}); }}\n",
-                method.name,
-                method.ffi_call.as_deref().unwrap()
-            )
-        }
         MethodKind::IsAuthenticated => {
             "bool StreamingClient::is_authenticated() const { return thetadatadx_streaming_is_authenticated(handle_.get()) != 0; }\n"
                 .to_string()
@@ -151,7 +100,6 @@ fn cpp_fpss_def(method: &MethodSpec) -> String {
         MethodKind::ActiveSubscriptions => {
             include_str!("templates/cpp/active_subscriptions_def.cpp.tmpl").to_string()
         }
-        MethodKind::NextEvent => include_str!("templates/cpp/next_event_def.cpp.tmpl").to_string(),
         MethodKind::Reconnect => include_str!("templates/cpp/reconnect_def.cpp.tmpl").to_string(),
         MethodKind::Shutdown => {
             "void StreamingClient::shutdown() { thetadatadx_streaming_shutdown(handle_.get()); }\n".to_string()

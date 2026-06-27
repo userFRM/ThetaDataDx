@@ -286,79 +286,6 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             );
             out.push_str("    }\n");
         }
-        MethodKind::StockContractCall => {
-            let param = &method.params[0];
-            writeln!(
-                out,
-                "    fn {}(&self, {}: {}) -> PyResult<()> {{",
-                method.name,
-                param.name,
-                python_type(param.param_type)
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "        let contract = fpss::protocol::Contract::stock({});",
-                param.name
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "        self.client.stream().{}(&contract).map_err(to_py_err)",
-                method.runtime_call.as_deref().unwrap()
-            )
-            .unwrap();
-            out.push_str("    }\n");
-        }
-        MethodKind::OptionContractCall => {
-            writeln!(out, "    fn {}(", method.name).unwrap();
-            out.push_str("        &self,\n");
-            for param in &method.params {
-                writeln!(
-                    out,
-                    "        {}: {},",
-                    param.name,
-                    python_type(param.param_type)
-                )
-                .unwrap();
-            }
-            out.push_str("    ) -> PyResult<()> {\n");
-            writeln!(
-                out,
-                "        let contract = fpss::protocol::Contract::option({}, fpss::protocol::OptionLeg {{ expiration: {}, strike: {}, right: {} }}).map_err(to_py_err)?;",
-                method.params[0].name,
-                method.params[1].name,
-                method.params[2].name,
-                method.params[3].name
-            )
-            .unwrap();
-            writeln!(
-                out,
-                "        self.client.stream().{}(&contract).map_err(to_py_err)",
-                method.runtime_call.as_deref().unwrap()
-            )
-            .unwrap();
-            out.push_str("    }\n");
-        }
-        MethodKind::FullCall => {
-            let param = &method.params[0];
-            writeln!(
-                out,
-                "    fn {}(&self, {}: {}) -> PyResult<()> {{",
-                method.name,
-                param.name,
-                python_type(param.param_type)
-            )
-            .unwrap();
-            writeln!(out, "        let st = parse_sec_type({})?;", param.name).unwrap();
-            writeln!(
-                out,
-                "        self.client.stream().{}(st).map_err(to_py_err)",
-                method.runtime_call.as_deref().unwrap()
-            )
-            .unwrap();
-            out.push_str("    }\n");
-        }
         MethodKind::ActiveSubscriptions => {
             // Project per-contract subscriptions to typed `PySubscription`
             // values that round-trip with the `subscribe()` input shape.
@@ -389,17 +316,6 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             out.push_str("            })\n");
             out.push_str("            .map_err(to_py_err)\n");
             out.push_str("    }\n");
-        }
-        MethodKind::NextEvent => {
-            // Python removed `next_event` in PR C (#482) — the PyO3
-            // binding now uses callback registration via
-            // `start_streaming(callback)`. The Python target is no
-            // longer in `MethodKind::NextEvent`'s allowed list (see
-            // `spec.rs`), so this arm is unreachable on the Python
-            // surface. Panicking here is the loud failure we want if
-            // someone re-adds `python_unified` to `next_event` without
-            // also implementing a poll-style PyO3 method.
-            panic!("MethodKind::NextEvent is not emitted on the Python target after PR C");
         }
         MethodKind::Reconnect => {
             push_rust_doc_comment(
