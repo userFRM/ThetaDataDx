@@ -940,7 +940,14 @@ public:
     #include "historical.hpp.inc"
 
 private:
-    explicit HistoricalClient(ThetaDataDxHistoricalClient* h) : handle_(h) {}
+    // Hold the FFI handle by `shared_ptr` (with the single-free deleter)
+    // rather than `unique_ptr` so an `<endpoint>_async` future can capture a
+    // copy of this client and co-own the handle for the future's whole
+    // lifetime: the handle is freed exactly once, when the last owner (this
+    // client or any in-flight future) drops. A copy therefore shares the one
+    // handle rather than double-freeing it.
+    explicit HistoricalClient(ThetaDataDxHistoricalClient* h)
+        : handle_(h, HistoricalClientDeleter{}) {}
 
     /// Resolve the historical sub-handle the generated buffered query
     /// definitions call into. On the standalone client this is the owned
@@ -949,7 +956,7 @@ private:
     /// the generator emit one definition body for both classes.
     const ThetaDataDxHistoricalClient* historical_handle() const { return handle_.get(); }
 
-    std::unique_ptr<ThetaDataDxHistoricalClient, HistoricalClientDeleter> handle_;
+    std::shared_ptr<ThetaDataDxHistoricalClient> handle_;
 };
 
 // ── streaming event types (re-exported from thetadatadx.h) ──
@@ -1432,14 +1439,16 @@ struct UnifiedDeleter {
 
 /// Historical-data sub-namespace returned by `Client::historical()`.
 ///
-/// Borrows the unified `ThetaDataDxClient*` and derives the historical
-/// sub-handle (`thetadatadx_client_historical`) on each call, so constructing it
-/// performs no auth round-trip and opens no second connection. Exposes the
-/// full buffered historical query surface (mixed in from
-/// `historical.hpp.inc`) and the server-stream companions
+/// Shares the parent `Client`'s `ThetaDataDxClient` handle (by `shared_ptr`)
+/// and derives the historical sub-handle (`thetadatadx_client_historical`) on
+/// each call, so constructing it performs no auth round-trip and opens no
+/// second connection. Exposes the full buffered historical query surface
+/// (mixed in from `historical.hpp.inc`) and the server-stream companions
 /// (`historical_stream.hpp.inc`) generated identically with the standalone
-/// `HistoricalClient`. The view is non-owning: its lifetime is bounded by
-/// the parent `Client`.
+/// `HistoricalClient`. The view co-owns the handle, so it (and any
+/// `<endpoint>_async` future that captured a copy of it) keeps the handle
+/// alive on its own — a future launched from a `client.historical()` view
+/// stays sound even after that view and its parent `Client` are gone.
 class Historical {
 public:
     /// Generated buffered historical query declarations
@@ -1454,21 +1463,25 @@ public:
 
 private:
     friend class Client;
-    explicit Historical(const ThetaDataDxClient* h) : handle_(h) {}
+    explicit Historical(std::shared_ptr<ThetaDataDxClient> h) : handle_(std::move(h)) {}
 
     /// Resolve the historical sub-handle the generated query definitions
     /// call into. Derives it from the unified handle via
     /// `thetadatadx_client_historical`; throws on the (unexpected) null result so
     /// the failure surfaces as a typed error rather than a null deref.
     const ThetaDataDxHistoricalClient* historical_handle() const {
-        const ThetaDataDxHistoricalClient* hist = thetadatadx_client_historical(handle_);
+        const ThetaDataDxHistoricalClient* hist = thetadatadx_client_historical(handle_.get());
         if (hist == nullptr) {
             detail::throw_last_ffi_error();
         }
         return hist;
     }
 
-    const ThetaDataDxClient* handle_;
+    // Co-owns the unified handle (shared with the parent `Client` and any
+    // in-flight async future that captured a copy of this view), so the
+    // handle outlives any future even if the view and its `Client` drop
+    // first. Freed once, when the last shared owner drops.
+    std::shared_ptr<ThetaDataDxClient> handle_;
 };
 
 /// Backing node for a single push-callback registration. The
@@ -2225,14 +2238,12 @@ public:
 
     /// Historical-data sub-namespace: `client.historical().stock_history_eod(...)`.
     ///
-    /// Returns a `Historical` view borrowing this client's handle. No auth
-    /// round-trip, no second connection; the view borrows `*this` and must
-    /// not outlive it.
-    ///
-    /// Lvalue-only: the accessor is ref-qualified to `const&`, so calling
-    /// it on a temporary is a compile error. Bind the client to a variable
-    /// first; the view then cannot outlive its client.
-    Historical historical() const& { return Historical(handle_.get()); }
+    /// Returns a `Historical` view that SHARES this client's handle (by
+    /// `shared_ptr`). No auth round-trip, no second connection. Because the
+    /// view co-owns the handle, an `<endpoint>_async` future launched from it
+    /// stays sound even if the view (and this client) drop before the future
+    /// completes — the captured copy keeps the handle alive.
+    Historical historical() const { return Historical(handle_); }
 
     /// Real-time-streaming sub-namespace: `client.stream().subscribe(...)`,
     /// `client.stream().set_callback(cb)`, …

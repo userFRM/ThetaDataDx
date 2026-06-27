@@ -182,12 +182,14 @@ TEST_CASE("Stream binds the full FPSS surface",
         decltype(std::declval<const thetadatadx::Client&>().historical()),
         thetadatadx::Historical>);
 
-    // Lvalue-only borrow contract: the view accessors are ref-qualified so
-    // they bind only to an lvalue `Client`. A view borrows the client's
-    // handle and must not outlive it, so calling an accessor on a temporary
-    // (`makeClient().historical()`) is a compile error: the view would
-    // dangle at the end of the full expression. These assertions pin that
-    // the lvalue forms are callable and the rvalue forms are not.
+    // View accessor binding contract. `stream()` (`&`) and `flat_files()`
+    // (`const&`) hand out non-owning views that borrow the client's handle,
+    // so they stay ref-qualified to reject a temporary `Client`. `historical()`
+    // is NOT ref-qualified (plain `const`): the `Historical` view it returns
+    // co-owns the handle by `shared_ptr`, so it (and any `<endpoint>_async`
+    // future launched from it) keeps the handle alive on its own and may
+    // safely outlive a temporary `Client`. These assertions pin those binding
+    // rules.
     STATIC_REQUIRE(std::is_invocable_v<
         decltype(&thetadatadx::Client::stream), thetadatadx::Client&>);
     // `stream()` is `&`-qualified (non-const lvalue ref), so it rejects an
@@ -198,17 +200,20 @@ TEST_CASE("Stream binds the full FPSS surface",
         decltype(&thetadatadx::Client::historical), const thetadatadx::Client&>);
     STATIC_REQUIRE(std::is_invocable_v<
         decltype(&thetadatadx::Client::flat_files), const thetadatadx::Client&>);
-    // `historical()` / `flat_files()` are `const&`-qualified. C++17 treats
-    // `is_invocable` of a `const&` member on an rvalue as false (the rvalue
-    // is rejected), but C++20 (LWG-resolved) treats it as true — an rvalue
-    // binds to a const lvalue ref. The runtime borrow contract (a view must
-    // not outlive the client) is unchanged; only the trait's answer differs
-    // by standard, so this rvalue assertion is gated to C++17. The C++ SDK
-    // builds C++17 by default; the `THETADATADX_CPP_ARROW` reader links
-    // arrow-cpp, which mandates C++20.
-#if __cplusplus < 202002L
-    STATIC_REQUIRE_FALSE(std::is_invocable_v<
+    // `historical()` is plain `const` (not ref-qualified), so it binds to an
+    // rvalue `Client` in every standard — the co-owning view it returns is
+    // sound on a temporary.
+    STATIC_REQUIRE(std::is_invocable_v<
         decltype(&thetadatadx::Client::historical), thetadatadx::Client&&>);
+    // `flat_files()` is `const&`-qualified. C++17 treats `is_invocable` of a
+    // `const&` member on an rvalue as false (the rvalue is rejected), but
+    // C++20 (LWG-resolved) treats it as true — an rvalue binds to a const
+    // lvalue ref. The runtime borrow contract (the flat-files view must not
+    // outlive the client) is unchanged; only the trait's answer differs by
+    // standard, so this rvalue assertion is gated to C++17. The C++ SDK builds
+    // C++17 by default; the `THETADATADX_CPP_ARROW` reader links arrow-cpp,
+    // which mandates C++20.
+#if __cplusplus < 202002L
     STATIC_REQUIRE_FALSE(std::is_invocable_v<
         decltype(&thetadatadx::Client::flat_files), thetadatadx::Client&&>);
 #endif
