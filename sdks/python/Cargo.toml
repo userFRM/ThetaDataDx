@@ -93,6 +93,13 @@ tracing-subscriber = { version = "0.3.20", default-features = false, features = 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+# Re-declare the engine dep with `__test-helpers` so Rust unit tests can reach
+# the in-process FPSS harness (`StreamingClient::for_self_join_test`,
+# `HarnessPublishMode`) — gated out of the non-test build. Mirrors
+# `ffi/Cargo.toml`. Same `arrow` / `__internal` feature set as the runtime dep.
+[dev-dependencies]
+thetadatadx = { path = "../../crates/thetadatadx", features = ["arrow", "__internal", "__test-helpers"] }
+
 # Match the main workspace's strict bar. This crate is `[workspace.exclude]`d
 # in the root `Cargo.toml` (it has its own toolchain / feature footprint), so
 # it can't inherit via `[lints] workspace = true` — mirror the rules locally.
