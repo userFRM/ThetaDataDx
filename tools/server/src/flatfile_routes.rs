@@ -34,7 +34,7 @@
 use std::path::PathBuf;
 
 use axum::body::Body;
-use axum::extract::rejection::{JsonRejection, QueryRejection};
+use axum::extract::rejection::{JsonRejection, PathRejection, QueryRejection};
 use axum::extract::{FromRequest, FromRequestParts, Path, Query, Request, State};
 use axum::http::request::Parts;
 use axum::http::{header, StatusCode};
@@ -162,6 +162,18 @@ fn query_rejection_response(rejection: &QueryRejection) -> Response {
     error_response(rejection.status(), "bad_request", &rejection.body_text())
 }
 
+/// Map a `PathRejection` onto the canonical error envelope.
+///
+/// The brace route matches a non-UTF-8 percent-encoded segment (`%ff`);
+/// `Path::<(String, String)>` then fails `decode_utf8()` and rejects.
+/// Without this the GET path answers axum's default plain-text 400
+/// (`Invalid UTF-8 in \`sec_type\``), diverging from the
+/// `{"header":{"error_type":...},"response":[]}` envelope the query and
+/// POST siblings return — the contract clients drive retry / backoff off.
+fn path_rejection_response(rejection: &PathRejection) -> Response {
+    error_response(rejection.status(), "bad_request", &rejection.body_text())
+}
+
 // ── Enum parsing ─────────────────────────────────────────────────────────
 
 fn parse_sec_type(s: &str) -> Result<SecType, String> {
@@ -227,11 +239,18 @@ fn content_type_for(format: FlatFileFormat) -> &'static str {
 
 async fn handle_get(
     state: State<AppState>,
-    // Router-matched UTF-8 path segments deserialize to `String` infallibly,
-    // so plain `Path` never rejects here — no custom envelope wrapper needed.
-    Path((sec_type_s, req_type_s)): Path<(String, String)>,
+    // A non-UTF-8 percent-encoded segment (`%ff`) matches the brace route but
+    // fails `Path`'s `decode_utf8()`, so the rejection is reachable. Take the
+    // `Result` and route the failure through `error_response` so it answers
+    // the canonical JSON envelope, matching the query/POST siblings — instead
+    // of axum's default plain-text 400.
+    path: Result<Path<(String, String)>, PathRejection>,
     FlatfileQueryExtractor(params): FlatfileQueryExtractor<FlatfileQuery>,
 ) -> Response {
+    let Path((sec_type_s, req_type_s)) = match path {
+        Ok(p) => p,
+        Err(rej) => return path_rejection_response(&rej),
+    };
     let sec_type = match parse_sec_type(&sec_type_s) {
         Ok(v) => v,
         Err(e) => return error_response(StatusCode::BAD_REQUEST, "bad_request", &e),
@@ -899,6 +918,89 @@ mod tests {
             Some(0),
             "the error envelope's response array must be empty"
         );
+    }
+
+    /// A non-UTF-8 percent-encoded path segment (`%ff`) matches the brace
+    /// route and reaches `Path::<(String, String)>`, whose `decode_utf8()`
+    /// fails. Both GET flat-file routes must answer the canonical JSON
+    /// envelope (`{"header":{"error_type":"bad_request",...},"response":[]}`,
+    /// `Content-Type: application/json`, 400) rather than axum's default
+    /// plain-text 400, matching the query/POST siblings.
+    ///
+    /// Driven through a stateless probe router that mounts the same two
+    /// brace-route patterns over the same `path_rejection_response` mapping
+    /// the live `handle_get` uses, so the reachability chain (route match →
+    /// `Path` reject → envelope) is exercised end-to-end without a live
+    /// client.
+    #[tokio::test]
+    async fn malformed_path_segment_returns_canonical_envelope_on_both_get_routes() {
+        use axum::body::to_bytes;
+        use axum::routing::get;
+        use sonic_rs::{JsonContainerTrait, JsonValueTrait};
+        use tower::ServiceExt;
+
+        async fn probe(path: Result<Path<(String, String)>, PathRejection>) -> Response {
+            match path {
+                Ok(_) => error_response(StatusCode::OK, "ok", ""),
+                Err(rej) => path_rejection_response(&rej),
+            }
+        }
+
+        let app: Router = Router::new()
+            .route("/v3/{sec_type}/flat_file/{req_type}", get(probe))
+            .route("/v3/flatfile/{sec_type}/{req_type}", get(probe));
+
+        // `%ff` decodes to the byte 0xFF, which is not valid UTF-8, so the
+        // `Path` deserialize rejects after the route matches.
+        for uri in ["/v3/flatfile/%ff/quote", "/v3/option/flat_file/%ff"] {
+            let request = axum::http::Request::builder()
+                .method("GET")
+                .uri(uri)
+                .body(Body::empty())
+                .unwrap();
+            let response = app.clone().oneshot(request).await.expect("router responds");
+
+            assert_eq!(
+                response.status(),
+                StatusCode::BAD_REQUEST,
+                "a non-UTF-8 path segment is a client fault (400): {uri}"
+            );
+            assert_eq!(
+                response
+                    .headers()
+                    .get(header::CONTENT_TYPE)
+                    .and_then(|v| v.to_str().ok()),
+                Some(crate::handler::JSON_CONTENT_TYPE),
+                "the rejection must be served as JSON, not plain text: {uri}"
+            );
+
+            let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            let value: sonic_rs::Value = sonic_rs::from_slice(&body).unwrap_or_else(|e| {
+                panic!("rejection body must be the JSON envelope ({uri}): {e}")
+            });
+
+            let envelope_header = value.get("header").expect("envelope must carry a header");
+            assert_eq!(
+                envelope_header.get("error_type").as_str(),
+                Some("bad_request"),
+                "clients drive retry off header.error_type: {uri}"
+            );
+            assert!(
+                envelope_header
+                    .get("error_msg")
+                    .as_str()
+                    .is_some_and(|m| !m.is_empty()),
+                "the envelope must carry a non-empty diagnostic error_msg: {uri}"
+            );
+            assert_eq!(
+                value
+                    .get("response")
+                    .and_then(|r| r.as_array())
+                    .map(sonic_rs::Array::len),
+                Some(0),
+                "the error envelope's response array must be empty: {uri}"
+            );
+        }
     }
 
     // Regression: concurrent identical requests must never share a

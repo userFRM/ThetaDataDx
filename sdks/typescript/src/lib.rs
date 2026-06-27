@@ -410,10 +410,25 @@ impl ClientConnectOptions {
 /// the Python binding raises (`ValueError`) for the identical input, so a
 /// caller's `catch (e instanceof InvalidParameterError)` branch ports
 /// across bindings. `param` names the camelCase key in the message.
-fn validate_nonneg_whole(param: &str, value: f64, max: f64) -> napi::Result<f64> {
+///
+/// `unit` carries the singular unit noun (e.g. `"millisecond"`) when the
+/// value has a physical unit, so the rejection names it
+/// ("...integer number of milliseconds", "...representable millisecond
+/// range"); `None` keeps the unit-free "...whole number" / "...representable
+/// range" wording for a bare count.
+fn validate_nonneg_whole(
+    param: &str,
+    value: f64,
+    max: f64,
+    unit: Option<&str>,
+) -> napi::Result<f64> {
     if !value.is_finite() {
+        let detail = match unit {
+            Some(u) => format!("a non-negative integer number of {u}s"),
+            None => "a non-negative whole number".to_string(),
+        };
         return Err(invalid_parameter_err(format!(
-            "{param} must be a non-negative whole number; got {value}"
+            "{param} must be {detail}; got {value}"
         )));
     }
     if value < 0.0 {
@@ -422,13 +437,21 @@ fn validate_nonneg_whole(param: &str, value: f64, max: f64) -> napi::Result<f64>
         )));
     }
     if value.fract() != 0.0 {
+        let detail = match unit {
+            Some(u) => format!("a whole number of {u}s"),
+            None => "a whole number".to_string(),
+        };
         return Err(invalid_parameter_err(format!(
-            "{param} must be a whole number; got {value}"
+            "{param} must be {detail}; got {value}"
         )));
     }
     if value > max {
+        let range = match unit {
+            Some(u) => format!("the representable {u} range"),
+            None => "the representable range".to_string(),
+        };
         return Err(invalid_parameter_err(format!(
-            "{param} exceeds the representable range; got {value}"
+            "{param} exceeds {range}; got {value}"
         )));
     }
     Ok(value)
@@ -437,7 +460,12 @@ fn validate_nonneg_whole(param: &str, value: f64, max: f64) -> napi::Result<f64>
 /// Validate a JavaScript `timeoutMs` deadline and convert it to the
 /// integer millisecond domain the Python, C++, and C ABI bindings take.
 pub(crate) fn validate_timeout_ms(timeout_ms: f64) -> napi::Result<u64> {
-    Ok(validate_nonneg_whole("timeoutMs", timeout_ms, u64::MAX as f64)? as u64)
+    Ok(validate_nonneg_whole(
+        "timeoutMs",
+        timeout_ms,
+        u64::MAX as f64,
+        Some("millisecond"),
+    )? as u64)
 }
 
 /// Validate an optional non-negative integer query parameter (the bounded
@@ -450,7 +478,7 @@ pub(crate) fn validate_optional_nonneg_i32(
 ) -> napi::Result<Option<i32>> {
     let Some(value) = value else { return Ok(None) };
     Ok(Some(
-        validate_nonneg_whole(param, value, i32::MAX as f64)? as i32
+        validate_nonneg_whole(param, value, i32::MAX as f64, None)? as i32,
     ))
 }
 
