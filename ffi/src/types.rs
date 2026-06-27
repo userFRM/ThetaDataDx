@@ -429,7 +429,7 @@ macro_rules! tick_array_to_arrow_ipc {
                         return ThetaDataDxArrowBytes::EMPTY;
                     }
                 };
-                match crate::streaming_batches_ipc::bytes_from_batch(&batch) {
+                match crate::streaming_batches_ipc::batch_to_ipc(&batch, 0) {
                     Ok(buf) => ThetaDataDxArrowBytes::from_vec(buf),
                     Err(e) => {
                         crate::error::set_error(&e);

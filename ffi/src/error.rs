@@ -325,9 +325,6 @@ macro_rules! require_config_mut {
     }};
 }
 
-// `require_config_ref!` macro will be wired in alongside the C ABI
-// getter additions for Config readback parity with the C++ test suite.
-
 #[cfg(test)]
 mod tests {
     //! Unit tests for the typed error-code surface introduced by the

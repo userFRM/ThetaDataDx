@@ -12,45 +12,23 @@ use arrow_array::RecordBatch;
 use arrow_ipc::writer::StreamWriter;
 use arrow_schema::Schema;
 
-/// Serialise a [`RecordBatch`] as an Arrow IPC stream byte buffer.
+/// Serialise a [`RecordBatch`] as an Arrow IPC stream byte buffer, seeding the
+/// output `Vec`'s capacity with `cap` bytes.
+///
+/// The streaming reader passes `estimated_ipc_len(num_rows)` so the IPC body is
+/// written without re-growing from empty; its seed is keyed on the row COUNT
+/// rather than `get_array_memory_size()`, which would seed from the builder's
+/// preallocated column capacity (now batch-size-wide) and over-allocate a
+/// one-row linger-flushed batch by orders of magnitude. The per-tick and
+/// flat-file terminals (whose schemas differ from the calibrated 40-column
+/// streaming schema) pass `0` and let the writer grow the buffer.
 ///
 /// # Errors
 ///
 /// Returns a human-readable message on an IPC writer / write / finish
 /// failure, surfaced to the caller through `thetadatadx_last_error()`.
-pub(crate) fn batch_to_ipc(batch: &RecordBatch) -> Result<Vec<u8>, String> {
-    // Seed the buffer from an estimate keyed on the row COUNT, so the IPC body
-    // is written without re-growing the Vec from empty. Sizing from
-    // `get_array_memory_size()` would seed from the builder's preallocated
-    // column capacity (now batch-size-wide), so a one-row linger-flushed batch
-    // would over-allocate by orders of magnitude; `estimated_ipc_len` keys on
-    // the used rows instead.
-    let mut buf: Vec<u8> =
-        Vec::with_capacity(thetadatadx::streaming::estimated_ipc_len(batch.num_rows()));
-    {
-        let mut writer = StreamWriter::try_new(std::io::Cursor::new(&mut buf), &batch.schema())
-            .map_err(|e| format!("arrow ipc writer init failed: {e}"))?;
-        writer
-            .write(batch)
-            .map_err(|e| format!("arrow ipc write failed: {e}"))?;
-        writer
-            .finish()
-            .map_err(|e| format!("arrow ipc finish failed: {e}"))?;
-    }
-    Ok(buf)
-}
-
-/// Serialise a [`RecordBatch`] as an Arrow IPC stream, without the row-count
-/// capacity seed [`batch_to_ipc`] applies. The streaming reader's seed is
-/// calibrated for the fixed 40-column streaming schema, so the per-tick and
-/// flat-file terminals (whose schemas differ) start from an empty buffer and
-/// let the writer grow it.
-///
-/// # Errors
-///
-/// Returns a human-readable message on an IPC writer / write / finish failure.
-pub(crate) fn bytes_from_batch(batch: &RecordBatch) -> Result<Vec<u8>, String> {
-    let mut buf: Vec<u8> = Vec::new();
+pub(crate) fn batch_to_ipc(batch: &RecordBatch, cap: usize) -> Result<Vec<u8>, String> {
+    let mut buf: Vec<u8> = Vec::with_capacity(cap);
     {
         let mut writer = StreamWriter::try_new(std::io::Cursor::new(&mut buf), &batch.schema())
             .map_err(|e| format!("arrow ipc writer init failed: {e}"))?;
@@ -145,7 +123,12 @@ mod tests {
         // ... and still covers the real one-row IPC body (dominated by the
         // schema preamble), so even the smallest linger-flushed batch needs no
         // realloc.
-        let one_body = batch_to_ipc(&streaming_batch(1)).expect("encode 1").len();
+        let one_body = batch_to_ipc(
+            &streaming_batch(1),
+            thetadatadx::streaming::estimated_ipc_len(1),
+        )
+        .expect("encode 1")
+        .len();
         assert!(
             one_seed >= one_body,
             "one-row seed ({one_seed}) must cover the real one-row IPC body ({one_body})"
@@ -154,10 +137,10 @@ mod tests {
         // Full batch: the seed must be at least the real serialized body so the
         // writer never re-grows the Vec by doubling.
         let rows = 65_536;
-        let full_body = batch_to_ipc(&streaming_batch(rows))
+        let full_seed = thetadatadx::streaming::estimated_ipc_len(rows);
+        let full_body = batch_to_ipc(&streaming_batch(rows), full_seed)
             .expect("encode full")
             .len();
-        let full_seed = thetadatadx::streaming::estimated_ipc_len(rows);
         assert!(
             full_seed >= full_body,
             "full-batch seed ({full_seed}) must cover the real IPC body ({full_body})"
