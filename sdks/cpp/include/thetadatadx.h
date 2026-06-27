@@ -757,8 +757,8 @@ typedef struct {
     double theta;
     double vega;
     double rho;
-    double epsilon;
-    double lambda;
+    double iv;
+    double iv_error;
     double vanna;
     double charm;
     double vomma;
@@ -768,12 +768,12 @@ typedef struct {
     double zomma;
     double color;
     double ultima;
-    double iv;
-    double iv_error;
     double d1;
     double d2;
     double dual_delta;
     double dual_gamma;
+    double epsilon;
+    double lambda;
 } ThetaDataDxGreeksResult;
 
 /* ── Subscription types (active_subscriptions) ── */
