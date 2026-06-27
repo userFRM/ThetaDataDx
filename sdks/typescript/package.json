@@ -29,7 +29,8 @@
   "devDependencies": {
     "@napi-rs/cli": "^3.6.2",
     "@types/node": "26.0.0",
-    "apache-arrow": "21.1.0"
+    "apache-arrow": "21.1.0",
+    "typescript": "6.0.3"
   },
   "optionalDependencies": {
     "thetadatadx-darwin-arm64": "13.0.0-rc.5",
@@ -43,9 +44,7 @@
     "index.js",
     "index.d.ts",
     "streaming-session.js",
-    "streaming-session.d.ts"
-  ],
-  "dependencies": {
-    "typescript": "6.0.3"
-  }
+    "streaming-session.d.ts",
+    "record_batch_forwarder.js"
+  ]
 }

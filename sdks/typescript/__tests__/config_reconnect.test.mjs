@@ -157,26 +157,21 @@ describe('Config.setReconnectWaitMs / setReconnectWaitRateLimitedMs', () => {
 });
 
 describe('Config.setWorkerThreads', () => {
-  it('default workerThreads is the None (auto) sentinel', () => {
+  it('default workerThreads is the null (auto) sentinel', () => {
     const cfg = Config.production();
-    const got = cfg.workerThreads;
-    assert.equal(got.hasValue, false, 'default must be None');
-    assert.equal(got.n, 0);
+    assert.equal(cfg.workerThreads, null, 'default must be the unset sentinel');
   });
 
-  it('round-trip preserves Some(0) and explicit pinned counts', () => {
+  it('round-trip preserves an explicit 0 and pinned counts', () => {
     const cfg = Config.production();
     for (const n of [0, 1, 2, 4, 8, 16, 64]) {
-      cfg.setWorkerThreads(true, n);
-      const got = cfg.workerThreads;
-      assert.equal(got.hasValue, true);
-      assert.equal(got.n, n);
+      cfg.setWorkerThreads(n);
+      // An explicit 0 must survive as 0, distinct from the null (auto) sentinel.
+      assert.equal(cfg.workerThreads, n);
     }
-    // Reset to None.
-    cfg.setWorkerThreads(false, 999);
-    const got = cfg.workerThreads;
-    assert.equal(got.hasValue, false);
-    assert.equal(got.n, 0);
+    // Reset to the auto sentinel.
+    cfg.setWorkerThreads(null);
+    assert.equal(cfg.workerThreads, null);
   });
 });
 

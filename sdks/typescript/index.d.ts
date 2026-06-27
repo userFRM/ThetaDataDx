@@ -169,10 +169,9 @@ export declare class Config {
    */
   setStreamingRingSize(n: bigint): void
   /**
-   * Set the async worker-thread count for embedded runtimes.
-   * `hasValue=false` defers to the default sizing; `hasValue=true`
-   * pins worker count to `n` (with `n=0` preserved verbatim rather
-   * than treated as unset).
+   * Set the async worker-thread count for embedded runtimes. `null`
+   * (or omitted) defers to the default sizing; a number pins the worker
+   * count (with `0` preserved verbatim rather than treated as unset).
    *
    * The async worker pool is process-global: it is built once, from the
    * config of the first client connected in the process. This setting
@@ -180,12 +179,12 @@ export declare class Config {
    * created; clients connected later share the already-built pool, so
    * setting it on a subsequent config has no effect.
    */
-  setWorkerThreads(hasValue: boolean, n: number): void
+  setWorkerThreads(n?: number | undefined | null): void
   /**
-   * Current `workerThreads` setting as `{ hasValue, n }`.
-   * `hasValue=false` encodes the unset (auto) sentinel.
+   * Current `workerThreads` setting, or `null` for the unset (auto)
+   * sentinel. An explicit `0` is preserved verbatim.
    */
-  get workerThreads(): WorkerThreadsSetting
+  get workerThreads(): number | null
   /**
    * Target historical environment carried by this configuration:
    * `"PROD"` for the production cluster or `"STAGE"` for staging. The
@@ -6087,16 +6086,6 @@ export declare const enum Venue {
 export declare const enum Version {
   Latest = 'latest',
   V1 = '1'
-}
-
-/**
- * `(hasValue, n)` shape for the worker-threads setting. `hasValue=false`
- * encodes the unset sentinel; `hasValue=true` carries the explicit
- * worker count (with `n=0` preserved verbatim).
- */
-export interface WorkerThreadsSetting {
-  hasValue: boolean
-  n: number
 }
 
 // `Contract` is the public name for the fluent contract builder; it
