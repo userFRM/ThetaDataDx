@@ -400,7 +400,7 @@ fn typescript_tab(spec: &StreamSpec) -> String {
         other => panic!("no TypeScript callback template for event {other}"),
     };
     format!(
-        "```typescript\n{import}\n\nclient.stream.startStreaming((event) => {{\n  if (event.kind === '{kind}') {{\n    const e = event.{payload}!;\n    {print}\n  }}\n}});\n\nconst sub = {};\nclient.stream.subscribe(sub);\n\n// Remove this stream; the session stays open for other subscriptions.\nclient.stream.unsubscribe(sub);\n```\n",
+        "```typescript\n{import}\n\nawait client.stream.startStreaming((event) => {{\n  if (event.kind === '{kind}') {{\n    const e = event.{payload}!;\n    {print}\n  }}\n}});\n\nconst sub = {};\nclient.stream.subscribe(sub);\n\n// Remove this stream; the session stays open for other subscriptions.\nclient.stream.unsubscribe(sub);\n```\n",
         spec.ts_sub
     )
 }
