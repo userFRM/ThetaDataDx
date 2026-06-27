@@ -247,7 +247,7 @@ struct GreeksResult {
 // bindings by name. Python additionally ships two back-compat aliases
 // (`NoDataFoundError` / `TimeoutError`) that have no C++ equivalent.
 //
-// The dispatcher [`detail::throw_for_grpc_kind`] reads
+// The dispatcher [`detail::throw_for_code`] reads
 // `thetadatadx_last_error_code()` (typed discriminant set inside the FFI
 // boundary) to pick the right leaf without parsing the formatted
 // message. Throw sites that emit a plain
@@ -255,28 +255,6 @@ struct GreeksResult {
 // every leaf derives from `ThetaDataError` (a `std::runtime_error`):
 // a generic `catch (const std::runtime_error&)` observes both the
 // typed leaves and any plain-`runtime_error` site unchanged.
-
-/// gRPC canonical status kind. Enum values match the gRPC wire codes
-/// one-for-one (RFC 5234) so pattern-matching is portable across bindings.
-enum class GrpcStatusKind : uint32_t {
-    Ok = 0,
-    Cancelled = 1,
-    Unknown = 2,
-    InvalidArgument = 3,
-    DeadlineExceeded = 4,
-    NotFound = 5,
-    AlreadyExists = 6,
-    PermissionDenied = 7,
-    ResourceExhausted = 8,
-    FailedPrecondition = 9,
-    Aborted = 10,
-    OutOfRange = 11,
-    Unimplemented = 12,
-    Internal = 13,
-    Unavailable = 14,
-    DataLoss = 15,
-    Unauthenticated = 16,
-};
 
 /// Root of the typed exception hierarchy; every FFI failure surfaces as this
 /// class or one of its leaves. Derives from `std::runtime_error` so generic
@@ -466,32 +444,18 @@ inline std::optional<double> last_ffi_retry_after_seconds() {
     }
 }
 
-/// Dispatcher keyed on the canonical gRPC kind. Used in tests that
-/// want to verify the routing without actually round-tripping through
-/// the FFI; production wrappers go through [`throw_for_code`] which
-/// reads `thetadatadx_last_error_code()` directly.
-[[noreturn]] inline void throw_for_grpc_kind(GrpcStatusKind kind, const std::string& message) {
-    switch (kind) {
-        case GrpcStatusKind::Unauthenticated:
-            throw AuthenticationError("thetadatadx: " + message);
-        case GrpcStatusKind::PermissionDenied:
-            throw SubscriptionError("thetadatadx: " + message);
-        case GrpcStatusKind::ResourceExhausted:
-            throw RateLimitError("thetadatadx: " + message);
-        case GrpcStatusKind::NotFound:
-            throw NotFoundError("thetadatadx: " + message);
-        case GrpcStatusKind::DeadlineExceeded:
-            throw DeadlineExceededError("thetadatadx: " + message);
-        case GrpcStatusKind::Unavailable:
-            throw UnavailableError("thetadatadx: " + message);
-        default:
-            throw ThetaDataError("thetadatadx: " + message);
-    }
-}
-
-static std::string last_ffi_error() {
+// Snapshot the thread-local FFI error string. With `raw == false` an empty
+// slot reads as the `"unknown error"` placeholder (the throw path always has
+// a message to surface); with `raw == true` it reads as `""` so the array
+// helpers can distinguish success-empty from failure-empty (a timeout on a
+// list endpoint returns the same `{nullptr, 0}` sentinel as a successful
+// empty result). Generated `_with_options` callers MUST
+// `thetadatadx_clear_error()` before invoking the FFI so a stale error from a
+// prior call isn't picked up by the `raw` read.
+static std::string last_ffi_error(bool raw = false) {
     const char* err = thetadatadx_last_error();
-    return err ? std::string(err) : "unknown error";
+    if (err) return std::string(err);
+    return raw ? std::string() : std::string("unknown error");
 }
 
 /// Combined read-and-throw helper: snapshot the thread-local error
@@ -515,16 +479,9 @@ static std::string last_ffi_error() {
     throw_for_code(THETADATADX_ERR_CONFIG, message);
 }
 
-// Raw variant: returns "" when the FFI error slot is empty. Used by
-// post-call disambiguation in check_array helpers — distinguishes
-// success-empty from failure-empty (e.g. timeout on a list endpoint
-// returns the same `{nullptr, 0}` sentinel as a successful empty result).
-// Generated `_with_options` callers MUST `thetadatadx_clear_error()` before
-// invoking the FFI so a stale error from a prior call isn't picked up.
-static std::string last_ffi_error_raw() {
-    const char* err = thetadatadx_last_error();
-    return err ? std::string(err) : std::string();
-}
+// Empty slot reads as "" (vs the `"unknown error"` placeholder) for the
+// post-call success-empty / failure-empty disambiguation in the array helpers.
+static std::string last_ffi_error_raw() { return last_ffi_error(true); }
 
 template<typename T>
 std::vector<T> to_vector(const T* data, size_t len) {
@@ -532,40 +489,14 @@ std::vector<T> to_vector(const T* data, size_t len) {
     return std::vector<T>(data, data + len);
 }
 
-inline std::vector<std::string> string_array_to_vector(ThetaDataDxStringArray arr) {
-    std::vector<std::string> result;
-    if (arr.data != nullptr && arr.len > 0) {
-        result.reserve(arr.len);
-        for (size_t i = 0; i < arr.len; ++i) {
-            result.emplace_back(arr.data[i] ? arr.data[i] : "");
-        }
-    }
-    thetadatadx_string_array_free(arr);
-    return result;
-}
-
-// Convert a ThetaDataDxStringArray to vector<string>, throwing on FFI error.
+// Convert an FFI array to `vector<T>`, throwing on FFI error.
 //
-// Empty array is ambiguous: success-with-zero-results AND failure (e.g.
-// timeout on a list endpoint) both return `{nullptr, 0}`. Disambiguate by
-// reading `thetadatadx_last_error()` after the call. Generated wrappers
-// `thetadatadx_clear_error()` before the FFI call so a stale error from a prior
-// call isn't misattributed.
-inline std::vector<std::string> check_string_array(ThetaDataDxStringArray arr) {
-    const std::string err = last_ffi_error_raw();
-    if (!err.empty()) {
-        const int32_t code = thetadatadx_last_error_code();
-        thetadatadx_string_array_free(arr);
-        throw_for_code(code, err);
-    }
-    return string_array_to_vector(arr);
-}
-
-// Convert a typed tick array to vector<T> by passing in the converter and
-// the FFI-array free fn. Throws on FFI error so callers don't mistake a
-// timed-out tick endpoint for "no rows". Same contract as
-// check_string_array — `thetadatadx_clear_error()` MUST have been called before
-// the FFI invocation.
+// `convert` maps the array to rows (it must NOT free — this helper owns the
+// free); `free_fn` releases the FFI allocation on every exit path. An empty
+// array is ambiguous: success-with-zero-results AND failure (e.g. timeout on
+// a list endpoint) both return the `{nullptr, 0}` sentinel, so the error slot
+// is consulted first. Generated wrappers `thetadatadx_clear_error()` before the
+// FFI call so a stale error from a prior call isn't misattributed.
 template<typename T, typename Arr, typename Convert, typename Free>
 std::vector<T> check_tick_array(Arr arr, Convert convert, Free free_fn) {
     const std::string err = last_ffi_error_raw();
@@ -577,6 +508,22 @@ std::vector<T> check_tick_array(Arr arr, Convert convert, Free free_fn) {
     auto result = convert(arr);
     free_fn(arr);
     return result;
+}
+
+// Pure converter (no free): the `Convert` callback for a `ThetaDataDxStringArray`.
+inline std::vector<std::string> string_array_to_vector(ThetaDataDxStringArray arr) {
+    std::vector<std::string> result;
+    if (arr.data != nullptr && arr.len > 0) {
+        result.reserve(arr.len);
+        for (size_t i = 0; i < arr.len; ++i) {
+            result.emplace_back(arr.data[i] ? arr.data[i] : "");
+        }
+    }
+    return result;
+}
+
+inline std::vector<std::string> check_string_array(ThetaDataDxStringArray arr) {
+    return check_tick_array<std::string>(arr, string_array_to_vector, thetadatadx_string_array_free);
 }
 
 inline std::vector<Subscription> subscription_array_to_vector(ThetaDataDxSubscriptionArray* arr) {

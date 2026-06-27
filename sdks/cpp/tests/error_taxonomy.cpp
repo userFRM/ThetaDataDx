@@ -1,11 +1,10 @@
 // Typed-error hierarchy tests for the C++ SDK.
 //
 // The C++ surface exposes a `ThetaDataError` base plus a leaf class
-// per `GrpcStatusKind` + `AuthErrorKind` discriminator, so callers
-// `catch` a typed exception instead of substring-matching a generic
-// `std::runtime_error` reason string. The hierarchy mirrors the
-// Python / TypeScript leaf set so the cross-binding contract stays
-// uniform.
+// per typed `THETADATADX_ERR_*` discriminant, so callers `catch` a typed
+// exception instead of substring-matching a generic `std::runtime_error`
+// reason string. The hierarchy mirrors the Python / TypeScript leaf set
+// so the cross-binding contract stays uniform.
 
 #include <chrono>
 #include <stdexcept>
@@ -122,43 +121,52 @@ TEST_CASE("RateLimitError carries the server retry_after as a typed value",
     REQUIRE_FALSE(legacy.retry_after().has_value());
 }
 
-TEST_CASE("classify_grpc_kind routes every canonical gRPC status to the right leaf",
+TEST_CASE("throw_for_code routes every typed discriminant to the right leaf",
           "[errors][offline]") {
-    // Dispatch table test for `thetadatadx::detail::throw_for_grpc_kind` —
-    // the seam every generated FFI wrapper hits when
-    // `thetadatadx_get_last_error_code()` returns a typed discriminant. The
-    // routing must match the Python leaf set one-for-one so a Python
-    // user porting `except thetadatadx.SubscriptionError` to C++
-    // gets `catch (const thetadatadx::SubscriptionError&)` and the same
-    // semantics.
-    using K = thetadatadx::GrpcStatusKind;
-
-    auto throws_as = [](K kind, auto check) {
+    // Dispatch table test for `thetadatadx::detail::throw_for_code` — the seam
+    // every generated FFI wrapper hits when `thetadatadx_last_error_code()`
+    // returns a typed discriminant. The routing must match the Python leaf
+    // set one-for-one so a Python user porting `except
+    // thetadatadx.SubscriptionError` to C++ gets `catch (const
+    // thetadatadx::SubscriptionError&)` and the same semantics.
+    auto throws_as = [](int32_t code, auto check) {
         try {
-            thetadatadx::detail::throw_for_grpc_kind(kind, "test");
-            FAIL("throw_for_grpc_kind must throw");
+            thetadatadx::detail::throw_for_code(code, "test");
+            FAIL("throw_for_code must throw");
         } catch (const thetadatadx::ThetaDataError& e) {
             check(e);
         }
     };
 
-    throws_as(K::PermissionDenied, [](const thetadatadx::ThetaDataError& e) {
+    throws_as(THETADATADX_ERR_SUBSCRIPTION, [](const thetadatadx::ThetaDataError& e) {
         REQUIRE(dynamic_cast<const thetadatadx::SubscriptionError*>(&e) != nullptr);
     });
-    throws_as(K::ResourceExhausted, [](const thetadatadx::ThetaDataError& e) {
+    throws_as(THETADATADX_ERR_RATE_LIMIT, [](const thetadatadx::ThetaDataError& e) {
         REQUIRE(dynamic_cast<const thetadatadx::RateLimitError*>(&e) != nullptr);
     });
-    throws_as(K::Unauthenticated, [](const thetadatadx::ThetaDataError& e) {
+    throws_as(THETADATADX_ERR_AUTHENTICATION, [](const thetadatadx::ThetaDataError& e) {
         REQUIRE(dynamic_cast<const thetadatadx::AuthenticationError*>(&e) != nullptr);
     });
-    throws_as(K::NotFound, [](const thetadatadx::ThetaDataError& e) {
+    throws_as(THETADATADX_ERR_INVALID_CREDENTIALS, [](const thetadatadx::ThetaDataError& e) {
+        REQUIRE(dynamic_cast<const thetadatadx::InvalidCredentialsError*>(&e) != nullptr);
+    });
+    throws_as(THETADATADX_ERR_NOT_FOUND, [](const thetadatadx::ThetaDataError& e) {
         REQUIRE(dynamic_cast<const thetadatadx::NotFoundError*>(&e) != nullptr);
     });
-    throws_as(K::DeadlineExceeded, [](const thetadatadx::ThetaDataError& e) {
+    throws_as(THETADATADX_ERR_DEADLINE_EXCEEDED, [](const thetadatadx::ThetaDataError& e) {
         REQUIRE(dynamic_cast<const thetadatadx::DeadlineExceededError*>(&e) != nullptr);
     });
-    throws_as(K::Unavailable, [](const thetadatadx::ThetaDataError& e) {
+    throws_as(THETADATADX_ERR_UNAVAILABLE, [](const thetadatadx::ThetaDataError& e) {
         REQUIRE(dynamic_cast<const thetadatadx::UnavailableError*>(&e) != nullptr);
+    });
+    throws_as(THETADATADX_ERR_NETWORK, [](const thetadatadx::ThetaDataError& e) {
+        REQUIRE(dynamic_cast<const thetadatadx::NetworkError*>(&e) != nullptr);
+    });
+    throws_as(THETADATADX_ERR_SCHEMA_MISMATCH, [](const thetadatadx::ThetaDataError& e) {
+        REQUIRE(dynamic_cast<const thetadatadx::SchemaMismatchError*>(&e) != nullptr);
+    });
+    throws_as(THETADATADX_ERR_STREAM, [](const thetadatadx::ThetaDataError& e) {
+        REQUIRE(dynamic_cast<const thetadatadx::StreamError*>(&e) != nullptr);
     });
 }
 

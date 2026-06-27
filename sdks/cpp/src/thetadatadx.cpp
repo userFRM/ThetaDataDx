@@ -8,10 +8,6 @@
 
 #include "thetadatadx.hpp"
 
-#include <chrono>
-#include <stdexcept>
-#include <sstream>
-#include <thread>
 #include <utility>
 
 namespace thetadatadx {
@@ -60,26 +56,37 @@ static std::vector<const char*> string_ptrs(const std::vector<std::string>& item
 // comment above the member declarations in the header.
 //
 // The body raises the shutdown signal early so the consumer thread starts
-// quiescing before the deleter polls the drain flag. If the drain barrier
-// inside `thetadatadx_streaming_free` times out, the FFI logs a `tracing::error!` and
-// proceeds with destruction. We mirror the move-assign rescue path here:
-// detach `callback_` storage to a helper thread for an extra 30 s grace
-// window so user code never observes a synchronous UAF on destructor exit.
+// quiescing before the deleter polls the drain flag. On drain timeout (rare,
+// a wedged user callback) the consumer may still be firing through
+// `callback_`'s storage, so we MUST NOT let the storage drop synchronously.
+// We mirror `StreamingClient::operator=`'s rescue path exactly: hand BOTH the
+// retired handle and callback storage to a reclaimer that polls the same
+// drain barrier and releases them (handle first, then storage) only once the
+// consumer is confirmed quiesced, with the bounded `kReclaimQuiescenceCap` so
+// a wedged callback cannot leak — never a guessed wall-clock window.
 StreamingClient::~StreamingClient() {
     if (handle_) {
         thetadatadx_streaming_shutdown(handle_.get());
         int drained = thetadatadx_streaming_await_drain(handle_.get(), 5000);
         if (drained == 0) {
-            // Drain timed out: the consumer may still be firing through
-            // `callback_`'s storage. Detach the storage onto a helper
-            // thread for a 30 s grace window so destruction happens off
-            // the destructor path, then let `handle_`'s deleter run
-            // (its own drain barrier will observe `drained == 1` since
-            // we already polled it to timeout).
-            std::thread([cb = std::move(callback_)]() mutable {
-                std::this_thread::sleep_for(std::chrono::seconds(30));
-                // `cb` destructs here, off the destructor path.
-            }).detach();
+            const ThetaDataDxStreamHandle* raw = handle_.get();
+            detail::reclaim_after_drain(
+                [raw]() {
+                    return thetadatadx_streaming_await_drain(
+                               raw,
+                               static_cast<uint64_t>(
+                                   detail::kReclaimPollStep.count())) == 1;
+                },
+                [retired_handle = std::move(handle_),
+                 retired_cb = std::move(callback_)]() mutable {
+                    // Free the handle first so its internal drain barrier
+                    // still observes a live `ctx`, then drop the storage.
+                    // Mirrors the handle-before-callback member invariant.
+                    retired_handle.reset();
+                    retired_cb.reset();
+                });
+            // `handle_` and `callback_` are now empty; the reclaimer owns
+            // the retired session.
         }
     }
 }

@@ -13,6 +13,11 @@ use crate::streaming::ThetaDataDxContract;
 // ═══════════════════════════════════════════════════════════════════════
 
 /// All 23 Black-Scholes Greeks + IV as a typed C struct.
+///
+/// Field order mirrors [`thetadatadx::greeks::GreeksResult`] one-for-one so the
+/// `From` conversion is a field-by-field move and the hand-written C header
+/// (`sdks/cpp/include/thetadatadx.h`) reproduces the same offsets. All fields
+/// are `f64`, so the layout carries no padding to track.
 #[repr(C)]
 pub struct ThetaDataDxGreeksResult {
     /// Black-Scholes theoretical option value.
@@ -27,10 +32,10 @@ pub struct ThetaDataDxGreeksResult {
     pub vega: f64,
     /// Sensitivity to the risk-free rate.
     pub rho: f64,
-    /// Sensitivity of value to the dividend yield.
-    pub epsilon: f64,
-    /// Elasticity: percentage change in value per percentage change in spot.
-    pub lambda: f64,
+    /// Implied volatility recovered from the option price.
+    pub iv: f64,
+    /// Relative residual of the IV solve (`(value - price) / price`), clamped to `[-100.0, 100.0]`.
+    pub iv_error: f64,
     /// Sensitivity of delta to volatility.
     pub vanna: f64,
     /// Sensitivity of delta to time.
@@ -49,10 +54,6 @@ pub struct ThetaDataDxGreeksResult {
     pub color: f64,
     /// Sensitivity of vomma to volatility.
     pub ultima: f64,
-    /// Implied volatility recovered from the option price.
-    pub iv: f64,
-    /// Relative residual of the IV solve (`(value - price) / price`), clamped to `[-100.0, 100.0]`.
-    pub iv_error: f64,
     /// Black-Scholes `d1` term.
     pub d1: f64,
     /// Black-Scholes `d2` term.
@@ -61,6 +62,65 @@ pub struct ThetaDataDxGreeksResult {
     pub dual_delta: f64,
     /// Sensitivity of dual delta to the strike.
     pub dual_gamma: f64,
+    /// Sensitivity of value to the dividend yield.
+    pub epsilon: f64,
+    /// Elasticity: percentage change in value per percentage change in spot.
+    pub lambda: f64,
+}
+
+impl From<thetadatadx::greeks::GreeksResult> for ThetaDataDxGreeksResult {
+    fn from(g: thetadatadx::greeks::GreeksResult) -> Self {
+        let thetadatadx::greeks::GreeksResult {
+            value,
+            delta,
+            gamma,
+            theta,
+            vega,
+            rho,
+            iv,
+            iv_error,
+            vanna,
+            charm,
+            vomma,
+            veta,
+            vera,
+            speed,
+            zomma,
+            color,
+            ultima,
+            d1,
+            d2,
+            dual_delta,
+            dual_gamma,
+            epsilon,
+            lambda,
+        } = g;
+        Self {
+            value,
+            delta,
+            gamma,
+            theta,
+            vega,
+            rho,
+            iv,
+            iv_error,
+            vanna,
+            charm,
+            vomma,
+            veta,
+            vera,
+            speed,
+            zomma,
+            color,
+            ultima,
+            d1,
+            d2,
+            dual_delta,
+            dual_gamma,
+            epsilon,
+            lambda,
+        }
+    }
 }
 
 /// Compute all 23 Black-Scholes Greeks + IV.
@@ -102,32 +162,7 @@ pub unsafe extern "C" fn thetadatadx_all_greeks(
                 return std::ptr::null_mut();
             }
         };
-        let result = ThetaDataDxGreeksResult {
-            value: g.value,
-            delta: g.delta,
-            gamma: g.gamma,
-            theta: g.theta,
-            vega: g.vega,
-            rho: g.rho,
-            epsilon: g.epsilon,
-            lambda: g.lambda,
-            vanna: g.vanna,
-            charm: g.charm,
-            vomma: g.vomma,
-            veta: g.veta,
-            vera: g.vera,
-            speed: g.speed,
-            zomma: g.zomma,
-            color: g.color,
-            ultima: g.ultima,
-            iv: g.iv,
-            iv_error: g.iv_error,
-            d1: g.d1,
-            d2: g.d2,
-            dual_delta: g.dual_delta,
-            dual_gamma: g.dual_gamma,
-        };
-        Box::into_raw(Box::new(result))
+        Box::into_raw(Box::new(ThetaDataDxGreeksResult::from(g)))
     })
 }
 
