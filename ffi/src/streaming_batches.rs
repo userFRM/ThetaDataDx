@@ -196,7 +196,10 @@ pub unsafe extern "C" fn thetadatadx_record_batch_stream_next_ipc(
         // cloned `Arc`, and a concurrent close wakes it (see the module note).
         let inner = Arc::clone(&stream.inner);
         match inner.next_blocking() {
-            Ok(Some(batch)) => match crate::streaming_batches_ipc::batch_to_ipc(&batch) {
+            Ok(Some(batch)) => match crate::streaming_batches_ipc::batch_to_ipc(
+                &batch,
+                thetadatadx::streaming::estimated_ipc_len(batch.num_rows()),
+            ) {
                 Ok(bytes) => {
                     // SAFETY: `out` validated non-null + writable above.
                     unsafe { out.write(ThetaDataDxArrowBytes::from_vec(bytes)) };

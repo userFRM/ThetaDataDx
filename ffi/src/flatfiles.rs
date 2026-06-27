@@ -242,7 +242,7 @@ pub unsafe extern "C" fn thetadatadx_flatfile_rows_to_arrow_ipc(
                     };
                 }
             };
-            match crate::streaming_batches_ipc::bytes_from_batch(&batch) {
+            match crate::streaming_batches_ipc::batch_to_ipc(&batch, 0) {
                 Ok(buf) => ThetaDataDxFlatFileBytes::from_vec(buf),
                 Err(e) => {
                     set_error(&e);
