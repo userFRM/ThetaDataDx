@@ -23,9 +23,9 @@
 //! * the stream shuts down (a final partial batch is flushed before the
 //!   terminal end-of-stream marker).
 //!
-//! The reader side ([`futures_core::Stream`], the [`RecordBatchStream::blocking`]
-//! iterator, or the FFI) pulls finished batches off that queue. The queue is
-//! always bounded; it never grows without limit.
+//! The reader side ([`futures_core::Stream`], the `next_blocking` pull, or the
+//! FFI) pulls finished batches off that queue. The queue is always bounded; it
+//! never grows without limit.
 //!
 //! # Backpressure
 //!
@@ -480,8 +480,8 @@ impl BatchSink {
 /// A pull reader of Arrow [`RecordBatch`] values off the FPSS stream.
 ///
 /// Implements [`futures_core::Stream`] for async consumption and exposes
-/// [`Self::blocking`] for a synchronous [`Iterator`]. See the module docs
-/// for the pipeline, backpressure, and lifecycle contract.
+/// [`Self::next_blocking`] for a synchronous pull. See the module docs for the
+/// pipeline, backpressure, and lifecycle contract.
 pub struct RecordBatchStream {
     shared: Arc<Shared>,
     /// The live streaming client backing this reader, shared with the
@@ -650,20 +650,8 @@ impl RecordBatchStream {
         });
     }
 
-    /// Adapt this stream into a blocking [`Iterator`] of
-    /// `Result<RecordBatch, StreamError>`.
-    ///
-    /// Each [`Iterator::next`] blocks the calling thread until a batch is
-    /// available, the stream finishes (`None`), or an error surfaces
-    /// (`Some(Err(_))`). This is the synchronous counterpart to the
-    /// [`futures_core::Stream`] impl; use it from a non-async context.
-    #[must_use]
-    pub fn blocking(self) -> BlockingRecordBatchIter {
-        BlockingRecordBatchIter { stream: self }
-    }
-
-    /// Blocking pull of the next batch. Shared by the blocking iterator and
-    /// the FFI. Returns `Ok(None)` at clean end of stream.
+    /// Blocking pull of the next batch. Shared by the FFI and bindings.
+    /// Returns `Ok(None)` at clean end of stream.
     ///
     /// # Errors
     ///
@@ -752,84 +740,6 @@ impl futures_core::Stream for RecordBatchStream {
     }
 }
 
-/// Blocking [`Iterator`] adapter over a [`RecordBatchStream`], returned by
-/// [`RecordBatchStream::blocking`].
-pub struct BlockingRecordBatchIter {
-    stream: RecordBatchStream,
-}
-
-impl BlockingRecordBatchIter {
-    /// The fixed schema every yielded batch carries.
-    #[must_use]
-    pub fn schema(&self) -> Arc<Schema> {
-        self.stream.schema()
-    }
-
-    /// Batches dropped so far under [`Backpressure::DropOldest`].
-    #[must_use]
-    pub fn dropped(&self) -> u64 {
-        self.stream.dropped()
-    }
-}
-
-impl Iterator for BlockingRecordBatchIter {
-    type Item = Result<RecordBatch, StreamError>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.stream.next_blocking() {
-            Ok(Some(batch)) => Some(Ok(batch)),
-            Ok(None) => None,
-            Err(err) => Some(Err(err)),
-        }
-    }
-}
-
-/// Blocking [`arrow_array::RecordBatchReader`] view over a
-/// [`RecordBatchStream`].
-///
-/// This is the Arrow-native adapter the FFI and any Rust caller wanting an
-/// `arrow` reader use: it satisfies [`arrow_array::RecordBatchReader`]
-/// (`Iterator<Item = Result<RecordBatch, ArrowError>>` plus `schema()`), so
-/// it plugs straight into `arrow::ffi_stream::FFI_ArrowArrayStream::new`
-/// (the Arrow C Stream Interface) and into `arrow_ipc` writers. A terminal
-/// [`StreamError`] is mapped to [`arrow_schema::ArrowError::ExternalError`]
-/// so it surfaces through the Arrow reader contract.
-pub struct ArrowRecordBatchReader {
-    stream: RecordBatchStream,
-}
-
-impl ArrowRecordBatchReader {
-    /// Wrap a [`RecordBatchStream`] as an Arrow-native blocking reader.
-    #[must_use]
-    pub fn new(stream: RecordBatchStream) -> Self {
-        Self { stream }
-    }
-
-    /// Batches dropped so far under [`Backpressure::DropOldest`].
-    #[must_use]
-    pub fn dropped(&self) -> u64 {
-        self.stream.dropped()
-    }
-}
-
-impl Iterator for ArrowRecordBatchReader {
-    type Item = Result<RecordBatch, arrow_schema::ArrowError>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.stream.next_blocking() {
-            Ok(Some(batch)) => Some(Ok(batch)),
-            Ok(None) => None,
-            Err(err) => Some(Err(arrow_schema::ArrowError::ExternalError(Box::new(err)))),
-        }
-    }
-}
-
-impl arrow_array::RecordBatchReader for ArrowRecordBatchReader {
-    fn schema(&self) -> Arc<Schema> {
-        self.stream.schema()
-    }
-}
-
 /// Lock a mutex, recovering the guard on poison. The streaming pipeline
 /// never leaves the protected state inconsistent across a panic boundary, so
 /// a poisoned lock is recovered rather than propagated.
@@ -910,8 +820,8 @@ pub(crate) mod test_harness {
     }
 
     /// Reader half over the shared queue, exposing the same blocking pull and
-    /// observability the live [`RecordBatchStream`] / [`BlockingRecordBatchIter`]
-    /// expose, without owning a live client.
+    /// observability the live [`RecordBatchStream`] exposes, without owning a
+    /// live client.
     pub(crate) struct Reader {
         shared: Arc<Shared>,
     }

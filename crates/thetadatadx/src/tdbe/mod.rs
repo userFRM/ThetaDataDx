@@ -8,7 +8,7 @@
 //! Contains:
 //! - **Tick types** -- [`EodTick`], [`TradeTick`], [`QuoteTick`], [`OhlcTick`], etc.
 //! - **Price** -- fixed-point price encoding used by `ThetaData`
-//! - **Enums** -- [`SecType`], [`DataType`], [`StreamMsgType`](types::enums::StreamMsgType), etc.
+//! - **Enums** -- [`SecType`], [`StreamMsgType`](types::enums::StreamMsgType), etc.
 //! - **FIT codec** -- 4-bit nibble encoding for FPSS tick compression
 //! - **Greeks** -- Black-Scholes option pricing, Greek surface, and IV solver
 //! - **Error** -- encoding-layer error types
@@ -46,7 +46,7 @@ pub mod types;
 pub use error::Error;
 #[allow(unused_imports)]
 pub use types::enums::{
-    CalendarStatus, DataType, Interval, RateType, RequestType, Right, SecType, Venue, Version,
+    CalendarStatus, Interval, RateType, RequestType, Right, SecType, Venue, Version,
 };
 #[allow(unused_imports)]
 pub use types::tick::*;

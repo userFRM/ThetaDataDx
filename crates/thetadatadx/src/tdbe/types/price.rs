@@ -51,18 +51,13 @@ impl std::error::Error for PriceError {}
 /// out-of-range exponent is unrepresentable. The decimal exponent
 /// `exp = price_type - 10` is therefore confined to `-10..=9`, so
 /// `exp.unsigned_abs()` is a `POW10_*` table index that is provably in
-/// bounds — the conversion and comparison paths drop every per-read range
-/// check.
+/// bounds — the conversion path drops every per-read range check.
 ///
-/// `Default` is the in-range "unset" exponent (`0`), matching
-/// [`PriceType::UNSET`] and [`Price::ZERO`].
+/// `Default` is the in-range "unset" exponent (`0`).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PriceType(u8);
 
 impl PriceType {
-    /// The "unset" exponent (`price_type == 0`).
-    pub const UNSET: Self = Self(0);
-
     /// Construct a `PriceType`, rejecting anything outside
     /// `0..=MAX_PRICE_TYPE`.
     ///
@@ -100,22 +95,6 @@ impl PriceType {
     #[must_use]
     pub const fn get(self) -> i32 {
         self.0 as i32
-    }
-}
-
-impl TryFrom<i32> for PriceType {
-    type Error = PriceError;
-
-    #[inline]
-    fn try_from(price_type: i32) -> Result<Self, Self::Error> {
-        Self::new(price_type)
-    }
-}
-
-impl From<PriceType> for i32 {
-    #[inline]
-    fn from(price_type: PriceType) -> Self {
-        price_type.get()
     }
 }
 
@@ -179,12 +158,6 @@ pub struct Price {
 }
 
 impl Price {
-    /// A zero price with the unset price type, useful as a neutral initializer.
-    pub const ZERO: Self = Self {
-        value: 0,
-        price_type: PriceType::UNSET,
-    };
-
     /// Construct a `Price`, saturating `price_type` into the valid
     /// `0..=MAX_PRICE_TYPE` range. Out-of-range inputs snap to the nearest
     /// boundary; callers that must reject bad inputs use
@@ -252,8 +225,10 @@ impl Price {
         }
     }
 
-    /// Normalize both prices to the same type for comparison.
-    // `&self` is required by the `PartialOrd`/`Ord` trait signatures.
+    /// Normalize both prices to the same type for value equality. Scales
+    /// to a common base in i64, falling back to f64 only when the exponent
+    /// gap would overflow.
+    // `&self` matches the `PartialEq` signature.
     #[allow(clippy::trivially_copy_pass_by_ref)]
     #[inline]
     fn compare(&self, other: &Self) -> Ordering {
@@ -297,18 +272,6 @@ impl PartialEq for Price {
 }
 
 impl Eq for Price {}
-
-impl PartialOrd for Price {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Price {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.compare(other)
-    }
-}
 
 impl fmt::Debug for Price {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -389,12 +352,12 @@ mod tests {
     }
 
     #[test]
-    fn test_price_comparison() {
+    fn test_price_equality_across_types() {
+        // Same real price, different mantissa/exponent encodings compare equal.
         let a = Price::new(15025, 8); // 150.25
-        let b = Price::new(15000, 8); // 150.00
         let c = Price::new(1502500, 6); // 150.25 (same value, different type)
-        assert!(a > b);
         assert_eq!(a, c);
+        assert_ne!(a, Price::new(15000, 8)); // 150.00
     }
 
     /// Every valid `price_type` (`0..=MAX_PRICE_TYPE`, i.e. `0..=19`)
@@ -479,14 +442,13 @@ mod tests {
         assert_eq!(p.price_type(), p.price_type.get());
     }
 
-    /// `PriceType::new` / `TryFrom<i32>` accept the supported range and
-    /// reject everything else, so an out-of-range exponent is
-    /// unrepresentable — there is no read path that can observe one.
+    /// `PriceType::new` accepts the supported range and rejects everything
+    /// else, so an out-of-range exponent is unrepresentable — there is no
+    /// read path that can observe one.
     #[test]
     fn price_type_rejects_out_of_range() {
         for pt in 0..=MAX_PRICE_TYPE {
             assert_eq!(PriceType::new(pt).map(PriceType::get), Ok(pt));
-            assert_eq!(PriceType::try_from(pt).map(PriceType::get), Ok(pt));
         }
         for bad in [-1, MAX_PRICE_TYPE + 1, 20, 99, i32::MIN, i32::MAX] {
             assert_eq!(
@@ -494,7 +456,6 @@ mod tests {
                 Err(PriceError::PriceTypeOutOfRange(bad)),
                 "price_type {bad} must be rejected"
             );
-            assert!(PriceType::try_from(bad).is_err());
         }
     }
 
@@ -511,8 +472,8 @@ mod tests {
     }
 
     /// Every representable exponent (`0..=MAX_PRICE_TYPE`) indexes the
-    /// `POW10_*` tables in bounds, and conversion stays finite — the
-    /// type-level guarantee the read paths now rely on instead of a
+    /// `POW10_F64` table in bounds, and conversion stays finite — the
+    /// type-level guarantee the read path now relies on instead of a
     /// per-read clamp.
     #[test]
     fn every_price_type_indexes_tables_in_bounds() {
@@ -521,10 +482,6 @@ mod tests {
             let f = p.to_f64();
             assert!(f.is_finite(), "to_f64 must be finite for price_type {pt}");
             assert!(!p.to_string().is_empty(), "Display must be non-empty");
-            let reference = Price::new(15025, 8);
-            let _ = p.cmp(&reference);
-            let _ = reference.cmp(&p);
-            let _ = p.cmp(&p);
         }
     }
 

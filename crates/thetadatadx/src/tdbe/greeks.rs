@@ -384,27 +384,6 @@ pub fn veta(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
         * (q + (r - q) * d1_val / (v * t.sqrt()) - (1.0 + d1_val * d2_val) / (2.0 * t))
 }
 
-// Reason: s, x, v, r, q, t are standard Black-Scholes parameter names.
-#[allow(clippy::many_single_char_names, clippy::similar_names)]
-#[must_use]
-/// `vera` (DvegaDr) — sensitivity of vega to the risk-free rate.
-///
-/// `vera = -K * exp(-r*T) * T * sqrt(T) * phi(d2)` where `phi` is
-/// the standard-normal PDF. Mirrors the inline computation in
-/// [`all_greeks`] so consumers building IV-cache fast paths can
-/// recompute the full Greek bundle via per-Greek closed forms
-/// without re-deriving vera locally.
-///
-/// Returns `0.0` when `is_degenerate(v, t)` matches every other
-/// Greek's behaviour on zero-IV / zero-tenor inputs.
-pub fn vera(s: f64, x: f64, v: f64, r: f64, q: f64, t: f64) -> f64 {
-    if is_degenerate(v, t) {
-        return 0.0;
-    }
-    let (_, d2_val) = d1_d2(s, x, v, r, q, t);
-    -x * (-r * t).exp() * t * t.sqrt() * f1(d2_val)
-}
-
 /// Returns speed, the rate of change of gamma with respect to spot (third
 /// derivative of value in spot). Yields `0.0` for degenerate inputs
 /// (`v <= 0` or `t <= 0`).
@@ -1380,39 +1359,6 @@ mod tests {
         );
         assert!((g.d1 - d1(s, x, v, r, q, t)).abs() < eps, "d1 mismatch");
         assert!((g.d2 - d2(s, x, v, r, q, t)).abs() < eps, "d2 mismatch");
-    }
-
-    #[test]
-    fn vera_free_fn_matches_inline_value_in_all_greeks() {
-        // The new public `vera` free fn must produce the exact
-        // value `all_greeks` puts in `GreeksResult.vera` for any
-        // non-degenerate input — they share the closed form.
-        let s = 100.0;
-        let x = 100.0;
-        let r = 0.05;
-        let q = 0.0;
-        let t = 1.0;
-        let price = value(s, x, 0.20, r, q, t, true);
-        let g = all_greeks(s, x, r, q, t, price, "C").expect("valid right");
-        let standalone = vera(s, x, g.iv, r, q, t);
-        assert!(
-            (standalone - g.vera).abs() < 1e-12,
-            "free-fn vera ({standalone}) must match all_greeks().vera ({}) within 1e-12 at the same IV",
-            g.vera
-        );
-
-        // Sign + magnitude checks mirror the prior textbook test.
-        assert!(standalone < 0.0);
-        assert!(standalone > -40.0 && standalone < -35.0);
-    }
-
-    #[test]
-    fn vera_free_fn_zeros_on_degenerate_inputs() {
-        // Mirror is_degenerate: zero/negative IV or tenor → 0.0.
-        assert!((vera(100.0, 100.0, 0.0, 0.05, 0.0, 1.0)).abs() < f64::EPSILON);
-        assert!((vera(100.0, 100.0, -0.1, 0.05, 0.0, 1.0)).abs() < f64::EPSILON);
-        assert!((vera(100.0, 100.0, 0.20, 0.05, 0.0, 0.0)).abs() < f64::EPSILON);
-        assert!((vera(100.0, 100.0, 0.20, 0.05, 0.0, -1.0)).abs() < f64::EPSILON);
     }
 
     #[test]

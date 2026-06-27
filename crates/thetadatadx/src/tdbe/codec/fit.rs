@@ -39,102 +39,6 @@ const MAX_DIGITS: usize = 10;
 /// DATE marker byte (`0xCE`) prefixing a date row in the FIT wire format.
 const DATE_MARKER: u8 = 0xCE;
 
-/// Row-major buffer of decoded FIT ticks.
-///
-/// Stores all rows contiguously in a single `Vec<i32>` with `num_columns`
-/// stride, rather than a `Vec<Vec<i32>>` that allocates per-row. Callers
-/// get rows via [`row`](Self::row) or iterate with [`iter`](Self::iter).
-///
-/// For `N` rows of `C` columns this is one allocation instead of `N+1`.
-#[derive(Debug, Clone)]
-pub struct FitRows {
-    data: Vec<i32>,
-    num_columns: usize,
-}
-
-impl FitRows {
-    /// Number of decoded rows.
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.data.len().checked_div(self.num_columns).unwrap_or(0)
-    }
-
-    /// Whether no rows were decoded.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.data.is_empty()
-    }
-
-    /// Column count (same for every row).
-    #[must_use]
-    pub fn num_columns(&self) -> usize {
-        self.num_columns
-    }
-
-    /// Borrow the row at index `i`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `i >= self.len()`. Prefer [`Self::get`] in any path
-    /// that operates on caller-supplied indices.
-    #[must_use]
-    pub fn row(&self, i: usize) -> &[i32] {
-        self.get(i)
-            .unwrap_or_else(|| panic!("FitRows::row index out of bounds: {i} >= {}", self.len()))
-    }
-
-    /// Borrow the row at index `i`, returning `None` if out of bounds.
-    /// The fallible cousin of [`Self::row`].
-    #[must_use]
-    pub fn get(&self, i: usize) -> Option<&[i32]> {
-        if i >= self.len() {
-            return None;
-        }
-        let start = i.checked_mul(self.num_columns)?;
-        let end = start.checked_add(self.num_columns)?;
-        self.data.get(start..end)
-    }
-
-    /// Iterator over rows as slices.
-    pub fn iter(&self) -> impl Iterator<Item = &[i32]> + '_ {
-        self.data.chunks_exact(self.num_columns.max(1))
-    }
-}
-
-/// Decode a FIT buffer in bulk, returning all rows in a single flat
-/// allocation.
-///
-/// Each row has exactly `fields_per_row` elements (zero-padded); use
-/// [`FitRows::row`] / [`FitRows::iter`] to access them.
-#[must_use]
-pub fn decode_fit_buffer_bulk(buf: &[u8], fields_per_row: usize) -> FitRows {
-    let mut reader = FitReader::new(buf);
-    let mut data: Vec<i32> = Vec::new();
-    let mut prev = vec![0i32; fields_per_row];
-    let mut alloc = vec![0i32; fields_per_row];
-    let mut first = true;
-
-    while !reader.is_exhausted() {
-        alloc.fill(0);
-        let n = reader.read_changes(&mut alloc);
-        if n == 0 {
-            continue;
-        }
-        if first {
-            prev.copy_from_slice(&alloc);
-            first = false;
-        } else {
-            apply_deltas(&mut alloc, &prev, n);
-            prev.copy_from_slice(&alloc);
-        }
-        data.extend_from_slice(&alloc);
-    }
-    FitRows {
-        data,
-        num_columns: fields_per_row,
-    }
-}
-
 /// Stateful FIT stream reader.
 ///
 /// Holds a position cursor into a byte buffer and decodes one row at a time
@@ -991,18 +895,6 @@ mod tests {
             let n = reader.read_changes(&mut alloc);
             prop_assert_eq!(n, row.len());
             prop_assert_eq!(&alloc[..row.len()], row.as_slice());
-        }
-
-        /// `decode_fit_buffer_bulk` agrees with `FitReader::read_changes`
-        /// for any single-row encoding when `fields_per_row` is set to
-        /// the row's actual width. The bulk decoder must surface the same
-        /// values in row-major layout.
-        #[test]
-        fn fit_bulk_decode_agrees(row in arbitrary_fit_row()) {
-            let bytes = encode_fit_row(&row);
-            let rows = decode_fit_buffer_bulk(&bytes, row.len());
-            prop_assert_eq!(rows.len(), 1);
-            prop_assert_eq!(rows.row(0), row.as_slice());
         }
 
         /// `flush_digits` is monotone in `count` for non-negative input:

@@ -35,8 +35,8 @@ pub(crate) mod writer;
 pub mod arrow;
 
 pub use decoded::{
-    default_output_filename, flatfile_request, flatfile_request_decoded,
-    flatfile_request_decoded_with_config, flatfile_request_with_config,
+    flatfile_request, flatfile_request_decoded, flatfile_request_decoded_with_config,
+    flatfile_request_with_config,
 };
 pub use decoded_row::{FlatFileRow, FlatFileValue};
 pub use format::FlatFileFormat;

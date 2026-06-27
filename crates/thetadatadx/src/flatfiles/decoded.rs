@@ -361,27 +361,6 @@ fn req_name(req: ReqType) -> &'static str {
     }
 }
 
-/// Vendor-style default filename for `(sec, req, date)`.
-///
-/// Mirrors the legacy terminal's `<SEC>-<REQ>-<DATE>.<ext>` convention.
-/// Exposed as a helper so binaries / tests can derive a default path
-/// without hardcoding the rules.
-#[must_use]
-pub fn default_output_filename(
-    sec: SecType,
-    req: ReqType,
-    date: &str,
-    format: FlatFileFormat,
-) -> String {
-    format!(
-        "{}-{}-{}.{}",
-        sec.as_wire(),
-        req_name(req),
-        date,
-        format.extension()
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -466,25 +445,6 @@ mod tests {
         // Best-effort: clean up any partial decoded output the failed
         // decode may have created before erroring.
         let _ = std::fs::remove_file(&final_path);
-    }
-
-    #[test]
-    fn vendor_filename_matches_terminal_layout() {
-        // The reference vendor file is `OPTION-OPEN_INTEREST-20260428.csv`.
-        let s = default_output_filename(
-            SecType::Option,
-            ReqType::OpenInterest,
-            "20260428",
-            FlatFileFormat::Csv,
-        );
-        assert_eq!(s, "OPTION-OPEN_INTEREST-20260428.csv");
-        let p = default_output_filename(
-            SecType::Stock,
-            ReqType::Trade,
-            "20260428",
-            FlatFileFormat::Jsonl,
-        );
-        assert_eq!(p, "STOCK-TRADE-20260428.jsonl");
     }
 
     #[test]

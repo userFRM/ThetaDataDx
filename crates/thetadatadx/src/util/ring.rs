@@ -37,87 +37,35 @@ pub const MAX_RING_SIZE: usize = 1 << 24;
 /// Validate that `n` is a power of two within
 /// `[MIN_RING_SIZE, MAX_RING_SIZE]`.
 ///
-/// Returns `Ok(n)` on success; `Err(RingSizeError)` on failure. The
-/// error names the offending value and the nearest valid size so the
-/// caller can correct the configuration without grep-fishing.
+/// Returns `Ok(n)` on success; `Err(message)` on failure. The message names
+/// the offending value and the nearest valid size so the caller can correct
+/// the configuration without grep-fishing.
 ///
 /// # Errors
 ///
-/// Returns [`RingSizeError::TooSmall`] when `n` is below
-/// [`MIN_RING_SIZE`], [`RingSizeError::TooLarge`] when `n` is above
-/// [`MAX_RING_SIZE`], or [`RingSizeError::NotPowerOfTwo`] when `n` is
-/// not a power of two.
-pub fn check_ring_size(n: usize) -> Result<usize, RingSizeError> {
+/// Returns an `Err` message when `n` is below [`MIN_RING_SIZE`], above
+/// [`MAX_RING_SIZE`], or not a power of two.
+pub fn check_ring_size(n: usize) -> Result<usize, String> {
     if n < MIN_RING_SIZE {
-        return Err(RingSizeError::TooSmall {
-            provided: n,
-            minimum: MIN_RING_SIZE,
-        });
+        return Err(format!(
+            "ring_size {n} is below the minimum of {MIN_RING_SIZE}"
+        ));
     }
     if n > MAX_RING_SIZE {
-        return Err(RingSizeError::TooLarge {
-            provided: n,
-            maximum: MAX_RING_SIZE,
-        });
+        return Err(format!(
+            "ring_size {n} is above the maximum of {MAX_RING_SIZE}"
+        ));
     }
     if !n.is_power_of_two() {
-        return Err(RingSizeError::NotPowerOfTwo {
-            provided: n,
-            suggested: n.next_power_of_two(),
-        });
+        // Suggest the nearest valid power of two `>= n` so the caller can pick
+        // the next viable budget without recomputing it.
+        return Err(format!(
+            "ring_size {n} must be a power of two; nearest valid value is {}",
+            n.next_power_of_two()
+        ));
     }
     Ok(n)
 }
-
-/// Failures rejected by [`check_ring_size`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RingSizeError {
-    /// `provided` is smaller than [`MIN_RING_SIZE`].
-    TooSmall {
-        /// The size the caller supplied.
-        provided: usize,
-        /// The minimum the validator accepts.
-        minimum: usize,
-    },
-    /// `provided` is larger than [`MAX_RING_SIZE`].
-    TooLarge {
-        /// The size the caller supplied.
-        provided: usize,
-        /// The maximum the validator accepts.
-        maximum: usize,
-    },
-    /// `provided` is not a power of two. `suggested` is the nearest
-    /// valid power of two `>= provided` so the caller can pick the
-    /// next viable budget without recomputing it.
-    NotPowerOfTwo {
-        /// The size the caller supplied.
-        provided: usize,
-        /// The nearest valid power of two `>= provided`.
-        suggested: usize,
-    },
-}
-
-impl std::fmt::Display for RingSizeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::TooSmall { provided, minimum } => {
-                write!(f, "ring_size {provided} is below the minimum of {minimum}")
-            }
-            Self::TooLarge { provided, maximum } => {
-                write!(f, "ring_size {provided} is above the maximum of {maximum}")
-            }
-            Self::NotPowerOfTwo {
-                provided,
-                suggested,
-            } => write!(
-                f,
-                "ring_size {provided} must be a power of two; nearest valid value is {suggested}"
-            ),
-        }
-    }
-}
-
-impl std::error::Error for RingSizeError {}
 
 #[cfg(test)]
 mod tests {
@@ -132,38 +80,31 @@ mod tests {
 
     #[test]
     fn rejects_non_power_of_two() {
+        // The diagnostic must name the offender and the nearest valid power
+        // of two `>= n` (128 for 65).
         let err = check_ring_size(65).unwrap_err();
-        assert_eq!(
-            err,
-            RingSizeError::NotPowerOfTwo {
-                provided: 65,
-                suggested: 128,
-            }
-        );
+        assert!(err.contains("65"), "{err}");
+        assert!(err.contains("power of two"), "{err}");
+        assert!(err.contains("128"), "{err}");
     }
 
     #[test]
     fn rejects_below_minimum() {
         let err = check_ring_size(32).unwrap_err();
-        assert_eq!(
-            err,
-            RingSizeError::TooSmall {
-                provided: 32,
-                minimum: MIN_RING_SIZE,
-            }
-        );
+        assert!(err.contains("32"), "{err}");
+        assert!(err.contains(&MIN_RING_SIZE.to_string()), "{err}");
     }
 
     #[test]
     fn error_message_names_offender_and_suggestion() {
-        let msg = check_ring_size(1000).unwrap_err().to_string();
+        let msg = check_ring_size(1000).unwrap_err();
         assert!(msg.contains("1000"));
         assert!(msg.contains("1024"));
     }
 
     #[test]
     fn error_message_names_minimum_on_too_small() {
-        let msg = check_ring_size(16).unwrap_err().to_string();
+        let msg = check_ring_size(16).unwrap_err();
         assert!(msg.contains("16"));
         assert!(msg.contains("64"));
     }
@@ -185,19 +126,14 @@ mod tests {
         // before the engine pre-allocates an absurd ring.
         let oversized = MAX_RING_SIZE << 1;
         let err = check_ring_size(oversized).unwrap_err();
-        assert_eq!(
-            err,
-            RingSizeError::TooLarge {
-                provided: oversized,
-                maximum: MAX_RING_SIZE,
-            }
-        );
+        assert!(err.contains(&oversized.to_string()), "{err}");
+        assert!(err.contains(&MAX_RING_SIZE.to_string()), "{err}");
     }
 
     #[test]
     fn error_message_names_maximum_on_too_large() {
         let oversized = 1usize << 40;
-        let msg = check_ring_size(oversized).unwrap_err().to_string();
+        let msg = check_ring_size(oversized).unwrap_err();
         assert!(msg.contains(&oversized.to_string()));
         assert!(msg.contains(&MAX_RING_SIZE.to_string()));
     }

@@ -26,31 +26,11 @@ use std::io::BufReader;
 use std::io::Write;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::mpsc as std_mpsc;
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use disruptor::{build_single_producer, EventPoller, SingleProducerBarrier};
-use metrics::Counter;
-
-// ─── Hoisted I/O-loop counter handles ───────────────────────────────
-//
-// Mirrors the `decode.rs` hoisting pattern: `metrics::counter!(name)`
-// resolves the metric handle through the global recorder on every
-// call (~30 ns per hit observed in the decode bench). The two
-// io_loop counters fire on hot-but-not-per-tick paths
-// (`drain_yields` on every mid-frame yield, `reconnects` on every
-// reconnect attempt), but the lookup pattern is the same and there
-// is no reason to leave them un-hoisted now that the surrounding
-// counters are.
-//
-// One handle per metric name. `Counter::increment` is `&self` so a
-// single `LazyLock<Counter>` serves every call site that fires the
-// same metric.
-static FPSS_DRAIN_YIELDS: LazyLock<Counter> =
-    LazyLock::new(|| metrics::counter!("thetadatadx.fpss.drain_yields"));
-static FPSS_RECONNECTS: LazyLock<Counter> =
-    LazyLock::new(|| metrics::counter!("thetadatadx.fpss.reconnects"));
 
 use crate::tdbe::types::enums::{RemoveReason, StreamMsgType, StreamResponseType};
 
@@ -734,7 +714,7 @@ where
                         // drain-yield is expected behaviour on a trickling
                         // sender, not a sign of a dead connection. Fall
                         // through to the Phase 2 drain.
-                        FPSS_DRAIN_YIELDS.increment(1);
+                        metrics::counter!("thetadatadx.fpss.drain_yields").increment(1);
                         tracing::trace!(
                             "mid-frame drain-yield -- draining outbound commands \
                          before re-entering read"
@@ -1021,7 +1001,7 @@ where
             delay_ms,
             "auto-reconnecting FPSS"
         );
-        FPSS_RECONNECTS.increment(1);
+        metrics::counter!("thetadatadx.fpss.reconnects").increment(1);
         if producer
             .try_publish(|slot| {
                 slot.event = FpssEventInternal::Control(StreamControl::Reconnecting {
