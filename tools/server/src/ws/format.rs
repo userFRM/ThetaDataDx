@@ -306,11 +306,9 @@ fn parse_unresolved_contract_id(symbol: &str) -> Option<i32> {
 /// - `security_type` / `root` are always present (the terminal names the
 ///   keys `security_type` and `root`, not `sec_type` / `symbol`).
 /// - `expiration` / `strike` / `right` are present only for options.
-/// - `strike` is the raw fixed-point integer in thousandths of a dollar —
-///   a `$550.00` strike serializes as `550000`. The terminal carries the
-///   strike as a bare `int` on the wire in both directions
-///   (`Contract.strike` is `int`; `readContract` emits `c.getStrike()`),
-///   so the integer is the contract, not a dollars float.
+/// - `strike` is dollars (a `$550.00` strike serializes as `550.0`), the
+///   same unit every other public surface speaks; the wire's fixed-point
+///   integer never leaves the codec layer.
 fn contract_to_json(c: &Contract) -> sonic_rs::Value {
     let mut obj = sonic_rs::Object::new();
     obj.insert("security_type", sonic_rs::Value::from(c.sec_type.as_str()));
@@ -318,12 +316,13 @@ fn contract_to_json(c: &Contract) -> sonic_rs::Value {
     if let Some(exp) = c.expiration {
         obj.insert("expiration", sonic_rs::Value::from(exp));
     }
-    // Emit the raw thousandths integer the terminal puts on the wire,
-    // never the dollars float: the terminal's `Contract.strike` is an
-    // `int` and `readContract` serializes `c.getStrike()` verbatim, so a
-    // strict terminal client parses `strike` with `getAsInt()`.
-    if let Some(strike) = c.strike_thousandths {
-        obj.insert("strike", sonic_rs::Value::from(strike));
+    // `strike` is dollars on every public surface; the wire's
+    // fixed-point integer never leaves the codec layer.
+    if let Some(strike) = c.strike_dollars() {
+        obj.insert(
+            "strike",
+            sonic_rs::to_value(&strike).expect("f64 should serialize"),
+        );
     }
     if let Some(is_call) = c.is_call {
         obj.insert(
@@ -630,13 +629,12 @@ mod tests {
         }
     }
 
-    /// The contract envelope uses the terminal's key names and unit: an
-    /// option carries `security_type` / `root` (not `sec_type` / `symbol`)
-    /// and `strike` as the raw thousandths integer (a `$550.00` strike is
-    /// `550000`), matching `EventSerializer.readContract` emitting
-    /// `c.getStrike()` verbatim.
+    /// The contract envelope uses the terminal's key names (`security_type`
+    /// / `root`, not `sec_type` / `symbol`) and emits `strike` in dollars
+    /// (a `$550.00` strike serializes as `550.0`) — the same unit every
+    /// other public surface speaks.
     #[test]
-    fn option_contract_envelope_uses_terminal_keys_and_raw_strike() {
+    fn option_contract_envelope_uses_terminal_keys_and_dollar_strike() {
         let contract = Arc::new(Contract::option_raw("SPY", 20_260_417, true, 550_000));
         let event = make_quote(Arc::clone(&contract));
         let json = fpss_event_to_ws_json(&event, Some(&contract))
@@ -650,14 +648,14 @@ mod tests {
             json.contains("\"root\":\"SPY\""),
             "contract must carry `root`, not `symbol`: {json}"
         );
-        // Raw thousandths integer, NOT a dollars float (`550.0`).
+        // Dollars float (`550.0`), NOT the raw thousandths integer.
         assert!(
-            json.contains("\"strike\":550000"),
-            "strike must serialize as the raw thousandths integer: {json}"
+            json.contains("\"strike\":550.0"),
+            "strike must serialize as a dollars float: {json}"
         );
         assert!(
-            !json.contains("\"strike\":550.0") && !json.contains("\"strike\":550,"),
-            "strike must NOT serialize as a dollars float: {json}"
+            !json.contains("\"strike\":550000"),
+            "strike must NOT serialize as the raw thousandths integer: {json}"
         );
         assert!(json.contains("\"expiration\":20260417"), "{json}");
         assert!(json.contains("\"right\":\"C\""), "{json}");
