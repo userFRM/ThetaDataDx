@@ -1360,6 +1360,19 @@ fn trade_ticks_to_class_vec(ticks: &[tick::TradeTick]) -> Vec<TradeTick> {
         .collect()
 }
 
+/// Decode an `i64` from a JS `bigint` Arrow column, rejecting a magnitude that
+/// does not fit `i64` rather than truncating its wrapped low bits.
+fn bigint_to_i64(name: &str, v: &BigInt) -> napi::Result<i64> {
+    let (value, lossless) = v.get_i64();
+    if lossless {
+        Ok(value)
+    } else {
+        Err(crate::invalid_parameter_err(format!(
+            "{name}: BigInt magnitude must fit in i64"
+        )))
+    }
+}
+
 /// Serialise a `CalendarDay` history result to an Arrow IPC stream
 /// (the `apache-arrow` wire form). Mirrors the FlatFiles
 /// `FlatFileRowList.toArrowIpc()` exit and the Python
@@ -1415,8 +1428,8 @@ pub fn eod_tick_to_arrow_ipc(rows: Vec<EodTick>) -> napi::Result<napi::bindgen_p
                 high: r.high,
                 low: r.low,
                 close: r.close,
-                volume: { let (v, _) = r.volume.get_i64(); v },
-                count: { let (v, _) = r.count.get_i64(); v },
+                volume: bigint_to_i64("volume", &r.volume)?,
+                count: bigint_to_i64("count", &r.count)?,
                 bid_size: r.bid_size,
                 bid_exchange: r.bid_exchange,
                 bid: r.bid,
@@ -1531,8 +1544,8 @@ pub fn greeks_eod_tick_to_arrow_ipc(rows: Vec<GreeksEodTick>) -> napi::Result<na
                 high: r.high,
                 low: r.low,
                 close: r.close,
-                volume: { let (v, _) = r.volume.get_i64(); v },
-                count: { let (v, _) = r.count.get_i64(); v },
+                volume: bigint_to_i64("volume", &r.volume)?,
+                count: bigint_to_i64("count", &r.count)?,
                 bid_size: r.bid_size,
                 bid_exchange: r.bid_exchange,
                 bid: r.bid,
@@ -1921,8 +1934,8 @@ pub fn ohlc_tick_to_arrow_ipc(rows: Vec<OhlcTick>) -> napi::Result<napi::bindgen
                 high: r.high,
                 low: r.low,
                 close: r.close,
-                volume: { let (v, _) = r.volume.get_i64(); v },
-                count: { let (v, _) = r.count.get_i64(); v },
+                volume: bigint_to_i64("volume", &r.volume)?,
+                count: bigint_to_i64("count", &r.count)?,
                 vwap: r.vwap,
                 date: r.date,
                 expiration: r.expiration.unwrap_or(0),
