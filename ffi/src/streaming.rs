@@ -199,7 +199,13 @@ pub struct ThetaDataDxStreamHandle {
     /// `reconnect` / `shutdown` / `free` path acquires this one lock,
     /// transitions the variant, and releases.  Dispatcher panic state
     /// is derived from `JoinHandle::join()` returning `Err(_)`.
-    dispatcher: Mutex<FfpssDispatcherSession>,
+    ///
+    /// Wrapped in `Arc` so the spawned dispatcher thread can hold an
+    /// owning handle to just this slot (not the whole `*const` handle,
+    /// whose lifetime it cannot express) and publish `Failed` from its own
+    /// catch-arm the instant an outer panic kills the event loop — see
+    /// [`publish_failed_if_current`].
+    dispatcher: Arc<Mutex<FfpssDispatcherSession>>,
 }
 
 /// Saved FPSS connection parameters for FFI-safe (re)connection.
@@ -1599,7 +1605,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_connect(
             callback: Mutex::new(None),
             state: AtomicU8::new(STREAM_STATE_FRESH),
             prev_drained: Mutex::new(Vec::new()),
-            dispatcher: Mutex::new(FfpssDispatcherSession::Idle),
+            dispatcher: Arc::new(Mutex::new(FfpssDispatcherSession::Idle)),
         }))
     })
 }
@@ -1738,6 +1744,7 @@ where
                 .store(STREAM_STATE_ACTIVE, AtomicOrdering::Relaxed);
 
             let dispatcher_client = std::sync::Arc::clone(&client_arc);
+            let dispatcher_slot = std::sync::Arc::clone(&handle.dispatcher);
             let spawn_result = std::thread::Builder::new()
                 .name("thetadatadx-ffi-fpss-dispatcher".into())
                 .spawn(move || {
@@ -1750,10 +1757,20 @@ where
                     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                         dispatcher_client.for_each(|event| on_event(event));
                     }));
-                    if outcome.is_err() {
+                    if let Err(payload) = outcome {
+                        let reason = downcast_ffi_panic_payload(payload);
                         tracing::error!(
                             target: "thetadatadx::ffi",
+                            reason = %reason,
                             "thetadatadx-ffi-fpss-dispatcher panicked in event iteration machinery; handle transitioning to failed state",
+                        );
+                        // Publish `Failed` from this thread before it exits so
+                        // health checks reflect the dead loop immediately, not
+                        // only once teardown joins.
+                        publish_failed_if_current(
+                            &dispatcher_slot,
+                            std::thread::current().id(),
+                            reason,
                         );
                     }
                 });
@@ -2312,6 +2329,7 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
             *guard = Some(std::sync::Arc::clone(&new_client));
 
             let dispatcher_client = std::sync::Arc::clone(&new_client);
+            let dispatcher_slot = std::sync::Arc::clone(&handle.dispatcher);
             let spawn_result = std::thread::Builder::new()
                 .name("thetadatadx-ffi-fpss-dispatcher".into())
                 .spawn(move || {
@@ -2324,10 +2342,20 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
                     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                         dispatcher_client.for_each(|event| cb.invoke(event));
                     }));
-                    if outcome.is_err() {
+                    if let Err(payload) = outcome {
+                        let reason = downcast_ffi_panic_payload(payload);
                         tracing::error!(
                             target: "thetadatadx::ffi",
+                            reason = %reason,
                             "thetadatadx-ffi-fpss-dispatcher panicked in event iteration machinery across reconnect; handle transitioning to failed state",
+                        );
+                        // Publish `Failed` from this thread before it exits so
+                        // health checks reflect the dead loop immediately, not
+                        // only once teardown joins.
+                        publish_failed_if_current(
+                            &dispatcher_slot,
+                            std::thread::current().id(),
+                            reason,
                         );
                     }
                 });
@@ -2512,6 +2540,40 @@ fn downcast_ffi_panic_payload(payload: Box<dyn std::any::Any + Send>) -> String 
         return s.clone();
     }
     "dispatcher panicked with non-string payload".to_owned()
+}
+
+/// Publish `Failed` from the dispatcher thread's OWN catch-arm after an outer
+/// panic in the event-iteration machinery, so `thetadatadx_streaming_is_streaming`
+/// / `_is_authenticated` report the dead loop immediately rather than only
+/// after teardown joins the corpse.
+///
+/// `dispatcher_thread_id` is the id of the thread the session's `JoinHandle`
+/// names; the caller passes its own [`std::thread::current`] id. The store
+/// happens ONLY when the slot still holds the matching `Running` session: the
+/// lock is dropped between spawning the dispatcher and a later
+/// `set_callback` / `reconnect`, so a fresh session (different thread id) or a
+/// teardown-extracted `Idle` may already occupy the slot. Overwriting either
+/// would clobber a live session's `JoinHandle` or resurrect a torn-down one.
+///
+/// Orthogonal to teardown: this is a mutate-UNDER-lock-then-RELEASE with no
+/// join and no drain wait held across the guard, exactly like the publish in
+/// [`join_extracted_session`]. The lock order is unchanged (this takes only
+/// `dispatcher`, never `inner`). When this wins the race against a concurrent
+/// teardown, the teardown's `extract` then yields the `Failed` variant — whose
+/// `let-else` skips the join — so the already-finished panicked thread is
+/// detached rather than reaped; the `_free` drain barrier still waits on the
+/// client's own drained flag, so quiescence is unaffected.
+fn publish_failed_if_current(
+    dispatcher: &Mutex<FfpssDispatcherSession>,
+    dispatcher_thread_id: std::thread::ThreadId,
+    reason: String,
+) {
+    let mut guard = dispatcher.lock_recover();
+    if let FfpssDispatcherSession::Running { handle, .. } = &*guard {
+        if handle.thread().id() == dispatcher_thread_id {
+            *guard = FfpssDispatcherSession::Failed { reason };
+        }
+    }
 }
 
 /// Milliseconds since the most recent inbound streaming frame of any
@@ -3306,7 +3368,7 @@ mod teardown_deadlock_tests {
             })),
             state: AtomicU8::new(STREAM_STATE_ACTIVE),
             prev_drained: Mutex::new(Vec::new()),
-            dispatcher: Mutex::new(session),
+            dispatcher: Arc::new(Mutex::new(session)),
         }
     }
 
@@ -3407,5 +3469,163 @@ mod teardown_deadlock_tests {
             "the re-entrant status read acquired the dispatcher lock before teardown \
              released it — the join was not lock-free",
         );
+    }
+}
+
+#[cfg(test)]
+mod health_on_outer_panic_tests {
+    //! An OUTER dispatcher panic (the event-iteration machinery, not a user
+    //! callback) must flip `thetadatadx_streaming_is_streaming` /
+    //! `_is_authenticated` to `0` IMMEDIATELY — from the dispatcher thread's
+    //! own catch-arm — rather than staying healthy until teardown joins the
+    //! dead thread. This pins [`super::publish_failed_if_current`], the catch-arm
+    //! publish both `set_callback` and `reconnect` spawns route through.
+
+    use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+    use std::sync::{Arc, Mutex};
+
+    use super::{
+        publish_failed_if_current, FfiCallback, FfpssDispatcherSession, LockRecover,
+        StreamingConnectParams, ThetaDataDxStreamCallback, ThetaDataDxStreamEvent,
+        ThetaDataDxStreamHandle, STREAM_STATE_ACTIVE,
+    };
+    use std::ffi::c_void;
+    use thetadatadx::fpss::{HarnessPublishMode, StreamingClient};
+
+    extern "C" fn noop(_event: *const ThetaDataDxStreamEvent, _ctx: *mut c_void) {}
+
+    /// Build a handle whose `inner` holds a live harness `StreamingClient`
+    /// (`for_self_join_test` flips its `authenticated` flag `true`), so absent
+    /// a `Failed` dispatcher both status readers report healthy. The returned
+    /// `(handle, drained)` lets the caller shut the harness client down so its
+    /// consumer thread cannot outlive the test.
+    fn handle_with_live_client(
+        session: FfpssDispatcherSession,
+    ) -> (ThetaDataDxStreamHandle, Arc<AtomicBool>) {
+        // One idle harness event through a noop handler; the consumer parks on
+        // the ring afterwards and exits on the shutdown the test signals.
+        let client = StreamingClient::for_self_join_test(
+            1,
+            64,
+            HarnessPublishMode::BlockingPublish,
+            None,
+            |_event| {},
+        );
+        let drained = client.drained_flag();
+        let handle = ThetaDataDxStreamHandle {
+            inner: Arc::new(Mutex::new(Some(client))),
+            connect_params: StreamingConnectParams {
+                creds: thetadatadx::Credentials::api_key("test"),
+                streaming: thetadatadx::config::StreamingConfig::production_defaults(),
+                reconnect: thetadatadx::config::ReconnectConfig::production_defaults(),
+            },
+            callback: Mutex::new(Some(FfiCallback {
+                callback: noop as ThetaDataDxStreamCallback,
+                ctx: std::ptr::null_mut(),
+            })),
+            state: AtomicU8::new(STREAM_STATE_ACTIVE),
+            prev_drained: Mutex::new(Vec::new()),
+            dispatcher: Arc::new(Mutex::new(session)),
+        };
+        (handle, drained)
+    }
+
+    #[test]
+    fn outer_panic_flips_health_checks_to_failed_immediately() {
+        // A stand-in for the dispatcher thread whose `JoinHandle` the
+        // `Running` session carries. It parks until released, so the handle
+        // stays joinable while the test drives the catch-arm publish — the
+        // production catch-arm runs ON this thread, so the test passes this
+        // thread's id to `publish_failed_if_current`.
+        let release = Arc::new(AtomicBool::new(false));
+        let dispatcher_handle = {
+            let release = Arc::clone(&release);
+            std::thread::Builder::new()
+                .name("test-parked-dispatcher".into())
+                .spawn(move || {
+                    while !release.load(Ordering::Acquire) {
+                        std::thread::sleep(std::time::Duration::from_millis(1));
+                    }
+                })
+                .expect("spawn parked dispatcher")
+        };
+        let dispatcher_thread_id = dispatcher_handle.thread().id();
+
+        let (handle, drained) = handle_with_live_client(FfpssDispatcherSession::Running {
+            handle: dispatcher_handle,
+            on_teardown: None,
+            registers_drain_flag: true,
+        });
+
+        // The two C-ABI status readers, each wrapped once.
+        // SAFETY: `&handle` points at a live `ThetaDataDxStreamHandle` pinned on
+        // this stack for the whole test, never freed, so the is_streaming entry
+        // point's non-null / not-yet-freed precondition holds on every call.
+        let is_streaming = || unsafe { super::thetadatadx_streaming_is_streaming(&handle) };
+        // SAFETY: same stack-pinned, never-freed `&handle` as the reader above;
+        // the is_authenticated entry point shares the identical precondition.
+        let is_authenticated = || unsafe { super::thetadatadx_streaming_is_authenticated(&handle) };
+
+        // Healthy before the panic: live authenticated client, no `Failed`.
+        assert_eq!(
+            is_streaming(),
+            1,
+            "a live session with a Running dispatcher must report streaming",
+        );
+        assert_eq!(
+            is_authenticated(),
+            1,
+            "a live authenticated session must report authenticated before any panic",
+        );
+
+        // A non-matching thread id must NOT publish (models a fresh session
+        // installed by a concurrent reconnect in the lock-release window).
+        publish_failed_if_current(
+            &handle.dispatcher,
+            std::thread::current().id(),
+            "wrong-thread panic must not clobber".to_owned(),
+        );
+        assert_eq!(
+            is_streaming(),
+            1,
+            "publish_failed_if_current must not overwrite a session owned by a different thread",
+        );
+
+        // The dispatcher thread's own catch-arm publishes `Failed`.
+        publish_failed_if_current(
+            &handle.dispatcher,
+            dispatcher_thread_id,
+            "intentional outer-machinery panic".to_owned(),
+        );
+
+        // Both status readers now report the dead loop, with no teardown join.
+        assert_eq!(
+            is_streaming(),
+            0,
+            "is_streaming must return 0 immediately after an outer dispatcher panic",
+        );
+        assert_eq!(
+            is_authenticated(),
+            0,
+            "is_authenticated must return 0 immediately after an outer dispatcher panic",
+        );
+
+        // Release the parked stand-in (it self-terminates on the flag; the
+        // publish already detached its `JoinHandle` into the `Failed` variant),
+        // then shut the harness client down and wait for its consumer thread to
+        // drain so nothing outlives the test.
+        release.store(true, Ordering::Release);
+        if let Some(client) = handle.inner.lock_recover().take() {
+            client.shutdown();
+            drop(client);
+        }
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while !drained.load(Ordering::Acquire) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "harness client did not drain within 5 s",
+            );
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
     }
 }

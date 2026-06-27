@@ -171,7 +171,13 @@ pub(crate) struct StreamingClient {
     /// `dispatcher_handle: Mutex<Option<JoinHandle<()>>>` and
     /// `dispatcher_failed: Arc<AtomicBool>`. Panic state is derived
     /// from `JoinHandle::join()` returning `Err(_)`.
-    dispatcher: Mutex<thetadatadx::DispatcherSession>,
+    ///
+    /// Wrapped in `Arc` so the spawned dispatcher thread can hold an owning
+    /// handle to just this slot — the pyclass shell is not itself `Arc`-shared
+    /// across the spawn — and publish `Failed` from its own catch-arm the
+    /// instant an outer panic kills the event loop (see
+    /// [`publish_failed_if_current`]).
+    dispatcher: Arc<Mutex<thetadatadx::DispatcherSession>>,
 }
 
 impl Drop for StreamingClient {
@@ -253,6 +259,44 @@ impl StreamingClient {
     }
 }
 
+/// Downcast a thread-panic payload to a human-readable string.
+fn downcast_py_panic_payload(payload: Box<dyn std::any::Any + Send>) -> String {
+    if let Some(s) = payload.downcast_ref::<&str>() {
+        return (*s).to_owned();
+    }
+    if let Some(s) = payload.downcast_ref::<String>() {
+        return s.clone();
+    }
+    "dispatcher panicked with non-string payload".to_owned()
+}
+
+/// Publish `Failed` from the dispatcher thread's OWN catch-arm after an outer
+/// panic in the event-iteration machinery, so `is_streaming` / `is_authenticated`
+/// report the dead loop immediately rather than only after teardown joins the
+/// corpse.
+///
+/// `dispatcher_thread_id` is the id of the thread the session's `JoinHandle`
+/// names; the caller passes its own [`std::thread::current`] id. The store
+/// happens ONLY when the slot still holds the matching `Running` session: a
+/// concurrent `stop_streaming` may have extracted it to `Idle`, or a fresh
+/// session (different thread id) may occupy it. Overwriting either would
+/// resurrect a torn-down session or clobber a live one's `JoinHandle`.
+///
+/// Orthogonal to teardown: a mutate-UNDER-lock-then-RELEASE with no join held
+/// across the guard, matching the publish in `stop_streaming`'s join path.
+fn publish_failed_if_current(
+    dispatcher: &Mutex<thetadatadx::DispatcherSession>,
+    dispatcher_thread_id: std::thread::ThreadId,
+    reason: String,
+) {
+    let mut guard = dispatcher.lock().unwrap_or_else(|e| e.into_inner());
+    if let PyFpssDispatcherSession::Running { handle, .. } = &*guard {
+        if handle.thread().id() == dispatcher_thread_id {
+            *guard = PyFpssDispatcherSession::Failed { reason };
+        }
+    }
+}
+
 #[pymethods]
 impl StreamingClient {
     /// Allocate a standalone streaming handle.
@@ -288,7 +332,7 @@ impl StreamingClient {
             inner: Mutex::new(None),
             callback: Mutex::new(None),
             prev_drained: Mutex::new(Vec::new()),
-            dispatcher: Mutex::new(PyFpssDispatcherSession::Idle),
+            dispatcher: Arc::new(Mutex::new(PyFpssDispatcherSession::Idle)),
         })
     }
 
@@ -389,6 +433,7 @@ impl StreamingClient {
         // binding must increment the counter explicitly so `panic_count()`
         // reflects both Rust panics and Python exceptions.
         let panic_recorder = Arc::clone(&client_arc);
+        let dispatcher_slot = Arc::clone(&self.dispatcher);
         let dispatcher = std::thread::Builder::new()
             .name("thetadatadx-py-fpss-dispatcher".into())
             .spawn(move || {
@@ -440,10 +485,20 @@ impl StreamingClient {
                     dispatcher_client
                         .for_each_scoped(dispatch_one, |drain| Python::attach(|_py| drain()));
                 }));
-                if outcome.is_err() {
+                if let Err(payload) = outcome {
+                    let reason = downcast_py_panic_payload(payload);
                     tracing::error!(
                         target: "thetadatadx::python",
+                        reason = %reason,
                         "thetadatadx-py-fpss-dispatcher panicked in event iteration machinery; StreamingClient transitioning to failed state",
+                    );
+                    // Publish `Failed` from this thread before it exits so
+                    // health checks reflect the dead loop immediately, not only
+                    // once teardown joins.
+                    publish_failed_if_current(
+                        &dispatcher_slot,
+                        std::thread::current().id(),
+                        reason,
                     );
                 }
             });
@@ -758,13 +813,7 @@ impl StreamingClient {
                 if let PyFpssDispatcherSession::Running { handle, .. } = prev_session {
                     if handle.thread().id() != std::thread::current().id() {
                         if let Err(payload) = handle.join() {
-                            let reason = if let Some(s) = payload.downcast_ref::<&str>() {
-                                (*s).to_owned()
-                            } else if let Some(s) = payload.downcast_ref::<String>() {
-                                s.clone()
-                            } else {
-                                "dispatcher panicked with non-string payload".to_owned()
-                            };
+                            let reason = downcast_py_panic_payload(payload);
                             tracing::error!(
                                 target: "thetadatadx::python",
                                 reason = %reason,
@@ -1000,5 +1049,116 @@ mod tests {
 
         // The snapshot must build without panicking with every knob set.
         let _ = params.builder();
+    }
+
+    /// An OUTER dispatcher panic (the event-iteration machinery, not a user
+    /// callback) must flip `is_streaming()` / `is_authenticated()` to `false`
+    /// IMMEDIATELY — from the dispatcher thread's own catch-arm — rather than
+    /// staying healthy until teardown joins the dead thread. Pins
+    /// [`super::publish_failed_if_current`], the catch-arm publish
+    /// `start_streaming` routes through.
+    #[test]
+    fn outer_panic_flips_health_checks_to_failed_immediately() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use thetadatadx::fpss::HarnessPublishMode;
+
+        // A live harness client: `for_self_join_test` flips its `authenticated`
+        // flag `true`, so absent a `Failed` dispatcher both readers report
+        // healthy.
+        let client = RustStreamingClient::for_self_join_test(
+            1,
+            64,
+            HarnessPublishMode::BlockingPublish,
+            None,
+            |_event| {},
+        );
+        let drained = client.drained_flag();
+
+        // A stand-in for the dispatcher thread whose `JoinHandle` the `Running`
+        // session carries; it parks until released so the handle stays joinable
+        // while the test drives the catch-arm publish.
+        let release = Arc::new(AtomicBool::new(false));
+        let dispatcher_handle = {
+            let release = Arc::clone(&release);
+            std::thread::Builder::new()
+                .name("test-parked-dispatcher".into())
+                .spawn(move || {
+                    while !release.load(Ordering::Acquire) {
+                        std::thread::sleep(std::time::Duration::from_millis(1));
+                    }
+                })
+                .expect("spawn parked dispatcher")
+        };
+        let dispatcher_thread_id = dispatcher_handle.thread().id();
+
+        let creds = RustCredentials::new("user@example.com", "secret");
+        let config = DirectConfig::production();
+        let sc = StreamingClient {
+            params: FpssParams::from_config(&creds, &config),
+            inner: Mutex::new(Some(client)),
+            callback: Mutex::new(None),
+            prev_drained: Mutex::new(Vec::new()),
+            dispatcher: Arc::new(Mutex::new(PyFpssDispatcherSession::Running {
+                handle: dispatcher_handle,
+                on_teardown: None,
+                registers_drain_flag: true,
+            })),
+        };
+
+        // Healthy before the panic.
+        assert!(
+            sc.is_streaming(),
+            "a live Running session must report streaming"
+        );
+        assert!(
+            sc.is_authenticated(),
+            "a live authenticated session must report authenticated before any panic"
+        );
+
+        // A non-matching thread id must NOT publish (models a fresh session
+        // installed by a concurrent restart in the lock-release window).
+        publish_failed_if_current(
+            &sc.dispatcher,
+            std::thread::current().id(),
+            "wrong-thread panic must not clobber".to_owned(),
+        );
+        assert!(
+            sc.is_streaming(),
+            "publish_failed_if_current must not overwrite a session owned by a different thread"
+        );
+
+        // The dispatcher thread's own catch-arm publishes `Failed`.
+        publish_failed_if_current(
+            &sc.dispatcher,
+            dispatcher_thread_id,
+            "intentional outer-machinery panic".to_owned(),
+        );
+
+        // Both status readers now report the dead loop, with no teardown join.
+        assert!(
+            !sc.is_streaming(),
+            "is_streaming must return false immediately after an outer dispatcher panic"
+        );
+        assert!(
+            !sc.is_authenticated(),
+            "is_authenticated must return false immediately after an outer dispatcher panic"
+        );
+
+        // Release the parked stand-in (its handle was detached into `Failed`),
+        // shut the harness client down, and wait for its consumer to drain so
+        // nothing outlives the test.
+        release.store(true, Ordering::Release);
+        if let Some(client) = sc.inner.lock().unwrap_or_else(|e| e.into_inner()).take() {
+            client.shutdown();
+            drop(client);
+        }
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while !drained.load(Ordering::Acquire) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "harness client did not drain within 5 s"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
     }
 }
