@@ -34,6 +34,9 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const pkg = require('../streaming-session.js');
+// `wrapStreamViewBatches` is internal: imported from its module directly
+// (not via the package's public surface), with `RecordBatchStream` injected.
+const { wrapStreamViewBatches } = require('../record_batch_forwarder.js');
 const dts = readFileSync(resolve(__dirname, '..', 'streaming-session.d.ts'), 'utf8');
 
 // A synthetic single-batch Arrow IPC stream, built with apache-arrow so the
@@ -103,7 +106,7 @@ describe('streaming RecordBatch reader', () => {
       calls.push({ thisValue: this, args });
       return handle;
     }
-    const forwarder = pkg.wrapStreamViewBatches(nativeBatches);
+    const forwarder = wrapStreamViewBatches(nativeBatches, pkg.RecordBatchStream);
 
     const options = { batchSize: 256, lingerMs: 5, backpressure: 'dropOldest', capacity: 8 };
     const receiver = { tag: 'streamView' };
@@ -129,7 +132,7 @@ describe('streaming RecordBatch reader', () => {
       calls.push(args);
       return fakeHandle(0);
     }
-    const forwarder = pkg.wrapStreamViewBatches(nativeBatches);
+    const forwarder = wrapStreamViewBatches(nativeBatches, pkg.RecordBatchStream);
     const reader = await forwarder.call({}, undefined);
     // Calling with an explicit `undefined` still forwards one arg; the
     // documented no-arg form forwards none. Cover the no-arg form here.

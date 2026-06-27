@@ -74,13 +74,21 @@ pub(crate) fn to_napi_err(e: thetadatadx::Error) -> napi::Error {
     napi::Error::from_reason(format!("{prefix} {e}"))
 }
 
+/// Build a napi error whose `reason` carries the `[ClassName] ...` prefix
+/// the JS shim keys on to re-throw the matching typed subclass. The
+/// per-class wrappers below ([`invalid_parameter_err`], [`config_option_err`])
+/// name their class so the call sites read intent.
+fn typed_napi_err(class: &str, message: impl std::fmt::Display) -> napi::Error {
+    napi::Error::from_reason(format!("[{class}] {message}"))
+}
+
 /// Build an `InvalidParameterError`-typed napi error for user-input
 /// validation that fails before reaching the core client. The JS shim
 /// keys on the `[ClassName]` prefix to re-throw the typed subclass, so
 /// TypeScript callers branch on `instanceof InvalidParameterError`
 /// exactly as Python callers catch the parity `ValueError`.
 pub(crate) fn invalid_parameter_err(message: impl std::fmt::Display) -> napi::Error {
-    napi::Error::from_reason(format!("[InvalidParameterError] {message}"))
+    typed_napi_err("InvalidParameterError", message)
 }
 
 /// Project the core's active full-subscription set into the cross-binding
@@ -215,6 +223,30 @@ impl Credentials {
     }
 }
 
+/// Load credentials from a two-line file, seed the process-global runtime
+/// from `cfg`, and run the connect handshake off the libuv thread,
+/// returning the shared client handle.
+///
+/// Shared by the `connectFromFile` factory on both the unified [`Client`]
+/// and the historical-only [`HistoricalClient`]: the connect core is
+/// identical (`thetadatadx::Client::connect` opens the historical channel
+/// and Nexus, never streaming until a streaming method is called); the two
+/// factories differ only in the napi handle they wrap around the returned
+/// `Arc`.
+pub(crate) async fn connect_historical_from_file_core(
+    path: String,
+    cfg: config::DirectConfig,
+) -> napi::Result<Arc<thetadatadx::Client>> {
+    let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
+    let rt = runtime_from_config(&cfg.runtime);
+    let client = rt
+        .spawn(async move { thetadatadx::Client::connect(&creds, cfg).await })
+        .await
+        .map_err(|e| napi::Error::from_reason(format!("connect task failed to complete: {e}")))?
+        .map_err(to_napi_err)?;
+    Ok(Arc::new(client))
+}
+
 /// Snapshot an optional [`Config`] handle into an owned [`DirectConfig`],
 /// falling back to the production default when none is supplied. The
 /// snapshot decouples the client from later mutations of the `Config`
@@ -233,7 +265,7 @@ pub(crate) fn config_or_production(config: Option<&Config>) -> config::DirectCon
 /// shim re-throws as a typed `ConfigError`, so the failure surfaces the
 /// same branded class the other bindings raise.
 fn config_option_err(message: impl AsRef<str>) -> napi::Error {
-    napi::Error::from_reason(format!("[ConfigError] {}", message.as_ref()))
+    typed_napi_err("ConfigError", message.as_ref())
 }
 
 /// Inline authentication + environment for [`Client::connectWith`].
@@ -365,65 +397,20 @@ impl ClientConnectOptions {
     }
 }
 
-/// Validate a JavaScript `timeoutMs` deadline and convert it to the
-/// integer millisecond domain the Python, C++, and C ABI bindings take.
+/// Guard that a JS `number` (IEEE-754 double) carrying an integer query
+/// parameter is a non-negative whole number within `[0, max]`, returning
+/// it unchanged on success so the caller can cast to its integer domain.
 ///
-/// `timeoutMs` rides in the options object as a JS `number` (an IEEE-754
-/// double). The integer-typed bindings cannot represent a fractional,
-/// negative, or non-finite deadline, so this binding rejects the same
-/// inputs rather than coercing them: an `as u64` cast would silently
-/// rewrite `NaN` and a negative value to `0` (an instant deadline),
-/// `Infinity` to `u64::MAX` (a multi-century deadline), and a fractional
-/// value to its truncation — each the opposite of a caller's intent. A
-/// rejected value surfaces as `InvalidParameterError`, the typed class
-/// the Python binding raises (`ValueError`) for the identical input, so
-/// a caller's `catch (e instanceof InvalidParameterError)` branch ports
-/// across bindings.
-pub(crate) fn validate_timeout_ms(timeout_ms: f64) -> napi::Result<u64> {
-    if !timeout_ms.is_finite() {
-        return Err(invalid_parameter_err(format!(
-            "timeoutMs must be a non-negative integer number of milliseconds; got {timeout_ms}"
-        )));
-    }
-    if timeout_ms < 0.0 {
-        return Err(invalid_parameter_err(format!(
-            "timeoutMs must be non-negative; got {timeout_ms}"
-        )));
-    }
-    if timeout_ms.fract() != 0.0 {
-        return Err(invalid_parameter_err(format!(
-            "timeoutMs must be a whole number of milliseconds; got {timeout_ms}"
-        )));
-    }
-    if timeout_ms > u64::MAX as f64 {
-        return Err(invalid_parameter_err(format!(
-            "timeoutMs exceeds the representable millisecond range; got {timeout_ms}"
-        )));
-    }
-    Ok(timeout_ms as u64)
-}
-
-/// Validate an optional non-negative integer query parameter and convert
-/// it to the `i32` domain the core request builders take, leaving an
-/// omitted value (`None`) untouched.
-///
-/// The bounded integer filters (`maxDte`, `strikeRange` — days-to-expiry
-/// and strike windows that are counts, never negative) ride in the options
-/// object as JS `number`s (IEEE-754 doubles). Typing the napi field as
-/// `i32` would route the value through V8's `ToInt32`, which silently
-/// wraps a hostile or oversized input — `3e9` becomes a negative count,
-/// `NaN`/`Infinity` become `0`, and a fractional value is truncated — each
-/// the opposite of a caller's intent. Taking the field as `f64` and
-/// validating here rejects those inputs with `InvalidParameterError`
-/// (the typed class the Python binding raises as `ValueError` for the
-/// identical input) rather than coercing them, so a caller's
-/// `catch (e instanceof InvalidParameterError)` branch ports across
-/// bindings. `param` names the camelCase key in the rejection message.
-pub(crate) fn validate_optional_nonneg_i32(
-    param: &str,
-    value: Option<f64>,
-) -> napi::Result<Option<i32>> {
-    let Some(value) = value else { return Ok(None) };
+/// The integer-typed bindings (Python / C++ / C ABI) cannot represent a
+/// non-finite, negative, or fractional value, and a bare `as`-cast would
+/// silently rewrite a hostile or oversized input (`NaN`/`Infinity` → `0`
+/// or the type max, a fractional value → its truncation, an out-of-range
+/// magnitude → a wrapped value) — each the opposite of a caller's intent.
+/// A rejected value surfaces as `InvalidParameterError`, the typed class
+/// the Python binding raises (`ValueError`) for the identical input, so a
+/// caller's `catch (e instanceof InvalidParameterError)` branch ports
+/// across bindings. `param` names the camelCase key in the message.
+fn validate_nonneg_whole(param: &str, value: f64, max: f64) -> napi::Result<f64> {
     if !value.is_finite() {
         return Err(invalid_parameter_err(format!(
             "{param} must be a non-negative whole number; got {value}"
@@ -439,12 +426,32 @@ pub(crate) fn validate_optional_nonneg_i32(
             "{param} must be a whole number; got {value}"
         )));
     }
-    if value > i32::MAX as f64 {
+    if value > max {
         return Err(invalid_parameter_err(format!(
             "{param} exceeds the representable range; got {value}"
         )));
     }
-    Ok(Some(value as i32))
+    Ok(value)
+}
+
+/// Validate a JavaScript `timeoutMs` deadline and convert it to the
+/// integer millisecond domain the Python, C++, and C ABI bindings take.
+pub(crate) fn validate_timeout_ms(timeout_ms: f64) -> napi::Result<u64> {
+    Ok(validate_nonneg_whole("timeoutMs", timeout_ms, u64::MAX as f64)? as u64)
+}
+
+/// Validate an optional non-negative integer query parameter (the bounded
+/// integer filters `maxDte` / `strikeRange` — counts, never negative) and
+/// convert it to the `i32` domain the core request builders take, leaving
+/// an omitted value (`None`) untouched.
+pub(crate) fn validate_optional_nonneg_i32(
+    param: &str,
+    value: Option<f64>,
+) -> napi::Result<Option<i32>> {
+    let Some(value) = value else { return Ok(None) };
+    Ok(Some(
+        validate_nonneg_whole(param, value, i32::MAX as f64)? as i32
+    ))
 }
 
 /// Run an endpoint round-trip off the runtime's execution thread and
@@ -556,18 +563,22 @@ fn normalize_symbols(symbols: Either<String, Vec<String>>) -> Vec<String> {
     }
 }
 
-fn normalize_date(value: Either<String, chrono::DateTime<chrono::Utc>>) -> String {
+/// A `String` passes through verbatim (the caller supplied a wire-format
+/// literal); a `DateTime` is rendered with `fmt` (`"%Y%m%d"` for dates,
+/// `"%H:%M:%S"` for times).
+fn normalize_dt(value: Either<String, chrono::DateTime<chrono::Utc>>, fmt: &str) -> String {
     match value {
         Either::A(value) => value,
-        Either::B(value) => value.format("%Y%m%d").to_string(),
+        Either::B(value) => value.format(fmt).to_string(),
     }
 }
 
+fn normalize_date(value: Either<String, chrono::DateTime<chrono::Utc>>) -> String {
+    normalize_dt(value, "%Y%m%d")
+}
+
 fn normalize_time(value: Either<String, chrono::DateTime<chrono::Utc>>) -> String {
-    match value {
-        Either::A(value) => value,
-        Either::B(value) => value.format("%H:%M:%S").to_string(),
-    }
+    normalize_dt(value, "%H:%M:%S")
 }
 
 fn normalize_optional_date(
@@ -831,16 +842,9 @@ impl Client {
     /// method returns a `Promise<Client>`.
     #[napi(js_name = "connectFromFile")]
     pub async fn connect_from_file(path: String, config: Option<&Config>) -> napi::Result<Client> {
-        let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
-        let cfg = config_or_production(config);
-        let rt = runtime_from_config(&cfg.runtime);
-        let client = rt
-            .spawn(async move { thetadatadx::Client::connect(&creds, cfg).await })
-            .await
-            .map_err(|e| napi::Error::from_reason(format!("connect task failed to complete: {e}")))?
-            .map_err(to_napi_err)?;
+        let client = connect_historical_from_file_core(path, config_or_production(config)).await?;
         Ok(Client {
-            client: Arc::new(client),
+            client,
             callback: Arc::new(Mutex::new(None)),
         })
     }
@@ -1134,17 +1138,8 @@ impl HistoricalClient {
         path: String,
         config: Option<&Config>,
     ) -> napi::Result<HistoricalClient> {
-        let creds = auth::Credentials::from_file(&path).map_err(to_napi_err)?;
-        let cfg = config_or_production(config);
-        let rt = runtime_from_config(&cfg.runtime);
-        let client = rt
-            .spawn(async move { thetadatadx::Client::connect(&creds, cfg).await })
-            .await
-            .map_err(|e| napi::Error::from_reason(format!("connect task failed to complete: {e}")))?
-            .map_err(to_napi_err)?;
-        Ok(HistoricalClient {
-            client: Arc::new(client),
-        })
+        let client = connect_historical_from_file_core(path, config_or_production(config)).await?;
+        Ok(HistoricalClient { client })
     }
 }
 
@@ -1166,7 +1161,7 @@ include!("_generated/streaming_methods.rs");
 // surface for historical pool sizing, retry policy, reconnect policy,
 // and flat-file backoff.
 mod config_class;
-pub use config_class::{Config, WorkerThreadsSetting};
+pub use config_class::Config;
 
 // Hand-written FLATFILES bindings — dynamic schema, see module docs.
 mod flatfile_methods;

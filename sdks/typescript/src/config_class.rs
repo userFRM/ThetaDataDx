@@ -3,16 +3,6 @@ use std::sync::{Arc, Mutex};
 
 use thetadatadx::config;
 
-/// `(hasValue, n)` shape for the worker-threads setting. `hasValue=false`
-/// encodes the unset sentinel; `hasValue=true` carries the explicit
-/// worker count (with `n=0` preserved verbatim).
-#[napi(object)]
-#[derive(Clone, Copy)]
-pub struct WorkerThreadsSetting {
-    pub has_value: bool,
-    pub n: u32,
-}
-
 /// `(reason, attempt)` argument object handed to the JS reconnect
 /// callback registered via `Config.setReconnectCallback`. `reason` is
 /// the integer disconnect code; `attempt` is the
@@ -270,10 +260,9 @@ impl Config {
         Ok(())
     }
 
-    /// Set the async worker-thread count for embedded runtimes.
-    /// `hasValue=false` defers to the default sizing; `hasValue=true`
-    /// pins worker count to `n` (with `n=0` preserved verbatim rather
-    /// than treated as unset).
+    /// Set the async worker-thread count for embedded runtimes. `null`
+    /// (or omitted) defers to the default sizing; a number pins the worker
+    /// count (with `0` preserved verbatim rather than treated as unset).
     ///
     /// The async worker pool is process-global: it is built once, from the
     /// config of the first client connected in the process. This setting
@@ -281,33 +270,27 @@ impl Config {
     /// created; clients connected later share the already-built pool, so
     /// setting it on a subsequent config has no effect.
     #[napi(js_name = "setWorkerThreads")]
-    pub fn set_worker_threads(&self, has_value: bool, n: u32) -> napi::Result<()> {
+    pub fn set_worker_threads(&self, n: Option<u32>) -> napi::Result<()> {
         let mut guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.runtime.tokio_worker_threads = if has_value { Some(n as usize) } else { None };
+        guard.runtime.tokio_worker_threads = n.map(|n| n as usize);
         Ok(())
     }
 
-    /// Current `workerThreads` setting as `{ hasValue, n }`.
-    /// `hasValue=false` encodes the unset (auto) sentinel.
+    /// Current `workerThreads` setting, or `null` for the unset (auto)
+    /// sentinel. An explicit `0` is preserved verbatim.
     #[napi(getter, js_name = "workerThreads")]
-    pub fn worker_threads(&self) -> napi::Result<WorkerThreadsSetting> {
+    pub fn worker_threads(&self) -> napi::Result<Option<u32>> {
         let guard = self
             .inner
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(match guard.runtime.tokio_worker_threads {
-            Some(n) => WorkerThreadsSetting {
-                has_value: true,
-                n: u32::try_from(n).unwrap_or(u32::MAX),
-            },
-            None => WorkerThreadsSetting {
-                has_value: false,
-                n: 0,
-            },
-        })
+        Ok(guard
+            .runtime
+            .tokio_worker_threads
+            .map(|n| u32::try_from(n).unwrap_or(u32::MAX)))
     }
 
     // `retry.initial_delay` / `retry.max_delay` (ms) getters, the
