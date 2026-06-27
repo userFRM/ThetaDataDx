@@ -186,7 +186,7 @@ async fn main() -> Result<(), thetadatadx::Error> {
 }
 ```
 
-`build()` returns a `RecordBatchStream` that implements `futures::Stream`; call `.blocking()` for a synchronous `Iterator` instead. Dropping it (or `close()`) tears the session down.
+`build()` returns a `RecordBatchStream` that implements `futures::Stream`; call `.next_blocking()` to pull batches synchronously (one per call) instead. Dropping it (or `close()`) tears the session down.
 
 </template>
 
