@@ -1317,34 +1317,11 @@ pub(crate) const ALLOWED_UNIFIED_PROXY_METHODS: &[&str] = &[
     // the allowlist check, identical to the sync client.
 ];
 
-/// Allowlisted proxy names that now resolve on the `client.stream`
-/// [`StreamView`] surface rather than on `Client` directly. The
-/// `AsyncClient.__getattr__` proxy reaches these through
-/// `client.stream.<name>`. Every entry must appear in either
-/// `PYTHON_UNIFIED_FPSS_METHODS` (generated streaming block) or the
-/// hand-written `StreamView` methods in `lib.rs`; the remaining
-/// allowlisted names (`streaming`, `flat_files`) stay on `Client` and
-/// resolve directly.
-const STREAM_VIEW_PROXY_METHODS: &[&str] = &[
-    "subscribe",
-    "subscribe_many",
-    "unsubscribe",
-    "unsubscribe_many",
-    "active_subscriptions",
-    "active_full_subscriptions",
-    "start_streaming",
-    "stop_streaming",
-    "shutdown",
-    "reconnect",
-    "is_streaming",
-    "await_drain",
-    "dropped_event_count",
-    "panic_count",
-    "ring_occupancy",
-    "ring_capacity",
-    "slow_callback_count",
-    "set_slow_callback_threshold_us",
-];
+/// Allowlisted names that stay on `Client` and resolve directly rather
+/// than via the `client.stream` [`StreamView`] surface. The stream-view
+/// proxy set is [`ALLOWED_UNIFIED_PROXY_METHODS`] minus these two, derived
+/// inline in `AsyncClient.__getattr__` so the lists cannot drift.
+const DIRECT_ON_CLIENT: [&str; 2] = ["streaming", "flat_files"];
 
 /// Hand-written `#[pymethods]` entries on `Client` outside
 /// the generator-emitted streaming surface (`PYTHON_UNIFIED_FPSS_METHODS`).
@@ -1382,11 +1359,10 @@ const HANDWRITTEN_UNIFIED_PYMETHODS: &[&str] = &[
     "set_slow_callback_threshold_us",
 ];
 
-/// `const fn` byte-equal helper for the compile-time guard below.
-/// PyO3 attribute names are ASCII; byte equality is exact.
-const fn const_str_eq(a: &str, b: &str) -> bool {
-    let a = a.as_bytes();
-    let b = b.as_bytes();
+/// `const fn` byte-equal helper for the compile-time guards in this
+/// crate. PyO3 attribute names are ASCII, so byte equality on the
+/// `str` bytes is an exact name compare.
+pub(crate) const fn const_bytes_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }
@@ -1413,7 +1389,10 @@ const _: () = {
         let mut found = false;
         let mut j = 0;
         while j < HANDWRITTEN_UNIFIED_PYMETHODS.len() {
-            if const_str_eq(HANDWRITTEN_UNIFIED_PYMETHODS[j], needle) {
+            if const_bytes_eq(
+                HANDWRITTEN_UNIFIED_PYMETHODS[j].as_bytes(),
+                needle.as_bytes(),
+            ) {
                 found = true;
                 break;
             }
@@ -1422,7 +1401,7 @@ const _: () = {
         if !found {
             let mut k = 0;
             while k < PYTHON_UNIFIED_FPSS_METHODS.len() {
-                if const_str_eq(PYTHON_UNIFIED_FPSS_METHODS[k], needle) {
+                if const_bytes_eq(PYTHON_UNIFIED_FPSS_METHODS[k].as_bytes(), needle.as_bytes()) {
                     found = true;
                     break;
                 }
@@ -1577,7 +1556,7 @@ impl AsyncClient {
             let historical = bound.getattr("historical")?;
             return Ok(historical.getattr(name)?.unbind());
         }
-        if STREAM_VIEW_PROXY_METHODS.contains(&name) {
+        if ALLOWED_UNIFIED_PROXY_METHODS.contains(&name) && !DIRECT_ON_CLIENT.contains(&name) {
             let stream = bound.getattr("stream")?;
             return Ok(stream.getattr(name)?.unbind());
         }
