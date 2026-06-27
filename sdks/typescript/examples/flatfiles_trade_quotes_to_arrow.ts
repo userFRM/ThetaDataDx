@@ -11,29 +11,36 @@
 import { Client } from "thetadatadx";
 import { tableFromIPC } from "apache-arrow";
 
-const client = Client.connectFromFile("creds.txt");
+async function main(): Promise<void> {
+  const client = await Client.connectFromFile("creds.txt");
 
-// Whole-universe option trade-quotes for one trading day.
-const rows = client.flatFiles.optionTradeQuote("20260428");
-console.log(`option_trade_quote rows: ${rows.len()}`);
+  // Whole-universe option trade-quotes for one trading day.
+  const rows = client.flatFiles.optionTradeQuote("20260428");
+  console.log(`option_trade_quote rows: ${rows.len()}`);
 
-// Apache Arrow table -- one column per vendor field plus the contract
-// key columns (symbol, expiration, strike, right). Schema inferred
-// from the first row by `flatfiles::arrow::rows_to_arrow`.
-const ipc = rows.toArrowIpc();
-const table = tableFromIPC(ipc);
-console.log(table.schema.fields.map((f) => `${f.name}:${f.type}`).join(", "));
+  // Apache Arrow table -- one column per vendor field plus the contract
+  // key columns (symbol, expiration, strike, right). Schema inferred
+  // from the first row by `flatfiles::arrow::rows_to_arrow`.
+  const ipc = rows.toArrowIpc();
+  const table = tableFromIPC(ipc);
+  console.log(table.schema.fields.map((f) => `${f.name}:${f.type}`).join(", "));
 
-// Same path, dispatched dynamically.
-const oi = client.flatFiles.request("OPTION", "OPEN_INTEREST", "20260428");
-console.log(`open_interest rows: ${oi.len()}`);
+  // Same path, dispatched dynamically.
+  const oi = client.flatFiles.request("OPTION", "OPEN_INTEREST", "20260428");
+  console.log(`open_interest rows: ${oi.len()}`);
 
-// Drop raw vendor CSV bytes to disk without materialising rows.
-const path = client.flatFileToPath(
-  "OPTION",
-  "TRADE_QUOTE",
-  "20260428",
-  "/tmp/option-trade-quote",
-  "csv",
-);
-console.log(`raw vendor CSV at ${path}`);
+  // Drop raw vendor CSV bytes to disk without materialising rows.
+  const path = client.flatFileToPath(
+    "OPTION",
+    "TRADE_QUOTE",
+    "20260428",
+    "/tmp/option-trade-quote",
+    "csv",
+  );
+  console.log(`raw vendor CSV at ${path}`);
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

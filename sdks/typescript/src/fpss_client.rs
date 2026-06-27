@@ -81,6 +81,47 @@ const DISPATCHER_TEARDOWN_WAKE_GRACE: Duration = Duration::from_millis(250);
 /// Poll cadence for the grace window above.
 const DISPATCHER_TEARDOWN_POLL: Duration = Duration::from_millis(1);
 
+/// Extract a human-readable reason from a panic payload. The standard
+/// panic payload is `&str` or `String`; anything else falls back to a
+/// fixed string. Shared by the dispatcher thread's self-recording path
+/// and the teardown join's `Err(_)` path so both spell the reason the
+/// same way.
+fn panic_reason(payload: &(dyn std::any::Any + Send)) -> String {
+    if let Some(s) = payload.downcast_ref::<&str>() {
+        (*s).to_owned()
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.clone()
+    } else {
+        "dispatcher panicked with non-string payload".to_owned()
+    }
+}
+
+/// Record `Failed` from the dispatcher thread after a caught outer panic,
+/// but ONLY while the session slot still holds THIS thread's `Running`
+/// session.
+///
+/// Called from the dispatcher thread itself, so `std::thread::current()`
+/// is that dispatcher. A concurrent `stopStreaming` / `reconnect` may have
+/// already extracted the session (slot `Idle`, its own join about to
+/// record the panic) or installed a fresh one; in either case the panic
+/// belongs to the now-superseded old session and overwriting the slot
+/// would clobber a newer `JoinHandle` or falsely fail a healthy session.
+/// Matching the stored handle's thread id to the current thread is what
+/// pins the write to the un-superseded case.
+fn record_own_dispatcher_panic(session: &Mutex<DispatcherSession>, reason: String) {
+    let mut guard = session
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let is_own_running = matches!(
+        &*guard,
+        DispatcherSession::Running { handle, .. }
+            if handle.thread().id() == std::thread::current().id()
+    );
+    if is_own_running {
+        *guard = DispatcherSession::Failed { reason };
+    }
+}
+
 /// Join a dispatcher thread, firing its teardown wake hook only if it does not
 /// exit on its own within [`DISPATCHER_TEARDOWN_WAKE_GRACE`].
 ///
@@ -324,9 +365,15 @@ pub struct StreamingClient {
     /// stacked stop/start cycles can layer multiple in-flight ring
     /// consumers, and `awaitDrain` waits for all of them.
     prev_drained: Mutex<Vec<Arc<AtomicBool>>>,
-    /// Dispatcher thread lifecycle. Panic state is derived from
-    /// `JoinHandle::join()` returning `Err(_)`.
-    dispatcher: Mutex<DispatcherSession>,
+    /// Dispatcher thread lifecycle. Panic state is set two ways: a
+    /// teardown (`stopStreaming` / `Drop`) derives it from
+    /// `JoinHandle::join()` returning `Err(_)`, and the dispatcher thread
+    /// itself records `Failed` directly when its outer `catch_unwind`
+    /// catches an event-iteration panic, so `isStreaming()` /
+    /// `isAuthenticated()` fold to `false` the moment delivery dies even if
+    /// no teardown is ever called. Wrapped in `Arc` so the dispatcher
+    /// thread holds its own handle to publish that state.
+    dispatcher: Arc<Mutex<DispatcherSession>>,
 }
 
 impl Drop for StreamingClient {
@@ -419,7 +466,7 @@ impl StreamingClient {
         let dispatch_cb = Arc::clone(&callback);
 
         let params = self.params.clone();
-        let join_result = runtime()
+        let join_result = runtime()?
             .spawn_blocking(move || params.builder().build())
             .await;
         let build_result = match join_result {
@@ -468,24 +515,24 @@ impl StreamingClient {
         drop(callback);
 
         let dispatcher_client = Arc::clone(&client_arc);
+        // Hand the dispatcher thread its own handle to the session slot so
+        // it can publish `Failed` directly on a caught outer panic, rather
+        // than relying on a future teardown's `JoinHandle::join()` to
+        // observe the panic. Without this, an outer (non-callback) panic
+        // leaves the thread dead but the slot stuck on `Running`, so
+        // `isStreaming()` / `isAuthenticated()` keep reporting healthy
+        // after delivery has died.
+        let dispatcher_session = Arc::clone(&self.dispatcher);
         let dispatcher = std::thread::Builder::new()
             .name("thetadatadx-ts-fpss-dispatcher".into())
             .spawn(move || {
                 // `for_each_scoped` drives `poll_batch`, which wraps each
                 // callback invocation in its own `catch_unwind`; a panic in
                 // the per-event machinery here is caught by the outer guard
-                // and recorded as `Failed`. There is no GIL to bracket, so
-                // the scope is the identity closure — the wait between
-                // batches happens outside it as usual.
-                // A panic escaping the event-iteration machinery (NOT a
-                // user-callback panic — those are caught per-invocation
-                // inside `poll_batch`) ends the thread. `stopStreaming`
-                // observes it through `JoinHandle::join()` returning
-                // `Err(_)` and records `DispatcherSession::Failed`, which
-                // folds `isStreaming()` / `isAuthenticated()` back to
-                // `false`; that state is the observable signal, so no
-                // logging dependency is pulled into this binding crate.
-                let _outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                // below. There is no GIL to bracket, so the scope is the
+                // identity closure — the wait between batches happens
+                // outside it as usual.
+                let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     dispatcher_client.for_each_scoped(
                         |event: &fpss::StreamEvent| {
                             // Convert the borrowed event to the typed napi
@@ -511,6 +558,26 @@ impl StreamingClient {
                         |drain| drain(),
                     );
                 }));
+                // A panic escaping the event-iteration machinery (NOT a
+                // user-callback panic — those are caught per-invocation
+                // inside `poll_batch`) ends the thread. Record `Failed` from
+                // here so the state flips even if no teardown is ever called.
+                // Write it ONLY while the slot still holds THIS thread's
+                // `Running` session: a concurrent `stopStreaming` /
+                // `reconnect` may have already taken the session out (leaving
+                // `Idle`, then joining) or installed a fresh session, and the
+                // panic belongs to the now-superseded old one — overwriting
+                // unconditionally would clobber a newer session's `JoinHandle`
+                // or falsely report a healthy live session as failed. The
+                // teardown's own `JoinHandle::join()` path still records the
+                // panic for the raced case. The lock is released the instant
+                // the guard drops; no user code runs under it.
+                if let Err(payload) = outcome {
+                    record_own_dispatcher_panic(
+                        &dispatcher_session,
+                        panic_reason(payload.as_ref()),
+                    );
+                }
             });
         match dispatcher {
             Ok(h) => {
@@ -567,8 +634,9 @@ impl StreamingClient {
         // Seed the process-global runtime from this client's runtime config
         // so `workerThreads` is honored when this is the first client in
         // the process, even though the streaming connection is opened lazily by
-        // `startStreaming`.
-        crate::runtime_from_config(&direct.runtime);
+        // `startStreaming`. A runtime-build failure surfaces here as a typed
+        // error rather than being deferred to the first `startStreaming`.
+        crate::runtime_from_config(&direct.runtime)?;
         let params = params_from_direct(&creds.inner, &direct)?;
         Ok(StreamingClient::from_params(params))
     }
@@ -587,8 +655,9 @@ impl StreamingClient {
         // Seed the process-global runtime from this client's runtime config
         // so `workerThreads` is honored when this is the first client in
         // the process, even though the streaming connection is opened lazily by
-        // `startStreaming`.
-        crate::runtime_from_config(&direct.runtime);
+        // `startStreaming`. A runtime-build failure surfaces here as a typed
+        // error rather than being deferred to the first `startStreaming`.
+        crate::runtime_from_config(&direct.runtime)?;
         let params = params_from_direct(&creds, &direct)?;
         Ok(StreamingClient::from_params(params))
     }
@@ -896,15 +965,14 @@ impl StreamingClient {
                         // `isAuthenticated()` report the failed state if
                         // streaming is restarted without re-checking. The
                         // `Failed` state is the observable signal; no
-                        // logging dependency is pulled into this crate.
-                        let reason = if let Some(s) = payload.downcast_ref::<&str>() {
-                            (*s).to_owned()
-                        } else if let Some(s) = payload.downcast_ref::<String>() {
-                            s.clone()
-                        } else {
-                            "dispatcher panicked with non-string payload".to_owned()
+                        // logging dependency is pulled into this crate. The
+                        // dispatcher thread may already have recorded `Failed`
+                        // itself; re-stating it here is harmless (the slot is
+                        // `Idle` after the extract above, so this is the sole
+                        // writer for the teardown-observed-panic case).
+                        *self.lock_dispatcher() = DispatcherSession::Failed {
+                            reason: panic_reason(payload.as_ref()),
                         };
-                        *self.lock_dispatcher() = DispatcherSession::Failed { reason };
                     }
                 }
             }
@@ -965,7 +1033,7 @@ impl StreamingClient {
                 "streaming not started -- call startStreaming(callback) first",
             ));
         };
-        runtime()
+        runtime()?
             .spawn_blocking(move || inner.restore_subscriptions(&per_contract, &full_stream))
             .await
             .map_err(|e| napi::Error::from_reason(format!("reconnect task panicked: {e}")))?
@@ -977,7 +1045,12 @@ impl StreamingClient {
     /// all retired generations have drained, `false` on timeout. Polls at
     /// 1 ms cadence on a worker so the Node event loop stays free.
     #[napi(js_name = "awaitDrain")]
-    pub async fn await_drain(&self, timeout_ms: u32) -> napi::Result<bool> {
+    pub async fn await_drain(&self, timeout_ms: f64) -> napi::Result<bool> {
+        // `timeout_ms` arrives as `f64`: a bare `u32` napi arg is V8
+        // `ToUint32`, which wraps a hostile `-1` / `2**32` and truncates a
+        // fractional value. Validate at the boundary (`0` is a legal
+        // "poll once" timeout, so the plain validator).
+        let timeout_ms = crate::validate_u32_arg("timeoutMs", timeout_ms)?;
         let timeout = Duration::from_millis(u64::from(timeout_ms));
         // Snapshot the retired-generation flags; the poll loop is a cheap
         // sleep loop that owns its own `Arc`s, so it can run on a blocking
@@ -987,7 +1060,7 @@ impl StreamingClient {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone();
-        let drained = runtime()
+        let drained = runtime()?
             .spawn_blocking(move || {
                 let deadline = Instant::now() + timeout;
                 let mut pending = flags;
@@ -1025,7 +1098,7 @@ impl StreamingClient {
             inner: Mutex::new(None),
             callback: Mutex::new(None),
             prev_drained: Mutex::new(Vec::new()),
-            dispatcher: Mutex::new(DispatcherSession::Idle),
+            dispatcher: Arc::new(Mutex::new(DispatcherSession::Idle)),
         }
     }
 }
@@ -1121,6 +1194,74 @@ mod tests {
 
         // The snapshot must build without panicking with every knob set.
         let _ = params.builder();
+    }
+}
+
+#[cfg(test)]
+mod dispatcher_panic_recording_tests {
+    //! The dispatcher thread records `Failed` on a caught outer panic so
+    //! `isStreaming()` / `isAuthenticated()` fold to `false` the moment
+    //! delivery dies — even if no teardown is ever called. The write is
+    //! gated to the un-superseded session (the slot still holds THIS
+    //! thread's `Running` handle), so a raced teardown / reconnect is not
+    //! clobbered. These tests drive the real `record_own_dispatcher_panic`
+    //! decision with real spawned threads (no napi `Env` needed).
+    use super::*;
+
+    /// A dispatcher thread whose own handle is the slot's `Running` session
+    /// records `Failed`. `installed` gates the record until the main thread
+    /// has stored the dispatcher's handle (so `current().id()` matches the
+    /// stored handle); `recorded` gates the assertion until the write lands.
+    #[test]
+    fn records_failed_when_slot_holds_own_running_session() {
+        let session: Arc<Mutex<DispatcherSession>> = Arc::new(Mutex::new(DispatcherSession::Idle));
+        let installed = Arc::new(std::sync::Barrier::new(2));
+        let recorded = Arc::new(std::sync::Barrier::new(2));
+
+        let dispatcher = std::thread::Builder::new()
+            .name("test-dispatcher-self-record".into())
+            .spawn({
+                let session = Arc::clone(&session);
+                let installed = Arc::clone(&installed);
+                let recorded = Arc::clone(&recorded);
+                move || {
+                    installed.wait();
+                    record_own_dispatcher_panic(&session, "boom".to_owned());
+                    recorded.wait();
+                }
+            })
+            .expect("spawn dispatcher");
+        *session.lock().unwrap() = DispatcherSession::Running {
+            handle: dispatcher,
+            on_teardown: None,
+            registers_drain_flag: true,
+        };
+        installed.wait();
+        recorded.wait();
+
+        let reason = match &*session
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        {
+            DispatcherSession::Failed { reason } => reason.clone(),
+            _ => panic!("expected the dispatcher self-record to flip the slot to Failed"),
+        };
+        assert_eq!(reason, "boom");
+    }
+
+    /// When the slot has been superseded (a teardown left it `Idle`), the
+    /// dispatcher thread does NOT overwrite it — the teardown's own join
+    /// owns the panic for that race.
+    #[test]
+    fn does_not_overwrite_a_superseded_idle_slot() {
+        let session: Arc<Mutex<DispatcherSession>> = Arc::new(Mutex::new(DispatcherSession::Idle));
+        // No `Running` session is installed for this thread, so the slot is
+        // not "own running" and must stay untouched.
+        record_own_dispatcher_panic(&session, "boom".to_owned());
+        assert!(
+            matches!(&*session.lock().unwrap(), DispatcherSession::Idle),
+            "a superseded (Idle) slot must not be clobbered by the dispatcher self-record",
+        );
     }
 }
 

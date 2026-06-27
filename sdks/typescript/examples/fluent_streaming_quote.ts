@@ -12,7 +12,7 @@
 import { Contract, SecType, Client } from "thetadatadx";
 
 async function main(): Promise<void> {
-  const client = Client.connectFromFile("creds.txt");
+  const client = await Client.connectFromFile("creds.txt");
 
   // Fluent contract-first construction.
   const stock = Contract.stock("AAPL");

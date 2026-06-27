@@ -606,6 +606,24 @@ fn rust_lit(raw: &str) -> String {
     raw.replace('"', "\\\"")
 }
 
+/// The TypeScript `u32` setter validator for an accessor: the napi
+/// boundary takes the argument as `f64` (V8 `ToUint32` on a bare `u32`
+/// silently wraps `-1`/`2**32` and truncates `1.5`) and routes it through
+/// a finite/whole/range check. A burst-size or attempt-budget knob — a
+/// value the core rejects at `0` — additionally floors at `1`; every
+/// other `u32` knob (iteration counts, keepalive retries) allows `0`.
+///
+/// The `_attempts` suffix and the `replay_burst_size` field are the
+/// min-1 set; both spellings come straight off the field name so a new
+/// attempt-budget row inherits the floor without a per-row flag.
+fn ts_u32_validator(field: &str) -> &'static str {
+    if field.ends_with("_attempts") || field == "reconnect_replay_burst_size" {
+        "validate_u32_arg_min1"
+    } else {
+        "validate_u32_arg"
+    }
+}
+
 /// The Rust scalar type each abi maps to on the PyO3 surface.
 fn py_type(abi: &str) -> &'static str {
     match abi {
@@ -962,7 +980,19 @@ pub(super) fn render_typescript_config_accessors() -> Result<String, Box<dyn std
                             _ => "value".to_string(),
                         },
                     ),
-                    "u32" => ("u32", String::new(), param.to_string()),
+                    // `u32` arrives as `f64` and is validated at the napi
+                    // boundary; the attempt budgets here additionally floor
+                    // at 1 (see `ts_u32_validator`). The diagnostic names the
+                    // camelCase JS key, not the Rust param.
+                    "u32" => (
+                        "f64",
+                        format!(
+                            "        let value = crate::{}(\"{camel}\", {param})?;\n",
+                            ts_u32_validator(field),
+                            camel = to_camel_case(field),
+                        ),
+                        "value".to_string(),
+                    ),
                     other => panic!("config_surface: policy_limit abi '{other}'"),
                 };
                 write!(
@@ -1000,7 +1030,20 @@ pub(super) fn render_typescript_config_accessors() -> Result<String, Box<dyn std
                     ),
                     "value".to_string(),
                 ),
-                "u32" => ("u32".to_string(), String::new(), param.to_string()),
+                // `u32` arrives as `f64` and is validated at the napi
+                // boundary so a hostile `-1` / `1.5` / `2**32` is rejected
+                // rather than silently wrapped by V8 `ToUint32`. Attempt
+                // budgets additionally floor at 1 (`ts_u32_validator`); the
+                // diagnostic names the camelCase JS key.
+                "u32" => (
+                    "f64".to_string(),
+                    format!(
+                        "        let value = crate::{}(\"{camel}\", {param})?;\n",
+                        ts_u32_validator(field),
+                        camel = to_camel_case(field),
+                    ),
+                    "value".to_string(),
+                ),
                 "bool" => ("bool".to_string(), String::new(), param.to_string()),
                 other => panic!("config_surface: unmapped abi_type '{other}'"),
             };

@@ -209,10 +209,17 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             // `Promise<boolean>` on the JS side.
             writeln!(
                 out,
-                "    pub async fn {}(&self, timeout_ms: u32) -> napi::Result<bool> {{",
+                "    pub async fn {}(&self, timeout_ms: f64) -> napi::Result<bool> {{",
                 method.name,
             )
             .unwrap();
+            // `timeout_ms` arrives as `f64`: V8 `ToUint32` on a bare `u32`
+            // arg silently wraps a hostile `-1` / `2**32` and truncates a
+            // fractional value, so it is validated at the napi boundary
+            // (`0` is a legal "poll once" timeout, so the plain validator).
+            out.push_str(
+                "        let timeout_ms = crate::validate_u32_arg(\"timeoutMs\", timeout_ms)?;\n",
+            );
             // Clone the Arc<thetadatadx::Client> so the blocking
             // closure can outlive `&self` — `spawn_blocking` requires
             // `'static`. The polling itself is cheap (1 ms sleep loop)
