@@ -319,14 +319,13 @@ pub mod streaming {
     /// batches under a fixed schema rather than one event at a time. Open it
     /// with `client.stream().batches()`, tune `batch_size` / `linger` /
     /// `backpressure` on the returned [`BatchReaderBuilder`], then pull
-    /// batches with the [`futures_core::Stream`] impl or the
-    /// [`RecordBatchStream::blocking`] iterator. See
-    /// [`crate::fpss::batch_schema::stream_batch_schema`] for the layout.
+    /// batches with the [`futures_core::Stream`] impl or `next_blocking`.
+    /// See [`crate::fpss::batch_schema::stream_batch_schema`] for the layout.
     #[cfg(feature = "arrow")]
     #[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
     pub use crate::fpss::batch_reader::{
-        ArrowRecordBatchReader, Backpressure, BatchReaderBuilder, BlockingRecordBatchIter,
-        RecordBatchStream, DEFAULT_BATCH_SIZE, DEFAULT_LINGER, DEFAULT_QUEUE_DEPTH,
+        Backpressure, BatchReaderBuilder, RecordBatchStream, DEFAULT_BATCH_SIZE, DEFAULT_LINGER,
+        DEFAULT_QUEUE_DEPTH,
     };
 
     /// Estimated Arrow IPC stream size, in bytes, for a single batch of
@@ -420,9 +419,9 @@ pub mod historical {
 pub mod flatfiles_api {
     pub use crate::client::FlatFiles;
     pub use crate::flatfiles::{
-        default_output_filename as flatfile_default_filename, flatfile_request,
-        flatfile_request_decoded, flatfile_request_raw, FlatFileFormat, FlatFileRow, FlatFileValue,
-        FlatFilesUnavailableReason, ReqType as FlatFileReqType, SecType as FlatFileSecType,
+        flatfile_request, flatfile_request_decoded, flatfile_request_raw, FlatFileFormat,
+        FlatFileRow, FlatFileValue, FlatFilesUnavailableReason, ReqType as FlatFileReqType,
+        SecType as FlatFileSecType,
     };
 }
 pub use flatfiles_api::*;
@@ -440,7 +439,7 @@ pub use crate::tdbe::types::tick::{
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
 pub use crate::tdbe::types::enums::{
-    DataType, Interval, RateType, RemoveReason, RequestType, Right, SecType, StreamMsgType,
+    Interval, RateType, RemoveReason, RequestType, Right, SecType, StreamMsgType,
     StreamResponseType, Venue, Version,
 };
 /// Variable-precision fixed-point price encoding (`value` / `price_type`

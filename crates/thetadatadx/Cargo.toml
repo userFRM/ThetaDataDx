@@ -295,10 +295,6 @@ harness = false
 required-features = ["__internal"]
 
 [[bench]]
-name = "bench_framing"
-harness = false
-
-[[bench]]
 # Uses the test-only `protocol::test_wire` re-exports for FPSS payload
 # builders — gated on `__test-helpers` so the wire helpers stay out of
 # the default rlib.
@@ -367,22 +363,10 @@ harness = false
 required-features = ["__test-helpers"]
 
 # Data-format layer micro-benchmarks. These exercise the internal `tdbe`
-# module directly: the FIT nibble codec, the Black-Scholes Greek
-# primitives, the `Price` fixed-point conversions, the enum lookups, and
-# the tick field accessors. `bench_fit` / `bench_greeks` /
-# `bench_price` reach the codec, full Black-Scholes, and fixed-point price
-# encoding surfaces re-exported behind `__internal`; `bench_enums` /
+# module directly: the Black-Scholes Greek primitives, the enum lookups,
+# and the tick field accessors. `bench_greeks` reaches the full
+# Black-Scholes surface re-exported behind `__internal`; `bench_enums` /
 # `bench_tick` ride the stable public types.
-[[bench]]
-name = "bench_fit"
-harness = false
-required-features = ["__internal"]
-
-[[bench]]
-name = "bench_price"
-harness = false
-required-features = ["__internal"]
-
 [[bench]]
 name = "bench_greeks"
 harness = false

@@ -26,6 +26,7 @@ use std::time::{Duration, Instant};
 
 use crate::tdbe::types::enums::StreamMsgType;
 
+#[cfg(any(test, feature = "__test-helpers"))]
 use super::protocol::READ_TIMEOUT_MS;
 
 /// Windows `ERROR_IO_PENDING` raw OS error code.
@@ -143,61 +144,7 @@ impl FrameReadState {
     }
 }
 
-/// A decoded FPSS frame: message code + payload bytes.
-///
-/// The `code` is the raw `StreamMsgType` enum value. Payload is a `Vec<u8>`
-/// of length 0..255 as specified by the wire length byte.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Frame {
-    /// Message type code (maps to [`StreamMsgType`]).
-    pub code: StreamMsgType,
-    /// Raw payload bytes.
-    pub payload: Vec<u8>,
-}
-
-impl Frame {
-    /// Create a new frame with the given message type and payload.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `payload.len() > 255` (FPSS protocol limit).
-    #[must_use]
-    pub fn new(code: StreamMsgType, payload: Vec<u8>) -> Self {
-        assert!(
-            payload.len() <= MAX_PAYLOAD_LEN,
-            "FPSS frame payload exceeds 255 bytes: {}",
-            payload.len()
-        );
-        Self { code, payload }
-    }
-}
-
 const MAX_CONSECUTIVE_UNKNOWN_CODES: usize = 5;
-
-/// Read the 2-byte FPSS header.
-///
-/// Thin wrapper that plugs the production [`READ_TIMEOUT_MS`] deadline
-/// and the production [`MID_FRAME_DRAIN_WINDOW_MS`] drain budget into
-/// [`read_header_with_timeout`]. Splitting the function lets tests
-/// exercise the timeout/retry contract with a short deadline and a
-/// short drain budget independently.
-fn read_header<R: Read>(
-    reader: &mut R,
-    state: &mut FrameReadState,
-    stall_timeout: Duration,
-) -> Result<Option<[u8; 2]>, crate::error::Error> {
-    // The per-frame hard cap is tied to `stall_timeout`: a single FPSS
-    // frame (≤ 257 bytes on the wire) never legitimately takes longer
-    // than the read deadline to fully arrive, so the same budget that
-    // bounds one stall also bounds the whole frame against a trickler.
-    read_header_with_timeout(
-        reader,
-        state,
-        stall_timeout,
-        Duration::from_millis(MID_FRAME_DRAIN_WINDOW_MS),
-        stall_timeout,
-    )
-}
 
 /// Read the 2-byte FPSS header with configurable per-stall timeout
 /// and drain-yield budget.
@@ -351,32 +298,6 @@ fn read_header_with_timeout<R: Read>(
             Err(e) => return Err(e.into()),
         }
     }
-}
-
-/// Read exactly `buf.len()` bytes of payload.
-///
-/// Thin wrapper that plugs the production [`READ_TIMEOUT_MS`] deadline
-/// and the [`MID_FRAME_DRAIN_WINDOW_MS`] drain budget into
-/// [`read_exact_payload_with_timeout`]. Splitting the function lets
-/// tests exercise the timeout/retry contract with a short deadline.
-fn read_exact_payload<R: Read>(
-    reader: &mut R,
-    buf: &mut [u8],
-    state: &mut FrameReadState,
-    stall_timeout: Duration,
-) -> Result<(), crate::error::Error> {
-    // Per-frame hard cap tied to `stall_timeout`; see `read_header` for
-    // the rationale. The deadline persisted on `state` already carries
-    // the header-phase elapsed time, so the payload phase continues the
-    // same per-frame budget rather than restarting it.
-    read_exact_payload_with_timeout(
-        reader,
-        buf,
-        state,
-        stall_timeout,
-        Duration::from_millis(MID_FRAME_DRAIN_WINDOW_MS),
-        stall_timeout,
-    )
 }
 
 /// Read exactly `buf.len()` bytes of payload with configurable
@@ -535,6 +456,11 @@ pub(crate) fn is_binary_payload(payload: &[u8]) -> bool {
 /// # Errors
 ///
 /// Returns an error on network, authentication, or parsing failure.
+///
+/// Production reads go through [`read_frame_into_with_stall_timeout`] directly
+/// (the I/O loop owns the deadline); this default-timeout wrapper exists for
+/// the frame-pipeline integration tests, so it is gated to those builds.
+#[cfg(any(test, feature = "__test-helpers"))]
 pub fn read_frame_into<R: Read>(
     reader: &mut R,
     buf: &mut Vec<u8>,
@@ -543,11 +469,10 @@ pub fn read_frame_into<R: Read>(
     read_frame_into_with_stall_timeout(reader, buf, state, Duration::from_millis(READ_TIMEOUT_MS))
 }
 
-/// Like [`read_frame_into`] but takes the per-stall mid-frame timeout
-/// from the caller instead of the parity-reference [`READ_TIMEOUT_MS`]
-/// default. The I/O loop threads the user-supplied
-/// [`crate::config::StreamingConfig::timeout_ms`] through this entry point
-/// so the public knob actually controls the framing stall budget.
+/// Takes the per-stall mid-frame timeout from the caller instead of the
+/// parity-reference `READ_TIMEOUT_MS` default. The I/O loop threads the
+/// user-supplied [`crate::config::StreamingConfig::timeout_ms`] through this
+/// entry point so the public knob actually controls the framing stall budget.
 ///
 /// # Errors
 ///
@@ -563,7 +488,18 @@ pub fn read_frame_into_with_stall_timeout<R: Read>(
         // have both. A drain-yield here preserves partial progress
         // via `state.header_read`.
         if !state.payload_phase {
-            let Some(header) = read_header(reader, state, stall_timeout)? else {
+            // The per-frame hard cap is tied to `stall_timeout`: a single FPSS
+            // frame (≤ 257 bytes on the wire) never legitimately takes longer
+            // than the read deadline to fully arrive, so the same budget that
+            // bounds one stall also bounds the whole frame against a trickler.
+            let header = read_header_with_timeout(
+                reader,
+                state,
+                stall_timeout,
+                Duration::from_millis(MID_FRAME_DRAIN_WINDOW_MS),
+                stall_timeout,
+            )?;
+            let Some(header) = header else {
                 // Clean EOF before any byte of this frame — reset the
                 // state to idle so the next caller-driven frame starts
                 // fresh if the stream reopens (reconnect path).
@@ -588,7 +524,18 @@ pub fn read_frame_into_with_stall_timeout<R: Read>(
         let payload_len = state.payload_len;
         let code_byte = state.header_buf[1];
         if payload_len > 0 {
-            read_exact_payload(reader, &mut buf[..payload_len], state, stall_timeout)?;
+            // Per-frame hard cap tied to `stall_timeout`; see the header phase
+            // above. The deadline persisted on `state` already carries the
+            // header-phase elapsed time, so the payload phase continues the
+            // same per-frame budget rather than restarting it.
+            read_exact_payload_with_timeout(
+                reader,
+                &mut buf[..payload_len],
+                state,
+                stall_timeout,
+                Duration::from_millis(MID_FRAME_DRAIN_WINDOW_MS),
+                stall_timeout,
+            )?;
         }
 
         // Frame complete — decide how to return based on the code.
@@ -622,44 +569,6 @@ pub fn read_frame_into_with_stall_timeout<R: Read>(
     }
 }
 
-/// Read a single FPSS frame from a blocking reader.
-///
-/// Convenience wrapper that allocates a fresh `Vec<u8>` and
-/// `FrameReadState` per call, and **transparently retries on
-/// drain-yield**: the handshake and test paths that call this helper
-/// do not have a command drain to service, so the yield budget is
-/// not meaningful for them. A drain-yield here loops back into the
-/// reader with the same state so partial progress is preserved.
-///
-/// Prefer `read_frame_into` on the hot path where the caller reuses
-/// the buffer and state across frames AND owns a command drain that
-/// needs to service yields.
-///
-/// Returns `None` on clean EOF (reader closed). Returns `Err` on
-/// partial reads, stall-timeouts, or unknown message codes.
-/// # Errors
-///
-/// Returns an error on network, authentication, or parsing failure.
-pub fn read_frame<R: Read>(reader: &mut R) -> Result<Option<Frame>, crate::error::Error> {
-    let mut buf = Vec::new();
-    let mut state = FrameReadState::new();
-    loop {
-        match read_frame_into(reader, &mut buf, &mut state) {
-            Ok(Some((code, _len))) => {
-                return Ok(Some(Frame { code, payload: buf }));
-            }
-            Ok(None) => return Ok(None),
-            Err(ref e) if is_drain_yield(e) => {
-                // No command drain to service on this path -- loop
-                // back immediately with the same resumption state so
-                // partial bytes are not lost.
-                continue;
-            }
-            Err(e) => return Err(e),
-        }
-    }
-}
-
 /// `true` if an error is a drain-yield from a mid-frame reader. The
 /// I/O loop catches this in the read branch, drains outbound commands,
 /// and re-enters `read_frame_into` with the same `FrameReadState` so
@@ -672,43 +581,6 @@ pub fn is_drain_yield(err: &crate::error::Error) -> bool {
             message,
         } if message.contains(DRAIN_YIELD_MARKER)
     )
-}
-
-/// Write a single FPSS frame to a blocking writer.
-///
-/// # Wire format
-///
-/// Writes `[LEN: u8] [CODE: u8] [PAYLOAD: LEN bytes]` and flushes.
-///
-/// Returns `Err` if the payload exceeds 255 bytes.
-/// # Errors
-///
-/// Returns an error on network, authentication, or parsing failure.
-pub fn write_frame<W: Write>(writer: &mut W, frame: &Frame) -> Result<(), crate::error::Error> {
-    if frame.payload.len() > MAX_PAYLOAD_LEN {
-        return Err(crate::error::Error::Stream {
-            kind: crate::error::StreamErrorKind::ProtocolError,
-            message: format!(
-                "frame payload too large: {} bytes (max {})",
-                frame.payload.len(),
-                MAX_PAYLOAD_LEN
-            ),
-        });
-    }
-
-    // Length already validated <= MAX_PAYLOAD_LEN (255); code is a StreamMsgType u8 repr.
-    let len_byte = u8::try_from(frame.payload.len()).map_err(|_| crate::error::Error::Stream {
-        kind: crate::error::StreamErrorKind::ProtocolError,
-        message: format!("frame payload length overflow: {}", frame.payload.len()),
-    })?;
-    let header = [len_byte, frame.code as u8];
-    writer.write_all(&header)?;
-    if !frame.payload.is_empty() {
-        writer.write_all(&frame.payload)?;
-    }
-    writer.flush()?;
-
-    Ok(())
 }
 
 /// Write a frame from raw parts without constructing a `Frame` struct.
@@ -784,249 +656,6 @@ mod tests {
         buf.push(code);
         buf.extend_from_slice(payload);
         buf
-    }
-
-    #[test]
-    fn read_empty_frame() {
-        let data = encode_manual(StreamMsgType::Ping as u8, &[0x00]);
-        let mut cursor = Cursor::new(data);
-        let frame = read_frame(&mut cursor).unwrap().unwrap();
-        assert_eq!(frame.code, StreamMsgType::Ping);
-        assert_eq!(frame.payload, vec![0x00]);
-    }
-
-    #[test]
-    fn read_frame_with_payload() {
-        let payload = b"hello world";
-        let data = encode_manual(StreamMsgType::Error as u8, payload);
-        let mut cursor = Cursor::new(data);
-        let frame = read_frame(&mut cursor).unwrap().unwrap();
-        assert_eq!(frame.code, StreamMsgType::Error);
-        assert_eq!(frame.payload, b"hello world");
-    }
-
-    #[test]
-    fn read_frame_eof() {
-        let mut cursor = Cursor::new(Vec::<u8>::new());
-        let result = read_frame(&mut cursor).unwrap();
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn read_frame_unknown_code_skipped() {
-        // Unknown codes are silently skipped (dev server sends them).
-        // After skipping, the reader hits EOF and returns None.
-        let data = encode_manual(0xFF, &[]);
-        let mut cursor = Cursor::new(data);
-        let result = read_frame(&mut cursor).unwrap();
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn write_and_read_roundtrip() {
-        let original = Frame::new(StreamMsgType::Credentials, b"test_creds".to_vec());
-
-        // Write
-        let mut buf = Vec::new();
-        write_frame(&mut buf, &original).unwrap();
-
-        // Read back
-        let mut cursor = Cursor::new(buf);
-        let decoded = read_frame(&mut cursor).unwrap().unwrap();
-        assert_eq!(decoded, original);
-    }
-
-    #[test]
-    fn write_raw_and_read_roundtrip() {
-        let mut buf = Vec::new();
-        write_raw_frame(&mut buf, StreamMsgType::Quote, &[1, 2, 3, 4]).unwrap();
-
-        let mut cursor = Cursor::new(buf);
-        let frame = read_frame(&mut cursor).unwrap().unwrap();
-        assert_eq!(frame.code, StreamMsgType::Quote);
-        assert_eq!(frame.payload, vec![1, 2, 3, 4]);
-    }
-
-    #[test]
-    fn write_frame_too_large() {
-        let big_payload = vec![0u8; 256];
-        let frame = Frame {
-            code: StreamMsgType::Ping,
-            payload: big_payload,
-        };
-        let mut buf = Vec::new();
-        let err = write_frame(&mut buf, &frame).unwrap_err();
-        assert!(err.to_string().contains("payload too large"));
-    }
-
-    #[test]
-    fn read_zero_length_payload() {
-        let data = encode_manual(StreamMsgType::Start as u8, &[]);
-        let mut cursor = Cursor::new(data);
-        let frame = read_frame(&mut cursor).unwrap().unwrap();
-        assert_eq!(frame.code, StreamMsgType::Start);
-        assert!(frame.payload.is_empty());
-    }
-
-    #[test]
-    fn multiple_frames_in_sequence() {
-        let mut wire = Vec::new();
-        wire.extend_from_slice(&encode_manual(StreamMsgType::Ping as u8, &[0x00]));
-        wire.extend_from_slice(&encode_manual(StreamMsgType::Error as u8, b"bad request"));
-        wire.extend_from_slice(&encode_manual(StreamMsgType::Start as u8, &[]));
-
-        let mut cursor = Cursor::new(wire);
-
-        let f1 = read_frame(&mut cursor).unwrap().unwrap();
-        assert_eq!(f1.code, StreamMsgType::Ping);
-
-        let f2 = read_frame(&mut cursor).unwrap().unwrap();
-        assert_eq!(f2.code, StreamMsgType::Error);
-        assert_eq!(f2.payload, b"bad request");
-
-        let f3 = read_frame(&mut cursor).unwrap().unwrap();
-        assert_eq!(f3.code, StreamMsgType::Start);
-        assert!(f3.payload.is_empty());
-
-        // Next read should return None (EOF)
-        let f4 = read_frame(&mut cursor).unwrap();
-        assert!(f4.is_none());
-    }
-
-    #[test]
-    fn metadata_frame_utf8_payload() {
-        // METADATA (code 3) carries a UTF-8 permissions string
-        let perms = "pro,options,indices";
-        let data = encode_manual(StreamMsgType::Metadata as u8, perms.as_bytes());
-        let mut cursor = Cursor::new(data);
-        let frame = read_frame(&mut cursor).unwrap().unwrap();
-        assert_eq!(frame.code, StreamMsgType::Metadata);
-        assert_eq!(
-            std::str::from_utf8(&frame.payload).unwrap(),
-            "pro,options,indices"
-        );
-    }
-
-    /// Reader that returns a prefix of a buffer, then fails with a specified
-    /// IO error. Simulates a socket that stalls after delivering `n_before_err`
-    /// bytes — the class of failure the framing escalation path exists to
-    /// handle.
-    struct PrefixThenErr {
-        prefix: Vec<u8>,
-        pos: usize,
-        err_kind: std::io::ErrorKind,
-    }
-
-    impl std::io::Read for PrefixThenErr {
-        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-            if self.pos < self.prefix.len() {
-                let remaining = &self.prefix[self.pos..];
-                let n = remaining.len().min(buf.len());
-                buf[..n].copy_from_slice(&remaining[..n]);
-                self.pos += n;
-                Ok(n)
-            } else {
-                Err(std::io::Error::new(self.err_kind, "simulated stall"))
-            }
-        }
-    }
-
-    /// Pre-header `WouldBlock` (zero bytes delivered) must propagate as
-    /// `Error::Io` so `io_loop::is_read_timeout` can drain queued commands
-    /// and re-enter the poll. This is the benign-timeout housekeeping path.
-    #[test]
-    fn pre_header_would_block_propagates_as_io() {
-        let mut reader = PrefixThenErr {
-            prefix: Vec::new(),
-            pos: 0,
-            err_kind: std::io::ErrorKind::WouldBlock,
-        };
-        let err = read_frame(&mut reader).unwrap_err();
-        match err {
-            crate::error::Error::Io(e) => assert_eq!(e.kind(), std::io::ErrorKind::WouldBlock),
-            other => panic!("expected Error::Io(WouldBlock), got {other:?}"),
-        }
-    }
-
-    /// Reader that emits a prefix, then `err_count` `WouldBlock` errors,
-    /// then resumes with the suffix. Models the TCP pause between the
-    /// header bytes and the payload that we captured on dev + prod.
-    struct PrefixThenStallThenResume {
-        prefix: Vec<u8>,
-        suffix: Vec<u8>,
-        prefix_pos: usize,
-        suffix_pos: usize,
-        remaining_stalls: usize,
-    }
-
-    impl std::io::Read for PrefixThenStallThenResume {
-        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-            if self.prefix_pos < self.prefix.len() {
-                let remaining = &self.prefix[self.prefix_pos..];
-                let n = remaining.len().min(buf.len());
-                buf[..n].copy_from_slice(&remaining[..n]);
-                self.prefix_pos += n;
-                return Ok(n);
-            }
-            if self.remaining_stalls > 0 {
-                self.remaining_stalls -= 1;
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::WouldBlock,
-                    "simulated stall",
-                ));
-            }
-            if self.suffix_pos < self.suffix.len() {
-                let remaining = &self.suffix[self.suffix_pos..];
-                let n = remaining.len().min(buf.len());
-                buf[..n].copy_from_slice(&remaining[..n]);
-                self.suffix_pos += n;
-                return Ok(n);
-            }
-            Err(std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof,
-                "reader exhausted",
-            ))
-        }
-    }
-
-    /// Mid-header `WouldBlock` (one byte delivered, second stalls briefly)
-    /// must retry within the `READ_TIMEOUT_MS` aggregate deadline, matching
-    /// the JVM terminal's single-byte read under a 10_000 ms socket timeout.
-    /// Capture evidence: real
-    /// server pauses between LEN and CODE measured at 50-76 ms on dev; the
-    /// surrounding bytes were valid.
-    #[test]
-    fn mid_header_would_block_retries_and_recovers() {
-        // 1 byte (LEN=1), 3 WouldBlock stalls, then CODE=PING + 1 payload byte.
-        let mut reader = PrefixThenStallThenResume {
-            prefix: vec![0x01],
-            suffix: vec![StreamMsgType::Ping as u8, 0xAA],
-            prefix_pos: 0,
-            suffix_pos: 0,
-            remaining_stalls: 3,
-        };
-        let frame = read_frame(&mut reader).unwrap().unwrap();
-        assert_eq!(frame.code, StreamMsgType::Ping);
-        assert_eq!(frame.payload, vec![0xAA]);
-    }
-
-    /// Mid-payload `WouldBlock` (header + partial payload, brief stall,
-    /// rest arrives) must retry and complete, matching the JVM terminal's
-    /// read-N-bytes under a 10_000 ms socket timeout. Overwhelmingly most
-    /// common case in the field.
-    #[test]
-    fn mid_payload_would_block_retries_and_recovers() {
-        // header: len=4, code=PING; 2 payload bytes; 3 stalls; 2 more payload bytes.
-        let mut reader = PrefixThenStallThenResume {
-            prefix: vec![0x04, StreamMsgType::Ping as u8, 0x01, 0x02],
-            suffix: vec![0x03, 0x04],
-            prefix_pos: 0,
-            suffix_pos: 0,
-            remaining_stalls: 3,
-        };
-        let frame = read_frame(&mut reader).unwrap().unwrap();
-        assert_eq!(frame.code, StreamMsgType::Ping);
-        assert_eq!(frame.payload, vec![0x01, 0x02, 0x03, 0x04]);
     }
 
     /// Reader that always returns `WouldBlock` (or a caller-chosen kind).
@@ -1414,35 +1043,6 @@ mod tests {
             [0x01, StreamMsgType::Ping as u8],
             "both header bytes must be present and in order after resumption"
         );
-    }
-
-    /// Truncated header (EOF after one byte) must be fatal — same desync
-    /// semantics as a mid-header timeout, different IO class.
-    #[test]
-    fn mid_header_eof_escalates_to_fatal() {
-        let data = vec![0x05]; // one byte, then cursor hits end
-        let mut cursor = Cursor::new(data);
-        let err = read_frame(&mut cursor).unwrap_err();
-        match err {
-            crate::error::Error::Stream { kind, message } => {
-                assert_eq!(kind, crate::error::StreamErrorKind::ProtocolError);
-                assert!(message.contains("truncated FPSS header"));
-            }
-            other => panic!("expected fatal ProtocolError, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn disconnected_frame() {
-        // DISCONNECTED (code 12) carries a 2-byte BE reason code
-        let reason_bytes = 6i16.to_be_bytes(); // AccountAlreadyConnected
-        let data = encode_manual(StreamMsgType::Disconnected as u8, &reason_bytes);
-        let mut cursor = Cursor::new(data);
-        let frame = read_frame(&mut cursor).unwrap().unwrap();
-        assert_eq!(frame.code, StreamMsgType::Disconnected);
-        assert_eq!(frame.payload.len(), 2);
-        let reason = i16::from_be_bytes([frame.payload[0], frame.payload[1]]);
-        assert_eq!(reason, 6);
     }
 
     // -- Finding #3 coverage: drain-yield + bounded retry budget -----------
@@ -1981,131 +1581,6 @@ mod tests {
         let to = std::io::Error::new(std::io::ErrorKind::TimedOut, "x");
         assert!(is_transient_read(&wb));
         assert!(is_transient_read(&to));
-    }
-
-    /// Reader that yields a prefix, then `n_stalls` errors of the given
-    /// raw OS error code, then a suffix. Models a Windows TLS socket
-    /// surfacing `ERROR_IO_PENDING` (997) between the header and payload.
-    struct PrefixThenOsErrThenResume {
-        prefix: Vec<u8>,
-        suffix: Vec<u8>,
-        prefix_pos: usize,
-        suffix_pos: usize,
-        remaining_stalls: usize,
-        os_error: i32,
-    }
-
-    impl std::io::Read for PrefixThenOsErrThenResume {
-        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-            if self.prefix_pos < self.prefix.len() {
-                let remaining = &self.prefix[self.prefix_pos..];
-                let n = remaining.len().min(buf.len());
-                buf[..n].copy_from_slice(&remaining[..n]);
-                self.prefix_pos += n;
-                return Ok(n);
-            }
-            if self.remaining_stalls > 0 {
-                self.remaining_stalls -= 1;
-                return Err(std::io::Error::from_raw_os_error(self.os_error));
-            }
-            if self.suffix_pos < self.suffix.len() {
-                let remaining = &self.suffix[self.suffix_pos..];
-                let n = remaining.len().min(buf.len());
-                buf[..n].copy_from_slice(&remaining[..n]);
-                self.suffix_pos += n;
-                return Ok(n);
-            }
-            Err(std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof,
-                "reader exhausted",
-            ))
-        }
-    }
-
-    /// Reader that always returns a raw OS error after delivering a
-    /// prefix. Models a Windows socket where the read goes pending and
-    /// never completes within the test window.
-    struct AlwaysOsErrAfter {
-        prefix: Vec<u8>,
-        pos: usize,
-        os_error: i32,
-    }
-
-    impl std::io::Read for AlwaysOsErrAfter {
-        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-            if self.pos < self.prefix.len() {
-                let remaining = &self.prefix[self.pos..];
-                let n = remaining.len().min(buf.len());
-                buf[..n].copy_from_slice(&remaining[..n]);
-                self.pos += n;
-                Ok(n)
-            } else {
-                Err(std::io::Error::from_raw_os_error(self.os_error))
-            }
-        }
-    }
-
-    /// Pre-header `ERROR_IO_PENDING` (zero bytes delivered) must propagate
-    /// as `Error::Io` — same path `WouldBlock` takes — so
-    /// `io_loop::is_read_timeout` can drain queued commands and retry on
-    /// the next poll instead of escalating to a reconnect storm. Issue
-    /// #469: this is exactly the case where the Python user on Windows
-    /// saw `Overlapped I/O operation is in progress. (os error 997)` spam
-    /// followed by repeated reconnect attempts.
-    #[test]
-    fn pre_header_error_io_pending_propagates_as_io() {
-        let mut reader = AlwaysOsErrAfter {
-            prefix: Vec::new(),
-            pos: 0,
-            os_error: ERROR_IO_PENDING,
-        };
-        let err = read_frame(&mut reader).unwrap_err();
-        match err {
-            crate::error::Error::Io(e) => {
-                assert_eq!(e.raw_os_error(), Some(ERROR_IO_PENDING));
-            }
-            other => panic!("expected Error::Io(ERROR_IO_PENDING), got {other:?}"),
-        }
-    }
-
-    /// Mid-header `ERROR_IO_PENDING` (one byte delivered, second stalls
-    /// briefly with os error 997) must retry within the per-stall
-    /// deadline and return the complete frame. Without the fix this
-    /// arm fell through to `Err(e) => Err(e.into())` and surfaced as a
-    /// fatal `FPSS read error` to the user.
-    #[test]
-    fn mid_header_error_io_pending_retries_and_recovers() {
-        let mut reader = PrefixThenOsErrThenResume {
-            prefix: vec![0x01],
-            suffix: vec![StreamMsgType::Ping as u8, 0xAA],
-            prefix_pos: 0,
-            suffix_pos: 0,
-            remaining_stalls: 3,
-            os_error: ERROR_IO_PENDING,
-        };
-        let frame = read_frame(&mut reader).unwrap().unwrap();
-        assert_eq!(frame.code, StreamMsgType::Ping);
-        assert_eq!(frame.payload, vec![0xAA]);
-    }
-
-    /// Mid-payload `ERROR_IO_PENDING` (header + partial payload, brief
-    /// stall with os error 997, rest arrives) must retry and complete.
-    /// This is the most common shape on Windows: a real frame whose
-    /// payload bytes finish arriving 50–76 ms after the first overlapped
-    /// pending notification.
-    #[test]
-    fn mid_payload_error_io_pending_retries_and_recovers() {
-        let mut reader = PrefixThenOsErrThenResume {
-            prefix: vec![0x04, StreamMsgType::Ping as u8, 0x01, 0x02],
-            suffix: vec![0x03, 0x04],
-            prefix_pos: 0,
-            suffix_pos: 0,
-            remaining_stalls: 3,
-            os_error: ERROR_IO_PENDING,
-        };
-        let frame = read_frame(&mut reader).unwrap().unwrap();
-        assert_eq!(frame.code, StreamMsgType::Ping);
-        assert_eq!(frame.payload, vec![0x01, 0x02, 0x03, 0x04]);
     }
 
     /// A mid-frame disconnect leaves `FrameReadState` parked in the

@@ -12,9 +12,6 @@
 //! from the underlying stack's status type happens once, at
 //! [`Status::from_tonic`], inside this module.
 
-/// `grpc-status: 0` — the `Ok` code.
-pub(crate) const STATUS_OK: u32 = 0;
-
 /// Fully-qualified `Any.type_url` suffix for `google.rpc.RetryInfo`.
 const RETRY_INFO_TYPE_URL_SUFFIX: &str = "google.rpc.RetryInfo";
 
@@ -84,12 +81,6 @@ impl Status {
     #[must_use]
     pub const fn retry_delay(&self) -> Option<std::time::Duration> {
         self.retry_delay
-    }
-
-    /// `true` iff the status code is `0` (gRPC `Ok`).
-    #[must_use]
-    pub const fn is_ok(&self) -> bool {
-        self.code == STATUS_OK
     }
 }
 
