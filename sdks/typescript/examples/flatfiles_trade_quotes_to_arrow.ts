@@ -15,7 +15,7 @@ async function main(): Promise<void> {
   const client = await Client.connectFromFile("creds.txt");
 
   // Whole-universe option trade-quotes for one trading day.
-  const rows = client.flatFiles.optionTradeQuote("20260428");
+  const rows = await client.flatFiles.optionTradeQuote("20260428");
   console.log(`option_trade_quote rows: ${rows.len()}`);
 
   // Apache Arrow table -- one column per vendor field plus the contract
@@ -26,11 +26,11 @@ async function main(): Promise<void> {
   console.log(table.schema.fields.map((f) => `${f.name}:${f.type}`).join(", "));
 
   // Same path, dispatched dynamically.
-  const oi = client.flatFiles.request("OPTION", "OPEN_INTEREST", "20260428");
+  const oi = await client.flatFiles.request("OPTION", "OPEN_INTEREST", "20260428");
   console.log(`open_interest rows: ${oi.len()}`);
 
   // Drop raw vendor CSV bytes to disk without materialising rows.
-  const path = client.flatFileToPath(
+  const path = await client.flatFileToPath(
     "OPTION",
     "TRADE_QUOTE",
     "20260428",

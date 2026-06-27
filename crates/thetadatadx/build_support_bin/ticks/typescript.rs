@@ -22,6 +22,27 @@ use super::schema::{render_for_type, Schema, TickTypeDef};
 use super::sorted_type_names;
 use super::tdbe_structs::timestamp_accessor_fields;
 
+/// Emitted `BigInt -> i64` decoder for the Arrow-IPC reconstruct path. The
+/// sibling of `config_class::bigint_to_u64`: `get_i64`'s `lossless` flag is
+/// `false` when the JS `bigint` magnitude does not fit `i64`, so this rejects
+/// such a value (with the column name in the diagnostic) instead of letting
+/// the wrapped low bits truncate silently into the destination. The
+/// `[InvalidParameterError]` prefix routes it to the typed JS subclass.
+const BIGINT_TO_I64_HELPER: &str = "\
+/// Decode an `i64` from a JS `bigint` Arrow column, rejecting a magnitude that
+/// does not fit `i64` rather than truncating its wrapped low bits.
+fn bigint_to_i64(name: &str, v: &BigInt) -> napi::Result<i64> {
+    let (value, lossless) = v.get_i64();
+    if lossless {
+        Ok(value)
+    } else {
+        Err(crate::invalid_parameter_err(format!(
+            \"{name}: BigInt magnitude must fit in i64\"
+        )))
+    }
+}
+";
+
 /// Renders `sdks/typescript/src/_generated/tick_classes.rs` — the `#[napi(object)]` struct, `Vec` factory, and Arrow-IPC terminal per tick type for the TypeScript binding.
 pub(super) fn render_ts_tick_classes(schema: &Schema) -> String {
     let mut out = String::new();
@@ -52,6 +73,17 @@ pub(super) fn render_ts_tick_classes(schema: &Schema) -> String {
     for type_name in sorted_type_names(schema) {
         let def = &schema.types[type_name];
         out.push_str(&render_ts_tick_class_factory(schema, type_name, def));
+        out.push('\n');
+    }
+    // Checked `BigInt -> i64` decoder for the Arrow-IPC reconstruct path
+    // below — only emitted when a tick column is `i64` / `eod_num64`, so a
+    // schema with no such column carries no unused helper.
+    if schema.types.values().any(|def| {
+        def.columns
+            .iter()
+            .any(|col| ts_column_needs_bigint(col.r#type.as_str()))
+    }) {
+        out.push_str(BIGINT_TO_I64_HELPER);
         out.push('\n');
     }
     // Arrow-IPC terminals: one `#[napi] <tick>ToArrowIpc(rows) -> Buffer`
@@ -96,12 +128,13 @@ fn render_ts_tick_arrow_ipc(type_name: &str, def: &TickTypeDef) -> Option<String
         "pub fn {fn_name}(rows: Vec<{type_name}>) -> napi::Result<napi::bindgen_prelude::Buffer> {{"
     )
     .unwrap();
-    // Logical-enum columns (`right` / `calendar_status`) reject invalid
-    // input with `return Err(..)`; when the type carries one the
-    // reconstruct closure is fallible and its results are collected into a
-    // `napi::Result<Vec<..>>` and `?`-propagated. Types without such a
-    // column keep the infallible `.map(..).collect()` so a build that adds
-    // no validation pays no wrapping.
+    // A reconstruct can fail on a too-wide `i64` `BigInt` (`bigint_to_i64`)
+    // or an out-of-vocabulary logical-enum string (`right` /
+    // `calendar_status`); when the type carries either, the closure is
+    // fallible and its results are collected into a `napi::Result<Vec<..>>`
+    // and `?`-propagated. Types with neither keep the infallible
+    // `.map(..).collect()` so a build that adds no validation pays no
+    // wrapping.
     let fallible = ts_arrow_reconstruct_is_fallible(def);
     writeln!(out, "    let owned: Vec<tick::{type_name}> = rows").unwrap();
     out.push_str("        .into_iter()\n");
@@ -187,8 +220,13 @@ fn render_ts_tick_arrow_ipc(type_name: &str, def: &TickTypeDef) -> Option<String
 /// closure (see [`render_ts_tick_arrow_ipc`]).
 fn ts_arrow_reconstruct_expr(column_type: &str, field: &str) -> String {
     match column_type {
-        // i64 columns cross from JS as `BigInt`; `get_i64` yields the value.
-        "i64" | "eod_num64" => format!("{{ let (v, _) = r.{field}.get_i64(); v }}"),
+        // i64 columns cross from JS as `BigInt`. Reject a magnitude outside
+        // `i64` (e.g. `2n ** 100n`) on the `lossless` flag rather than
+        // silently truncating the wrapped low bits into the destination —
+        // the same guard the config setters apply via `bigint_to_u64`. Runs
+        // inside the fallible closure (`ts_arrow_reconstruct_is_fallible`
+        // returns `true` for any i64 column).
+        "i64" | "eod_num64" => format!("bigint_to_i64(\"{field}\", &r.{field})?"),
         // The logical right char arrives as a one-character string; only
         // `"C"` / `"P"` (and empty → NUL) are accepted, matching Python.
         "right" => format!(
@@ -205,19 +243,22 @@ fn ts_arrow_reconstruct_expr(column_type: &str, field: &str) -> String {
     }
 }
 
-/// `true` when a tick type's Arrow-IPC reconstruction validates at least one
-/// inbound string and so emits `return Err(..)`: either a logical-enum column
-/// (`right` / `calendar_status`) or the appended contract-identity `right`
+/// `true` when a tick type's Arrow-IPC reconstruction can fail and so emits
+/// `?` / `return Err(..)`: an `i64` / `eod_num64` column (rejects a `BigInt`
+/// magnitude outside `i64` via `bigint_to_i64`), a logical-enum column
+/// (`right` / `calendar_status`), or the appended contract-identity `right`
 /// (present whenever `def.contract_id`). Such a reconstruct must run inside a
-/// fallible closure; types without any validated field keep the infallible
+/// fallible closure; types without any fallible field keep the infallible
 /// `.map(..).collect()` form so a build that adds no validation pays no
 /// wrapping.
 fn ts_arrow_reconstruct_is_fallible(def: &TickTypeDef) -> bool {
     def.contract_id
-        || def
-            .columns
-            .iter()
-            .any(|column| matches!(column.r#type.as_str(), "right" | "calendar_status"))
+        || def.columns.iter().any(|column| {
+            matches!(
+                column.r#type.as_str(),
+                "i64" | "eod_num64" | "right" | "calendar_status"
+            )
+        })
 }
 
 fn render_ts_tick_class_struct(type_name: &str, def: &TickTypeDef) -> String {

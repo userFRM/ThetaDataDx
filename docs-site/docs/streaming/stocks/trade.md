@@ -59,7 +59,7 @@ client.stream.unsubscribe(sub)
 ```typescript
 import { Contract } from 'thetadatadx';
 
-client.stream.startStreaming((event) => {
+await client.stream.startStreaming((event) => {
   if (event.kind === 'trade') {
     const e = event.trade!;
     console.log(e.contract.symbol, e.price, e.size);

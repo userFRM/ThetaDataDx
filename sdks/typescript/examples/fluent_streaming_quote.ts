@@ -21,7 +21,7 @@ async function main(): Promise<void> {
   // Register the per-event callback. The napi-rs binding hands every
   // streaming event to the JS callback on the Node main thread via a
   // `ThreadsafeFunction`, so the libuv loop stays responsive.
-  client.stream.startStreaming((event) => {
+  await client.stream.startStreaming((event) => {
     switch (event.kind) {
       case "trade": {
         const trade = event.trade!;
