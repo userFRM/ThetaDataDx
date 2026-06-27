@@ -78,41 +78,48 @@ where
     T: Send + 'static,
     C: FnOnce(Python<'_>, T) -> PyResult<Py<PyAny>> + Send + 'static,
 {
-    pyo3_async_runtimes::tokio::future_into_py(py, async move {
-        let value = fut.await.map_err(to_py_err)?;
-        // Reason: running `convert` directly here would acquire the GIL
-        // on the tokio runtime worker and park it for the duration of
-        // the Python-object build. Two concurrent `*_async` calls on
-        // the same worker thread would therefore serialize on the GIL
-        // even though tokio has other workers free — heavy converts
-        // (e.g. building a large `QuoteTickList` pyclass) are
-        // where this matters. Offload to tokio's blocking pool so the
-        // runtime worker returns to its queue immediately after the
-        // future resolves, and the GIL contention is confined to the
-        // pool thread that actually needs it.
-        tokio::task::spawn_blocking(move || Python::attach(|py| convert(py, value)))
-            .await
-            .map_err(|join_err| {
-                // `JoinError::into_panic()` is the documented way to
-                // surface a panicked blocking task; other JoinError
-                // causes (cancellation) map to a generic RuntimeError.
-                if join_err.is_panic() {
-                    let payload = join_err.into_panic();
-                    let msg = payload
-                        .downcast_ref::<&str>()
-                        .map(|s| (*s).to_string())
-                        .or_else(|| payload.downcast_ref::<String>().cloned())
-                        .unwrap_or_else(|| "convert closure panicked".to_string());
-                    pyo3::exceptions::PyRuntimeError::new_err(format!(
-                        "convert closure panicked: {msg}"
-                    ))
-                } else {
-                    pyo3::exceptions::PyRuntimeError::new_err(format!(
-                        "convert task join failed: {join_err}"
-                    ))
-                }
-            })?
-    })
+    pyo3_async_runtimes::tokio::future_into_py(py, resolve_then_convert(fut, convert))
+}
+
+/// Inner coroutine shared by [`spawn_awaitable`] and its unit tests:
+/// await `fut`, then offload `convert` onto tokio's blocking pool.
+///
+/// Running `convert` on the runtime worker would acquire the GIL there
+/// and park the worker for the duration of the Python-object build, so
+/// two concurrent `*_async` calls on the same worker would serialize on
+/// the GIL even with other workers free — heavy converts (building a
+/// large `QuoteTickList` pyclass) are where this matters. `spawn_blocking`
+/// confines the GIL contention to the pool thread that actually needs it
+/// and returns the worker to its queue the instant the future resolves.
+async fn resolve_then_convert<F, T, C>(fut: F, convert: C) -> PyResult<Py<PyAny>>
+where
+    F: Future<Output = Result<T, thetadatadx::Error>> + Send + 'static,
+    T: Send + 'static,
+    C: FnOnce(Python<'_>, T) -> PyResult<Py<PyAny>> + Send + 'static,
+{
+    let value = fut.await.map_err(to_py_err)?;
+    tokio::task::spawn_blocking(move || Python::attach(|py| convert(py, value)))
+        .await
+        .map_err(|join_err| {
+            // `JoinError::into_panic()` is the documented way to surface a
+            // panicked blocking task; other JoinError causes (cancellation)
+            // map to a generic RuntimeError.
+            if join_err.is_panic() {
+                let payload = join_err.into_panic();
+                let msg = payload
+                    .downcast_ref::<&str>()
+                    .map(|s| (*s).to_string())
+                    .or_else(|| payload.downcast_ref::<String>().cloned())
+                    .unwrap_or_else(|| "convert closure panicked".to_string());
+                pyo3::exceptions::PyRuntimeError::new_err(format!(
+                    "convert closure panicked: {msg}"
+                ))
+            } else {
+                pyo3::exceptions::PyRuntimeError::new_err(format!(
+                    "convert task join failed: {join_err}"
+                ))
+            }
+        })?
 }
 
 #[cfg(test)]
@@ -155,40 +162,6 @@ mod tests {
         let _ = pyo3_async_runtimes::tokio::init_with_runtime(rt);
     }
 
-    /// Mirror the inner coroutine `spawn_awaitable` constructs, so
-    /// test assertions exercise the production code path one-to-one.
-    /// Kept tightly synchronised with the body of `spawn_awaitable` —
-    /// when that body changes, this helper must change too.
-    async fn run_spawn_awaitable_inner<T, C>(
-        fut: impl Future<Output = Result<T, thetadatadx::Error>> + Send + 'static,
-        convert: C,
-    ) -> PyResult<Py<PyAny>>
-    where
-        T: Send + 'static,
-        C: FnOnce(Python<'_>, T) -> PyResult<Py<PyAny>> + Send + 'static,
-    {
-        let value = fut.await.map_err(to_py_err)?;
-        tokio::task::spawn_blocking(move || Python::attach(|py| convert(py, value)))
-            .await
-            .map_err(|join_err| {
-                if join_err.is_panic() {
-                    let payload = join_err.into_panic();
-                    let msg = payload
-                        .downcast_ref::<&str>()
-                        .map(|s| (*s).to_string())
-                        .or_else(|| payload.downcast_ref::<String>().cloned())
-                        .unwrap_or_else(|| "convert closure panicked".to_string());
-                    pyo3::exceptions::PyRuntimeError::new_err(format!(
-                        "convert closure panicked: {msg}"
-                    ))
-                } else {
-                    pyo3::exceptions::PyRuntimeError::new_err(format!(
-                        "convert task join failed: {join_err}"
-                    ))
-                }
-            })?
-    }
-
     #[test]
     fn spawn_awaitable_propagates_rust_error_as_typed_py_exception() {
         // The helper's error path is
@@ -216,7 +189,7 @@ mod tests {
             let runtime = pyo3_async_runtimes::tokio::get_runtime();
             let err = py
                 .detach(|| {
-                    runtime.block_on(run_spawn_awaitable_inner(
+                    runtime.block_on(resolve_then_convert(
                         async { Err::<i64, _>(thetadatadx::Error::Timeout { duration_ms: 250 }) },
                         |_py: Python<'_>, _value: i64| -> PyResult<Py<PyAny>> {
                             unreachable!("convert runs only on Ok path")
@@ -260,7 +233,7 @@ mod tests {
             let runtime = pyo3_async_runtimes::tokio::get_runtime();
             let obj = py
                 .detach(|| {
-                    runtime.block_on(run_spawn_awaitable_inner(
+                    runtime.block_on(resolve_then_convert(
                         async { Ok::<i64, thetadatadx::Error>(42) },
                         |py: Python<'_>, value: i64| -> PyResult<Py<PyAny>> {
                             // Allocating a Python int is the cheapest
@@ -311,7 +284,7 @@ mod tests {
             let observed = Arc::new(Mutex::new(Vec::<Duration>::new()));
 
             let spawn_one = |tag: i64, recorder: Arc<Mutex<Vec<Duration>>>| {
-                run_spawn_awaitable_inner(
+                resolve_then_convert(
                     async move { Ok::<i64, thetadatadx::Error>(tag) },
                     move |py: Python<'_>, value: i64| -> PyResult<Py<PyAny>> {
                         // Heavy convert synthesised via a blocking
@@ -337,7 +310,7 @@ mod tests {
             };
 
             // Drop the GIL around `block_on` so the `spawn_blocking`
-            // tasks inside `run_spawn_awaitable_inner` can acquire it
+            // tasks inside `resolve_then_convert` can acquire it
             // — see the sibling-test comment for the full explanation.
             let (elapsed, (a, b)) = py.detach(|| {
                 let rec_a = observed.clone();

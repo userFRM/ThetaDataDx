@@ -106,22 +106,6 @@ pub(crate) const FPSS_TOUCHING_METHODS: &[&str] = &[
     "stream",
 ];
 
-/// `const fn` byte-wise string compare for the compile-time guard
-/// below. PyO3 attribute names are ASCII so byte equality is safe.
-const fn const_bytes_eq(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-    let mut i = 0;
-    while i < a.len() {
-        if a[i] != b[i] {
-            return false;
-        }
-        i += 1;
-    }
-    true
-}
-
 /// Compile-time drift check: every name in
 /// `PYTHON_UNIFIED_FPSS_METHODS` (emitted by
 /// `crates/thetadatadx/build_support_bin/sdk_surface/python.rs` from
@@ -135,7 +119,7 @@ const _: () = {
         let mut found = false;
         let mut j = 0;
         while j < FPSS_TOUCHING_METHODS.len() {
-            if const_bytes_eq(FPSS_TOUCHING_METHODS[j].as_bytes(), needle) {
+            if crate::const_bytes_eq(FPSS_TOUCHING_METHODS[j].as_bytes(), needle) {
                 found = true;
                 break;
             }
