@@ -9,10 +9,13 @@
 // and that a typed error surfaces on `.get()`.
 
 #include <atomic>
+#include <chrono>
 #include <cstdlib>
+#include <functional>
 #include <future>
 #include <memory>
 #include <string>
+#include <thread>
 #include <type_traits>
 #include <vector>
 
@@ -178,6 +181,149 @@ TEST_CASE("async future outlives the destroyed originating object",
 
     fut = {};                   // drop the last owner (the future's captured copy)
     REQUIRE(frees.load() == 1); // freed exactly once, only now
+}
+
+// ── Lifetime regression: unified client destroyed mid-future WHILE streaming ──
+//
+// This pins the exact structural invariant the unified `Client` documents: an
+// entity that can become the last owner of the FFI handle must ALSO co-own the
+// callback state, so the streaming-stop drain barrier the handle's deleter runs
+// always sees a live registered node. The real `Client` can only be built by a
+// live `connect()`, so the end-to-end version is a `[live]` test; this offline
+// case proves the mechanism with no network, deterministically, under ASan.
+//
+// The hazard, modelled exactly: a pending `historical().<endpoint>_async`
+// future captures a copy of the `Historical` view. On a unified client that is
+// streaming when destroyed, member destruction runs the handle first (reverse
+// declaration order); the future co-owns the handle, so its deleter — which
+// stops streaming and drains the consumer — is DEFERRED until the future
+// completes. The callback state is destroyed next. If the view co-owns ONLY the
+// handle (the pre-fix shape), the callback node the consumer thread is still
+// firing through is freed here, while the consumer is live and the stop has not
+// run → use-after-free on the next consumer invocation. Co-owning the callback
+// state in the view (the fix) keeps that node alive until the deferred stop
+// runs. Swapping the view's `callback_` member for an empty `shared_ptr` below
+// reproduces the pre-fix UAF (heap-use-after-free under ASan); the shape as
+// shipped is clean.
+namespace {
+
+// Registered callback node — stands in for `CallbackSlot`/`CallbackState`. The
+// consumer thread reads `value` through the co-owned pointer on every tick; a
+// premature free turns that read into a heap-use-after-free.
+struct CallbackNodeStub {
+    int value = 7;
+};
+
+// Stands in for the unified FFI handle. The deleter mirrors
+// `thetadatadx_client_free`: stopping streaming and JOINING the consumer
+// (the drain barrier) before the handle storage goes away. Because the handle
+// is held by `shared_ptr`, this runs only when the LAST owner drops — which,
+// for a pending future, is AFTER `~ClientStub`.
+struct HandleStub {
+    std::atomic<bool>* stop;
+    std::thread* consumer;
+    std::atomic<int>* frees;
+
+    HandleStub(std::atomic<bool>* s, std::thread* c, std::atomic<int>* f)
+        : stop(s), consumer(c), frees(f) {}
+    // Single-free: the deleter must run exactly once, on the one heap object.
+    // Deleting copy/move makes an accidental temporary copy (which would run
+    // the stop+join deleter early and corrupt the test) a compile error.
+    HandleStub(const HandleStub&) = delete;
+    HandleStub& operator=(const HandleStub&) = delete;
+
+    ~HandleStub() {
+        stop->store(true, std::memory_order_release); // stop streaming
+        if (consumer->joinable()) consumer->join();   // drain barrier
+        frees->fetch_add(1, std::memory_order_relaxed);
+    }
+};
+
+// Mirrors the unified `Client`: co-owns the handle AND the callback node, in
+// the same reverse-destruct order (callback declared first → destroyed last).
+// `historical()` hands out a view that co-owns BOTH, exactly as the shipped
+// `Client::historical()` does.
+struct ClientStub {
+    // Declaration order mirrors `Client`: callback_ first so it is destroyed
+    // AFTER handle_ (whose deleter stops + drains the consumer).
+    std::shared_ptr<CallbackNodeStub> callback_;
+    std::shared_ptr<HandleStub> handle_;
+
+    // The view the async future captures a copy of. Co-owns both members.
+    struct HistoricalViewStub {
+        std::shared_ptr<HandleStub> handle_;
+        std::shared_ptr<CallbackNodeStub> callback_;
+
+        // `_async` shape: capture a copy of the view (`self = *this`), gated on
+        // `start` so the caller can destroy the client before the body reads
+        // the co-owned node — the destroy-mid-flight window.
+        std::future<int> read_async(std::shared_future<void> start) const {
+            return std::async(std::launch::async, [self = *this, start]() {
+                start.wait();
+                return self.callback_->value; // co-owned node still alive
+            });
+        }
+    };
+
+    HistoricalViewStub historical() const {
+        return HistoricalViewStub{handle_, callback_}; // share BOTH, like the fix
+    }
+};
+
+} // namespace
+
+TEST_CASE("async future from a unified client outlives destruction while streaming",
+          "[history][async][offline]") {
+    std::atomic<int> frees{0};
+    std::atomic<bool> stop{false};
+    std::promise<void> gate;
+    std::shared_future<void> start = gate.get_future().share();
+
+    std::future<int> fut;
+    std::thread consumer;
+    {
+        auto callback = std::make_shared<CallbackNodeStub>();
+
+        // Live "streaming" consumer: fires through the registered node until
+        // streaming is stopped. Captures the raw node pointer it was registered
+        // with (the real consumer holds `&slot->fn`), so a freed node is a UAF.
+        const CallbackNodeStub* registered = callback.get();
+        consumer = std::thread([registered, &stop]() {
+            volatile int sink = 0;
+            while (!stop.load(std::memory_order_acquire)) {
+                sink += registered->value; // UAF here if the node is freed early
+                std::this_thread::sleep_for(std::chrono::microseconds(50));
+            }
+            (void)sink;
+        });
+
+        ClientStub client{
+            callback,
+            std::make_shared<HandleStub>(&stop, &consumer, &frees),
+        };
+
+        // Stored future launched off the view — co-owns handle + callback.
+        fut = client.historical().read_async(start);
+
+        // `client` is destroyed HERE while the future is pending and the
+        // consumer is still firing. handle_ destructs first, but the future
+        // co-owns it, so the stop+drain deleter is DEFERRED. callback_
+        // destructs next; the future co-owns it too, so the node the consumer
+        // reads stays alive. (Pre-fix the view co-owned only the handle, so
+        // this drop freed the node under the live consumer → ASan UAF.)
+    }
+
+    // The handle's deleter (stop + join) has NOT run yet: the future still
+    // co-owns the handle, so streaming is still live and the consumer is firing.
+    REQUIRE(frees.load() == 0);
+
+    gate.set_value();          // release the future body; it reads the node
+    REQUIRE(fut.get() == 7);   // correct value, no use-after-free
+
+    fut = {};                  // drop the last owner → deleter stops + joins now
+    REQUIRE(frees.load() == 1);
+    // Consumer was joined inside the deleter; nothing left to clean up.
+    REQUIRE_FALSE(consumer.joinable());
 }
 
 TEST_CASE("async query resolves to the same rows as the blocking call",
