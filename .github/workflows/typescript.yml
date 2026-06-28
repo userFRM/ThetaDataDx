@@ -174,9 +174,9 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         working-directory: thetadatadx-ts
         run: |
-          npm pack --json | tee ../../npm-pack.json
+          npm pack --json | tee ../npm-pack.json
           tar tzf thetadatadx-*.tgz | head -50
-          python3 ../../scripts/dev/inspect_artifacts.py thetadatadx-*.tgz
+          python3 ../scripts/dev/inspect_artifacts.py thetadatadx-*.tgz
       - uses: actions/upload-artifact@v7
         with:
           name: bindings-${{ matrix.target }}
