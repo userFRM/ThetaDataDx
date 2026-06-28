@@ -2323,13 +2323,27 @@ NAME_ONLY_METHOD_ALLOWLIST: dict[tuple[str, str], str] = {
 # read-write PROPERTY, not a `def set_<name>(...)` method. pyo3 exposes a
 # `#[setter] fn set_x(value)` as the attribute `config.x = value`, and the
 # hand-written stub models it as the bare read-write annotation `x: T` — there
-# is no `set_x` declaration to extract. The MATCHING getter row (`x`) already
-# pins that property's type through the `.pyi` lane (return = T), which is the
-# same `T` this setter's param would check, so re-checking it off a synthetic
-# `set_x` is redundant and would false-fail on the (correctly) absent `set_x`.
-# So these rows DEGRADE in the `.pyi` lane to the pyo3-source `python` lane +
-# stubtest (which DO see the runtime `set_x` setter and its parameter). Every
-# entry's getter twin is `.pyi`-checked, so the property type stays pinned.
+# is no `set_x` declaration to extract. The MATCHING getter row (`x`) pins that
+# property's type through the `.pyi` lane (return = T), which is the same `T`
+# this setter's param would check, so re-checking it off a synthetic `set_x` is
+# redundant and would false-fail on the (correctly) absent `set_x`. So these
+# rows DEGRADE in the `.pyi` lane to the pyo3-source `python` lane + stubtest
+# (which DO see the runtime `set_x` setter and its parameter).
+#
+# The exemption is sound ONLY because every entry has a getter twin whose `.pyi`
+# property TYPE the `python_pyi` lane checks directly — verified per setter:
+#   setFlushMode        → `flushMode`           (Literal["batched", "immediate"])
+#   setWaitStrategy     → `waitStrategy`        (Literal[...] wait-strategy set)
+#   setWaitSpinIters    → `waitSpinIters`       (int)
+#   setWaitYieldIters   → `waitYieldIters`      (int)
+#   setWaitParkUs       → `waitParkUs`          (int)
+#   setConsumerCpu      → `consumerCpu`         (Optional[int])
+#   setReconnectPolicy  → `reconnectPolicy`     (str)
+#   setStreamingRingSize→ `streamingRingSize`   (int)  ← getter row added so the
+#       property type is checked; before it, `streaming_ring_size` had no pinned
+#       getter twin and a stub drift to a non-integer would have passed.
+#   setWorkerThreads    → `workerThreads`       (Optional[int])
+# `_case_sig_python_pyi_setter_property_degrade` asserts each twin is extracted.
 # A setter NOT listed here whose `set_<name>` is dropped from a fully-enumerated
 # stub class still fails (the absence-promotion rule), so this is an explicit,
 # bounded exemption — not a blanket "missing setter is fine".
@@ -6345,11 +6359,12 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     },
     "String": {
         "python": ("String", "&str"),
-        # The stub spells a string return / param as `str`; a Config knob that
-        # constrains the value set spells it as a `Literal["a", "b", ...]` of
-        # string members, which `_sig_canon_type` folds to `str` (the constraint
-        # is documentation, not a cross-binding type difference). So only `str`
-        # is enrolled here — the Literal folds to it.
+        # The stub spells a free string return / param as `str`. A Config knob
+        # that CONSTRAINS the value set spells it as a `Literal["a", "b", ...]`;
+        # that is NOT folded to `str` here — its row pins the exact value set via
+        # a `python_pyi_returns` Literal override (compared by value set in
+        # `_sig_type_agrees`). So a bare `String` spec accepts only `str`, and a
+        # Literal actual against a bare `String` fails closed (forcing the pin).
         "python_pyi": ("str",),
         "ts_napi": ("String", "&str"),
         "ts_dts": ("string",),
@@ -6730,26 +6745,44 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
 _PYI_STR_LITERAL_RE = re.compile(
     r"Literal\[\s*(?:\"[^\"]*\"|'[^']*')(?:\s*,\s*(?:\"[^\"]*\"|'[^']*'))*\s*\]"
 )
+# One quoted member inside a `Literal[...]` — double- or single-quoted.
+_PYI_LITERAL_MEMBER_RE = re.compile(r"\"([^\"]*)\"|'([^']*)'")
+
+
+def _sig_literal_value_set(spelling: str) -> frozenset[str] | None:
+    """The set of string members of a `.pyi` `Literal["a", "b", ...]`, or None
+    when `spelling` is not such a Literal. The set is order-insensitive —
+    `Literal["a", "b"]` and `Literal["b", "a"]` are the same Python type — so a
+    Literal spec and a Literal actual compare by VALUE SET, catching an added,
+    removed, or renamed member that a fold-to-`str` would hide."""
+    if not _PYI_STR_LITERAL_RE.fullmatch(spelling.strip()):
+        return None
+    return frozenset(d or s for d, s in _PYI_LITERAL_MEMBER_RE.findall(spelling))
 
 
 def _sig_canon_type(raw: str) -> str:
     """Fold a type spelling to its comparison form: drop Rust lifetimes
     (`&'static str` → `&str`), drop the napi prelude module path
-    (`napi::bindgen_prelude::BigInt` → `BigInt`), collapse a `.pyi`
-    `Literal["a", "b"]` of string members to `str`, then whitespace-fold. The
+    (`napi::bindgen_prelude::BigInt` → `BigInt`), then whitespace-fold. The
     lifetime / napi-path qualifiers are surface noise the binding adds, never a
-    cross-binding type difference; a stub `Literal[...]` of string members
-    (the Config knob value sets — `flush_mode: Literal["batched",
-    "immediate"]`) is a documentation constraint over the underlying `str`,
-    not a distinct cross-binding type, so it folds to `str` and agrees with a
-    `String` spec."""
-    # Fold a string `Literal[...]` to `str` BEFORE the lifetime strip — the
-    # lifetime pattern (`'\w+`) would otherwise consume a single-quoted member
-    # (`Literal['a', 'b']`) and corrupt the spelling.
-    s = _PYI_STR_LITERAL_RE.sub("str", raw.strip())
-    s = re.sub(r"'\w+\s*", "", s)
-    s = re.sub(r"\bnapi::bindgen_prelude::", "", s)
-    return re.sub(r"\s+", "", s)
+    cross-binding type difference.
+
+    A `.pyi` `Literal["a", "b"]` is NOT folded to `str`: a constrained Config
+    knob (`flush_mode: Literal["batched", "immediate"]`) carries an exact value
+    set that is part of the client-facing contract, and folding it would hide a
+    value-set drift (adding / removing / renaming a member). Such rows pin the
+    Literal directly via a `python_pyi_returns` override, and `_sig_type_agrees`
+    compares the two Literals by value set. The whitespace-fold below still
+    normalises spacing inside the `Literal[...]`, so `Literal["a","b"]` and
+    `Literal["a", "b"]` canonicalise identically."""
+    # Strip the lifetime pattern with the Literal members masked out, so a
+    # single-quoted member (`Literal['a', 'b']`) is never consumed by the
+    # lifetime regex (`'\w+`) and corrupted.
+    s = raw.strip()
+    masked = _PYI_STR_LITERAL_RE.sub(lambda m: m.group(0).replace("'", '"'), s)
+    masked = re.sub(r"'\w+\s*", "", masked)
+    masked = re.sub(r"\bnapi::bindgen_prelude::", "", masked)
+    return re.sub(r"\s+", "", masked)
 
 
 def _sig_unwrap_result(spelling: str) -> str:
@@ -6823,6 +6856,15 @@ def _sig_type_agrees(canonical: str, actual: str, lang: str) -> bool:
     name, or an `actual` outside the cell, fails closed so an unmapped
     divergence can never silently pass.
     """
+    # A `Literal["a", "b", ...]` canonical (a `python_pyi_returns` override on a
+    # value-constrained Config knob) pins the EXACT value set: the actual stub
+    # type must be a Literal over the same members (order-insensitive). A drift
+    # that adds, removes, or renames a member fails — the coverage the old
+    # fold-to-`str` discarded. A non-Literal actual (the stub widened the knob
+    # to a bare `str`) fails too: the constraint is part of the contract.
+    spec_set = _sig_literal_value_set(canonical)
+    if spec_set is not None:
+        return _sig_literal_value_set(actual) == spec_set
     cm = re.fullmatch(r"Option\s*<\s*(.+)\s*>", canonical.strip())
     if cm:
         unwrapped = _sig_option_inner(actual, lang)
@@ -12254,15 +12296,30 @@ def _run_selftest() -> int:
 
     def _case_sig_python_pyi_type_map_and_literal() -> None:
         """The `python_pyi` type map agrees on the stub spellings and a
-        representable drift fails. A string `Literal[...]` folds to `str` (so a
-        `String` spec accepts a constrained Config knob); an `Optional[T]` /
+        representable drift fails. A `Literal["a", "b"]` canonical (a
+        `python_pyi_returns` override on a value-constrained Config knob) pins
+        the EXACT value set — order-insensitive — so an added / removed /
+        renamed member, or a widen to bare `str`, fails. An `Optional[T]` /
         `T | None` satisfies an `Option<T>` spec while the bare required form
         does NOT (optionality drift is visible)."""
         # Integer widths all read `int`; a non-integer drift fails.
         assert _sig_type_agrees("usize", "int", "python_pyi")
         assert not _sig_type_agrees("usize", "str", "python_pyi")
-        # `Literal["a", "b"]` of string members folds to `str`.
-        assert _sig_type_agrees("String", 'Literal["batched", "immediate"]', "python_pyi")
+        # A `Literal[...]` canonical compares by EXACT value set (the fold to
+        # `str` is gone): identity and reordering pass; add / remove / rename a
+        # member fails; widening to bare `str` fails. This is the FINDING-9 win.
+        lit = 'Literal["batched", "immediate"]'
+        assert _sig_type_agrees(lit, 'Literal["batched", "immediate"]', "python_pyi")
+        assert _sig_type_agrees(lit, 'Literal["immediate", "batched"]', "python_pyi")  # order-insensitive
+        assert not _sig_type_agrees(lit, 'Literal["batched", "immediate", "x"]', "python_pyi")  # added
+        assert not _sig_type_agrees(lit, 'Literal["batched"]', "python_pyi")  # removed
+        assert not _sig_type_agrees(lit, 'Literal["batched", "flush"]', "python_pyi")  # renamed
+        assert not _sig_type_agrees(lit, "str", "python_pyi")  # widened to bare str
+        # Single-quoted members canonicalise identically to double-quoted.
+        assert _sig_type_agrees("Literal['PROD', 'STAGE']", 'Literal["PROD", "STAGE"]', "python_pyi")
+        # A bare `String` spec no longer silently accepts a Literal actual (the
+        # fold is removed) — a genuine `str` property still passes.
+        assert not _sig_type_agrees("String", 'Literal["batched", "immediate"]', "python_pyi")
         assert _sig_type_agrees("String", "str", "python_pyi")
         assert not _sig_type_agrees("String", "int", "python_pyi")
         # Optionality: both `Optional[T]` and PEP 604 `T | None` satisfy the
@@ -12274,6 +12331,68 @@ def _run_selftest() -> int:
         # The wrapper return the stub presents (the coverage stubtest lacks).
         assert _sig_type_agrees("RecordBatchStream", "RecordBatchStream", "python_pyi")
         assert not _sig_type_agrees("RecordBatchStream", "Any", "python_pyi")
+
+    def _case_sig_python_pyi_literal_value_set_drift() -> None:
+        """FINDING-9 probe end-to-end: a `python_pyi_returns` Literal override
+        pins the EXACT value set through the orchestrator. The correct set
+        passes; adding, removing, or changing one member of the `.pyi` property
+        FAILS the `python_pyi` lane (while ts / cpp keep checking the canonical
+        `String`). Drives the real `_sig_check_method_signatures`."""
+        def _row():
+            return [{"class": "Config", "name": "flushMode", "python": True,
+                     "signature": {"returns": "String",
+                                   "python_pyi_returns": 'Literal["batched", "immediate"]'}}]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            py = root / "py"; py.mkdir()
+            # pyo3 getter returns `&str` (the `python` lane stays clean).
+            (py / "m.rs").write_text(
+                "#[pymethods]\nimpl Config {\n"
+                "    #[getter] fn flush_mode(&self) -> &str { \"batched\" }\n}\n",
+                encoding="utf-8",
+            )
+            pyi = root / "__init__.pyi"
+            paths = dict(py_src=py, pyi_path=pyi, ts_src=root / "none_ts",
+                         ts_dts=root / "none.d.ts", cpp_hpp=root / "none.hpp",
+                         client_rs=root / "none.rs", ffi_src=root / "none_ffi")
+            # Correct value set → silent.
+            pyi.write_text(
+                'class Config:\n    flush_mode: Literal["batched", "immediate"]\n',
+                encoding="utf-8",
+            )
+            assert _sig_check_method_signatures(_row(), **paths) == [], \
+                _sig_check_method_signatures(_row(), **paths)
+            # Reordered set still passes (order-insensitive).
+            pyi.write_text(
+                'class Config:\n    flush_mode: Literal["immediate", "batched"]\n',
+                encoding="utf-8",
+            )
+            assert _sig_check_method_signatures(_row(), **paths) == [], \
+                _sig_check_method_signatures(_row(), **paths)
+            # ADD a member → return mismatch on the `python_pyi` lane.
+            pyi.write_text(
+                'class Config:\n    flush_mode: Literal["batched", "immediate", "bogus"]\n',
+                encoding="utf-8",
+            )
+            errs = _sig_check_method_signatures(_row(), **paths)
+            assert any("python_pyi" in e and "return mismatch" in e for e in errs), errs
+            # REMOVE a member → fails.
+            pyi.write_text(
+                'class Config:\n    flush_mode: Literal["batched"]\n', encoding="utf-8",
+            )
+            errs = _sig_check_method_signatures(_row(), **paths)
+            assert any("python_pyi" in e and "return mismatch" in e for e in errs), errs
+            # CHANGE a member value → fails.
+            pyi.write_text(
+                'class Config:\n    flush_mode: Literal["batched", "flush"]\n',
+                encoding="utf-8",
+            )
+            errs = _sig_check_method_signatures(_row(), **paths)
+            assert any("python_pyi" in e and "return mismatch" in e for e in errs), errs
+            # WIDEN to bare `str` (drop the constraint) → fails.
+            pyi.write_text("class Config:\n    flush_mode: str\n", encoding="utf-8")
+            errs = _sig_check_method_signatures(_row(), **paths)
+            assert any("python_pyi" in e and "return mismatch" in e for e in errs), errs
 
     def _case_sig_python_pyi_lane_drifts_and_presence() -> None:
         """The orchestrator's `.pyi` lane: a return drift, a param drift, an
@@ -12382,6 +12501,39 @@ def _run_selftest() -> int:
         assert _sig_extract_python_pyi(PY_PYI, "Config", "flush_mode") == (
             [], 'Literal["batched", "immediate"]'
         ), _sig_extract_python_pyi(PY_PYI, "Config", "flush_mode")
+        # FINDING-8 closure: the exemption is sound ONLY if EVERY exempt setter
+        # has a getter twin whose `.pyi` property type the `python_pyi` lane
+        # checks. Resolve each setter's twin from the real spec and assert (a) a
+        # checked getter `[[method]]` row exists for it and (b) the stub declares
+        # the property — so no exempt setter rides on an unchecked property.
+        # `setStreamingRingSize` → `streamingRingSize` was the gap this closes.
+        setter_to_getter = {
+            "setFlushMode": ("flushMode", "flush_mode"),
+            "setWaitStrategy": ("waitStrategy", "wait_strategy"),
+            "setWaitSpinIters": ("waitSpinIters", "wait_spin_iters"),
+            "setWaitYieldIters": ("waitYieldIters", "wait_yield_iters"),
+            "setWaitParkUs": ("waitParkUs", "wait_park_us"),
+            "setConsumerCpu": ("consumerCpu", "consumer_cpu"),
+            "setReconnectPolicy": ("reconnectPolicy", "reconnect_policy"),
+            "setStreamingRingSize": ("streamingRingSize", "streaming_ring_size"),
+            "setWorkerThreads": ("workerThreads", "worker_threads"),
+        }
+        assert {("Config", s) for s in setter_to_getter} == PYI_SETTER_PROPERTY_ROWS, (
+            "the setter→getter twin table must cover exactly the exempt setters"
+        )
+        getter_rows = {
+            (r.get("class"), r.get("name")): r for r in data.get("method", [])
+        }
+        for setter, (getter, prop) in setter_to_getter.items():
+            row = getter_rows.get(("Config", getter))
+            assert row is not None and row.get("python") and "signature" in row, (
+                f"{setter}'s twin getter `{getter}` must be a python-checked "
+                f"`[[method]]` row so its property type is pinned"
+            )
+            assert _sig_extract_python_pyi(PY_PYI, "Config", prop) is not None, (
+                f"the stub must declare the `{prop}` property the `{getter}` "
+                f"getter row pins"
+            )
 
     def _case_sig_extract_cpp() -> None:
         """C++ extractor reads the in-class decl, return type bounded by the
@@ -12883,7 +13035,8 @@ def _run_selftest() -> int:
     _case("sig gate — TS .d.ts pinned surface forms all parse + drift fails", _case_sig_ts_dts_surface_forms)
     _case("sig gate — TS .d.ts absence promoted for public member", _case_sig_ts_dts_absence_promotion)
     _case("sig extractor — Python .pyi stub declaration forms", _case_sig_extract_python_pyi_forms)
-    _case("sig type-map — python_pyi spellings + Literal/Optional folds", _case_sig_python_pyi_type_map_and_literal)
+    _case("sig type-map — python_pyi spellings + Literal exact value set", _case_sig_python_pyi_type_map_and_literal)
+    _case("sig gate — python_pyi Literal value-set drift (add/remove/change) fails", _case_sig_python_pyi_literal_value_set_drift)
     _case("sig gate — Python .pyi lane drifts fail + presence degrades", _case_sig_python_pyi_lane_drifts_and_presence)
     _case("sig gate — Python .pyi setter-property rows degrade, getter checked", _case_sig_python_pyi_setter_property_degrade)
     _case("sig extractor — C++ in-class decl", _case_sig_extract_cpp)

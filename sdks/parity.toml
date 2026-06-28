@@ -2004,6 +2004,10 @@ cpp = true
 [method.signature]
 returns = "String"
 cpp_returns = "i32"
+# The Python stub constrains the knob to its exact value set; pin the Literal
+# so adding / removing / renaming a member fails (the bare `String` would hide
+# the value-set drift). The pyo3-source `python` lane still reads `&str`.
+python_pyi_returns = 'Literal["batched", "immediate"]'
 
 [[method]]
 class = "Config"
@@ -2025,6 +2029,7 @@ cpp = true
 [method.signature]
 returns = "String"
 cpp_returns = "i32"
+python_pyi_returns = 'Literal["low_latency", "balanced", "efficient", "busy_spin"]'
 
 [[method]]
 class = "Config"
@@ -2155,6 +2160,7 @@ cpp = true
 # Reads back the selector string (`"PROD"` / `"STAGE"`); C++ `std::string`.
 [method.signature]
 returns = "String"
+python_pyi_returns = 'Literal["PROD", "STAGE"]'
 
 [[method]]
 class = "Config"
@@ -2164,6 +2170,38 @@ typescript = true
 cpp = true
 [method.signature]
 returns = "String"
+python_pyi_returns = 'Literal["PROD", "DEV"]'
+
+# The reconnect-jitter and streaming-host-selection readbacks. Both are
+# value-constrained enums exposed as readback getters on every binding: Python
+# (`Config.reconnect_jitter` / `Config.streaming_host_selection` properties),
+# TypeScript (`get reconnectJitter()` / `get streamingHostSelection()`), C++
+# (`Config::get_reconnect_jitter()` / `Config::get_streaming_host_selection()`,
+# each returning the enum's `int` discriminant). The `.pyi` constrains each to
+# its exact value set, pinned via `python_pyi_returns` so a value-set drift
+# fails — without these getter rows the constrained knobs were presence-tracked
+# only (the config-field roster), never type-checked on the stub.
+[[method]]
+class = "Config"
+name = "reconnectJitter"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "String"
+cpp_returns = "i32"
+python_pyi_returns = 'Literal["full", "equal", "decorrelated", "none"]'
+
+[[method]]
+class = "Config"
+name = "streamingHostSelection"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "String"
+cpp_returns = "i32"
+python_pyi_returns = 'Literal["shuffled", "fixed_order"]'
 
 # Custom reconnect-policy callback registration. A field-shaped getter
 # is meaningless for a callback, so the registration is tracked as a
@@ -2523,6 +2561,23 @@ cpp = true
 [method.signature]
 params = ["usize"]
 returns = "()"
+
+# The ring-size readback, exposed on every binding: Python
+# (`Config.streaming_ring_size` property), TypeScript
+# (`get streamingRingSize(): bigint`), C++ (`Config::get_streaming_ring_size()`
+# over the `thetadatadx_config_get_streaming_ring_size` FFI symbol). This row
+# pins the readback's TYPE on the `.pyi` lane — the `setStreamingRingSize`
+# setter above degrades that lane to the assignable property, so without this
+# getter row a `streaming_ring_size` stub drift to a non-integer would pass.
+[[method]]
+class = "Config"
+name = "streamingRingSize"
+python = true
+typescript = true
+cpp = true
+# usize element count: napi widens to BigInt, C++ to size_t, the stub to int.
+[method.signature]
+returns = "usize"
 
 [[method]]
 class = "Config"
