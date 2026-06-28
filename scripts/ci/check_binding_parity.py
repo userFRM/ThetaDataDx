@@ -89,6 +89,9 @@ from typing import Any
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 PARITY_TOML = REPO_ROOT / "sdks" / "parity.toml"
 PY_SRC = REPO_ROOT / "sdks" / "python" / "src"
+# The shipped PEP 561 stub — the client-facing Python type surface
+# (mypy / pyright) the `python_pyi` signature lane checks against the spec.
+PY_PYI = REPO_ROOT / "sdks" / "python" / "python" / "thetadatadx" / "__init__.pyi"
 TS_PKG_DIR = REPO_ROOT / "sdks" / "typescript"
 
 
@@ -2314,6 +2317,36 @@ NAME_ONLY_METHOD_ALLOWLIST: dict[tuple[str, str], str] = {
         "cross-binding param/return contract to pin."
     ),
 }
+
+
+# `[[method]]` setter rows whose Python `.pyi` surface is the assignable
+# read-write PROPERTY, not a `def set_<name>(...)` method. pyo3 exposes a
+# `#[setter] fn set_x(value)` as the attribute `config.x = value`, and the
+# hand-written stub models it as the bare read-write annotation `x: T` — there
+# is no `set_x` declaration to extract. The MATCHING getter row (`x`) already
+# pins that property's type through the `.pyi` lane (return = T), which is the
+# same `T` this setter's param would check, so re-checking it off a synthetic
+# `set_x` is redundant and would false-fail on the (correctly) absent `set_x`.
+# So these rows DEGRADE in the `.pyi` lane to the pyo3-source `python` lane +
+# stubtest (which DO see the runtime `set_x` setter and its parameter). Every
+# entry's getter twin is `.pyi`-checked, so the property type stays pinned.
+# A setter NOT listed here whose `set_<name>` is dropped from a fully-enumerated
+# stub class still fails (the absence-promotion rule), so this is an explicit,
+# bounded exemption — not a blanket "missing setter is fine".
+PYI_SETTER_PROPERTY_ROWS: frozenset[tuple[str, str]] = frozenset(
+    ("Config", name)
+    for name in (
+        "setFlushMode",
+        "setWaitStrategy",
+        "setWaitSpinIters",
+        "setWaitYieldIters",
+        "setWaitParkUs",
+        "setConsumerCpu",
+        "setReconnectPolicy",
+        "setStreamingRingSize",
+        "setWorkerThreads",
+    )
+)
 
 
 # Parity-toml `class` field → the Rust struct the Rust method collector
@@ -6237,6 +6270,14 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # loose cell here.
     "usize": {
         "python": ("usize",),
+        # The `.pyi` stub spells every integer width as Python's unbounded
+        # `int` — the runtime exposes no NewType per width, so `usize` / `u64`
+        # / `i64` / `u32` / `i32` all read `int` in the stub. A width drift is
+        # therefore invisible to THIS lane (it is the pyo3-source `python`
+        # lane's job, which carries the exact width); the stub lane pins that
+        # the parameter / return stays an integer at all and does not drift to
+        # a non-integer Python type.
+        "python_pyi": ("int",),
         "ts_napi": ("f64", "BigInt", "u32", "i64"),
         "ts_dts": ("number", "bigint"),
         "cpp": ("size_t", "std::size_t"),
@@ -6249,6 +6290,7 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # `u64` row that drifts to a platform-width return fails closed.
     "u64": {
         "python": ("u64",),
+        "python_pyi": ("int",),
         "ts_napi": ("BigInt", "f64"),
         "ts_dts": ("bigint", "number"),
         "cpp": ("uint64_t", "std::uint64_t"),
@@ -6257,6 +6299,7 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     },
     "i64": {
         "python": ("i64",),
+        "python_pyi": ("int",),
         "ts_napi": ("i64", "BigInt"),
         "ts_dts": ("number", "bigint"),
         "cpp": ("int64_t",),
@@ -6265,6 +6308,7 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     },
     "u32": {
         "python": ("u32",),
+        "python_pyi": ("int",),
         "ts_napi": ("u32",),
         "ts_dts": ("number",),
         "cpp": ("uint32_t",),
@@ -6273,6 +6317,7 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     },
     "i32": {
         "python": ("i32",),
+        "python_pyi": ("int",),
         "ts_napi": ("i32",),
         "ts_dts": ("number",),
         "cpp": ("int32_t", "int"),
@@ -6281,6 +6326,7 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     },
     "f64": {
         "python": ("f64",),
+        "python_pyi": ("float", "int"),
         "ts_napi": ("f64",),
         "ts_dts": ("number",),
         "cpp": ("double",),
@@ -6289,6 +6335,7 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     },
     "bool": {
         "python": ("bool",),
+        "python_pyi": ("bool",),
         "ts_napi": ("bool",),
         "ts_dts": ("boolean",),
         "cpp": ("bool",),
@@ -6298,6 +6345,12 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     },
     "String": {
         "python": ("String", "&str"),
+        # The stub spells a string return / param as `str`; a Config knob that
+        # constrains the value set spells it as a `Literal["a", "b", ...]` of
+        # string members, which `_sig_canon_type` folds to `str` (the constraint
+        # is documentation, not a cross-binding type difference). So only `str`
+        # is enrolled here — the Literal folds to it.
+        "python_pyi": ("str",),
         "ts_napi": ("String", "&str"),
         "ts_dts": ("string",),
         "cpp": ("std::string", "const std::string&"),
@@ -6308,6 +6361,7 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # carry the integer / chrono spelling they expose to users.
     "Duration": {
         "python": ("u64", "f64", "Duration"),
+        "python_pyi": ("int", "float"),
         "ts_napi": ("f64", "BigInt"),
         "ts_dts": ("number",),
         "cpp": ("uint64_t", "std::chrono::milliseconds", "double"),
@@ -6322,6 +6376,10 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # no cell here.
     "Contract": {
         "python": ("PyContract",),
+        # The stub names the fluent contract by its public Python class
+        # `Contract` (the inner type of `Subscription.contract`'s
+        # `Optional[Contract]`), not the Rust pyclass `PyContract`.
+        "python_pyi": ("Contract",),
         "ts_napi": ("ContractRef",),
         # The napi `.d.ts` spells the fluent contract `ContractRef` (the
         # `Contract` symbol is the streaming event-payload class); the wrapper
@@ -6330,6 +6388,7 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     },
     "SecType": {
         "python": ("PySecType",),
+        "python_pyi": ("SecType",),
         "ts_napi": ("SecType",),
         "ts_dts": ("SecType",),
     },
@@ -6368,6 +6427,9 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # C++ `const FluentSubscription&`.
     "Subscription": {
         "python": ("&Bound<'_, PyAny>", "PyObject", "Py<PyAny>"),
+        # The pyo3 source takes the polymorphic `&Bound<PyAny>` it coerces, but
+        # the stub presents the typed `Subscription` the user actually passes.
+        "python_pyi": ("Subscription",),
         "ts_napi": ("&fluent::Subscription", "&Subscription"),
         "ts_dts": ("Subscription",),
         "cpp": ("const class FluentSubscription&", "const FluentSubscription&"),
@@ -6378,6 +6440,9 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # the C++ `std::initializer_list<FluentSubscription>`.
     "SubscriptionList": {
         "python": ("&Bound<'_, PyAny>",),
+        # The stub presents the iterable as a typed `List[Subscription]`
+        # (a `Sequence[Subscription]` is the equally-valid read-only spelling).
+        "python_pyi": ("List[Subscription]", "Sequence[Subscription]"),
         "ts_napi": ("Vec<&fluent::Subscription>", "Vec<&Subscription>"),
         "ts_dts": ("Array<Subscription>",),
         "cpp": (
@@ -6393,6 +6458,10 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # here — there is no cross-binding contract in those generics.
     "Callback": {
         "python": ("Py<PyAny>", "PyObject"),
+        # The stub names the per-event handler via its `EventCallback` alias
+        # (`Callable[[<event-union>], None]`), the documented streaming-callback
+        # type; the alias is the cross-binding handler contract.
+        "python_pyi": ("EventCallback",),
         "cpp": ("std::function<void(const StreamEvent&)>",),
         # The `.d.ts` per-event handler type. napi-rs generates the parameter
         # name `arg`; the cross-binding contract is the `StreamEvent` payload
@@ -6426,6 +6495,9 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
 SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     "()": {
         "python": ("()", "PyResult<()>"),
+        # A no-result method's stub return annotation is `None` (the extractor
+        # also yields `None` for a `def`-with-no-`->`, the pyo3 unit method).
+        "python_pyi": ("None",),
         "ts_napi": ("()", "Result<()>", "napi::Result<()>"),
         "ts_dts": ("void", "Promise<void>"),
         "cpp": ("void",),
@@ -6439,6 +6511,10 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # reader, `ThetaDataDxFlatFileBytes` for the flat-file rows).
     "Bytes": {
         "python": ("PyResult<Py<PyAny>>", "Py<PyAny>"),
+        # The stub types the opaque owned-bytes object as `Any` (the runtime
+        # hands back a `bytes` / `memoryview`); `bytes` is accepted for a stub
+        # that names the concrete container.
+        "python_pyi": ("Any", "bytes"),
         "ts_napi": ("napi::Result<Buffer>", "Buffer"),
         "ts_dts": ("Buffer", "Uint8Array"),
         "cpp": ("std::vector<uint8_t>", "std::vector<std::uint8_t>"),
@@ -6450,6 +6526,9 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # pointer.
     "Schema": {
         "python": ("PyResult<Py<PyAny>>", "Py<PyAny>"),
+        # The stub types the Arrow schema object as `Any` (it is a runtime
+        # `pyarrow.Schema`, not statically modelled).
+        "python_pyi": ("Any",),
         "ts_napi": ("Schema",),
         "ts_dts": ("Schema", "import('apache-arrow').Schema"),
         "cpp": ("std::shared_ptr<arrow::Schema>",),
@@ -6460,6 +6539,10 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # closed.
     "PyObject": {
         "python": ("PyResult<Py<PyAny>>", "Py<PyAny>"),
+        # The stub types the arbitrary-object materialiser as `Any`
+        # (`to_pandas` / `to_polars` — a frame) or `List[Any]` (`to_list` — a
+        # list of row dicts); both are the opaque Python-object return.
+        "python_pyi": ("Any", "List[Any]"),
     },
     # A `Credentials` factory return: the auth handle itself. Python spells it
     # `Self` (or `PyResult<Self>` for the fallible file / env factories),
@@ -6469,6 +6552,9 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # contract the signature gate pins.
     "Credentials": {
         "python": ("Self", "PyResult<Self>", "Credentials", "PyResult<Credentials>"),
+        # The stub resolves the factory return to the concrete `Credentials`
+        # (it does not spell `Self` on a `@staticmethod`).
+        "python_pyi": ("Credentials",),
         "ts_napi": ("Credentials", "napi::Result<Credentials>"),
         "ts_dts": ("Credentials",),
         "cpp": ("Credentials",),
@@ -6481,6 +6567,8 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # divergence is encoded per binding here rather than forced symmetric.
     "Subscriptions": {
         "python": ("Vec<crate::fluent::PySubscription>", "Vec<PySubscription>"),
+        # The stub types the active-subscription snapshot as `List[Subscription]`.
+        "python_pyi": ("List[Subscription]",),
         "ts_napi": ("serde_json::Value",),
         "ts_dts": ("any",),
         "cpp": ("std::vector<Subscription>",),
@@ -6491,6 +6579,7 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # tree as the per-contract variant).
     "FullSubscriptions": {
         "python": ("Vec<crate::fluent::PySubscription>", "Vec<PySubscription>"),
+        "python_pyi": ("List[Subscription]",),
         "ts_napi": ("serde_json::Value",),
         "ts_dts": ("any",),
         "cpp": ("std::vector<FullSubscription>",),
@@ -6505,6 +6594,11 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
             "crate::streaming_batches::RecordBatchStream",
             "RecordBatchStream",
         ),
+        # The stub presents the public `RecordBatchStream` wrapper class — the
+        # coverage stubtest cannot give (a compiled pyo3 return carries no
+        # runtime annotation), so a stub drift on this return is THIS lane's
+        # to catch.
+        "python_pyi": ("RecordBatchStream",),
         "ts_napi": (
             "crate::streaming_batches::RecordBatchStreamHandle",
             "RecordBatchStreamHandle",
@@ -6520,6 +6614,7 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # trips the gate.
     "HistoricalView": {
         "python": ("HistoricalView",),
+        "python_pyi": ("HistoricalView",),
         "ts_napi": ("HistoricalView",),
         "ts_dts": ("HistoricalView",),
         "cpp": ("Historical",),
@@ -6527,6 +6622,7 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     },
     "StreamView": {
         "python": ("StreamView",),
+        "python_pyi": ("StreamView",),
         "ts_napi": ("StreamView",),
         "ts_dts": ("StreamView",),
         "cpp": ("Stream",),
@@ -6534,6 +6630,7 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     },
     "FlatFilesNamespace": {
         "python": ("FlatFilesNamespace",),
+        "python_pyi": ("FlatFilesNamespace",),
         "ts_napi": ("FlatFilesNamespace",),
         "ts_dts": ("FlatFilesNamespace",),
         "cpp": ("FlatFiles",),
@@ -6552,6 +6649,7 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # compare); the Rust core returns the owned `Vec<FlatFileRow>`.
     "FlatFileRowList": {
         "python": ("FlatFileRowList",),
+        "python_pyi": ("FlatFileRowList",),
         "ts_napi": ("FlatFileRowList",),
         "ts_dts": ("FlatFileRowList",),
         "cpp": ("FlatFileRowList",),
@@ -6564,6 +6662,9 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # by-reference spellings — this is the by-value return shape.
     "BuiltSubscription": {
         "python": ("PySubscription",),
+        # The stub presents the built subscription as the public `Subscription`
+        # class (not the Rust pyclass `PySubscription`).
+        "python_pyi": ("Subscription",),
         "ts_napi": ("Subscription",),
         "ts_dts": ("Subscription",),
         "cpp": ("FluentSubscription",),
@@ -6573,6 +6674,7 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # Rust core returns the owned `PathBuf`.
     "WrittenPath": {
         "python": ("String",),
+        "python_pyi": ("str",),
         "ts_napi": ("String",),
         "ts_dts": ("string",),
         "cpp": ("void",),
@@ -6585,6 +6687,7 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # `fn` (the session is a JS wrapper), so the row skips `ts_napi`.
     "StreamingSession": {
         "python": ("Py<StreamingSession>", "StreamingSession"),
+        "python_pyi": ("StreamingSession",),
         "ts_dts": ("StreamingSession",),
     },
     # The inline-construction options object + its `Client` return on the
@@ -6603,6 +6706,9 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # tuple list; the Rust core returns the opaque `SubscriptionInfo` struct.
     "SubscriptionInfo": {
         "python": ("Vec<(String, String)>", "Vec<(String,String)>"),
+        # The stub materialises the snapshot as `List[Tuple[str, str]]`
+        # (whitespace-folded before the compare).
+        "python_pyi": ("List[Tuple[str,str]]",),
         "rust": ("SubscriptionInfo",),
     },
     # A `Config` factory return (the env-tier presets `production` / `dev` /
@@ -6611,6 +6717,9 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # `Self` to the concrete `Config`, C++ the value type `Config`.
     "Config": {
         "python": ("Self", "Config"),
+        # The stub resolves the env-tier factory return to the concrete
+        # `Config` (a `@staticmethod` does not spell `Self`).
+        "python_pyi": ("Config",),
         "ts_napi": ("Self", "Config"),
         "ts_dts": ("Config",),
         "cpp": ("Config",),
@@ -6618,13 +6727,27 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
 }
 
 
+_PYI_STR_LITERAL_RE = re.compile(
+    r"Literal\[\s*(?:\"[^\"]*\"|'[^']*')(?:\s*,\s*(?:\"[^\"]*\"|'[^']*'))*\s*\]"
+)
+
+
 def _sig_canon_type(raw: str) -> str:
     """Fold a type spelling to its comparison form: drop Rust lifetimes
     (`&'static str` → `&str`), drop the napi prelude module path
-    (`napi::bindgen_prelude::BigInt` → `BigInt`), then whitespace-fold. The
+    (`napi::bindgen_prelude::BigInt` → `BigInt`), collapse a `.pyi`
+    `Literal["a", "b"]` of string members to `str`, then whitespace-fold. The
     lifetime / napi-path qualifiers are surface noise the binding adds, never a
-    cross-binding type difference."""
-    s = re.sub(r"'\w+\s*", "", raw.strip())
+    cross-binding type difference; a stub `Literal[...]` of string members
+    (the Config knob value sets — `flush_mode: Literal["batched",
+    "immediate"]`) is a documentation constraint over the underlying `str`,
+    not a distinct cross-binding type, so it folds to `str` and agrees with a
+    `String` spec."""
+    # Fold a string `Literal[...]` to `str` BEFORE the lifetime strip — the
+    # lifetime pattern (`'\w+`) would otherwise consume a single-quoted member
+    # (`Literal['a', 'b']`) and corrupt the spelling.
+    s = _PYI_STR_LITERAL_RE.sub("str", raw.strip())
+    s = re.sub(r"'\w+\s*", "", s)
     s = re.sub(r"\bnapi::bindgen_prelude::", "", s)
     return re.sub(r"\s+", "", s)
 
@@ -6676,6 +6799,15 @@ def _sig_option_inner(spelling: str, lang: str) -> str | None:
         # as `T | undefined | null` (either union order). Strip the trailing
         # `| null` / `| undefined` members to recover the inner `T`.
         m = re.fullmatch(r"(.+?)\s*(?:\|\s*(?:null|undefined)\s*)+", s)
+        if m:
+            return m.group(1).strip()
+    elif lang == "python_pyi":
+        # The stub spells an optional as `Optional[T]` or the PEP 604 union
+        # `T | None`. Either recovers the inner `T`.
+        m = re.fullmatch(r"Optional\s*\[\s*(.+)\s*\]", s)
+        if m:
+            return m.group(1).strip()
+        m = re.fullmatch(r"(.+?)\s*\|\s*None", s)
         if m:
             return m.group(1).strip()
     return None
@@ -6831,6 +6963,153 @@ def _sig_extract_python(py_src: pathlib.Path, cls: str, method: str) -> tuple[li
             if sig is not None:
                 return sig
     return None
+
+
+def _pyi_class_bodies(pyi_path: pathlib.Path, cls: str) -> list[str]:
+    """Every `class cls(...):` body text in the PEP 561 stub. A class body runs
+    from the header line to the next column-0 non-blank line (the file's top
+    level), so the indented members — and any nested `class`/`def` — are
+    captured. A class is rarely redeclared in a stub, but all bodies are
+    returned for symmetry with the `.d.ts` surface scan."""
+    if not pyi_path.is_file():
+        return []
+    text = pyi_path.read_text(encoding="utf-8")
+    out: list[str] = []
+    cls_re = re.compile(r"(?m)^class\s+" + re.escape(cls) + r"\b[^\n]*:[ \t]*$")
+    for m in cls_re.finditer(text):
+        nl = text.find("\n", m.start())
+        if nl == -1:
+            continue
+        body_lines: list[str] = []
+        for line in text[nl + 1 :].splitlines(keepends=True):
+            if line.strip() and not line[0].isspace():
+                break
+            body_lines.append(line)
+        out.append("".join(body_lines))
+    return out
+
+
+def _sig_pyi_member(body: str, member: str) -> tuple[list[str], str] | None:
+    """Parse `(params, ret)` for `member` inside a single stub class `body`, in
+    either form the pinned Python surface uses:
+
+      * a method  `def member(self, p: T, ...) -> R:` (the receiver `self`/`cls`
+        and any `*` / `/` separator and `*args`/`**kwargs` are dropped; a
+        default `= ...` is stripped off the param type; a `def` with no `->`
+        defaults to the `None` unit return), or
+      * a `@property` / bare read-write annotation `member: T` → a zero-arg
+        signature returning `T` (the `Config` knobs and the `Subscription`
+        accessors are stub properties, not methods).
+
+    The method body may span lines (the keyword-only `batches(self, *, ...)`
+    form), so the param list is read with a balanced-paren scan. Returns None
+    when the member is absent from this body."""
+    dm = re.search(r"(?m)^[ \t]+def[ \t]+" + re.escape(member) + r"[ \t]*\(", body)
+    if dm:
+        open_paren = body.index("(", dm.start())
+        arglist, after = _sig_balanced_parens(body, open_paren + 1)
+        rm = re.match(r"\s*->\s*(.+?)\s*:", body[after:], re.DOTALL)
+        ret = rm.group(1).strip() if rm else "None"
+        params: list[str] = []
+        for p in _sig_split_params(arglist):
+            tok = p.strip()
+            # Drop the receiver, the keyword-only / positional-only markers, and
+            # any *args / **kwargs — none is a cross-binding parameter.
+            if not tok or tok in ("self", "cls", "*", "/") or tok.startswith("*"):
+                continue
+            if ":" in tok:
+                ty = tok.split(":", 1)[1]
+                if "=" in ty:  # strip a default value off the annotation
+                    ty = ty.split("=", 1)[0]
+                params.append(ty.strip())
+            else:
+                params.append(tok)
+        return params, ret
+    # Property / bare read-write annotation. Scan a copy with every `(...)` run
+    # blanked so a deeper-indented `def` PARAMETER that happens to share the
+    # member's name (`def batches(self, batch_size: Optional[int] = None)`
+    # while looking up a `batch_size` property) cannot be misread as a class
+    # property — only a genuine class-level `member: T` survives the mask.
+    pm = re.search(
+        r"(?m)^[ \t]+" + re.escape(member) + r"[ \t]*:[ \t]*(.+?)[ \t]*$",
+        _pyi_blank_parens(body),
+    )
+    if pm:
+        # Read the annotation from the ORIGINAL body at the matched span (the
+        # mask only gates WHERE a property may match, never its text).
+        return [], body[pm.start(1) : pm.end(1)].strip()
+    return None
+
+
+def _pyi_blank_parens(text: str) -> str:
+    """Replace every balanced `(...)` run with spaces of equal length (newlines
+    preserved), so a member-property scan never descends into a `def`'s
+    parameter list. Length / line structure is preserved so match offsets line
+    up with the original text."""
+    out = list(text)
+    depth = 0
+    for i, ch in enumerate(text):
+        if ch == "(":
+            depth += 1
+            out[i] = " "
+        elif ch == ")":
+            if depth > 0:
+                out[i] = " "
+                depth -= 1
+        elif depth > 0 and ch != "\n":
+            out[i] = " "
+    return "".join(out)
+
+
+def _sig_extract_python_pyi(
+    pyi_path: pathlib.Path, cls: str, member_snake: str
+) -> tuple[list[str], str] | None:
+    """Python `.pyi` stub signature: the member `member_snake` inside
+    `class cls` of the shipped PEP 561 stub — a method or a property
+    (zero-arg). The stub is the client-facing type surface mypy / pyright
+    consumers see.
+
+    This lane verifies the stub against the cross-binding SPEC (the
+    `python_pyi` type-map column), which is a DIFFERENT axis from Gate 6's
+    stubtest: stubtest compares the stub against the RUNTIME and pins the
+    parameter list / arity, but a compiled pyo3 method exposes no runtime
+    return annotation, so stubtest cannot see a stub RETURN drift. This lane
+    pins both the params (defence in depth with stubtest) AND the return (the
+    coverage stubtest lacks) against the spec.
+
+    Returns None when the stub is absent or the member is not declared in the
+    class; `_sig_pyi_public_member_missing` then decides whether the absence is
+    a dropped public member (fail) or a member legitimately served off the
+    stub (degrades to the pyo3-source `python` lane + stubtest as authority)."""
+    for body in _pyi_class_bodies(pyi_path, cls):
+        sig = _sig_pyi_member(body, member_snake)
+        if sig is not None:
+            return sig
+    return None
+
+
+def _sig_pyi_public_member_missing(
+    pyi_path: pathlib.Path, cls: str, member_snake: str
+) -> bool:
+    """Is `cls.member_snake` part of the hand-maintained public stub surface yet
+    missing its declaration? True only when the CLASS is declared in the stub,
+    carries NO class-level `__getattr__` escape, and the MEMBER is absent — a
+    member that belongs on a fully-enumerated stub class was dropped.
+
+    False when the class is absent from the stub (a generator-emitted class the
+    stub deliberately omits — the 100+ historical builders / `<Tick>List`
+    wrappers reached via the module-level `__getattr__ -> Any`), OR when the
+    class carries its own `__getattr__` fallback (`AsyncClient`,
+    `HistoricalClient`, `StreamingSession` route extras to `Any`). In both
+    degrade cases the pyo3-source `python` lane + stubtest remain the authority
+    — exactly the way `_sig_dts_public_member_missing` degrades a class absent
+    from the `.d.ts` surface to napi-as-authority."""
+    bodies = _pyi_class_bodies(pyi_path, cls)
+    if not bodies:
+        return False
+    if any(re.search(r"(?m)^[ \t]+def[ \t]+__getattr__\b", b) for b in bodies):
+        return False
+    return _sig_extract_python_pyi(pyi_path, cls, member_snake) is None
 
 
 def _sig_extract_ts_napi(ts_src: pathlib.Path, cls: str, method_camel: str) -> tuple[list[str], str] | None:
@@ -7193,8 +7472,23 @@ def _sig_extract_ffi(ffi_src: pathlib.Path, symbol: str) -> tuple[list[str], str
 def _sig_spec_for(signature: dict[str, Any], lang: str) -> tuple[list[str], str] | None:
     if lang in signature.get("skip_langs", ()):
         return None
-    params = signature.get(f"{lang}_params", signature.get("params"))
-    returns = signature.get(f"{lang}_returns", signature.get("returns"))
+    # Override-key precedence per lang. `python_pyi` (the stub lane) shares the
+    # one TypeScript-like split with the pyo3-source `python` lane: a
+    # `python_*` override is a per-binding divergence both python views inherit,
+    # so the stub lane falls back `python_pyi_*` → `python_*` → canonical. Every
+    # other lang reads `<lang>_*` → canonical.
+    key_chain = (
+        ("python_pyi", "python") if lang == "python_pyi" else (lang,)
+    )
+
+    def _resolve(suffix: str) -> Any:
+        for key in key_chain:
+            if f"{key}_{suffix}" in signature:
+                return signature[f"{key}_{suffix}"]
+        return signature.get(suffix)
+
+    params = _resolve("params")
+    returns = _resolve("returns")
     if params is None and returns is None:
         return None
     return list(params or []), returns if returns is not None else "()"
@@ -7250,6 +7544,7 @@ def _sig_check_method_signatures(
     method_rows: list[dict[str, Any]],
     *,
     py_src: pathlib.Path,
+    pyi_path: pathlib.Path,
     ts_src: pathlib.Path,
     ts_dts: pathlib.Path,
     cpp_hpp: pathlib.Path,
@@ -7265,12 +7560,19 @@ def _sig_check_method_signatures(
     through the TYPE_MAP + per-binding overrides.
 
     A row's enrolled signature-langs are derived from its presence booleans
-    (`python` → python, `typescript` → ts_napi + ts_dts, `cpp` → cpp, `rust`
-    → rust) intersected with what the spec actually pins (canonical or a
-    `<lang>_params`/`<lang>_returns` override). The FFI symbol is checked only
-    when the row supplies an `ffi_symbol` key naming the extern (a method row
-    has no FFI presence boolean — its C-ABI shape is a `[[ffi_symbol]]`
+    (`python` → python + python_pyi, `typescript` → ts_napi + ts_dts, `cpp` →
+    cpp, `rust` → rust) intersected with what the spec actually pins (canonical
+    or a `<lang>_params`/`<lang>_returns` override). The FFI symbol is checked
+    only when the row supplies an `ffi_symbol` key naming the extern (a method
+    row has no FFI presence boolean — its C-ABI shape is a `[[ffi_symbol]]`
     concern), so an FFI signature is opt-in within the opt-in.
+
+    The `python` flag drives TWO lanes: `python` reads the pyo3 Rust source
+    (the runtime contract), `python_pyi` reads the shipped PEP 561 stub (the
+    client-facing type surface). The stub lane checks params + RETURN against
+    the cross-binding spec; its return check is coverage Gate 6's stubtest
+    cannot give (a compiled pyo3 method has no runtime return annotation, so
+    stubtest validates only the stub-vs-runtime parameter list / arity).
     """
     errors: list[str] = []
     for row in method_rows:
@@ -7314,6 +7616,39 @@ def _sig_check_method_signatures(
                 errors += _sig_compare_one(
                     label, spec, _sig_extract_python(py_src, py_cls, py_member), "python"
                 )
+            # The PEP 561 stub lane. The stub uses the PUBLIC Python class
+            # names (`Contract`, not the pyo3 pyclass `PyContract`), so resolve
+            # against the parity-toml class directly; a `python` override
+            # already targets the public stub class + member (e.g.
+            # `flatFileToPath` → `Client.flatfile_to_path`,
+            # `count` → `FlatFileRowList.__len__`), so reuse it when present.
+            # DIVISION OF LABOUR: Gate 6's stubtest checks the stub against the
+            # RUNTIME (params + arity); this lane checks it against the
+            # cross-binding SPEC (params + RETURN) — the return is the coverage
+            # stubtest lacks, since a compiled pyo3 method exposes no runtime
+            # return annotation.
+            spec_pyi = _sig_spec_for(signature, "python_pyi")
+            if spec_pyi is not None and (class_name, camel) not in PYI_SETTER_PROPERTY_ROWS:
+                pyi_cls, pyi_member = (
+                    override["python"] if override and "python" in override
+                    else (class_name, snake)
+                )
+                actual_pyi = _sig_extract_python_pyi(pyi_path, pyi_cls, pyi_member)
+                if actual_pyi is not None:
+                    errors += _sig_compare_one(label, spec_pyi, actual_pyi, "python_pyi")
+                elif _sig_pyi_public_member_missing(pyi_path, pyi_cls, pyi_member):
+                    # The class is a fully-enumerated public stub class (no
+                    # `__getattr__` escape) but the member's declaration is
+                    # gone — a dropped public stub member fails the gate. (A
+                    # class absent from the stub, or one with a `__getattr__`
+                    # fallback, degrades to the `python` lane + stubtest.)
+                    errors.append(
+                        f"  {label}.python_pyi: `[method.signature]` pins this "
+                        f"binding and `{pyi_cls}` is a fully-enumerated public "
+                        f"stub class, but no `{pyi_member}` declaration was "
+                        f"found in `__init__.pyi` — a removed public stub "
+                        f"declaration must fail the gate."
+                    )
         if row.get("typescript"):
             ts_cls, ts_member = (
                 override["typescript"] if override and "typescript" in override
@@ -7485,6 +7820,7 @@ def main(argv: list[str] | None = None) -> int:
     method_signature_errors = _sig_check_method_signatures(
         method_rows,
         py_src=PY_SRC,
+        pyi_path=PY_PYI,
         ts_src=TS_SRC,
         ts_dts=TS_DTS,
         cpp_hpp=CPP_HPP,
@@ -11862,6 +12198,191 @@ def _run_selftest() -> int:
             # Class absent entirely → NOT promoted (napi-only degradation).
             assert not _sig_dts_public_member_missing(d / "index.d.ts", "RecordBatchStream", "dropped")
 
+    def _case_sig_extract_python_pyi_forms() -> None:
+        """The `.pyi` extractor reads every declaration FORM the pinned Python
+        surface uses: a multi-line keyword-only method (`batches(self, *, ...)
+        -> RecordBatchStream`), a `@property` / bare read-write annotation
+        (zero-arg returning the annotated type), a `@staticmethod`, an
+        `Optional[T]` / `T | None` return, and a `def` with no `->` (the unit
+        `None` return). Each form must parse to the right `(params, ret)`."""
+        with tempfile.TemporaryDirectory() as tmp:
+            pyi = pathlib.Path(tmp) / "__init__.pyi"
+            pyi.write_text(
+                "class Foo:\n"
+                "    def batches(\n"
+                "        self,\n"
+                "        *,\n"
+                "        batch_size: Optional[int] = None,\n"
+                "        backpressure: Optional[str] = None,\n"
+                "    ) -> RecordBatchStream:\n"
+                "        ...\n"
+                "    @property\n"
+                "    def contract(self) -> Optional[Contract]:\n"
+                "        ...\n"
+                "    kind: Literal[\"quote\", \"trade\"]\n"
+                "    consumer_cpu: Optional[int]\n"
+                "    @staticmethod\n"
+                "    def from_file(path: str) -> Credentials:\n"
+                "        ...\n"
+                "    def stop(self) -> None:\n"
+                "        ...\n"
+                "    def reconnect(self):\n"
+                "        ...\n",
+                encoding="utf-8",
+            )
+            assert _sig_extract_python_pyi(pyi, "Foo", "batches") == (
+                ["Optional[int]", "Optional[str]"], "RecordBatchStream"
+            ), _sig_extract_python_pyi(pyi, "Foo", "batches")
+            # `@property def` form → zero-arg returning the annotated type.
+            assert _sig_extract_python_pyi(pyi, "Foo", "contract") == ([], "Optional[Contract]")
+            # Bare read-write annotations (the Config-knob property shape).
+            assert _sig_extract_python_pyi(pyi, "Foo", "kind") == ([], 'Literal["quote", "trade"]')
+            assert _sig_extract_python_pyi(pyi, "Foo", "consumer_cpu") == ([], "Optional[int]")
+            # `@staticmethod` → no receiver to strip; the lone `str` param survives.
+            assert _sig_extract_python_pyi(pyi, "Foo", "from_file") == (["str"], "Credentials")
+            # `-> None` and a `def` with no `->` both yield the unit `None`.
+            assert _sig_extract_python_pyi(pyi, "Foo", "stop") == ([], "None")
+            assert _sig_extract_python_pyi(pyi, "Foo", "reconnect") == ([], "None")
+            # A member genuinely absent from the class → None.
+            assert _sig_extract_python_pyi(pyi, "Foo", "missing") is None
+            # REGRESSION: a deeper-indented `def` PARAMETER that shares a
+            # member's name (`batch_size` inside `batches(...)`) must NOT be
+            # misread as a class property — the paren-mask gates it out, so a
+            # lookup of a name that exists ONLY as a param returns None.
+            assert _sig_extract_python_pyi(pyi, "Foo", "batch_size") is None
+            assert _sig_extract_python_pyi(pyi, "Foo", "backpressure") is None
+
+    def _case_sig_python_pyi_type_map_and_literal() -> None:
+        """The `python_pyi` type map agrees on the stub spellings and a
+        representable drift fails. A string `Literal[...]` folds to `str` (so a
+        `String` spec accepts a constrained Config knob); an `Optional[T]` /
+        `T | None` satisfies an `Option<T>` spec while the bare required form
+        does NOT (optionality drift is visible)."""
+        # Integer widths all read `int`; a non-integer drift fails.
+        assert _sig_type_agrees("usize", "int", "python_pyi")
+        assert not _sig_type_agrees("usize", "str", "python_pyi")
+        # `Literal["a", "b"]` of string members folds to `str`.
+        assert _sig_type_agrees("String", 'Literal["batched", "immediate"]', "python_pyi")
+        assert _sig_type_agrees("String", "str", "python_pyi")
+        assert not _sig_type_agrees("String", "int", "python_pyi")
+        # Optionality: both `Optional[T]` and PEP 604 `T | None` satisfy the
+        # `Option<T>` spec; the required form does not, and vice versa.
+        assert _sig_type_agrees("Option<String>", "Optional[str]", "python_pyi")
+        assert _sig_type_agrees("Option<u64>", "int | None", "python_pyi")
+        assert not _sig_type_agrees("Option<String>", "str", "python_pyi")  # required ≠ optional
+        assert not _sig_type_agrees("String", "Optional[str]", "python_pyi")  # optional ≠ required
+        # The wrapper return the stub presents (the coverage stubtest lacks).
+        assert _sig_type_agrees("RecordBatchStream", "RecordBatchStream", "python_pyi")
+        assert not _sig_type_agrees("RecordBatchStream", "Any", "python_pyi")
+
+    def _case_sig_python_pyi_lane_drifts_and_presence() -> None:
+        """The orchestrator's `.pyi` lane: a return drift, a param drift, an
+        optionality drift, and a dropped pinned declaration each FAIL; a clean
+        stub passes; a member served only via a class `__getattr__` (or a class
+        absent from the stub) does NOT false-fail. Proves the lane is wired and
+        its presence policy mirrors the `.d.ts` degrade-to-authority rule."""
+        def _row(**sig):
+            base = {"params": ["Option<usize>"], "returns": "RecordBatchStream"}
+            base.update(sig)
+            return [{"class": "StreamView", "name": "batches",
+                     "python": True, "signature": base}]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            # Minimal pyo3 source so the `python` lane stays clean while we probe
+            # the `.pyi` lane (StreamView → no PY_CLASS_ALIASES entry, member
+            # `batches`).
+            py = root / "py"; py.mkdir()
+            (py / "m.rs").write_text(
+                "#[pymethods]\nimpl StreamView {\n"
+                "    pub fn batches(&self, n: Option<usize>) -> "
+                "PyResult<crate::streaming_batches::RecordBatchStream> { todo!() }\n}\n",
+                encoding="utf-8",
+            )
+            pyi = root / "__init__.pyi"
+            paths = dict(py_src=py, pyi_path=pyi, ts_src=root / "none_ts",
+                         ts_dts=root / "none.d.ts", cpp_hpp=root / "none.hpp",
+                         client_rs=root / "none.rs", ffi_src=root / "none_ffi")
+            # Clean stub → silent.
+            pyi.write_text(
+                "class StreamView:\n"
+                "    def batches(self, n: Optional[int]) -> RecordBatchStream:\n"
+                "        ...\n",
+                encoding="utf-8",
+            )
+            assert _sig_check_method_signatures(_row(), **paths) == [], \
+                _sig_check_method_signatures(_row(), **paths)
+            # RETURN drift (the stubtest-blind axis) → fails.
+            pyi.write_text(
+                "class StreamView:\n"
+                "    def batches(self, n: Optional[int]) -> Any:\n        ...\n",
+                encoding="utf-8",
+            )
+            errs = _sig_check_method_signatures(_row(), **paths)
+            assert any("python_pyi" in e and "return mismatch" in e for e in errs), errs
+            # PARAM-TYPE drift → fails.
+            pyi.write_text(
+                "class StreamView:\n"
+                "    def batches(self, n: Optional[str]) -> RecordBatchStream:\n        ...\n",
+                encoding="utf-8",
+            )
+            errs = _sig_check_method_signatures(_row(), **paths)
+            assert any("python_pyi" in e and "param #0 type mismatch" in e for e in errs), errs
+            # OPTIONALITY drift (required where Optional pinned) → fails.
+            pyi.write_text(
+                "class StreamView:\n"
+                "    def batches(self, n: int) -> RecordBatchStream:\n        ...\n",
+                encoding="utf-8",
+            )
+            errs = _sig_check_method_signatures(_row(), **paths)
+            assert any("python_pyi" in e and "param #0 type mismatch" in e for e in errs), errs
+            # DROPPED pinned declaration on a fully-enumerated stub class → fails.
+            pyi.write_text(
+                "class StreamView:\n"
+                "    def is_streaming(self) -> bool:\n        ...\n",
+                encoding="utf-8",
+            )
+            errs = _sig_check_method_signatures(_row(), **paths)
+            assert any("python_pyi" in e and "removed public stub" in e for e in errs), errs
+            # Class carries a `__getattr__` escape → the absent member degrades
+            # to the `python` lane + stubtest (no `.pyi` false-fail).
+            pyi.write_text(
+                "class StreamView:\n"
+                "    def is_streaming(self) -> bool:\n        ...\n"
+                "    def __getattr__(self, name: str) -> Any:\n        ...\n",
+                encoding="utf-8",
+            )
+            assert _sig_check_method_signatures(_row(), **paths) == [], \
+                _sig_check_method_signatures(_row(), **paths)
+            # Class wholly absent from the stub (a generator-emitted class) →
+            # degrades too.
+            pyi.write_text("class Unrelated:\n    ...\n", encoding="utf-8")
+            assert _sig_check_method_signatures(_row(), **paths) == [], \
+                _sig_check_method_signatures(_row(), **paths)
+
+    def _case_sig_python_pyi_setter_property_degrade() -> None:
+        """A Config `#[setter]` row's `.pyi` surface is the assignable property,
+        not a `def set_x`; such rows are in `PYI_SETTER_PROPERTY_ROWS` and the
+        `.pyi` lane does NOT fail on the (correctly) absent `set_x`, while the
+        matching GETTER row IS `.pyi`-checked. Uses the live stub so the real
+        property annotation is exercised."""
+        # The 9 enrolled setters are the only pinned-python rows absent from the
+        # real stub — assert that membership matches reality (a NEW absent
+        # pinned setter must be enrolled or it fails).
+        data = tomllib.loads(PARITY_TOML.read_text(encoding="utf-8"))
+        setter_errs = _sig_check_method_signatures(
+            [r for r in data.get("method", [])
+             if (r.get("class"), r.get("name")) in PYI_SETTER_PROPERTY_ROWS],
+            py_src=PY_SRC, pyi_path=PY_PYI, ts_src=TS_SRC, ts_dts=TS_DTS,
+            cpp_hpp=CPP_HPP, client_rs=CORE_CLIENT_RS, ffi_src=FFI_SRC,
+        )
+        # The setter rows still get their pyo3-source `python` / ts / cpp / ffi
+        # checks; only the `.pyi` lane is exempt. So no `python_pyi` error.
+        assert not any("python_pyi" in e for e in setter_errs), setter_errs
+        # The matching getter (`flushMode` → property `flush_mode`) IS checked.
+        assert _sig_extract_python_pyi(PY_PYI, "Config", "flush_mode") == (
+            [], 'Literal["batched", "immediate"]'
+        ), _sig_extract_python_pyi(PY_PYI, "Config", "flush_mode")
+
     def _case_sig_extract_cpp() -> None:
         """C++ extractor reads the in-class decl, return type bounded by the
         prior access specifier (no `public:` leak into the return)."""
@@ -12094,7 +12615,12 @@ def _run_selftest() -> int:
             f'pub extern "C" fn thetadatadx_widget_resize({ffi_params}) -> i32 {{ 0 }}\n',
             encoding="utf-8",
         )
-        return dict(py_src=py, ts_src=ts, ts_dts=root / "none.d.ts",
+        # The `.pyi` lane is inert in these orchestrator cases (no stub written
+        # → extractor returns None → degrades), keeping them focused on the
+        # pyo3-source / napi / cpp / rust / ffi axes; the `.pyi` lane has its
+        # own dedicated cases.
+        return dict(py_src=py, pyi_path=root / "none.pyi", ts_src=ts,
+                    ts_dts=root / "none.d.ts",
                     cpp_hpp=hpp, client_rs=client, ffi_src=ffi)
 
     def _sig_row(**sig_extra) -> list[dict]:
@@ -12322,8 +12848,9 @@ def _run_selftest() -> int:
             "must carry a [method.signature] sub-table against the real sources."
         )
         errs = _sig_check_method_signatures(
-            method_rows, py_src=PY_SRC, ts_src=TS_SRC, ts_dts=TS_DTS,
-            cpp_hpp=CPP_HPP, client_rs=CORE_CLIENT_RS, ffi_src=FFI_SRC,
+            method_rows, py_src=PY_SRC, pyi_path=PY_PYI, ts_src=TS_SRC,
+            ts_dts=TS_DTS, cpp_hpp=CPP_HPP, client_rs=CORE_CLIENT_RS,
+            ffi_src=FFI_SRC,
         )
         assert errs == [], f"live signature gate must be clean; got {errs!r}"
 
@@ -12355,6 +12882,10 @@ def _run_selftest() -> int:
     _case("sig gate — TS .d.ts param optionality (?) drift fails", _case_sig_ts_dts_param_optionality)
     _case("sig gate — TS .d.ts pinned surface forms all parse + drift fails", _case_sig_ts_dts_surface_forms)
     _case("sig gate — TS .d.ts absence promoted for public member", _case_sig_ts_dts_absence_promotion)
+    _case("sig extractor — Python .pyi stub declaration forms", _case_sig_extract_python_pyi_forms)
+    _case("sig type-map — python_pyi spellings + Literal/Optional folds", _case_sig_python_pyi_type_map_and_literal)
+    _case("sig gate — Python .pyi lane drifts fail + presence degrades", _case_sig_python_pyi_lane_drifts_and_presence)
+    _case("sig gate — Python .pyi setter-property rows degrade, getter checked", _case_sig_python_pyi_setter_property_degrade)
     _case("sig extractor — C++ in-class decl", _case_sig_extract_cpp)
     _case("sig extractor — Rust core impl fn", _case_sig_extract_rust)
     _case("sig extractor — FFI extern fn", _case_sig_extract_ffi)
