@@ -1218,7 +1218,7 @@ def test_cpp_member_field_not_counted_as_method(tmp: pathlib.Path) -> None:
     )
 
 
-# ─── Route-B method signature infrastructure (Phase 3) ─────────────
+# ─── Route-B method signature infrastructure (engaged on real specs) ──
 
 
 def test_sig_type_map_forward_and_sanction() -> None:
@@ -1343,20 +1343,115 @@ def test_sig_no_subtable_is_noop(tmp: pathlib.Path) -> None:
     assert cbp._sig_check_method_signatures(rows, **paths) == []
 
 
-def test_sig_live_surface_gated_to_zero() -> None:
-    """The live parity.toml must carry no `[method.signature]` yet (Phase 3
-    lands gated-to-zero), so the signature gate is a no-op on real sources."""
+def test_sig_extractor_getter_prefix_and_decl_position() -> None:
+    """The extractor fixes the first real exercise surfaced: a `get_`-prefixed
+    pyo3/C++ readback resolves against the bare row name; a C++ elaborated-type
+    parameter (`const class X&`) is not mistaken for the class def; an in-body
+    member-access call (`handle_.get()`) does not shadow the real declaration."""
+    (tmp_root := cbp.pathlib.Path(__import__("tempfile").mkdtemp()))
+    try:
+        (tmp_root / "py").mkdir()
+        (tmp_root / "py" / "m.rs").write_text(
+            "#[pymethods]\nimpl Config {\n    #[getter]\n"
+            "    fn get_worker_threads(&self) -> Option<usize> { None }\n}\n",
+            encoding="utf-8",
+        )
+        # get_ prefix on Python.
+        assert cbp._sig_extract_python(tmp_root / "py", "Config", "worker_threads") == (
+            [], "Option<usize>"
+        )
+        hpp = tmp_root / "h.hpp"
+        hpp.write_text(
+            # An elaborated-type param usage with its own body brace BEFORE the
+            # real class def; and an in-body `.get()` call before the real decl.
+            "class Other {\npublic:\n    void use(const class Rows& r) const { (void)r; }\n};\n"
+            "class Rows {\npublic:\n"
+            "    size_t size() const { return handle_ ? count(handle_.get()) : 0; }\n"
+            "    const Handle* get() const noexcept { return handle_.get(); }\n"
+            "    std::optional<size_t> get_worker_threads() const;\n};\n",
+            encoding="utf-8",
+        )
+        assert cbp._sig_extract_cpp(hpp, "Rows", "get") == ([], "const Handle*")
+        assert cbp._sig_extract_cpp(hpp, "Rows", "worker_threads") == (
+            [], "std::optional<size_t>"
+        )
+    finally:
+        __import__("shutil").rmtree(tmp_root, ignore_errors=True)
+
+
+def test_sig_ffi_opaque_and_return_normalization() -> None:
+    """The FFI lang compares unmapped opaque pointers / C-ABI structs by exact
+    spelling; a return is unwrapped of its fallible-result wrapper and folded of
+    lifetimes / the napi prelude path before the type compare."""
+    assert cbp._sig_type_agrees(
+        "*mut ThetaDataDxRecordBatchStream", "*mut ThetaDataDxRecordBatchStream", "ffi"
+    )
+    assert not cbp._sig_type_agrees(
+        "*const ThetaDataDxClient", "*const ThetaDataDxClient", "python"
+    )
+    # `&'static str` folds to satisfy the String canonical in return position.
+    assert cbp._sig_compare_one("X.k", ([], "String"), ([], "&'static str"), "python") == []
+    # `napi::Result<Option<u32>>` unwraps to the structural Option compare.
+    assert cbp._sig_compare_one(
+        "X.w", ([], "Option<usize>"), ([], "napi::Result<Option<u32>>"), "ts_napi"
+    ) == []
+
+
+def test_sig_skip_langs_and_ffi_symbol_signature() -> None:
+    """`skip_langs` opts a present-but-not-napi-fn binding out; an
+    `[[ffi_symbol]]` row's `[ffi_symbol.signature]` is extracted + compared, and
+    a drift in the pinned C shape trips."""
+    tmp_root = cbp.pathlib.Path(__import__("tempfile").mkdtemp())
+    try:
+        (tmp_root / "ffi").mkdir()
+        (tmp_root / "ffi" / "f.rs").write_text(
+            'pub unsafe extern "C" fn thetadatadx_client_batches_open('
+            "h: *const ThetaDataDxClient, n: usize) "
+            "-> *mut ThetaDataDxRecordBatchStream { core::ptr::null_mut() }\n",
+            encoding="utf-8",
+        )
+        syms = {"client_batches_open"}
+        good = [{"name": "client_batches_open", "signature": {
+            "params": ["*const ThetaDataDxClient", "usize"],
+            "returns": "*mut ThetaDataDxRecordBatchStream"}}]
+        assert cbp._check_ffi_symbol_rows(good, syms, tmp_root / "ffi") == []
+        bad = [{"name": "client_batches_open", "signature": {
+            "params": ["*const ThetaDataDxClient", "usize"],
+            "returns": "*mut ThetaDataDxArrowBytes"}}]
+        assert any(
+            "return mismatch" in e
+            for e in cbp._check_ffi_symbol_rows(bad, syms, tmp_root / "ffi")
+        )
+    finally:
+        __import__("shutil").rmtree(tmp_root, ignore_errors=True)
+    # skip_langs silences a lang whose extractor finds nothing.
+    sig = {"params": ["usize"], "returns": "()", "skip_langs": ["ts_napi"]}
+    assert cbp._sig_spec_for(sig, "ts_napi") is None
+    assert cbp._sig_spec_for(sig, "python") == (["usize"], "()")
+
+
+def test_sig_live_surface_engaged_and_clean() -> None:
+    """The live parity.toml now carries real `[method.signature]` /
+    `[ffi_symbol.signature]` specs (Phase 4a engages the gate); the signature
+    check extracts every enrolled binding from the real sources and must find
+    them all satisfying the specs."""
     data = cbp.tomllib.loads(cbp.PARITY_TOML.read_text(encoding="utf-8"))
     method_rows = data.get("method", [])
-    assert not any(r.get("signature") for r in method_rows), (
-        "Phase 3 is gated-to-zero: no live [[method]] row may carry a "
-        "[method.signature] sub-table yet"
+    assert any(r.get("signature") for r in method_rows), (
+        "Phase 4a engages the gate: live [[method]] rows must carry "
+        "[method.signature] sub-tables"
     )
     errs = cbp._sig_check_method_signatures(
         method_rows, py_src=cbp.PY_SRC, ts_src=cbp.TS_SRC, ts_dts=cbp.TS_DTS,
         cpp_hpp=cbp.CPP_HPP, client_rs=cbp.CORE_CLIENT_RS, ffi_src=cbp.FFI_SRC,
     )
-    assert errs == [], f"live signature gate must be a no-op; got {errs!r}"
+    assert errs == [], f"live method signature gate must be clean; got {errs!r}"
+    ffi_rows = data.get("ffi_symbol", [])
+    assert any(r.get("signature") for r in ffi_rows)
+    ffi_errs = cbp._check_ffi_symbol_rows(
+        ffi_rows, cbp._collect_ffi_all_symbols(cbp.FFI_SRC), cbp.FFI_SRC
+    )
+    assert ffi_errs == [], f"live FFI signature gate must be clean; got {ffi_errs!r}"
 
 
 # ─── Driver ────────────────────────────────────────────────────────
@@ -1446,7 +1541,12 @@ def main() -> int:
         _check("sig orchestrator RETURN drift trips", lambda: test_sig_orchestrator_return_drift_trips(pathlib.Path(tmp)))
     with tempfile.TemporaryDirectory() as tmp:
         _check("sig no sub-table is a no-op", lambda: test_sig_no_subtable_is_noop(pathlib.Path(tmp)))
-    _check("sig live surface gated-to-zero", test_sig_live_surface_gated_to_zero)
+    # Route-B signature specs ENGAGED (Phase 4a): extractor fixes + opaque/FFI
+    # type handling + skip_langs + the live engaged-and-clean surface.
+    _check("sig extractor get_ prefix + decl position", test_sig_extractor_getter_prefix_and_decl_position)
+    _check("sig FFI opaque + return normalization", test_sig_ffi_opaque_and_return_normalization)
+    _check("sig skip_langs + ffi_symbol signature", test_sig_skip_langs_and_ffi_symbol_signature)
+    _check("sig live surface engaged + clean", test_sig_live_surface_engaged_and_clean)
 
     if _fails:
         print(f"test_check_binding_parity: {len(_fails)} failure(s)")
