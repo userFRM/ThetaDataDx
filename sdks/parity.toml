@@ -1355,7 +1355,9 @@ cpp = true
 params = ["Option<usize>", "Option<u64>", "Option<String>", "Option<usize>"]
 returns = "RecordBatchStream"
 ts_napi_params = ["Option<BatchesOptions>"]
-ts_dts_params = ["BatchesOptions"]
+# The options bag is OPTIONAL on the `.d.ts` (`batches(options?: BatchesOptions)`);
+# pin it as `Option<...>` so a required-vs-optional drift on the param fails.
+ts_dts_params = ["Option<BatchesOptions>"]
 cpp_params = ["usize", "Duration", "Backpressure", "usize"]
 
 [[method]]

@@ -6956,22 +6956,46 @@ def _sig_parse_dts_member(body: str, dm: "re.Match[str]") -> tuple[list[str], st
     """Parse the `(params, ret)` of the member matched by `dm` inside a single
     `.d.ts` class body — the method (`name(p: T): R`) or property (`name: T`,
     zero-arg) form. Shared by the single-decl extractor and the all-decls
-    conflict scan so both read the surface identically."""
+    conflict scan so both read the surface identically.
+
+    A `?` optional marker is canonicalised to the `T | undefined` union so it
+    flows through the SAME `_sig_option_inner` path the napi-emitted
+    `T | undefined | null` already uses: an `Option<T>` spec then agrees with
+    `name?: T` while a `name: T` (required) stays bare and fails it. Preserving
+    optionality is what makes a required-vs-optional drift visible — without it
+    `options?: T` and `options: T` both reduce to `T`."""
     if dm.group("kind") == "(":
         arglist, after = _sig_balanced_parens(body, dm.end())
         rm = re.match(r"\s*:\s*([^;{\n]+)", body[after:])
         ret = rm.group(1).strip() if rm else "void"
         params: list[str] = []
         for p in _sig_split_params(arglist):
-            # `name: Type` / `name?: Type` — keep the Type half.
-            pm = re.match(r"\s*[A-Za-z_]\w*\s*\??\s*:\s*(.+)", p)
-            params.append(pm.group(1).strip() if pm else p.strip())
+            # `name: Type` / `name?: Type` / `...name: Type` (rest). Keep the
+            # Type half; carry the `?` as `| undefined` so optionality survives.
+            pm = re.match(r"\s*(?:\.\.\.)?[A-Za-z_]\w*\s*(\??)\s*:\s*(.+)", p)
+            if pm:
+                params.append(_sig_dts_apply_optional(pm.group(2).strip(), bool(pm.group(1))))
+            else:
+                params.append(p.strip())
         return params, ret
-    # Property form: a zero-arg accessor. The match ended on `?`/`:`; the
-    # type runs from the `:` to the line / statement terminator.
+    # Property form: a zero-arg accessor (`name: T`, optionally `readonly` /
+    # `name?: T`). The match's `kind` group is `?` or `:`; an optional property
+    # carries the same `| undefined` so a required→optional property drift fails.
     colon = body.index(":", dm.start())
     rm = re.match(r"\s*([^;{\n]+)", body[colon + 1 :])
-    return [], (rm.group(1).strip() if rm else "void")
+    ret = rm.group(1).strip() if rm else "void"
+    return [], _sig_dts_apply_optional(ret, dm.group("kind") == "?")
+
+
+def _sig_dts_apply_optional(ty: str, optional: bool) -> str:
+    """Canonicalise an optional `.d.ts` type to `T | undefined` so it flows
+    through `_sig_option_inner`. A type that already ends in a nullable union
+    member (`T | undefined` / `T | null`, the napi spelling) is left as-is — the
+    `?` is redundant with the explicit union, and a doubled `| undefined` would
+    be noise."""
+    if optional and not re.search(r"\|\s*(?:undefined|null)\s*$", ty):
+        return f"{ty} | undefined"
+    return ty
 
 
 def _sig_dts_all_decls(
@@ -6984,12 +7008,17 @@ def _sig_dts_all_decls(
     can legitimately resolve to its entry-augmentation while a stale generated
     overload of a different return still rides along in `index.d.ts`. Returning
     all of them lets the gate enforce that the surviving public surface carries
-    no conflicting declaration."""
+    no conflicting declaration.
+
+    EVERY declaration in each body is collected (`finditer`, not `search`):
+    overloads of one method can sit in the same `interface`/`class` body
+    (`batches(o?): Promise<RecordBatchStream>;` then a stale
+    `batches(o?): Promise<Handle>;`), so a per-body single match would examine
+    only the first and let a conflicting in-body sibling pass."""
     decl_re = _ts_dts_member_decl_re(method_camel)
     out: list[tuple[pathlib.Path, tuple[list[str], str]]] = []
     for src, body in _ts_dts_class_bodies_with_src(dts, cls):
-        dm = decl_re.search(body)
-        if dm:
+        for dm in decl_re.finditer(body):
             out.append((src, _sig_parse_dts_member(body, dm)))
     return out
 
@@ -11648,8 +11677,10 @@ def _run_selftest() -> int:
         drifts to a non-client-facing return must be reported as a conflict even
         though the resolved type looks correct. Mirrors the `StreamView.batches`
         leak: the entry presents `Promise<RecordBatchStream>` while a generated
-        `index.d.ts` overload returns the raw `Promise<RecordBatchStreamHandle>`."""
-        spec = (["BatchesOptions"], "RecordBatchStream")
+        `index.d.ts` overload returns the raw `Promise<RecordBatchStreamHandle>`.
+        The optional `options?` param canonicalises to `BatchesOptions |
+        undefined`, so the spec pins it as `Option<BatchesOptions>`."""
+        spec = (["Option<BatchesOptions>"], "RecordBatchStream")
         with tempfile.TemporaryDirectory() as tmp:
             d = pathlib.Path(tmp)
             entry = d / "entry.d.ts"
@@ -11672,9 +11703,10 @@ def _run_selftest() -> int:
                 "}\n",
                 encoding="utf-8",
             )
-            # Precedence winner is the entry augmentation (the wrapper return).
+            # Precedence winner is the entry augmentation (the wrapper return);
+            # the optional param survives as `BatchesOptions | undefined`.
             assert _sig_extract_ts_dts(entry, "StreamView", "batches") == (
-                ["BatchesOptions"], "Promise<RecordBatchStream>"
+                ["BatchesOptions | undefined"], "Promise<RecordBatchStream>"
             )
             conflicts = _sig_dts_conflicting_decls(entry, "StreamView", "batches", spec)
             assert len(conflicts) == 1, conflicts
@@ -11682,13 +11714,135 @@ def _run_selftest() -> int:
             assert conflicts[0][1] == (
                 ["BatchesOptions | undefined | null"], "Promise<RecordBatchStreamHandle>"
             ), conflicts
-            # FIX case: the generated declaration is suppressed (skip_typescript),
-            # so the augmentation is the SOLE declaration — no conflict.
+            # FINDING 5: a SECOND overload in the SAME entry interface body (not a
+            # cross-file sibling) — `finditer` must collect it so the conflict
+            # scan sees the in-body drift, which `search` (first-match-only) hid.
+            entry.write_text(
+                "export * from './index'\n"
+                "declare module './index' {\n"
+                "  interface StreamView {\n"
+                "    batches(options?: BatchesOptions): Promise<RecordBatchStream>;\n"
+                "    batches(options?: BatchesOptions): Promise<RecordBatchStreamHandle>;\n"
+                "  }\n"
+                "}\n",
+                encoding="utf-8",
+            )
             (d / "index.d.ts").write_text(
                 "export declare class StreamView {\n  isStreaming(): boolean\n}\n",
                 encoding="utf-8",
             )
+            assert len(_sig_dts_all_decls(entry, "StreamView", "batches")) == 2
+            in_body = _sig_dts_conflicting_decls(entry, "StreamView", "batches", spec)
+            assert len(in_body) == 1, in_body
+            assert in_body[0][1][1] == "Promise<RecordBatchStreamHandle>", in_body
+            # FIX case: the generated declaration is suppressed (skip_typescript)
+            # and only the wrapper overload remains — no conflict.
+            entry.write_text(
+                "export * from './index'\n"
+                "declare module './index' {\n"
+                "  interface StreamView {\n"
+                "    batches(options?: BatchesOptions): Promise<RecordBatchStream>;\n"
+                "  }\n"
+                "}\n",
+                encoding="utf-8",
+            )
             assert _sig_dts_conflicting_decls(entry, "StreamView", "batches", spec) == []
+
+    def _case_sig_ts_dts_param_optionality() -> None:
+        """FINDING 6: the `?` optional-param marker is preserved as `T |
+        undefined`, so a required-vs-optional drift on a `.d.ts` param FAILS the
+        type compare instead of collapsing both spellings to `T`. Pins the
+        `StreamView.batches(options?: BatchesOptions)` row: `Option<...>` spec
+        accepts the optional form and rejects the required form (and vice
+        versa)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            d = pathlib.Path(tmp)
+            dts = d / "index.d.ts"
+            spec_opt = (["Option<BatchesOptions>"], "()")
+            spec_req = (["BatchesOptions"], "()")
+            # Optional declaration → `BatchesOptions | undefined`.
+            dts.write_text(
+                "export class StreamView {\n  batches(options?: BatchesOptions): void\n}\n",
+                encoding="utf-8",
+            )
+            opt = _sig_extract_ts_dts(dts, "StreamView", "batches")
+            assert opt == (["BatchesOptions | undefined"], "void"), opt
+            # Required declaration → bare `BatchesOptions`.
+            dts.write_text(
+                "export class StreamView {\n  batches(options: BatchesOptions): void\n}\n",
+                encoding="utf-8",
+            )
+            req = _sig_extract_ts_dts(dts, "StreamView", "batches")
+            assert req == (["BatchesOptions"], "void"), req
+            # The two are now DISTINGUISHED (the FINDING-6 bug collapsed them).
+            assert opt != req
+            # Legitimate matches pass; the representable drift fails.
+            assert _sig_compare_one("X.batches", spec_opt, opt, "ts_dts") == []
+            assert _sig_compare_one("X.batches", spec_req, req, "ts_dts") == []
+            assert _sig_compare_one("X.batches", spec_opt, req, "ts_dts")  # required ≠ optional
+            assert _sig_compare_one("X.batches", spec_req, opt, "ts_dts")  # optional ≠ required
+
+    def _case_sig_ts_dts_surface_forms() -> None:
+        """Every `.d.ts` declaration FORM present in the pinned public TS surface
+        parses, and a representable drift in each fails. Bounds the hardening to
+        the forms actually in use (enumerated from the `ts_dts`-pinned rows);
+        forms that never appear (e.g. TS rest params, generic methods) are noted
+        below as deliberately unhandled."""
+        with tempfile.TemporaryDirectory() as tmp:
+            d = pathlib.Path(tmp)
+            dts = d / "index.d.ts"
+            dts.write_text(
+                "export class Foo {\n"
+                # plain method, Promise return
+                "  awaitDrain(timeoutMs: number): Promise<boolean>\n"
+                # nullable PARAM (napi union spelling) — the Option<usize> form
+                "  setCpu(n: number | undefined | null): void\n"
+                # nullable RETURN — Option<...> in return position
+                "  contract(): ContractRef | null\n"
+                # readonly property (RecordBatchStream.schema/dropped shape)
+                "  readonly dropped: number\n"
+                # getter accessor (napi #[getter])
+                "  get kind(): string\n"
+                # static factory (Credentials.fromFile shape)
+                "  static fromFile(path: string): Foo\n"
+                # callback / fn-type param (startStreaming shape)
+                "  startStreaming(cb: (e: StreamEvent) => void): Promise<void>\n"
+                # Array<T> param (subscribeMany shape)
+                "  subscribeMany(subs: Array<Subscription>): void\n"
+                # import-type return (RecordBatchStream.schema shape)
+                "  schema(): import('apache-arrow').Schema\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            E = _sig_extract_ts_dts
+            # Each form parses to the expected (params, ret).
+            assert E(dts, "Foo", "awaitDrain") == (["number"], "Promise<boolean>")
+            assert E(dts, "Foo", "setCpu") == (["number | undefined | null"], "void")
+            assert E(dts, "Foo", "contract") == ([], "ContractRef | null")
+            assert E(dts, "Foo", "dropped") == ([], "number")
+            assert E(dts, "Foo", "kind") == ([], "string")
+            assert E(dts, "Foo", "fromFile") == (["string"], "Foo")
+            assert E(dts, "Foo", "startStreaming") == (["(e: StreamEvent) => void"], "Promise<void>")
+            assert E(dts, "Foo", "subscribeMany") == (["Array<Subscription>"], "void")
+            assert E(dts, "Foo", "schema") == ([], "import('apache-arrow').Schema")
+            # A representable drift in each form FAILS its compare. (TS has no
+            # integer-width distinction, so an int-vs-int param is NOT drift —
+            # the probes pin types that genuinely disagree under the map.)
+            assert _sig_compare_one("Foo.awaitDrain", (["number"], "String"),
+                                    E(dts, "Foo", "awaitDrain"), "ts_dts")  # bool return ≠ String
+            assert _sig_compare_one("Foo.setCpu", (["String"], "()"),
+                                    E(dts, "Foo", "setCpu"), "ts_dts")  # wrong inner type
+            assert _sig_compare_one("Foo.contract", ([], "SecType"),
+                                    E(dts, "Foo", "contract"), "ts_dts")  # wrong return enum
+            assert _sig_compare_one("Foo.dropped", ([], "String"),
+                                    E(dts, "Foo", "dropped"), "ts_dts")  # number ≠ String cell
+            assert _sig_compare_one("Foo.subscribeMany", (["Subscription"], "()"),
+                                    E(dts, "Foo", "subscribeMany"), "ts_dts")  # Array<T> ≠ scalar
+            # ponytail: TS rest params (`...args: T[]`) and generic methods
+            # (`m<T>()`) do not appear in the pinned surface; the param regex
+            # carries a `...` prefix so a rest param's type is still extracted,
+            # but no row pins one, so there is no probe. Add when a pinned row
+            # introduces one.
 
     def _case_sig_ts_dts_absence_promotion() -> None:
         """A MISSING `.d.ts` declaration is an error when the class IS part of
@@ -12198,6 +12352,8 @@ def _run_selftest() -> int:
     _case("sig extractor — TS .d.ts property + getter/static/Promise", _case_sig_extract_ts_dts_property_and_modifiers)
     _case("sig extractor — TS .d.ts follows export-* re-export", _case_sig_ts_dts_follows_reexport)
     _case("sig gate — TS .d.ts conflicting merged overload fails", _case_sig_ts_dts_conflicting_overload)
+    _case("sig gate — TS .d.ts param optionality (?) drift fails", _case_sig_ts_dts_param_optionality)
+    _case("sig gate — TS .d.ts pinned surface forms all parse + drift fails", _case_sig_ts_dts_surface_forms)
     _case("sig gate — TS .d.ts absence promoted for public member", _case_sig_ts_dts_absence_promotion)
     _case("sig extractor — C++ in-class decl", _case_sig_extract_cpp)
     _case("sig extractor — Rust core impl fn", _case_sig_extract_rust)
