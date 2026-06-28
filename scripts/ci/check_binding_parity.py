@@ -5868,7 +5868,10 @@ def _check_ffi_symbol_orphans(
 # `with_X` without the FFI field (or vice versa), or a scalar field without
 # its `has_X` flag, breaks the C++ → C bridge silently. This checks the two
 # generated consumers agree, anchored on the SSOT global (`timeout_ms`).
-# Name/roster level (P1); per-option TYPE comparison is a later phase.
+# `_check_request_options_roster` holds the NAME/roster level; the companion
+# `_check_request_options_types` adds the per-option TYPE level — every
+# option's declared type must agree across the SSOT, the C++ `with_*`
+# parameter, and the FFI struct field, via `REQUEST_OPTION_TYPE_MAP`.
 # `with_deadline` is a `std::chrono` convenience alias of `timeout_ms`, not
 # a distinct option, and is exempt.
 REQUEST_OPTIONS_WITH_EXEMPT: frozenset[str] = frozenset({"deadline"})
@@ -5995,6 +5998,151 @@ def _check_request_options_roster(
                 f"  request-options `{name}`: SSOT [[request_options_global]] "
                 f"scalar option has no `has_{name}` presence flag in the FFI "
                 f"options struct — the value would never be applied."
+            )
+    return errors
+
+
+# ─── Request-options TYPE parity (signature level) ───────────────────
+#
+# Route A: the request-options surface is SSOT-generated, so its types
+# agree by construction today. This makes that machine-enforced — a future
+# hand-edit or codegen change that drifts a type (a `with_X` parameter, or
+# the FFI field) away from the SSOT `param_type` fails the gate.
+#
+# The SSOT canonical type is the `param_type` (or the global option's
+# `type`). The codegen (`builder_value_type_name` / `ffi_option_value_type`)
+# collapses every `param_type` into one of five categories; the map below
+# mirrors that exactly, pinning the C++ `with_*` parameter spelling and the
+# FFI `#[repr(C)]` field spelling each category MUST take. A `param_type` the
+# map does not cover, or an actual type that disagrees, fails with the option
+# named — so a drift cannot hide behind a still-matching roster.
+#
+# `with_deadline` is exempt (the `std::chrono::milliseconds` alias of the
+# `timeout_ms` `u64`); the roster check already excludes it.
+REQUEST_OPTION_TYPE_MAP: dict[str, tuple[str, str]] = {
+    # SSOT param_type → (C++ `with_*` parameter type, FFI field type).
+    "Int": ("int32_t", "i32"),
+    "Float": ("double", "f64"),
+    "Bool": ("bool", "i32"),  # bool is C-unfriendly over FFI; encoded as i32.
+    "u64": ("uint64_t", "u64"),  # the `timeout_ms` global's `type`.
+}
+# Every string-like `param_type` decodes to the same C++/FFI spelling; the
+# codegen's catch-all arm. Listed explicitly so an unknown new `param_type`
+# fails closed (rather than silently assuming a string) — a numeric option
+# mis-tagged string would otherwise slip the gate.
+REQUEST_OPTION_STRING_TYPES: frozenset[str] = frozenset(
+    {"Str", "Strike", "Right", "Interval", "Date", "Symbol", "Venue", "Version", "RateType"}
+)
+_REQUEST_OPTION_STRING_SPELLING: tuple[str, str] = ("std::string", "*const c_char")
+
+
+def _request_option_canonical_types(param_type: str) -> tuple[str, str] | None:
+    """`(cpp_with_param_type, ffi_field_type)` the SSOT `param_type` must take,
+    or `None` if the `param_type` is outside the known roster."""
+    if param_type in REQUEST_OPTION_STRING_TYPES:
+        return _REQUEST_OPTION_STRING_SPELLING
+    return REQUEST_OPTION_TYPE_MAP.get(param_type)
+
+
+def _collect_ssot_request_option_types(surface_toml: pathlib.Path) -> dict[str, str]:
+    """Map each request-option name to its canonical SSOT `param_type`.
+
+    A request-option is any `binding = "builder"` param (defined in a
+    `[param_groups.*]` group or inline on an endpoint) plus every
+    `[[request_options_global]]` (whose canonical type is its `type` key).
+    Returns `{name: param_type}`. A name appearing under two `param_type`s
+    (a real SSOT inconsistency) is reported by the caller via the per-name
+    type comparison, so only the first is recorded here.
+    """
+    out: dict[str, str] = {}
+    if not surface_toml.is_file():
+        return out
+    data = tomllib.loads(surface_toml.read_text(encoding="utf-8"))
+
+    def scan(params: list[dict[str, Any]]) -> None:
+        for p in params:
+            if "use" in p or p.get("binding") != "builder":
+                continue
+            name, pt = p.get("name"), p.get("param_type")
+            if name and pt:
+                out.setdefault(name, pt)
+
+    for group in data.get("param_groups", {}).values():
+        scan(group.get("params", []))
+    for endpoint in data.get("endpoints", []):
+        scan(endpoint.get("params", []))
+    for opt in data.get("request_options_global", []):
+        name, ty = opt.get("name"), opt.get("type")
+        if name and ty:
+            out.setdefault(name, ty)
+    return out
+
+
+def _collect_cpp_with_option_types(hpp_inc: pathlib.Path) -> dict[str, str]:
+    """Map each `with_<name>` setter to its declared C++ parameter type.
+
+    Mirrors `_collect_cpp_with_options` but captures the single `value`
+    parameter's type so it can be compared to the SSOT-implied spelling. The
+    `with_deadline` alias (a `std::chrono::milliseconds` parameter) is read
+    too; the type check excludes it via the exempt set.
+    """
+    if not hpp_inc.is_file():
+        return {}
+    text = _read_source(hpp_inc)
+    return {
+        m.group(1): m.group(2).strip()
+        for m in re.finditer(
+            r"EndpointRequestOptions&\s+with_(\w+)\s*\(\s*"
+            r"([A-Za-z_][\w:<>\s]*?)\s+value\s*\)",
+            text,
+        )
+    }
+
+
+def _check_request_options_types(
+    ssot_types: dict[str, str],
+    cpp_with_types: dict[str, str],
+    ffi_options_rs: pathlib.Path,
+) -> list[str]:
+    """Assert each request-option's type agrees across SSOT, C++, and FFI.
+
+    For every SSOT request-option (excluding the `deadline` alias), map its
+    `param_type` through `REQUEST_OPTION_TYPE_MAP` to the C++ `with_*`
+    parameter spelling and the FFI struct-field spelling it must take, then
+    compare against the actual declared types. A `param_type` outside the map,
+    a C++ parameter that differs, or an FFI field that differs each fails with
+    the option named. The FFI field type is read with the same
+    `_struct_field_type` machinery the `[[value_field]]` gate uses.
+    """
+    errors: list[str] = []
+    for name in sorted(ssot_types):
+        if name in REQUEST_OPTIONS_WITH_EXEMPT:
+            continue
+        param_type = ssot_types[name]
+        expected = _request_option_canonical_types(param_type)
+        if expected is None:
+            errors.append(
+                f"  request-options `{name}`: SSOT param_type `{param_type}` is "
+                f"outside REQUEST_OPTION_TYPE_MAP — add the canonical C++/FFI "
+                f"spelling for it (or correct the param_type)."
+            )
+            continue
+        exp_cpp, exp_ffi = expected
+        actual_cpp = cpp_with_types.get(name)
+        if actual_cpp != exp_cpp:
+            errors.append(
+                f"  request-options `{name}`: SSOT param_type `{param_type}` "
+                f"implies C++ `with_{name}({exp_cpp})`, but the generated setter "
+                f"takes `{actual_cpp or '<setter missing>'}`."
+            )
+        actual_ffi = _struct_field_type(
+            ffi_options_rs.parent, "ThetaDataDxEndpointRequestOptions", name
+        )
+        if actual_ffi != exp_ffi:
+            errors.append(
+                f"  request-options `{name}`: SSOT param_type `{param_type}` "
+                f"implies FFI field `{name}: {exp_ffi}`, but the generated struct "
+                f"declares `{actual_ffi or '<field missing>'}`."
             )
     return errors
 
@@ -6363,6 +6511,14 @@ def main(argv: list[str] | None = None) -> int:
     request_options_errors = _check_request_options_roster(
         request_options_global, cpp_with_options, ffi_opt_fields, ffi_opt_has
     )
+    # Signature level: every option's type must agree across the SSOT, the C++
+    # `with_*` parameter, and the FFI struct field (Route A — SSOT-generated, so
+    # the types agree today; the check makes a future drift fail).
+    request_options_errors += _check_request_options_types(
+        _collect_ssot_request_option_types(ENDPOINT_SURFACE_TOML),
+        _collect_cpp_with_option_types(ENDPOINT_OPTIONS_HPP_INC),
+        ENDPOINT_REQUEST_OPTIONS_RS,
+    )
 
     # Catch-all: every Python pyclass must be either tracked
     # explicitly or via the implicit pattern (mechanical parity).
@@ -6623,8 +6779,8 @@ def main(argv: list[str] | None = None) -> int:
         had_errors = True
         print(
             f"check_binding_parity: {len(request_options_errors)} "
-            f"request-options roster divergence(s) between the C++ and FFI "
-            f"generated consumers:"
+            f"request-options divergence(s) (roster or type) across the SSOT, "
+            f"C++, and FFI generated consumers:"
         )
         for e in request_options_errors:
             print(e)
@@ -7608,6 +7764,119 @@ def _run_selftest() -> int:
     _case(
         "request-options - scalar global missing has_ flag trips",
         _case_request_options_scalar_global_missing_has_flag_trips,
+    )
+
+    # ── Request-options TYPE parity (signature level, Route A) ──
+
+    def _write_ffi_options_struct(tmp: pathlib.Path, fields: dict[str, str]) -> pathlib.Path:
+        """A minimal `ThetaDataDxEndpointRequestOptions` source for the FFI
+        field-type reader; `fields` maps option name → declared Rust type."""
+        body = "".join(f"    pub {n}: {t},\n" for n, t in fields.items())
+        path = tmp / "endpoint_request_options.rs"
+        path.write_text(
+            "#[repr(C)]\n"
+            "pub struct ThetaDataDxEndpointRequestOptions {\n"
+            f"{body}}}\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def _case_request_options_types_real_surface_silent() -> None:
+        """The actual SSOT / C++ `.inc` / FFI struct types agree (Route A is
+        by-construction today), so the type check is silent on the real repo."""
+        errors = _check_request_options_types(
+            _collect_ssot_request_option_types(ENDPOINT_SURFACE_TOML),
+            _collect_cpp_with_option_types(ENDPOINT_OPTIONS_HPP_INC),
+            ENDPOINT_REQUEST_OPTIONS_RS,
+        )
+        assert errors == [], (
+            f"the agreeing real request-options surface must be silent; got {errors!r}"
+        )
+
+    def _case_request_options_cpp_type_drift_trips() -> None:
+        """A C++ `with_X` parameter type that differs from the SSOT-implied
+        spelling (here `int32_t` where the SSOT says `Str` → `std::string`)
+        trips, with the option named."""
+        with tempfile.TemporaryDirectory() as tmp:
+            ffi = _write_ffi_options_struct(
+                pathlib.Path(tmp), {"strike": "*const c_char"}
+            )
+            errors = _check_request_options_types(
+                {"strike": "Str"},
+                {"strike": "int32_t"},  # drifted: should be std::string
+                ffi,
+            )
+        assert any(
+            "strike" in e and "with_strike" in e for e in errors
+        ), f"a C++ with_* type drift must trip; got {errors!r}"
+
+    def _case_request_options_ffi_type_drift_trips() -> None:
+        """An FFI struct field type that differs from the SSOT-implied spelling
+        (here `i32` where the SSOT says `Float` → `f64`) trips."""
+        with tempfile.TemporaryDirectory() as tmp:
+            ffi = _write_ffi_options_struct(
+                pathlib.Path(tmp), {"rate_value": "i32"}  # drifted: should be f64
+            )
+            errors = _check_request_options_types(
+                {"rate_value": "Float"},
+                {"rate_value": "double"},
+                ffi,
+            )
+        assert any(
+            "rate_value" in e and "FFI field" in e for e in errors
+        ), f"an FFI field type drift must trip; got {errors!r}"
+
+    def _case_request_options_unknown_param_type_trips() -> None:
+        """A `param_type` outside REQUEST_OPTION_TYPE_MAP fails closed — a new
+        or mis-tagged type cannot slip the gate by defaulting to a string."""
+        with tempfile.TemporaryDirectory() as tmp:
+            ffi = _write_ffi_options_struct(
+                pathlib.Path(tmp), {"mystery": "f64"}
+            )
+            errors = _check_request_options_types(
+                {"mystery": "Decimal128"},  # not in the map
+                {"mystery": "double"},
+                ffi,
+            )
+        assert any(
+            "mystery" in e and "REQUEST_OPTION_TYPE_MAP" in e for e in errors
+        ), f"an unknown param_type must fail closed; got {errors!r}"
+
+    def _case_request_options_types_deadline_exempt() -> None:
+        """The `with_deadline` alias is exempt — its `std::chrono` parameter is
+        not held to a SSOT type, so it never trips the type check."""
+        with tempfile.TemporaryDirectory() as tmp:
+            ffi = _write_ffi_options_struct(
+                pathlib.Path(tmp), {"timeout_ms": "u64"}
+            )
+            errors = _check_request_options_types(
+                {"timeout_ms": "u64", "deadline": "Duration"},
+                {"timeout_ms": "uint64_t", "deadline": "std::chrono::milliseconds"},
+                ffi,
+            )
+        assert errors == [], (
+            f"the deadline alias must be exempt from the type check; got {errors!r}"
+        )
+
+    _case(
+        "request-options type - real surface silent",
+        _case_request_options_types_real_surface_silent,
+    )
+    _case(
+        "request-options type - C++ with_* type drift trips",
+        _case_request_options_cpp_type_drift_trips,
+    )
+    _case(
+        "request-options type - FFI field type drift trips",
+        _case_request_options_ffi_type_drift_trips,
+    )
+    _case(
+        "request-options type - unknown param_type fails closed",
+        _case_request_options_unknown_param_type_trips,
+    )
+    _case(
+        "request-options type - deadline alias exempt",
+        _case_request_options_types_deadline_exempt,
     )
 
     def _case_ts_entry_resolves_from_package_json() -> None:
