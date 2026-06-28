@@ -3893,3 +3893,77 @@ name = "record_batch_stream_free"
 
 [[ffi_symbol]]
 name = "flatfile_rows_to_arrow_ipc"
+
+# Per-tick Arrow IPC terminals (`thetadatadx_<kind>_ticks_to_arrow_ipc`,
+# `thetadatadx_calendar_days_to_arrow_ipc`). Emitted by the
+# `tick_array_to_arrow_ipc!` macro in `ffi/src/types.rs` — the symbol name is
+# the macro's first argument, so the name lives only at the invocation site.
+# Each is a cross-binding data contract the C++ `tick_arrow_ipc.hpp.inc`
+# binds by name (one `*_to_arrow_ipc` free function per tick wrapper), the
+# columnar exit Python exposes via `<TickName>List.to_arrow()`. A row pins
+# each one so a rename/removal trips before it can break arrow-cpp consumers.
+[[ffi_symbol]]
+name = "eod_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "ohlc_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "trade_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "quote_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "greeks_all_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "greeks_eod_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "greeks_first_order_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "greeks_second_order_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "greeks_third_order_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "trade_greeks_all_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "trade_greeks_first_order_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "trade_greeks_second_order_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "trade_greeks_third_order_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "trade_greeks_implied_volatility_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "iv_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "price_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "index_price_at_time_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "open_interest_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "market_value_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "calendar_days_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "interest_rate_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "trade_quote_ticks_to_arrow_ipc"

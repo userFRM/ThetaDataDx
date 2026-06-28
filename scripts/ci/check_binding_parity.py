@@ -2383,8 +2383,12 @@ def _check_class_reverse_orphans(
 
     # The candidate set: every harvested member across the DISCOVERY
     # bindings, with a Python `_async` twin folded onto its base when
-    # requested, minus the override-home members enrolled elsewhere.
-    candidates: set[str] = set()
+    # requested, minus the override-home members enrolled elsewhere. Each
+    # candidate also remembers the discovery binding(s) it was harvested
+    # from, so an unenrolled member always reports presence on its source
+    # binding even when the snake/camel re-derivation below does not round
+    # back to the raw harvested spelling (a camelCase py/cpp member).
+    candidates: dict[str, set[str]] = {}
     for lang, members in (
         ("python", py_members),
         ("typescript", ts_members),
@@ -2400,7 +2404,7 @@ def _check_class_reverse_orphans(
             )
             if base in override_members or member in override_members:
                 continue
-            candidates.add(base)
+            candidates.setdefault(base, set()).add(lang)
 
     for member in sorted(candidates):
         camel = _snake_to_camel(member) if "_" in member else member
@@ -2410,17 +2414,23 @@ def _check_class_reverse_orphans(
         if member in exempt or camel in exempt:
             continue
         present_on = sorted(
-            lang
-            for lang, seen in (
-                (
-                    "python",
-                    snake in py_members
-                    or (strip_async and f"{snake}_async" in py_members),
-                ),
-                ("typescript", camel in ts_members or snake in ts_members),
-                ("cpp", snake in cpp_members or f"get_{snake}" in cpp_members),
+            set(
+                lang
+                for lang, seen in (
+                    (
+                        "python",
+                        snake in py_members
+                        or (strip_async and f"{snake}_async" in py_members),
+                    ),
+                    ("typescript", camel in ts_members or snake in ts_members),
+                    ("cpp", snake in cpp_members or f"get_{snake}" in cpp_members),
+                )
+                if seen
             )
-            if seen
+            # The discovery binding the member actually came from always
+            # counts as present — a camelCase harvest whose snake re-derivation
+            # misses the raw set must still trip, never silently drop.
+            | candidates[member]
         )
         if not present_on:
             continue
@@ -2628,10 +2638,16 @@ def _check_method_rows(
     # Each reverse scan is the same shape — harvest the class members per
     # binding, flag any not enrolled / enrolled-elsewhere / exempt — so they
     # share `_check_class_reverse_orphans`. Per class: the discovery bindings
-    # (the precise collectors; C++ is excluded from Client/Subscription/
-    # RecordBatchStream discovery because its heuristic scan over-harvests),
-    # whether the Python `_async` twin folds onto its base, the exempt roster,
-    # and the report spelling.
+    # that SEED candidates, whether the Python `_async` twin folds onto its
+    # base, the exempt roster, and the report spelling. The unified `Client`
+    # excludes C++ from discovery (its heuristic scan over-harvests FFI-extern
+    # calls and data members that are not public methods, and the C++ column
+    # is validated by the forward row check instead). Subscription /
+    # RecordBatchStream / FlatFileRowList / FlatFilesNamespace DO discover from
+    # C++: the collector genuinely harvests those classes' methods, and the
+    # per-class exempt rosters absorb the handful of heuristic over-harvests
+    # (the C++ private builders / decoders and inline-body locals named in
+    # each `*_EXEMPT_*` set) so real unenrolled C++ methods still trip.
     errors += _check_class_reverse_orphans(
         "Client",
         {
@@ -5567,10 +5583,43 @@ def _check_value_field_roster(rows: list[dict[str, Any]]) -> list[str]:
 # exempt roster from the harvested universe and flags the remainder.
 
 # Memory-management frees and panic-test hooks: C-ABI symbols that release
-# an owned allocation (`*_free`, the per-tick array frees the tick/event
-# macros emit) or exist only to exercise the panic boundary in tests. They
-# carry no cross-binding method contract, so they are exempt from the
-# FFI-symbol orphan scan. Bare names with the `thetadatadx_` prefix stripped.
+# an owned allocation (`*_free`) or exist only to exercise the panic boundary
+# in tests. They carry no cross-binding method contract, so they are exempt
+# from the FFI-symbol orphan scan. Bare names with the `thetadatadx_` prefix
+# stripped.
+#
+# The `*_tick_array_free` / `*_array_free` block is the per-tick deallocator
+# the `tick_array_free!` macro emits in `ffi/src/types.rs` (one per tick
+# wrapper, plus the `calendar_day_array_free` calendar variant). The symbol
+# name is the macro's first argument, so the orphan scan only sees these once
+# `_collect_ffi_all_symbols` harvests macro-invocation sites; each is a pure
+# deallocator paired with a `*_ticks_to_arrow_ipc` enrolled `[[ffi_symbol]]`.
+_FFI_TICK_ARRAY_FREES: frozenset[str] = frozenset(
+    {
+        "eod_tick_array_free",
+        "ohlc_tick_array_free",
+        "trade_tick_array_free",
+        "quote_tick_array_free",
+        "greeks_all_tick_array_free",
+        "greeks_eod_tick_array_free",
+        "greeks_first_order_tick_array_free",
+        "greeks_second_order_tick_array_free",
+        "greeks_third_order_tick_array_free",
+        "trade_greeks_all_tick_array_free",
+        "trade_greeks_first_order_tick_array_free",
+        "trade_greeks_second_order_tick_array_free",
+        "trade_greeks_third_order_tick_array_free",
+        "trade_greeks_implied_volatility_tick_array_free",
+        "iv_tick_array_free",
+        "price_tick_array_free",
+        "index_price_at_time_tick_array_free",
+        "open_interest_tick_array_free",
+        "market_value_tick_array_free",
+        "calendar_day_array_free",
+        "interest_rate_tick_array_free",
+        "trade_quote_tick_array_free",
+    }
+)
 FFI_SYMBOL_EXEMPT: frozenset[str] = frozenset(
     {
         "arrow_bytes_free",
@@ -5587,6 +5636,7 @@ FFI_SYMBOL_EXEMPT: frozenset[str] = frozenset(
         "test_panic_str",
         "test_panic_string",
     }
+    | _FFI_TICK_ARRAY_FREES
 )
 
 # The client / streaming observability + lifecycle roster: the C-ABI
@@ -5693,15 +5743,28 @@ def _collect_ffi_all_symbols(ffi_src: pathlib.Path) -> set[str]:
     as the bare `<name>` (prefix stripped).
 
     This is the full C-ABI symbol universe the orphan scan reduces against
-    the enrolled families. The regex matches the same `fn thetadatadx_(\\w+)`
-    shape the per-family FFI collectors use.
+    the enrolled families. Two harvest shapes:
+
+    * `fn thetadatadx_<name>(` — symbols spelled literally (the bulk).
+    * `<macro>!(thetadatadx_<name>, ...)` — symbols whose name is a macro
+      ARGUMENT, invisible to the literal-`fn` regex. `ffi/src/types.rs`
+      emits these through `tick_array_free!` (the per-tick `*_array_free`
+      deallocators) and `tick_array_to_arrow_ipc!` (the per-tick
+      `*_ticks_to_arrow_ipc` columnar terminals the C++
+      `tick_arrow_ipc.hpp.inc` calls by name). Both name the extern as the
+      macro's first argument, so one regex anchored on that arg position
+      harvests every current and future name-as-arg extern emitter.
     """
     out: set[str] = set()
     if not ffi_src.is_dir():
         return out
     sym_re = re.compile(r"\bfn\s+thetadatadx_(\w+)\s*\(")
+    macro_sym_re = re.compile(r"\w+!\s*\(\s*thetadatadx_(\w+)\s*,")
     for rs in ffi_src.rglob("*.rs"):
-        for m in sym_re.finditer(_read_source(rs)):
+        text = _read_source(rs)
+        for m in sym_re.finditer(text):
+            out.add(m.group(1))
+        for m in macro_sym_re.finditer(text):
             out.add(m.group(1))
     return out
 
@@ -5886,7 +5949,10 @@ def _check_request_options_roster(
     * Every FFI scalar option field (one carrying a `has_*` flag) round-trips
       — the check enforces presence-flag completeness by requiring each
       `has_<field>` to name a real field.
-    * The SSOT global anchor (`timeout_ms`) appears in both consumers.
+    * The SSOT global anchor (`timeout_ms`) appears in both consumers AND
+      carries its `has_<name>` presence flag in the FFI struct — without the
+      flag the scalar value is never applied, so the C++ → C bridge would
+      silently drop the option while every roster still matched.
     """
     errors: list[str] = []
     cpp_roster = cpp_withs - REQUEST_OPTIONS_WITH_EXEMPT
@@ -5920,6 +5986,15 @@ def _check_request_options_roster(
             errors.append(
                 f"  request-options `{name}`: SSOT [[request_options_global]] "
                 f"option absent from the FFI options struct."
+            )
+        elif name not in ffi_has_flags:
+            # The field exists but its presence flag was dropped: a scalar is
+            # applied only when `has_<name> = 1`, so a missing flag makes the
+            # value unreachable even though the rosters still match.
+            errors.append(
+                f"  request-options `{name}`: SSOT [[request_options_global]] "
+                f"scalar option has no `has_{name}` presence flag in the FFI "
+                f"options struct — the value would never be applied."
             )
     return errors
 
@@ -7359,9 +7434,34 @@ def _run_selftest() -> int:
             f"override-spelled + idiom members must be silent; got {errors!r}"
         )
 
+    def _case_class_reverse_orphan_camel_source_member_trips() -> None:
+        """A camelCase member harvested from a DISCOVERY binding whose snake
+        re-derivation does not round back to the raw spelling must still trip:
+        the source binding always counts as present, so an unenrolled member
+        can never be silently dropped by an empty `present_on`."""
+        errors = _check_class_reverse_orphans(
+            "Subscription",
+            {"cpp": {"newGetter"}},  # camelCase cpp member, snake≠raw
+            enrolled=set(),
+            exempt=frozenset(),
+            discover_langs=frozenset({"cpp"}),
+            strip_async=False,
+            report_camel=False,
+        )
+        assert any("newGetter" in e for e in errors), (
+            f"a camelCase source-binding member must trip, not drop; got {errors!r}"
+        )
+        assert any("['cpp']" in e for e in errors), (
+            f"the error must report presence on the source binding; got {errors!r}"
+        )
+
     _case("class reverse-orphan - new non-Client method trips", _case_class_reverse_orphan_new_method_trips)
     _case("class reverse-orphan - exempt idiom silent", _case_class_reverse_orphan_exempt_idiom_silent)
     _case("class reverse-orphan - override spelling silent", _case_class_reverse_orphan_override_spelling_silent)
+    _case(
+        "class reverse-orphan - camelCase source member trips",
+        _case_class_reverse_orphan_camel_source_member_trips,
+    )
 
     # ── C-ABI symbol roster + reverse-orphan scan ──
 
@@ -7403,8 +7503,64 @@ def _run_selftest() -> int:
             f"a present symbol must stay silent; got {errors!r}"
         )
 
+    def _case_ffi_macro_symbol_harvested_and_governed() -> None:
+        """A C-ABI extern whose name is a MACRO ARGUMENT (the
+        `tick_array_free!` / `tick_array_to_arrow_ipc!` shape in
+        `ffi/src/types.rs`) is harvested by `_collect_ffi_all_symbols`, and an
+        unenrolled one trips the orphan scan — so the macro blindness that hid
+        44 externs from the literal-`fn` regex cannot regress."""
+        with tempfile.TemporaryDirectory() as tmp:
+            ffi_dir = pathlib.Path(tmp) / "ffi"
+            ffi_dir.mkdir()
+            (ffi_dir / "types.rs").write_text(
+                # A literal-`fn` extern (still seen) ...
+                'pub unsafe extern "C" fn thetadatadx_string_free(s: i32) {}\n'
+                # ... the macro DEFINITIONS ($fn_name is not a real symbol) ...
+                "macro_rules! tick_array_free { ($fn_name:ident, $t:ident) => {\n"
+                '    pub unsafe extern "C" fn $fn_name(a: $t) {} }; }\n'
+                "macro_rules! tick_array_to_arrow_ipc { ($fn_name:ident, $t:ident) => {\n"
+                '    pub unsafe extern "C" fn $fn_name(r: *const $t, n: usize) {} }; }\n'
+                # ... and the macro INVOCATIONS where the name lives as an arg.
+                "tick_array_free!(thetadatadx_eod_tick_array_free, EodTick);\n"
+                "tick_array_to_arrow_ipc!(thetadatadx_eod_ticks_to_arrow_ipc, EodTick);\n"
+                "tick_array_to_arrow_ipc!(\n"
+                "    thetadatadx_frobnicate_ticks_to_arrow_ipc, FrobTick);\n",
+                encoding="utf-8",
+            )
+            syms = _collect_ffi_all_symbols(ffi_dir)
+            assert "string_free" in syms, (
+                f"a literal-`fn` extern must still be harvested; got {syms!r}"
+            )
+            assert "eod_tick_array_free" in syms, (
+                f"a `tick_array_free!`-emitted extern must be harvested; got {syms!r}"
+            )
+            assert "eod_ticks_to_arrow_ipc" in syms, (
+                f"a `tick_array_to_arrow_ipc!`-emitted extern must be harvested; "
+                f"got {syms!r}"
+            )
+            assert "fn_name" not in syms, (
+                f"the macro's `$fn_name` metavariable must not be harvested as a "
+                f"symbol; got {syms!r}"
+            )
+            # The deallocator is exempt and the enrolled terminal is governed;
+            # the unenrolled macro extern (no row, no exempt) must trip.
+            rows = [{"name": "eod_ticks_to_arrow_ipc"}]
+            orphans = _check_ffi_symbol_orphans(syms, rows)
+            assert any("frobnicate_ticks_to_arrow_ipc" in e for e in orphans), (
+                f"an unenrolled macro-emitted extern must trip the orphan scan; "
+                f"got {orphans!r}"
+            )
+            assert not any(
+                "eod_tick_array_free" in e or "eod_ticks_to_arrow_ipc" in e
+                for e in orphans
+            ), f"exempt free + enrolled terminal must stay silent; got {orphans!r}"
+
     _case("ffi-symbol orphan - ungoverned symbol trips", _case_ffi_symbol_orphan_trips)
     _case("ffi-symbol row - missing declaration trips", _case_ffi_symbol_row_missing_decl_trips)
+    _case(
+        "ffi-symbol macro - name-as-arg extern harvested + governed",
+        _case_ffi_macro_symbol_harvested_and_governed,
+    )
 
     # ── Request-options roster (the two generated consumers) ──
 
@@ -7431,8 +7587,28 @@ def _run_selftest() -> int:
             "right" in e for e in errors
         ), f"a request-options consumer drift must trip; got {errors!r}"
 
+    def _case_request_options_scalar_global_missing_has_flag_trips() -> None:
+        """A scalar SSOT global present as a field but missing its `has_<name>`
+        presence flag trips — without the flag the value is never applied, so
+        the C++ → C bridge silently drops the option while the rosters match."""
+        ssot = {"timeout_ms"}
+        cpp = {"timeout_ms", "deadline"}      # roster matches the FFI field ...
+        ffi_fields = {"timeout_ms"}           # ... field present ...
+        ffi_has: set[str] = set()             # ... but `has_timeout_ms` dropped.
+        errors = _check_request_options_roster(ssot, cpp, ffi_fields, ffi_has)
+        assert any(
+            "timeout_ms" in e and "has_timeout_ms" in e for e in errors
+        ), (
+            f"a scalar global missing its `has_` flag must trip even when the "
+            f"rosters match; got {errors!r}"
+        )
+
     _case("request-options - consumers agree silent", _case_request_options_consumers_agree_silent)
     _case("request-options - consumer drift trips", _case_request_options_consumer_drift_trips)
+    _case(
+        "request-options - scalar global missing has_ flag trips",
+        _case_request_options_scalar_global_missing_has_flag_trips,
+    )
 
     def _case_ts_entry_resolves_from_package_json() -> None:
         """The TS class collector resolves the entry from `package.json`
