@@ -44,13 +44,8 @@ export default defineConfig({
       { text: 'Articles', link: '/articles/getting-started' },
       { text: 'API Reference', link: '/reference/' },
       { text: 'Streaming', link: '/streaming/' },
-      {
-        text: 'Tools',
-        items: [
-          { text: 'Server (HTTP/WS)', link: '/server/' },
-          { text: 'MCP Server', link: '/mcp' },
-        ],
-      },
+      { text: 'MCP', link: '/mcp' },
+      { text: 'Server', link: '/server/' },
       { text: 'ThetaData Docs', link: 'https://docs.thetadata.us/' },
     ],
 
