@@ -1882,6 +1882,242 @@ python = true
 typescript = true
 cpp = true
 
+# ── Subscription getters (the built fluent subscription handle) ──
+#
+# The three bindings expose the built subscription's identity through
+# DELIBERATELY divergent accessors, encoded per column rather than forced
+# into false symmetry:
+#   * Python / TypeScript carry the wire-string `kind`, the `isFull`
+#     boolean, the nested `contract`, and `secType`.
+#   * C++ exposes the wire-string under `kind_string()` (its bare `kind()`
+#     returns the typed `Kind` enum, exempt from the reverse scan), the
+#     full/per-contract distinction as the typed `scope()` enum instead of
+#     a bool, and FLATTENS the contract into `symbol()` / `expiration()` /
+#     `strike()` / `right()` / `is_option()`.
+# `kind` routes to the C++ `kind_string` member via METHOD_BINDING_OVERRIDES.
+[[method]]
+class = "Subscription"
+name = "kind"
+python = true
+typescript = true
+cpp = true          # C++ `kind_string()` (wire string); bare `kind()` is the typed enum
+
+[[method]]
+class = "Subscription"
+name = "scope"
+python = false      # Python uses the `isFull` boolean
+typescript = false  # TypeScript uses the `isFull` boolean
+cpp = true          # typed `Scope` enum — the C++ form of the full/per-contract split
+
+[[method]]
+class = "Subscription"
+name = "isFull"
+python = true
+typescript = true
+cpp = false         # C++ exposes the typed `scope()` enum instead of a bool
+
+[[method]]
+class = "Subscription"
+name = "contract"
+python = true
+typescript = true
+cpp = false         # C++ flattens the contract into the accessors below
+
+[[method]]
+class = "Subscription"
+name = "secType"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Subscription"
+name = "symbol"
+python = false      # Python / TypeScript reach this through `contract`
+typescript = false
+cpp = true          # flattened contract accessor
+
+[[method]]
+class = "Subscription"
+name = "expiration"
+python = false
+typescript = false
+cpp = true          # flattened contract accessor
+
+[[method]]
+class = "Subscription"
+name = "strike"
+python = false
+typescript = false
+cpp = true          # flattened contract accessor
+
+[[method]]
+class = "Subscription"
+name = "right"
+python = false
+typescript = false
+cpp = true          # flattened contract accessor
+
+[[method]]
+class = "Subscription"
+name = "isOption"
+python = false
+typescript = false
+cpp = true          # flattened contract accessor (`is_option()`)
+
+# ── RecordBatchStream (the pull-based columnar reader) ──
+#
+# The cross-binding-meaningful surface is `close` / `schema` / `dropped`.
+# Per-binding iterator/context idioms (`__next__`, `[Symbol.asyncIterator]`,
+# `ReadNext`, the C++ static `create`) carry no cross-binding contract and
+# are named in RECORD_BATCH_STREAM_EXEMPT_METHODS. The TypeScript reader is
+# the JS wrapper in `streaming-session.{js,d.ts}`, harvested by the wrapper
+# interface collector.
+[[method]]
+class = "RecordBatchStream"
+name = "close"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "RecordBatchStream"
+name = "schema"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "RecordBatchStream"
+name = "dropped"
+python = true
+typescript = true
+cpp = true
+
+# ── FlatFileRowList (the decoded flat-file row vector) ──
+#
+# `count` and `toArrowIpc` are the two cross-binding-meaningful methods;
+# each binding spells them idiomatically, routed via METHOD_BINDING_OVERRIDES
+# (`count` -> Python `__len__` / TypeScript `len` / C++ `size`; `toArrowIpc`
+# -> Python `to_arrow` / TypeScript `toArrowIpc` / C++ `to_arrow_ipc`). The
+# remaining materializers are intentionally per-language and recorded as
+# asymmetric rows. The emptiness idiom (`__bool__` / `isEmpty`) carries no
+# cross-binding contract and is in FLATFILE_ROWLIST_EXEMPT_METHODS.
+[[method]]
+class = "FlatFileRowList"
+name = "count"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "FlatFileRowList"
+name = "toArrowIpc"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "FlatFileRowList"
+name = "toPandas"
+python = true       # pandas materializer — Python only
+typescript = false
+cpp = false
+
+[[method]]
+class = "FlatFileRowList"
+name = "toPolars"
+python = true       # polars materializer — Python only
+typescript = false
+cpp = false
+
+[[method]]
+class = "FlatFileRowList"
+name = "toList"
+python = true       # list-of-dicts materializer — Python only
+typescript = false
+cpp = false
+
+[[method]]
+class = "FlatFileRowList"
+name = "toJson"
+python = false
+typescript = true   # JSON-string materializer — TypeScript only
+cpp = false
+
+[[method]]
+class = "FlatFileRowList"
+name = "get"
+python = false
+typescript = false
+cpp = true          # raw-handle accessor for zero-copy bridges — C++ only
+
+# ── Config lifecycle setters with non-scalar shapes ──
+#
+# These ride the method matrix (not only the scalar setter/getter parity)
+# because their argument shape is non-scalar (the reconnect policy enum,
+# the construction-time ring/worker sizing): the method rows pin presence
+# per binding and anchor future signature parity. The getter rows resolve
+# the per-binding readback spelling (`get_*` on Python / C++, the bare
+# camelCase property on TypeScript) through the existing `get_`-prefix
+# fallback in the forward check.
+[[method]]
+class = "Config"
+name = "setReconnectPolicy"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "reconnectPolicy"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "setStreamingRingSize"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "setWorkerThreads"
+python = true
+typescript = true
+cpp = true
+
+[[method]]
+class = "Config"
+name = "workerThreads"
+python = true
+typescript = true
+cpp = true
+
+# ── Client Python-only auth-time readbacks ──
+#
+# `sessionUuid` / `subscriptionInfo` expose an auth-time value on the
+# Python unified client with no symmetric TypeScript / C++ method, so they
+# are enrolled here (rather than carried as bare reverse-scan exemptions)
+# to keep the asymmetry explicit and tracked.
+[[method]]
+class = "Client"
+name = "sessionUuid"
+python = true
+typescript = false
+cpp = false
+rust = true         # `pub fn session_uuid` on the Rust unified client
+
+[[method]]
+class = "Client"
+name = "subscriptionInfo"
+python = true
+typescript = false
+cpp = false
+rust = true         # `pub fn subscription_info` on the Rust unified client
+
 # ─── Value-field TYPE parity ──────────────────────────────────────────
 #
 # Each row pins the declared Rust-side type of one field on one value
@@ -3621,3 +3857,39 @@ python = true
 typescript = false  # Python-only async wrapper over `Client`
 cpp = false
 ffi = false
+
+# ─── C-ABI streaming-batch / borrowed-handle externs ───────────────────
+#
+# A small family of `extern "C"` symbols underpins the columnar streaming
+# reader, the flat-file Arrow bridge, and the borrowed historical handle.
+# They are not endpoint (`_with_options` / `_stream`) symbols, config
+# accessors, or utilities, so no other family tracks them — a `[[ffi_symbol]]`
+# row pins each one's existence so it cannot be removed (breaking the C++
+# RecordBatchStream / FlatFileRowList wrappers) without tripping the gate.
+# The `name` is the bare symbol with the `thetadatadx_` prefix stripped; the
+# checker re-derives the full `thetadatadx_<name>` extern when matching
+# `ffi/src/**`. The reverse FFI-orphan scan additionally guarantees no
+# C-ABI symbol ships without belonging to some enrolled family.
+[[ffi_symbol]]
+name = "client_batches_open"
+
+[[ffi_symbol]]
+name = "client_historical"
+
+[[ffi_symbol]]
+name = "record_batch_stream_next_ipc"
+
+[[ffi_symbol]]
+name = "record_batch_stream_schema_ipc"
+
+[[ffi_symbol]]
+name = "record_batch_stream_dropped"
+
+[[ffi_symbol]]
+name = "record_batch_stream_close"
+
+[[ffi_symbol]]
+name = "record_batch_stream_free"
+
+[[ffi_symbol]]
+name = "flatfile_rows_to_arrow_ipc"

@@ -152,6 +152,15 @@ ENDPOINT_SURFACE_TOML = (
 ENDPOINT_WITH_OPTIONS_INC = (
     REPO_ROOT / "sdks" / "cpp" / "include" / "endpoint_with_options.h.inc"
 )
+# The two generated consumers of the request-options SSOT: the C++ fluent
+# `with_*` setters and the FFI `#[repr(C)]` bridge struct. Both are emitted
+# from `endpoint_surface.toml` and must carry the same option roster.
+ENDPOINT_OPTIONS_HPP_INC = (
+    REPO_ROOT / "sdks" / "cpp" / "include" / "endpoint_options.hpp.inc"
+)
+ENDPOINT_REQUEST_OPTIONS_RS = (
+    REPO_ROOT / "ffi" / "src" / "endpoint_request_options.rs"
+)
 
 
 # ─── Public-surface vocabulary guard ────────────────────────────────
@@ -1949,16 +1958,39 @@ JS_PROTOTYPE_METHOD_RE = re.compile(
     r"(?:\b\w+\.)?(\w+)\.prototype\.(\w+)\s*="
 )
 
+# Wrapper classes whose public surface lives in a STANDALONE `.d.ts`
+# `interface`/`class` declaration (not a napi `impl` and not a `declare
+# module` augmentation), keyed by the canonical parity-row class name. The
+# pull-based `RecordBatchStream` reader is the case: the JS wrapper class in
+# `streaming-session.{js,d.ts}` over the napi `RecordBatchStreamHandle`
+# transport is the public TypeScript surface, so its declared members must be
+# visible to the method matrix. Scoped to this allow-set so unrelated `.d.ts`
+# interfaces never pollute another class's harvested method set.
+TS_WRAPPER_STANDALONE_CLASSES: frozenset[str] = frozenset({"RecordBatchStream"})
+# A top-level `(export )(declare )(class|interface) <Name> ... { <body> }`
+# declaration. The body capture is balanced by the caller's brace walk.
+TS_STANDALONE_DECL_RE = re.compile(
+    r"(?:export\s+)?(?:declare\s+)?(?:class|interface)\s+(\w+)\b[^\{]*\{"
+)
+# A property or method member inside such a body: an optional `readonly`,
+# then the member name, then `(` (method) or `:` (typed property). The
+# `[Symbol.x]` computed members are bracketed and never match `\w+`.
+TS_STANDALONE_MEMBER_RE = re.compile(
+    r"^\s*(?:readonly\s+)?(\w+)\s*[(:?<]", re.MULTILINE
+)
+
 
 def _collect_ts_wrapper_class_methods(ts_pkg_dir: pathlib.Path) -> dict[str, set[str]]:
     """Harvest wrapper-side method augmentations from the package entry.
 
     Reads the declared `.d.ts` entry (`package.json` `types`) for
-    `declare module './index' { interface <Class> { ... } }` augmentations and
+    `declare module './index' { interface <Class> { ... } }` augmentations,
     the declared `.js` entry (`main`) for `<Class>.prototype.<name> = ...`
-    runtime additions, returning `{class: {method, ...}}`. This is how a
-    method present on the public TS surface only because the wrapper adds it
-    (not the napi `impl`) becomes visible to the parity gate.
+    runtime additions, and the STANDALONE `.d.ts` `interface`/`class`
+    declarations of the wrapper classes in `TS_WRAPPER_STANDALONE_CLASSES`,
+    returning `{class: {method, ...}}`. This is how a method present on the
+    public TS surface only because the wrapper adds it (not the napi `impl`)
+    becomes visible to the parity gate.
     """
     out: dict[str, set[str]] = {}
     dts = _resolve_ts_entry(ts_pkg_dir, "types", "index.d.ts")
@@ -1969,6 +2001,26 @@ def _collect_ts_wrapper_class_methods(ts_pkg_dir: pathlib.Path) -> dict[str, set
                 cls = iface.group(1)
                 for meth in TS_AUGMENT_METHOD_RE.finditer(iface.group(2)):
                     out.setdefault(cls, set()).add(meth.group(1))
+        # Standalone wrapper-class declarations: walk every top-level
+        # class/interface, bound its body with a brace counter, and harvest
+        # the member names when the class is one of the allow-listed wrappers.
+        for header in TS_STANDALONE_DECL_RE.finditer(text):
+            cls = header.group(1)
+            if cls not in TS_WRAPPER_STANDALONE_CLASSES:
+                continue
+            body_start = header.end()
+            depth = 1
+            i = body_start
+            while i < len(text) and depth > 0:
+                ch = text[i]
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                i += 1
+            body = text[body_start : i - 1]
+            for meth in TS_STANDALONE_MEMBER_RE.finditer(body):
+                out.setdefault(cls, set()).add(meth.group(1))
     js = _resolve_ts_entry(ts_pkg_dir, "main", "index.js")
     if js.is_file():
         for m in JS_PROTOTYPE_METHOD_RE.finditer(js.read_text(encoding="utf-8")):
@@ -2126,18 +2178,17 @@ CLIENT_VIEW_ACCESSORS: frozenset[str] = frozenset(
 # discovers candidate helpers from the precise Python (`#[pymethods]`) and
 # TypeScript (napi `#[napi]` + wrapper augmentation) collectors; this roster
 # names the members those collectors harvest that carry no Client
-# `[[method]]` contract, with the reason each is exempt:
-#
-#   * constructors / connection factories, gated by the `[[connect]]` and
-#     `[[from_file]]` families, not Client `[[method]]` rows;
-#   * Python-only convenience readbacks (`sessionUuid` / `subscriptionInfo`)
-#     that expose an auth-time value and have no symmetric cross-binding
-#     method contract.
+# `[[method]]` contract: the constructors / connection factories, gated by
+# the `[[connect]]` and `[[from_file]]` families rather than Client
+# `[[method]]` rows.
 #
 # Names are the canonical camelCase spelling the scan derives. The blob-to-
 # disk helper (`flatFileToPath` / `flatfile_to_path`) is enrolled through
 # `METHOD_BINDING_OVERRIDES` against a `FlatFilesNamespace` row, so it is
 # resolved as enrolled by the scan (not listed here) and never double-counts.
+# The Python-only auth-time readbacks (`sessionUuid` / `subscriptionInfo`)
+# are now enrolled as explicit Python-only Client `[[method]]` rows, so they
+# resolve as enrolled too and are no longer exempted here.
 CLIENT_REVERSE_ORPHAN_EXEMPT_MEMBERS: frozenset[str] = frozenset(
     {
         "connect",
@@ -2146,8 +2197,6 @@ CLIENT_REVERSE_ORPHAN_EXEMPT_MEMBERS: frozenset[str] = frozenset(
         "fromFile",
         "fromEnv",
         "fromDotenv",
-        "sessionUuid",
-        "subscriptionInfo",
     }
 )
 
@@ -2217,6 +2266,27 @@ METHOD_BINDING_OVERRIDES: dict[tuple[str, str], dict[str, tuple[str, str]]] = {
         # spelling and home class as C++.
         "rust": ("FlatFiles", "to_path"),
     },
+    # The Subscription wire-string accessor is `kind` on Python / TypeScript
+    # but `kind_string` on C++ (where the bare `kind()` returns the typed
+    # enum); only the C++ member name diverges, so just that binding is
+    # overridden — Python / TypeScript derive `kind` from the row as usual.
+    ("Subscription", "kind"): {
+        "cpp": ("FluentSubscription", "kind_string"),
+    },
+    # FlatFileRowList's row-count and Arrow-IPC methods are spelled per the
+    # idiom of each binding: row count is Python `__len__` / TypeScript `len`
+    # / C++ `size`; the Arrow-IPC serializer is Python `to_arrow` /
+    # TypeScript `toArrowIpc` / C++ `to_arrow_ipc`.
+    ("FlatFileRowList", "count"): {
+        "python": ("FlatFileRowList", "__len__"),
+        "typescript": ("FlatFileRowList", "len"),
+        "cpp": ("FlatFileRowList", "size"),
+    },
+    ("FlatFileRowList", "toArrowIpc"): {
+        "python": ("FlatFileRowList", "to_arrow"),
+        "typescript": ("FlatFileRowList", "toArrowIpc"),
+        "cpp": ("FlatFileRowList", "to_arrow_ipc"),
+    },
 }
 
 
@@ -2268,6 +2338,101 @@ def _collect_rust_view_methods(client_rs: pathlib.Path) -> dict[str, set[str]]:
                     continue
                 out.setdefault(struct, set()).add(name)
     return out
+
+
+def _check_class_reverse_orphans(
+    class_name: str,
+    members_by_lang: dict[str, set[str]],
+    enrolled: set[str],
+    exempt: frozenset[str],
+    *,
+    discover_langs: frozenset[str],
+    strip_async: bool,
+    override_members: frozenset[str] = frozenset(),
+    report_camel: bool,
+) -> list[str]:
+    """Reverse-direction orphan scan for one user-facing class.
+
+    A method present on `class_name` in some binding but carrying no
+    enrolling `[[method]]` row is undocumented drift: the row simply does
+    not exist, so the forward check never fires. This flags any harvested
+    member that is neither enrolled, enrolled-elsewhere through
+    `METHOD_BINDING_OVERRIDES` (`override_members`, raw spellings), nor a
+    documented non-contract idiom in `exempt`.
+
+    `members_by_lang` maps each binding to the set its per-binding collector
+    returned for the class (used to report which bindings a flagged member
+    appears on). `discover_langs` names the subset of bindings whose members
+    SEED candidates: the C++ heuristic scan is usually excluded from
+    discovery because it picks up FFI-extern calls and data members that are
+    not public methods (the C++ column is validated by the forward row
+    check), while still contributing to the presence report.
+
+    `strip_async` matches a Python `<base>_async` member against its sync
+    base (the awaitable twin rides the same enrolled row). `report_camel`
+    selects the spelling used in the error (camelCase candidate for the
+    unified `Client`, the raw harvested spelling for the namespace / session
+    surfaces). Returns human-readable error strings (empty when every
+    harvested member is accounted for).
+    """
+    errors: list[str] = []
+    # Per-binding harvested members the error can report presence on.
+    py_members = members_by_lang.get("python", set())
+    ts_members = members_by_lang.get("typescript", set())
+    cpp_members = members_by_lang.get("cpp", set())
+
+    # The candidate set: every harvested member across the DISCOVERY
+    # bindings, with a Python `_async` twin folded onto its base when
+    # requested, minus the override-home members enrolled elsewhere.
+    candidates: set[str] = set()
+    for lang, members in (
+        ("python", py_members),
+        ("typescript", ts_members),
+        ("cpp", cpp_members),
+    ):
+        if lang not in discover_langs:
+            continue
+        for member in members:
+            base = (
+                member[: -len("_async")]
+                if strip_async and member.endswith("_async")
+                else member
+            )
+            if base in override_members or member in override_members:
+                continue
+            candidates.add(base)
+
+    for member in sorted(candidates):
+        camel = _snake_to_camel(member) if "_" in member else member
+        snake = _camel_to_snake(camel)
+        if camel in enrolled or snake in enrolled or member in enrolled:
+            continue
+        if member in exempt or camel in exempt:
+            continue
+        present_on = sorted(
+            lang
+            for lang, seen in (
+                (
+                    "python",
+                    snake in py_members
+                    or (strip_async and f"{snake}_async" in py_members),
+                ),
+                ("typescript", camel in ts_members or snake in ts_members),
+                ("cpp", snake in cpp_members or f"get_{snake}" in cpp_members),
+            )
+            if seen
+        )
+        if not present_on:
+            continue
+        reported = camel if report_camel else member
+        errors.append(
+            f"  {class_name}.{reported}: method present on {present_on} but "
+            f"has no `[[method]]` row (class {class_name}). Either enroll it "
+            f"(with its per-binding presence) so the surface stays tracked, or "
+            f"add it to the documented reverse-scan exempt roster with the "
+            f"reason it carries no cross-binding contract."
+        )
+    return errors
 
 
 def _check_method_rows(
@@ -2430,149 +2595,127 @@ def _check_method_rows(
     # methods; the C++ column of each helper is validated by the FORWARD row
     # check instead. The error still reports every binding the flagged helper
     # appears on (Python / TypeScript / C++) for context.
-    enrolled_client_methods = {
-        row["name"]
-        for row in method_rows
-        if row.get("class") == "Client" and row.get("name")
-    }
-    # Members enrolled against a non-Client row but whose binding-specific
-    # home IS the `Client` class (the blob-to-disk helper routed through
-    # `METHOD_BINDING_OVERRIDES`). Keyed per binding so the scan resolves them
-    # as enrolled without double-counting under a Client row.
-    override_client_members: dict[str, set[str]] = {}
-    for binding_targets in METHOD_BINDING_OVERRIDES.values():
-        for binding, (target_class, target_member) in binding_targets.items():
-            if target_class == "Client":
-                override_client_members.setdefault(binding, set()).add(target_member)
-    py_client = py_methods.get("Client", set())
-    ts_client = ts_methods.get("Client", set())
-    cpp_client = cpp_methods.get(_cpp_class_for("Client"), set())
+    # Enrolled `[[method]]` row names per class the reverse scans gate.
+    def _enrolled_for(cls: str) -> set[str]:
+        return {
+            row["name"]
+            for row in method_rows
+            if row.get("class") == cls and row.get("name")
+        }
 
-    def _client_member_enrolled(camel: str, snake: str) -> bool:
-        return camel in enrolled_client_methods or snake in enrolled_client_methods
+    # Binding-specific member spellings a row resolves to through
+    # `METHOD_BINDING_OVERRIDES`, collected per the class that HOSTS the
+    # member. Two cases both land here: a member enrolled under a row on a
+    # DIFFERENT class (the blob-to-disk helper lives on `Client` per binding
+    # but is enrolled under a `FlatFilesNamespace` row) and a member whose
+    # per-binding spelling diverges from the row name on the SAME class
+    # (FlatFileRowList `count` -> C++ `size`; Subscription `kind` -> C++
+    # `kind_string`). In both cases the member is already enrolled via its
+    # row, so each reverse scan must treat it as enrolled (skip it) rather
+    # than flag the idiomatic spelling as an orphan.
+    override_home_members: dict[str, set[str]] = {}
+    for (row_class, _row_name), binding_targets in METHOD_BINDING_OVERRIDES.items():
+        for _binding, (target_class, target_member) in binding_targets.items():
+            # The member is enrolled via this row, so register it both under
+            # the canonical row class (the key a same-class divergent-spelling
+            # scan uses, e.g. Subscription/FlatFileRowList) and under the
+            # per-binding collector class the member actually lives on (the key
+            # a cross-class scan uses, e.g. the unified Client for the
+            # blob-to-disk helper).
+            override_home_members.setdefault(row_class, set()).add(target_member)
+            override_home_members.setdefault(target_class, set()).add(target_member)
 
-    # Discover candidate helpers from the precise collectors. A Python
-    # `<name>_async` member is the awaitable twin of its sync helper, not a
-    # distinct contract, so its base is matched (mirroring the flat-file and
-    # historical `_async` handling). The camelCase row spelling is the lookup
-    # key; a Python override-home member (`flatfile_to_path`) and a TS one
-    # (`flatFileToPath`) are skipped as enrolled-elsewhere.
-    py_override_members = override_client_members.get("python", set())
-    ts_override_members = override_client_members.get("typescript", set())
-    candidates: set[str] = set()
-    for member in py_client:
-        base = member[: -len("_async")] if member.endswith("_async") else member
-        # An override-home member (and its `_async` twin) is enrolled against
-        # its own non-Client row; skip it here.
-        if member in py_override_members or base in py_override_members:
-            continue
-        candidates.add(_snake_to_camel(base))
-    for member in ts_client:
-        if member in ts_override_members or _snake_to_camel(member) in {
-            _snake_to_camel(o) for o in ts_override_members
-        }:
-            continue
-        # napi members are recorded in both snake and camel form; normalise to
-        # the camelCase row spelling.
-        candidates.add(_snake_to_camel(member) if "_" in member else member)
-
-    for camel in sorted(candidates):
-        snake = _camel_to_snake(camel)
-        if _client_member_enrolled(camel, snake):
-            continue
-        if camel in CLIENT_REVERSE_ORPHAN_EXEMPT_MEMBERS:
-            continue
-        present_on = sorted(
-            lang
-            for lang, seen in (
-                ("python", snake in py_client or f"{snake}_async" in py_client),
-                ("typescript", camel in ts_client or snake in ts_client),
-                ("cpp", snake in cpp_client or f"get_{snake}" in cpp_client),
-            )
-            if seen
-        )
-        if present_on:
-            errors.append(
-                f"  Client.{camel}: helper method present on {present_on} but "
-                f"has no Client [[method]] row. Either enroll it (with its "
-                f"per-binding presence) so the unified-client helper surface "
-                f"stays tracked, or add it to "
-                f"CLIENT_REVERSE_ORPHAN_EXEMPT_MEMBERS with the documented "
-                f"reason it carries no cross-binding contract."
-            )
-
-    # Reverse-direction orphan scan for the flat-file fetch namespace. A fetch
-    # method present on the namespace class in a binding but carrying no
-    # enrolling `FlatFilesNamespace` `[[method]]` row is undocumented drift: the
-    # bulk per-day flat-file surface stays symmetric only if every fetch method
-    # each binding exposes is enrolled. The scan walks the methods actually
-    # harvested on the namespace class per binding (Python / TypeScript key on
-    # `FlatFilesNamespace`, C++ on the aliased `FlatFiles`), maps each to its
-    # canonical camelCase row name, and flags any that is neither enrolled nor a
-    # non-public collector artifact (the C++ collector picks up the FFI extern
-    # declarations and the `handle_` member inside the class body; Python picks
-    # up the module-private `pull_decoded` free fn). The exempt roster names
-    # those artifacts explicitly so the scan fires only on a genuine new fetch
-    # method.
-    enrolled_flatfiles_methods = {
-        row["name"]
-        for row in method_rows
-        if row.get("class") == "FlatFilesNamespace" and row.get("name")
-    }
-    flatfiles_members: set[str] = set()
-    flatfiles_members |= py_methods.get("FlatFilesNamespace", set())
-    flatfiles_members |= ts_methods.get("FlatFilesNamespace", set())
-    flatfiles_members |= cpp_methods.get(_cpp_class_for("FlatFilesNamespace"), set())
-    for member in sorted(flatfiles_members - FLATFILES_NAMESPACE_EXEMPT_MEMBERS):
-        # A Python `<fetch>_async` member is the awaitable twin of its sync
-        # fetch, not a distinct fetch contract: the TypeScript fetch methods
-        # are already `async` (Promise) and C++ exposes a `std::future`
-        # companion, so the async surface rides the same enrolled row rather
-        # than carrying its own. Strip a trailing `_async` and require the
-        # base to be an enrolled fetch (mirroring how the historical `_async`
-        # members are matched by their base endpoint). This does not weaken
-        # the scan: an `_async` member whose base is not an enrolled fetch
-        # still trips below.
-        base = member[: -len("_async")] if member.endswith("_async") else member
-        camel = _snake_to_camel(base)
-        if camel in enrolled_flatfiles_methods or base in enrolled_flatfiles_methods:
-            continue
-        errors.append(
-            f"  FlatFilesNamespace.{member}: fetch method present on the "
-            f"namespace class but has no `[[method]]` row. Either enroll it "
-            f"(with the cross-binding shape) or add it to "
-            f"FLATFILES_NAMESPACE_EXEMPT_MEMBERS with the documented reason it "
-            f"carries no cross-binding fetch contract."
-        )
-
-    # Reverse-direction orphan scan for the `StreamingSession` async-session
-    # surface. `StreamingSession` is the Python-only `async with` /
-    # `async for` session handle (it carries a `[[class]]` row;
-    # `typescript`/`cpp` use a Promise iterator / RAII guard instead). Its
-    # public surface is intentionally the inner `Client`'s, reached through
-    # `__getattr__` proxying — its OWN first-class methods are only the
-    # async-iterator and context-manager dunders, which carry no
-    # cross-binding contract and are exempt by the roster below. This scan
-    # documents that exemption AND fires if a future first-class method
-    # (one the user calls directly on the session, not a proxied Client
-    # method) is added without an enrolling `[[method]]` row.
-    enrolled_session_methods = {
-        row["name"]
-        for row in method_rows
-        if row.get("class") == "StreamingSession" and row.get("name")
-    }
-    session_methods = py_methods.get("StreamingSession", set())
-    for name in sorted(session_methods - STREAMING_SESSION_EXEMPT_METHODS):
-        camel = _snake_to_camel(name)
-        if camel in enrolled_session_methods or name in enrolled_session_methods:
-            continue
-        errors.append(
-            f"  StreamingSession.{name}: first-class session method present "
-            f"on the Python pyclass but has no `[[method]]` row. Either enroll "
-            f"it (with the cross-binding shape) or add it to "
-            f"STREAMING_SESSION_EXEMPT_METHODS with the documented reason it "
-            f"carries no cross-binding contract."
-        )
+    # Each reverse scan is the same shape — harvest the class members per
+    # binding, flag any not enrolled / enrolled-elsewhere / exempt — so they
+    # share `_check_class_reverse_orphans`. Per class: the discovery bindings
+    # (the precise collectors; C++ is excluded from Client/Subscription/
+    # RecordBatchStream discovery because its heuristic scan over-harvests),
+    # whether the Python `_async` twin folds onto its base, the exempt roster,
+    # and the report spelling.
+    errors += _check_class_reverse_orphans(
+        "Client",
+        {
+            "python": py_methods.get("Client", set()),
+            "typescript": ts_methods.get("Client", set()),
+            "cpp": cpp_methods.get(_cpp_class_for("Client"), set()),
+        },
+        _enrolled_for("Client"),
+        CLIENT_REVERSE_ORPHAN_EXEMPT_MEMBERS,
+        discover_langs=frozenset({"python", "typescript"}),
+        strip_async=True,
+        override_members=frozenset(override_home_members.get("Client", set())),
+        report_camel=True,
+    )
+    errors += _check_class_reverse_orphans(
+        "FlatFilesNamespace",
+        {
+            "python": py_methods.get("FlatFilesNamespace", set()),
+            "typescript": ts_methods.get("FlatFilesNamespace", set()),
+            "cpp": cpp_methods.get(_cpp_class_for("FlatFilesNamespace"), set()),
+        },
+        _enrolled_for("FlatFilesNamespace"),
+        FLATFILES_NAMESPACE_EXEMPT_MEMBERS,
+        discover_langs=frozenset({"python", "typescript", "cpp"}),
+        strip_async=True,
+        report_camel=False,
+    )
+    errors += _check_class_reverse_orphans(
+        "StreamingSession",
+        {"python": py_methods.get("StreamingSession", set())},
+        _enrolled_for("StreamingSession"),
+        STREAMING_SESSION_EXEMPT_METHODS,
+        discover_langs=frozenset({"python"}),
+        strip_async=False,
+        report_camel=False,
+    )
+    # The same scan now also covers the fluent subscription handle, the
+    # columnar reader, and the flat-file row list — each enrolled above with a
+    # per-binding-meaningful method set plus a documented exempt roster for the
+    # per-language iterator / enum / materializer idioms that carry no
+    # cross-binding contract.
+    errors += _check_class_reverse_orphans(
+        "Subscription",
+        {
+            "python": py_methods.get(_py_class_for("Subscription"), set()),
+            "typescript": ts_methods.get(_ts_class_for("Subscription"), set()),
+            "cpp": cpp_methods.get(_cpp_class_for("Subscription"), set()),
+        },
+        _enrolled_for("Subscription"),
+        SUBSCRIPTION_REVERSE_EXEMPT_METHODS,
+        discover_langs=frozenset({"python", "typescript", "cpp"}),
+        strip_async=False,
+        override_members=frozenset(override_home_members.get("Subscription", set())),
+        report_camel=False,
+    )
+    errors += _check_class_reverse_orphans(
+        "RecordBatchStream",
+        {
+            "python": py_methods.get("RecordBatchStream", set()),
+            "typescript": ts_methods.get("RecordBatchStream", set()),
+            "cpp": cpp_methods.get("RecordBatchStream", set()),
+        },
+        _enrolled_for("RecordBatchStream"),
+        RECORD_BATCH_STREAM_EXEMPT_METHODS,
+        discover_langs=frozenset({"python", "typescript", "cpp"}),
+        strip_async=False,
+        report_camel=False,
+    )
+    errors += _check_class_reverse_orphans(
+        "FlatFileRowList",
+        {
+            "python": py_methods.get("FlatFileRowList", set()),
+            "typescript": ts_methods.get("FlatFileRowList", set()),
+            "cpp": cpp_methods.get("FlatFileRowList", set()),
+        },
+        _enrolled_for("FlatFileRowList"),
+        FLATFILE_ROWLIST_EXEMPT_METHODS,
+        discover_langs=frozenset({"python", "typescript", "cpp"}),
+        strip_async=False,
+        override_members=frozenset(
+            override_home_members.get("FlatFileRowList", set())
+        ),
+        report_camel=False,
+    )
 
     return errors
 
@@ -2597,6 +2740,61 @@ STREAMING_SESSION_EXEMPT_METHODS: frozenset[str] = frozenset(
         "__getattr__",
         "__next__",
         "__iter__",
+    }
+)
+
+
+# Subscription members harvested by the per-binding collectors that carry no
+# cross-binding accessor contract: the C++ private static factories
+# (`per_contract_stock` / `per_contract_option` / `full_stream`) the heuristic
+# class scan picks up, and the TypeScript stringify idiom (`toString`). The
+# C++ enum accessor `kind()` is resolved by the enrolled `kind` row name (its
+# wire-string sibling is the row's C++ override `kind_string`), so it is not
+# listed here.
+SUBSCRIPTION_REVERSE_EXEMPT_METHODS: frozenset[str] = frozenset(
+    {
+        "per_contract_stock",
+        "per_contract_option",
+        "full_stream",
+        "toString",
+    }
+)
+
+
+# RecordBatchStream members that are per-language iterator / context-manager
+# idioms or private construction helpers, not cross-binding methods: the
+# Python sync/async iterator + context-manager dunders, and the C++ private
+# static builders / decoders (`create` / `decode_one` / `decode_schema` /
+# `open_ipc`) the heuristic class scan harvests. The TypeScript
+# `[Symbol.asyncIterator]` / `[Symbol.asyncDispose]` are bracketed and never
+# harvested as `\w+` members, so they need no entry.
+RECORD_BATCH_STREAM_EXEMPT_METHODS: frozenset[str] = frozenset(
+    {
+        "__iter__",
+        "__next__",
+        "__aiter__",
+        "__anext__",
+        "__aenter__",
+        "__aexit__",
+        "create",
+        "decode_one",
+        "decode_schema",
+        "open_ipc",
+    }
+)
+
+
+# FlatFileRowList members that are the per-language emptiness idiom
+# (`__bool__` on Python, `isEmpty` on TypeScript) — the inverse-of-count
+# convenience with no cross-binding contract — plus the C++ local variable
+# `out` the declaration-shaped scan picks up inside the inline
+# `to_arrow_ipc()` body. The row-count / Arrow-IPC methods themselves are
+# enrolled via `METHOD_BINDING_OVERRIDES`, not exempted here.
+FLATFILE_ROWLIST_EXEMPT_METHODS: frozenset[str] = frozenset(
+    {
+        "__bool__",
+        "isEmpty",
+        "out",
     }
 )
 
@@ -5355,6 +5553,377 @@ def _check_value_field_roster(rows: list[dict[str, Any]]) -> list[str]:
     return errors
 
 
+# ─── C-ABI symbol roster + reverse-orphan scan ────────────────────────
+#
+# The `[[method]]` / endpoint / config / utility families each gate one
+# slice of the C ABI by SHAPE. None of them tracks the streaming-batch /
+# borrowed-handle externs (the columnar reader, the flat-file Arrow bridge,
+# the historical sub-handle), and nothing asserts the reverse direction:
+# that EVERY `extern "C"` symbol belongs to some enrolled family. A new
+# C-ABI symbol could ship — breaking the ABI contract the C++ wrappers and
+# external FFI consumers depend on — with no row anywhere. Two checks close
+# this: `[[ffi_symbol]]` rows pin the streaming-batch family by name, and
+# the orphan scan subtracts every enrolled family + the memory-management
+# exempt roster from the harvested universe and flags the remainder.
+
+# Memory-management frees and panic-test hooks: C-ABI symbols that release
+# an owned allocation (`*_free`, the per-tick array frees the tick/event
+# macros emit) or exist only to exercise the panic boundary in tests. They
+# carry no cross-binding method contract, so they are exempt from the
+# FFI-symbol orphan scan. Bare names with the `thetadatadx_` prefix stripped.
+FFI_SYMBOL_EXEMPT: frozenset[str] = frozenset(
+    {
+        "arrow_bytes_free",
+        "string_free",
+        "string_array_free",
+        "subscription_array_free",
+        "option_contract_array_free",
+        "greeks_result_free",
+        "flatfile_bytes_free",
+        "flatfile_rowlist_free",
+        "credentials_free",
+        "historical_free",
+        "config_free",
+        "test_panic_str",
+        "test_panic_string",
+    }
+)
+
+# The client / streaming observability + lifecycle roster: the C-ABI
+# realization of the `StreamView` / `StreamingClient` surface, each
+# independently enrolled and gated by the `[[method]]`, core-streaming, and
+# connect families. Enumerated explicitly (not by a broad `client_*` /
+# `streaming_*` prefix) so a NEW `thetadatadx_client_*` / `thetadatadx_streaming_*`
+# symbol that nobody enrolled still falls through to the orphan scan. Bare
+# `<stem>_<suffix>` names (prefix stripped); `_OBS_SUFFIXES` is shared by
+# both the `client` and `streaming` stems.
+_FFI_OBS_SUFFIXES: frozenset[str] = frozenset(
+    {
+        "active_subscriptions",
+        "active_full_subscriptions",
+        "await_drain",
+        "dropped_events",
+        "free",
+        "is_authenticated",
+        "is_streaming",
+        "last_connected_addr",
+        "last_event_received_at_unix_nanos",
+        "millis_since_last_event",
+        "panic_count",
+        "reconnect",
+        "ring_capacity",
+        "ring_occupancy",
+        "set_callback",
+        "set_slow_callback_threshold_us",
+        "slow_callback_count",
+        "subscribe",
+        "unsubscribe",
+    }
+)
+_FFI_OBS_SYMBOLS: frozenset[str] = frozenset(
+    f"{stem}_{suf}" for stem in ("client", "streaming") for suf in _FFI_OBS_SUFFIXES
+) | frozenset(
+    {
+        "client_stop_streaming",
+        "client_historical",
+        "streaming_shutdown",
+    }
+)
+
+# Config lifecycle symbols outside the `config_set_` / `config_get_` /
+# `config_with_` shapes (the ctors / environment selectors / free).
+_FFI_CONFIG_MISC: frozenset[str] = frozenset(
+    {"config_dev", "config_stage", "config_production", "config_from_dotenv"}
+)
+
+# Client / streaming / historical construction symbols (the `[[connect]]` /
+# `[[from_file]]` families).
+_FFI_CONNECT_SYMBOLS: frozenset[str] = frozenset(
+    f"{stem}_{suf}"
+    for stem in ("client", "streaming", "historical")
+    for suf in ("connect", "connect_from_file")
+)
+
+# The error-surface symbols (the `[[error]]` leaf/code family threads the
+# higher bindings off these).
+_FFI_ERROR_SYMBOLS: frozenset[str] = frozenset(
+    {"last_error", "last_error_code", "last_error_retry_after_ms", "clear_error"}
+)
+
+# Standalone utility symbols (the `[[utility]]` family — calculators,
+# condition/exchange/sequence/calendar lookups, the strike/timestamp
+# converters).
+_FFI_UTILITY_SYMBOLS: frozenset[str] = frozenset(
+    {
+        "all_greeks",
+        "implied_volatility",
+        "condition_description",
+        "condition_is_cancel",
+        "condition_name",
+        "condition_updates_volume",
+        "quote_condition_description",
+        "quote_condition_is_firm",
+        "quote_condition_is_halted",
+        "quote_condition_name",
+        "exchange_name",
+        "exchange_symbol",
+        "sequence_signed_to_unsigned",
+        "sequence_unsigned_to_signed",
+        "calendar_status_name",
+        "contract_strike_dollars",
+        "timestamp_ms",
+    }
+)
+
+# Flat-file request symbols other than the Arrow-IPC bridge (which is an
+# enrolled `[[ffi_symbol]]`): the decoded-rows fetch, the blob-to-disk
+# fetch, and the row count — governed by the flat-file fetch / namespace
+# families.
+_FFI_FLATFILE_SYMBOLS: frozenset[str] = frozenset(
+    {
+        "flatfile_request_decoded",
+        "flatfile_request_to_path",
+        "flatfile_rows_count",
+    }
+)
+
+
+def _collect_ffi_all_symbols(ffi_src: pathlib.Path) -> set[str]:
+    """Every `extern "C" fn thetadatadx_<name>` declared under `ffi/src/**`,
+    as the bare `<name>` (prefix stripped).
+
+    This is the full C-ABI symbol universe the orphan scan reduces against
+    the enrolled families. The regex matches the same `fn thetadatadx_(\\w+)`
+    shape the per-family FFI collectors use.
+    """
+    out: set[str] = set()
+    if not ffi_src.is_dir():
+        return out
+    sym_re = re.compile(r"\bfn\s+thetadatadx_(\w+)\s*\(")
+    for rs in ffi_src.rglob("*.rs"):
+        for m in sym_re.finditer(_read_source(rs)):
+            out.add(m.group(1))
+    return out
+
+
+def _ffi_symbol_governed(name: str, enrolled: frozenset[str]) -> bool:
+    """True iff the bare C-ABI symbol `name` belongs to an enrolled family.
+
+    `enrolled` is the set of `[[ffi_symbol]]` row names (the streaming-batch
+    family). The remaining families are matched by their SSOT-backed shape
+    (config / endpoint / credentials) or their explicit roster (observability
+    / connect / error / utility / flat-file / config-misc). A symbol matching
+    none of these — and not in `FFI_SYMBOL_EXEMPT` — is an orphan.
+    """
+    if name in enrolled:
+        return True
+    if name in FFI_SYMBOL_EXEMPT:
+        return True
+    # SSOT-backed shapes: config accessors, every endpoint's `_with_options`
+    # base and `_stream` companion, the credentials factories.
+    if (
+        name.startswith("config_set_")
+        or name.startswith("config_get_")
+        or name.startswith("config_with_")
+        or name.startswith("credentials_")
+        or name.endswith("_with_options")
+        or name.endswith("_stream")
+    ):
+        return True
+    return name in (
+        _FFI_OBS_SYMBOLS
+        | _FFI_CONFIG_MISC
+        | _FFI_CONNECT_SYMBOLS
+        | _FFI_ERROR_SYMBOLS
+        | _FFI_UTILITY_SYMBOLS
+        | _FFI_FLATFILE_SYMBOLS
+    )
+
+
+def _check_ffi_symbol_rows(
+    ffi_symbol_rows: list[dict[str, Any]], all_symbols: set[str]
+) -> list[str]:
+    """Forward check for `[[ffi_symbol]]` rows: each declared symbol must
+    exist as an `extern "C"` declaration under `ffi/src/**`.
+
+    A row whose symbol vanished (renamed / removed) trips, so the
+    streaming-batch / borrowed-handle ABI cannot silently break the C++
+    wrappers that call these symbols by name.
+    """
+    errors: list[str] = []
+    for row in ffi_symbol_rows:
+        name = row.get("name")
+        if not name:
+            errors.append(f"  [[ffi_symbol]] row missing `name`: {row!r}")
+            continue
+        if name not in all_symbols:
+            errors.append(
+                f"  thetadatadx_{name}: enrolled `[[ffi_symbol]]` row has no "
+                f"matching `extern \"C\" fn thetadatadx_{name}` under ffi/src/. "
+                f"Either restore the symbol or drop the row."
+            )
+    return errors
+
+
+def _check_ffi_symbol_orphans(
+    all_symbols: set[str], ffi_symbol_rows: list[dict[str, Any]]
+) -> list[str]:
+    """Reverse-direction orphan scan over the whole C ABI: every harvested
+    `thetadatadx_*` symbol must belong to an enrolled family or be in
+    `FFI_SYMBOL_EXEMPT`.
+
+    This is the strongest single guarantee in the matrix — no C-ABI symbol
+    ships without enrollment. A genuinely new symbol family (a symbol
+    matching no config / endpoint / credentials shape and no explicit
+    roster) trips, forcing a `[[ffi_symbol]]` row (or the appropriate
+    family) before it can land.
+    """
+    enrolled = frozenset(
+        row["name"] for row in ffi_symbol_rows if row.get("name")
+    )
+    errors: list[str] = []
+    for name in sorted(all_symbols):
+        if _ffi_symbol_governed(name, enrolled):
+            continue
+        errors.append(
+            f"  thetadatadx_{name}: C-ABI symbol belongs to no enrolled family. "
+            f"Either add a `[[ffi_symbol]]` row (or enroll it in the matching "
+            f"endpoint/config/utility family), or add it to FFI_SYMBOL_EXEMPT "
+            f"if it is a memory-management free with no cross-binding contract."
+        )
+    return errors
+
+
+# ─── Request-options SSOT roster (the C++ + FFI generated consumers) ──
+#
+# The endpoint request-options surface is generated from
+# `endpoint_surface.toml` into two consumers: the C++ fluent `with_*`
+# setters (`endpoint_options.hpp.inc`) and the FFI `#[repr(C)]` bridge
+# struct `ThetaDataDxEndpointRequestOptions` (with a `has_*` presence flag
+# per scalar). Both are emitted from the same option roster, so they must
+# carry the same option set; a hand-edit or a generator drift that adds a
+# `with_X` without the FFI field (or vice versa), or a scalar field without
+# its `has_X` flag, breaks the C++ → C bridge silently. This checks the two
+# generated consumers agree, anchored on the SSOT global (`timeout_ms`).
+# Name/roster level (P1); per-option TYPE comparison is a later phase.
+# `with_deadline` is a `std::chrono` convenience alias of `timeout_ms`, not
+# a distinct option, and is exempt.
+REQUEST_OPTIONS_WITH_EXEMPT: frozenset[str] = frozenset({"deadline"})
+
+
+def _collect_endpoint_request_options(surface_toml: pathlib.Path) -> set[str]:
+    """The request-options SSOT anchor: the `[[request_options_global]]`
+    names from `endpoint_surface.toml`.
+
+    These cross-cutting options (today: `timeout_ms`) must appear in BOTH
+    generated consumers. The full builder-option roster is read from the
+    generated `with_*` set directly (the authoritative emitted roster),
+    which the cross-consumer equality check then holds the FFI struct to.
+    """
+    out: set[str] = set()
+    if not surface_toml.is_file():
+        return out
+    data = tomllib.loads(surface_toml.read_text(encoding="utf-8"))
+    for opt in data.get("request_options_global", []):
+        name = opt.get("name")
+        if name:
+            out.add(name)
+    return out
+
+
+def _collect_cpp_with_options(hpp_inc: pathlib.Path) -> set[str]:
+    """The `with_<name>` setter roster from the generated C++ options header,
+    as the bare `<name>` (the `with_` prefix stripped)."""
+    if not hpp_inc.is_file():
+        return set()
+    text = _read_source(hpp_inc)
+    return {
+        m.group(1)
+        for m in re.finditer(r"\bEndpointRequestOptions&\s+with_(\w+)\s*\(", text)
+    }
+
+
+def _collect_ffi_request_option_fields(
+    rs: pathlib.Path,
+) -> tuple[set[str], set[str]]:
+    """The `ThetaDataDxEndpointRequestOptions` struct's option fields and its
+    `has_*` presence flags, as two bare-name sets.
+
+    Returns `(option_fields, has_flags)` where `has_flags` are the bare field
+    names a `has_<field>` flag exists for. A scalar option is applied through
+    its presence flag; a string option uses a null pointer, so it carries no
+    `has_`. The caller asserts every scalar field has its flag.
+    """
+    fields: set[str] = set()
+    has_flags: set[str] = set()
+    if not rs.is_file():
+        return fields, has_flags
+    text = _read_source(rs)
+    m = re.search(
+        r"struct\s+ThetaDataDxEndpointRequestOptions\s*\{(.*?)\n\}", text, re.S
+    )
+    if not m:
+        return fields, has_flags
+    for fm in re.finditer(r"\bpub\s+(\w+)\s*:", m.group(1)):
+        name = fm.group(1)
+        if name.startswith("has_"):
+            has_flags.add(name[len("has_") :])
+        else:
+            fields.add(name)
+    return fields, has_flags
+
+
+def _check_request_options_roster(
+    ssot_global: set[str],
+    cpp_withs: set[str],
+    ffi_fields: set[str],
+    ffi_has_flags: set[str],
+) -> list[str]:
+    """Assert the two generated request-options consumers agree.
+
+    * The C++ `with_*` setter roster (minus the `with_deadline` alias) equals
+      the FFI struct's option-field set.
+    * Every FFI scalar option field (one carrying a `has_*` flag) round-trips
+      — the check enforces presence-flag completeness by requiring each
+      `has_<field>` to name a real field.
+    * The SSOT global anchor (`timeout_ms`) appears in both consumers.
+    """
+    errors: list[str] = []
+    cpp_roster = cpp_withs - REQUEST_OPTIONS_WITH_EXEMPT
+
+    missing_in_ffi = sorted(cpp_roster - ffi_fields)
+    for name in missing_in_ffi:
+        errors.append(
+            f"  request-options `{name}`: C++ `with_{name}` setter exists but "
+            f"the FFI `ThetaDataDxEndpointRequestOptions` struct has no `{name}` "
+            f"field — the C++ → C bridge would drop the option."
+        )
+    missing_in_cpp = sorted(ffi_fields - cpp_roster)
+    for name in missing_in_cpp:
+        errors.append(
+            f"  request-options `{name}`: FFI struct field `{name}` has no C++ "
+            f"`with_{name}` setter — the option is unreachable from the C++ "
+            f"fluent surface."
+        )
+    for name in sorted(ffi_has_flags - ffi_fields):
+        errors.append(
+            f"  request-options `{name}`: FFI `has_{name}` presence flag has no "
+            f"matching `{name}` option field."
+        )
+    for name in sorted(ssot_global):
+        if name not in cpp_roster:
+            errors.append(
+                f"  request-options `{name}`: SSOT [[request_options_global]] "
+                f"option absent from the C++ `with_*` roster."
+            )
+        if name not in ffi_fields:
+            errors.append(
+                f"  request-options `{name}`: SSOT [[request_options_global]] "
+                f"option absent from the FFI options struct."
+            )
+    return errors
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = argv if argv is not None else sys.argv[1:]
     if "--selftest" in argv:
@@ -5378,6 +5947,7 @@ def main(argv: list[str] | None = None) -> int:
     historical_base_rows: list[dict[str, Any]] = data.get("historical_base", [])
     from_file_rows: list[dict[str, Any]] = data.get("from_file", [])
     connect_rows: list[dict[str, Any]] = data.get("connect", [])
+    ffi_symbol_rows: list[dict[str, Any]] = data.get("ffi_symbol", [])
     if not rows:
         print("parity.toml has no [[class]] rows", file=sys.stderr)
         return 1
@@ -5695,6 +6265,30 @@ def main(argv: list[str] | None = None) -> int:
         cpp_codes,
     )
 
+    # C-ABI symbol roster: the streaming-batch / borrowed-handle externs
+    # pinned by `[[ffi_symbol]]` rows must exist, and EVERY harvested
+    # `thetadatadx_*` symbol must belong to some enrolled family (the reverse
+    # orphan scan). No C-ABI symbol ships untracked.
+    ffi_all_symbols = _collect_ffi_all_symbols(FFI_SRC)
+    ffi_symbol_errors = _check_ffi_symbol_rows(ffi_symbol_rows, ffi_all_symbols)
+    ffi_symbol_orphan_errors = _check_ffi_symbol_orphans(
+        ffi_all_symbols, ffi_symbol_rows
+    )
+
+    # Request-options roster: the two generated consumers of the
+    # `endpoint_surface.toml` request-options SSOT (the C++ `with_*` setters
+    # and the FFI `ThetaDataDxEndpointRequestOptions` struct) must carry the
+    # same option set, with a `has_*` flag per scalar, anchored on the SSOT
+    # global. Name/roster level; per-option TYPE parity is a later phase.
+    request_options_global = _collect_endpoint_request_options(ENDPOINT_SURFACE_TOML)
+    cpp_with_options = _collect_cpp_with_options(ENDPOINT_OPTIONS_HPP_INC)
+    ffi_opt_fields, ffi_opt_has = _collect_ffi_request_option_fields(
+        ENDPOINT_REQUEST_OPTIONS_RS
+    )
+    request_options_errors = _check_request_options_roster(
+        request_options_global, cpp_with_options, ffi_opt_fields, ffi_opt_has
+    )
+
     # Catch-all: every Python pyclass must be either tracked
     # explicitly or via the implicit pattern (mechanical parity).
     untracked: set[str] = {
@@ -5930,6 +6524,37 @@ def main(argv: list[str] | None = None) -> int:
             print(e)
         print()
 
+    if ffi_symbol_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(ffi_symbol_errors)} `[[ffi_symbol]]` "
+            f"row(s) lack a matching C-ABI declaration:"
+        )
+        for e in ffi_symbol_errors:
+            print(e)
+        print()
+
+    if ffi_symbol_orphan_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(ffi_symbol_orphan_errors)} C-ABI "
+            f"symbol(s) belong to no enrolled family:"
+        )
+        for e in ffi_symbol_orphan_errors:
+            print(e)
+        print()
+
+    if request_options_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(request_options_errors)} "
+            f"request-options roster divergence(s) between the C++ and FFI "
+            f"generated consumers:"
+        )
+        for e in request_options_errors:
+            print(e)
+        print()
+
     if untracked:
         had_errors = True
         print(
@@ -5959,6 +6584,7 @@ def main(argv: list[str] | None = None) -> int:
     n_hist_base = len(historical_base_rows)
     n_from_file = len(from_file_rows)
     n_connect = len(connect_rows)
+    n_ffi_symbol = len(ffi_symbol_rows)
     print(
         f"check_binding_parity: clean "
         f"({n_class} class rows + {n_dotted} field rows + "
@@ -5969,7 +6595,10 @@ def main(argv: list[str] | None = None) -> int:
         f"{n_hist_base} historical-base rows + "
         f"{n_from_file} from-file rows + "
         f"{n_connect} connect rows + "
+        f"{n_ffi_symbol} ffi-symbol rows + "
         f"{n_fields} rust pub fields checked; "
+        f"ffi_symbols={len(ffi_all_symbols)} "
+        f"request_options={len(cpp_with_options - REQUEST_OPTIONS_WITH_EXEMPT)}; "
         f"py_classes={len(py_classes)} ts_classes={len(ts_classes)} "
         f"cpp_classes={len(cpp_classes)} "
         f"py_setters={len(py_setters)} ts_setters={len(ts_setters)} "
@@ -6445,11 +7074,10 @@ def _run_selftest() -> int:
         Previously the TS collector used a single universe set; now
         every method is scoped to its owning class. This protects
         against false-positive 'unexpected' verdicts when two classes
-        coincidentally share a method name (`subscribe` on both
-        `Subscription` and `StreamingClient` etc.). The decoy holder is
-        `Subscription` (a non-Client class) so the forward-isolation
-        behaviour is exercised without entangling the Client-scoped
-        reverse-orphan scan.
+        coincidentally share a method name (`subscribe` on both classes).
+        The decoy holder is `DecoyClass` (a class no reverse-orphan scan
+        covers) so the forward-isolation behaviour is exercised without
+        entangling any reverse scan.
         """
         rows = [
             {
@@ -6460,10 +7088,10 @@ def _run_selftest() -> int:
                 "cpp": True,
             }
         ]
-        # `subscribe` exists on `Subscription` (TS) but NOT on
+        # `subscribe` exists on `DecoyClass` (TS) but NOT on
         # `StreamingClient` (TS). Class-scoped lookup must respect that.
         py_methods = {"StreamingClient": {"subscribe"}}
-        ts_methods = {"Subscription": {"subscribe"}}
+        ts_methods = {"DecoyClass": {"subscribe"}}
         cpp_methods = {"StreamingClient": {"subscribe"}}
         errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
         assert errors == [], (
@@ -6600,7 +7228,7 @@ def _run_selftest() -> int:
         cpp_methods: dict[str, set[str]] = {}
         errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
         assert any(
-            "Client.streaming" in e and "no Client [[method]] row" in e
+            "Client.streaming" in e and "no `[[method]]` row" in e
             for e in errors
         ), f"a new unenrolled Client helper must trip; got {errors!r}"
 
@@ -6623,9 +7251,18 @@ def _run_selftest() -> int:
         assert errors == [], f"enrolled Client helper must be silent; got {errors!r}"
 
     def _case_client_reverse_orphan_exempt_silent() -> None:
-        """An exempt Client member (a connection factory, a Python-only
-        readback) does NOT trip the reverse-orphan scan."""
-        rows: list[dict[str, Any]] = []
+        """An exempt Client member (a connection factory in
+        `CLIENT_REVERSE_ORPHAN_EXEMPT_MEMBERS`) does NOT trip the
+        reverse-orphan scan. The auth-time readbacks `session_uuid` /
+        `subscription_info` are now enrolled as Python-only `[[method]]`
+        rows (covered by their own enrolled-silent case below) rather than
+        exempted, so they appear here as enrolled rows, not bare members."""
+        rows: list[dict[str, Any]] = [
+            {"class": "Client", "name": "sessionUuid", "python": True,
+             "typescript": False, "cpp": False},
+            {"class": "Client", "name": "subscriptionInfo", "python": True,
+             "typescript": False, "cpp": False},
+        ]
         py_methods = {
             "Client": {"from_file", "from_env", "from_dotenv", "session_uuid", "subscription_info"}
         }
@@ -6633,7 +7270,7 @@ def _run_selftest() -> int:
         cpp_methods: dict[str, set[str]] = {}
         errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
         assert errors == [], (
-            f"exempt Client members must not trip; got {errors!r}"
+            f"exempt + enrolled Client members must not trip; got {errors!r}"
         )
 
     def _case_client_reverse_orphan_override_home_silent() -> None:
@@ -6662,6 +7299,140 @@ def _run_selftest() -> int:
     _case("client reverse-orphan - enrolled helper silent", _case_client_reverse_orphan_enrolled_silent)
     _case("client reverse-orphan - exempt members silent", _case_client_reverse_orphan_exempt_silent)
     _case("client reverse-orphan - override-home member silent", _case_client_reverse_orphan_override_home_silent)
+
+    # ── Universal class-reverse-orphan scan (the unified helper) ──
+
+    def _case_class_reverse_orphan_new_method_trips() -> None:
+        """A NEW method on an enrolled non-Client class (here a Subscription
+        getter) with no `[[method]]` row trips the universal reverse scan."""
+        rows = [
+            {"class": "Subscription", "name": "kind", "python": True,
+             "typescript": True, "cpp": True},
+        ]
+        # `expiry` is a brand-new getter on the Python pyclass with no row.
+        py_methods = {"PySubscription": {"kind", "expiry"}}
+        ts_methods: dict[str, set[str]] = {}
+        cpp_methods: dict[str, set[str]] = {}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert any(
+            "Subscription.expiry" in e and "no `[[method]]` row" in e
+            for e in errors
+        ), f"a new unenrolled Subscription getter must trip; got {errors!r}"
+
+    def _case_class_reverse_orphan_exempt_idiom_silent() -> None:
+        """Per-language idioms in the exempt roster (the RecordBatchStream
+        async-iterator dunders + the C++ private `create`) do NOT trip."""
+        rows = [
+            {"class": "RecordBatchStream", "name": n, "python": True,
+             "typescript": True, "cpp": True}
+            for n in ("close", "schema", "dropped")
+        ]
+        py_methods = {"RecordBatchStream": {
+            "close", "schema", "dropped", "__aiter__", "__anext__",
+            "__iter__", "__next__", "__aenter__", "__aexit__",
+        }}
+        ts_methods = {"RecordBatchStream": {"close", "schema", "dropped"}}
+        cpp_methods = {"RecordBatchStream": {
+            "close", "schema", "dropped", "create", "decode_one",
+            "decode_schema", "open_ipc",
+        }}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert errors == [], (
+            f"exempt idioms must not trip the reverse scan; got {errors!r}"
+        )
+
+    def _case_class_reverse_orphan_override_spelling_silent() -> None:
+        """The idiomatic per-binding spelling of an override-enrolled method
+        (FlatFileRowList `count` -> C++ `size`, Python `__len__`,
+        TypeScript `len`) is resolved as enrolled, not flagged as an orphan."""
+        rows = [
+            {"class": "FlatFileRowList", "name": "count", "python": True,
+             "typescript": True, "cpp": True},
+            {"class": "FlatFileRowList", "name": "toArrowIpc", "python": True,
+             "typescript": True, "cpp": True},
+        ]
+        py_methods = {"FlatFileRowList": {"__len__", "to_arrow", "__bool__"}}
+        ts_methods = {"FlatFileRowList": {"len", "toArrowIpc", "isEmpty"}}
+        cpp_methods = {"FlatFileRowList": {"size", "to_arrow_ipc", "out"}}
+        errors = _check_method_rows(rows, py_methods, ts_methods, cpp_methods)
+        assert errors == [], (
+            f"override-spelled + idiom members must be silent; got {errors!r}"
+        )
+
+    _case("class reverse-orphan - new non-Client method trips", _case_class_reverse_orphan_new_method_trips)
+    _case("class reverse-orphan - exempt idiom silent", _case_class_reverse_orphan_exempt_idiom_silent)
+    _case("class reverse-orphan - override spelling silent", _case_class_reverse_orphan_override_spelling_silent)
+
+    # ── C-ABI symbol roster + reverse-orphan scan ──
+
+    def _case_ffi_symbol_orphan_trips() -> None:
+        """A harvested C-ABI symbol matching no enrolled family and not in
+        `FFI_SYMBOL_EXEMPT` trips the orphan scan."""
+        symbols = {
+            "config_set_worker_threads",      # config family — governed
+            "option_history_trade_with_options",  # endpoint family — governed
+            "arrow_bytes_free",               # exempt
+            "client_batches_open",            # enrolled [[ffi_symbol]]
+            "frobnicate_widget",              # ORPHAN — no family, not exempt
+        }
+        rows = [{"name": "client_batches_open"}]
+        errors = _check_ffi_symbol_orphans(symbols, rows)
+        assert any("frobnicate_widget" in e for e in errors), (
+            f"an ungoverned C-ABI symbol must trip; got {errors!r}"
+        )
+        assert not any(
+            "config_set_worker_threads" in e
+            or "arrow_bytes_free" in e
+            or "client_batches_open" in e
+            for e in errors
+        ), f"governed / exempt / enrolled symbols must stay silent; got {errors!r}"
+
+    def _case_ffi_symbol_row_missing_decl_trips() -> None:
+        """A `[[ffi_symbol]]` row whose symbol is absent from the harvested
+        universe trips the existence check."""
+        rows = [
+            {"name": "client_batches_open"},
+            {"name": "record_batch_stream_vanished"},
+        ]
+        symbols = {"client_batches_open"}
+        errors = _check_ffi_symbol_rows(rows, symbols)
+        assert any("record_batch_stream_vanished" in e for e in errors), (
+            f"a row with no matching extern must trip; got {errors!r}"
+        )
+        assert not any("client_batches_open" in e for e in errors), (
+            f"a present symbol must stay silent; got {errors!r}"
+        )
+
+    _case("ffi-symbol orphan - ungoverned symbol trips", _case_ffi_symbol_orphan_trips)
+    _case("ffi-symbol row - missing declaration trips", _case_ffi_symbol_row_missing_decl_trips)
+
+    # ── Request-options roster (the two generated consumers) ──
+
+    def _case_request_options_consumers_agree_silent() -> None:
+        """When the C++ `with_*` roster (minus the deadline alias) and the FFI
+        option fields match, with the SSOT global present, the check is silent."""
+        ssot = {"timeout_ms"}
+        cpp = {"strike", "right", "timeout_ms", "deadline"}  # deadline exempt
+        ffi_fields = {"strike", "right", "timeout_ms"}
+        ffi_has = {"timeout_ms"}  # scalar presence flag
+        errors = _check_request_options_roster(ssot, cpp, ffi_fields, ffi_has)
+        assert errors == [], (
+            f"agreeing request-options consumers must be silent; got {errors!r}"
+        )
+
+    def _case_request_options_consumer_drift_trips() -> None:
+        """A `with_X` setter with no matching FFI field (and vice versa) trips."""
+        ssot = {"timeout_ms"}
+        cpp = {"strike", "timeout_ms"}            # `with_strike`, no FFI field
+        ffi_fields = {"right", "timeout_ms"}      # `right` field, no `with_right`
+        ffi_has = {"timeout_ms"}
+        errors = _check_request_options_roster(ssot, cpp, ffi_fields, ffi_has)
+        assert any("strike" in e for e in errors) and any(
+            "right" in e for e in errors
+        ), f"a request-options consumer drift must trip; got {errors!r}"
+
+    _case("request-options - consumers agree silent", _case_request_options_consumers_agree_silent)
+    _case("request-options - consumer drift trips", _case_request_options_consumer_drift_trips)
 
     def _case_ts_entry_resolves_from_package_json() -> None:
         """The TS class collector resolves the entry from `package.json`

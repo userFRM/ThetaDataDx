@@ -848,7 +848,9 @@ def test_client_view_accessor_orphan_trips() -> None:
     ts_methods = {"Client": {"historical", "stream", "flatFiles"}}
     cpp_methods = {"Client": {"historical", "stream", "flat_files"}}
     errors = cbp._check_method_rows(rows, py_methods, ts_methods, cpp_methods)
-    assert any("flatFiles" in e and "no Client [[method]] row" in e for e in errors), (
+    assert any(
+        "Client.flatFiles" in e and "no `[[method]]` row" in e for e in errors
+    ), (
         f"an unenrolled view accessor must trip the reverse-orphan scan; got {errors!r}"
     )
 
