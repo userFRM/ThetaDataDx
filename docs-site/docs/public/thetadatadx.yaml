@@ -476,76 +476,6 @@ x-anchors:
       date:
         type: integer
 
-  greeks-result: &greeks-result
-    type: object
-    properties:
-      value:
-        type: number
-        format: double
-      delta:
-        type: number
-        format: double
-      gamma:
-        type: number
-        format: double
-      theta:
-        type: number
-        format: double
-      vega:
-        type: number
-        format: double
-      rho:
-        type: number
-        format: double
-      iv:
-        type: number
-        format: double
-      iv_error:
-        type: number
-        format: double
-      vanna:
-        type: number
-        format: double
-      charm:
-        type: number
-        format: double
-      vomma:
-        type: number
-        format: double
-      veta:
-        type: number
-        format: double
-      speed:
-        type: number
-        format: double
-      zomma:
-        type: number
-        format: double
-      color:
-        type: number
-        format: double
-      ultima:
-        type: number
-        format: double
-      d1:
-        type: number
-        format: double
-      d2:
-        type: number
-        format: double
-      dual_delta:
-        type: number
-        format: double
-      dual_gamma:
-        type: number
-        format: double
-      epsilon:
-        type: number
-        format: double
-      lambda:
-        type: number
-        format: double
-
   data-table: &data-table
     type: object
     description: Generic DataTable with string headers and typed cell values
@@ -3595,7 +3525,6 @@ components:
     EodTick: *eod-tick
     OpenInterestTick: *open-interest-tick
     TradeQuoteTick: *trade-quote-tick
-    GreeksResult: *greeks-result
     DataTable: *data-table
 
     ContractSpec:
