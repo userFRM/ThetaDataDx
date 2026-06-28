@@ -538,7 +538,7 @@ fn parse_strike_dollars(raw: Option<f64>) -> Result<i32, String> {
 
 /// Parse the option `right` field into the contract sides to subscribe.
 ///
-/// Routes through the same `thetadatadx::greeks::parse_right` parser the REST
+/// Routes through the same `thetadatadx::right::parse_right` parser the REST
 /// validators use, so the two surfaces accept one vocabulary:
 /// `call` / `put` / `both` / `C` / `P` / `*`, case-insensitive. `Both`
 /// (and `*`) yields both sides — the FPSS wire addresses single-side
@@ -547,7 +547,7 @@ fn parse_right_sides(raw: Option<&str>) -> Result<Vec<bool>, String> {
     let raw = raw.ok_or_else(|| {
         "'right' must be one of: 'call', 'put', 'both', 'C', 'P', '*' (case-insensitive), got: <missing>".to_string()
     })?;
-    let parsed = thetadatadx::greeks::parse_right(raw).map_err(|_| {
+    let parsed = thetadatadx::right::parse_right(raw).map_err(|_| {
         format!(
             "'right' must be one of: 'call', 'put', 'both', 'C', 'P', '*' (case-insensitive), got: '{raw}'"
         )

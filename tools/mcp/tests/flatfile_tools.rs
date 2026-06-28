@@ -1,9 +1,9 @@
 // End-to-end check of the MCP server's offline `tools/list` gating. The
 // server advertises only the tools `tools/call` can serve in the current
 // connection state: with no credentials it stays in offline mode and must
-// advertise exactly the three connection-free tools (`ping`, `all_greeks`,
-// `implied_volatility`); the flat-file tools and registry historical
-// endpoints require a live client and must be withheld until one connects.
+// advertise exactly the one connection-free tool (`ping`); the flat-file
+// tools and registry historical endpoints require a live client and must
+// be withheld until one connects.
 //
 // We can't easily call into the MCP main.rs internals from a separate
 // integration test (the binary's modules are private), nor connect to a
@@ -18,7 +18,7 @@ use std::time::Duration;
 /// Tools the offline server must advertise — and the only ones, since every
 /// other tool requires a connected client. Mirrors `OFFLINE_TOOL_NAMES` in
 /// the binary and the offline-mode tools the README / banner promise.
-const OFFLINE_TOOLS: [&str; 3] = ["ping", "all_greeks", "implied_volatility"];
+const OFFLINE_TOOLS: [&str; 1] = ["ping"];
 
 /// Connection-only tools that must NOT appear while the server is offline:
 /// the flat-file tools and a representative registry historical endpoint.
@@ -108,7 +108,7 @@ fn offline_tools_list_advertises_only_offline_tools() {
 
     let response = tools_response.expect("MCP server should respond to tools/list");
 
-    // The three connection-free tools must be advertised offline.
+    // The connection-free tools must be advertised offline.
     for tool in OFFLINE_TOOLS {
         let name_token = format!("\"name\":\"{tool}\"");
         assert!(

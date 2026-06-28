@@ -1,7 +1,7 @@
 //! `ThetaData` binary-encoding layer — the data-format core of the SDK.
 //!
 //! Internal module. The crate root re-exports its public surface (tick
-//! types, enums, [`Price`](types::price::Price), Greeks, and the
+//! types, enums, [`Price`](types::price::Price), and the
 //! conditions / exchange / sequences lookups) under stable
 //! `thetadatadx::*` paths; consumers never name this module directly.
 //!
@@ -10,7 +10,6 @@
 //! - **Price** -- fixed-point price encoding used by `ThetaData`
 //! - **Enums** -- [`SecType`], [`StreamMsgType`](types::enums::StreamMsgType), etc.
 //! - **FIT codec** -- 4-bit nibble encoding for FPSS tick compression
-//! - **Greeks** -- Black-Scholes option pricing, Greek surface, and IV solver
 //! - **Error** -- encoding-layer error types
 //! - **Flags** -- bit flags and condition codes for market data records
 //!
@@ -21,7 +20,6 @@ pub mod conditions;
 pub mod error;
 pub mod exchange;
 pub mod flags;
-pub mod greeks;
 pub mod json_canon;
 pub mod right;
 pub mod sequences;

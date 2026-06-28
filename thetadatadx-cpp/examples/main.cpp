@@ -1,8 +1,7 @@
 // Minimal end-to-end example for the C++ SDK.
 //
-// Connects an `HistoricalClient` from a `creds.txt` file, pulls end-of-day
-// history for one symbol, and runs the offline Greeks / implied-volatility
-// calculators that need no server connection.
+// Connects an `HistoricalClient` from a `creds.txt` file and pulls end-of-day
+// history for one symbol.
 
 #include <iostream>
 #include <iomanip>
@@ -28,20 +27,6 @@ int main() {
                       << " V=" << tick.volume
                       << std::endl;
         }
-
-        // Greeks calculator (no server connection needed)
-        auto g = thetadatadx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C");
-        std::cout << "\nGreeks:"
-                  << " IV=" << std::setprecision(4) << g.iv
-                  << " Delta=" << g.delta
-                  << " Gamma=" << std::setprecision(6) << g.gamma
-                  << " Theta=" << std::setprecision(4) << g.theta
-                  << std::endl;
-
-        // Implied volatility
-        auto [iv, err] = thetadatadx::implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0/365.0, 8.50, "C");
-        std::cout << "IV=" << std::setprecision(6) << iv
-                  << " (error=" << std::scientific << err << ")" << std::endl;
 
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;

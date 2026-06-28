@@ -56,7 +56,7 @@ thetadatadx-mcp --creds ~/creds.txt
 
 Credentials are resolved in this order, highest first: the `--api-key` flag, then `THETADATA_API_KEY`, then `THETADATA_EMAIL` + `THETADATA_PASSWORD`, then the `--creds` file. These are the same names the SDK and the server use.
 
-If no credentials are provided, the server starts in **offline mode**: only `ping`, `all_greeks`, and `implied_volatility` tools are available.
+If no credentials are provided, the server starts in **offline mode**: only `ping` is available.
 
 ### Stdio MCP clients (config file)
 
@@ -116,15 +116,13 @@ The server speaks standard MCP over stdio:
 
 ## Available Tools
 
-Every generated historical endpoint plus 3 offline tools (`ping`, `all_greeks`, `implied_volatility`) and, when connected, 6 flat-file tools.
+Every generated historical endpoint plus 1 offline tool (`ping`) and, when connected, 6 flat-file tools.
 
-### Offline (3 total: `ping`, `all_greeks`, `implied_volatility`)
+### Offline (1 total: `ping`)
 
-These tools do not require a ThetaData account or a network round-trip; they are available even when the server is started in offline mode.
+This tool does not require a ThetaData account or a network round-trip; it is available even when the server is started in offline mode.
 
 - `ping` - server status
-- `all_greeks` - compute all 23 Black-Scholes Greeks
-- `implied_volatility` - IV solver via bisection
 
 ### Stock Data (14 tools)
 - `stock_list_symbols`, `stock_list_dates`
@@ -201,17 +199,6 @@ Response:
 ```
 
 This returns a filtered bulk response across multiple strikes. If you change `strike` to `"385"`, the response is limited to that single contract.
-
-### Compute Greeks offline
-
-```json
-{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"all_greeks","arguments":{"spot":150.0,"strike":155.0,"rate":0.05,"dividend_yield":0.01,"time_to_expiry":0.25,"option_price":5.50,"right":"call"}}}
-```
-
-Response:
-```json
-{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"{\"value\":5.50,\"iv\":0.234,\"delta\":0.456,...}"}]}}
-```
 
 ### Check server status
 

@@ -11,8 +11,7 @@ pub enum Error {
     #[error("FIT decode error: {0}")]
     Decode(String),
 
-    /// Configuration / input validation error (e.g., unrecognised `right`
-    /// string supplied to [`crate::tdbe::right::parse_right`]).
+    /// Configuration / input validation error in the encoding layer.
     #[error("Configuration error: {0}")]
     Config(String),
 

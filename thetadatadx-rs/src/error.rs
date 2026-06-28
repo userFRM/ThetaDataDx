@@ -742,8 +742,7 @@ impl From<crate::tdbe::error::Error> for Error {
     fn from(err: crate::tdbe::error::Error) -> Self {
         // The data-format layer carries a small error enum; fold its
         // variants into the closest typed `thetadatadx::Error` variant so
-        // callers can use `?` when invoking the offline analytics surface
-        // (e.g. `greeks::all_greeks`, `greeks::parse_right`) from a
+        // callers can use `?` when invoking the encoding layer from a
         // `Result<_, thetadatadx::Error>` context. Every bridge routes to
         // a typed `ConfigErrorKind` variant (`InvalidValue` for parse /
         // domain failures, `Io` for I/O surfaces) so retry classifiers can

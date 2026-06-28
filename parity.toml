@@ -784,16 +784,16 @@ cpp = true
 
 # ─── Free-function (utility) parity matrix ─────────────────────────────
 #
-# `[[utility]]` rows pin the cross-binding presence of the offline
-# analytics FREE functions — the Black-Scholes Greeks calculator. These
-# are not methods on a tracked class, so the `[[method]]` rows above
-# cannot express them; without these rows a binding could ship the
-# calculator on three languages and silently omit the fourth (the exact
-# gap this matrix closes). Every row carries:
+# `[[utility]]` rows pin the cross-binding presence of the standalone
+# utility FREE functions — the conditions / exchange / calendar / sequence
+# lookups and the strike / timestamp converters. These are not methods on
+# a tracked class, so the `[[method]]` rows above cannot express them;
+# without these rows a binding could ship a helper on three languages and
+# silently omit the fourth (the exact gap this matrix closes). Every row
+# carries:
 #
 #   name        — the canonical snake_case function name as declared in
-#                 `thetadatadx-rs/sdk_surface.toml` (`all_greeks`,
-#                 `implied_volatility`). The checker derives the
+#                 `thetadatadx-rs/sdk_surface.toml`. The checker derives the
 #                 per-binding spelling: Python `#[pyfunction] fn <name>`,
 #                 TypeScript `#[napi(js_name = "<camelCase>")]`, C++
 #                 `<name>(` in the wrapper header, FFI `thetadatadx_<name>`.
@@ -801,34 +801,16 @@ cpp = true
 #                 Python surface.
 #   typescript  — `true` iff the napi free function is emitted on the
 #                 TypeScript surface.
-#   cpp         — `true` iff the wrapper declares the function in
-#                 `thetadatadx-cpp/include/utilities.hpp.inc` (folded into the
-#                 `thetadatadx` namespace of `thetadatadx.hpp`).
+#   cpp         — `true` iff the wrapper declares the function in the C++
+#                 `thetadatadx` namespace of `thetadatadx.hpp`.
 #   ffi         — `true` iff the `thetadatadx_<name>` C ABI symbol exists in
 #                 `thetadatadx-ffi/src/`. Every higher-level binding except Python /
 #                 TypeScript (which call the Rust core directly) forwards
 #                 through this symbol.
 #
-# All four surfaces are generated from the one `sdk_surface.toml` SSOT
-# (Python / TS / C++ / MCP / CLI) over the same `thetadatadx::greeks`
-# core, so they stay in lockstep by construction; the
-# `generate_sdk_surfaces --check` drift gate and these rows guard a
-# regression. The FFI `thetadatadx_all_greeks` / `thetadatadx_implied_volatility` pair is
-# hand-written but covered by `check_c_abi_completeness`.
-
-[[utility]]
-name = "all_greeks"
-python = true
-typescript = true
-cpp = true
-ffi = true
-
-[[utility]]
-name = "implied_volatility"
-python = true
-typescript = true
-cpp = true
-ffi = true
+# These surfaces are generated from the one `sdk_surface.toml` SSOT, so
+# they stay in lockstep by construction; the `generate_sdk_surfaces
+# --check` drift gate and these rows guard a regression.
 
 # Conditions / exchange / calendar / sequence lookups. Exposed as the
 # `thetadatadx.util` submodule (Python), the `Util` namespace class
@@ -945,12 +927,10 @@ ffi = true
 # Intentionally binding-specific utilities (asserted asymmetric on
 # purpose). `split_date_range` chunks a date span into trading-calendar
 # windows ahead of a historical query — a Python ergonomic helper the
-# other bindings do not surface. `contract_strike_dollars` and
-# `greeks_result_free` are C-ABI memory-management / value-folding
-# helpers the managed bindings (Python / TypeScript / C++) have no
-# analogue for: they fold the strike presence flag and free the
-# heap-allocated greeks result the C caller owns, which the managed
-# runtimes handle through native field access and garbage collection.
+# other bindings do not surface. `contract_strike_dollars` is a C-ABI
+# value-folding helper the managed bindings (Python / TypeScript / C++)
+# have no analogue for: it folds the strike presence flag, which the
+# managed runtimes handle through native field access.
 
 [[utility]]
 name = "split_date_range"
@@ -963,14 +943,6 @@ ffi = false
 [[utility]]
 name = "contract_strike_dollars"
 binding_specific = "C-ABI strike presence-flag folding; managed bindings read the dollar field directly."
-python = false
-typescript = false
-cpp = false
-ffi = true
-
-[[utility]]
-name = "greeks_result_free"
-binding_specific = "C-ABI heap-result deallocation; managed bindings free the greeks result through their runtime."
 python = false
 typescript = false
 cpp = false

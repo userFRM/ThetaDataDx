@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 
 use heck::ToLowerCamelCase;
 
-use super::common::{generated_header, greek_result_fields, push_rust_doc_comment};
+use super::common::{generated_header, push_rust_doc_comment};
 use super::spec::{
     assert_forwarder_code_params, ForwardReturn, MethodKind, MethodSpec, UtilityKind, UtilitySpec,
 };
@@ -432,52 +432,14 @@ fn ts_util_method(utility: &UtilitySpec) -> String {
     out
 }
 
-/// Whether a utility kind is exposed as a `Util` static method (the
-/// lookup-table helpers) rather than a top-level napi free function (the
-/// offline Greeks calculators).
-fn is_util_class_kind(kind: UtilityKind) -> bool {
-    matches!(
-        kind,
-        UtilityKind::Forwarder
-            | UtilityKind::CalendarStatusName
-            | UtilityKind::TimestampMs
-            | UtilityKind::SequenceSignedToUnsigned
-            | UtilityKind::SequenceUnsignedToSigned
-    )
-}
-
-/// Renders the TypeScript utility functions source: the `AllGreeks` napi object, the offline utility free functions, and the `Util` lookup-table class.
+/// Renders the TypeScript utility functions source: the `Util`
+/// lookup-table class of static helpers.
 pub(super) fn render_ts_utility_functions(utilities: &[&UtilitySpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());
 
-    let free: Vec<&&UtilitySpec> = utilities
-        .iter()
-        .filter(|u| !is_util_class_kind(u.kind))
-        .collect();
-    let class: Vec<&&UtilitySpec> = utilities
-        .iter()
-        .filter(|u| is_util_class_kind(u.kind))
-        .collect();
-
-    // Emit the typed `AllGreeks` napi object before any function that
-    // returns it, mirroring the Python typed-pyclass policy. napi-rs
-    // lowers the `#[napi(object)]` struct to a TypeScript interface in
-    // `index.d.ts`, so `allGreeks(...)` returns a concrete object type —
-    // never `any` or a loose record.
-    let has_all_greeks = free
-        .iter()
-        .any(|u| matches!(u.kind, UtilityKind::AllGreeks));
-    if has_all_greeks {
-        out.push_str(&render_all_greeks_napi_object());
-        out.push('\n');
-    }
-
-    for utility in &free {
-        out.push_str(&ts_utility_function(utility));
-        out.push('\n');
-    }
-
+    // Every utility is exposed as a `Util` static method.
+    let class: Vec<&&UtilitySpec> = utilities.iter().collect();
     if !class.is_empty() {
         out.push_str(&render_util_napi_class(&class));
     }
@@ -506,126 +468,4 @@ fn render_util_napi_class(utilities: &[&&UtilitySpec]) -> String {
     out.push_str("}\n\n");
     out.push_str(include_str!("templates/typescript/bigint_to_i32.rs.tmpl"));
     out
-}
-
-/// Emit the `AllGreeks` `#[napi(object)]` struct so `allGreeks(...)`
-/// returns a typed object whose fields mirror
-/// `thetadatadx::greeks::GreeksResult` 1:1. napi-rs camelCases each
-/// snake_case Rust field into the JS property name (`dual_delta` ->
-/// `dualDelta`); the field name is emitted unchanged because object keys
-/// admit reserved words (`lambda` stays `lambda`, matching the
-/// `GreeksAllTick` tick object).
-fn render_all_greeks_napi_object() -> String {
-    let mut out = String::new();
-    out.push_str(
-        "/// All 23 Black-Scholes Greeks + IV in a single typed object.\n\
-         /// Returned by `allGreeks(...)`.\n",
-    );
-    out.push_str("#[must_use]\n");
-    out.push_str("#[napi(object)]\n");
-    out.push_str("#[derive(Clone)]\n");
-    out.push_str("pub struct AllGreeks {\n");
-    for (field, _rust_field) in greek_result_fields() {
-        writeln!(out, "    pub {field}: f64,").unwrap();
-    }
-    out.push_str("}\n");
-    out
-}
-
-fn ts_utility_function(utility: &UtilitySpec) -> String {
-    let mut out = String::new();
-    push_rust_doc_comment(&mut out, "", &utility.doc);
-    let js_name = to_ts_camel_case(&utility.name);
-    // Greeks params (`option_price`, `div_yield`) carry an underscore, so
-    // the napi-rs auto-camelCased JS arg names (`optionPrice`, `divYield`)
-    // differ from the Rust idents. The Rust param idents stay snake_case so
-    // the core-fn call site reads naturally; napi handles the JS-name lift.
-    match utility.kind {
-        UtilityKind::AllGreeks => {
-            writeln!(out, "#[napi(js_name = \"{js_name}\")]").unwrap();
-            if utility.params.len() > 6 {
-                out.push_str(
-                    "#[allow(clippy::too_many_arguments)] // Reason: mirrors Black-Scholes parameter set expected by SDK callers\n",
-                );
-            }
-            writeln!(out, "pub fn {}(", utility.name).unwrap();
-            for param in &utility.params {
-                writeln!(out, "    {}: {},", param.name, ts_param_type(param)).unwrap();
-            }
-            out.push_str(") -> napi::Result<AllGreeks> {\n");
-            writeln!(
-                out,
-                "    let g = thetadatadx::greeks::all_greeks({}).map_err(thetadatadx::Error::from).map_err(to_napi_err)?;",
-                ts_call_args(utility)
-            )
-            .unwrap();
-            out.push_str("    Ok(AllGreeks {\n");
-            for (field, rust_field) in greek_result_fields() {
-                // The napi object field carries the TS spelling
-                // (`lambda`); the `GreeksResult` member it reads stays the
-                // bare Rust name (`lambda`).
-                writeln!(out, "        {field}: g.{rust_field},").unwrap();
-            }
-            out.push_str("    })\n");
-            out.push_str("}\n");
-        }
-        UtilityKind::ImpliedVolatility => {
-            writeln!(out, "#[napi(js_name = \"{js_name}\")]").unwrap();
-            if utility.params.len() > 6 {
-                out.push_str(
-                    "#[allow(clippy::too_many_arguments)] // Reason: mirrors Black-Scholes parameter set expected by SDK callers\n",
-                );
-            }
-            writeln!(out, "pub fn {}(", utility.name).unwrap();
-            for param in &utility.params {
-                writeln!(out, "    {}: {},", param.name, ts_param_type(param)).unwrap();
-            }
-            // napi-rs maps a Rust `(f64, f64)` return to a JS
-            // `[number, number]` tuple, matching the Python
-            // `tuple[float, float]` `(iv, iv_error)` shape exactly.
-            out.push_str(") -> napi::Result<(f64, f64)> {\n");
-            writeln!(
-                out,
-                "    thetadatadx::greeks::implied_volatility({}).map_err(thetadatadx::Error::from).map_err(to_napi_err)",
-                ts_call_args(utility)
-            )
-            .unwrap();
-            out.push_str("}\n");
-        }
-        other => panic!("unsupported TypeScript utility kind: {other:?}"),
-    }
-    out
-}
-
-/// napi-rs Rust parameter type for a utility param. The offline Greeks
-/// calculators take `f64` scalars and a `String` right side (napi
-/// accepts the JS string by value at the boundary).
-fn ts_param_type(param: &super::spec::ParamSpec) -> &'static str {
-    use super::spec::ParamType;
-    match param.param_type {
-        ParamType::String => "String",
-        ParamType::F64 => "f64",
-        ParamType::I32 => "i32",
-        ParamType::I64 => "i64",
-        ParamType::U64 => "u32",
-        ParamType::CredentialsRef | ParamType::ConfigRef => {
-            panic!("credentials/config refs are not valid for TypeScript utility emitters")
-        }
-    }
-}
-
-/// Comma-joined argument list for the core `thetadatadx::greeks::*`
-/// call. String params cross the napi boundary as an owned `String`, so
-/// they are forwarded as `&right`; scalar params pass by value.
-fn ts_call_args(utility: &UtilitySpec) -> String {
-    use super::spec::ParamType;
-    utility
-        .params
-        .iter()
-        .map(|param| match param.param_type {
-            ParamType::String => format!("&{}", param.name),
-            _ => param.name.clone(),
-        })
-        .collect::<Vec<_>>()
-        .join(", ")
 }

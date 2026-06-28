@@ -209,38 +209,6 @@ doc = "Check MCP server status."
 mcp_description = "Check MCP server status. Returns uptime and connection info without hitting ThetaData servers."
 targets = ["mcp"]
 
-[[utilities]]
-name = "all_greeks"
-kind = "all_greeks"
-doc = "Compute all 23 Black-Scholes Greeks + IV in one call."
-mcp_description = "Compute all 23 Black-Scholes Greeks OFFLINE (no ThetaData server needed). Returns value, delta, gamma, theta, vega, rho, IV, iv_error, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, vera."
-targets = ["python", "typescript", "cpp", "mcp"]
-params = [
-  { name = "spot", type = "f64", doc = "Spot price.", mcp_description = "Spot price (underlying)" },
-  { name = "strike", type = "f64", doc = "Strike price." },
-  { name = "rate", type = "f64", doc = "Risk-free rate.", mcp_description = "Risk-free rate (e.g. 0.05 for 5%)" },
-  { name = "div_yield", type = "f64", doc = "Dividend yield.", mcp_name = "dividend_yield", mcp_description = "Dividend yield (e.g. 0.02 for 2%)" },
-  { name = "tte", type = "f64", doc = "Time to expiration in years.", mcp_name = "time_to_expiry", mcp_description = "Time to expiration in years (e.g. 0.25 for 3 months)" },
-  { name = "option_price", type = "f64", doc = "Option price.", mcp_description = "Market price of the option" },
-  { name = "right", type = "string", doc = "Option side: C/P or call/put (case-insensitive).", mcp_description = "Option side: \"C\"/\"P\" or \"call\"/\"put\" (case-insensitive)", enum_values = ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] },
-]
-
-[[utilities]]
-name = "implied_volatility"
-kind = "implied_volatility"
-doc = "Compute implied volatility via bisection."
-mcp_description = "Compute implied volatility OFFLINE using bisection (no ThetaData server needed). Returns IV and error."
-targets = ["python", "typescript", "cpp", "mcp"]
-params = [
-  { name = "spot", type = "f64", doc = "Spot price.", mcp_description = "Spot price (underlying)" },
-  { name = "strike", type = "f64", doc = "Strike price." },
-  { name = "rate", type = "f64", doc = "Risk-free rate.", mcp_description = "Risk-free rate (e.g. 0.05)" },
-  { name = "div_yield", type = "f64", doc = "Dividend yield.", mcp_name = "dividend_yield", mcp_description = "Dividend yield (e.g. 0.02)" },
-  { name = "tte", type = "f64", doc = "Time to expiration in years.", mcp_name = "time_to_expiry", mcp_description = "Time to expiration in years" },
-  { name = "option_price", type = "f64", doc = "Option price.", mcp_description = "Market price of the option" },
-  { name = "right", type = "string", doc = "Option side: C/P or call/put (case-insensitive).", mcp_description = "Option side: \"C\"/\"P\" or \"call\"/\"put\" (case-insensitive)", enum_values = ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] },
-]
-
 # ── Cross-language lookup-table helpers ──────────────────────────────────
 #
 # The `thetadatadx.util` Python submodule and the TypeScript `Util` class.

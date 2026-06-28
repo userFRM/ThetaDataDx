@@ -270,12 +270,12 @@ def check_static_docs() -> None:
     )
     expect_contains(
         ROOT / "tools/mcp/README.md",
-        "Every generated historical endpoint plus 3 offline tools (`ping`, `all_greeks`, `implied_volatility`) and, when connected, 6 flat-file tools.",
+        "Every generated historical endpoint plus 1 offline tool (`ping`) and, when connected, 6 flat-file tools.",
     )
 
     expect_contains(
         DOCS_SITE / "mcp.md",
-        "Every generated historical endpoint plus `ping`, `all_greeks`, and `implied_volatility`.",
+        "Every generated historical endpoint plus `ping`.",
     )
     # Version strings in getting-started docs must match the canonical
     # workspace version; derive it from `thetadatadx-rs/Cargo.toml`

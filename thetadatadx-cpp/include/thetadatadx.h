@@ -748,34 +748,6 @@ typedef struct {
     size_t len;
 } ThetaDataDxStringArray;
 
-/* ── Greeks result (standalone thetadatadx_all_greeks) ── */
-
-typedef struct {
-    double value;
-    double delta;
-    double gamma;
-    double theta;
-    double vega;
-    double rho;
-    double iv;
-    double iv_error;
-    double vanna;
-    double charm;
-    double vomma;
-    double veta;
-    double vera;
-    double speed;
-    double zomma;
-    double color;
-    double ultima;
-    double d1;
-    double d2;
-    double dual_delta;
-    double dual_gamma;
-    double epsilon;
-    double lambda;
-} ThetaDataDxGreeksResult;
-
 /* ── Subscription types (active_subscriptions) ── */
 
 typedef struct {
@@ -821,9 +793,6 @@ void thetadatadx_interest_rate_tick_array_free(ThetaDataDxInterestRateTickArray 
 void thetadatadx_trade_quote_tick_array_free(ThetaDataDxTradeQuoteTickArray arr);
 void thetadatadx_option_contract_array_free(ThetaDataDxOptionContractArray arr);
 void thetadatadx_string_array_free(ThetaDataDxStringArray arr);
-/** Free a result handle returned by thetadatadx_all_greeks.
- *  @param result Handle from thetadatadx_all_greeks; no-op when NULL. Call exactly once. */
-void thetadatadx_greeks_result_free(ThetaDataDxGreeksResult* result);
 /** Free a subscription array returned by an active-subscriptions query.
  *  @param arr Array from thetadatadx_*_active_subscriptions; no-op when NULL.
  *             Call exactly once. */
@@ -2162,39 +2131,6 @@ typedef void (*ThetaDataDxTickChunkCallback)(const void* rows, size_t len, void*
 
 /* Generated server-stream endpoint declarations. */
 #include "historical_stream.h.inc"
-
-/* ═══════════════════════════════════════════════════════════════════════ */
-/*  Greeks (standalone)                                                   */
-/* ═══════════════════════════════════════════════════════════════════════ */
-
-/** Compute all 23 Greeks plus implied volatility for one option.
- *  @param spot Underlying spot price.
- *  @param strike Strike price.
- *  @param rate Risk-free rate.
- *  @param div_yield Continuous dividend yield.
- *  @param tte Time to expiry in years.
- *  @param option_price Observed option price for the IV solve.
- *  @param right "C"/"P" or "call"/"put" (case-insensitive).
- *  @return Heap-allocated ThetaDataDxGreeksResult, or NULL on error (check
- *          thetadatadx_last_error()). The caller MUST free a non-NULL result
- *          with thetadatadx_greeks_result_free. */
-ThetaDataDxGreeksResult* thetadatadx_all_greeks(double spot, double strike, double rate, double div_yield,
-                                double tte, double option_price, const char* right);
-
-/** Solve the Black-Scholes implied volatility for one option.
- *  @param spot Underlying spot price.
- *  @param strike Strike price.
- *  @param rate Risk-free rate.
- *  @param div_yield Continuous dividend yield.
- *  @param tte Time to expiry in years.
- *  @param option_price Observed option price.
- *  @param right "C"/"P" or "call"/"put" (case-insensitive).
- *  @param out_iv Receives the solved implied volatility on success.
- *  @param out_error Receives the solver residual on success.
- *  @return 0 on success, -1 on failure (check thetadatadx_last_error()). */
-int thetadatadx_implied_volatility(double spot, double strike, double rate, double div_yield,
-                           double tte, double option_price, const char* right,
-                           double* out_iv, double* out_error);
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 /*  Cross-language utility helpers — conditions / exchange / sequences   */
