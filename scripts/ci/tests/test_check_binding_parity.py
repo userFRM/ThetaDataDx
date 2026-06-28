@@ -1336,6 +1336,51 @@ def test_sig_orchestrator_return_drift_trips(tmp: pathlib.Path) -> None:
     assert any("cpp" in e and "return mismatch" in e for e in errs), errs
 
 
+def test_sig_dts_conflicting_overload_trips(tmp: pathlib.Path) -> None:
+    """The `.d.ts` gate FAILS when the package-entry augmentation matches the
+    spec but a re-exported generated declaration drifts to a non-client-facing
+    return. The two MERGE as overloads, so the raw return re-leaks even though
+    the resolved type resolves to the wrapper. Mirrors the `StreamView.batches`
+    leak the re-audit found."""
+    entry = tmp / "entry.d.ts"
+    entry.write_text(
+        "export * from './index'\n"
+        "declare module './index' {\n"
+        "  interface StreamView {\n"
+        "    batches(options?: BatchesOptions): Promise<RecordBatchStream>;\n"
+        "  }\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    index = tmp / "index.d.ts"
+    index.write_text(
+        "export declare class StreamView {\n"
+        "  batches(options?: BatchesOptions | undefined | null): "
+        "Promise<RecordBatchStreamHandle>\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    row = [{
+        "class": "StreamView", "name": "batches", "typescript": True,
+        "signature": {
+            "ts_dts_params": ["BatchesOptions"], "returns": "RecordBatchStream",
+            # ts_napi has no source here; restrict the row to the .d.ts lang.
+            "skip_langs": ("ts_napi",),
+        },
+    }]
+    paths = dict(py_src=tmp / "none", ts_src=tmp / "none", ts_dts=entry,
+                 cpp_hpp=tmp / "none.hpp", client_rs=tmp / "none.rs", ffi_src=tmp / "none")
+    errs = cbp._sig_check_method_signatures(row, **paths)
+    assert any("conflicting public declaration" in e and "index.d.ts" in e for e in errs), errs
+    # Suppressing the generated declaration (skip_typescript) leaves the
+    # augmentation as the sole declaration — the gate goes silent.
+    index.write_text(
+        "export declare class StreamView {\n  isStreaming(): boolean\n}\n",
+        encoding="utf-8",
+    )
+    assert cbp._sig_check_method_signatures(row, **paths) == []
+
+
 def test_sig_name_only_fails_closed(tmp: pathlib.Path) -> None:
     """Fail-closed enrollment: a `[[method]]` row without `[method.signature]`
     FAILS unless it is in `NAME_ONLY_METHOD_ALLOWLIST`; the allowlisted row

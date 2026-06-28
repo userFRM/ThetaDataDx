@@ -102,6 +102,19 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             // + `Symbol.asyncDispose` surface; only this entry is generated
             // so the cross-binding surface stays in lockstep. `async`
             // because the FPSS connect runs on a blocking worker.
+            //
+            // `skip_typescript` suppresses the napi `.d.ts` line so the
+            // public return type is declared in exactly ONE place: the
+            // `streaming-session.d.ts` augmentation, which presents the
+            // `Promise<RecordBatchStream>` wrapper (the iterable/closeable
+            // surface) instead of this raw `RecordBatchStreamHandle`. Were
+            // both emitted, the class declaration and the `declare module`
+            // augmentation would merge as two overloads of `batches`,
+            // leaving the resolved return ambiguous and re-exposing the raw
+            // handle. One declaration keeps the client-facing return
+            // unambiguous and checkable by the parity guard. The runtime
+            // `#[napi]` registration is unaffected — only `.d.ts` emission
+            // is skipped.
             push_rust_doc_comment(
                 &mut out,
                 "    ",
@@ -120,7 +133,7 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                  `backpressure` is `\"block\"` (default, lossless) or\n\
                  `\"dropOldest\"`; `capacity` bounds the drop-oldest buffer.",
             );
-            writeln!(out, "    #[napi(js_name = \"batches\")]").unwrap();
+            writeln!(out, "    #[napi(js_name = \"batches\", skip_typescript)]").unwrap();
             writeln!(
                 out,
                 "    pub async fn {}(&self, options: Option<crate::streaming_batches::BatchesOptions>) -> napi::Result<crate::streaming_batches::RecordBatchStreamHandle> {{",

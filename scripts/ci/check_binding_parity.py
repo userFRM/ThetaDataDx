@@ -6884,18 +6884,29 @@ def _ts_dts_files(dts: pathlib.Path) -> list[pathlib.Path]:
     return out
 
 
+def _ts_dts_class_bodies_with_src(dts: pathlib.Path, cls: str) -> list[tuple[pathlib.Path, str]]:
+    """`(source file, body)` for every `class cls` / `interface cls` across the
+    public `.d.ts` surface, in PRECEDENCE order: the package entry first (its
+    `declare module` augmentation overrides), then each re-exported sibling
+    (the napi-generated `index.d.ts`). The source file is carried so a conflict
+    between an entry augmentation and a re-exported generated declaration can be
+    reported with both locations."""
+    out: list[tuple[pathlib.Path, str]] = []
+    cls_re = re.compile(r"\b(?:class|interface)\s+" + re.escape(cls) + r"\b[^{]*\{")
+    for f in _ts_dts_files(dts):
+        text = _read_source(f)
+        for m in cls_re.finditer(text):
+            out.append((f, _balanced_body(text, m.end())))
+    return out
+
+
 def _ts_dts_class_bodies(dts: pathlib.Path, cls: str) -> list[str]:
     """Every `class cls` / `interface cls` body across the public `.d.ts`
     surface (entry + re-exported siblings). A class can appear more than once
     — the napi `index.d.ts` declaration plus a `declare module` augmentation
     in the wrapper — so all bodies are returned and the member is looked up in
     each."""
-    bodies: list[str] = []
-    cls_re = re.compile(r"\b(?:class|interface)\s+" + re.escape(cls) + r"\b[^{]*\{")
-    for f in _ts_dts_files(dts):
-        text = _read_source(f)
-        for m in cls_re.finditer(text):
-            bodies.append(_balanced_body(text, m.end()))
+    bodies = [body for _, body in _ts_dts_class_bodies_with_src(dts, cls)]
     return bodies
 
 
@@ -6934,27 +6945,76 @@ def _sig_extract_ts_dts(dts: pathlib.Path, cls: str, method_camel: str) -> tuple
     only a member genuinely absent from the public `.d.ts` (a napi-only
     streaming row whose `.d.ts` shape is not redeclared) degrades to
     napi-as-authority."""
+    decls = _sig_dts_all_decls(dts, cls, method_camel)
+    # Precedence: the package-entry augmentation (declared first across the
+    # surface) overrides the re-exported generated declaration, matching how
+    # `_ts_dts_class_bodies_with_src` orders the surface.
+    return decls[0][1] if decls else None
+
+
+def _sig_parse_dts_member(body: str, dm: "re.Match[str]") -> tuple[list[str], str]:
+    """Parse the `(params, ret)` of the member matched by `dm` inside a single
+    `.d.ts` class body — the method (`name(p: T): R`) or property (`name: T`,
+    zero-arg) form. Shared by the single-decl extractor and the all-decls
+    conflict scan so both read the surface identically."""
+    if dm.group("kind") == "(":
+        arglist, after = _sig_balanced_parens(body, dm.end())
+        rm = re.match(r"\s*:\s*([^;{\n]+)", body[after:])
+        ret = rm.group(1).strip() if rm else "void"
+        params: list[str] = []
+        for p in _sig_split_params(arglist):
+            # `name: Type` / `name?: Type` — keep the Type half.
+            pm = re.match(r"\s*[A-Za-z_]\w*\s*\??\s*:\s*(.+)", p)
+            params.append(pm.group(1).strip() if pm else p.strip())
+        return params, ret
+    # Property form: a zero-arg accessor. The match ended on `?`/`:`; the
+    # type runs from the `:` to the line / statement terminator.
+    colon = body.index(":", dm.start())
+    rm = re.match(r"\s*([^;{\n]+)", body[colon + 1 :])
+    return [], (rm.group(1).strip() if rm else "void")
+
+
+def _sig_dts_all_decls(
+    dts: pathlib.Path, cls: str, method_camel: str
+) -> list[tuple[pathlib.Path, tuple[list[str], str]]]:
+    """EVERY `(source file, (params, ret))` declaration of `cls.method_camel`
+    across the public `.d.ts` surface, in precedence order (entry first). A TS
+    `declare module` interface→class augmentation MERGES with the generated
+    class declaration as OVERLOADS rather than replacing it, so a pinned member
+    can legitimately resolve to its entry-augmentation while a stale generated
+    overload of a different return still rides along in `index.d.ts`. Returning
+    all of them lets the gate enforce that the surviving public surface carries
+    no conflicting declaration."""
     decl_re = _ts_dts_member_decl_re(method_camel)
-    for body in _ts_dts_class_bodies(dts, cls):
+    out: list[tuple[pathlib.Path, tuple[list[str], str]]] = []
+    for src, body in _ts_dts_class_bodies_with_src(dts, cls):
         dm = decl_re.search(body)
-        if not dm:
+        if dm:
+            out.append((src, _sig_parse_dts_member(body, dm)))
+    return out
+
+
+def _sig_dts_conflicting_decls(
+    dts: pathlib.Path, cls: str, method_camel: str, spec: tuple[list[str], str]
+) -> list[tuple[pathlib.Path, tuple[list[str], str]]]:
+    """The SIBLING public-surface declarations of `cls.method_camel` that do NOT
+    satisfy `spec`. The precedence-winning declaration (index 0) is compared
+    against the spec by the caller, so it is skipped here; this catches a
+    drifting sibling — e.g. a generated `index.d.ts` overload still returning the
+    raw handle while the entry augmentation presents the wrapper. Because the two
+    merge as overloads, the raw one re-leaks even though the resolved type looks
+    correct, so any sibling that disagrees with the spec must fail the gate."""
+    spec_params, spec_ret = spec
+    bad: list[tuple[pathlib.Path, tuple[list[str], str]]] = []
+    for src, (params, ret) in _sig_dts_all_decls(dts, cls, method_camel)[1:]:
+        if len(params) != len(spec_params) or not all(
+            _sig_type_agrees(sp, ap, "ts_dts") for sp, ap in zip(spec_params, params)
+        ):
+            bad.append((src, (params, ret)))
             continue
-        if dm.group("kind") == "(":
-            arglist, after = _sig_balanced_parens(body, dm.end())
-            rm = re.match(r"\s*:\s*([^;{\n]+)", body[after:])
-            ret = rm.group(1).strip() if rm else "void"
-            params: list[str] = []
-            for p in _sig_split_params(arglist):
-                # `name: Type` / `name?: Type` — keep the Type half.
-                pm = re.match(r"\s*[A-Za-z_]\w*\s*\??\s*:\s*(.+)", p)
-                params.append(pm.group(1).strip() if pm else p.strip())
-            return params, ret
-        # Property form: a zero-arg accessor. The match ended on `?`/`:`; the
-        # type runs from the `:` to the line / statement terminator.
-        colon = body.index(":", dm.start())
-        rm = re.match(r"\s*([^;{\n]+)", body[colon + 1 :])
-        return [], (rm.group(1).strip() if rm else "void")
-    return None
+        if not _sig_type_agrees(spec_ret, _sig_unwrap_result(ret), "ts_dts"):
+            bad.append((src, (params, ret)))
+    return bad
 
 
 def _sig_dts_public_member_missing(dts: pathlib.Path, cls: str, method_camel: str) -> bool:
@@ -7240,6 +7300,25 @@ def _sig_check_method_signatures(
                 actual_dts = _sig_extract_ts_dts(ts_dts, ts_cls, ts_member)
                 if actual_dts is not None:
                     errors += _sig_compare_one(label, spec_dts, actual_dts, "ts_dts")
+                    # The precedence-winning declaration above is the resolved
+                    # public type, but a `declare module` augmentation MERGES
+                    # with the generated class declaration as overloads — so a
+                    # stale re-exported declaration of a different return rides
+                    # along and re-leaks. Every public-surface declaration must
+                    # satisfy the spec; report each one that drifts.
+                    for src, (p_act, r_act) in _sig_dts_conflicting_decls(
+                        ts_dts, ts_cls, ts_member, spec_dts
+                    ):
+                        errors.append(
+                            f"  {label}.ts_dts: conflicting public declaration in "
+                            f"`{src.name}` — `{ts_member}({', '.join(p_act)}): "
+                            f"{r_act}` does not satisfy `[method.signature]`. A "
+                            f"`.d.ts` augmentation merges with the generated "
+                            f"declaration as overloads, so this drifting "
+                            f"declaration re-exposes a non-client-facing return "
+                            f"alongside the intended one — the public surface "
+                            f"must carry a single consistent signature."
+                        )
                 elif _sig_dts_public_member_missing(ts_dts, ts_cls, ts_member):
                     # The class IS part of the public `.d.ts` surface but the
                     # member's declaration is gone — dropping a pinned public
@@ -11562,6 +11641,55 @@ def _run_selftest() -> int:
             got = _sig_extract_ts_dts(d / "entry.d.ts", "Config", "workerThreads")
             assert got == ([], "number | null"), got
 
+    def _case_sig_ts_dts_conflicting_overload() -> None:
+        """The package entry's `declare module` augmentation OVERRIDES the
+        re-exported generated declaration for precedence (the resolved type),
+        but the two MERGE as overloads — so a re-exported declaration that
+        drifts to a non-client-facing return must be reported as a conflict even
+        though the resolved type looks correct. Mirrors the `StreamView.batches`
+        leak: the entry presents `Promise<RecordBatchStream>` while a generated
+        `index.d.ts` overload returns the raw `Promise<RecordBatchStreamHandle>`."""
+        spec = (["BatchesOptions"], "RecordBatchStream")
+        with tempfile.TemporaryDirectory() as tmp:
+            d = pathlib.Path(tmp)
+            entry = d / "entry.d.ts"
+            entry.write_text(
+                "export * from './index'\n"
+                "declare module './index' {\n"
+                "  interface StreamView {\n"
+                "    batches(options?: BatchesOptions): Promise<RecordBatchStream>;\n"
+                "  }\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            # Drift case: the re-exported generated declaration still returns the
+            # raw handle. Precedence resolves to the wrapper, but the stale
+            # overload must trip the gate.
+            (d / "index.d.ts").write_text(
+                "export declare class StreamView {\n"
+                "  batches(options?: BatchesOptions | undefined | null): "
+                "Promise<RecordBatchStreamHandle>\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            # Precedence winner is the entry augmentation (the wrapper return).
+            assert _sig_extract_ts_dts(entry, "StreamView", "batches") == (
+                ["BatchesOptions"], "Promise<RecordBatchStream>"
+            )
+            conflicts = _sig_dts_conflicting_decls(entry, "StreamView", "batches", spec)
+            assert len(conflicts) == 1, conflicts
+            assert conflicts[0][0].name == "index.d.ts", conflicts
+            assert conflicts[0][1] == (
+                ["BatchesOptions | undefined | null"], "Promise<RecordBatchStreamHandle>"
+            ), conflicts
+            # FIX case: the generated declaration is suppressed (skip_typescript),
+            # so the augmentation is the SOLE declaration — no conflict.
+            (d / "index.d.ts").write_text(
+                "export declare class StreamView {\n  isStreaming(): boolean\n}\n",
+                encoding="utf-8",
+            )
+            assert _sig_dts_conflicting_decls(entry, "StreamView", "batches", spec) == []
+
     def _case_sig_ts_dts_absence_promotion() -> None:
         """A MISSING `.d.ts` declaration is an error when the class IS part of
         the public surface (a dropped public member), but degrades to
@@ -12069,6 +12197,7 @@ def _run_selftest() -> int:
     _case("sig extractor — TS .d.ts decl", _case_sig_extract_ts_dts)
     _case("sig extractor — TS .d.ts property + getter/static/Promise", _case_sig_extract_ts_dts_property_and_modifiers)
     _case("sig extractor — TS .d.ts follows export-* re-export", _case_sig_ts_dts_follows_reexport)
+    _case("sig gate — TS .d.ts conflicting merged overload fails", _case_sig_ts_dts_conflicting_overload)
     _case("sig gate — TS .d.ts absence promoted for public member", _case_sig_ts_dts_absence_promotion)
     _case("sig extractor — C++ in-class decl", _case_sig_extract_cpp)
     _case("sig extractor — Rust core impl fn", _case_sig_extract_rust)
