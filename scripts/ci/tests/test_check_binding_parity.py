@@ -1218,6 +1218,147 @@ def test_cpp_member_field_not_counted_as_method(tmp: pathlib.Path) -> None:
     )
 
 
+# ─── Route-B method signature infrastructure (Phase 3) ─────────────
+
+
+def test_sig_type_map_forward_and_sanction() -> None:
+    """The TYPE_MAP is forward-only: a canonical type is satisfied by its
+    accepted binding spellings (incl. the `usize`→napi `f64` widening), and a
+    spelling outside the cell or an unknown canonical name fails closed."""
+    assert cbp._sig_type_agrees("usize", "f64", "ts_napi")
+    assert cbp._sig_type_agrees("usize", "size_t", "cpp")
+    assert cbp._sig_type_agrees("Option<u64>", "std::optional<uint64_t>", "cpp")
+    assert not cbp._sig_type_agrees("i32", "f64", "ts_napi")
+    assert not cbp._sig_type_agrees("Mystery", "size_t", "cpp")
+
+
+def test_sig_extractors_read_each_binding(tmp: pathlib.Path) -> None:
+    """Each of the five extractors reads the correct `(params, return)` from a
+    synthetic source for its binding view."""
+    (tmp / "py").mkdir()
+    (tmp / "py" / "m.rs").write_text(
+        "#[pymethods]\nimpl W {\n"
+        "    pub fn f(&self, py: Python<'_>, n: usize) -> PyResult<()> { Ok(()) }\n}\n",
+        encoding="utf-8",
+    )
+    assert cbp._sig_extract_python(tmp / "py", "W", "f") == (["usize"], "PyResult<()>")
+
+    (tmp / "ts").mkdir()
+    (tmp / "ts" / "l.rs").write_text(
+        "#[napi]\nimpl W {\n    #[napi]\n    pub fn do_it(&self, n: f64) -> napi::Result<()> { Ok(()) }\n}\n",
+        encoding="utf-8",
+    )
+    assert cbp._sig_extract_ts_napi(tmp / "ts", "W", "doIt") == (["f64"], "napi::Result<()>")
+
+    dts = tmp / "i.d.ts"
+    dts.write_text("export class W {\n  doIt(n: number): void\n}\n", encoding="utf-8")
+    assert cbp._sig_extract_ts_dts(dts, "W", "doIt") == (["number"], "void")
+
+    hpp = tmp / "w.hpp"
+    hpp.write_text(
+        "class W {\npublic:\n    void f(size_t n, const std::string& s);\n};\n",
+        encoding="utf-8",
+    )
+    assert cbp._sig_extract_cpp(hpp, "W", "f") == (["size_t", "const std::string&"], "void")
+
+    client = tmp / "client.rs"
+    client.write_text(
+        "impl W {\n    pub async fn f(&self, n: usize) -> Result<()> { Ok(()) }\n}\n",
+        encoding="utf-8",
+    )
+    assert cbp._sig_extract_rust(client, "W", "f") == (["usize"], "Result<()>")
+
+    (tmp / "ffi").mkdir()
+    (tmp / "ffi" / "f.rs").write_text(
+        'pub extern "C" fn thetadatadx_w_f(n: usize) -> i32 { 0 }\n', encoding="utf-8"
+    )
+    assert cbp._sig_extract_ffi(tmp / "ffi", "w_f") == (["usize"], "i32")
+
+
+def _sig_tree(tmp: pathlib.Path, *, py_params: str, cpp_ret: str = "void") -> dict:
+    (tmp / "py").mkdir()
+    (tmp / "py" / "m.rs").write_text(
+        f"#[pymethods]\nimpl W {{\n    pub fn resize(&self, {py_params}) -> PyResult<()> {{ Ok(()) }}\n}}\n",
+        encoding="utf-8",
+    )
+    (tmp / "ts").mkdir()
+    (tmp / "ts" / "l.rs").write_text(
+        "#[napi]\nimpl W {\n    #[napi]\n    pub fn resize(&self, n: f64) -> napi::Result<()> { Ok(()) }\n}\n",
+        encoding="utf-8",
+    )
+    hpp = tmp / "w.hpp"
+    hpp.write_text(
+        f"class W {{\npublic:\n    {cpp_ret} resize(size_t n);\n}};\n", encoding="utf-8"
+    )
+    (tmp / "ffi").mkdir()
+    (tmp / "ffi" / "f.rs").write_text(
+        'pub extern "C" fn thetadatadx_w_resize(n: usize) -> i32 { 0 }\n', encoding="utf-8"
+    )
+    return dict(py_src=tmp / "py", ts_src=tmp / "ts", ts_dts=tmp / "none.d.ts",
+                cpp_hpp=hpp, client_rs=tmp / "none.rs", ffi_src=tmp / "ffi")
+
+
+def _sig_resize_row() -> list:
+    return [{
+        "class": "W", "name": "resize",
+        "python": True, "typescript": True, "cpp": True,
+        "ffi_symbol": "w_resize",
+        "signature": {"params": ["usize"], "returns": "()",
+                      "ts_napi_params": ["f64"]},
+    }]
+
+
+def test_sig_orchestrator_clean_passes(tmp: pathlib.Path) -> None:
+    """Matching sources (with the napi f64 sanction) leave the gate silent."""
+    paths = _sig_tree(tmp, py_params="n: usize")
+    errs = cbp._sig_check_method_signatures(_sig_resize_row(), **paths)
+    assert errs == [], f"clean signatures must pass; got {errs!r}"
+
+
+def test_sig_orchestrator_type_drift_trips(tmp: pathlib.Path) -> None:
+    """A Python param type drift (`usize`→`bool`) trips the gate."""
+    paths = _sig_tree(tmp, py_params="n: bool")
+    errs = cbp._sig_check_method_signatures(_sig_resize_row(), **paths)
+    assert any("python" in e and "type mismatch" in e for e in errs), errs
+
+
+def test_sig_orchestrator_arity_drift_trips(tmp: pathlib.Path) -> None:
+    """An extra Python param trips the arity check."""
+    paths = _sig_tree(tmp, py_params="n: usize, extra: bool")
+    errs = cbp._sig_check_method_signatures(_sig_resize_row(), **paths)
+    assert any("python" in e and "arity mismatch" in e for e in errs), errs
+
+
+def test_sig_orchestrator_return_drift_trips(tmp: pathlib.Path) -> None:
+    """A C++ return drift (`void`→`int32_t`) trips the return check."""
+    paths = _sig_tree(tmp, py_params="n: usize", cpp_ret="int32_t")
+    errs = cbp._sig_check_method_signatures(_sig_resize_row(), **paths)
+    assert any("cpp" in e and "return mismatch" in e for e in errs), errs
+
+
+def test_sig_no_subtable_is_noop(tmp: pathlib.Path) -> None:
+    """A `[[method]]` row without `[method.signature]` is never checked."""
+    paths = _sig_tree(tmp, py_params="n: bool")  # would drift IF checked
+    rows = [{"class": "W", "name": "resize", "python": True}]
+    assert cbp._sig_check_method_signatures(rows, **paths) == []
+
+
+def test_sig_live_surface_gated_to_zero() -> None:
+    """The live parity.toml must carry no `[method.signature]` yet (Phase 3
+    lands gated-to-zero), so the signature gate is a no-op on real sources."""
+    data = cbp.tomllib.loads(cbp.PARITY_TOML.read_text(encoding="utf-8"))
+    method_rows = data.get("method", [])
+    assert not any(r.get("signature") for r in method_rows), (
+        "Phase 3 is gated-to-zero: no live [[method]] row may carry a "
+        "[method.signature] sub-table yet"
+    )
+    errs = cbp._sig_check_method_signatures(
+        method_rows, py_src=cbp.PY_SRC, ts_src=cbp.TS_SRC, ts_dts=cbp.TS_DTS,
+        cpp_hpp=cbp.CPP_HPP, client_rs=cbp.CORE_CLIENT_RS, ffi_src=cbp.FFI_SRC,
+    )
+    assert errs == [], f"live signature gate must be a no-op; got {errs!r}"
+
+
 # ─── Driver ────────────────────────────────────────────────────────
 
 
@@ -1290,6 +1431,22 @@ def main() -> int:
             "cpp member field not counted as method",
             lambda: test_cpp_member_field_not_counted_as_method(pathlib.Path(tmp)),
         )
+
+    # Route-B method-signature infrastructure (Phase 3).
+    _check("sig type-map forward + sanction + fail-closed", test_sig_type_map_forward_and_sanction)
+    with tempfile.TemporaryDirectory() as tmp:
+        _check("sig extractors read each binding", lambda: test_sig_extractors_read_each_binding(pathlib.Path(tmp)))
+    with tempfile.TemporaryDirectory() as tmp:
+        _check("sig orchestrator clean passes", lambda: test_sig_orchestrator_clean_passes(pathlib.Path(tmp)))
+    with tempfile.TemporaryDirectory() as tmp:
+        _check("sig orchestrator TYPE drift trips", lambda: test_sig_orchestrator_type_drift_trips(pathlib.Path(tmp)))
+    with tempfile.TemporaryDirectory() as tmp:
+        _check("sig orchestrator ARITY drift trips", lambda: test_sig_orchestrator_arity_drift_trips(pathlib.Path(tmp)))
+    with tempfile.TemporaryDirectory() as tmp:
+        _check("sig orchestrator RETURN drift trips", lambda: test_sig_orchestrator_return_drift_trips(pathlib.Path(tmp)))
+    with tempfile.TemporaryDirectory() as tmp:
+        _check("sig no sub-table is a no-op", lambda: test_sig_no_subtable_is_noop(pathlib.Path(tmp)))
+    _check("sig live surface gated-to-zero", test_sig_live_surface_gated_to_zero)
 
     if _fails:
         print(f"test_check_binding_parity: {len(_fails)} failure(s)")
