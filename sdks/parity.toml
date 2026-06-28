@@ -1565,6 +1565,10 @@ name = "fromFile"
 python = true
 typescript = true   # `Credentials.fromFile(path)` napi factory
 cpp = true
+# Path-string factory returning a `Credentials` handle.
+[method.signature]
+params = ["String"]
+returns = "Credentials"
 
 [[method]]
 class = "Credentials"
@@ -1572,6 +1576,10 @@ name = "fromEmail"
 python = false  # Python uses the `Credentials(email, password)` constructor
 typescript = false
 cpp = true
+# C++-only email + password factory (Python uses the constructor instead).
+[method.signature]
+params = ["String", "String"]
+returns = "Credentials"
 
 # API-key authentication: the alternative to email + password. Every
 # binding exposes both the bare-key and key-with-email factory, so both
@@ -1587,6 +1595,10 @@ name = "fromApiKey"
 python = true
 typescript = true   # `Credentials.fromApiKey(key)` napi factory
 cpp = true
+# Bare API-key factory.
+[method.signature]
+params = ["String"]
+returns = "Credentials"
 
 [[method]]
 class = "Credentials"
@@ -1594,6 +1606,10 @@ name = "fromApiKeyWithEmail"
 python = true
 typescript = true   # `Credentials.fromApiKeyWithEmail(email, key)` napi factory
 cpp = true
+# API-key + email factory.
+[method.signature]
+params = ["String", "String"]
+returns = "Credentials"
 
 # Strict env-only sourcing: read `THETADATA_API_KEY` from the
 # environment with no `creds.txt` fallback (unset or empty is an error).
@@ -1610,6 +1626,10 @@ name = "fromEnv"
 python = true       # `Credentials.from_env()` staticmethod
 typescript = true   # `Credentials.fromEnv()` napi factory
 cpp = true          # `Credentials::from_env()` over `thetadatadx_credentials_from_env`
+# Strict env-only factory (no path argument).
+[method.signature]
+params = []
+returns = "Credentials"
 
 # Environment-or-file sourcing: read `THETADATA_API_KEY` from the
 # environment, else fall back to the two-line credentials file. Every
@@ -1624,6 +1644,10 @@ name = "fromEnvOrFile"
 python = true
 typescript = true   # `Credentials.fromEnvOrFile(path)` napi factory
 cpp = true
+# Env-or-file factory: the fallback-path string argument.
+[method.signature]
+params = ["String"]
+returns = "Credentials"
 
 # Dotenv sourcing: read credentials from a `.env`-format file.
 # `THETADATA_API_KEY` selects an API key; otherwise `THETADATA_EMAIL` +
@@ -1639,6 +1663,10 @@ name = "fromDotenv"
 python = true
 typescript = true   # `Credentials.fromDotenv(path)` napi factory
 cpp = true
+# Dotenv-file factory: the `.env` path string argument.
+[method.signature]
+params = ["String"]
+returns = "Credentials"
 
 # ── Config (the streaming/historical client configuration class) ──
 #
@@ -1901,6 +1929,9 @@ name = "kind"
 python = true
 typescript = true
 cpp = true          # C++ `kind_string()` (wire string); bare `kind()` is the typed enum
+# The wire-kind label: a string on every binding (C++ via `kind_string()`).
+[method.signature]
+returns = "String"
 
 [[method]]
 class = "Subscription"
@@ -1908,6 +1939,9 @@ name = "scope"
 python = false      # Python uses the `isFull` boolean
 typescript = false  # TypeScript uses the `isFull` boolean
 cpp = true          # typed `Scope` enum — the C++ form of the full/per-contract split
+# C++-only typed enum (`FluentSubscription::Scope`); no managed twin.
+[method.signature]
+cpp_returns = "Scope"
 
 [[method]]
 class = "Subscription"
@@ -1915,6 +1949,8 @@ name = "isFull"
 python = true
 typescript = true
 cpp = false         # C++ exposes the typed `scope()` enum instead of a bool
+[method.signature]
+returns = "bool"
 
 [[method]]
 class = "Subscription"
@@ -1922,6 +1958,9 @@ name = "contract"
 python = true
 typescript = true
 cpp = false         # C++ flattens the contract into the accessors below
+# The nested contract handle, optional (a full-stream subscription has none).
+[method.signature]
+returns = "Option<Contract>"
 
 [[method]]
 class = "Subscription"
@@ -1929,6 +1968,11 @@ name = "secType"
 python = true
 typescript = true
 cpp = true
+# Python / TypeScript return the optional typed sec-type handle; C++ returns
+# the wire string label of the sec type instead.
+[method.signature]
+returns = "Option<SecType>"
+cpp_returns = "String"
 
 [[method]]
 class = "Subscription"
@@ -1936,6 +1980,8 @@ name = "symbol"
 python = false      # Python / TypeScript reach this through `contract`
 typescript = false
 cpp = true          # flattened contract accessor
+[method.signature]
+cpp_returns = "String"
 
 [[method]]
 class = "Subscription"
@@ -1943,6 +1989,8 @@ name = "expiration"
 python = false
 typescript = false
 cpp = true          # flattened contract accessor
+[method.signature]
+cpp_returns = "String"
 
 [[method]]
 class = "Subscription"
@@ -1950,6 +1998,8 @@ name = "strike"
 python = false
 typescript = false
 cpp = true          # flattened contract accessor
+[method.signature]
+cpp_returns = "String"
 
 [[method]]
 class = "Subscription"
@@ -1957,6 +2007,8 @@ name = "right"
 python = false
 typescript = false
 cpp = true          # flattened contract accessor
+[method.signature]
+cpp_returns = "String"
 
 [[method]]
 class = "Subscription"
@@ -1964,6 +2016,8 @@ name = "isOption"
 python = false
 typescript = false
 cpp = true          # flattened contract accessor (`is_option()`)
+[method.signature]
+cpp_returns = "bool"
 
 # ── RecordBatchStream (the pull-based columnar reader) ──
 #
@@ -1979,6 +2033,12 @@ name = "close"
 python = true
 typescript = true
 cpp = true
+# The TypeScript reader is a JS-wrapper class (streaming-session.{js,d.ts})
+# with NO napi Rust `fn`, so `ts_napi` is skipped; the `.d.ts` `close(): void`
+# is cross-checked best-effort.
+[method.signature]
+returns = "()"
+skip_langs = ["ts_napi"]
 
 [[method]]
 class = "RecordBatchStream"
@@ -1986,6 +2046,12 @@ name = "schema"
 python = true
 typescript = true
 cpp = true
+# The fixed Arrow schema every batch carries: a Python schema object, the C++
+# `std::shared_ptr<arrow::Schema>`. TypeScript exposes it as a `.d.ts`
+# `readonly` property (not a `fn`), so `ts_napi` is skipped.
+[method.signature]
+returns = "Schema"
+skip_langs = ["ts_napi"]
 
 [[method]]
 class = "RecordBatchStream"
@@ -1993,6 +2059,10 @@ name = "dropped"
 python = true
 typescript = true
 cpp = true
+# Count of batches dropped under back-pressure.
+[method.signature]
+returns = "u64"
+skip_langs = ["ts_napi"]
 
 # ── FlatFileRowList (the decoded flat-file row vector) ──
 #
@@ -2009,6 +2079,9 @@ name = "count"
 python = true
 typescript = true
 cpp = true
+# Decoded row count: one usize element count across all bindings.
+[method.signature]
+returns = "usize"
 
 [[method]]
 class = "FlatFileRowList"
@@ -2016,6 +2089,10 @@ name = "toArrowIpc"
 python = true
 typescript = true
 cpp = true
+# Arrow IPC stream bytes: a Python bytes object, a Node Buffer, a C++ byte
+# vector.
+[method.signature]
+returns = "Bytes"
 
 [[method]]
 class = "FlatFileRowList"
@@ -2023,6 +2100,8 @@ name = "toPandas"
 python = true       # pandas materializer — Python only
 typescript = false
 cpp = false
+[method.signature]
+returns = "PyObject"
 
 [[method]]
 class = "FlatFileRowList"
@@ -2030,6 +2109,8 @@ name = "toPolars"
 python = true       # polars materializer — Python only
 typescript = false
 cpp = false
+[method.signature]
+returns = "PyObject"
 
 [[method]]
 class = "FlatFileRowList"
@@ -2037,6 +2118,8 @@ name = "toList"
 python = true       # list-of-dicts materializer — Python only
 typescript = false
 cpp = false
+[method.signature]
+returns = "PyObject"
 
 [[method]]
 class = "FlatFileRowList"
@@ -2044,6 +2127,8 @@ name = "toJson"
 python = false
 typescript = true   # JSON-string materializer — TypeScript only
 cpp = false
+[method.signature]
+returns = "String"
 
 [[method]]
 class = "FlatFileRowList"
@@ -2051,6 +2136,10 @@ name = "get"
 python = false
 typescript = false
 cpp = true          # raw-handle accessor for zero-copy bridges — C++ only
+# Returns the borrowed C-ABI handle pointer for zero-copy bridges — a raw
+# `const ThetaDataDxFlatFileRowList*`, compared by exact C-ABI spelling.
+[method.signature]
+cpp_returns = "const ThetaDataDxFlatFileRowList*"
 
 # ── Config lifecycle setters with non-scalar shapes ──
 #
@@ -2067,6 +2156,12 @@ name = "setReconnectPolicy"
 python = true
 typescript = true
 cpp = true
+# Python / TypeScript take the friendly wire string ("auto" / "manual"); C++
+# takes the typed reconnect-policy enum as its int discriminant over the C ABI.
+[method.signature]
+params = ["String"]
+returns = "()"
+cpp_params = ["i32"]
 
 [[method]]
 class = "Config"
@@ -2074,6 +2169,11 @@ name = "reconnectPolicy"
 python = true
 typescript = true
 cpp = true
+# The setter's readback: the wire string on Python / TypeScript, the enum int
+# (`int32_t`) on C++ — the same managed-string vs C++-enum-int split.
+[method.signature]
+returns = "String"
+cpp_returns = "i32"
 
 [[method]]
 class = "Config"
@@ -2081,6 +2181,11 @@ name = "setStreamingRingSize"
 python = true
 typescript = true
 cpp = true
+# Ring capacity (a power of two). One usize element count across all bindings
+# (napi widens to BigInt, C++ to size_t through the type map).
+[method.signature]
+params = ["usize"]
+returns = "()"
 
 [[method]]
 class = "Config"
@@ -2088,6 +2193,15 @@ name = "setWorkerThreads"
 python = true
 typescript = true
 cpp = true
+# Optional tokio worker-thread count (None = auto). Python / TypeScript carry
+# the optional directly; the C ABI splits `Option<usize>` into the explicit
+# `(has_value: bool, n: size_t)` pair and returns an `i32` status, so C++
+# mirrors that widened ABI shape.
+[method.signature]
+params = ["Option<usize>"]
+returns = "()"
+cpp_params = ["bool", "usize"]
+cpp_returns = "i32"
 
 [[method]]
 class = "Config"
@@ -2095,6 +2209,10 @@ name = "workerThreads"
 python = true
 typescript = true
 cpp = true
+# Readback of the optional worker-thread count (None = auto). C++ reads it
+# through the `get_worker_threads` accessor as `std::optional<size_t>`.
+[method.signature]
+returns = "Option<usize>"
 
 # ── Client Python-only auth-time readbacks ──
 #
@@ -3870,29 +3988,62 @@ ffi = false
 # checker re-derives the full `thetadatadx_<name>` extern when matching
 # `ffi/src/**`. The reverse FFI-orphan scan additionally guarantees no
 # C-ABI symbol ships without belonging to some enrolled family.
+#
+# Each of these eight hand-written symbols carries an optional
+# `[ffi_symbol.signature]` pinning its C param list + return: the extern's
+# declared signature is extracted and compared on the `ffi` lang, where the
+# opaque handle pointers (`*const ThetaDataDxClient`) and owned-struct returns
+# (`ThetaDataDxArrowBytes`) compare by exact C-ABI spelling. The
+# macro-generated per-tick `*_to_arrow_ipc` terminals below carry NO signature:
+# they are emitted from one `tick_array_to_arrow_ipc!` macro, so their shape is
+# identical by construction — the name-only row already pins their existence.
 [[ffi_symbol]]
 name = "client_batches_open"
+[ffi_symbol.signature]
+params = ["*const ThetaDataDxClient", "usize", "u64", "i32", "usize"]
+returns = "*mut ThetaDataDxRecordBatchStream"
 
 [[ffi_symbol]]
 name = "client_historical"
+[ffi_symbol.signature]
+params = ["*const ThetaDataDxClient"]
+returns = "*const ThetaDataDxHistoricalClient"
 
 [[ffi_symbol]]
 name = "record_batch_stream_next_ipc"
+[ffi_symbol.signature]
+params = ["*const ThetaDataDxRecordBatchStream", "*mut ThetaDataDxArrowBytes"]
+returns = "i32"
 
 [[ffi_symbol]]
 name = "record_batch_stream_schema_ipc"
+[ffi_symbol.signature]
+params = ["*const ThetaDataDxRecordBatchStream", "*mut ThetaDataDxArrowBytes"]
+returns = "i32"
 
 [[ffi_symbol]]
 name = "record_batch_stream_dropped"
+[ffi_symbol.signature]
+params = ["*const ThetaDataDxRecordBatchStream"]
+returns = "u64"
 
 [[ffi_symbol]]
 name = "record_batch_stream_close"
+[ffi_symbol.signature]
+params = ["*const ThetaDataDxRecordBatchStream"]
+returns = "()"
 
 [[ffi_symbol]]
 name = "record_batch_stream_free"
+[ffi_symbol.signature]
+params = ["*mut ThetaDataDxRecordBatchStream"]
+returns = "()"
 
 [[ffi_symbol]]
 name = "flatfile_rows_to_arrow_ipc"
+[ffi_symbol.signature]
+params = ["*const ThetaDataDxFlatFileRowList"]
+returns = "ThetaDataDxFlatFileBytes"
 
 # Per-tick Arrow IPC terminals (`thetadatadx_<kind>_ticks_to_arrow_ipc`,
 # `thetadatadx_calendar_days_to_arrow_ipc`). Emitted by the

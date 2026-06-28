@@ -2052,6 +2052,31 @@ def _expand_cpp_includes(hpp_text: str, include_dir: pathlib.Path) -> str:
     return include_re.sub(_sub, hpp_text)
 
 
+# Keywords that can front a `name(` as a CALL or statement, never as a C++
+# return type. Shared by the method-presence collector and the signature
+# extractor so both reject a `return foo(` / `.foo(` in-body call site rather
+# than read it as a declaration (the G11 in-body-shadow defect class).
+_SIG_CPP_CALL_PREV_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "return",
+        "co_return",
+        "co_await",
+        "if",
+        "while",
+        "for",
+        "switch",
+        "throw",
+        "catch",
+        "sizeof",
+        "new",
+        "delete",
+        "and",
+        "or",
+        "not",
+    }
+)
+
+
 def _collect_cpp_class_methods(cpp_hpp: pathlib.Path) -> dict[str, set[str]]:
     """Return `{class_name: {method, ...}}` for every C++ class.
 
@@ -2097,23 +2122,7 @@ def _collect_cpp_class_methods(cpp_hpp: pathlib.Path) -> dict[str, set[str]]:
     # Keywords that can precede a `name(` as a CALL or statement, never as
     # a return type. `return foo(` is the live G11 mask; the rest guard the
     # general class (`else if (`, `co_return bar(`, etc.).
-    _CALL_PREV_KEYWORDS = {
-        "return",
-        "co_return",
-        "co_await",
-        "if",
-        "while",
-        "for",
-        "switch",
-        "throw",
-        "catch",
-        "sizeof",
-        "new",
-        "delete",
-        "and",
-        "or",
-        "not",
-    }
+    _CALL_PREV_KEYWORDS = _SIG_CPP_CALL_PREV_KEYWORDS
     # Method names that are themselves keywords (defensive; a declaration
     # never names a method these).
     _NAME_KEYWORDS = {
@@ -5804,7 +5813,9 @@ def _ffi_symbol_governed(name: str, enrolled: frozenset[str]) -> bool:
 
 
 def _check_ffi_symbol_rows(
-    ffi_symbol_rows: list[dict[str, Any]], all_symbols: set[str]
+    ffi_symbol_rows: list[dict[str, Any]],
+    all_symbols: set[str],
+    ffi_src: pathlib.Path,
 ) -> list[str]:
     """Forward check for `[[ffi_symbol]]` rows: each declared symbol must
     exist as an `extern "C"` declaration under `ffi/src/**`.
@@ -5812,6 +5823,17 @@ def _check_ffi_symbol_rows(
     A row whose symbol vanished (renamed / removed) trips, so the
     streaming-batch / borrowed-handle ABI cannot silently break the C++
     wrappers that call these symbols by name.
+
+    A row MAY carry an optional `[ffi_symbol.signature]` sub-table pinning the
+    C param list + return (opt-in, exactly like `[method.signature]`). When
+    present, the extern's declared signature is extracted and compared on the
+    `ffi` lang via the shared signature engine — the C ABI is the lowest layer,
+    so its opaque handle pointers / owned-struct returns compare by exact
+    spelling (see `_sig_type_agrees`). The macro-generated per-tick
+    `*_to_arrow_ipc` terminals carry no signature here: they are emitted from
+    one `tick_array_to_arrow_ipc!` macro, so their shape is identical by
+    construction (the data-plane by-construction guarantee), and the name-only
+    row already pins their existence.
     """
     errors: list[str] = []
     for row in ffi_symbol_rows:
@@ -5825,6 +5847,14 @@ def _check_ffi_symbol_rows(
                 f"matching `extern \"C\" fn thetadatadx_{name}` under ffi/src/. "
                 f"Either restore the symbol or drop the row."
             )
+            continue
+        signature = row.get("signature")
+        if signature:
+            spec = _sig_spec_for(signature, "ffi")
+            if spec is not None:
+                errors += _sig_compare_one(
+                    f"thetadatadx_{name}", spec, _sig_extract_ffi(ffi_src, name), "ffi"
+                )
     return errors
 
 
@@ -6255,6 +6285,28 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
         "rust": ("Duration", "std::time::Duration"),
         "ffi": ("u64", "uint64_t"),
     },
+    # The built fluent subscription's nested contract / sec-type handle. Each
+    # binding hands back its own value-object wrapper of the same logical
+    # entity; the managed surfaces wrap it in `Option`, so these are the inner
+    # types of an `Option<Contract>` / `Option<SecType>` canonical. C++ flattens
+    # the contract instead (see the per-binding `Subscription` rows), so it has
+    # no cell here.
+    "Contract": {
+        "python": ("PyContract",),
+        "ts_napi": ("ContractRef",),
+        "ts_dts": ("Contract",),
+    },
+    "SecType": {
+        "python": ("PySecType",),
+        "ts_napi": ("SecType",),
+        "ts_dts": ("SecType",),
+    },
+    # C++-only typed enums on `FluentSubscription`: the full/per-contract
+    # `scope()` discriminant the managed bindings model as the `isFull` bool
+    # instead. No managed cell — a row pinning `Scope` for Python / TypeScript
+    # fails closed (those bindings carry the bool, not the enum).
+    "Scope": {"cpp": ("Scope", "FluentSubscription::Scope")},
+    "Kind": {"cpp": ("Kind", "FluentSubscription::Kind")},
 }
 
 # Return-position canonical types (the result / unit wrappers). Kept apart
@@ -6270,12 +6322,69 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
         "rust": ("()",),
         "ffi": ("()", "i32"),
     },
+    # Arrow IPC stream bytes (the columnar exit). Each binding hands back its
+    # idiomatic owned-bytes container: a Python object (`bytes` / `memoryview`,
+    # typed as the opaque `Py<PyAny>`), a Node `Buffer`, a C++ byte vector, the
+    # C-ABI owned-bytes struct (`ThetaDataDxArrowBytes` for the streaming
+    # reader, `ThetaDataDxFlatFileBytes` for the flat-file rows).
+    "Bytes": {
+        "python": ("PyResult<Py<PyAny>>", "Py<PyAny>"),
+        "ts_napi": ("napi::Result<Buffer>", "Buffer"),
+        "ts_dts": ("Buffer", "Uint8Array"),
+        "cpp": ("std::vector<uint8_t>", "std::vector<std::uint8_t>"),
+        "ffi": ("ThetaDataDxArrowBytes", "ThetaDataDxFlatFileBytes"),
+    },
+    # The fixed Arrow schema a record-batch reader yields. The managed bindings
+    # expose an Arrow schema object (an opaque `Py<PyAny>` on Python, the
+    # `apache-arrow` `Schema` on TypeScript), C++ the shared Arrow schema
+    # pointer.
+    "Schema": {
+        "python": ("PyResult<Py<PyAny>>", "Py<PyAny>"),
+        "ts_napi": ("Schema",),
+        "ts_dts": ("Schema", "import('apache-arrow').Schema"),
+        "cpp": ("std::shared_ptr<arrow::Schema>",),
+    },
+    # A materialiser that hands back an arbitrary Python object (a pandas /
+    # polars frame, a list of dicts). Python-only — no cross-binding twin — so
+    # only the Python cell exists; a row pinning it for another binding fails
+    # closed.
+    "PyObject": {
+        "python": ("PyResult<Py<PyAny>>", "Py<PyAny>"),
+    },
+    # A `Credentials` factory return: the auth handle itself. Python spells it
+    # `Self` (or `PyResult<Self>` for the fallible file / env factories),
+    # TypeScript `Credentials` (or `napi::Result<Credentials>`), C++ the value
+    # type `Credentials`. Both the fallible and infallible spellings are
+    # accepted — fallibility is a per-factory property, not a cross-binding
+    # contract the signature gate pins.
+    "Credentials": {
+        "python": ("Self", "PyResult<Self>", "Credentials", "PyResult<Credentials>"),
+        "ts_napi": ("Credentials", "napi::Result<Credentials>"),
+        "cpp": ("Credentials",),
+    },
 }
 
 
 def _sig_canon_type(raw: str) -> str:
-    """Whitespace-fold a type spelling to its comparison form."""
-    return re.sub(r"\s+", "", raw.strip())
+    """Fold a type spelling to its comparison form: drop Rust lifetimes
+    (`&'static str` → `&str`), drop the napi prelude module path
+    (`napi::bindgen_prelude::BigInt` → `BigInt`), then whitespace-fold. The
+    lifetime / napi-path qualifiers are surface noise the binding adds, never a
+    cross-binding type difference."""
+    s = re.sub(r"'\w+\s*", "", raw.strip())
+    s = re.sub(r"\bnapi::bindgen_prelude::", "", s)
+    return re.sub(r"\s+", "", s)
+
+
+def _sig_unwrap_result(spelling: str) -> str:
+    """Strip one fallible-result wrapper from a RETURN spelling: `PyResult<T>`
+    / `napi::Result<T>` / `Result<T>` → `T`. Fallibility is a per-binding
+    surface property (pyo3 `PyResult`, a thrown napi error), not a
+    cross-binding return-type difference the signature gate pins, so the inner
+    `T` is what the type map / Option rule compares. A non-wrapped spelling is
+    returned unchanged."""
+    m = re.fullmatch(r"(?:Py|napi::)?Result\s*<\s*(.+)\s*>", spelling.strip())
+    return m.group(1).strip() if m else spelling.strip()
 
 
 def _sig_option_inner(spelling: str, lang: str) -> str | None:
@@ -6317,6 +6426,21 @@ def _sig_type_agrees(canonical: str, actual: str, lang: str) -> bool:
         return _sig_type_agrees(cm.group(1).strip(), unwrapped, lang)
     cell = SIGNATURE_TYPE_MAP.get(canonical) or SIGNATURE_RETURN_TYPE_MAP.get(canonical)
     if cell is None:
+        # A raw C-ABI handle has no higher-level canonical to translate from —
+        # the C type IS the canonical. The `ffi` lang's opaque pointers
+        # (`*const ThetaDataDxClient`) and owned-struct returns
+        # (`ThetaDataDxArrowBytes`), and the C++ raw-handle escape hatch
+        # (`const ThetaDataDxFlatFileRowList*` from `FlatFileRowList::get`),
+        # therefore compare by exact whitespace-folded spelling. This fires
+        # ONLY for the C ABI (always) and for a C++ canonical that is itself a
+        # raw pointer / `ThetaDataDx*` struct spelling — a managed scalar
+        # divergence still fails closed everywhere else, so the escape can
+        # never silently pass an unmapped `usize`/`bool`/etc.
+        if lang == "ffi" or (
+            lang == "cpp"
+            and ("*" in canonical or _sig_canon_type(canonical).startswith("ThetaDataDx"))
+        ):
+            return _sig_canon_type(canonical) == _sig_canon_type(actual)
         return False
     accepted = {_sig_canon_type(s) for s in cell.get(lang, ())}
     return _sig_canon_type(actual) in accepted
@@ -6406,14 +6530,21 @@ def _sig_extract_python(py_src: pathlib.Path, cls: str, method: str) -> tuple[li
     """Python (pyo3) signature: the `fn method` inside a `#[pymethods] impl
     cls` (or qualified-path impl), receivers + the `py: Python` token stripped.
     The pyo3 `#[pyo3(signature = ...)]` only adjusts default-arg arity, which
-    the fn sig itself already carries, so the fn sig is authoritative."""
+    the fn sig itself already carries, so the fn sig is authoritative.
+
+    A `#[getter]` readback accessor carries a `get_` prefix on its Rust fn name
+    (`fn get_reconnect_policy`) while pyo3 strips the prefix so the Python
+    property name stays bare (`config.reconnect_policy`); the bare `method`
+    falls back to `get_<method>`, exactly as the forward presence check
+    accepts `fn <snake>` or `fn get_<snake>`."""
     if not py_src.is_dir():
         return None
     impl_re = re.compile(r"impl\s+(?:[A-Za-z_]\w*::)*" + re.escape(cls) + r"\s*\{")
     for rs in py_src.rglob("*.rs"):
         text = _read_source(rs)
         for h in impl_re.finditer(text):
-            sig = _sig_rust_fn(_balanced_body(text, h.end()), method)
+            body = _balanced_body(text, h.end())
+            sig = _sig_rust_fn(body, method) or _sig_rust_fn(body, f"get_{method}")
             if sig is not None:
                 return sig
     return None
@@ -6480,26 +6611,59 @@ def _sig_extract_ts_dts(dts: pathlib.Path, cls: str, method_camel: str) -> tuple
 
 
 def _sig_extract_cpp(hpp: pathlib.Path, cls: str, method: str) -> tuple[list[str], str] | None:
-    """C++ signature: the `method(<params>)` declaration inside `class cls`.
+    """C++ signature: the `method(<params>)` *declaration* inside `class cls`.
     The return type is read from the text immediately left of the method name,
-    bounded by the previous statement terminator / brace / access specifier."""
+    bounded by the previous statement terminator / brace / access specifier.
+
+    The class header is matched line-anchored (`^class cls`), not as a bare
+    `\\bclass cls`: an elaborated-type-specifier param like
+    `const class FluentSubscription& sub` would otherwise be the first match
+    and `[^{]*\\{` would bridge to an unrelated method body, resolving the
+    wrong class. The method is matched in DECLARATION position (a return-type
+    token immediately precedes the name) so a member-access CALL inside an
+    earlier inline body — `handle_.get()` inside `size()` — never shadows the
+    real `get()` declaration, mirroring `_collect_cpp_class_methods`."""
     if not hpp.is_file():
         return None
     text = _read_cpp_expanded(hpp)
-    cls_re = re.compile(r"\bclass\s+" + re.escape(cls) + r"\b[^{]*\{")
+    cls_re = re.compile(r"^class\s+" + re.escape(cls) + r"\b\s*(?::[^{]*)?\{", re.MULTILINE)
     m = cls_re.search(text)
     if not m:
         return None
     body = _balanced_body(text, m.end())
-    cm = re.search(r"\b" + re.escape(method) + r"\s*\(", body)
-    if not cm:
-        return None
-    ret = _sig_cpp_return_before(body[: cm.start()])
-    if ret is None:
-        return None
-    arglist, _ = _sig_balanced_parens(body, cm.end())
-    params = [_sig_cpp_param_type(p) for p in _sig_split_params(arglist)]
-    return params, ret
+    # Try the bare member name, then the `get_`-prefixed readback form: a C++
+    # `Config` readback getter carries a uniform `get_` prefix (`get_flush_mode`)
+    # against the bare `flush_mode` row, exactly as the forward presence check
+    # accepts `<snake>` or `get_<snake>`.
+    for candidate in (method, f"get_{method}"):
+        sig = _sig_extract_cpp_member(body, candidate)
+        if sig is not None:
+            return sig
+    return None
+
+
+def _sig_extract_cpp_member(body: str, method: str) -> tuple[list[str], str] | None:
+    """The `method(<params>)` *declaration* within a resolved C++ class body.
+
+    Match in DECLARATION position: a return-type token (an identifier, or a
+    `>`/`*`/`&`/`]` ending a templated/pointer/reference/array return) sits just
+    before the method name. A bare `.method(` call or a keyword-fronted
+    `return method(` is rejected — the same discipline the method collector uses
+    to defeat the in-body call-site shadow (the G11 bypass class)."""
+    decl_re = re.compile(
+        r"(?P<prev>[A-Za-z_]\w*|[>*&\]])\s+" + re.escape(method) + r"\s*\("
+    )
+    for cm in decl_re.finditer(body):
+        if cm.group("prev") in _SIG_CPP_CALL_PREV_KEYWORDS:
+            continue
+        # The return-type run ends where the method name begins.
+        name_at = body.rfind(method, cm.start(), cm.end())
+        ret = _sig_cpp_return_before(body[:name_at])
+        if ret is None:
+            continue
+        arglist, _ = _sig_balanced_parens(body, cm.end())
+        return [_sig_cpp_param_type(p) for p in _sig_split_params(arglist)], ret
+    return None
 
 
 _SIG_CPP_ACCESS_KEYWORDS = ("public", "private", "protected")
@@ -6566,8 +6730,15 @@ def _sig_extract_ffi(ffi_src: pathlib.Path, symbol: str) -> tuple[list[str], str
 # `<lang>_params` / `<lang>_returns` override replaces them for that lang
 # (type-map-justified divergence the map alone cannot encode — a napi arity
 # change, the FFI `_explicit (has_value, n)` split). A lang the spec pins
-# NEITHER canonical nor override for is not signature-checked.
+# NEITHER canonical nor override for is not signature-checked. A lang named in
+# the spec's `skip_langs` list is also not checked even when canonical params /
+# returns are present: the binding exposes the member, but not in a form this
+# lang's extractor reads — the `ts_napi` view of a JS-wrapper-only class
+# (`RecordBatchStream`), which ships as a `.d.ts` interface with NO napi Rust
+# `fn` for the extractor to find.
 def _sig_spec_for(signature: dict[str, Any], lang: str) -> tuple[list[str], str] | None:
+    if lang in signature.get("skip_langs", ()):
+        return None
     params = signature.get(f"{lang}_params", signature.get("params"))
     returns = signature.get(f"{lang}_returns", signature.get("returns"))
     if params is None and returns is None:
@@ -6605,7 +6776,10 @@ def _sig_compare_one(
                     f"  {label}.{lang}: param #{idx} type mismatch — spec `{sp}` "
                     f"is not satisfied by actual `{ap}` under the {lang} type map."
                 )
-    if not _sig_type_agrees(spec_ret, act_ret, lang):
+    # The actual return is unwrapped of its fallible-result wrapper first
+    # (`PyResult<T>` / `napi::Result<T>` → `T`): fallibility is a per-binding
+    # surface property, not a cross-binding return-type contract.
+    if not _sig_type_agrees(spec_ret, _sig_unwrap_result(act_ret), lang):
         errors.append(
             f"  {label}.{lang}: return mismatch — spec `{spec_ret}` is not "
             f"satisfied by actual `{act_ret}` under the {lang} type map."
@@ -6667,7 +6841,7 @@ def _sig_check_method_signatures(
             if spec is not None:
                 py_cls, py_member = (
                     override["python"] if override and "python" in override
-                    else (class_name, snake)
+                    else (_py_class_for(class_name), snake)
                 )
                 errors += _sig_compare_one(
                     label, spec, _sig_extract_python(py_src, py_cls, py_member), "python"
@@ -6675,7 +6849,7 @@ def _sig_check_method_signatures(
         if row.get("typescript"):
             ts_cls, ts_member = (
                 override["typescript"] if override and "typescript" in override
-                else (class_name, camel)
+                else (_ts_class_for(class_name), camel)
             )
             spec_napi = _sig_spec_for(signature, "ts_napi")
             if spec_napi is not None:
@@ -7085,7 +7259,7 @@ def main(argv: list[str] | None = None) -> int:
     # `thetadatadx_*` symbol must belong to some enrolled family (the reverse
     # orphan scan). No C-ABI symbol ships untracked.
     ffi_all_symbols = _collect_ffi_all_symbols(FFI_SRC)
-    ffi_symbol_errors = _check_ffi_symbol_rows(ffi_symbol_rows, ffi_all_symbols)
+    ffi_symbol_errors = _check_ffi_symbol_rows(ffi_symbol_rows, ffi_all_symbols, FFI_SRC)
     ffi_symbol_orphan_errors = _check_ffi_symbol_orphans(
         ffi_all_symbols, ffi_symbol_rows
     )
@@ -8255,7 +8429,7 @@ def _run_selftest() -> int:
             {"name": "record_batch_stream_vanished"},
         ]
         symbols = {"client_batches_open"}
-        errors = _check_ffi_symbol_rows(rows, symbols)
+        errors = _check_ffi_symbol_rows(rows, symbols, pathlib.Path("/nonexistent"))
         assert any("record_batch_stream_vanished" in e for e in errors), (
             f"a row with no matching extern must trip; got {errors!r}"
         )
@@ -10958,6 +11132,140 @@ def _run_selftest() -> int:
             got = _sig_extract_ffi(src, "record_batch_stream_close")
             assert got == (["usize"], "i32"), got
 
+    def _case_sig_extract_python_getter_prefix() -> None:
+        """A pyo3 `#[getter] fn get_<name>` resolves against the bare `<name>`
+        the row carries — pyo3 strips the `get_` prefix from the property name,
+        so the extractor falls back to `get_<name>` (the `Config.reconnect_policy`
+        / `worker_threads` readback shape that surfaced this)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            src = pathlib.Path(tmp)
+            (src / "m.rs").write_text(
+                "#[pymethods]\nimpl Config {\n"
+                "    #[getter]\n"
+                "    fn get_worker_threads(&self) -> Option<usize> { None }\n}\n",
+                encoding="utf-8",
+            )
+            assert _sig_extract_python(src, "Config", "worker_threads") == (
+                [], "Option<usize>"
+            ), _sig_extract_python(src, "Config", "worker_threads")
+
+    def _case_sig_extract_cpp_getter_prefix() -> None:
+        """A C++ `get_<name>(...)` readback resolves against the bare `<name>`,
+        the same `get_`-prefix convention the forward presence check accepts."""
+        with tempfile.TemporaryDirectory() as tmp:
+            hpp = pathlib.Path(tmp) / "h.hpp"
+            hpp.write_text(
+                "class Config {\npublic:\n"
+                "    std::optional<size_t> get_worker_threads() const;\n};\n",
+                encoding="utf-8",
+            )
+            assert _sig_extract_cpp(hpp, "Config", "worker_threads") == (
+                [], "std::optional<size_t>"
+            )
+
+    def _case_sig_extract_cpp_elaborated_type_param() -> None:
+        """The C++ class header is line-anchored: a `const class X& p` ELABORATED
+        TYPE used as a parameter earlier in the file must NOT be mistaken for the
+        class definition (the real `class FluentSubscription { ... }` that the
+        bare `\\bclass X[^{]*{` regex skipped, resolving the wrong body)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            hpp = pathlib.Path(tmp) / "h.hpp"
+            hpp.write_text(
+                # An earlier method takes the class by elaborated-type ref, with
+                # its own body brace the broken regex would bridge to.
+                "class Other {\npublic:\n"
+                "    void use(const class Sub& s) const { (void)s; }\n};\n"
+                "class Sub {\npublic:\n"
+                "    std::string kind_string() const;\n};\n",
+                encoding="utf-8",
+            )
+            assert _sig_extract_cpp(hpp, "Sub", "kind_string") == ([], "std::string")
+
+    def _case_sig_extract_cpp_in_body_call_shadow() -> None:
+        """A member-access CALL inside an earlier inline body (`handle_.get()`
+        inside `size()`) must NOT shadow the real `get()` declaration: the
+        method is matched in DECLARATION position only (the `FlatFileRowList::get`
+        raw-handle accessor that returned a parsed method body as its type)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            hpp = pathlib.Path(tmp) / "h.hpp"
+            hpp.write_text(
+                "class Rows {\npublic:\n"
+                "    size_t size() const { return handle_ ? count(handle_.get()) : 0; }\n"
+                "    const Handle* get() const noexcept { return handle_.get(); }\n};\n",
+                encoding="utf-8",
+            )
+            assert _sig_extract_cpp(hpp, "Rows", "get") == ([], "const Handle*")
+
+    def _case_sig_ffi_opaque_pointer_exact() -> None:
+        """For the `ffi` lang an unmapped canonical (a raw handle pointer / a
+        C-ABI owned struct) compares by EXACT spelling — the C ABI is the
+        lowest layer, so the C type IS the canonical. A managed lang still fails
+        closed on the same unmapped spelling."""
+        assert _sig_type_agrees(
+            "*const ThetaDataDxClient", "*const ThetaDataDxClient", "ffi"
+        )
+        assert _sig_type_agrees(
+            "ThetaDataDxFlatFileBytes", "ThetaDataDxFlatFileBytes", "ffi"
+        )
+        assert not _sig_type_agrees(
+            "*const ThetaDataDxClient", "*const ThetaDataDxConfig", "ffi"
+        ), "a different opaque pointer must not match"
+        assert not _sig_type_agrees(
+            "*const ThetaDataDxClient", "*const ThetaDataDxClient", "python"
+        ), "a managed lang must still fail closed on an unmapped raw type"
+
+    def _case_sig_cpp_raw_handle_exact() -> None:
+        """A C++ canonical that is itself a raw `ThetaDataDx*` handle pointer
+        compares by exact spelling (the `FlatFileRowList::get` escape hatch),
+        while a plain unmapped C++ scalar still fails closed."""
+        assert _sig_type_agrees(
+            "const ThetaDataDxFlatFileRowList*", "const ThetaDataDxFlatFileRowList*", "cpp"
+        )
+        assert not _sig_type_agrees("SomeRandomScalar", "SomeRandomScalar", "cpp"), (
+            "a non-pointer unmapped C++ type must fail closed"
+        )
+
+    def _case_sig_return_result_unwrap_and_lifetime() -> None:
+        """A return spelling is unwrapped of its fallible-result wrapper
+        (`napi::Result<T>` / `PyResult<T>` → `T`) and Rust lifetimes / the napi
+        prelude path are folded away before the type compare — the
+        `reconnectPolicy` (`&'static str`), `workerThreads`
+        (`napi::Result<Option<u32>>`), and `setStreamingRingSize`
+        (`napi::bindgen_prelude::BigInt`) shapes that surfaced these."""
+        # `&'static str` folds to `&str` and satisfies the String canonical.
+        errs = _sig_compare_one(
+            "X.reconnectPolicy", ([], "String"), ([], "&'static str"), "python"
+        )
+        assert errs == [], errs
+        # `napi::Result<&'static str>` unwraps + folds to satisfy String.
+        errs = _sig_compare_one(
+            "X.reconnectPolicy", ([], "String"), ([], "napi::Result<&'static str>"), "ts_napi"
+        )
+        assert errs == [], errs
+        # `napi::Result<Option<u32>>` unwraps to the structural Option compare.
+        errs = _sig_compare_one(
+            "X.workerThreads", ([], "Option<usize>"), ([], "napi::Result<Option<u32>>"), "ts_napi"
+        )
+        assert errs == [], errs
+        # The qualified napi BigInt param folds to the bare `BigInt` cell.
+        errs = _sig_compare_one(
+            "X.setRing", (["usize"], "()"), (["napi::bindgen_prelude::BigInt"], "napi::Result<()>"), "ts_napi"
+        )
+        assert errs == [], errs
+
+    def _case_sig_opaque_payload_returns() -> None:
+        """The opaque cross-binding payload return canonicals (`Bytes` / `Schema`
+        / `PyObject` / `Credentials`) accept each binding's idiomatic spelling —
+        the Arrow-IPC / schema / materialiser / auth-handle returns the
+        FlatFileRowList / RecordBatchStream / Credentials surfaces carry."""
+        assert _sig_type_agrees("Bytes", "napi::Result<Buffer>", "ts_napi") or \
+            _sig_type_agrees("Bytes", _sig_unwrap_result("napi::Result<Buffer>"), "ts_napi")
+        assert _sig_type_agrees("Bytes", "std::vector<uint8_t>", "cpp")
+        assert _sig_type_agrees("Schema", "std::shared_ptr<arrow::Schema>", "cpp")
+        assert _sig_type_agrees("Credentials", "Credentials", "cpp")
+        # PyObject is Python-only — a row pinning it for C++ fails closed.
+        assert not _sig_type_agrees("PyObject", "anything", "cpp")
+
     # An end-to-end synthetic source tree the orchestrator drives. The row
     # pins canonical (usize, String) -> (); napi overrides usize→f64. Each
     # negative variant mutates ONE binding source so exactly that drift axis
@@ -11139,21 +11447,98 @@ def _run_selftest() -> int:
             errs = _sig_check_method_signatures(rows, **paths)
             assert errs == [], f"row without [method.signature] must be a no-op; got {errs!r}"
 
-    def _case_sig_live_surface_is_noop() -> None:
-        """The LIVE parity.toml carries no `[method.signature]` yet, so the
-        signature gate governs zero rows against the real sources — the
-        gated-to-zero invariant Phase 3 ships under."""
+    def _case_sig_skip_langs_opts_lang_out() -> None:
+        """`skip_langs` opts a present binding out of the signature check even
+        when canonical params/returns are pinned — the `ts_napi` view of a
+        JS-wrapper-only class (`RecordBatchStream`) that ships no napi Rust
+        `fn`. Without the skip the absent napi declaration would trip; with it
+        the gate is silent, while the OTHER bindings stay checked."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            paths = _write_sig_tree(
+                root, py_params="n: usize, name: String", ts_ret="napi::Result<()>",
+                cpp_params="size_t n, const std::string& name", rust_ret="()",
+                ffi_params="n: usize, name: *const c_char",
+            )
+            # Blow away the napi fn so its extractor returns None.
+            (paths["ts_src"] / "l.rs").write_text(
+                "#[napi]\nimpl Widget {\n}\n", encoding="utf-8"
+            )
+            # WITHOUT skip: the absent napi declaration trips.
+            bad = _sig_check_method_signatures(_sig_row(), **paths)
+            assert any("ts_napi" in e and "no `ts_napi`" in e for e in bad), bad
+            # WITH skip: ts_napi is not checked; the rest stay clean.
+            METHOD_BINDING_OVERRIDES[("Widget", "resize")] = {"rust": ("Widget", "resize")}
+            try:
+                ok = _sig_check_method_signatures(
+                    _sig_row(skip_langs=["ts_napi"]), **paths
+                )
+            finally:
+                METHOD_BINDING_OVERRIDES.pop(("Widget", "resize"), None)
+            assert ok == [], f"skip_langs must silence ts_napi; got {ok!r}"
+
+    def _case_ffi_symbol_signature_checked() -> None:
+        """An `[[ffi_symbol]]` row carrying a `[ffi_symbol.signature]` has its
+        extern's C signature extracted + compared (opaque pointers exact, scalars
+        mapped); a drift in the pinned shape trips, and a row without a signature
+        stays name-only."""
+        with tempfile.TemporaryDirectory() as tmp:
+            src = pathlib.Path(tmp)
+            (src / "f.rs").write_text(
+                'pub unsafe extern "C" fn thetadatadx_client_batches_open('
+                "handle: *const ThetaDataDxClient, n: usize) "
+                "-> *mut ThetaDataDxRecordBatchStream { core::ptr::null_mut() }\n",
+                encoding="utf-8",
+            )
+            symbols = {"client_batches_open"}
+            good = [{"name": "client_batches_open", "signature": {
+                "params": ["*const ThetaDataDxClient", "usize"],
+                "returns": "*mut ThetaDataDxRecordBatchStream"}}]
+            assert _check_ffi_symbol_rows(good, symbols, src) == []
+            # A return drift (wrong opaque pointer) trips by exact spelling.
+            bad = [{"name": "client_batches_open", "signature": {
+                "params": ["*const ThetaDataDxClient", "usize"],
+                "returns": "*mut ThetaDataDxArrowBytes"}}]
+            errs = _check_ffi_symbol_rows(bad, symbols, src)
+            assert any("return mismatch" in e for e in errs), errs
+            # No signature → name-only, silent.
+            assert _check_ffi_symbol_rows(
+                [{"name": "client_batches_open"}], symbols, src
+            ) == []
+
+    def _case_sig_live_surface_is_clean() -> None:
+        """The LIVE parity.toml now carries real `[method.signature]` specs (the
+        non-streaming enrolled surfaces). The signature gate extracts every
+        enrolled binding's declared signature from the real sources and must
+        find them all satisfying the specs — the engaged-and-clean invariant
+        that replaces Phase 3's gated-to-zero landing."""
         data = tomllib.loads(PARITY_TOML.read_text(encoding="utf-8"))
         method_rows = data.get("method", [])
-        assert not any(r.get("signature") for r in method_rows), (
-            "Phase 3 must land gated-to-zero: no [[method]] row may carry a "
-            "[method.signature] sub-table yet (Phase 4 authors those)."
+        pinned = [r for r in method_rows if r.get("signature")]
+        assert pinned, (
+            "Phase 4a engages the signature gate: at least one [[method]] row "
+            "must carry a [method.signature] sub-table against the real sources."
         )
         errs = _sig_check_method_signatures(
             method_rows, py_src=PY_SRC, ts_src=TS_SRC, ts_dts=TS_DTS,
             cpp_hpp=CPP_HPP, client_rs=CORE_CLIENT_RS, ffi_src=FFI_SRC,
         )
-        assert errs == [], f"live signature gate must be a no-op; got {errs!r}"
+        assert errs == [], f"live signature gate must be clean; got {errs!r}"
+
+    def _case_sig_live_ffi_symbols_clean() -> None:
+        """The LIVE `[[ffi_symbol]]` rows carry real `[ffi_symbol.signature]`
+        specs for the hand-written streaming-batch family; the gate extracts
+        each extern's C signature and must find them satisfying the specs."""
+        data = tomllib.loads(PARITY_TOML.read_text(encoding="utf-8"))
+        ffi_rows = data.get("ffi_symbol", [])
+        pinned = [r for r in ffi_rows if r.get("signature")]
+        assert pinned, (
+            "Phase 4a pins the hand-written FFI streaming symbols' signatures."
+        )
+        errs = _check_ffi_symbol_rows(
+            ffi_rows, _collect_ffi_all_symbols(FFI_SRC), FFI_SRC
+        )
+        assert errs == [], f"live FFI signature gate must be clean; got {errs!r}"
 
     _case("sig type-map — forward map + usize→f64 sanction + fail-closed", _case_sig_type_map_forward_and_sanction)
     _case("sig type-map — Option<T> structural per binding", _case_sig_option_structural)
@@ -11163,6 +11548,14 @@ def _run_selftest() -> int:
     _case("sig extractor — C++ in-class decl", _case_sig_extract_cpp)
     _case("sig extractor — Rust core impl fn", _case_sig_extract_rust)
     _case("sig extractor — FFI extern fn", _case_sig_extract_ffi)
+    _case("sig extractor — Python get_ getter prefix", _case_sig_extract_python_getter_prefix)
+    _case("sig extractor — C++ get_ getter prefix", _case_sig_extract_cpp_getter_prefix)
+    _case("sig extractor — C++ elaborated-type param not class def", _case_sig_extract_cpp_elaborated_type_param)
+    _case("sig extractor — C++ in-body call shadow rejected", _case_sig_extract_cpp_in_body_call_shadow)
+    _case("sig type-map — FFI opaque pointer exact match", _case_sig_ffi_opaque_pointer_exact)
+    _case("sig type-map — C++ raw handle exact match", _case_sig_cpp_raw_handle_exact)
+    _case("sig type-map — return result-unwrap + lifetime/napi-path fold", _case_sig_return_result_unwrap_and_lifetime)
+    _case("sig type-map — opaque payload returns (Bytes/Schema/PyObject/Credentials)", _case_sig_opaque_payload_returns)
     _case("sig orchestrator — all axes clean (sanction + override)", _case_sig_positive_all_axes_clean)
     _case("sig orchestrator — TYPE drift fails", _case_sig_type_drift_fails)
     _case("sig orchestrator — ARITY drift fails", _case_sig_arity_drift_fails)
@@ -11170,7 +11563,10 @@ def _run_selftest() -> int:
     _case("sig orchestrator — RETURN drift fails", _case_sig_return_drift_fails)
     _case("sig orchestrator — per-binding override honoured", _case_sig_override_honoured)
     _case("sig orchestrator — row without sub-table is a no-op", _case_sig_no_subtable_is_noop)
-    _case("sig orchestrator — live surface is gated-to-zero no-op", _case_sig_live_surface_is_noop)
+    _case("sig orchestrator — skip_langs opts a present lang out", _case_sig_skip_langs_opts_lang_out)
+    _case("sig orchestrator — [ffi_symbol.signature] checked + drift fails", _case_ffi_symbol_signature_checked)
+    _case("sig orchestrator — live method surface engaged + clean", _case_sig_live_surface_is_clean)
+    _case("sig orchestrator — live FFI symbol signatures clean", _case_sig_live_ffi_symbols_clean)
 
     print(f"check_binding_parity --selftest: {n_pass} passed, {n_fail} failed")
     return 0 if n_fail == 0 else 1
