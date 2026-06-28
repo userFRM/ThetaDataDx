@@ -154,7 +154,7 @@ impl StreamView {
     /// flushes a partial batch on a quiet stream (default 50);
     /// `backpressure` is `"block"` (default, lossless) or
     /// `"dropOldest"`; `capacity` bounds the drop-oldest buffer.
-    #[napi(js_name = "batches")]
+    #[napi(js_name = "batches", skip_typescript)]
     pub async fn batches(&self, options: Option<crate::streaming_batches::BatchesOptions>) -> napi::Result<crate::streaming_batches::RecordBatchStreamHandle> {
         let options = options.unwrap_or_default();
         crate::streaming_batches::open_handle(std::sync::Arc::clone(&self.client), options.batch_size, options.linger_ms, options.backpressure, options.capacity).await

@@ -1254,6 +1254,17 @@ def test_sig_extractors_read_each_binding(tmp: pathlib.Path) -> None:
     dts.write_text("export class W {\n  doIt(n: number): void\n}\n", encoding="utf-8")
     assert cbp._sig_extract_ts_dts(dts, "W", "doIt") == (["number"], "void")
 
+    pyi = tmp / "__init__.pyi"
+    pyi.write_text(
+        "class W:\n"
+        "    def do_it(self, n: Optional[int]) -> RecordBatchStream:\n        ...\n"
+        "    schema: Optional[int]\n",
+        encoding="utf-8",
+    )
+    assert cbp._sig_extract_python_pyi(pyi, "W", "do_it") == (["Optional[int]"], "RecordBatchStream")
+    # Bare-annotation property → zero-arg returning the annotation.
+    assert cbp._sig_extract_python_pyi(pyi, "W", "schema") == ([], "Optional[int]")
+
     hpp = tmp / "w.hpp"
     hpp.write_text(
         "class W {\npublic:\n    void f(size_t n, const std::string& s);\n};\n",
@@ -1294,7 +1305,8 @@ def _sig_tree(tmp: pathlib.Path, *, py_params: str, cpp_ret: str = "void") -> di
     (tmp / "ffi" / "f.rs").write_text(
         'pub extern "C" fn thetadatadx_w_resize(n: usize) -> i32 { 0 }\n', encoding="utf-8"
     )
-    return dict(py_src=tmp / "py", ts_src=tmp / "ts", ts_dts=tmp / "none.d.ts",
+    return dict(py_src=tmp / "py", pyi_path=tmp / "none.pyi",
+                ts_src=tmp / "ts", ts_dts=tmp / "none.d.ts",
                 cpp_hpp=hpp, client_rs=tmp / "none.rs", ffi_src=tmp / "ffi")
 
 
@@ -1336,11 +1348,101 @@ def test_sig_orchestrator_return_drift_trips(tmp: pathlib.Path) -> None:
     assert any("cpp" in e and "return mismatch" in e for e in errs), errs
 
 
-def test_sig_no_subtable_is_noop(tmp: pathlib.Path) -> None:
-    """A `[[method]]` row without `[method.signature]` is never checked."""
-    paths = _sig_tree(tmp, py_params="n: bool")  # would drift IF checked
+def test_sig_dts_conflicting_overload_trips(tmp: pathlib.Path) -> None:
+    """The `.d.ts` gate FAILS when the package-entry augmentation matches the
+    spec but a re-exported generated declaration drifts to a non-client-facing
+    return. The two MERGE as overloads, so the raw return re-leaks even though
+    the resolved type resolves to the wrapper. Mirrors the `StreamView.batches`
+    leak the re-audit found."""
+    entry = tmp / "entry.d.ts"
+    entry.write_text(
+        "export * from './index'\n"
+        "declare module './index' {\n"
+        "  interface StreamView {\n"
+        "    batches(options?: BatchesOptions): Promise<RecordBatchStream>;\n"
+        "  }\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    index = tmp / "index.d.ts"
+    index.write_text(
+        "export declare class StreamView {\n"
+        "  batches(options?: BatchesOptions | undefined | null): "
+        "Promise<RecordBatchStreamHandle>\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    row = [{
+        "class": "StreamView", "name": "batches", "typescript": True,
+        "signature": {
+            "ts_dts_params": ["BatchesOptions"], "returns": "RecordBatchStream",
+            # ts_napi has no source here; restrict the row to the .d.ts lang.
+            "skip_langs": ("ts_napi",),
+        },
+    }]
+    paths = dict(py_src=tmp / "none", pyi_path=tmp / "none.pyi",
+                 ts_src=tmp / "none", ts_dts=entry,
+                 cpp_hpp=tmp / "none.hpp", client_rs=tmp / "none.rs", ffi_src=tmp / "none")
+    errs = cbp._sig_check_method_signatures(row, **paths)
+    assert any("conflicting public declaration" in e and "index.d.ts" in e for e in errs), errs
+    # Suppressing the generated declaration (skip_typescript) leaves the
+    # augmentation as the sole declaration — the gate goes silent.
+    index.write_text(
+        "export declare class StreamView {\n  isStreaming(): boolean\n}\n",
+        encoding="utf-8",
+    )
+    assert cbp._sig_check_method_signatures(row, **paths) == []
+
+
+def test_sig_name_only_fails_closed(tmp: pathlib.Path) -> None:
+    """Fail-closed enrollment: a `[[method]]` row without `[method.signature]`
+    FAILS unless it is in `NAME_ONLY_METHOD_ALLOWLIST`; the allowlisted row
+    passes. No new row can be silently name-only."""
+    paths = _sig_tree(tmp, py_params="n: bool")
     rows = [{"class": "W", "name": "resize", "python": True}]
-    assert cbp._sig_check_method_signatures(rows, **paths) == []
+    errs = cbp._sig_check_method_signatures(rows, **paths)
+    assert any("neither a `[method.signature]`" in e for e in errs), errs
+    cbp.NAME_ONLY_METHOD_ALLOWLIST[("W", "resize")] = "test fixture"
+    try:
+        assert cbp._sig_check_method_signatures(rows, **paths) == []
+    finally:
+        del cbp.NAME_ONLY_METHOD_ALLOWLIST[("W", "resize")]
+
+
+def test_sig_python_pyi_lane(tmp: pathlib.Path) -> None:
+    """The `.pyi` lane checks the stub against the cross-binding spec: a clean
+    stub passes; a RETURN drift (the axis Gate 6's stubtest cannot see) FAILS;
+    a dropped pinned declaration on a fully-enumerated stub class FAILS; a
+    member behind a class `__getattr__` degrades (no false-fail)."""
+    paths = _sig_tree(tmp, py_params="n: bool")
+    pyi = tmp / "__init__.pyi"
+    row = [{"class": "W", "name": "resize", "python": True,
+            "signature": {"params": ["bool"], "returns": "RecordBatchStream"}}]
+    pyi.write_text(
+        "class W:\n    def resize(self, n: bool) -> RecordBatchStream:\n        ...\n",
+        encoding="utf-8",
+    )
+    paths["pyi_path"] = pyi
+    assert cbp._sig_check_method_signatures(row, **paths) == [], \
+        cbp._sig_check_method_signatures(row, **paths)
+    # Stub return drift → fails (stubtest is blind to this).
+    pyi.write_text(
+        "class W:\n    def resize(self, n: bool) -> Any:\n        ...\n", encoding="utf-8"
+    )
+    errs = cbp._sig_check_method_signatures(row, **paths)
+    assert any("python_pyi" in e and "return mismatch" in e for e in errs), errs
+    # Dropped declaration on a fully-enumerated class → fails.
+    pyi.write_text("class W:\n    def other(self) -> bool:\n        ...\n", encoding="utf-8")
+    errs = cbp._sig_check_method_signatures(row, **paths)
+    assert any("python_pyi" in e and "removed public stub" in e for e in errs), errs
+    # Behind a class `__getattr__` → degrades, no false-fail.
+    pyi.write_text(
+        "class W:\n    def other(self) -> bool:\n        ...\n"
+        "    def __getattr__(self, name: str) -> Any:\n        ...\n",
+        encoding="utf-8",
+    )
+    assert cbp._sig_check_method_signatures(row, **paths) == [], \
+        cbp._sig_check_method_signatures(row, **paths)
 
 
 def test_sig_extractor_getter_prefix_and_decl_position() -> None:
@@ -1442,8 +1544,9 @@ def test_sig_live_surface_engaged_and_clean() -> None:
         "[method.signature] sub-tables"
     )
     errs = cbp._sig_check_method_signatures(
-        method_rows, py_src=cbp.PY_SRC, ts_src=cbp.TS_SRC, ts_dts=cbp.TS_DTS,
-        cpp_hpp=cbp.CPP_HPP, client_rs=cbp.CORE_CLIENT_RS, ffi_src=cbp.FFI_SRC,
+        method_rows, py_src=cbp.PY_SRC, pyi_path=cbp.PY_PYI, ts_src=cbp.TS_SRC,
+        ts_dts=cbp.TS_DTS, cpp_hpp=cbp.CPP_HPP, client_rs=cbp.CORE_CLIENT_RS,
+        ffi_src=cbp.FFI_SRC,
     )
     assert errs == [], f"live method signature gate must be clean; got {errs!r}"
     ffi_rows = data.get("ffi_symbol", [])
@@ -1540,7 +1643,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         _check("sig orchestrator RETURN drift trips", lambda: test_sig_orchestrator_return_drift_trips(pathlib.Path(tmp)))
     with tempfile.TemporaryDirectory() as tmp:
-        _check("sig no sub-table is a no-op", lambda: test_sig_no_subtable_is_noop(pathlib.Path(tmp)))
+        _check("sig name-only fails closed unless allowlisted", lambda: test_sig_name_only_fails_closed(pathlib.Path(tmp)))
     # Route-B signature specs ENGAGED (Phase 4a): extractor fixes + opaque/FFI
     # type handling + skip_langs + the live engaged-and-clean surface.
     _check("sig extractor get_ prefix + decl position", test_sig_extractor_getter_prefix_and_decl_position)
