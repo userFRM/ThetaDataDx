@@ -2299,6 +2299,23 @@ METHOD_BINDING_OVERRIDES: dict[tuple[str, str], dict[str, tuple[str, str]]] = {
 }
 
 
+# `[[method]]` rows that carry NO `[method.signature]` by design: their
+# per-binding shapes are structurally divergent binding machinery with no
+# comparable cross-binding signature to pin. Every other `[[method]]` row MUST
+# carry a `[method.signature]` (the gate fails closed for any name-only row
+# absent from this set), so a NEW row can never be silently name-only — it is
+# either pinned or it is enrolled here with a stated reason.
+NAME_ONLY_METHOD_ALLOWLIST: dict[tuple[str, str], str] = {
+    ("Config", "setReconnectCallback"): (
+        "Reconnect-callback registration is structurally divergent per binding "
+        "with no comparable signature: Python takes an optional callable, the "
+        "napi side a five-type-argument ThreadsafeFunction, C++ a C function "
+        "pointer plus a void* userdata (two params, not one). There is no "
+        "cross-binding param/return contract to pin."
+    ),
+}
+
+
 # Parity-toml `class` field → the Rust struct the Rust method collector
 # keys on. The flat-file namespace is the borrowed `FlatFiles` view
 # returned by `Client::flat_files()`; the unified entry-point client is
@@ -6210,19 +6227,31 @@ def _check_request_options_types(
 # cross-check) are distinct columns over the one TypeScript binding.
 SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # canonical Rust type → {signature-lang: (accepted spelling, ...)}.
+    # `usize` is platform-width. Its C++ / C-ABI cells accept ONLY the
+    # platform-width spellings (`size_t` / `usize`), never the fixed-width
+    # `uint64_t` / `u64` — those belong to `u64` below, and accepting them
+    # here would let a `usize` row that drifts to a fixed-width return pass.
+    # A binding that DELIBERATELY widens `usize` to a fixed-width boundary
+    # type (the C ABI is fixed-width by design; C++ mirrors the ABI it wraps)
+    # pins `u64` for that lang via a per-row `<lang>_returns` override, not a
+    # loose cell here.
     "usize": {
         "python": ("usize",),
         "ts_napi": ("f64", "BigInt", "u32", "i64"),
         "ts_dts": ("number", "bigint"),
-        "cpp": ("size_t", "std::size_t", "uint64_t"),
+        "cpp": ("size_t", "std::size_t"),
         "rust": ("usize",),
-        "ffi": ("usize", "u64", "size_t"),
+        "ffi": ("usize", "size_t"),
     },
+    # `u64` is fixed-width. Its C++ / C-ABI cells accept ONLY the fixed-width
+    # spellings (`uint64_t` / `u64`), never the platform-width `size_t` /
+    # `usize` — those belong to `usize` above. Zero overlap with `usize` so a
+    # `u64` row that drifts to a platform-width return fails closed.
     "u64": {
         "python": ("u64",),
         "ts_napi": ("BigInt", "f64"),
         "ts_dts": ("bigint", "number"),
-        "cpp": ("uint64_t", "size_t"),
+        "cpp": ("uint64_t", "std::uint64_t"),
         "rust": ("u64",),
         "ffi": ("u64", "uint64_t"),
     },
@@ -6294,12 +6323,36 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     "Contract": {
         "python": ("PyContract",),
         "ts_napi": ("ContractRef",),
-        "ts_dts": ("Contract",),
+        # The napi `.d.ts` spells the fluent contract `ContractRef` (the
+        # `Contract` symbol is the streaming event-payload class); the wrapper
+        # re-exports `Contract = ContractRef`, so both names denote the surface.
+        "ts_dts": ("Contract", "ContractRef"),
     },
     "SecType": {
         "python": ("PySecType",),
         "ts_napi": ("SecType",),
         "ts_dts": ("SecType",),
+    },
+    # The flat-file request dispatcher's typed enum params on the Rust core
+    # only: `FlatFiles::request(SecType, ReqType, &str)`. The managed bindings
+    # pass plain Strings (no typed-enum twin), so these carry a `rust` cell
+    # alone — used by the `rust_params` override on the `request` row.
+    "FlatFileSecType": {
+        "rust": ("crate::flatfiles::SecType", "SecType"),
+    },
+    "FlatFileReqType": {
+        "rust": ("crate::flatfiles::ReqType", "ReqType"),
+    },
+    # The wire-format selector on `flatFileToPath`'s last param: a String on the
+    # managed bindings (the format name, optional on Python / TypeScript), the
+    # typed `FlatFileFormat` enum on the Rust core. Per-lang param override only.
+    "FlatFileFormat": {
+        "rust": ("crate::flatfiles::FlatFileFormat", "FlatFileFormat"),
+    },
+    # The destination-path param on `flatFileToPath` (the Rust core takes an
+    # `impl AsRef<Path>`; the managed / C++ bindings take their String spelling).
+    "DestPath": {
+        "rust": ("impl AsRef<std::path::Path>", "impl AsRef<Path>"),
     },
     # C++-only typed enums on `FluentSubscription`: the full/per-contract
     # `scope()` discriminant the managed bindings model as the `isFull` bool
@@ -6341,6 +6394,16 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     "Callback": {
         "python": ("Py<PyAny>", "PyObject"),
         "cpp": ("std::function<void(const StreamEvent&)>",),
+        # The `.d.ts` per-event handler type. napi-rs generates the parameter
+        # name `arg`; the cross-binding contract is the `StreamEvent` payload
+        # shape, so a drift to a different event type still fails closed. The
+        # hand-written `streaming(...)` wrapper names the same type via its
+        # `StreamEventCallback` alias.
+        "ts_dts": (
+            "((arg: StreamEvent) => void)",
+            "(arg: StreamEvent) => void",
+            "StreamEventCallback",
+        ),
     },
     # The optional batch-reader tuning bag on `StreamView.batches`. The managed
     # bindings pass a single options object (the napi / `.d.ts` `BatchesOptions`
@@ -6407,6 +6470,7 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     "Credentials": {
         "python": ("Self", "PyResult<Self>", "Credentials", "PyResult<Credentials>"),
         "ts_napi": ("Credentials", "napi::Result<Credentials>"),
+        "ts_dts": ("Credentials",),
         "cpp": ("Credentials",),
     },
     # The per-contract active-subscription snapshot. Each binding returns its
@@ -6448,6 +6512,109 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
         "ts_dts": ("Promise<RecordBatchStream>", "RecordBatchStream"),
         "cpp": ("std::shared_ptr<RecordBatchStream>",),
     },
+    # The three `Client` data-plane VIEW accessors. Each is a zero-arg getter
+    # whose RETURN TYPE is the cross-binding contract — the view the binding
+    # hands back. The type name differs per binding (the managed bindings name
+    # the view directly; the Rust core returns a borrowed view), so each is a
+    # per-binding cell. A drop / rename of the returned view on any binding
+    # trips the gate.
+    "HistoricalView": {
+        "python": ("HistoricalView",),
+        "ts_napi": ("HistoricalView",),
+        "ts_dts": ("HistoricalView",),
+        "cpp": ("Historical",),
+        "rust": ("&HistoricalClient",),
+    },
+    "StreamView": {
+        "python": ("StreamView",),
+        "ts_napi": ("StreamView",),
+        "ts_dts": ("StreamView",),
+        "cpp": ("Stream",),
+        "rust": ("StreamSurface<>",),
+    },
+    "FlatFilesNamespace": {
+        "python": ("FlatFilesNamespace",),
+        "ts_napi": ("FlatFilesNamespace",),
+        "ts_dts": ("FlatFilesNamespace",),
+        "cpp": ("FlatFiles",),
+        "rust": ("FlatFiles<>",),
+    },
+    # The fluent client builder returned by `Client::builder()`. C++ + Rust
+    # only (the managed bindings reach the same surface through the inline
+    # constructor / options-object factory, not a builder), so no managed cell.
+    "ClientBuilder": {
+        "cpp": ("ClientBuilder",),
+        "rust": ("crate::client_builder::ClientBuilder", "ClientBuilder"),
+    },
+    # The decoded flat-file row collection returned by the `FlatFilesNamespace`
+    # fetch methods. The managed bindings return the `FlatFileRowList` value
+    # object (wrapped in the binding's fallible result, unwrapped before the
+    # compare); the Rust core returns the owned `Vec<FlatFileRow>`.
+    "FlatFileRowList": {
+        "python": ("FlatFileRowList",),
+        "ts_napi": ("FlatFileRowList",),
+        "ts_dts": ("FlatFileRowList",),
+        "cpp": ("FlatFileRowList",),
+        "rust": ("Vec<crate::flatfiles::FlatFileRow>", "Vec<FlatFileRow>"),
+    },
+    # The built fluent subscription returned by the per-contract / full-stream
+    # builders (`Contract.quote()`, `SecType.fullTrades()`). Each binding hands
+    # back its own subscription value object. Distinct from the `Subscription`
+    # PARAM canonical (the handle passed to subscribe), which carries the
+    # by-reference spellings — this is the by-value return shape.
+    "BuiltSubscription": {
+        "python": ("PySubscription",),
+        "ts_napi": ("Subscription",),
+        "ts_dts": ("Subscription",),
+        "cpp": ("FluentSubscription",),
+    },
+    # The `flatFileToPath` blob-to-disk return. The managed bindings hand back
+    # the written path as a String; C++ writes in place and returns `void`; the
+    # Rust core returns the owned `PathBuf`.
+    "WrittenPath": {
+        "python": ("String",),
+        "ts_napi": ("String",),
+        "ts_dts": ("string",),
+        "cpp": ("void",),
+        "rust": ("std::path::PathBuf", "PathBuf"),
+    },
+    # The context-managed streaming session returned by `Client.streaming`.
+    # Python hands back the `StreamingSession` pyclass (`Py<StreamingSession>`,
+    # the `PyResult` unwrapped before the compare); the hand-written `.d.ts`
+    # wrapper returns the `StreamingSession` interface. The napi layer has no
+    # `fn` (the session is a JS wrapper), so the row skips `ts_napi`.
+    "StreamingSession": {
+        "python": ("Py<StreamingSession>", "StreamingSession"),
+        "ts_dts": ("StreamingSession",),
+    },
+    # The inline-construction options object + its `Client` return on the
+    # TypeScript `connectWith` factory (TypeScript-only — Python uses the
+    # constructor kwargs, Rust / C++ the fluent builder).
+    "ClientConnectOptions": {
+        "ts_napi": ("ClientConnectOptions",),
+        "ts_dts": ("ClientConnectOptions",),
+    },
+    "Client": {
+        "ts_napi": ("Client",),
+        "ts_dts": ("Client",),
+    },
+    # The active-subscription snapshot returned by `Client.subscriptionInfo`
+    # (Python + Rust only). Python materialises it as a `Vec<(root, kind)>`
+    # tuple list; the Rust core returns the opaque `SubscriptionInfo` struct.
+    "SubscriptionInfo": {
+        "python": ("Vec<(String, String)>", "Vec<(String,String)>"),
+        "rust": ("SubscriptionInfo",),
+    },
+    # A `Config` factory return (the env-tier presets `production` / `dev` /
+    # `stage`, the `fromDotenv` loader). Python / TypeScript spell it `Self`
+    # (the pyo3 / napi constructor return), the napi `.d.ts` resolves the
+    # `Self` to the concrete `Config`, C++ the value type `Config`.
+    "Config": {
+        "python": ("Self", "Config"),
+        "ts_napi": ("Self", "Config"),
+        "ts_dts": ("Config",),
+        "cpp": ("Config",),
+    },
 }
 
 
@@ -6470,11 +6637,24 @@ def _sig_unwrap_result(spelling: str) -> str:
     the binding spells the path. Fallibility is a per-binding surface property
     (pyo3 `PyResult`, a thrown napi error), not a cross-binding return-type
     difference the signature gate pins. A non-wrapped spelling is returned
-    unchanged."""
-    m = re.fullmatch(
-        r"(?:[A-Za-z_][\w:]*::)?(?:Py)?Result\s*<\s*(.+)\s*>", spelling.strip()
-    )
-    return m.group(1).strip() if m else spelling.strip()
+    unchanged.
+
+    A `.d.ts` async method returns `Promise<T>`; the promise is the TypeScript
+    fallible/async wrapper (the same role `napi::Result` plays on the napi
+    side), so it is unwrapped too — the awaited `T` is the cross-binding
+    return contract, not the promise envelope."""
+    s = spelling.strip()
+    pm = re.fullmatch(r"Promise\s*<\s*(.+)\s*>", s)
+    if pm:
+        s = pm.group(1).strip()
+    m = re.fullmatch(r"(?:[A-Za-z_][\w:]*::)?(?:Py)?Result\s*<\s*(.+)\s*>", s)
+    if not m:
+        return s
+    inner = m.group(1).strip()
+    # A Rust `Result<T, E>` carries the error arm explicitly; the cross-binding
+    # contract is the ok type `T`, so drop a trailing `, E` at top level (commas
+    # inside `T`'s own generics are not split — depth-aware).
+    return _sig_split_params(inner)[0].strip()
 
 
 def _sig_option_inner(spelling: str, lang: str) -> str | None:
@@ -6492,7 +6672,10 @@ def _sig_option_inner(spelling: str, lang: str) -> str | None:
         if m:
             return m.group(1).strip()
     elif lang == "ts_dts":
-        m = re.fullmatch(r"(.+?)\s*\|\s*null", s)
+        # `.d.ts` optionals are `T | null`, and napi-rs emits a nullable PARAM
+        # as `T | undefined | null` (either union order). Strip the trailing
+        # `| null` / `| undefined` members to recover the inner `T`.
+        m = re.fullmatch(r"(.+?)\s*(?:\|\s*(?:null|undefined)\s*)+", s)
         if m:
             return m.group(1).strip()
     return None
@@ -6588,12 +6771,22 @@ def _sig_rust_param_type(param: str) -> str:
 
 def _sig_is_rust_receiver(param: str) -> bool:
     """True for a `self` receiver or a `py: Python<...>` GIL token — neither is
-    a cross-binding parameter, so both are stripped before the type compare."""
+    a cross-binding parameter, so both are stripped before the type compare.
+
+    pyo3 also spells the receiver by VALUE as the bound-instance smart pointers
+    `Py<Self>` / `PyRef<'_, Self>` / `PyRefMut<'_, Self>` / `Bound<'_, Self>`
+    (a `#[pymethods] fn streaming(slf: Py<Self>, ...)`), which carry the
+    instance the same way `&self` does — they are receivers, not cross-binding
+    params, so they are stripped too."""
     s = param.strip()
     if s in ("self", "&self", "&mut self") or s.startswith(("&self", "&mut self", "self")):
         return True
-    if ":" in s and re.search(r"\bPython\b", s.split(":", 1)[1]):
-        return True
+    if ":" in s:
+        ty = s.split(":", 1)[1]
+        if re.search(r"\bPython\b", ty):
+            return True
+        if re.search(r"\b(?:Py|PyRef|PyRefMut|Bound)\s*<[^>]*\bSelf\b", ty):
+            return True
     return False
 
 
@@ -6671,33 +6864,110 @@ def _sig_extract_ts_napi(ts_src: pathlib.Path, cls: str, method_camel: str) -> t
     return None
 
 
-def _sig_extract_ts_dts(dts: pathlib.Path, cls: str, method_camel: str) -> tuple[list[str], str] | None:
-    """TypeScript `.d.ts` signature (secondary cross-check): the
-    `methodCamel(<params>): <ret>` declaration inside `class cls` /
-    `interface cls`. Returns None when the `.d.ts` is absent or the class /
-    method is not found, so the check degrades to napi-only rather than
-    failing — the napi Rust fn is the authority."""
+def _ts_dts_files(dts: pathlib.Path) -> list[pathlib.Path]:
+    """The package `.d.ts` entry plus every sibling it re-exports with
+    `export * from './X'`. The published entry (`streaming-session.d.ts`)
+    layers its augmentations on top of the napi-generated `index.d.ts` via
+    `export * from './index'`, so the public type surface a consumer imports
+    is the UNION of both — the gate must read both to see a method the napi
+    layer declares but the wrapper does not redeclare."""
     if not dts.is_file():
-        return None
+        return []
+    out = [dts]
+    seen = {dts.resolve()}
     text = _read_source(dts)
+    for rel in re.findall(r"""export\s+\*\s+from\s+['"](\.[^'"]+)['"]""", text):
+        cand = (dts.parent / rel).with_suffix(".d.ts")
+        if cand.is_file() and cand.resolve() not in seen:
+            out.append(cand)
+            seen.add(cand.resolve())
+    return out
+
+
+def _ts_dts_class_bodies(dts: pathlib.Path, cls: str) -> list[str]:
+    """Every `class cls` / `interface cls` body across the public `.d.ts`
+    surface (entry + re-exported siblings). A class can appear more than once
+    — the napi `index.d.ts` declaration plus a `declare module` augmentation
+    in the wrapper — so all bodies are returned and the member is looked up in
+    each."""
+    bodies: list[str] = []
     cls_re = re.compile(r"\b(?:class|interface)\s+" + re.escape(cls) + r"\b[^{]*\{")
-    m = cls_re.search(text)
-    if not m:
-        return None
-    body = _balanced_body(text, m.end())
-    decl_re = re.compile(r"\b" + re.escape(method_camel) + r"\s*\(")
-    dm = decl_re.search(body)
-    if not dm:
-        return None
-    arglist, after = _sig_balanced_parens(body, dm.end())
-    rm = re.match(r"\s*:\s*([^;{\n]+)", body[after:])
-    ret = rm.group(1).strip() if rm else "void"
-    params: list[str] = []
-    for p in _sig_split_params(arglist):
-        # `name: Type` / `name?: Type` — keep the Type half.
-        pm = re.match(r"\s*[A-Za-z_]\w*\s*\??\s*:\s*(.+)", p)
-        params.append(pm.group(1).strip() if pm else p.strip())
-    return params, ret
+    for f in _ts_dts_files(dts):
+        text = _read_source(f)
+        for m in cls_re.finditer(text):
+            bodies.append(_balanced_body(text, m.end()))
+    return bodies
+
+
+# A member declaration in DECLARATION position inside a `.d.ts` class body:
+# line-leading (after any leading modifiers), never a member-access
+# (`foo.method`). The napi `index.d.ts` separates members by newline (no `;`),
+# the hand-written augmentations by `;`, so the anchor is line-start under
+# MULTILINE rather than a fixed terminator char. The modifier prefix covers
+# every shape napi-rs / the augmentations emit: `static` factories
+# (`static fromFile(...)`), `get`/`set` accessors (`get kind(): string` — the
+# napi `#[getter]` form), and `readonly` properties. The char right after the
+# name picks the form: `(` → method (a `get`/`set` accessor reads as a zero-arg
+# method, which is the correct property shape), `?`/`:` → bare property.
+def _ts_dts_member_decl_re(method_camel: str) -> re.Pattern[str]:
+    return re.compile(
+        r"(?m)^\s*(?:(?:static|readonly|get|set|public|abstract|declare)\s+)*"
+        + re.escape(method_camel)
+        + r"\s*(?P<kind>[(?:])"
+    )
+
+
+def _sig_extract_ts_dts(dts: pathlib.Path, cls: str, method_camel: str) -> tuple[list[str], str] | None:
+    """TypeScript `.d.ts` signature: the member named `method_camel` inside
+    `class cls` / `interface cls`, anywhere across the public `.d.ts` surface
+    (the package entry plus the `index.d.ts` it re-exports), in either form —
+
+      * a method call:    `methodCamel(<params>): <ret>` → those params + ret,
+      * a property:       `[readonly] methodCamel: <Type>` → a zero-arg
+        signature returning `<Type>` (the columnar reader's `readonly schema`
+        / `readonly dropped` accessors are properties, not `fn`s).
+
+    Returns None when the `.d.ts` is absent or the class / member is not
+    found. Absence is NOT silently a pass: `_sig_dts_public_member_missing`
+    promotes a missing declaration to an error for a row whose member IS part
+    of the public `.d.ts` surface, so dropping a declaration fails the gate;
+    only a member genuinely absent from the public `.d.ts` (a napi-only
+    streaming row whose `.d.ts` shape is not redeclared) degrades to
+    napi-as-authority."""
+    decl_re = _ts_dts_member_decl_re(method_camel)
+    for body in _ts_dts_class_bodies(dts, cls):
+        dm = decl_re.search(body)
+        if not dm:
+            continue
+        if dm.group("kind") == "(":
+            arglist, after = _sig_balanced_parens(body, dm.end())
+            rm = re.match(r"\s*:\s*([^;{\n]+)", body[after:])
+            ret = rm.group(1).strip() if rm else "void"
+            params: list[str] = []
+            for p in _sig_split_params(arglist):
+                # `name: Type` / `name?: Type` — keep the Type half.
+                pm = re.match(r"\s*[A-Za-z_]\w*\s*\??\s*:\s*(.+)", p)
+                params.append(pm.group(1).strip() if pm else p.strip())
+            return params, ret
+        # Property form: a zero-arg accessor. The match ended on `?`/`:`; the
+        # type runs from the `:` to the line / statement terminator.
+        colon = body.index(":", dm.start())
+        rm = re.match(r"\s*([^;{\n]+)", body[colon + 1 :])
+        return [], (rm.group(1).strip() if rm else "void")
+    return None
+
+
+def _sig_dts_public_member_missing(dts: pathlib.Path, cls: str, method_camel: str) -> bool:
+    """Is `cls.method_camel` part of the public `.d.ts` surface yet missing
+    its declaration? True only when the CLASS is declared somewhere in the
+    public surface but the MEMBER is not — i.e. a member that belongs in the
+    `.d.ts` was dropped. False when the class itself is absent (a row that is
+    legitimately napi-only at the `.d.ts` level — its class is not part of the
+    declared surface, so there is nothing to drop and the check degrades to
+    napi-as-authority)."""
+    return bool(_ts_dts_class_bodies(dts, cls)) and (
+        _sig_extract_ts_dts(dts, cls, method_camel) is None
+    )
 
 
 def _sig_extract_cpp(hpp: pathlib.Path, cls: str, method: str) -> tuple[list[str], str] | None:
@@ -6897,12 +7167,13 @@ def _sig_check_method_signatures(
     client_rs: pathlib.Path,
     ffi_src: pathlib.Path,
 ) -> list[str]:
-    """Signature-level gate for `[[method]]` rows carrying a `[method.signature]`
-    sub-table (opt-in). For each such row, extract every enrolled binding's
-    declared signature and verify it satisfies the spec through the TYPE_MAP +
-    per-binding overrides. A row WITHOUT a `[method.signature]` is skipped, so
-    this is a no-op on the un-enrolled surface — the name-only check is
-    unchanged for every existing row.
+    """Signature-level gate for `[[method]]` rows. FAIL-CLOSED enrollment: every
+    `[[method]]` row MUST carry a `[method.signature]` sub-table OR a
+    `NAME_ONLY_METHOD_ALLOWLIST` entry — a row with neither fails the gate, so a
+    new row can never be silently name-only (its signature drift would otherwise
+    hide while the gate stays green). For each row WITH a sub-table, extract
+    every enrolled binding's declared signature and verify it satisfies the spec
+    through the TYPE_MAP + per-binding overrides.
 
     A row's enrolled signature-langs are derived from its presence booleans
     (`python` → python, `typescript` → ts_napi + ts_dts, `cpp` → cpp, `rust`
@@ -6914,11 +7185,24 @@ def _sig_check_method_signatures(
     """
     errors: list[str] = []
     for row in method_rows:
-        signature = row.get("signature")
-        if not signature:
-            continue
         class_name = row.get("class")
         camel = row.get("name")
+        signature = row.get("signature")
+        if not signature:
+            # Fail-closed: a name-only row is allowed ONLY if it is explicitly
+            # enrolled in the allowlist (with its stated reason). Otherwise its
+            # signature is unpinned and a drift would hide — that is a gate
+            # failure, so the row must either grow a `[method.signature]` or
+            # earn an allowlist entry.
+            if (class_name, camel) not in NAME_ONLY_METHOD_ALLOWLIST:
+                errors.append(
+                    f"  {class_name}.{camel}: `[[method]]` row has neither a "
+                    f"`[method.signature]` sub-table nor a "
+                    f"`NAME_ONLY_METHOD_ALLOWLIST` entry — pin its signature "
+                    f"(preferred) or allowlist it with a documented reason so "
+                    f"no row is silently name-only."
+                )
+            continue
         if not class_name or not camel:
             errors.append(
                 f"  [[method]] row with `[method.signature]` missing `class`/"
@@ -6954,10 +7238,19 @@ def _sig_check_method_signatures(
             spec_dts = _sig_spec_for(signature, "ts_dts")
             if spec_dts is not None:
                 actual_dts = _sig_extract_ts_dts(ts_dts, ts_cls, ts_member)
-                # The `.d.ts` is a secondary cross-check: a present declaration
-                # is verified, an absent one is not an error (napi is authority).
                 if actual_dts is not None:
                     errors += _sig_compare_one(label, spec_dts, actual_dts, "ts_dts")
+                elif _sig_dts_public_member_missing(ts_dts, ts_cls, ts_member):
+                    # The class IS part of the public `.d.ts` surface but the
+                    # member's declaration is gone — dropping a pinned public
+                    # declaration fails the gate. (A row whose class is not in
+                    # the declared surface degrades to napi-as-authority.)
+                    errors.append(
+                        f"  {label}.ts_dts: `[method.signature]` pins this "
+                        f"binding and `{ts_cls}` is declared in the public "
+                        f".d.ts, but no `{ts_member}` declaration was found — "
+                        f"a removed public declaration must fail the gate."
+                    )
         if row.get("cpp"):
             spec = _sig_spec_for(signature, "cpp")
             if spec is not None:
@@ -11138,6 +11431,16 @@ def _run_selftest() -> int:
         assert not _sig_type_agrees("i32", "f64", "ts_napi"), "wrong-cell spelling"
         assert not _sig_type_agrees("usize", "HashMap<u8, u8>", "cpp"), "unmapped"
         assert not _sig_type_agrees("MysteryType", "size_t", "cpp"), "unknown canon"
+        # Zero overlap between platform-width `usize` and fixed-width `u64` on
+        # the C++ / C-ABI cells: a `u64` row that drifts to the platform-width
+        # spelling fails closed, and vice-versa. Before the split both spellings
+        # were accepted for both canonicals, so either drift passed silently.
+        assert _sig_type_agrees("u64", "uint64_t", "cpp")
+        assert not _sig_type_agrees("u64", "size_t", "cpp"), "u64 ≠ size_t (cpp)"
+        assert not _sig_type_agrees("usize", "uint64_t", "cpp"), "usize ≠ uint64_t (cpp)"
+        assert _sig_type_agrees("u64", "u64", "ffi")
+        assert not _sig_type_agrees("u64", "size_t", "ffi"), "u64 ≠ size_t (ffi)"
+        assert not _sig_type_agrees("usize", "u64", "ffi"), "usize ≠ u64 (ffi)"
 
     def _case_sig_option_structural() -> None:
         """`Option<T>` agrees with each binding's idiomatic optional wrapping;
@@ -11160,6 +11463,31 @@ def _run_selftest() -> int:
             )
             got = _sig_extract_python(src, "Foo", "bar")
             assert got == (["usize", "String"], "PyResult<()>"), got
+
+    def _case_sig_extract_python_py_self_receiver() -> None:
+        """A pyo3 by-value bound-self receiver (`slf: Py<Self>`) is stripped
+        like `&self` — it carries the instance, not a cross-binding param. The
+        `Client.streaming(slf: Py<Self>, py, callback)` shape surfaced this."""
+        with tempfile.TemporaryDirectory() as tmp:
+            src = pathlib.Path(tmp)
+            (src / "m.rs").write_text(
+                "#[pymethods]\nimpl Foo {\n"
+                "    fn streaming(slf: Py<Self>, py: Python<'_>, callback: Py<PyAny>)"
+                " -> PyResult<Py<Bar>> { todo!() }\n}\n",
+                encoding="utf-8",
+            )
+            got = _sig_extract_python(src, "Foo", "streaming")
+            assert got == (["Py<PyAny>"], "PyResult<Py<Bar>>"), got
+
+    def _case_sig_result_two_arg_unwrap() -> None:
+        """A Rust `Result<T, E>` return unwraps to the ok type `T` (the error
+        arm is a per-binding surface property), depth-aware so a comma inside
+        `T`'s generics is not split. Single-arg `Result<T>` / `Promise<T>` also
+        unwrap. The flat-file `Result<Vec<FlatFileRow>, Error>` surfaced this."""
+        assert _sig_unwrap_result("Result<Vec<crate::flatfiles::FlatFileRow>, Error>") == "Vec<crate::flatfiles::FlatFileRow>"
+        assert _sig_unwrap_result("Result<std::path::PathBuf, Error>") == "std::path::PathBuf"
+        assert _sig_unwrap_result("PyResult<()>") == "()"
+        assert _sig_unwrap_result("Promise<boolean>") == "boolean"
 
     def _case_sig_extract_ts_napi() -> None:
         """TS-napi extractor reads the napi Rust `fn`, matching the camelCased
@@ -11187,6 +11515,70 @@ def _run_selftest() -> int:
             )
             got = _sig_extract_ts_dts(dts, "Foo", "barBaz")
             assert got == (["number"], "void"), got
+
+    def _case_sig_extract_ts_dts_property_and_modifiers() -> None:
+        """The `.d.ts` extractor reads PROPERTY declarations (`readonly name:
+        T`) as zero-arg accessors, follows napi's getter / static modifiers,
+        and unwraps a `Promise<T>` async return. Without these the columnar
+        reader's `readonly dropped: number` / a `get`-accessor / a `static`
+        factory all returned None and the gate passed on absence."""
+        with tempfile.TemporaryDirectory() as tmp:
+            dts = pathlib.Path(tmp) / "index.d.ts"
+            dts.write_text(
+                "export class Foo {\n"
+                "  readonly dropped: number\n"
+                "  get kind(): string\n"
+                "  static fromFile(path: string): Foo\n"
+                "  awaitDrain(timeoutMs: number): Promise<boolean>\n"
+                "  setCpu(n: number | undefined | null): void\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            assert _sig_extract_ts_dts(dts, "Foo", "dropped") == ([], "number")
+            assert _sig_extract_ts_dts(dts, "Foo", "kind") == ([], "string")
+            assert _sig_extract_ts_dts(dts, "Foo", "fromFile") == (["string"], "Foo")
+            # `Promise<boolean>` unwraps to `boolean`, agreeing with a `bool` spec.
+            assert _sig_type_agrees(
+                "bool", _sig_unwrap_result(_sig_extract_ts_dts(dts, "Foo", "awaitDrain")[1]), "ts_dts"
+            )
+            # `number | undefined | null` is the idiomatic `Option<usize>` param.
+            assert _sig_type_agrees(
+                "Option<usize>", _sig_extract_ts_dts(dts, "Foo", "setCpu")[0][0], "ts_dts"
+            )
+
+    def _case_sig_ts_dts_follows_reexport() -> None:
+        """The extractor reads the package entry AND the `index.d.ts` it
+        re-exports with `export * from './index'`, so a member declared only on
+        the napi layer is still found (the real surface is the union)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            d = pathlib.Path(tmp)
+            (d / "index.d.ts").write_text(
+                "export class Config {\n  get workerThreads(): number | null\n}\n",
+                encoding="utf-8",
+            )
+            (d / "entry.d.ts").write_text(
+                "export * from './index'\n", encoding="utf-8"
+            )
+            got = _sig_extract_ts_dts(d / "entry.d.ts", "Config", "workerThreads")
+            assert got == ([], "number | null"), got
+
+    def _case_sig_ts_dts_absence_promotion() -> None:
+        """A MISSING `.d.ts` declaration is an error when the class IS part of
+        the public surface (a dropped public member), but degrades to
+        napi-as-authority when the class itself is absent (a legitimately
+        napi-only row). This is the FINDING-2 fail-on-absence rule."""
+        with tempfile.TemporaryDirectory() as tmp:
+            d = pathlib.Path(tmp)
+            (d / "index.d.ts").write_text(
+                "export class StreamView {\n  isStreaming(): boolean\n}\n",
+                encoding="utf-8",
+            )
+            # Class present, member present → not missing.
+            assert not _sig_dts_public_member_missing(d / "index.d.ts", "StreamView", "isStreaming")
+            # Class present, member dropped → missing (must fail the gate).
+            assert _sig_dts_public_member_missing(d / "index.d.ts", "StreamView", "ringCapacity")
+            # Class absent entirely → NOT promoted (napi-only degradation).
+            assert not _sig_dts_public_member_missing(d / "index.d.ts", "RecordBatchStream", "dropped")
 
     def _case_sig_extract_cpp() -> None:
         """C++ extractor reads the in-class decl, return type bounded by the
@@ -11551,20 +11943,29 @@ def _run_selftest() -> int:
             bad = _sig_check_method_signatures(_sig_row(), **paths)
             assert any("ffi" in e and "arity mismatch" in e for e in bad), bad
 
-    def _case_sig_no_subtable_is_noop() -> None:
-        """A `[[method]]` row WITHOUT a `[method.signature]` is never signature-
-        checked — the opt-in guarantee that keeps the real surface a no-op."""
+    def _case_sig_name_only_fails_closed() -> None:
+        """FINDING-1 fail-closed enrollment: a `[[method]]` row WITHOUT a
+        `[method.signature]` FAILS unless it is in `NAME_ONLY_METHOD_ALLOWLIST`.
+        A synthetic unpinned + unlisted row trips; the same row listed passes.
+        This is the guarantee that no NEW row can be silently name-only."""
         rows = [{"class": "Widget", "name": "resize",
                  "python": True, "typescript": True, "cpp": True}]
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
-            # Deliberately broken sources; must be ignored (no signature).
             paths = _write_sig_tree(
                 root, py_params="n: bool", ts_ret="x", cpp_params="x y",
                 rust_ret="()", ffi_params="z: bool",
             )
+            # Not pinned, not allowlisted → must fail closed.
             errs = _sig_check_method_signatures(rows, **paths)
-            assert errs == [], f"row without [method.signature] must be a no-op; got {errs!r}"
+            assert any("neither a `[method.signature]`" in e for e in errs), errs
+            # Allowlisted → passes (no signature checked, enrollment satisfied).
+            NAME_ONLY_METHOD_ALLOWLIST[("Widget", "resize")] = "selftest fixture"
+            try:
+                ok = _sig_check_method_signatures(rows, **paths)
+            finally:
+                del NAME_ONLY_METHOD_ALLOWLIST[("Widget", "resize")]
+            assert ok == [], f"allowlisted name-only row must pass; got {ok!r}"
 
     def _case_sig_skip_langs_opts_lang_out() -> None:
         """`skip_langs` opts a present binding out of the signature check even
@@ -11662,8 +12063,13 @@ def _run_selftest() -> int:
     _case("sig type-map — forward map + usize→f64 sanction + fail-closed", _case_sig_type_map_forward_and_sanction)
     _case("sig type-map — Option<T> structural per binding", _case_sig_option_structural)
     _case("sig extractor — Python pyo3 fn sig", _case_sig_extract_python)
+    _case("sig extractor — Python Py<Self> receiver stripped", _case_sig_extract_python_py_self_receiver)
+    _case("sig type-map — Result<T,E> / Promise<T> return unwrap", _case_sig_result_two_arg_unwrap)
     _case("sig extractor — TS napi Rust fn sig", _case_sig_extract_ts_napi)
     _case("sig extractor — TS .d.ts decl", _case_sig_extract_ts_dts)
+    _case("sig extractor — TS .d.ts property + getter/static/Promise", _case_sig_extract_ts_dts_property_and_modifiers)
+    _case("sig extractor — TS .d.ts follows export-* re-export", _case_sig_ts_dts_follows_reexport)
+    _case("sig gate — TS .d.ts absence promoted for public member", _case_sig_ts_dts_absence_promotion)
     _case("sig extractor — C++ in-class decl", _case_sig_extract_cpp)
     _case("sig extractor — Rust core impl fn", _case_sig_extract_rust)
     _case("sig extractor — FFI extern fn", _case_sig_extract_ffi)
@@ -11682,7 +12088,7 @@ def _run_selftest() -> int:
     _case("sig orchestrator — param-ORDER drift fails", _case_sig_order_drift_fails)
     _case("sig orchestrator — RETURN drift fails", _case_sig_return_drift_fails)
     _case("sig orchestrator — per-binding override honoured", _case_sig_override_honoured)
-    _case("sig orchestrator — row without sub-table is a no-op", _case_sig_no_subtable_is_noop)
+    _case("sig orchestrator — name-only row fails closed unless allowlisted", _case_sig_name_only_fails_closed)
     _case("sig orchestrator — skip_langs opts a present lang out", _case_sig_skip_langs_opts_lang_out)
     _case("sig orchestrator — [ffi_symbol.signature] checked + drift fails", _case_ffi_symbol_signature_checked)
     _case("sig orchestrator — live method surface engaged + clean", _case_sig_live_surface_is_clean)

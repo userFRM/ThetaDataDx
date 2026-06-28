@@ -1034,6 +1034,10 @@ python = true
 typescript = true
 cpp = true
 rust = true         # `Client::historical()` view accessor
+# Zero-arg accessor; the returned historical view IS the cross-binding
+# contract (a rename / drop of the view trips the gate).
+[method.signature]
+returns = "HistoricalView"
 
 [[method]]
 class = "Client"
@@ -1042,6 +1046,8 @@ python = true
 typescript = true
 cpp = true
 rust = true         # `Client::stream()` view accessor
+[method.signature]
+returns = "StreamView"
 
 [[method]]
 class = "Client"
@@ -1050,6 +1056,8 @@ python = true
 typescript = true
 cpp = true
 rust = true         # `Client::flat_files()` view accessor
+[method.signature]
+returns = "FlatFilesNamespace"
 
 # Context-managed streaming session opener. A managed-binding ergonomic that
 # pairs `start_streaming` with a scope-exit `stop_streaming` + drain barrier:
@@ -1068,6 +1076,13 @@ python = true       # `with client.streaming(callback) as session:` context mana
 typescript = true   # `await using session = await client.streaming(callback)` wrapper
 cpp = false         # C++ uses the `Client` RAII destructor, no `streaming()` factory
 rust = false        # Rust uses scoped streaming APIs, no `streaming()` factory
+# Per-event callback in, context-managed session out. The TypeScript session
+# is the hand-written `.d.ts` wrapper with no napi `fn`, so `ts_napi` is
+# skipped (mirroring `startStreaming`); the `.d.ts` shape is cross-checked.
+[method.signature]
+params = ["Callback"]
+returns = "StreamingSession"
+skip_langs = ["ts_napi"]
 
 # ── Inline client construction (first-class API-key entry points) ──
 #
@@ -1100,6 +1115,9 @@ python = false      # Python uses the `Client(api_key=...)` constructor kwargs
 typescript = false  # TypeScript uses the `connectWith` options-object factory
 cpp = true          # `Client::builder()` fluent builder
 rust = true         # `Client::builder()` fluent builder
+# Zero-arg fluent entry; the returned `ClientBuilder` is the contract.
+[method.signature]
+returns = "ClientBuilder"
 
 [[method]]
 class = "Client"
@@ -1108,6 +1126,12 @@ python = false      # Python uses the `Client(api_key=...)` constructor kwargs
 typescript = true   # `Client.connectWith({ apiKey, historicalType, ... })` napi factory
 cpp = false         # C++ uses the `Client::builder()` fluent builder
 rust = false        # Rust uses the `Client::builder()` fluent builder
+# TypeScript-only inline factory: options object in, connected `Client` out.
+# The other bindings reach the surface through their own inline entry points
+# (tracked by `builder` / the constructor), so the row pins TypeScript alone.
+[method.signature]
+params = ["ClientConnectOptions"]
+returns = "Client"
 
 # Two Rust-core ergonomic conveniences carry no binding twin by design,
 # so they are intentional asymmetries rather than parity gaps:
@@ -1152,6 +1176,11 @@ rust = false        # Rust uses the `Client::builder()` fluent builder
 # orphan scan over this namespace fails if a binding grows a fetch method with no
 # enrolling row, so a future dataset accessor cannot ship untracked.
 
+# The five named fetch convenience methods share one shape: a single
+# date-string param, returning the decoded row collection. Rust takes `&str`
+# and returns the owned `Vec<FlatFileRow>` (the `FlatFileRowList` return
+# canonical carries that per-binding split); the managed bindings take their
+# String spelling and return the `FlatFileRowList` value object.
 [[method]]
 class = "FlatFilesNamespace"
 name = "optionTradeQuote"
@@ -1159,6 +1188,9 @@ python = true
 typescript = true
 cpp = true
 rust = true
+[method.signature]
+params = ["String"]
+returns = "FlatFileRowList"
 
 [[method]]
 class = "FlatFilesNamespace"
@@ -1167,6 +1199,9 @@ python = true
 typescript = true
 cpp = true
 rust = true
+[method.signature]
+params = ["String"]
+returns = "FlatFileRowList"
 
 [[method]]
 class = "FlatFilesNamespace"
@@ -1175,6 +1210,9 @@ python = true
 typescript = true
 cpp = true
 rust = true
+[method.signature]
+params = ["String"]
+returns = "FlatFileRowList"
 
 [[method]]
 class = "FlatFilesNamespace"
@@ -1183,6 +1221,9 @@ python = true
 typescript = true
 cpp = true
 rust = true
+[method.signature]
+params = ["String"]
+returns = "FlatFileRowList"
 
 [[method]]
 class = "FlatFilesNamespace"
@@ -1191,7 +1232,15 @@ python = true
 typescript = true
 cpp = true
 rust = true
+[method.signature]
+params = ["String"]
+returns = "FlatFileRowList"
 
+# The generic string-keyed dispatcher. The managed bindings take three String
+# params (sec-type, req-type, date); the Rust core takes the typed
+# `(SecType, ReqType, &str)` enums, so its param list is a per-lang override
+# (typed enums have no managed twin to pin canonically). Same row-collection
+# return as the named convenience methods.
 [[method]]
 class = "FlatFilesNamespace"
 name = "request"
@@ -1199,6 +1248,10 @@ python = true
 typescript = true
 cpp = true
 rust = true
+[method.signature]
+params = ["String", "String", "String"]
+returns = "FlatFileRowList"
+rust_params = ["FlatFileSecType", "FlatFileReqType", "String"]
 
 # The blob-to-disk helper writes a flat-file blob straight to a path in the vendor
 # wire format (csv / jsonl) without decoding into rows. Its home class and method
@@ -1216,6 +1269,17 @@ python = true
 typescript = true
 cpp = true
 rust = true         # `FlatFiles::to_path` on the `Client::flat_files()` view
+# Five params (sec-type, req-type, date, dest-path, wire-format). The first
+# three are Strings everywhere; the dest-path + format diverge per binding
+# (typed `impl AsRef<Path>` + `FlatFileFormat` enum on Rust; an optional
+# format String on the managed bindings), so the param list is pinned per
+# lang. The return is the written path (managed String / Rust `PathBuf`) or
+# `void` (C++ writes in place) — carried by the `WrittenPath` canonical.
+[method.signature]
+params = ["String", "String", "String", "String", "Option<String>"]
+returns = "WrittenPath"
+cpp_params = ["String", "String", "String", "String", "String"]
+rust_params = ["FlatFileSecType", "FlatFileReqType", "String", "DestPath", "FlatFileFormat"]
 
 # ── StreamView signature specs (the `client.stream()` lifecycle view) ──
 #
@@ -1401,8 +1465,12 @@ name = "ringOccupancy"
 python = true
 typescript = true
 cpp = true
+# Core / Python return the platform-width `usize`; the C++ binding mirrors the
+# fixed-width `uint64_t` of the C ABI accessor it wraps, so the C++ return is
+# pinned to the fixed-width canonical for that lang alone.
 [method.signature]
 returns = "usize"
+cpp_returns = "u64"
 
 [[method]]
 class = "StreamView"
@@ -1412,6 +1480,7 @@ typescript = true
 cpp = true
 [method.signature]
 returns = "usize"
+cpp_returns = "u64"
 
 [[method]]
 class = "StreamView"
@@ -1648,8 +1717,12 @@ name = "ringOccupancy"
 python = true
 typescript = true
 cpp = true
+# Core / Python return the platform-width `usize`; the C++ binding mirrors the
+# fixed-width `uint64_t` of the C ABI accessor it wraps (see the StreamView
+# twin), so the C++ return is pinned to the fixed-width canonical for that lang.
 [method.signature]
 returns = "usize"
+cpp_returns = "u64"
 
 [[method]]
 class = "StreamingClient"
@@ -1659,6 +1732,7 @@ typescript = true
 cpp = true
 [method.signature]
 returns = "usize"
+cpp_returns = "u64"
 
 [[method]]
 class = "StreamingClient"
@@ -1860,6 +1934,10 @@ name = "production"
 python = true
 typescript = true
 cpp = true
+# Zero-arg env-tier preset factory; returns a `Config` (`Self` on the managed
+# constructors, the value type in C++).
+[method.signature]
+returns = "Config"
 
 [[method]]
 class = "Config"
@@ -1867,6 +1945,8 @@ name = "dev"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "Config"
 
 [[method]]
 class = "Config"
@@ -1874,6 +1954,8 @@ name = "stage"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "Config"
 
 # Dotenv sourcing for the configuration: read the cluster selector
 # (`THETADATA_HISTORICAL_TYPE`) and the documented host overrides from a
@@ -1890,13 +1972,26 @@ name = "fromDotenv"
 python = true
 typescript = true   # `Config.fromDotenv(path)` napi factory
 cpp = true
+# `.env` path in, `Config` out.
+[method.signature]
+params = ["String"]
+returns = "Config"
 
+# The wait-strategy / flush-mode knobs diverge on C++: the managed bindings
+# pass / return the mode as a String name, while C++ uses the integer enum
+# code (`int`), so those cells are per-lang overrides. The iteration-count and
+# park-microsecond knobs are plain integers everywhere (napi widens the small
+# counts to `f64`, its native number type — the `usize`→`f64` sanction family).
 [[method]]
 class = "Config"
 name = "setFlushMode"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+params = ["String"]
+returns = "()"
+cpp_params = ["i32"]
 
 [[method]]
 class = "Config"
@@ -1904,6 +1999,9 @@ name = "flushMode"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "String"
+cpp_returns = "i32"
 
 [[method]]
 class = "Config"
@@ -1911,6 +2009,10 @@ name = "setWaitStrategy"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+params = ["String"]
+returns = "()"
+cpp_params = ["i32"]
 
 [[method]]
 class = "Config"
@@ -1918,6 +2020,9 @@ name = "waitStrategy"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "String"
+cpp_returns = "i32"
 
 [[method]]
 class = "Config"
@@ -1925,6 +2030,10 @@ name = "setWaitSpinIters"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+params = ["u32"]
+returns = "()"
+ts_napi_params = ["f64"]
 
 [[method]]
 class = "Config"
@@ -1932,6 +2041,8 @@ name = "waitSpinIters"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "u32"
 
 [[method]]
 class = "Config"
@@ -1939,6 +2050,10 @@ name = "setWaitYieldIters"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+params = ["u32"]
+returns = "()"
+ts_napi_params = ["f64"]
 
 [[method]]
 class = "Config"
@@ -1946,6 +2061,8 @@ name = "waitYieldIters"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "u32"
 
 [[method]]
 class = "Config"
@@ -1953,6 +2070,9 @@ name = "setWaitParkUs"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+params = ["u64"]
+returns = "()"
 
 [[method]]
 class = "Config"
@@ -1960,13 +2080,23 @@ name = "waitParkUs"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "u64"
 
+# The consumer-CPU pin is an optional core index. The managed bindings carry
+# it as an optional integer (`Option<usize>` / `Option<f64>` / `Option<u32>`);
+# C++ sentinel-encodes the option as a bare `int64_t` (-1 = unpinned), so the
+# C++ param + return are per-lang `i64` overrides.
 [[method]]
 class = "Config"
 name = "setConsumerCpu"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+params = ["Option<usize>"]
+returns = "()"
+cpp_params = ["i64"]
 
 [[method]]
 class = "Config"
@@ -1974,6 +2104,9 @@ name = "consumerCpu"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "Option<usize>"
+cpp_returns = "i64"
 
 # The `flushMode` / `deriveOhlcvc` readback getters are exposed on
 # every binding: Python (`Config.flush_mode` / `.derive_ohlcvc`
@@ -1991,6 +2124,8 @@ name = "deriveOhlcvc"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "bool"
 
 # The historical (MDDS) and streaming (FPSS) environments are read back
 # through two independent getters. The two channels are selected
@@ -2015,6 +2150,9 @@ name = "historicalEnvironment"
 python = true
 typescript = true
 cpp = true
+# Reads back the selector string (`"PROD"` / `"STAGE"`); C++ `std::string`.
+[method.signature]
+returns = "String"
 
 [[method]]
 class = "Config"
@@ -2022,6 +2160,8 @@ name = "streamingEnvironment"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "String"
 
 # Custom reconnect-policy callback registration. A field-shaped getter
 # is meaningless for a callback, so the registration is tracked as a
@@ -2048,12 +2188,17 @@ cpp = true
 # collector's struct key. Dropping or renaming a builder on any binding
 # trips the per-method gate.
 
+# Each builder is zero-arg and returns the built fluent subscription value
+# object (`PySubscription` / napi `Subscription` / C++ `FluentSubscription`),
+# carried by the `BuiltSubscription` return canonical.
 [[method]]
 class = "Contract"
 name = "quote"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "BuiltSubscription"
 
 [[method]]
 class = "Contract"
@@ -2061,6 +2206,8 @@ name = "trade"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "BuiltSubscription"
 
 [[method]]
 class = "Contract"
@@ -2068,6 +2215,8 @@ name = "openInterest"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "BuiltSubscription"
 
 [[method]]
 class = "Contract"
@@ -2075,6 +2224,8 @@ name = "marketValue"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "BuiltSubscription"
 
 [[method]]
 class = "SecType"
@@ -2082,6 +2233,8 @@ name = "fullTrades"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "BuiltSubscription"
 
 [[method]]
 class = "SecType"
@@ -2089,6 +2242,8 @@ name = "fullOpenInterest"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "BuiltSubscription"
 
 # ── Subscription getters (the built fluent subscription handle) ──
 #
@@ -2407,6 +2562,9 @@ python = true
 typescript = false
 cpp = false
 rust = true         # `pub fn session_uuid` on the Rust unified client
+# Zero-arg readback of the session UUID string (Python + Rust).
+[method.signature]
+returns = "String"
 
 [[method]]
 class = "Client"
@@ -2415,6 +2573,10 @@ python = true
 typescript = false
 cpp = false
 rust = true         # `pub fn subscription_info` on the Rust unified client
+# Active-subscription snapshot: Python a `Vec<(root, kind)>` tuple list, the
+# Rust core the opaque `SubscriptionInfo` struct (per-binding return shapes).
+[method.signature]
+returns = "SubscriptionInfo"
 
 # ─── Value-field TYPE parity ──────────────────────────────────────────
 #

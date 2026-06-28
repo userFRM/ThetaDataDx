@@ -1336,11 +1336,19 @@ def test_sig_orchestrator_return_drift_trips(tmp: pathlib.Path) -> None:
     assert any("cpp" in e and "return mismatch" in e for e in errs), errs
 
 
-def test_sig_no_subtable_is_noop(tmp: pathlib.Path) -> None:
-    """A `[[method]]` row without `[method.signature]` is never checked."""
-    paths = _sig_tree(tmp, py_params="n: bool")  # would drift IF checked
+def test_sig_name_only_fails_closed(tmp: pathlib.Path) -> None:
+    """Fail-closed enrollment: a `[[method]]` row without `[method.signature]`
+    FAILS unless it is in `NAME_ONLY_METHOD_ALLOWLIST`; the allowlisted row
+    passes. No new row can be silently name-only."""
+    paths = _sig_tree(tmp, py_params="n: bool")
     rows = [{"class": "W", "name": "resize", "python": True}]
-    assert cbp._sig_check_method_signatures(rows, **paths) == []
+    errs = cbp._sig_check_method_signatures(rows, **paths)
+    assert any("neither a `[method.signature]`" in e for e in errs), errs
+    cbp.NAME_ONLY_METHOD_ALLOWLIST[("W", "resize")] = "test fixture"
+    try:
+        assert cbp._sig_check_method_signatures(rows, **paths) == []
+    finally:
+        del cbp.NAME_ONLY_METHOD_ALLOWLIST[("W", "resize")]
 
 
 def test_sig_extractor_getter_prefix_and_decl_position() -> None:
@@ -1540,7 +1548,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         _check("sig orchestrator RETURN drift trips", lambda: test_sig_orchestrator_return_drift_trips(pathlib.Path(tmp)))
     with tempfile.TemporaryDirectory() as tmp:
-        _check("sig no sub-table is a no-op", lambda: test_sig_no_subtable_is_noop(pathlib.Path(tmp)))
+        _check("sig name-only fails closed unless allowlisted", lambda: test_sig_name_only_fails_closed(pathlib.Path(tmp)))
     # Route-B signature specs ENGAGED (Phase 4a): extractor fixes + opaque/FFI
     # type handling + skip_langs + the live engaged-and-clean surface.
     _check("sig extractor get_ prefix + decl position", test_sig_extractor_getter_prefix_and_decl_position)
