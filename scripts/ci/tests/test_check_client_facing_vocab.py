@@ -65,8 +65,8 @@ def _flagged(root: pathlib.Path, rel: str) -> bool:
 def test_leak_in_readme_flagged() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = pathlib.Path(tmp)
-        _write(root, "ffi/README.md", "Reconnect FPSS, drain the previous generation.\n")
-        _expect("README leak flagged", _flagged(root, "ffi/README.md"))
+        _write(root, "thetadatadx-ffi/README.md", "Reconnect FPSS, drain the previous generation.\n")
+        _expect("README leak flagged", _flagged(root, "thetadatadx-ffi/README.md"))
 
 
 def test_leak_in_example_flagged() -> None:
@@ -74,10 +74,10 @@ def test_leak_in_example_flagged() -> None:
         root = pathlib.Path(tmp)
         _write(
             root,
-            "sdks/python/examples/quote.py",
+            "thetadatadx-py/examples/quote.py",
             '"""Match-case dispatch on typed FPSS event classes."""\n',
         )
-        _expect("example leak flagged", _flagged(root, "sdks/python/examples/quote.py"))
+        _expect("example leak flagged", _flagged(root, "thetadatadx-py/examples/quote.py"))
 
 
 def test_leak_in_dts_flagged() -> None:
@@ -85,12 +85,12 @@ def test_leak_in_dts_flagged() -> None:
         root = pathlib.Path(tmp)
         _write(
             root,
-            "sdks/typescript/streaming-session.d.ts",
+            "thetadatadx-ts/streaming-session.d.ts",
             "/** tear the FPSS session down. */\nexport declare class X {}\n",
         )
         _expect(
             "published .d.ts leak flagged",
-            _flagged(root, "sdks/typescript/streaming-session.d.ts"),
+            _flagged(root, "thetadatadx-ts/streaming-session.d.ts"),
         )
 
 
@@ -113,12 +113,12 @@ def test_leak_in_config_default_flagged() -> None:
         root = pathlib.Path(tmp)
         _write(
             root,
-            "crates/thetadatadx/config.default.toml",
+            "thetadatadx-rs/config.default.toml",
             "# THETADATA_FPSS_TYPE = prod\n",
         )
         _expect(
             "config.default.toml leak flagged",
-            _flagged(root, "crates/thetadatadx/config.default.toml"),
+            _flagged(root, "thetadatadx-rs/config.default.toml"),
         )
 
 
@@ -159,12 +159,12 @@ def test_contributor_and_internal_docs_exempt() -> None:
         _write(root, "SECURITY.md", "The FPSS TLS connection pins the SPKI.\n")
         _write(
             root,
-            "crates/thetadatadx/proto/MAINTENANCE.md",
+            "thetadatadx-rs/proto/MAINTENANCE.md",
             "The mdds.proto wire contract.\n",
         )
         _write(
             root,
-            "crates/thetadatadx/benches/README.md",
+            "thetadatadx-rs/benches/README.md",
             "FPSS Framing (`fpss/framing.rs`) benchmarks.\n",
         )
         _expect("contributor + internal docs exempt", _hits(root) == [])
@@ -177,7 +177,7 @@ def test_internal_src_not_swept() -> None:
         # not part of the swept client-facing surface.
         _write(
             root,
-            "sdks/typescript/src/fpss_client.rs",
+            "thetadatadx-ts/src/fpss_client.rs",
             "/// Start the FPSS streaming connection.\n",
         )
         _expect("internal src/ not swept", _hits(root) == [])
@@ -188,7 +188,7 @@ def test_generated_path_exempt() -> None:
         root = pathlib.Path(tmp)
         _write(
             root,
-            "sdks/typescript/src/_generated/fpss_event_classes.rs",
+            "thetadatadx-ts/src/_generated/fpss_event_classes.rs",
             "/// FPSS Quote tick.\n",
         )
         _expect("_generated path exempt", _hits(root) == [])
@@ -216,7 +216,7 @@ def test_clean_channel_prose_passes() -> None:
         root = pathlib.Path(tmp)
         _write(
             root,
-            "ffi/README.md",
+            "thetadatadx-ffi/README.md",
             "Reconnect streaming, drain the previous generation.\n"
             "GET /v3/system/historical/status returns the historical status.\n",
         )

@@ -100,8 +100,8 @@ multiple-versions = "warn"
 wildcards = "deny"
 # Allow wildcard version requirements on path dependencies (intra-
 # workspace) only. Public crates published to crates.io cannot use
-# path-only deps, so this is safe for `thetadatadx-cli`, `thetadatadx-
-# ffi`, and the SDK shims that pull in `thetadatadx` via path.
+# path-only deps, so this is safe for `thetadatadx-ffi` and the SDK
+# shims that pull in `thetadatadx` via path.
 allow-wildcard-paths = true
 highlight = "all"
 # Allow cargo-deny to skip duplicate-version noise rooted at these

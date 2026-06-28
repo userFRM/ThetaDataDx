@@ -63,8 +63,8 @@ jobs:
         with:
           filters: |
             perf:
-              - 'crates/**'
-              - 'ffi/**'
+              - 'thetadatadx-rs/**'
+              - 'thetadatadx-ffi/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
               - 'scripts/ci/check_perf_gate.py'

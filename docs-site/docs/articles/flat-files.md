@@ -68,7 +68,7 @@ auto ipc = rows.to_arrow_ipc();  // std::vector<uint8_t>
 curl 'http://127.0.0.1:25503/v3/flatfile/option/trade_quote?date=20250303&format=csv' -o trade_quotes.csv
 ```
 
-The server streams the response body in chunks, so downloads of any size run in bounded memory. The same surface is available from the CLI: `thetadatadx flatfile trade_quote 20250303 --format csv -o trade_quotes.csv`.
+The server streams the response body in chunks, so downloads of any size run in bounded memory.
 
 </template>
 
@@ -79,5 +79,5 @@ The server streams the response body in chunks, so downloads of any size run in 
 Flat files are large — a whole-universe option `trade_quote` day commonly exceeds 100 MB and tens of millions of rows.
 
 - The decoded-rows path materializes everything in memory before returning; reserve it for machines with headroom.
-- The to-disk path (`flatfile_to_path`, the HTTP route, the CLI) keeps peak memory bounded and is the right default for ETL.
+- The to-disk path (`flatfile_to_path`, the HTTP route) keeps peak memory bounded and is the right default for ETL.
 - Transient download failures retry automatically with backoff; tune attempts and backoff via the `flatfiles_*` [configuration](/articles/configuration) fields.

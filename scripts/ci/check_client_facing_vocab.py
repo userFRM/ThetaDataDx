@@ -44,35 +44,33 @@ SELF_NAME = pathlib.Path(__file__).name
 # Glob patterns (relative to the repo root) for every file a user reads as
 # product documentation. Listed explicitly rather than walked-by-extension
 # because the client-facing surface is a curated subset: a TS source file
-# under `sdks/typescript/src/` is internal and keeps its transport names,
+# under `thetadatadx-ts/src/` is internal and keeps its transport names,
 # while the published `index.d.ts` / `streaming-session.d.ts` it generates is
 # client-facing and must not. The exempt rules below carve the few internal
 # files that happen to match these globs.
 SWEEP_GLOBS = (
     # READMEs the integrator reads.
     "README.md",
-    "sdks/README.md",
-    "sdks/python/README.md",
-    "sdks/typescript/README.md",
-    "sdks/cpp/README.md",
-    "ffi/README.md",
-    "tools/cli/README.md",
+    "thetadatadx-py/README.md",
+    "thetadatadx-ts/README.md",
+    "thetadatadx-cpp/README.md",
+    "thetadatadx-ffi/README.md",
     "tools/mcp/README.md",
     "tools/server/README.md",
     # Published examples, every language.
-    "sdks/python/examples/**/*",
-    "sdks/typescript/examples/**/*",
-    "sdks/cpp/examples/**/*",
+    "thetadatadx-py/examples/**/*",
+    "thetadatadx-ts/examples/**/*",
+    "thetadatadx-cpp/examples/**/*",
     # Published type declarations (the IDE-hover surface).
-    "sdks/python/**/*.pyi",
-    "sdks/typescript/**/*.d.ts",
-    "sdks/cpp/include/**/*.h",
-    "sdks/cpp/include/**/*.hpp",
+    "thetadatadx-py/**/*.pyi",
+    "thetadatadx-ts/**/*.d.ts",
+    "thetadatadx-cpp/include/**/*.h",
+    "thetadatadx-cpp/include/**/*.hpp",
     # User-facing docs site + the published OpenAPI contract.
     "docs-site/docs/**/*.md",
     "docs-site/docs/public/**/*.yaml",
     # User-editable config + the developer helper scripts shipped in-tree.
-    "crates/thetadatadx/config.default.toml",
+    "thetadatadx-rs/config.default.toml",
     "scripts/dev/*.py",
 )
 
@@ -93,8 +91,8 @@ EXEMPT_PATH_FRAGMENTS = (
     # Contributor / internal documentation (not the product-usage surface).
     "/CONTRIBUTING.md",
     "/SECURITY.md",
-    "/crates/thetadatadx/proto/MAINTENANCE.md",
-    "/crates/thetadatadx/benches/README.md",
+    "/thetadatadx-rs/proto/MAINTENANCE.md",
+    "/thetadatadx-rs/benches/README.md",
     # CI config, internal source trees, generated wire includes, build output.
     "/.github/workflows/",
     "/src/",

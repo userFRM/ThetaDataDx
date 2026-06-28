@@ -2,9 +2,9 @@
 """Detect cross-Cargo.lock dependency-version drift.
 
 The repository tracks five independent `Cargo.lock` files:
-  - `Cargo.lock` (workspace root: core crates + ffi + tools/cli)
-  - `sdks/python/Cargo.lock` (pyo3 bindings)
-  - `sdks/typescript/Cargo.lock` (napi bindings)
+  - `Cargo.lock` (workspace root: core crate + ffi)
+  - `thetadatadx-py/Cargo.lock` (pyo3 bindings)
+  - `thetadatadx-ts/Cargo.lock` (napi bindings)
   - `tools/server/Cargo.lock` (HTTP server)
   - `tools/mcp/Cargo.lock` (MCP harness)
 
@@ -17,7 +17,7 @@ to every shipped binding.
 
 Failure mode this catches:
   - workspace bumps `tokio = "1.52"` to `1.53.0`
-  - sdks/python/Cargo.lock keeps tokio 1.52.3 because nothing
+  - thetadatadx-py/Cargo.lock keeps tokio 1.52.3 because nothing
     re-resolved it
   - the Python wheel ships an older runtime with a known issue
 
@@ -78,7 +78,7 @@ SDK_OWNED = {
 # old transport schemas). The default-mode drift check used to pass while
 # `--strict` flagged a `pyo3` patch split and an `arrow-ipc /
 # arrow-select` minor split between workspace root and
-# sdks/python Cargo.lock. Pinning these in the default set keeps the
+# thetadatadx-py Cargo.lock. Pinning these in the default set keeps the
 # gate strict enough to catch the binding-ABI class of drift without
 # burning operators on legitimately-divergent leaf transitives.
 BINDING_CRITICAL = {
@@ -123,8 +123,8 @@ def main() -> int:
     repo_root = Path(__file__).resolve().parent.parent.parent
     lockfiles = [
         repo_root / "Cargo.lock",
-        repo_root / "sdks" / "python" / "Cargo.lock",
-        repo_root / "sdks" / "typescript" / "Cargo.lock",
+        repo_root / "thetadatadx-py" / "Cargo.lock",
+        repo_root / "thetadatadx-ts" / "Cargo.lock",
         repo_root / "tools" / "server" / "Cargo.lock",
         repo_root / "tools" / "mcp" / "Cargo.lock",
     ]

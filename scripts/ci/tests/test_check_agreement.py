@@ -404,11 +404,11 @@ class AgreementTests(unittest.TestCase):
         self.assertIn("685.870000", err)
 
     def test_date_zero_sentinel_normalizes_to_null(self) -> None:
-        # CLI emits `date: 0` verbatim under the json-raw contract
-        # (tools/cli/src/main.rs `raw_date`), while another producer might
-        # serialize the same "no date" cell as JSON null. Both shapes must
-        # canonicalize to None so they compare equal. Rationale: trading
-        # data never has year 0000; `0` is always a sentinel.
+        # One producer may emit `date: 0` verbatim under a json-raw
+        # contract, while another serializes the same "no date" cell as
+        # JSON null. Both shapes must canonicalize to None so they compare
+        # equal. Rationale: trading data never has year 0000; `0` is
+        # always a sentinel.
         for lang, val in (
             ("python", 0),
             ("cli", 0),
@@ -771,7 +771,7 @@ class AgreementTests(unittest.TestCase):
     # H9 -- TypeScript shape-only manifest participation. The TS SDK
     # cannot run a per-cell live-traffic validator without duplicating
     # the napi-rs surface, so it ships a public-surface shape manifest
-    # (`sdks/typescript/scripts/emit_validator_manifest.mjs`) that the
+    # (`thetadatadx-ts/scripts/emit_validator_manifest.mjs`) that the
     # agreement validator reads as a field-presence-only artifact:
     # values are sentinels, only the field set is load-bearing. These
     # tests pin down the contract.

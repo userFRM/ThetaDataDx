@@ -2,8 +2,8 @@
 """Cross-language agreement check for the live parameter-mode matrix.
 
 Loads per-language validator artifacts from `artifacts/validator_<lang>.json`
-(written by `scripts/ci/check_cli.py`, `scripts/ci/check_python.py`,
-and `sdks/cpp` validator) and compares every
+(written by `scripts/ci/check_python.py` and the `thetadatadx-cpp`
+validator) and compares every
 (endpoint, mode) cell across SDKs on:
 
 * status (PASS / SKIP / FAIL)
@@ -69,11 +69,11 @@ Consumer-side canonicalization (`_canonicalize_row`) handles:
    noise; also catches `685.86` vs `685.860001`)
 3. NaN / +Inf / -Inf normalized to Python `None` — cross-language
    serialization of non-finite floats is ambiguous (JSON rejects them
-   outright; CLI's f64 reparse at tools/cli/src/main.rs:270 drops them
-   silently), so we collapse all three to a single unambiguous sentinel
+   outright; a downstream f64 reparse can drop them silently), so we
+   collapse all three to a single unambiguous sentinel
 4. date-shaped fields (`date`, `expiration`, or ending in `_date`):
    value `0` -> `None`. Every SDK emits the sentinel verbatim (Python
-   `sdks/python/src/tick_columnar.rs:7,38`; server
+   `thetadatadx-py/src/tick_columnar.rs:7,38`; server
    `tools/server/src/format.rs:346`). Without this normalization,
    a producer that happens to see `date == 0` (no-data cell, pre-market
    snapshot) would false-diff against one that serializes the same
@@ -141,7 +141,7 @@ LANGS = ("python", "cli", "cpp", "typescript")
 # validator on the napi-rs side.
 SHAPE_ONLY_LANGS: frozenset[str] = frozenset({"typescript"})
 # The TypeScript artifact is emitted from a public-surface shape
-# manifest (`sdks/typescript/scripts/emit_validator_manifest.mjs`)
+# manifest (`thetadatadx-ts/scripts/emit_validator_manifest.mjs`)
 # rather than a live-traffic runtime validator. The runtime artifacts
 # carry actual values; the TS manifest carries sentinel placeholders
 # the canonicalizer collapses to `None` (date 0, ms_of_day -1,

@@ -1,0 +1,2643 @@
+# Static config accessor surface for the FFI + C++ codegen.
+#
+# One [[accessor]] per generated `thetadatadx_config_{set,get}_*` entry point.
+# `generate_sdk_surfaces` renders the Rust fns (thetadatadx-ffi/src/config_accessors.rs)
+# and the C++ inline methods (thetadatadx-cpp/include/config_accessors.hpp.inc) from
+# this file. Divergent accessors (string, enum, Option-widened, policy-aware,
+# validated) stay hand-written in thetadatadx-ffi/src/auth.rs and thetadatadx.hpp.
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_wait_ms"
+kind = "set"
+param = "ms"
+abi_type = "u64"
+path = "reconnect.wait_ms"
+doc = """
+Set the reconnect delay (ms) honoured for generic transient
+disconnects (TimedOut, ServerRestarting, Unspecified, …). Plumbed
+through to the streaming I/O loop at connect time and consumed by the
+`Auto` reconnect arm via `reconnect_delay_for`. Default `250`.
+"""
+cpp_doc = """
+Set the reconnect delay (ms) honoured for generic transient
+disconnects (TimedOut, ServerRestarting, Unspecified, ...).
+Default 250.
+"""
+py_doc = """
+Set the reconnect delay (ms) honoured for generic transient
+disconnects (TimedOut, ServerRestarting, Unspecified, …).
+Plumbed through to the streaming I/O loop at connect time.
+Default ``250``.
+"""
+ts_doc = """
+Set the reconnect delay (ms) honoured for generic transient
+disconnects (TimedOut, ServerRestarting, Unspecified, …).
+Plumbed through to the streaming I/O loop at connect time.
+Default `250`.
+
+Accepts a `bigint` for parity with the other bindings, which use a 64-bit unsigned integer.
+"""
+py_param = "ms"
+ts_param = "ms"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_wait_ms"
+kind = "get"
+param = "out_ms"
+abi_type = "u64"
+path = "reconnect.wait_ms"
+out_safety = """
+        // SAFETY: out_ms checked non-null at line 238; FFI contract pins
+        // the `u64` storage for the call. Writing the `reconnect.wait_ms`
+        // field cannot tear under a concurrent reader because the FFI
+        // surface is not thread-safe on a single config handle.
+"""
+doc = """
+Read the current reconnect `wait_ms` setting.
+
+Writes the configured millisecond delay into `*out_ms`. Returns
+`0` on success, `-1` if either pointer is null.
+"""
+cpp_doc = """
+Current reconnect wait_ms (default 250). Returns the default on
+a null config handle.
+"""
+py_doc = """
+Current reconnect ``wait_ms`` value (default ``250``).
+"""
+ts_doc = """
+Current reconnect `wait_ms` value (default `250`).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_wait_rate_limited_ms"
+kind = "set"
+param = "ms"
+abi_type = "u64"
+path = "reconnect.wait_rate_limited_ms"
+doc = """
+Set the reconnect delay (ms) honoured for `TooManyRequests`
+rate-limited disconnects. Plumbed through to the streaming I/O loop at
+connect time and consumed by the `Auto` reconnect arm via
+`reconnect_delay_for`. Default `130_000` (matches the JVM terminal's
+130 s rate-limit cooldown).
+"""
+cpp_doc = """
+Set the reconnect delay (ms) honoured for `TooManyRequests`
+rate-limited disconnects. Default 130_000.
+"""
+py_doc = """
+Set the reconnect delay (ms) honoured for ``TooManyRequests``
+rate-limited disconnects. Default ``130_000`` (matches the
+JVM terminal's 130 s rate-limit cooldown).
+"""
+ts_doc = """
+Set the reconnect delay (ms) honoured for `TooManyRequests`
+rate-limited disconnects. Default `130_000`.
+"""
+py_param = "ms"
+ts_param = "ms"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_wait_rate_limited_ms"
+kind = "get"
+param = "out_ms"
+abi_type = "u64"
+path = "reconnect.wait_rate_limited_ms"
+out_safety = """
+        // SAFETY: out_ms checked non-null at line 279; FFI contract pins
+        // the `u64` storage for the call. Writing
+        // `reconnect.wait_rate_limited_ms` cannot tear under a concurrent
+        // reader — FFI handles are not thread-safe per the public contract.
+"""
+doc = """
+Read the current reconnect `wait_rate_limited_ms` setting. Same
+shape as [`thetadatadx_config_get_reconnect_wait_ms`].
+"""
+cpp_doc = """
+Current reconnect wait_rate_limited_ms (default 130_000).
+"""
+py_doc = """
+Current reconnect ``wait_rate_limited_ms`` value (default ``130_000``).
+"""
+ts_doc = """
+Current reconnect `wait_rate_limited_ms` value (default `130_000`).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_wait_max_ms"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "reconnect.wait_max_ms"
+doc = """
+Set the cap (ms) on the exponential generic-transient reconnect ladder. The ladder starts at `reconnect_wait_ms` and doubles per consecutive attempt up to this value. Default `30_000`.
+"""
+cpp_doc = """
+Set the cap (ms) on the exponential generic-transient reconnect
+ladder. Default 30_000.
+"""
+py_doc = """
+Set the cap (ms) on the exponential generic-transient reconnect
+ladder. The ladder starts at ``reconnect_wait_ms`` and doubles
+per consecutive attempt up to this value. Default ``30_000``.
+"""
+ts_doc = """
+Set the cap (ms) on the exponential generic-transient reconnect
+ladder. The ladder starts at `reconnectWaitMs` and doubles per
+consecutive attempt up to this value. Default `30_000n`.
+"""
+py_param = "ms"
+ts_param = "ms"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_wait_max_ms"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "reconnect.wait_max_ms"
+doc = """
+Read the current reconnect `wait_max_ms` setting (default `30_000`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current reconnect wait_max_ms (default 30_000).
+"""
+py_doc = """
+Current reconnect ``wait_max_ms`` value (default ``30_000``).
+"""
+ts_doc = """
+Current reconnect `wait_max_ms` value (default `30_000n`).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_wait_server_restart_ms"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "reconnect.wait_server_restart_ms"
+doc = """
+Set the flat reconnect cadence (ms) for `ServerRestarting` disconnects. Default `5_000`.
+"""
+cpp_doc = """
+Set the flat reconnect cadence (ms) for ServerRestarting
+disconnects. Default 5_000.
+"""
+py_doc = """
+Set the flat reconnect cadence (ms) for ``ServerRestarting``
+disconnects. Default ``5_000``.
+"""
+ts_doc = """
+Set the flat reconnect cadence (ms) for `ServerRestarting`
+disconnects. Default `5_000n`.
+"""
+py_param = "ms"
+ts_param = "ms"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_wait_server_restart_ms"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "reconnect.wait_server_restart_ms"
+doc = """
+Read the current reconnect `wait_server_restart_ms` setting (default `5_000`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current reconnect wait_server_restart_ms (default 5_000).
+"""
+py_doc = """
+Current reconnect ``wait_server_restart_ms`` value (default ``5_000``).
+"""
+ts_doc = """
+Current reconnect `wait_server_restart_ms` value (default `5_000n`).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_replay_burst_size"
+kind = "set"
+param = "n"
+abi_type = "u32"
+path = "reconnect.replay_burst_size"
+doc = """
+Set the subscription-replay burst size used after an
+auto-reconnect: frames are written in bursts of this many, each
+burst flushed and followed by a jittered `replay_pace_ms` pause.
+Minimum `1` (validated at connect). Default `50`.
+"""
+cpp_doc = """
+Set the subscription-replay burst size used after an
+auto-reconnect. Minimum 1 (validated at connect). Default 50.
+"""
+py_doc = """
+Set the subscription-replay burst size used after an
+auto-reconnect: frames are written in bursts of this many, each
+burst flushed and followed by a jittered ``replay_pace_ms``
+pause. Minimum ``1`` (validated at connect). Default ``50``.
+"""
+ts_doc = """
+Set the subscription-replay burst size used after an
+auto-reconnect: frames are written in bursts of this many, each
+burst flushed and followed by a jittered `replayPaceMs` pause.
+Minimum `1` (validated at connect). Default `50`.
+"""
+py_param = "n"
+ts_param = "n"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_replay_burst_size"
+kind = "get"
+param = "out"
+abi_type = "u32"
+path = "reconnect.replay_burst_size"
+doc = """
+Read the current `replay_burst_size` setting (default `50`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current replay_burst_size (default 50).
+"""
+py_doc = """
+Current ``replay_burst_size`` value (default ``50``).
+"""
+ts_doc = """
+Current `replay_burst_size` value (default `50`).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_replay_pace_ms"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "reconnect.replay_pace_ms"
+doc = """
+Set the pause (ms) between subscription-replay bursts after an auto-reconnect. `0` removes the pause. Default `5`.
+"""
+cpp_doc = """
+Set the pause (ms) between subscription-replay bursts. 0
+removes the pause. Default 5.
+"""
+py_doc = """
+Set the pause (ms) between subscription-replay bursts after an
+auto-reconnect. ``0`` removes the pause. Default ``5``.
+"""
+ts_doc = """
+Set the pause (ms) between subscription-replay bursts after an
+auto-reconnect. `0n` removes the pause. Default `5n`.
+"""
+py_param = "ms"
+ts_param = "ms"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_replay_pace_ms"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "reconnect.replay_pace_ms"
+doc = """
+Read the current `replay_pace_ms` setting (default `5`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current replay_pace_ms (default 5).
+"""
+py_doc = """
+Current ``replay_pace_ms`` value (default ``5``).
+"""
+ts_doc = """
+Current `replay_pace_ms` value (default `5n`).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_timeout_ms"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "streaming.timeout_ms"
+doc = """
+Set the streaming read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000`; validated to `[100, 60_000]` at connect.
+"""
+cpp_doc = """
+Set the streaming read timeout (ms): the no-frames deadline after
+which the streaming I/O loop reconnects. Default 3_000;
+validated to [100, 60_000] at connect.
+"""
+py_doc = """
+Set the streaming read timeout (ms): the no-frames deadline after
+which the streaming I/O loop declares the session dead and
+reconnects. Default ``3_000``; validated to ``[100, 60_000]``.
+"""
+ts_doc = """
+Set the streaming read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000n`; validated to `[100, 60_000]` at connect.
+"""
+py_param = "ms"
+ts_param = "ms"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_timeout_ms"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "streaming.timeout_ms"
+doc = """
+Read the current streaming `timeout_ms` setting (default `3_000`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming timeout_ms (default 3_000).
+"""
+py_doc = """
+Current ``streaming.timeout_ms`` value (default ``3_000``).
+"""
+ts_doc = """
+Current `streaming.timeout_ms` value (default `3_000n`).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_connect_timeout_ms"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "streaming.connect_timeout_ms"
+doc = """
+Set the per-server streaming TCP connect timeout (ms). Default `2_000`; validated to `[1_000, 60_000]` at connect.
+"""
+cpp_doc = """
+Set the per-server connect timeout (ms) for the streaming
+connection. Default 2_000; validated to [1_000, 60_000] at
+connect.
+"""
+py_doc = """
+Set the per-server connect timeout (ms) for the streaming
+connection. Default
+``2_000``; validated to ``[1_000, 60_000]``.
+"""
+ts_doc = """
+Set the per-server connect timeout (ms) for the streaming connection. Default `2_000n`; validated to `[1_000, 60_000]` at connect.
+"""
+py_param = "ms"
+ts_param = "ms"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_connect_timeout_ms"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "streaming.connect_timeout_ms"
+doc = """
+Read the current streaming `connect_timeout_ms` setting (default `2_000`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming connect_timeout_ms (default 2_000).
+"""
+py_doc = """
+Current ``streaming.connect_timeout_ms`` value (default ``2_000``).
+"""
+ts_doc = """
+Current `streaming.connect_timeout_ms` value (default `2_000n`).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_ping_interval_ms"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "streaming.ping_interval_ms"
+doc = """
+Set the streaming heartbeat ping interval (ms). Default `250`; validated to `[100, 300_000]` at connect.
+"""
+cpp_doc = """
+Set the streaming heartbeat ping interval (ms). Default 250;
+validated to [100, 300_000] at connect.
+"""
+py_doc = """
+Set the streaming heartbeat ping interval (ms). Default ``250``;
+validated to ``[100, 300_000]``.
+"""
+ts_doc = """
+Set the streaming heartbeat ping interval (ms). Default `250n`; validated to `[100, 300_000]` at connect.
+"""
+py_param = "ms"
+ts_param = "ms"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_ping_interval_ms"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "streaming.ping_interval_ms"
+doc = """
+Read the current streaming `ping_interval_ms` setting (default `250`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming ping_interval_ms (default 250).
+"""
+py_doc = """
+Current ``streaming.ping_interval_ms`` value (default ``250``).
+"""
+ts_doc = """
+Current `streaming.ping_interval_ms` value (default `250n`).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_io_read_slice_ms"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "streaming.io_read_slice_ms"
+doc = """
+Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Shorter slices service outbound commands more promptly at slightly higher idle CPU. Default `25`; validated to `[10, 500]` at connect.
+"""
+cpp_doc = """
+Set the per-iteration blocking-read slice (ms) for the
+streaming I/O loop. Default 25; validated to [10, 500].
+"""
+py_doc = """
+Set the per-iteration blocking-read slice (ms) for the
+streaming I/O loop. Default ``25``; validated to ``[10, 500]``.
+"""
+ts_doc = """
+Set the per-iteration blocking-read slice (ms) for the streaming I/O loop. Default `25n`; validated to `[10, 500]` at connect.
+"""
+py_param = "ms"
+ts_param = "ms"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_io_read_slice_ms"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "streaming.io_read_slice_ms"
+doc = """
+Read the current streaming `io_read_slice_ms` setting (default `25`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming io_read_slice_ms (default 25).
+"""
+py_doc = """
+Current ``streaming.io_read_slice_ms`` value (default ``25``).
+"""
+ts_doc = """
+Current `streaming.io_read_slice_ms` value (default `25n`).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_data_watchdog_ms"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "streaming.data_watchdog_ms"
+doc = """
+Set the last-frame watchdog (ms): when no frame of any kind has arrived for this long the I/O loop force-reconnects, regardless of the read-timeout accounting. `0` disables. Default `30_000`.
+"""
+cpp_doc = """
+Set the last-frame watchdog (ms); 0 disables. Default 30_000.
+"""
+py_doc = """
+Set the last-frame watchdog (ms): when no frame of any kind has
+arrived for this long the I/O loop force-reconnects. ``0``
+disables. Default ``30_000``.
+"""
+ts_doc = """
+Set the last-frame watchdog (ms): when no frame of any kind has arrived for this long the I/O loop force-reconnects. `0n` disables. Default `30_000n`.
+"""
+py_param = "ms"
+ts_param = "ms"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_data_watchdog_ms"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "streaming.data_watchdog_ms"
+doc = """
+Read the current streaming `data_watchdog_ms` setting (default `30_000`; `0` = disabled).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming data_watchdog_ms (default 30_000; 0 = disabled).
+"""
+py_doc = """
+Current ``streaming.data_watchdog_ms`` value (default ``30_000``;
+``0`` = disabled).
+"""
+ts_doc = """
+Current `streaming.data_watchdog_ms` value (default `30_000n`; `0n` = disabled).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_keepalive_idle_secs"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "streaming.keepalive_idle_secs"
+doc = """
+Set the TCP keepalive idle time (seconds) before the kernel sends the first probe on a silent streaming socket. Default `5`; validated to `[1, 7_200]` at connect.
+"""
+cpp_doc = """
+Set the TCP keepalive idle time (seconds). Default 5; validated
+to [1, 7_200] at connect.
+"""
+py_doc = """
+Set the TCP keepalive idle time (seconds) before the first
+kernel probe on a silent streaming socket. Default ``5``;
+validated to ``[1, 7_200]``.
+"""
+ts_doc = """
+Set the TCP keepalive idle time (seconds) before the first kernel probe on a silent streaming socket. Default `5n`; validated to `[1, 7_200]` at connect.
+"""
+py_param = "secs"
+ts_param = "ms"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_keepalive_idle_secs"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "streaming.keepalive_idle_secs"
+doc = """
+Read the current streaming `keepalive_idle_secs` setting (default `5`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming keepalive_idle_secs (default 5).
+"""
+py_doc = """
+Current ``streaming.keepalive_idle_secs`` value (default ``5``).
+"""
+ts_doc = """
+Current `streaming.keepalive_idle_secs` value (default `5n`).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_keepalive_interval_secs"
+kind = "set"
+param = "v"
+abi_type = "u64"
+path = "streaming.keepalive_interval_secs"
+doc = """
+Set the interval (seconds) between TCP keepalive probes. Default `2`; validated to `[1, 75]` at connect.
+"""
+cpp_doc = """
+Set the TCP keepalive probe interval (seconds). Default 2;
+validated to [1, 75] at connect.
+"""
+py_doc = """
+Set the interval (seconds) between TCP keepalive probes.
+Default ``2``; validated to ``[1, 75]``.
+"""
+ts_doc = """
+Set the interval (seconds) between TCP keepalive probes. Default `2n`; validated to `[1, 75]` at connect.
+"""
+py_param = "secs"
+ts_param = "ms"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_keepalive_interval_secs"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "streaming.keepalive_interval_secs"
+doc = """
+Read the current streaming `keepalive_interval_secs` setting (default `2`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming keepalive_interval_secs (default 2).
+"""
+py_doc = """
+Current ``streaming.keepalive_interval_secs`` value (default ``2``).
+"""
+ts_doc = """
+Current `streaming.keepalive_interval_secs` value (default `2n`).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_keepalive_retries"
+kind = "set"
+param = "v"
+abi_type = "u32"
+path = "streaming.keepalive_retries"
+doc = """
+Set the number of unanswered TCP keepalive probes after which the kernel declares the streaming connection dead (where the platform exposes the knob). Default `2`; validated to `[1, 10]` at connect.
+"""
+cpp_doc = """
+Set the TCP keepalive probe count before the kernel declares
+the peer dead. Default 2; validated to [1, 10] at connect.
+"""
+py_doc = """
+Set the number of unanswered TCP keepalive probes after which
+the kernel declares the streaming connection dead (where the
+platform exposes the knob). Default ``2``; validated to
+``[1, 10]``.
+"""
+ts_doc = """
+Set the number of unanswered TCP keepalive probes after which
+the kernel declares the streaming connection dead (where the
+platform exposes the knob). Default `2`; validated to `[1, 10]`
+at connect.
+"""
+py_param = "n"
+ts_param = "n"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_keepalive_retries"
+kind = "get"
+param = "out"
+abi_type = "u32"
+path = "streaming.keepalive_retries"
+doc = """
+Read the current streaming `keepalive_retries` setting (default `2`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming keepalive_retries (default 2).
+"""
+py_doc = """
+Current ``streaming.keepalive_retries`` value (default ``2``).
+"""
+ts_doc = """
+Current `streaming.keepalive_retries` value (default `2`).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_ring_size"
+kind = "get"
+param = "out"
+abi_type = "usize"
+path = "streaming.ring_size"
+doc = """
+Read the current streaming `ring_size` setting (default `131_072`).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Current streaming ring_size (default 131_072).
+"""
+py_doc = """
+Current ``streaming.ring_size`` value (default ``131_072``).
+"""
+ts_doc = """
+Current `streaming.ring_size` value (returned as a `BigInt`; default
+`131_072`).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_retry_max_elapsed_secs"
+kind = "set"
+param = "secs"
+abi_type = "u64"
+path = "retry.max_elapsed"
+duration_unit = "secs"
+doc = """
+Set the wall-clock envelope (seconds) for one historical-channel
+retry sequence, measured from the first attempt. `0` disables the
+envelope (attempt budget only). Default `300`.
+"""
+cpp_doc = """
+Set the wall-clock envelope (seconds) for one
+historical-channel retry sequence. 0 disables. Default 300.
+"""
+py_doc = """
+Set the wall-clock envelope (seconds) for one
+historical-channel retry sequence, measured from the first
+attempt. ``0`` disables the envelope (attempt budget only).
+Default ``300``.
+"""
+ts_doc = """
+Set the wall-clock envelope (seconds) for one
+historical-channel retry sequence, measured from the first
+attempt. `0n` disables the envelope (attempt budget only).
+Default `300n`.
+"""
+py_param = "secs"
+ts_param = "secs"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_retry_max_elapsed_secs"
+kind = "get"
+param = "out_secs"
+abi_type = "u64"
+path = "retry.max_elapsed"
+duration_unit = "secs"
+doc = """
+Read the current `retry.max_elapsed` value in seconds (default
+`300`; `0` = disabled). Returns `0` on success, `-1` if either
+pointer is null.
+"""
+cpp_doc = """
+Current retry max_elapsed in seconds (default 300; 0 = disabled).
+"""
+py_doc = """
+Current ``retry.max_elapsed`` value in seconds (default ``300``;
+``0`` = disabled).
+"""
+ts_doc = """
+Current `retry.max_elapsed` value in seconds (default `300n`;
+`0n` = disabled).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_flatfiles_jitter"
+kind = "set"
+param = "jitter"
+abi_type = "bool"
+path = "flatfiles.jitter"
+doc = """
+Toggle AWS-style full jitter on the flatfile retry ladder. Default
+`true`; `false` gives the deterministic schedule, useful for tests
+that assert exact timings.
+"""
+cpp_doc = """
+Toggle AWS-style full jitter on the flatfile retry ladder.
+Default true.
+"""
+py_doc = """
+Toggle AWS-style full jitter on the flatfile retry ladder.
+Default ``True``; ``False`` gives the deterministic schedule,
+useful for tests that assert exact timings.
+"""
+ts_doc = """
+Toggle AWS-style full jitter on the flatfile retry ladder.
+Default `true`; `false` gives the deterministic schedule,
+useful for tests that assert exact timings.
+"""
+py_param = "jitter"
+ts_param = "jitter"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_flatfiles_jitter"
+kind = "get"
+param = "out_jitter"
+abi_type = "bool"
+path = "flatfiles.jitter"
+doc = """
+Read the current `flatfiles.jitter` value (default `true`).
+Returns `0` on success, `-1` if either pointer is null.
+"""
+cpp_doc = """
+Current flatfiles jitter setting (default true).
+"""
+py_doc = """
+Current ``flatfiles.jitter`` value (default ``True``).
+"""
+ts_doc = """
+Current `flatfiles.jitter` value (default `true`).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_retry_initial_delay_ms"
+kind = "set"
+param = "ms"
+abi_type = "u64"
+path = "retry.initial_delay"
+duration_unit = "ms"
+doc = """
+Set the initial backoff delay (ms) for the historical retry policy.
+Default `250`. Subsequent retries double from here, capped at
+`thetadatadx_config_set_retry_max_delay_ms`.
+"""
+cpp_doc = """
+Initial backoff delay (ms) for the historical retry policy. Default 250.
+"""
+py_doc = """
+Set the initial backoff delay (ms) for the historical-channel retry policy.
+Default ``250``. Subsequent retries double from here, capped
+at :attr:`retry_max_delay_ms`.
+"""
+ts_doc = """
+Set the initial backoff delay (ms) for the historical-channel retry policy.
+Default `250n`. Subsequent retries double from here, capped at
+`retryMaxDelayMs`.
+"""
+py_param = "ms"
+ts_param = "ms"
+
+[[accessor]]
+symbol = "thetadatadx_config_set_retry_max_delay_ms"
+kind = "set"
+param = "ms"
+abi_type = "u64"
+path = "retry.max_delay"
+duration_unit = "ms"
+doc = """
+Set the upper-bound backoff delay (ms) for the historical retry policy.
+Default `30_000` (30 s). The exponential schedule never exceeds
+this value regardless of attempt number.
+"""
+cpp_doc = """
+Upper-bound backoff delay (ms). Default 30_000 (30 s).
+"""
+py_doc = """
+Set the upper-bound backoff delay (ms) for the
+historical-channel retry policy. Default ``30_000`` (30 s).
+"""
+ts_doc = """
+Set the upper-bound backoff delay (ms) for the historical retry
+policy. Default `30_000n` (30 s).
+"""
+py_param = "ms"
+ts_param = "ms"
+
+[[accessor]]
+symbol = "thetadatadx_config_set_retry_max_attempts"
+kind = "set"
+param = "n"
+abi_type = "u32"
+path = "retry.max_attempts"
+doc = """
+Set the total attempt budget for the historical retry policy. `1`
+disables retry (single call only); higher values permit
+retries up to `max_attempts - 1` after the initial call. Default
+`20`.
+"""
+cpp_doc = """
+Total attempt budget. 1 disables retry. Default 20.
+"""
+py_doc = """
+Set the total attempt budget for the historical-channel retry policy. ``1``
+disables retry (single call only); higher values permit retries
+up to ``max_attempts - 1`` after the initial call. Default ``20``.
+"""
+ts_doc = """
+Set the total attempt budget for the historical-channel retry policy. `1`
+disables retry; higher values permit retries up to
+`maxAttempts - 1` after the initial call. Default `20`.
+"""
+py_param = "n"
+ts_param = "n"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_retry_max_attempts"
+kind = "get"
+param = "out_n"
+abi_type = "u32"
+path = "retry.max_attempts"
+out_safety = """
+        // SAFETY: out_n null-checked above; caller pins the storage for the call duration.
+"""
+doc = """
+Read the current `retry.max_attempts` setting.
+"""
+cpp_doc = ""
+py_doc = """
+Current ``retry.max_attempts`` value.
+"""
+ts_doc = """
+Current `retry.max_attempts` value.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_retry_jitter"
+kind = "set"
+param = "jitter"
+abi_type = "bool"
+path = "retry.jitter"
+doc = """
+Toggle AWS-style full-jitter on the historical retry policy. Default
+`true`. With `jitter=false` the backoff schedule is deterministic
+(`min(max_delay, initial * 2^attempt)`), which is useful for tests
+that need to assert exact timings.
+"""
+cpp_doc = """
+AWS-style full jitter toggle. Default true.
+"""
+py_doc = """
+Toggle AWS-style full-jitter on the historical-channel retry policy. Default
+``True``. ``False`` gives the deterministic backoff schedule
+``min(max_delay, initial * 2^attempt)``, useful for tests that
+need to assert exact timings.
+"""
+ts_doc = """
+Toggle AWS-style full-jitter on the historical-channel retry policy. Default
+`true`. `false` gives the deterministic backoff schedule
+`min(max_delay, initial * 2^attempt)`, useful for tests that
+need to assert exact timings.
+"""
+py_param = "jitter"
+ts_param = "jitter"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_retry_jitter"
+kind = "get"
+param = "out_jitter"
+abi_type = "bool"
+path = "retry.jitter"
+out_safety = """
+        // SAFETY: out_jitter null-checked above; caller pins the storage for the call duration.
+"""
+doc = """
+Read the current `retry.jitter` setting.
+"""
+cpp_doc = ""
+py_doc = """
+Current ``retry.jitter`` value.
+"""
+ts_doc = """
+Current `retry.jitter` value.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_derive_ohlcvc"
+kind = "set"
+param = "enabled"
+abi_type = "bool"
+path = "streaming.derive_ohlcvc"
+doc = """
+Set streaming OHLCVC derivation on a config handle.
+
+- `enabled = true` (default): derive OHLCVC bars locally from trade events
+- `enabled = false`: only emit server-sent OHLCVC frames (lower overhead)
+"""
+cpp_doc = """
+Set whether to derive OHLCVC bars locally from trades.
+"""
+py_doc = """
+Set whether to derive OHLCVC bars locally from trade events.
+
+When ``False``, only server-sent OHLCVC frames are emitted,
+reducing per-trade throughput overhead.
+"""
+ts_doc = """
+Set whether to derive OHLCVC bars locally from trade events.
+When `false`, only server-sent OHLCVC frames are emitted,
+reducing per-trade throughput overhead. Default `true`.
+"""
+py_param = "enabled"
+ts_param = "enabled"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_derive_ohlcvc"
+kind = "get"
+param = "out_enabled"
+abi_type = "bool"
+path = "streaming.derive_ohlcvc"
+out_safety = """
+        // SAFETY: out pointer checked non-null above; caller pins the storage for the call duration.
+"""
+doc = """
+Read the configured streaming OHLCVC-derivation flag. Writes `true` /
+`false` into `*out_enabled`. Returns `0` on success, `-1` if either
+pointer is null.
+"""
+cpp_doc = """
+Read the current OHLCVC-derivation flag. Returns `false` on a
+null handle (matching the C ABI's `-1` failure mapping at the
+boundary).
+"""
+py_doc = """
+Get the current OHLCVC derivation setting.
+"""
+ts_doc = """
+Current OHLCVC derivation setting.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_flatfiles_max_attempts"
+kind = "set"
+param = "n"
+abi_type = "u32"
+path = "flatfiles.max_attempts"
+doc = """
+Set the total attempt budget for the flatfile driver retry loop.
+`1` disables retry (single call only); higher values permit
+retries up to `max_attempts - 1` after the initial call. Default
+`10`. Validated to the range `[1, 100]` at
+[`thetadatadx::DirectConfig::validate`] time.
+"""
+cpp_doc = """
+Total attempt budget for the flatfile driver retry loop.
+1 disables retry. Default 10. Validated to [1, 100].
+"""
+py_doc = """
+Set the total attempt budget for the flatfile driver retry loop.
+``1`` disables retry (single call only); higher values permit
+retries up to ``max_attempts - 1`` after the initial call.
+Default ``10``. Validated to the range ``[1, 100]`` at connect
+time.
+"""
+ts_doc = """
+Set the total attempt budget for the flatfile driver retry
+loop. `1` disables retry (single call only); higher values
+permit retries up to `maxAttempts - 1` after the initial call.
+Default `10`. Validated to the range `[1, 100]` at connect time.
+"""
+py_param = "n"
+ts_param = "n"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_flatfiles_max_attempts"
+kind = "get"
+param = "out_n"
+abi_type = "u32"
+path = "flatfiles.max_attempts"
+out_safety = """
+        // SAFETY: out_n null-checked above; FFI contract pins the `u32`
+        // storage for the call. `flatfiles.max_attempts` is a `u32`
+        // field, so the write is layout-compatible with the pointee.
+"""
+doc = """
+Read the current `flatfiles.max_attempts` setting. Returns `0` on
+success, `-1` if either pointer is null.
+"""
+cpp_doc = ""
+py_doc = """
+Current ``flatfiles.max_attempts`` value.
+"""
+ts_doc = """
+Current `flatfiles.max_attempts` value.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_flatfiles_initial_backoff_secs"
+kind = "set"
+param = "secs"
+abi_type = "u64"
+path = "flatfiles.initial_backoff"
+duration_unit = "secs"
+doc = """
+Set the initial backoff delay (seconds) for the flatfile driver
+retry loop. Doubles per attempt up to `max_backoff_secs`. Default
+`1`.
+"""
+cpp_doc = """
+Initial backoff delay (seconds). Doubles per attempt up to
+max_backoff_secs. Default 1.
+"""
+py_doc = """
+Set the initial backoff delay (seconds) for the flatfile driver
+retry loop. Doubles per attempt up to
+:attr:`flatfiles_max_backoff_secs`. Default ``1``.
+"""
+ts_doc = """
+Set the initial backoff delay (seconds) for the flatfile
+driver retry loop. Doubles per attempt up to
+`flatfilesMaxBackoffSecs`. Default `1n`.
+
+Accepts a `bigint` for parity with the other bindings, which
+use a 64-bit unsigned integer.
+"""
+py_param = "secs"
+ts_param = "secs"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_flatfiles_initial_backoff_secs"
+kind = "get"
+param = "out_secs"
+abi_type = "u64"
+path = "flatfiles.initial_backoff"
+duration_unit = "secs"
+out_safety = """
+        // SAFETY: out_secs null-checked above. `Duration::as_secs`
+        // returns a `u64` (the seconds component truncates the
+        // sub-second remainder), so the write is layout-compatible
+        // with the caller-pinned `u64` storage.
+"""
+doc = """
+Read the current `flatfiles.initial_backoff` setting (seconds).
+Returns `0` on success, `-1` if either pointer is null.
+"""
+cpp_doc = ""
+py_doc = """
+Current ``flatfiles.initial_backoff`` value in seconds.
+"""
+ts_doc = """
+Current `flatfiles.initial_backoff` value (seconds, returned as BigInt).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_flatfiles_max_backoff_secs"
+kind = "set"
+param = "secs"
+abi_type = "u64"
+path = "flatfiles.max_backoff"
+duration_unit = "secs"
+doc = """
+Set the upper-bound backoff delay (seconds) for the flatfile
+driver retry loop. The doubling schedule never exceeds this value
+regardless of attempt number. Default `30`. Must be greater than
+or equal to `initial_backoff_secs` (rejected at
+[`thetadatadx::DirectConfig::validate`] time otherwise).
+"""
+cpp_doc = """
+Upper-bound backoff delay (seconds). Default 30. Must be >=
+initial_backoff_secs (rejected at connect-time validate).
+"""
+py_doc = """
+Set the upper-bound backoff delay (seconds) for the flatfile
+driver retry loop. The doubling schedule never exceeds this
+value regardless of attempt number. Default ``30``. Must be
+greater than or equal to :attr:`flatfiles_initial_backoff_secs`
+(rejected at connect-time validate otherwise).
+"""
+ts_doc = """
+Set the upper-bound backoff delay (seconds) for the flatfile
+driver retry loop. The doubling schedule never exceeds this
+value regardless of attempt number. Default `30n`. Must be
+greater than or equal to `flatfilesInitialBackoffSecs`
+(rejected at connect-time validate otherwise).
+
+Accepts a `bigint` for parity with the other bindings, which
+use a 64-bit unsigned integer.
+"""
+py_param = "secs"
+ts_param = "secs"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_flatfiles_max_backoff_secs"
+kind = "get"
+param = "out_secs"
+abi_type = "u64"
+path = "flatfiles.max_backoff"
+duration_unit = "secs"
+out_safety = """
+        // SAFETY: out_secs null-checked above. The flatfile retry-loop
+        // upper bound is a whole-second value (validated against
+        // `initial_backoff` at connect time), so `Duration::as_secs()`
+        // round-trips losslessly into the caller-pinned `u64`.
+"""
+doc = """
+Read the current `flatfiles.max_backoff` setting (seconds). Returns
+`0` on success, `-1` if either pointer is null.
+"""
+cpp_doc = ""
+py_doc = """
+Current ``flatfiles.max_backoff`` value in seconds.
+"""
+ts_doc = """
+Current `flatfiles.max_backoff` value (seconds, returned as BigInt).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_flatfiles_connect_timeout_secs"
+kind = "set"
+param = "secs"
+abi_type = "u64"
+path = "flatfiles.connect_timeout_secs"
+doc = """
+Set the TCP + TLS connect timeout (seconds) for one flatfile-host
+attempt. Bounds the connect/auth handshake before the attempt is
+abandoned and the next host (or the retry ladder) takes over.
+Default `10`.
+"""
+cpp_doc = """
+TCP + TLS connect timeout (seconds) for one flatfile-host attempt.
+Bounds the connect/auth handshake before the next host (or the
+retry ladder) takes over. Default 10.
+"""
+py_doc = """
+Set the TCP + TLS connect timeout (seconds) for one flatfile-host
+attempt. Bounds the connect/auth handshake before the attempt is
+abandoned and the next host (or the retry ladder) takes over.
+Default ``10``.
+"""
+ts_doc = """
+Set the TCP + TLS connect timeout (seconds) for one flatfile-host
+attempt. Bounds the connect/auth handshake before the attempt is
+abandoned and the next host (or the retry ladder) takes over.
+Default `10n`.
+
+Accepts a `bigint` for parity with the other bindings, which
+use a 64-bit unsigned integer.
+"""
+py_param = "secs"
+ts_param = "secs"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_flatfiles_connect_timeout_secs"
+kind = "get"
+param = "out_secs"
+abi_type = "u64"
+path = "flatfiles.connect_timeout_secs"
+out_safety = """
+        // SAFETY: out_secs null-checked above. The field is a `u64`, so
+        // the write is layout-compatible with the caller-pinned storage.
+"""
+doc = """
+Read the current `flatfiles.connect_timeout_secs` setting (seconds).
+Returns `0` on success, `-1` if either pointer is null.
+"""
+cpp_doc = ""
+py_doc = """
+Current ``flatfiles.connect_timeout_secs`` value in seconds.
+"""
+ts_doc = """
+Current `flatfiles.connect_timeout_secs` value (seconds, returned as BigInt).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_flatfiles_read_timeout_secs"
+kind = "set"
+param = "secs"
+abi_type = "u64"
+path = "flatfiles.read_timeout_secs"
+doc = """
+Set the read timeout (seconds) for a single flatfile response frame.
+Bounds the wait for the next chunk once streaming has begun so a
+mid-stream stall fails over instead of blocking forever. Default
+`60`.
+"""
+cpp_doc = """
+Read timeout (seconds) for a single flatfile response frame. Bounds
+the wait for the next chunk so a mid-stream stall fails over
+instead of blocking forever. Default 60.
+"""
+py_doc = """
+Set the read timeout (seconds) for a single flatfile response
+frame. Bounds the wait for the next chunk once streaming has begun
+so a mid-stream stall fails over instead of blocking forever.
+Default ``60``.
+"""
+ts_doc = """
+Set the read timeout (seconds) for a single flatfile response
+frame. Bounds the wait for the next chunk once streaming has begun
+so a mid-stream stall fails over instead of blocking forever.
+Default `60n`.
+
+Accepts a `bigint` for parity with the other bindings, which
+use a 64-bit unsigned integer.
+"""
+py_param = "secs"
+ts_param = "secs"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_flatfiles_read_timeout_secs"
+kind = "get"
+param = "out_secs"
+abi_type = "u64"
+path = "flatfiles.read_timeout_secs"
+out_safety = """
+        // SAFETY: out_secs null-checked above. The field is a `u64`, so
+        // the write is layout-compatible with the caller-pinned storage.
+"""
+doc = """
+Read the current `flatfiles.read_timeout_secs` setting (seconds).
+Returns `0` on success, `-1` if either pointer is null.
+"""
+cpp_doc = ""
+py_doc = """
+Current ``flatfiles.read_timeout_secs`` value in seconds.
+"""
+ts_doc = """
+Current `flatfiles.read_timeout_secs` value (seconds, returned as BigInt).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_historical_port"
+kind = "set"
+param = "port"
+abi_type = "u16"
+path = "historical.port"
+doc = """
+Set the historical gRPC port on a config handle.
+"""
+cpp_doc = """
+Set the historical gRPC port. Companion to
+@c set_historical_host.
+"""
+py_doc = """
+Override the historical gRPC port. Companion to `historical_host` —
+same rationale and same test-only usage.
+"""
+ts_doc = """
+Override the historical data port. Companion to `setHistoricalHost` —
+same test-only rationale. Rejects values outside the `0..=65535`
+port range.
+"""
+py_param = "port"
+ts_param = "port"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_historical_port"
+kind = "get"
+param = "out_port"
+abi_type = "u16"
+path = "historical.port"
+out_safety = """
+        // SAFETY: out pointer checked non-null above; caller pins the storage for the call duration.
+"""
+doc = """
+Read the configured historical gRPC port. Writes the value
+into `*out_port`. Returns `0` on success, `-1` if either pointer is
+null.
+"""
+cpp_doc = """
+Current historical gRPC port. Returns 0 on a null handle.
+"""
+py_doc = """
+Current historical gRPC port.
+"""
+ts_doc = """
+Current historical gRPC port.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_warn_on_buffered_threshold_bytes"
+kind = "set"
+param = "n"
+abi_type = "usize"
+path = "historical.warn_on_buffered_threshold_bytes"
+doc = """
+Set the `warn_on_buffered_threshold_bytes` ceiling on a config
+handle. Streaming endpoints log a `tracing::warn!` when a
+pre-stream-API caller receives a buffered response whose decoded
+total size exceeds this threshold (default 100 MiB). The warning
+guides users towards the `.stream()` surface on large pulls; the
+data is still delivered.
+
+`n = 0` disables the warning entirely.
+"""
+cpp_doc = """
+Set the warn_on_buffered_threshold_bytes ceiling.
+
+Buffered (non-streaming) endpoints log a warning when a response's
+decoded total exceeds this threshold, guiding users to the streaming
+variant. The payload is still delivered.
+
+@p n = 0 disables the warning entirely.
+Default is `100 * 1024 * 1024` (100 MiB).
+"""
+py_doc = """
+Set the warning threshold (in bytes) for buffered (non-streaming)
+historical responses. Endpoints whose decoded total exceeds this
+value log a `tracing::warn!` pointing the caller at the
+``.stream()`` surface; the data is still delivered. ``0``
+disables the warning entirely. Default is ``100 * 1024 * 1024``
+(100 MiB).
+
+Examples
+--------
+    cfg = Config.production()
+    cfg.warn_on_buffered_threshold_bytes = 50 * 1024 * 1024
+"""
+ts_doc = """
+Set the warning threshold (in bytes) for buffered (non-streaming)
+historical responses. Endpoints whose decoded total exceeds this
+value log a warning pointing the caller at the
+matching `<endpoint>Stream(...)` method (e.g. `optionHistoryTradeStream`),
+which delivers the same rows chunk-by-chunk through a callback with
+memory bounded to a single chunk; the buffered data is still
+delivered. `0n` disables the warning entirely. Default is
+`100n * 1024n * 1024n` (100 MiB). Byte budgets can exceed the
+32-bit unsigned range, so the setter takes a `BigInt`.
+"""
+py_param = "n"
+ts_param = "n"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_warn_on_buffered_threshold_bytes"
+kind = "get"
+param = "out_n"
+abi_type = "usize"
+path = "historical.warn_on_buffered_threshold_bytes"
+out_safety = """
+        // SAFETY: out_n null-checked above; caller pins the storage for the call duration.
+"""
+doc = """
+Read the current `warn_on_buffered_threshold_bytes` setting.
+
+Writes the configured byte count into `*out_n`. Returns `0` on
+success, `-1` if either pointer is null.
+"""
+cpp_doc = """
+Read the current `warn_on_buffered_threshold_bytes` setting.
+
+Returns the configured byte count, or `0` on a null handle
+(matching the C ABI's `-1` failure mapping at the boundary).
+"""
+py_doc = """
+Current ``warn_on_buffered_threshold_bytes`` setting (bytes).
+"""
+ts_doc = """
+Current `warn_on_buffered_threshold_bytes` setting (bytes,
+returned as a `BigInt`).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_request_timeout_secs"
+kind = "set"
+param = "secs"
+abi_type = "u64"
+path = "historical.request_timeout_secs"
+doc = """
+Set the default per-request deadline (seconds) for historical queries
+on a config handle.
+
+Bounds every request that did not call `with_deadline(...)`, so a
+live-but-silent stream resolves to a timeout instead of blocking
+forever (the gRPC keepalive PING only detects a fully dead peer).
+`secs = 0` disables the default (no deadline unless the caller sets
+one). Default `300`.
+"""
+cpp_doc = """
+Set the default per-request deadline (seconds) for historical queries.
+
+Bounds every request that did not set its own deadline, so a
+live-but-silent stream resolves to a timeout instead of blocking
+forever. @p secs = 0 disables the default. Default is `300`.
+"""
+py_doc = """
+Set the default per-request deadline (in seconds) for historical
+queries. Bounds every request that did not call
+``with_deadline(...)``, so a live-but-silent stream resolves to a
+timeout instead of blocking forever. ``0`` disables the default
+(no deadline unless the caller sets one). Default is ``300``
+(5 minutes).
+
+Examples
+--------
+    cfg = Config.production()
+    cfg.request_timeout_secs = 120
+"""
+ts_doc = """
+Set the default per-request deadline (seconds) for historical
+queries. Bounds every request that did not set its own deadline,
+so a live-but-silent stream resolves to a timeout instead of
+blocking forever. `0n` disables the default. Default `300n`
+(5 minutes). Seconds are taken as a `BigInt` for parity with the
+other `*Secs` knobs.
+"""
+py_param = "secs"
+ts_param = "secs"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_request_timeout_secs"
+kind = "get"
+param = "out"
+abi_type = "u64"
+path = "historical.request_timeout_secs"
+doc = """
+Read the current historical `request_timeout_secs` setting (default
+`300`; `0` = no default deadline).
+
+Writes the configured value into `*out`. Returns `0` on success,
+`-1` if either pointer is null.
+"""
+cpp_doc = """
+Read the current historical `request_timeout_secs` setting.
+
+Returns the configured seconds (`0` = no default deadline), or
+`0` on a null handle (matching the C ABI's `-1` failure mapping
+at the boundary).
+"""
+py_doc = """
+Current historical ``request_timeout_secs`` setting (``0`` = no
+default deadline).
+"""
+ts_doc = """
+Current historical `request_timeout_secs` setting in seconds
+(default `300n`; `0n` = no default deadline).
+"""
+
+
+# ── retry Duration getters (ms) ────────────────────────────────────
+#
+# The two `retry.*` `Duration` getters whose setters already generate
+# above (`duration_unit = "ms"`). The getter reads the saturating
+# `u64::try_from(.as_millis())` clamp.
+
+[[accessor]]
+symbol = "thetadatadx_config_get_retry_initial_delay_ms"
+kind = "get"
+param = "out_ms"
+abi_type = "u64"
+path = "retry.initial_delay"
+duration_unit = "ms"
+out_safety = """
+        // SAFETY: out_ms checked non-null above; FFI contract pins the
+        // `u64` storage for the call. The `as_millis` read is a saturating
+        // `u64` clamp, so the write is layout-compatible with the pointee.
+"""
+doc = """
+Read the current `retry.initial_delay` setting (ms). Returns `0` on
+success, `-1` if either pointer is null.
+"""
+cpp_doc = ""
+py_doc = """
+Current ``retry.initial_delay`` value in ms.
+"""
+ts_doc = """
+Current `retry.initial_delay` value (ms, returned as BigInt).
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_get_retry_max_delay_ms"
+kind = "get"
+param = "out_ms"
+abi_type = "u64"
+path = "retry.max_delay"
+duration_unit = "ms"
+out_safety = """
+        // SAFETY: out_ms checked non-null above; FFI contract pins the
+        // `u64` storage for the call. The `as_millis` read is a saturating
+        // `u64` clamp, so the write is layout-compatible with the pointee.
+"""
+doc = """
+Read the current `retry.max_delay` setting (ms).
+"""
+cpp_doc = ""
+py_doc = """
+Current ``retry.max_delay`` value in ms.
+"""
+ts_doc = """
+Current `retry.max_delay` value (ms, returned as BigInt).
+"""
+
+# ── Reconnect Auto-policy attempt limits (policy_limit) ─────────────
+#
+# The five `ReconnectAttemptLimits` fields reached through
+# `ReconnectPolicy::Auto`. The setter mutates only under `Auto` (a
+# silent no-op otherwise); the getter falls back to
+# `ReconnectAttemptLimits::default()` when the policy is `Manual` /
+# `Custom`. The FFI carries the limit logic; C++ is a thin pass-through.
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_max_attempts"
+kind = "set"
+shape = "policy_limit"
+limit_field = "max_attempts"
+param = "max_attempts"
+abi_type = "u32"
+doc = """
+Set the per-class transient-failure attempt budget for the
+auto-reconnect path. Default `30`. No effect unless the reconnect
+policy is `Auto`.
+"""
+cpp_doc = """
+Set the per-class transient-failure attempt budget. Default 30.
+"""
+py_doc = """
+Set the per-class transient-failure attempt budget for the
+auto-reconnect path. Default `30`. No effect unless the
+reconnect policy is `Auto`.
+"""
+ts_doc = """
+Set the per-class transient-failure attempt budget for the
+auto-reconnect path. Default `30`. No effect unless the
+reconnect policy is `Auto`.
+"""
+py_param = "max_attempts"
+ts_param = "max_attempts"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_max_attempts"
+kind = "get"
+shape = "policy_limit"
+limit_field = "max_attempts"
+param = "out"
+abi_type = "u32"
+doc = """
+Read the generic-transient reconnect attempt budget. Default `30`.
+
+Writes the configured value into `*out`. When the reconnect policy
+is not `Auto`, writes the default-limits value (the budgets only
+apply under the `Auto` policy). Returns `0` on success, `-1` if
+either pointer is null.
+"""
+cpp_doc = """
+Current generic-transient reconnect attempt budget (default 30).
+"""
+py_doc = """
+Current generic-transient reconnect attempt budget (default
+`30`). Reads the default-limits value when the policy is not
+`Auto`.
+"""
+ts_doc = """
+Current generic-transient reconnect attempt budget (default
+`30`). Reads the default-limits value when the policy is not
+`Auto`.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_max_rate_limited_attempts"
+kind = "set"
+shape = "policy_limit"
+limit_field = "max_rate_limited_attempts"
+param = "max_rate_limited_attempts"
+abi_type = "u32"
+doc = """
+Set the per-class rate-limited (`TooManyRequests`) attempt budget
+for the auto-reconnect path. Default `100`. No effect unless the
+reconnect policy is `Auto`.
+"""
+cpp_doc = """
+Set the rate-limited (TooManyRequests) attempt budget. Default 100.
+"""
+py_doc = """
+Set the per-class rate-limited (`TooManyRequests`) attempt budget
+for the auto-reconnect path. Default `100`. No effect unless the
+reconnect policy is `Auto`.
+"""
+ts_doc = """
+Set the per-class rate-limited (`TooManyRequests`) attempt
+budget for the auto-reconnect path. Default `100`. No effect
+unless the reconnect policy is `Auto`.
+"""
+py_param = "max_rate_limited_attempts"
+ts_param = "max_rate_limited_attempts"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_max_rate_limited_attempts"
+kind = "get"
+shape = "policy_limit"
+limit_field = "max_rate_limited_attempts"
+param = "out"
+abi_type = "u32"
+doc = """
+Read the rate-limited (`TooManyRequests`) reconnect attempt budget. Default `100`.
+
+Writes the configured value into `*out`. When the reconnect policy
+is not `Auto`, writes the default-limits value (the budgets only
+apply under the `Auto` policy). Returns `0` on success, `-1` if
+either pointer is null.
+"""
+cpp_doc = """
+Current rate-limited reconnect attempt budget (default 100).
+"""
+py_doc = """
+Current rate-limited reconnect attempt budget (default `100`).
+Reads the default-limits value when the policy is not `Auto`.
+"""
+ts_doc = """
+Current rate-limited reconnect attempt budget (default `100`).
+Reads the default-limits value when the policy is not `Auto`.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_max_server_restart_attempts"
+kind = "set"
+shape = "policy_limit"
+limit_field = "max_server_restart_attempts"
+param = "n"
+abi_type = "u32"
+doc = """
+Set the `ServerRestarting` reconnect attempt budget. Default `60`. No effect unless the reconnect policy is `Auto`.
+"""
+cpp_doc = """
+Set the ServerRestarting reconnect attempt budget. Default 60.
+"""
+py_doc = """
+Set the ``ServerRestarting`` reconnect attempt budget. Default
+``60``. No effect unless the reconnect policy is ``Auto``.
+"""
+ts_doc = """
+Set the `ServerRestarting` reconnect attempt budget. Default
+`60`. No effect unless the reconnect policy is `Auto`.
+"""
+py_param = "n"
+ts_param = "n"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_max_server_restart_attempts"
+kind = "get"
+shape = "policy_limit"
+limit_field = "max_server_restart_attempts"
+param = "out"
+abi_type = "u32"
+doc = """
+Read the `ServerRestarting` reconnect attempt budget. Default `60`.
+
+Writes the configured value into `*out`. When the reconnect policy
+is not `Auto`, writes the default-limits value (the budgets only
+apply under the `Auto` policy). Returns `0` on success, `-1` if
+either pointer is null.
+"""
+cpp_doc = """
+Current ServerRestarting reconnect attempt budget (default 60).
+"""
+py_doc = """
+Current ``ServerRestarting`` reconnect attempt budget (default
+``60``). Reads the default-limits value when the policy is not
+``Auto``.
+"""
+ts_doc = """
+Current `ServerRestarting` reconnect attempt budget (default
+`60`). Reads the default-limits value when the policy is not
+`Auto`.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_max_elapsed_secs"
+kind = "set"
+shape = "policy_limit"
+limit_field = "max_elapsed"
+param = "secs"
+abi_type = "u64"
+duration_unit = "secs"
+doc = """
+Set the wall-clock reconnect envelope (seconds) for the generic-transient and server-restart classes, measured from the first attempt of a consecutive-reconnect sequence. `0` disables the envelope (attempt budgets only). Default `300`. No effect unless the reconnect policy is `Auto`.
+"""
+cpp_doc = """
+Set the wall-clock reconnect envelope (seconds) for the
+generic-transient and server-restart classes. 0 disables the
+envelope (attempt budgets only). Default 300.
+"""
+py_doc = """
+Set the wall-clock reconnect envelope (seconds) for the
+generic-transient and server-restart classes, measured from the
+first attempt of a consecutive-reconnect sequence. ``0``
+disables the envelope (attempt budgets only). Default ``300``.
+No effect unless the reconnect policy is ``Auto``.
+"""
+ts_doc = """
+Set the wall-clock reconnect envelope (seconds) for the
+generic-transient and server-restart classes, measured from the
+first attempt of a consecutive-reconnect sequence. `0n` disables
+the envelope (attempt budgets only). Default `300n`. No effect
+unless the reconnect policy is `Auto`.
+"""
+py_param = "secs"
+ts_param = "secs"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_max_elapsed_secs"
+kind = "get"
+shape = "policy_limit"
+limit_field = "max_elapsed"
+param = "out"
+abi_type = "u64"
+duration_unit = "secs"
+doc = """
+Read the wall-clock reconnect envelope (seconds). `0` means the envelope is disabled. Default `300`.
+
+Writes the configured value into `*out`. When the reconnect policy
+is not `Auto`, writes the default-limits value (the budgets only
+apply under the `Auto` policy). Returns `0` on success, `-1` if
+either pointer is null.
+"""
+cpp_doc = """
+Current wall-clock reconnect envelope in seconds (default 300;
+0 = disabled).
+"""
+py_doc = """
+Current wall-clock reconnect envelope in seconds (default
+``300``; ``0`` = disabled). Reads the default-limits value when
+the policy is not ``Auto``.
+"""
+ts_doc = """
+Current wall-clock reconnect envelope in seconds (default
+`300n`; `0n` = disabled). Reads the default-limits value when
+the policy is not `Auto`.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_stable_window_secs"
+kind = "set"
+shape = "policy_limit"
+limit_field = "stable_window"
+param = "secs"
+abi_type = "u64"
+duration_unit = "secs"
+doc = """
+Set the continuous successful-data-flow window (in seconds) after
+which the auto-reconnect attempt counters reset. Default `60`. No
+effect unless the reconnect policy is `Auto`.
+"""
+cpp_doc = """
+Set the stable-window timer (seconds) after which the
+auto-reconnect attempt counters reset. Default 60.
+"""
+py_doc = """
+Set the continuous successful-data-flow window (in seconds)
+after which the auto-reconnect attempt counters reset. Default
+``60``. No effect unless the reconnect policy is ``Auto``.
+"""
+ts_doc = """
+Set the continuous successful-data-flow window (in seconds)
+after which the auto-reconnect attempt counters reset. Default
+`60`. No effect unless the reconnect policy is `Auto`.
+
+Accepts a `bigint` for parity with the Python / C++ / FFI
+surface, which uses a 64-bit unsigned integer. JavaScript `Number` callers should wrap their
+value: `setReconnectStableWindowSecs(BigInt(60))`.
+"""
+py_param = "secs"
+ts_param = "secs"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_stable_window_secs"
+kind = "get"
+shape = "policy_limit"
+limit_field = "stable_window"
+param = "out"
+abi_type = "u64"
+duration_unit = "secs"
+doc = """
+Read the stable-window reset interval (seconds). Default `60`.
+
+Writes the configured value into `*out`. When the reconnect policy
+is not `Auto`, writes the default-limits value (the budgets only
+apply under the `Auto` policy). Returns `0` on success, `-1` if
+either pointer is null.
+"""
+cpp_doc = """
+Current stable-window reset interval in seconds (default 60).
+"""
+py_doc = """
+Current stable-window reset interval in seconds (default `60`).
+Reads the default-limits value when the policy is not `Auto`.
+"""
+ts_doc = """
+Current stable-window reset interval in seconds (default `60n`).
+Reads the default-limits value when the policy is not `Auto`.
+"""
+
+# ── String config fields (string) ──────────────────────────────────
+#
+# UTF-8 `String` fields. The FFI setter validates a non-null UTF-8
+# `*const c_char`; the getter returns a heap-owned `*mut c_char` the
+# caller frees with `thetadatadx_string_free`. `historical_host` routes
+# through the `set_historical_host` / `historical_host` methods rather
+# than a direct field assignment.
+
+[[accessor]]
+symbol = "thetadatadx_config_set_nexus_url"
+kind = "set"
+shape = "string"
+param = "url"
+abi_type = "string"
+path = "auth.nexus_url"
+doc = """
+Set the Nexus auth URL on a config handle.
+
+`url` must be a non-null, NUL-terminated, valid-UTF-8 C string.
+Returns `0` on success, `-1` if `config` is null or `url` is
+null / not valid UTF-8 (the diagnostic is written to thread-local
+storage retrievable via `thetadatadx_last_error()`).
+"""
+cpp_doc = """
+Set the Nexus auth URL. Default is the upstream production
+endpoint; redirect at a staging cluster for testing.
+
+Throws a @c thetadatadx::ThetaDataError leaf if the FFI rejects the value
+(null handle or non-UTF-8 input), routing through the typed class
+the FFI error code selects.
+"""
+py_doc = """
+Set the Nexus auth URL. Default matches the upstream production
+endpoint; override to redirect at a staging cluster.
+"""
+ts_doc = """
+Set the Nexus auth URL. Default matches the upstream
+production endpoint; override to redirect at a staging
+cluster for testing.
+"""
+py_param = "url"
+ts_param = "url"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_nexus_url"
+kind = "get"
+shape = "string"
+param = "out"
+abi_type = "string"
+path = "auth.nexus_url"
+doc = """
+Read the current `auth.nexus_url` setting.
+
+On success, returns a heap-owned NUL-terminated C string the
+caller MUST release with `thetadatadx_string_free`. Returns null if
+`config` is null or the stored value contains an interior NUL
+(the diagnostic is written to `thetadatadx_last_error()`).
+"""
+cpp_doc = """
+Current @c auth.nexus_url. Returns an empty string if the FFI
+getter returns null (null handle or interior-NUL value).
+"""
+py_doc = """
+Current ``auth.nexus_url`` value.
+"""
+ts_doc = """
+Current `auth.nexus_url` value.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_client_type"
+kind = "set"
+shape = "string"
+param = "client_type"
+abi_type = "string"
+path = "auth.client_type"
+doc = """
+Set the `QueryInfo.client_type` identifier on a config handle.
+
+`client_type` must be a non-null, NUL-terminated, valid-UTF-8 C
+string. Returns `0` on success, `-1` if `config` is null or
+`client_type` is null / not valid UTF-8 (the diagnostic is written
+to thread-local storage retrievable via `thetadatadx_last_error()`).
+"""
+cpp_doc = """
+Set the QueryInfo.client_type identifier. Default is
+@c "rust-thetadatadx"; override to identify a deployment fleet
+in server-side dashboards.
+
+Throws a @c thetadatadx::ThetaDataError leaf if the FFI rejects the value
+(null handle or non-UTF-8 input), routing through the typed class
+the FFI error code selects.
+"""
+py_doc = """
+Set the ``QueryInfo.client_type`` identifier. Default is
+``"rust-thetadatadx"``; override to identify a deployment fleet
+in server-side dashboards.
+"""
+ts_doc = """
+Set the `QueryInfo.client_type` identifier. Default is
+`"rust-thetadatadx"`; override to identify a deployment fleet
+in server-side dashboards.
+"""
+py_param = "client_type"
+ts_param = "client_type"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_client_type"
+kind = "get"
+shape = "string"
+param = "out"
+abi_type = "string"
+path = "auth.client_type"
+doc = """
+Read the current `auth.client_type` setting.
+
+On success, returns a heap-owned NUL-terminated C string the
+caller MUST release with `thetadatadx_string_free`. Returns null if
+`config` is null or the stored value contains an interior NUL
+(the diagnostic is written to `thetadatadx_last_error()`).
+"""
+cpp_doc = """
+Current @c auth.client_type. Returns an empty string if the FFI
+getter returns null (null handle or interior-NUL value).
+"""
+py_doc = """
+Current ``auth.client_type`` value.
+"""
+ts_doc = """
+Current `auth.client_type` value.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_historical_host"
+kind = "set"
+shape = "string"
+param = "host"
+abi_type = "string"
+setter_call = "set_historical_host"
+doc = """
+Set the historical gRPC host on a config handle.
+
+`host` must be a non-null, NUL-terminated, valid-UTF-8 C string.
+Returns `0` on success, `-1` if `config` is null or `host` is
+null / not valid UTF-8 (the diagnostic is written to thread-local
+storage retrievable via `thetadatadx_last_error()`).
+"""
+cpp_doc = """
+Set the historical gRPC host. Defaults to the upstream
+production endpoint; redirect the historical channel at a known
+host for testing. Throws a @c thetadatadx::ThetaDataError leaf if the FFI
+rejects the value (null handle or non-UTF-8 input).
+"""
+py_doc = """
+Override the historical gRPC host. Used by structural tests that
+need to point the historical channel at a known-refused endpoint
+to prove the streaming-only surface never opens it; production
+code paths should keep the `Config::production()` default.
+"""
+ts_doc = """
+Override the historical gRPC host. Companion to `setHistoricalPort`.
+"""
+py_param = "host"
+ts_param = "host"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_historical_host"
+kind = "get"
+shape = "string"
+param = "out"
+abi_type = "string"
+getter_call = "historical_host"
+doc = """
+Read the current historical gRPC host.
+
+On success, returns a heap-owned NUL-terminated C string the caller
+MUST release with `thetadatadx_string_free`. Returns null if `config` is
+null or the stored value contains an interior NUL (the diagnostic is
+written to `thetadatadx_last_error()`).
+"""
+cpp_doc = """
+Current historical gRPC host. Returns an empty string if
+the FFI getter returns null (null handle or interior-NUL value).
+"""
+py_doc = """
+Current historical gRPC host.
+"""
+ts_doc = """
+Current historical gRPC host.
+"""
+
+# ── Enum config fields (enum) ───────────────────────────────────────
+#
+# Plain string<->variant bijection enums. One [[accessor.variant]] table
+# per int code carries the FFI int <-> core-variant mapping and the
+# lowercase cross-binding label. The FFI surface speaks `i32` codes
+# (set: `match int { N => Variant, _ => typed error }`; get: `match
+# variant { Variant => N }`); C++ passes the int through; Python / TS
+# speak the lowercase string via the core enum `parse` / `as_str`. A
+# rejected int carries `THETADATADX_ERR_INVALID_PARAMETER`. The
+# null-handle code is per-setter (`null_err`): flush_mode / wait_strategy
+# pin `THETADATADX_ERR_CONFIG`, jitter / host_selection fall back to the
+# untyped `THETADATADX_ERR_OTHER`.
+
+[[accessor]]
+symbol = "thetadatadx_config_set_flush_mode"
+kind = "enum"
+param = "mode"
+abi_type = "i32"
+path = "streaming.flush_mode"
+enum_type = "thetadatadx::StreamingFlushMode"
+enum_core = "config::StreamingFlushMode"
+enum_expected = "expected 0 (Batched) or 1 (Immediate)"
+lowercase_err = true
+py_err = 'flush_mode must be "batched" or "immediate"; got {mode:?}'
+ts_err = 'setFlushMode: mode must be "batched" or "immediate"; got {mode:?}'
+doc = """
+Set streaming flush mode on a config handle.
+
+- `mode = 0`: Batched (default) -- flush only on PING every 100ms
+- `mode = 1`: Immediate -- flush after every frame write (lowest latency)
+
+Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when
+`mode` is outside the documented `{0, 1}` set or when `config` is
+null. A rejected `mode` value carries
+`thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` (the same typed
+class the Python / TypeScript bindings raise for a bad enum value);
+a null `config` carries `THETADATADX_ERR_CONFIG`.
+"""
+cpp_doc = """
+Set streaming flush mode. 0=Batched (default), 1=Immediate. Throws
+@c thetadatadx::InvalidParameterError when @p mode is outside the
+documented `{0, 1}` set (and @c thetadatadx::ThetaDataError on a null
+handle), routing through the typed leaf the FFI error code
+selects.
+"""
+py_doc = """
+Set the streaming write-flush policy.
+
+Accepts ``"batched"`` (default, flushes on the PING heartbeat,
+roughly every 100 ms — best throughput) or ``"immediate"``
+(flushes after every wire write — lowest latency, higher
+per-frame syscall cost).
+"""
+ts_doc = """
+Set the streaming write-flush policy.
+
+Accepts `"batched"` (default — flushes on the PING heartbeat,
+roughly every 100 ms — best throughput) or `"immediate"`
+(flushes after every wire write — lowest latency, higher
+per-frame syscall cost).
+"""
+py_param = "mode"
+ts_param = "mode"
+[[accessor.variant]]
+int = 0
+rust = "Batched"
+label = "batched"
+[[accessor.variant]]
+int = 1
+rust = "Immediate"
+label = "immediate"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_flush_mode"
+kind = "enum"
+param = "out_mode"
+abi_type = "i32"
+path = "streaming.flush_mode"
+enum_type = "thetadatadx::StreamingFlushMode"
+enum_core = "config::StreamingFlushMode"
+# A future core variant decodes to `0` (Batched), the documented default.
+catch_all_int = 0
+doc = """
+Read the configured streaming flush mode. Same encoding as
+`thetadatadx_config_set_flush_mode`: writes `0` (`Batched`) or `1`
+(`Immediate`) into `*out_mode`. Returns `0` on success, `-1` if
+either pointer is null.
+"""
+cpp_doc = """
+Read the current streaming flush mode. Same encoding as
+@c set_flush_mode: `0` = Batched, `1` = Immediate. Returns `0`
+(Batched) on a null handle (matching the C ABI's `-1` failure
+mapping at the boundary).
+"""
+py_doc = """
+Current streaming write-flush policy (``"batched"`` or
+``"immediate"``).
+"""
+ts_doc = """
+Current streaming write-flush policy (`"batched"` or
+`"immediate"`).
+"""
+[[accessor.variant]]
+int = 0
+rust = "Batched"
+label = "batched"
+[[accessor.variant]]
+int = 1
+rust = "Immediate"
+label = "immediate"
+
+[[accessor]]
+symbol = "thetadatadx_config_set_wait_strategy"
+kind = "enum"
+param = "mode"
+abi_type = "i32"
+path = "streaming.wait_strategy"
+enum_type = "thetadatadx::StreamingWaitStrategy"
+enum_core = "config::StreamingWaitStrategy"
+enum_expected = "expected 0 (LowLatency), 1 (Balanced), 2 (Efficient), or 3 (BusySpin)"
+py_err = 'wait_strategy must be "low_latency", "balanced", "efficient", or "busy_spin"; got {strategy:?}'
+ts_err = 'setWaitStrategy: strategy must be "low_latency", "balanced", "efficient", or "busy_spin"; got {strategy:?}'
+doc = """
+Set the streaming event-ring consumer wait strategy on a config
+handle.
+
+- `mode = 0`: LowLatency (default) — spin, yield, then a `spin_loop`
+  hint; never sleeps. Lowest latency, highest idle CPU.
+- `mode = 1`: Balanced — short spin then a brief timed park. Low idle
+  CPU, slightly higher tail latency.
+- `mode = 2`: Efficient — minimal spin then a longer timed park.
+  Lowest idle CPU.
+- `mode = 3`: BusySpin — pure spin, no yield or sleep. Absolute
+  minimum latency; pins a core while idle.
+
+Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error`
+when `mode` is outside the documented `{0, 1, 2, 3}` set (code
+`THETADATADX_ERR_INVALID_PARAMETER`) or when `config` is null (code
+`THETADATADX_ERR_CONFIG`).
+"""
+cpp_doc = """
+Set the streaming event-ring consumer wait strategy.
+0=LowLatency (default), 1=Balanced, 2=Efficient, 3=BusySpin
+(see the @c THETADATADX_WAIT_* constants). Throws
+@c thetadatadx::InvalidParameterError when @p mode is outside the
+documented `{0, 1, 2, 3}` set (and @c thetadatadx::ThetaDataError
+on a null handle).
+"""
+py_doc = """
+Set the streaming event-ring consumer wait strategy — the
+latency-vs-CPU knob applied on each ring-empty poll.
+
+Accepts ``"low_latency"`` (default, never sleeps — lowest
+latency, highest idle CPU), ``"balanced"`` (brief park — low idle
+CPU), ``"efficient"`` (longer park — lowest idle CPU), or
+``"busy_spin"`` (pure spin — pins a core). Tune the individual
+spin / yield / park counts via ``wait_spin_iters`` /
+``wait_yield_iters`` / ``wait_park_us``.
+"""
+ts_doc = """
+Set the streaming event-ring consumer wait strategy — the
+latency-vs-CPU knob applied on each ring-empty poll.
+
+Accepts `"low_latency"` (default — never sleeps, lowest latency,
+highest idle CPU), `"balanced"` (brief park — low idle CPU),
+`"efficient"` (longer park — lowest idle CPU), or `"busy_spin"`
+(pure spin — pins a core). Tune the spin / yield / park counts via
+`setWaitSpinIters` / `setWaitYieldIters` / `setWaitParkUs`.
+"""
+py_param = "strategy"
+ts_param = "strategy"
+[[accessor.variant]]
+int = 0
+rust = "LowLatency"
+label = "low_latency"
+[[accessor.variant]]
+int = 1
+rust = "Balanced"
+label = "balanced"
+[[accessor.variant]]
+int = 2
+rust = "Efficient"
+label = "efficient"
+[[accessor.variant]]
+int = 3
+rust = "BusySpin"
+label = "busy_spin"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_wait_strategy"
+kind = "enum"
+param = "out_mode"
+abi_type = "i32"
+path = "streaming.wait_strategy"
+enum_type = "thetadatadx::StreamingWaitStrategy"
+enum_core = "config::StreamingWaitStrategy"
+# A future core variant decodes to `0` (LowLatency), the documented default.
+catch_all_int = 0
+doc = """
+Read the configured streaming wait strategy. Same encoding as
+`thetadatadx_config_set_wait_strategy`: writes `0` (LowLatency), `1`
+(Balanced), `2` (Efficient), or `3` (BusySpin) into `*out_mode`.
+Returns `0` on success, `-1` if either pointer is null.
+"""
+cpp_doc = """
+Read the current streaming wait strategy. Same encoding as
+@c set_wait_strategy. Returns `0` (LowLatency) on a null handle.
+"""
+py_doc = """
+Current streaming wait strategy (``"low_latency"``,
+``"balanced"``, ``"efficient"``, or ``"busy_spin"``).
+"""
+ts_doc = """
+Current streaming wait strategy (`"low_latency"`, `"balanced"`,
+`"efficient"`, or `"busy_spin"`).
+"""
+[[accessor.variant]]
+int = 0
+rust = "LowLatency"
+label = "low_latency"
+[[accessor.variant]]
+int = 1
+rust = "Balanced"
+label = "balanced"
+[[accessor.variant]]
+int = 2
+rust = "Efficient"
+label = "efficient"
+[[accessor.variant]]
+int = 3
+rust = "BusySpin"
+label = "busy_spin"
+
+[[accessor]]
+symbol = "thetadatadx_config_set_reconnect_jitter"
+kind = "enum"
+param = "mode"
+abi_type = "i32"
+path = "reconnect.jitter"
+enum_type = "thetadatadx::JitterMode"
+enum_core = "config::JitterMode"
+null_err = "other"
+enum_expected = "expected 0 (Full), 1 (Equal), 2 (Decorrelated), or 3 (None)"
+py_err = 'unknown reconnect_jitter: {mode:?} (expected "full", "equal", "decorrelated", or "none")'
+ts_err = 'setReconnectJitter: unknown mode {mode:?}; expected "full", "equal", "decorrelated", or "none"'
+doc = """
+Set the jitter strategy applied to every reconnect delay.
+
+- `mode = 0`: Full (default) — sample uniformly from `[0, delay]`.
+- `mode = 1`: Equal — `delay/2 + uniform(0, delay/2)`.
+- `mode = 2`: Decorrelated — walk relative to the previous delay.
+- `mode = 3`: None — deterministic delays (tests only).
+
+Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error` when
+`mode` is outside the documented `{0, 1, 2, 3}` set or `config` is
+null. A rejected `mode` value carries
+`thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` so an out-of-domain
+enum int surfaces the same typed class across every binding.
+"""
+cpp_doc = """
+Set the reconnect jitter mode: 0=Full (default), 1=Equal,
+2=Decorrelated, 3=None. Throws @c thetadatadx::InvalidParameterError on
+an out-of-domain mode (and @c thetadatadx::ThetaDataError on a null
+handle), routing through the typed leaf the FFI error code
+selects.
+"""
+py_doc = """
+Set the jitter strategy applied to every reconnect delay.
+Accepts ``"full"`` (default), ``"equal"``, ``"decorrelated"``,
+or ``"none"`` (case-insensitive).
+"""
+ts_doc = """
+Set the jitter strategy applied to every reconnect delay.
+Accepts `"full"` (default), `"equal"`, `"decorrelated"`, or
+`"none"` (case-insensitive).
+"""
+py_param = "mode"
+ts_param = "mode"
+[[accessor.variant]]
+int = 0
+rust = "Full"
+label = "full"
+[[accessor.variant]]
+int = 1
+rust = "Equal"
+label = "equal"
+[[accessor.variant]]
+int = 2
+rust = "Decorrelated"
+label = "decorrelated"
+[[accessor.variant]]
+int = 3
+rust = "None"
+label = "none"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_reconnect_jitter"
+kind = "enum"
+param = "out_mode"
+abi_type = "i32"
+path = "reconnect.jitter"
+enum_type = "thetadatadx::JitterMode"
+enum_core = "config::JitterMode"
+doc = """
+Read the configured reconnect jitter mode. Same encoding as
+`thetadatadx_config_set_reconnect_jitter`. Returns `0` on success, `-1` if
+either pointer is null.
+"""
+cpp_doc = """
+Current reconnect jitter mode (same encoding as the setter).
+"""
+py_doc = """
+Current reconnect jitter mode as a lowercase string.
+"""
+ts_doc = """
+Current reconnect jitter mode as a lowercase string.
+"""
+[[accessor.variant]]
+int = 0
+rust = "Full"
+label = "full"
+[[accessor.variant]]
+int = 1
+rust = "Equal"
+label = "equal"
+[[accessor.variant]]
+int = 2
+rust = "Decorrelated"
+label = "decorrelated"
+[[accessor.variant]]
+int = 3
+rust = "None"
+label = "none"
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_host_selection"
+kind = "enum"
+param = "policy"
+abi_type = "i32"
+path = "streaming.host_selection"
+enum_type = "thetadatadx::HostSelectionPolicy"
+enum_core = "config::HostSelectionPolicy"
+null_err = "other"
+enum_expected = "expected 0 (Shuffled) or 1 (FixedOrder)"
+py_err = 'unknown streaming_host_selection: {policy:?} (expected "shuffled" or "fixed_order")'
+ts_err = 'setStreamingHostSelection: unknown policy {policy:?}; expected "shuffled" or "fixed_order"'
+doc = """
+Set the streaming host-selection policy.
+
+- `policy = 0`: Shuffled (default) — fault-domain-aware per-client
+  shuffle; a fleet spreads across hosts and consecutive failover
+  attempts cross physical machines.
+- `policy = 1`: FixedOrder — use the declared host order verbatim.
+
+Returns `0` on success. Returns `-1` and sets `thetadatadx_last_error`
+when `policy` is outside the documented `{0, 1}` set or `config`
+is null. A rejected `policy` value carries
+`thetadatadx_last_error_code = THETADATADX_ERR_INVALID_PARAMETER` so an out-of-domain
+enum int surfaces the same typed class across every binding.
+"""
+cpp_doc = """
+Set the streaming host-selection policy: 0=Shuffled (default),
+1=FixedOrder. Throws @c thetadatadx::InvalidParameterError on an
+out-of-domain policy (and @c thetadatadx::ThetaDataError on a null
+handle), routing through the typed leaf the FFI error code
+selects.
+"""
+py_doc = """
+Set the streaming host-selection policy. Accepts ``"shuffled"``
+(default — fault-domain-aware per-client shuffle) or
+``"fixed_order"`` (declared order verbatim), case-insensitive.
+"""
+ts_doc = """
+Set the streaming host-selection policy. Accepts `"shuffled"`
+(default — fault-domain-aware per-client shuffle) or
+`"fixed_order"` (declared order verbatim), case-insensitive.
+"""
+py_param = "policy"
+ts_param = "policy"
+[[accessor.variant]]
+int = 0
+rust = "Shuffled"
+label = "shuffled"
+[[accessor.variant]]
+int = 1
+rust = "FixedOrder"
+label = "fixed_order"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_host_selection"
+kind = "enum"
+param = "out_policy"
+abi_type = "i32"
+path = "streaming.host_selection"
+enum_type = "thetadatadx::HostSelectionPolicy"
+enum_core = "config::HostSelectionPolicy"
+doc = """
+Read the configured streaming host-selection policy. Same encoding as
+`thetadatadx_config_set_streaming_host_selection`. Returns `0` on success, `-1`
+if either pointer is null.
+"""
+cpp_doc = """
+Current streaming host-selection policy (same encoding as the
+setter).
+"""
+py_doc = """
+Current streaming host-selection policy as a lowercase string.
+"""
+ts_doc = """
+Current streaming host-selection policy as a lowercase string.
+"""
+[[accessor.variant]]
+int = 0
+rust = "Shuffled"
+label = "shuffled"
+[[accessor.variant]]
+int = 1
+rust = "FixedOrder"
+label = "fixed_order"
+
+# ── Option config fields (option) ───────────────────────────────────
+#
+# Plain `(has_value, N)` <-> `Option<T>` accessors. The FFI carries the
+# widened `(has_value: bool, value: T)` shape that preserves the `None`
+# sentinel across C; C++ wraps it as `std::optional<T>`; Python / TS
+# expose `Optional[int]` / `T | null`. `abi_type` selects the scalar
+# decode on the JS surface (`number` for u16, `BigInt` for u64), the
+# same switch the scalar accessor already runs.
+
+[[accessor]]
+symbol = "thetadatadx_config_set_metrics_port"
+kind = "option"
+param = "port"
+abi_type = "u16"
+path = "metrics.port"
+py_err = 'metrics_port must be in 0..=65535; got {v}'
+ts_err = 'setMetricsPort: port must be in 0..=65535; got {v}'
+doc = """
+Set the Prometheus exporter port on a config handle.
+
+* `has_value = false` encodes `None`: the exporter stays disabled
+  even when the `metrics-prometheus` cargo feature is compiled in.
+  `port` is ignored.
+* `has_value = true` encodes `Some(port)`: the exporter binds an
+  HTTP listener on `0.0.0.0:<port>` whose `/metrics` endpoint
+  exposes every counter and histogram recorded through the
+  `metrics` crate.
+
+Returns `0` on success, `-1` if `config` is null.
+"""
+cpp_doc = """
+Set the Prometheus exporter port. Pass @c std::nullopt to leave
+the exporter disabled (the @c None default); pass an explicit
+@c std::uint16_t to bind an HTTP listener on @c 0.0.0.0:<port>
+when the @c metrics-prometheus feature is compiled in.
+
+Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
+routing through the typed class the FFI error code selects.
+"""
+py_doc = """
+Set the Prometheus exporter port. ``None`` (the default) keeps
+the exporter disabled; an ``int`` binds an HTTP listener whose
+``/metrics`` endpoint exposes every counter and histogram.
+
+Raises ``ValueError`` if the value is outside the ``u16`` range
+(``0..=65535``).
+"""
+ts_doc = """
+Set the Prometheus exporter port. Pass `null` or `undefined`
+to leave the exporter disabled (the default); pass a
+`number` to bind an HTTP listener on `0.0.0.0:<port>` when the
+`metrics-prometheus` feature is compiled in.
+
+Rejects values outside the `0..=65535` port range.
+"""
+py_param = "port"
+ts_param = "port"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_metrics_port"
+kind = "option"
+param = "out_port"
+abi_type = "u16"
+path = "metrics.port"
+doc = """
+Read the current `metrics.port` setting.
+
+* `*out_has_value = false` → the config holds `None` (exporter
+  disabled). `*out_port` is left as `0`.
+* `*out_has_value = true` → the config holds `Some(*out_port)`.
+
+Returns `0` on success, `-1` if any pointer is null.
+"""
+cpp_doc = """
+Read the current @c metrics.port setting. Returns
+@c std::nullopt for the disabled sentinel; returns the wrapped
+@c std::uint16_t when an explicit port is set.
+
+Throws a @c thetadatadx::ThetaDataError leaf on a null-handle FFI failure,
+routing through the typed class the FFI error code selects.
+"""
+py_doc = """
+Current ``metrics.port`` setting. ``None`` means the exporter is
+disabled; an ``int`` is the bound port.
+"""
+ts_doc = """
+Current `metrics.port` setting. `null` means the exporter is
+disabled; a `number` is the bound port.
+"""
+
+[[accessor]]
+symbol = "thetadatadx_config_set_streaming_host_shuffle_seed"
+kind = "option"
+param = "seed"
+abi_type = "u64"
+path = "streaming.host_shuffle_seed"
+doc = """
+Set the streaming host-shuffle seed using the `(has_value, seed)`
+widened ABI shape that preserves the `None` sentinel across the C
+boundary.
+
+* `has_value = false` → `None` (default): every client derives a
+  fresh per-instance seed, so a fleet shuffles independently.
+  `seed` is ignored.
+* `has_value = true` → `Some(seed)`: the shuffled order becomes
+  deterministic — useful for fleet sharding and tests.
+
+Ignored under the `FixedOrder` host-selection policy. Returns `0`
+on success, `-1` if `config` is null.
+"""
+cpp_doc = """
+Set the streaming host-shuffle seed using the (has_value, seed)
+shape. has_value=false derives a fresh per-client seed;
+has_value=true makes the shuffled order deterministic.
+"""
+py_doc = """
+Set the streaming host-shuffle seed. ``None`` (default) derives a
+fresh per-client seed so a fleet shuffles independently; an
+explicit value makes the shuffled order deterministic — useful
+for fleet sharding and tests. Ignored under ``"fixed_order"``.
+"""
+ts_doc = """
+Set the streaming host-shuffle seed. `null` (default) derives a
+fresh per-client seed so a fleet shuffles independently; an
+explicit `bigint` makes the shuffled order deterministic —
+useful for fleet sharding and tests. Ignored under
+`"fixed_order"`.
+"""
+py_param = "seed"
+ts_param = "seed"
+
+[[accessor]]
+symbol = "thetadatadx_config_get_streaming_host_shuffle_seed"
+kind = "option"
+param = "out_seed"
+abi_type = "u64"
+path = "streaming.host_shuffle_seed"
+doc = """
+Read the current streaming host-shuffle seed. Same `(has_value, seed)`
+ABI as `thetadatadx_config_set_streaming_host_shuffle_seed`:
+
+* `*out_has_value = false` → `None` (per-client entropy). `*out_seed` is left `0`.
+* `*out_has_value = true` → `Some(*out_seed)`.
+
+Returns `0` on success, `-1` if any pointer is null.
+"""
+cpp_doc = """
+Read the streaming host-shuffle seed back. Returns @c std::nullopt for
+the per-client-entropy sentinel (no pinned seed); returns the
+wrapped seed when the shuffled order is deterministic.
+"""
+py_doc = """
+Current ``streaming.host_shuffle_seed`` value (``None`` = per-client
+entropy).
+"""
+ts_doc = """
+Current `streaming.host_shuffle_seed` value (`null` = per-client
+entropy).
+"""

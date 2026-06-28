@@ -3,10 +3,9 @@
 # ThetaDataDx Release Validation
 #
 # Single script that validates every delivery surface:
-#   1. CLI       — generated check_cli.py           (Rust core)
-#   2. Python    — generated check_python.py        (PyO3 bridge)
-#   3. C++       — generated validate.cpp           (C FFI bridge)
-#   4. Agreement — cross-language artifact diff     (scripts/ci/check_agreement.py)
+#   1. Python    — generated check_python.py        (PyO3 bridge)
+#   2. C++       — generated validate.cpp           (C FFI bridge)
+#   3. Agreement — cross-language artifact diff     (scripts/ci/check_agreement.py)
 #
 # Each SDK validator writes a per-cell JSON artifact to
 # `artifacts/validator_<lang>.json`. The agreement step asserts that every
@@ -75,34 +74,16 @@ ensure_python_sdk() {
     (
         export VIRTUAL_ENV="$venv_dir"
         export PATH="$venv_dir/bin:$PATH"
-        cd "$REPO/sdks/python" &&
+        cd "$REPO/thetadatadx-py" &&
         "$venv_dir/bin/maturin" develop --release >/dev/null
     ) || return 1
 
     PYTHON_BIN="$venv_dir/bin/python"
 }
 
-# ── 1. CLI ──────────────────────────────────────────────────────────────────
+# ── 1. Python SDK ───────────────────────────────────────────────────────────
 
-section "1/5  CLI — live parameter-mode matrix"
-
-if [ ! -f "$REPO/target/release/thetadatadx" ]; then
-    echo "Building CLI..."
-    cargo build --release -p thetadatadx-cli --manifest-path "$REPO/Cargo.toml"
-fi
-
-cli_output=$(python3 "$REPO/scripts/ci/check_cli.py" "$CREDS" 2>&1)
-echo "$cli_output"
-
-cli_counts=$(echo "$cli_output" | grep -oP 'COUNTS:\K.*')
-cli_pass=$(echo "$cli_counts" | cut -d: -f1)
-cli_skip=$(echo "$cli_counts" | cut -d: -f2)
-cli_fail=$(echo "$cli_counts" | cut -d: -f3)
-record "CLI" "$cli_pass" "$cli_skip" "$cli_fail"
-
-# ── 2. Python SDK ───────────────────────────────────────────────────────────
-
-section "2/5  Python SDK — live parameter-mode matrix"
+section "1/3  Python SDK — live parameter-mode matrix"
 
 py_pass=0
 py_skip=0
@@ -128,18 +109,18 @@ if [ ! -f "$FFI_LIB/libthetadatadx_ffi.so" ] && [ ! -f "$FFI_LIB/libthetadatadx_
     cargo build --release -p thetadatadx-ffi --manifest-path "$REPO/Cargo.toml"
 fi
 
-# ── 3. C++ SDK ──────────────────────────────────────────────────────────────
+# ── 2. C++ SDK ──────────────────────────────────────────────────────────────
 
-section "3/4  C++ SDK — live parameter-mode matrix"
+section "2/3  C++ SDK — live parameter-mode matrix"
 
 cpp_pass=0
 cpp_skip=0
 cpp_fail=0
 
-CPP_BUILD="$REPO/sdks/cpp/build"
+CPP_BUILD="$REPO/thetadatadx-cpp/build"
 if [ ! -f "$CPP_BUILD/thetadatadx_validate" ]; then
     echo "Building C++ validator..."
-    (cd "$REPO/sdks/cpp" && cmake -B build -S . >/dev/null 2>&1 && cmake --build build --target thetadatadx_validate >/dev/null 2>&1) || true
+    (cd "$REPO/thetadatadx-cpp" && cmake -B build -S . >/dev/null 2>&1 && cmake --build build --target thetadatadx_validate >/dev/null 2>&1) || true
 fi
 
 if [ -x "$CPP_BUILD/thetadatadx_validate" ]; then
@@ -155,9 +136,9 @@ else
 fi
 record "C++" "$cpp_pass" "$cpp_skip" "$cpp_fail"
 
-# ── 4. Cross-language agreement ─────────────────────────────────────────────
+# ── 3. Cross-language agreement ─────────────────────────────────────────────
 
-section "4/4  Cross-language agreement"
+section "3/3  Cross-language agreement"
 
 agreement_result=$(python3 "$REPO/scripts/ci/check_agreement.py" 2>&1)
 echo "$agreement_result"

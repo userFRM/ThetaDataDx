@@ -288,7 +288,7 @@ def _selftest() -> int:
       carrying a hyphenated `Java-terminal` — must be flagged. This proves
       the whole-tree walk plus the hyphen/underscore/whitespace pattern
       catches the spelling variants the curated scan missed.
-    * A C++ header (`sdks/cpp/include`) naming a decompiled `.java` source
+    * A C++ header (`thetadatadx-cpp/include`) naming a decompiled `.java` source
       — must be flagged, proving non-Rust extensions are in scope.
     * A file carrying the spelling variants the older patterns missed —
       the separator-free camelCase `JavaTerminal`, the abbreviated `RE'd`
@@ -376,11 +376,11 @@ def _selftest() -> int:
     with tempfile.TemporaryDirectory() as td:
         root = pathlib.Path(td)
 
-        leaky_path = root / "crates" / "thetadatadx" / "src" / "leaky.rs"
+        leaky_path = root / "thetadatadx-rs" / "src" / "leaky.rs"
         leaky_path.parent.mkdir(parents=True, exist_ok=True)
         leaky_path.write_text(leaky, encoding="utf-8")
 
-        schema_path = root / "crates" / "thetadatadx" / "tick_schema.toml"
+        schema_path = root / "thetadatadx-rs" / "tick_schema.toml"
         schema_path.parent.mkdir(parents=True, exist_ok=True)
         schema_path.write_text(leaky_schema, encoding="utf-8")
 
@@ -388,31 +388,31 @@ def _selftest() -> int:
         hyphen_path.parent.mkdir(parents=True, exist_ok=True)
         hyphen_path.write_text(leaky_hyphen, encoding="utf-8")
 
-        cpp_path = root / "sdks" / "cpp" / "include" / "tick.hpp"
+        cpp_path = root / "thetadatadx-cpp" / "include" / "tick.hpp"
         cpp_path.parent.mkdir(parents=True, exist_ok=True)
         cpp_path.write_text(leaky_cpp, encoding="utf-8")
 
-        clean_path = root / "ffi" / "src" / "clean.rs"
+        clean_path = root / "thetadatadx-ffi" / "src" / "clean.rs"
         clean_path.parent.mkdir(parents=True, exist_ok=True)
         clean_path.write_text(clean, encoding="utf-8")
 
-        vendor_path = root / "sdks" / "python" / "src" / "vendor.rs"
+        vendor_path = root / "thetadatadx-py" / "src" / "vendor.rs"
         vendor_path.parent.mkdir(parents=True, exist_ok=True)
         vendor_path.write_text(vendor_line, encoding="utf-8")
 
-        variants_path = root / "crates" / "thetadatadx" / "src" / "variants.rs"
+        variants_path = root / "thetadatadx-rs" / "src" / "variants.rs"
         variants_path.parent.mkdir(parents=True, exist_ok=True)
         variants_path.write_text(leaky_variants, encoding="utf-8")
 
-        fqcn_path = root / "crates" / "thetadatadx" / "src" / "fqcn.rs"
+        fqcn_path = root / "thetadatadx-rs" / "src" / "fqcn.rs"
         fqcn_path.parent.mkdir(parents=True, exist_ok=True)
         fqcn_path.write_text(leaky_fqcn, encoding="utf-8")
 
-        bare_type_path = root / "sdks" / "cpp" / "include" / "bare_type.hpp"
+        bare_type_path = root / "thetadatadx-cpp" / "include" / "bare_type.hpp"
         bare_type_path.parent.mkdir(parents=True, exist_ok=True)
         bare_type_path.write_text(clean_bare_type, encoding="utf-8")
 
-        contractions_path = root / "ffi" / "src" / "contractions.rs"
+        contractions_path = root / "thetadatadx-ffi" / "src" / "contractions.rs"
         contractions_path.parent.mkdir(parents=True, exist_ok=True)
         contractions_path.write_text(clean_contractions, encoding="utf-8")
 

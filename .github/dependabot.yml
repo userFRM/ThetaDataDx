@@ -10,7 +10,7 @@ updates:
         update-types: ["patch", "minor"]
 
   - package-ecosystem: "npm"
-    directory: "/sdks/typescript"
+    directory: "/thetadatadx-ts"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
@@ -28,7 +28,7 @@ updates:
         update-types: ["patch", "minor"]
 
   - package-ecosystem: "pip"
-    directory: "/sdks/python"
+    directory: "/thetadatadx-py"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5

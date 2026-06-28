@@ -48,7 +48,6 @@ export default defineConfig({
         text: 'Tools',
         items: [
           { text: 'Server (HTTP/WS)', link: '/server/' },
-          { text: 'CLI', link: '/cli' },
           { text: 'MCP Server', link: '/mcp' },
         ],
       },
@@ -104,7 +103,6 @@ export default defineConfig({
         text: 'Tools',
         collapsed: true,
         items: [
-          { text: 'CLI', link: '/cli' },
           { text: 'MCP Server', link: '/mcp' },
         ],
       },

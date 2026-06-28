@@ -107,7 +107,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--baseline",
-        default="crates/thetadatadx/benches/baseline/criterion.json",
+        default="thetadatadx-rs/benches/baseline/criterion.json",
         type=pathlib.Path,
         help="committed baseline JSON to diff against",
     )

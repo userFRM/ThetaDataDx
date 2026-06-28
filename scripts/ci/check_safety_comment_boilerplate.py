@@ -59,7 +59,13 @@ DEFAULT_MIN_OCCURRENCES = 3
 # Files / directories the detector skips. The detector itself is
 # excluded via the `/scripts/` fragment — it embeds the regression
 # sample as a string literal and would otherwise match itself.
-SCAN_GLOBS = ("crates/**/*.rs", "ffi/**/*.rs", "tools/**/*.rs", "sdks/**/*.rs")
+SCAN_GLOBS = (
+    "thetadatadx-rs/**/*.rs",
+    "thetadatadx-ffi/**/*.rs",
+    "tools/**/*.rs",
+    "thetadatadx-py/**/*.rs",
+    "thetadatadx-ts/**/*.rs",
+)
 
 # Per-site allowlist file. Substring matches against the normalised
 # SAFETY-comment text exempt the comment from the duplicate count.
@@ -253,26 +259,26 @@ def _selftest() -> int:
     )
 
     sample_files = {
-        pathlib.Path("crates/a/src/lib.rs"): f"""
+        pathlib.Path("thetadatadx-rs/a/src/lib.rs"): f"""
 fn a() {{
     // SAFETY: {sample_boilerplate}
     unsafe {{ }}
 }}
 """,
-        pathlib.Path("crates/b/src/lib.rs"): f"""
+        pathlib.Path("thetadatadx-rs/b/src/lib.rs"): f"""
 fn b() {{
     // SAFETY: {sample_boilerplate}
     unsafe {{ }}
 }}
 """,
-        pathlib.Path("crates/c/src/lib.rs"): f"""
+        pathlib.Path("thetadatadx-rs/c/src/lib.rs"): f"""
 fn c() {{
     // SAFETY: {sample_boilerplate}
     unsafe {{ }}
 }}
 """,
         # Genuine annotation — must NOT be flagged.
-        pathlib.Path("crates/d/src/lib.rs"): f"""
+        pathlib.Path("thetadatadx-rs/d/src/lib.rs"): f"""
 fn d() {{
     // SAFETY: {genuine}
     unsafe {{ }}

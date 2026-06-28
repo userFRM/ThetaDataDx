@@ -35,7 +35,7 @@ pip install thetadatadx[polars]    # polars
 pip install thetadatadx[arrow]     # pyarrow only
 ```
 
-Requires Python 3.12+. Pre-built `abi3` wheels for Linux x86_64, macOS, and Windows — no Rust toolchain needed. On other platforms, build from source with [maturin](https://www.maturin.rs/) (`maturin develop --release` in `sdks/python`).
+Requires Python 3.12+. Pre-built `abi3` wheels for Linux x86_64, macOS, and Windows — no Rust toolchain needed. On other platforms, build from source with [maturin](https://www.maturin.rs/) (`maturin develop --release` in `thetadatadx-py`).
 
 </template>
 
@@ -57,11 +57,11 @@ git clone https://github.com/userFRM/ThetaDataDx.git
 cd ThetaDataDx
 cargo build --release -p thetadatadx-ffi
 
-cd sdks/cpp
+cd thetadatadx-cpp
 cmake -B build && cmake --build build
 ```
 
-Include `sdks/cpp/include/thetadatadx.hpp`, compile it together with the implementation file `sdks/cpp/src/thetadatadx.cpp`, and link the built `thetadatadx_ffi` library (the provided CMake target wires this up). Any other language with C interop can target the same C ABI directly.
+Include `thetadatadx-cpp/include/thetadatadx.hpp`, compile it together with the implementation file `thetadatadx-cpp/src/thetadatadx.cpp`, and link the built `thetadatadx_ffi` library (the provided CMake target wires this up). Any other language with C interop can target the same C ABI directly.
 
 </template>
 
