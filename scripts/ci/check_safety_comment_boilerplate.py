@@ -259,26 +259,26 @@ def _selftest() -> int:
     )
 
     sample_files = {
-        pathlib.Path("crates/a/src/lib.rs"): f"""
+        pathlib.Path("thetadatadx-rs/a/src/lib.rs"): f"""
 fn a() {{
     // SAFETY: {sample_boilerplate}
     unsafe {{ }}
 }}
 """,
-        pathlib.Path("crates/b/src/lib.rs"): f"""
+        pathlib.Path("thetadatadx-rs/b/src/lib.rs"): f"""
 fn b() {{
     // SAFETY: {sample_boilerplate}
     unsafe {{ }}
 }}
 """,
-        pathlib.Path("crates/c/src/lib.rs"): f"""
+        pathlib.Path("thetadatadx-rs/c/src/lib.rs"): f"""
 fn c() {{
     // SAFETY: {sample_boilerplate}
     unsafe {{ }}
 }}
 """,
         # Genuine annotation — must NOT be flagged.
-        pathlib.Path("crates/d/src/lib.rs"): f"""
+        pathlib.Path("thetadatadx-rs/d/src/lib.rs"): f"""
 fn d() {{
     // SAFETY: {genuine}
     unsafe {{ }}
