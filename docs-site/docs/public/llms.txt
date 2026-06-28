@@ -18,7 +18,6 @@
 /articles/symbology — Symbology & Contract Identity: How symbols, option contracts, dates, prices, and timestamps are written across the SDK surface.
 /articles/terminology — Terminology: The dozen terms the rest of this documentation assumes.
 /changelog — Changelog
-/cli — CLI: Query any endpoint from the command line with the thetadatadx binary.
 /mcp — MCP Server: Give any Model Context Protocol client live access to every historical endpoint plus offline Greeks tools.
 /migration/v11-to-v12 — Migrating from v11 to v12
 /migration/v12-to-v13 — Migrating from v12 to v13

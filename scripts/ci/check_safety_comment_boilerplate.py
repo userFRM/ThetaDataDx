@@ -59,7 +59,13 @@ DEFAULT_MIN_OCCURRENCES = 3
 # Files / directories the detector skips. The detector itself is
 # excluded via the `/scripts/` fragment — it embeds the regression
 # sample as a string literal and would otherwise match itself.
-SCAN_GLOBS = ("crates/**/*.rs", "ffi/**/*.rs", "tools/**/*.rs", "sdks/**/*.rs")
+SCAN_GLOBS = (
+    "thetadatadx-rs/**/*.rs",
+    "thetadatadx-ffi/**/*.rs",
+    "tools/**/*.rs",
+    "thetadatadx-py/**/*.rs",
+    "thetadatadx-ts/**/*.rs",
+)
 
 # Per-site allowlist file. Substring matches against the normalised
 # SAFETY-comment text exempt the comment from the duplicate count.

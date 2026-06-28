@@ -48,5 +48,5 @@ policy was just allocated above
 # substring (which matched any text containing that phrase, even
 # outside the intended `thetadatadx_*_free` tests) to anchor on the
 # `thetadatadx_*_free` test family that exercises the documented
-# null-tolerance contract per `ffi/src/auth.rs` rustdoc.
+# null-tolerance contract per `thetadatadx-ffi/src/auth.rs` rustdoc.
 passing null to thetadatadx_

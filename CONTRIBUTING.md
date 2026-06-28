@@ -56,14 +56,12 @@ cargo clippy --manifest-path tools/mcp/Cargo.toml -- -D warnings
 cargo test --manifest-path tools/mcp/Cargo.toml
 cargo clippy --manifest-path tools/server/Cargo.toml -- -D warnings
 cargo test --manifest-path tools/server/Cargo.toml
-cargo clippy --manifest-path tools/cli/Cargo.toml -- -D warnings
-cargo test --manifest-path tools/cli/Cargo.toml
 
 # 6. Language SDK smoke checks (if modified)
-cargo check --manifest-path sdks/python/Cargo.toml
-(cd sdks/typescript && npm run build)
-c++ -std=c++17 -fsyntax-only -I sdks/cpp/include sdks/cpp/src/thetadatadx.cpp
-cmake -S sdks/cpp -B build/cpp
+cargo check --manifest-path thetadatadx-py/Cargo.toml
+(cd thetadatadx-ts && npm run build)
+c++ -std=c++17 -fsyntax-only -I thetadatadx-cpp/include thetadatadx-cpp/src/thetadatadx.cpp
+cmake -S thetadatadx-cpp -B build/cpp
 cmake --build build/cpp --target thetadatadx_cpp
 ```
 
@@ -106,12 +104,11 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
 
 | Scope | What it covers |
 |-------|---------------|
-| `core` | `crates/thetadatadx/` (includes the `tdbe` data-format layer) |
-| `ffi` | `ffi/` |
-| `python` | `sdks/python/` |
-| `typescript` | `sdks/typescript/` |
-| `cpp` | `sdks/cpp/` |
-| `cli` | `tools/cli/` |
+| `core` | `thetadatadx-rs/` (includes the `tdbe` data-format layer) |
+| `ffi` | `thetadatadx-ffi/` |
+| `python` | `thetadatadx-py/` |
+| `typescript` | `thetadatadx-ts/` |
+| `cpp` | `thetadatadx-cpp/` |
 | `mcp` | `tools/mcp/` |
 | `server` | `tools/server/` |
 | `docs` | `docs/`, `docs-site/` |
@@ -137,34 +134,34 @@ feat(core)!: replace HistoricalClient with the unified Client
 ## How to Add a New Endpoint
 
 The endpoint-facing source of truth is split across:
-- `crates/thetadatadx/proto/mdds.proto` for the wire contract
-- `crates/thetadatadx/endpoint_surface.toml` for the normalized SDK surface
-- `crates/thetadatadx/tick_schema.toml` for DataTable parser layouts
+- `thetadatadx-rs/proto/mdds.proto` for the wire contract
+- `thetadatadx-rs/endpoint_surface.toml` for the normalized SDK surface
+- `thetadatadx-rs/tick_schema.toml` for DataTable parser layouts
 
 The build expands that metadata into the registry, shared endpoint runtime, and
 `HistoricalClient` declarations automatically.
 
 1. **Update the proto** (if the endpoint uses a new message type)
-   - Update `crates/thetadatadx/proto/mdds.proto`
+   - Update `thetadatadx-rs/proto/mdds.proto`
    - `cargo build` regenerates Rust message types automatically
    - The committed gRPC codegen snapshot at
-     `crates/thetadatadx/proto/beta_endpoints.snapshot.rs` is verified
+     `thetadatadx-rs/proto/beta_endpoints.snapshot.rs` is verified
      by the build script but never written by it. Refresh it
      explicitly with
      `cargo run -p thetadatadx --bin refresh_grpc_snapshot --features grpc-codegen`
      and commit the resulting diff alongside the proto change.
 
 2. **Add or update the endpoint surface**
-   - Add an entry to `crates/thetadatadx/endpoint_surface.toml`
+   - Add an entry to `thetadatadx-rs/endpoint_surface.toml`
    - Reuse existing `param_groups` / `templates` where possible
    - `cargo build` validates the declared surface against `mdds.proto` and generates the registry/runtime/mdds surfaces
 
 3. **Add the column schema** (if the response has a new layout)
-   - Add a `[types.YourTick]` block to `crates/thetadatadx/tick_schema.toml`
+   - Add a `[types.YourTick]` block to `thetadatadx-rs/tick_schema.toml`
    - `cargo build` generates the parser
    - The header comments in `tick_schema.toml` document the TOML format
    - Note: tick type structs, `Price`, enums, codecs, and Greeks live in the
-     internal data-format module `crates/thetadatadx/src/tdbe/`. If you add a new
+     internal data-format module `thetadatadx-rs/src/tdbe/`. If you add a new
      tick type or modify existing types, edit that module first.
 
 4. **Review the generated mdds/runtime surfaces**
@@ -172,15 +169,15 @@ The build expands that metadata into the registry, shared endpoint runtime, and
    - Only change files under `build_support/endpoints/` or the macro layer if the new endpoint shape cannot be expressed by the existing surface spec
 
 5. **Regenerate downstream SDK/tool surfaces**
-   - Endpoint wrappers project from `crates/thetadatadx/endpoint_surface.toml`
-   - Non-endpoint SDK/tool surfaces project from `crates/thetadatadx/sdk_surface.toml`
-   - Tick projection helpers project from `crates/thetadatadx/tick_schema.toml`
+   - Endpoint wrappers project from `thetadatadx-rs/endpoint_surface.toml`
+   - Non-endpoint SDK/tool surfaces project from `thetadatadx-rs/sdk_surface.toml`
+   - Tick projection helpers project from `thetadatadx-rs/tick_schema.toml`
    - Run `cargo run -p thetadatadx --features config-file --bin generate_sdk_surfaces`
    - Only hand-edit SDK runtime plumbing when the change is intentionally outside the generated surface
 
 6. **Update CHANGELOG.md** under `[Unreleased]`
 
-See `crates/thetadatadx/proto/MAINTENANCE.md` for the full step-by-step guide.
+See `thetadatadx-rs/proto/MAINTENANCE.md` for the full step-by-step guide.
 
 ## Pull Request Process
 
@@ -227,11 +224,11 @@ breakage.
 
 When ThetaData ships a new proto revision:
 
-1. Replace `crates/thetadatadx/proto/mdds.proto`
+1. Replace `thetadatadx-rs/proto/mdds.proto`
 2. Update `endpoint_surface.toml` when the normalized SDK surface changes
 3. Update `tick_schema.toml` if DataTable column layouts changed
 4. Run the relevant checks from the sections above
-5. See `crates/thetadatadx/proto/MAINTENANCE.md` for the detailed guide
+5. See `thetadatadx-rs/proto/MAINTENANCE.md` for the detailed guide
 
 ## Community
 

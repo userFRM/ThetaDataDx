@@ -1,0 +1,4519 @@
+# Cross-binding parity matrix (Gate 2 / issue #545).
+#
+# Every user-facing class registered on Python is declared here with
+# its current state in TypeScript (napi) and C++ (`thetadatadx.hpp`).
+# `scripts/ci/check_binding_parity.py` parses this file and compares the
+# actual binding state of each SDK to the declared state; mismatches
+# fail CI.
+#
+# When you intentionally ship a binding asymmetry (e.g. you land a
+# Python pyclass first and TS/C++ are tracked separately), update the
+# row here. When you intend to keep the three bindings in lockstep,
+# every row should be `true` in every column and CI will block any
+# Python-only PR that forgets to update TS / C++.
+
+[[class]]
+name = "Credentials"
+python = true
+typescript = true   # `Credentials` napi class: `new Credentials(email, password)` / `Credentials.fromFile(path)`, passed to `connect(creds, config?)`
+cpp = true
+
+[[class]]
+name = "Config"
+python = true
+typescript = true   # exposed as `Config` napi class with `production() / dev() / stage()` factories
+cpp = true
+
+
+[[class]]
+name = "Client"
+python = true
+typescript = true
+cpp = true          # exposed as `thetadatadx::Client` (unified); `thetadatadx::HistoricalClient` is the historical-only sibling
+
+[[class]]
+name = "AsyncClient"
+python = true
+typescript = false  # JS has no separate async client: the single Client's data-fetch methods each return a Promise resolved off the execution thread (the idiomatic JS shape), so an explicit async-twin class is redundant
+cpp = false         # not yet ported — issue #545 follow-up
+
+[[class]]
+name = "StreamingClient"
+python = true
+typescript = true   # standalone FPSS-only napi class over `thetadatadx::fpss::StreamingClient`
+cpp = true
+
+[[class]]
+name = "HistoricalClient"
+python = true
+typescript = true   # standalone historical-only napi class; generated historical surface, no streaming methods
+cpp = true          # standalone historical-only client: `thetadatadx::HistoricalClient`
+
+[[class]]
+name = "HistoricalView"
+python = true       # returned by the `client.historical` getter
+typescript = true   # returned by the `client.historical` getter
+cpp = true          # returned by `client.historical()`; exposed as `thetadatadx::Historical`
+
+[[class]]
+name = "StreamView"
+python = true       # returned by the `client.stream` getter
+typescript = true   # returned by the `client.stream` getter
+cpp = true          # returned by `client.stream()`; exposed as `thetadatadx::Stream`
+
+[[class]]
+name = "RecordBatchStream"
+# The pull-based columnar reader returned by `client.stream().batches(..)`.
+# Python: a `RecordBatchStream` pyclass (sync + async iterable, context
+# manager). TypeScript: the JS `RecordBatchStream` wrapper in
+# `streaming-session.{js,d.ts}` over the napi `RecordBatchStreamHandle`
+# transport, yielding apache-arrow `RecordBatch`. C++: a `RecordBatchStream`
+# subclass of `arrow::RecordBatchReader` (gated on `THETADATADX_CPP_ARROW`).
+python = true
+typescript = true
+cpp = true
+
+# `StreamingSession` carries no `[[method]]` rows by design: its public
+# surface is the inner `Client`'s, reached through `__getattr__` proxying,
+# so its OWN first-class methods are only the async-iterator and
+# context-manager dunders (no cross-binding contract). The
+# `STREAMING_SESSION_EXEMPT_METHODS` roster in the checker documents that
+# exemption and the reverse-orphan scan fires if a future first-class
+# session method ships without an enrolling row.
+[[class]]
+name = "StreamingSession"
+python = true
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts}) as the `await using` session wrapper
+cpp = false         # C++ uses the RAII guard pattern instead
+
+[[class]]
+name = "Contract"
+python = true
+typescript = true   # exposed as `ContractRef` (Contract aliased post-build)
+cpp = true          # exposed as `thetadatadx::FluentContract`
+
+[[class]]
+name = "ContractRef"
+python = true
+typescript = true   # primary class name on TS side (Contract is the post-build alias)
+cpp = false         # C++ uses the C ABI `ThetaDataDxContract` struct; no dedicated C++ class wrapper
+
+[[class]]
+name = "CalendarDay"
+python = true
+typescript = true
+cpp = true
+
+# `NoDataFoundError` / `TimeoutError` are Python-only back-compat
+# aliases of the canonical `NotFoundError` / `DeadlineExceededError`
+# (registered as the same type object under both names). TypeScript and
+# C++ ship only the canonical names, so the alias rows stay Python-only.
+[[class]]
+name = "NoDataFoundError"
+python = true
+typescript = false  # canonical `NotFoundError` only; no TS alias
+cpp = false         # canonical `NotFoundError` only; no C++ alias
+
+[[class]]
+name = "TimeoutError"
+python = true
+typescript = false  # canonical `DeadlineExceededError` only; no TS alias
+cpp = false         # canonical `DeadlineExceededError` only; no C++ alias
+
+[[class]]
+name = "Subscription"
+python = true
+typescript = true
+cpp = true          # exposed as `thetadatadx::FluentSubscription`
+
+[[class]]
+name = "SecType"
+python = true
+typescript = true
+cpp = true          # exposed as `thetadatadx::FluentSecType`
+
+[[class]]
+name = "FlatFilesNamespace"
+python = true
+typescript = true
+cpp = true          # exposed as `thetadatadx::FlatFiles`
+
+[[class]]
+name = "FlatFileRowList"
+python = true
+typescript = true
+cpp = true
+
+# ── Typed exception hierarchy.
+#
+# The canonical leaf class names (`NotFoundError`,
+# `DeadlineExceededError`, `UnavailableError`, `InvalidParameterError`,
+# ...) are identical across Python, TypeScript, and C++, so a handler
+# ports across bindings by class name.
+#
+# C++ exposes one class per leaf in `thetadatadx.hpp`, matching the Python
+# tree. TypeScript also exposes one runtime class per leaf; they live in the
+# package entry point `streaming-session.{js,d.ts}` (the napi shim re-casts
+# every `[ClassName] ...`-prefixed rejection into the matching subclass). The
+# parity checker resolves the TypeScript entry from `package.json` `types` /
+# `main` and scans it, so it sees these wrapper-side leaves and each row
+# records the TypeScript column as `true`.
+
+[[class]]
+name = "ThetaDataError"
+python = true
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
+cpp = true
+
+[[class]]
+name = "AuthenticationError"
+python = true
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
+cpp = true
+
+[[class]]
+name = "InvalidCredentialsError"
+python = true
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
+cpp = true
+
+[[class]]
+name = "SubscriptionError"
+python = true
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
+cpp = true
+
+[[class]]
+name = "RateLimitError"
+python = true
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
+cpp = true
+
+[[class]]
+name = "InvalidParameterError"
+python = true
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
+cpp = true
+
+[[class]]
+name = "NetworkError"
+python = true
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
+cpp = true
+
+[[class]]
+name = "UnavailableError"
+python = true
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
+cpp = true
+
+[[class]]
+name = "DeadlineExceededError"
+python = true
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
+cpp = true
+
+[[class]]
+name = "NotFoundError"
+python = true
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
+cpp = true
+
+[[class]]
+name = "SchemaMismatchError"
+python = true
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
+cpp = true
+
+[[class]]
+name = "StreamError"
+python = true
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
+cpp = true
+
+[[class]]
+name = "ConfigError"
+python = true
+typescript = true   # exported from the package entry (streaming-session.{js,d.ts})
+cpp = true
+
+# ─── FlatFilesConfig cross-binding setters ─────────────────────────────
+#
+# Per-field access on the legacy `FlatFilesConfig` sub-config. Bound on
+# every binding: Python via `Config.flatfiles_*` setters/getters,
+# TypeScript via `Config.setFlatfiles*`, C++ via
+# `thetadatadx::Config::set_flatfiles_*` (which forwards to the FFI
+# `thetadatadx_config_set_flatfiles_*` symbols). `max_attempts` is `u32`, the
+# two `Duration` fields cross the binding boundary as `u64` seconds
+# (`initial_backoff_secs` / `max_backoff_secs`), and the two timeout
+# fields (`connect_timeout_secs` / `read_timeout_secs`) are `u64` seconds
+# directly.
+
+[[class]]
+name = "FlatFilesConfig.max_attempts"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "FlatFilesConfig.initial_backoff_secs"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "FlatFilesConfig.max_backoff_secs"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "FlatFilesConfig.jitter"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "FlatFilesConfig.connect_timeout_secs"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "FlatFilesConfig.read_timeout_secs"
+python = true
+typescript = true
+cpp = true
+
+# ─── HistoricalConfig cross-binding setters ────────────────────────────
+#
+# Tuning knobs on the historical sub-config exposed across every binding.
+# `warn_on_buffered_threshold_bytes` / `request_timeout_secs` are bound
+# via `Config.<name>` (Python), `Config.set<Name>` (TypeScript napi),
+# `thetadatadx::Config::set_<name>` (C++ forwarder over the C ABI).
+# Channel-pool concurrency is intentionally absent: it is resolved
+# internally from the subscription tier, not exposed as a caller knob.
+
+[[class]]
+name = "HistoricalConfig.warn_on_buffered_threshold_bytes"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "HistoricalConfig.request_timeout_secs"
+python = true
+typescript = true
+cpp = true
+
+# ─── ReconnectConfig cross-binding setters ─────────────────────────────
+#
+# Streaming reconnect policy + per-class attempt budgets + stable-window
+# timer. Bound on every binding: Python via `Config.reconnect_*`
+# setters, TypeScript via `Config.setReconnect*`, C++ via
+# `thetadatadx::Config::set_reconnect_*` (which forwards to the FFI
+# `thetadatadx_config_set_reconnect_*` symbols). Dotted-name rows track
+# field-level parity; the parity script's class-existence check skips
+# dotted rows pending the per-field granularity tightening (issue
+# referenced in `scripts/ci/check_binding_parity.py`).
+
+[[class]]
+name = "ReconnectConfig.policy"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.max_attempts"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.max_rate_limited_attempts"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.stable_window_secs"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.wait_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.wait_rate_limited_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.wait_max_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.wait_server_restart_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.jitter"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.max_elapsed_secs"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.max_server_restart_attempts"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.replay_burst_size"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "ReconnectConfig.replay_pace_ms"
+python = true
+typescript = true
+cpp = true
+
+# ─── RuntimeConfig cross-binding setters ───────────────────────────────
+#
+# Async worker-thread sub-config knob honoured by embedded bindings
+# that own their runtime (FFI / Python / napi). The public setter is
+# `worker_threads` on every binding (Python `Config.worker_threads`,
+# TypeScript `Config.setWorkerThreads` / `workerThreads`, C++
+# `set_worker_threads`, FFI `thetadatadx_config_set_worker_threads`). The row
+# name carries the public concept; the internal storage field maps to
+# it through the rename table in `check_binding_parity.py`. The widened
+# `(has_value, n)` ABI shape on the C surface lets the `Some(0)`
+# sentinel survive the C boundary.
+
+[[class]]
+name = "RuntimeConfig.worker_threads"
+python = true
+typescript = true
+cpp = true
+
+# ─── RetryPolicy cross-binding setters ─────────────────────────────────
+#
+# Per-field access on `DirectConfig.retry`. The `delay_for_attempt`
+# / `capped_backoff` / `disabled()` helpers stay Rust-only — they are
+# method-shape helpers that callers can recompute from the four field
+# values if needed. Field setters bound on every binding (Python via
+# `Config.retry_*`, TS via `Config.setRetry*`, C++ via
+# `thetadatadx::Config::set_retry_*`); the dotted rows below track field-level
+# parity and the parity script's class-existence check skips dotted
+# rows pending the per-field granularity tightening (issue referenced
+# in `scripts/ci/check_binding_parity.py`).
+
+[[class]]
+name = "RetryPolicy.initial_delay_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "RetryPolicy.max_delay_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "RetryPolicy.max_attempts"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "RetryPolicy.jitter"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "RetryPolicy.max_elapsed_secs"
+python = true
+typescript = true
+cpp = true
+
+# ─── FPSS parse-error event class ─────────────────────────────────────
+#
+# Named `ParseError` on every binding (mirrors the Rust core's
+# `StreamControl::Error` variant) so no binding ships a class that
+# collides with the language's own error types: Python's exception
+# hierarchy roots at `ThetaDataError`, the JS global `Error` stays
+# unshadowed, and C / C++ expose `ThetaDataDxStreamParseError` /
+# `thetadatadx::StreamParseError`.
+
+[[class]]
+name = "ParseError"
+python = true
+typescript = true   # `#[napi(object)]` interface `ParseError` + `StreamEvent.parseError`
+cpp = true          # `ThetaDataDxStreamParseError` C struct, `thetadatadx::StreamParseError` alias
+
+# ─── EOD-Greek + index-price tick anchors ─────────────────────────────
+#
+# Two tick types model the captured wire shape on two endpoints
+# whose earlier routing dropped server-emitted columns:
+#
+#   * `GreeksEodTick` (39 columns) -- `option_history_greeks_eod`.
+#     Previously routed to the bare `GreeksAllTick` (28 columns),
+#     losing the twelve EOD trade/quote columns (`open`, `high`,
+#     `low`, `close`, `volume`, `count`, `bid_size`, `bid_exchange`,
+#     `bid_condition`, `ask_size`, `ask_exchange`, `ask_condition`).
+#   * `IndexPriceAtTimeTick` (10 columns) -- `index_at_time_price`.
+#     Previously routed to the bare `PriceTick` (3 columns), losing
+#     the seven trade-side execution columns (`sequence`,
+#     `ext_condition1..4`, `condition`, `size`, `exchange`) including
+#     the SIP-exchange attribution field.
+#
+# Both ticks are implicitly tracked by the parity script's `*Tick`
+# catch-all (`scripts/ci/check_binding_parity.py::_is_implicitly_tracked`)
+# alongside every other generator-emitted tick wrapper. The rows
+# below are documentation anchors so the parity matrix records the
+# Additions; the script does not gate on dotted-name rows.
+
+[[class]]
+name = "GreeksEodTick.cross_binding_anchor"
+python = true       # `thetadatadx.GreeksEodTick` pyclass + `GreeksEodTickList` + Arrow + columnar
+typescript = true   # `GreeksEodTick` napi class
+cpp = true          # `thetadatadx::GreeksEodTick` alias over `ThetaDataDxGreeksEodTick`
+
+[[class]]
+name = "IndexPriceAtTimeTick.cross_binding_anchor"
+python = true       # `thetadatadx.IndexPriceAtTimeTick` pyclass + `IndexPriceAtTimeTickList` + Arrow + columnar
+typescript = true   # `IndexPriceAtTimeTick` napi class
+cpp = true          # `thetadatadx::IndexPriceAtTimeTick` alias over `ThetaDataDxIndexPriceAtTimeTick`
+
+# ─── Rust-only historical / streaming knobs (Gate 2 tightening / #595) ──
+#
+# Pub fields on `HistoricalConfig` / `StreamingConfig` that the binding
+# sweep has not yet exposed on Python / TypeScript / C++. These are
+# deliberately Rust-only today — embedders that own the runtime can
+# mutate the field directly through the `DirectConfig` struct, but the
+# higher-level bindings do not expose a setter. The
+# `rust_only = true` flag + `issue = "#595"` citation discloses the
+# tracked-work status: #595 (the Gate 2 per-field granularity
+# tightening) is the umbrella issue under which the cross-binding
+# sweep for these fields would be planned.
+#
+# Two `HistoricalConfig` advanced overrides (`historical_host` /
+# `historical_port`): point the historical channel at a known host (e.g.
+# a refused endpoint in structural tests that prove the streaming surface
+# never opens it). Exposed on every binding: Python (`Config.historical_host`
+# / `.historical_port`), TypeScript (`Config.setHistoricalHost` /
+# `.setHistoricalPort`), and C++ (`set_historical_host` /
+# `set_historical_port` over the FFI `thetadatadx_config_set_historical_host` /
+# `thetadatadx_config_set_historical_port`). The dotted rows below capture
+# the binding state via the `setter = "..."` override.
+
+[[class]]
+name = "HistoricalConfig.host"
+python = true       # `Config.historical_host` advanced override
+typescript = true   # `Config.setHistoricalHost` / `historicalHost` napi setter+getter
+cpp = true          # `Config::set_historical_host` over `thetadatadx_config_set_historical_host`
+setter = "historical_host"
+
+[[class]]
+name = "HistoricalConfig.port"
+python = true       # `Config.historical_port` advanced override
+typescript = true   # `Config.setHistoricalPort` / `historicalPort` napi setter+getter
+cpp = true          # `Config::set_historical_port` over `thetadatadx_config_set_historical_port`
+setter = "historical_port"
+
+[[class]]
+name = "HistoricalConfig.tls"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+[[class]]
+name = "HistoricalConfig.max_message_size"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+[[class]]
+name = "HistoricalConfig.keepalive_secs"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+[[class]]
+name = "HistoricalConfig.keepalive_timeout_secs"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+[[class]]
+name = "HistoricalConfig.window_size_kb"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+[[class]]
+name = "HistoricalConfig.connection_window_size_kb"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+[[class]]
+name = "HistoricalConfig.connect_timeout_secs"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+[[class]]
+name = "StreamingConfig.hosts"
+python = false
+typescript = false
+cpp = false
+rust_only = true
+issue = "#595"
+
+# Streaming transport knobs are bound on every binding under
+# `streaming_`-prefixed canonical names (Python `Config.streaming_*`,
+# TypeScript `Config.setStreaming*`, C++ `set_streaming_*`, FFI
+# `thetadatadx_config_set_streaming_*`). The prefix disambiguates the
+# generic field names (`timeout_ms`, `ring_size`) against sibling
+# sub-configs at the binding surface.
+
+[[class]]
+name = "StreamingConfig.streaming_timeout_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "StreamingConfig.streaming_ring_size"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "StreamingConfig.streaming_ping_interval_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "StreamingConfig.streaming_connect_timeout_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "StreamingConfig.streaming_io_read_slice_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "StreamingConfig.streaming_data_watchdog_ms"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "StreamingConfig.streaming_keepalive_idle_secs"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "StreamingConfig.streaming_keepalive_interval_secs"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "StreamingConfig.streaming_keepalive_retries"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "StreamingConfig.streaming_host_selection"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "StreamingConfig.streaming_host_shuffle_seed"
+python = true
+typescript = true
+cpp = true
+
+# `StreamingConfig.flush_mode` is exposed on every binding:
+# C ABI (`thetadatadx_config_set_flush_mode`), C++ (`set_flush_mode`),
+# Python (`Config.flush_mode` getter + setter accepting
+# `"batched"` / `"immediate"`), TypeScript (`Config.flushMode`
+# getter + `setFlushMode` accepting the same strings).
+[[class]]
+name = "StreamingConfig.flush_mode"
+python = true
+typescript = true
+cpp = true
+
+# `StreamingConfig.wait_strategy` is exposed on every binding:
+# C ABI (`thetadatadx_config_set_wait_strategy`), C++ (`set_wait_strategy`),
+# Python (`Config.wait_strategy` getter + setter accepting
+# `"low_latency"` / `"balanced"` / `"efficient"` / `"busy_spin"`),
+# TypeScript (`Config.waitStrategy` getter + `setWaitStrategy`).
+[[class]]
+name = "StreamingConfig.wait_strategy"
+python = true
+typescript = true
+cpp = true
+
+# `StreamingConfig.wait_spin_iters` numeric tuning knob, exposed on every
+# binding (Python `Config.wait_spin_iters`, TypeScript `waitSpinIters` /
+# `setWaitSpinIters`, C++ `set_wait_spin_iters` / `get_wait_spin_iters`,
+# C ABI `thetadatadx_config_set_wait_spin_iters`).
+[[class]]
+name = "StreamingConfig.wait_spin_iters"
+python = true
+typescript = true
+cpp = true
+
+# `StreamingConfig.wait_yield_iters` numeric tuning knob, exposed on
+# every binding.
+[[class]]
+name = "StreamingConfig.wait_yield_iters"
+python = true
+typescript = true
+cpp = true
+
+# `StreamingConfig.wait_park_us` numeric tuning knob, exposed on every
+# binding.
+[[class]]
+name = "StreamingConfig.wait_park_us"
+python = true
+typescript = true
+cpp = true
+
+# `StreamingConfig.consumer_cpu` optional consumer-thread CPU pin,
+# exposed on every binding (Python `Config.consumer_cpu` `Optional[int]`,
+# TypeScript `consumerCpu` / `setConsumerCpu` `number | null`, C++
+# `set_consumer_cpu` / `get_consumer_cpu`, C ABI
+# `thetadatadx_config_set_consumer_cpu` with a negative sentinel for
+# unpinned).
+[[class]]
+name = "StreamingConfig.consumer_cpu"
+python = true
+typescript = true
+cpp = true
+
+# `StreamingConfig.derive_ohlcvc` is exposed on every binding: the C ABI
+# (`thetadatadx_config_set_derive_ohlcvc`), Python (`Config.derive_ohlcvc`),
+# C++ (`set_derive_ohlcvc`), and TypeScript (`Config.setDeriveOhlcvc`
+# / `deriveOhlcvc`).
+[[class]]
+name = "StreamingConfig.derive_ohlcvc"
+python = true
+typescript = true
+cpp = true
+
+# ─── AuthConfig / MetricsConfig cross-binding setters ──────────────────
+#
+# Operator-tuning knobs on `DirectConfig.auth` + `DirectConfig.metrics`.
+# Bound on every binding: Python via `Config.nexus_url` /
+# `Config.client_type` / `Config.metrics_port` setters/getters,
+# TypeScript via `Config.setNexusUrl` / `setClientType` /
+# `setMetricsPort`, C++ via `thetadatadx::Config::set_nexus_url` /
+# `set_client_type` / `set_metrics_port` (which forward to the FFI
+# `thetadatadx_config_set_nexus_url` / `_client_type` / `_metrics_port`
+# symbols). The two `AuthConfig` fields are `String` — the FFI
+# setter takes a `*const c_char` (validated UTF-8) and the getter
+# returns a heap-owned `*mut c_char` released via `thetadatadx_string_free`.
+# `MetricsConfig.port` is `Option<u16>`, carried across the C ABI as
+# the widened `(has_value, port)` shape so the disabled-exporter
+# `None` sentinel survives the boundary.
+
+[[class]]
+name = "AuthConfig.nexus_url"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "AuthConfig.client_type"
+python = true
+typescript = true
+cpp = true
+
+[[class]]
+name = "MetricsConfig.port"
+python = true
+typescript = true
+cpp = true
+
+
+# ─── Free-function (utility) parity matrix ─────────────────────────────
+#
+# `[[utility]]` rows pin the cross-binding presence of the offline
+# analytics FREE functions — the Black-Scholes Greeks calculator. These
+# are not methods on a tracked class, so the `[[method]]` rows above
+# cannot express them; without these rows a binding could ship the
+# calculator on three languages and silently omit the fourth (the exact
+# gap this matrix closes). Every row carries:
+#
+#   name        — the canonical snake_case function name as declared in
+#                 `thetadatadx-rs/sdk_surface.toml` (`all_greeks`,
+#                 `implied_volatility`). The checker derives the
+#                 per-binding spelling: Python `#[pyfunction] fn <name>`,
+#                 TypeScript `#[napi(js_name = "<camelCase>")]`, C++
+#                 `<name>(` in the wrapper header, FFI `thetadatadx_<name>`.
+#   python      — `true` iff the `#[pyfunction]` is emitted on the
+#                 Python surface.
+#   typescript  — `true` iff the napi free function is emitted on the
+#                 TypeScript surface.
+#   cpp         — `true` iff the wrapper declares the function in
+#                 `thetadatadx-cpp/include/utilities.hpp.inc` (folded into the
+#                 `thetadatadx` namespace of `thetadatadx.hpp`).
+#   ffi         — `true` iff the `thetadatadx_<name>` C ABI symbol exists in
+#                 `thetadatadx-ffi/src/`. Every higher-level binding except Python /
+#                 TypeScript (which call the Rust core directly) forwards
+#                 through this symbol.
+#
+# All four surfaces are generated from the one `sdk_surface.toml` SSOT
+# (Python / TS / C++ / MCP / CLI) over the same `thetadatadx::greeks`
+# core, so they stay in lockstep by construction; the
+# `generate_sdk_surfaces --check` drift gate and these rows guard a
+# regression. The FFI `thetadatadx_all_greeks` / `thetadatadx_implied_volatility` pair is
+# hand-written but covered by `check_c_abi_completeness`.
+
+[[utility]]
+name = "all_greeks"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "implied_volatility"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+# Conditions / exchange / calendar / sequence lookups. Exposed as the
+# `thetadatadx.util` submodule (Python), the `Util` namespace class
+# (TypeScript: `Util.conditionName(...)`), the `thetadatadx::util` namespace plus
+# the `thetadatadx::calendar_status_name` / `thetadatadx::timestamp_ms` free functions
+# (C++), and bare `thetadatadx_*` symbols (the C ABI). The four predicate helpers
+# carry a disambiguating prefix on the C ABI symbol (`thetadatadx_condition_is_cancel`
+# vs the bare `is_cancel` the managed bindings expose, so the quote-condition
+# predicate of the same shape stays distinct); the `ffi_name` field records
+# the bare C-symbol name for those rows. All present on every binding.
+
+[[utility]]
+name = "condition_name"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "condition_description"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "is_cancel"
+ffi_name = "condition_is_cancel"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "updates_volume"
+ffi_name = "condition_updates_volume"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "quote_condition_name"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "quote_condition_description"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "is_firm"
+ffi_name = "quote_condition_is_firm"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "is_halted"
+ffi_name = "quote_condition_is_halted"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "exchange_name"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "exchange_symbol"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "calendar_status_name"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "timestamp_ms"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "sequence_signed_to_unsigned"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[utility]]
+name = "sequence_unsigned_to_signed"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+# Intentionally binding-specific utilities (asserted asymmetric on
+# purpose). `split_date_range` chunks a date span into trading-calendar
+# windows ahead of a historical query — a Python ergonomic helper the
+# other bindings do not surface. `contract_strike_dollars` and
+# `greeks_result_free` are C-ABI memory-management / value-folding
+# helpers the managed bindings (Python / TypeScript / C++) have no
+# analogue for: they fold the strike presence flag and free the
+# heap-allocated greeks result the C caller owns, which the managed
+# runtimes handle through native field access and garbage collection.
+
+[[utility]]
+name = "split_date_range"
+binding_specific = "Python date-range chunking ergonomic; the other bindings drive the historical client directly."
+python = true
+typescript = false
+cpp = false
+ffi = false
+
+[[utility]]
+name = "contract_strike_dollars"
+binding_specific = "C-ABI strike presence-flag folding; managed bindings read the dollar field directly."
+python = false
+typescript = false
+cpp = false
+ffi = true
+
+[[utility]]
+name = "greeks_result_free"
+binding_specific = "C-ABI heap-result deallocation; managed bindings free the greeks result through their runtime."
+python = false
+typescript = false
+cpp = false
+ffi = true
+
+
+# ─── Method-level parity matrix ────────────────────────────────────────
+#
+# `[[method]]` rows pin the per-method binding state on the load-bearing
+# user-facing classes (`Client`, `StreamingClient`, `Credentials`,
+# `Config`). The class-level `[[class]]` rows above only record that
+# the class exists in each binding; without these `[[method]]` rows a
+# binding could quietly drop a public method (or fail to add a new one
+# alongside its siblings) and no checker would notice. Each row carries:
+#
+#   class       — the canonical class name (Python pyclass / TS napi
+#                 class / C++ class). For C++ alias names see
+#                 `scripts/ci/check_binding_parity.py::CPP_ALIASES`
+#                 (e.g. `Contract` -> `FluentContract`).
+#   name        — the canonical method name in camelCase. The parity
+#                 checker derives the snake_case form for Python +
+#                 C++ matching and uses the camelCase form to match
+#                 `#[napi(js_name = "...")]` declarations.
+#   python      — `true` iff a `fn <snake_case>` declaration lives
+#                 inside an `impl <class>` block on the Python source.
+#   typescript  — `true` iff a `#[napi(js_name = "<camelCase>")]`
+#                 attribute appears anywhere in `thetadatadx-ts/src/`.
+#   cpp         — `true` iff a `<snake_case>(` member declaration
+#                 appears inside the C++ class body in `thetadatadx.hpp`.
+#
+# Set a column to `false` to record a deliberate cross-binding
+# asymmetry (e.g. the TS unified client deliberately exposes
+# `setCallback` via the napi `startStreaming(callback)` factory rather
+# than a separate method — the row captures that). Adding a method on
+# one binding without flipping the matching column trips the gate;
+# removing a method from a binding without updating the matrix also
+# trips the gate.
+#
+# Scope: high-visibility user-facing classes only. Configuration
+# setters (`Config.*`) remain governed by the dotted `[[class]]` rows
+# above (e.g. `ReconnectConfig.wait_ms`) which already cover the
+# cross-binding setter contract at the field level.
+
+# ── Client (the unified entry-point client) ──
+#
+# The unified `Client` exposes its data surfaces through three view
+# accessors — `historical`, `stream`, and `flatFiles` — each returning a
+# cheap handle clone over the inner client. They are symmetric across
+# Python (`#[getter]`), TypeScript (`#[napi(getter)]`), C++ (a member
+# accessor), and Rust (`Client::flat_files()` returning a borrowed
+# `FlatFiles` view), and the reverse-orphan scan below fails if any
+# binding drops or renames one without the matrix recording it. The
+# `flatFiles` row carries the Rust column so the Rust core accessor is
+# machine-checked alongside the other three; `historical` / `stream`
+# stay on the existing three-binding columns.
+
+[[method]]
+class = "Client"
+name = "historical"
+python = true
+typescript = true
+cpp = true
+rust = true         # `Client::historical()` view accessor
+# Zero-arg accessor; the returned historical view IS the cross-binding
+# contract (a rename / drop of the view trips the gate).
+[method.signature]
+returns = "HistoricalView"
+
+[[method]]
+class = "Client"
+name = "stream"
+python = true
+typescript = true
+cpp = true
+rust = true         # `Client::stream()` view accessor
+[method.signature]
+returns = "StreamView"
+
+[[method]]
+class = "Client"
+name = "flatFiles"
+python = true
+typescript = true
+cpp = true
+rust = true         # `Client::flat_files()` view accessor
+[method.signature]
+returns = "FlatFilesNamespace"
+
+# Context-managed streaming session opener. A managed-binding ergonomic that
+# pairs `start_streaming` with a scope-exit `stop_streaming` + drain barrier:
+# Python `with client.streaming(cb) as session:` and TypeScript
+# `await using session = await client.streaming(cb)`. C++ and Rust express the
+# same lifecycle through idiomatic scope-bound resource management (the C++
+# `Client` RAII destructor; Rust scoped streaming APIs) rather than a named
+# `streaming(...)` factory, so the helper is intentionally Python + TypeScript
+# only. The TypeScript side lives on the package-entry wrapper
+# (`streaming-session.{js,d.ts}`), which the method collector reads alongside
+# the napi `impl` blocks.
+[[method]]
+class = "Client"
+name = "streaming"
+python = true       # `with client.streaming(callback) as session:` context manager
+typescript = true   # `await using session = await client.streaming(callback)` wrapper
+cpp = false         # C++ uses the `Client` RAII destructor, no `streaming()` factory
+rust = false        # Rust uses scoped streaming APIs, no `streaming()` factory
+# Per-event callback in, context-managed session out. The TypeScript session
+# is the hand-written `.d.ts` wrapper with no napi `fn`, so `ts_napi` is
+# skipped (mirroring `startStreaming`); the `.d.ts` shape is cross-checked.
+[method.signature]
+params = ["Callback"]
+returns = "StreamingSession"
+skip_langs = ["ts_napi"]
+
+# ── Inline client construction (first-class API-key entry points) ──
+#
+# The fluent builder is the headline ergonomic for selecting the API key
+# (or email + password) and the target environment inline at the client.
+# Each binding reaches all options through its idiomatic shape, so the
+# canonical name differs per binding and the columns are NOT uniformly
+# `true`:
+#
+#   - Rust + C++ expose a fluent `Client::builder()` / `Client::builder`
+#     returning a `ClientBuilder`, so the `builder` row carries the `rust`
+#     and `cpp` columns.
+#   - TypeScript exposes the options-object factory `Client.connectWith({
+#     apiKey, historicalType, ... })` — the idiomatic JS shape — tracked by the
+#     `connectWith` row.
+#   - Python reaches the same surface through the `Client(api_key=...,
+#     historical_type=...)` constructor kwargs (a keyword constructor, not a
+#     named method), so it rides the existing `__new__` constructor rather
+#     than a `[[method]]` row; both `builder` and `connectWith` are
+#     therefore absent on the Python column.
+#
+# The forward check pins each binding's symbol exactly and trips if the
+# named entry is dropped from the binding that owns it, or appears on a
+# binding the row marks absent.
+
+[[method]]
+class = "Client"
+name = "builder"
+python = false      # Python uses the `Client(api_key=...)` constructor kwargs
+typescript = false  # TypeScript uses the `connectWith` options-object factory
+cpp = true          # `Client::builder()` fluent builder
+rust = true         # `Client::builder()` fluent builder
+# Zero-arg fluent entry; the returned `ClientBuilder` is the contract.
+[method.signature]
+returns = "ClientBuilder"
+
+[[method]]
+class = "Client"
+name = "connectWith"
+python = false      # Python uses the `Client(api_key=...)` constructor kwargs
+typescript = true   # `Client.connectWith({ apiKey, historicalType, ... })` napi factory
+cpp = false         # C++ uses the `Client::builder()` fluent builder
+rust = false        # Rust uses the `Client::builder()` fluent builder
+# TypeScript-only inline factory: options object in, connected `Client` out.
+# The other bindings reach the surface through their own inline entry points
+# (tracked by `builder` / the constructor), so the row pins TypeScript alone.
+[method.signature]
+params = ["ClientConnectOptions"]
+returns = "Client"
+
+# Two Rust-core ergonomic conveniences carry no binding twin by design,
+# so they are intentional asymmetries rather than parity gaps:
+#
+#   - `Client::connect_with_api_key(key, config)` is thin sugar over
+#     `Client::builder().api_key(key).config(config).connect()` for the
+#     single most common inline shape. Every binding already reaches the
+#     same surface through its idiomatic inline entry point (the Python
+#     `Client(api_key=...)` constructor kwargs, the TypeScript
+#     `Client.connectWith({ apiKey })` factory, the C++ `Client::builder()`
+#     fluent builder), so a fourth named twin would be redundant.
+#   - `Config::with_dotenv(path)` is the builder companion to
+#     `Config::from_dotenv`: it layers the same `.env`-sourced cluster
+#     selection onto an existing config instead of starting from the
+#     production preset. The bindings expose the `from_dotenv` factory
+#     (the `fromDotenv` rows above); the layer-onto-existing variant stays
+#     a Rust convenience because the binding callers build the config in
+#     one expression rather than mutating a receiver.
+#
+# Both are pure sugar over surfaces already at full cross-binding parity,
+# so they are deliberately not enrolled as rows (a binding twin is not
+# expected and their absence is not a gap).
+
+# ── FlatFilesNamespace fetch surface (bulk per-day flat-file requests) ──
+#
+# The `flatFiles` accessor above returns the flat-file namespace; the rows
+# below pin the fetch methods ON that namespace so the surface is machine-checked
+# across bindings and cannot silently drift or drop on one of them. Five named
+# convenience methods cover exactly the `(SecType, ReqType)` pairs the flat-file
+# distribution serves (option trade_quote / open_interest / eod and stock
+# trade_quote / eod); `request` is the generic string-keyed dispatcher behind them.
+# The namespace class is named `FlatFilesNamespace` on Python and TypeScript,
+# `FlatFiles` on C++, and `FlatFiles` (the borrowed view returned by
+# `Client::flat_files()`) in the Rust core; the row carries the canonical name
+# and the per-binding class maps route it to each binding's class body. Per-
+# language method spelling is snake_case on the Python pyclass, camelCase on the
+# TypeScript napi class, snake_case on the C++ class, and snake_case on the Rust
+# view — the per-binding resolvers derive each form from the row name. Every row
+# carries the Rust column so the Rust `FlatFiles` view is machine-checked
+# alongside the other three bindings, closing the access-shape asymmetry where
+# Rust reached flat files only through standalone free functions. The reverse-
+# orphan scan over this namespace fails if a binding grows a fetch method with no
+# enrolling row, so a future dataset accessor cannot ship untracked.
+
+# The five named fetch convenience methods share one shape: a single
+# date-string param, returning the decoded row collection. Rust takes `&str`
+# and returns the owned `Vec<FlatFileRow>` (the `FlatFileRowList` return
+# canonical carries that per-binding split); the managed bindings take their
+# String spelling and return the `FlatFileRowList` value object.
+[[method]]
+class = "FlatFilesNamespace"
+name = "optionTradeQuote"
+python = true
+typescript = true
+cpp = true
+rust = true
+[method.signature]
+params = ["String"]
+returns = "FlatFileRowList"
+
+[[method]]
+class = "FlatFilesNamespace"
+name = "optionOpenInterest"
+python = true
+typescript = true
+cpp = true
+rust = true
+[method.signature]
+params = ["String"]
+returns = "FlatFileRowList"
+
+[[method]]
+class = "FlatFilesNamespace"
+name = "optionEod"
+python = true
+typescript = true
+cpp = true
+rust = true
+[method.signature]
+params = ["String"]
+returns = "FlatFileRowList"
+
+[[method]]
+class = "FlatFilesNamespace"
+name = "stockTradeQuote"
+python = true
+typescript = true
+cpp = true
+rust = true
+[method.signature]
+params = ["String"]
+returns = "FlatFileRowList"
+
+[[method]]
+class = "FlatFilesNamespace"
+name = "stockEod"
+python = true
+typescript = true
+cpp = true
+rust = true
+[method.signature]
+params = ["String"]
+returns = "FlatFileRowList"
+
+# The generic string-keyed dispatcher. The managed bindings take three String
+# params (sec-type, req-type, date); the Rust core takes the typed
+# `(SecType, ReqType, &str)` enums, so its param list is a per-lang override
+# (typed enums have no managed twin to pin canonically). Same row-collection
+# return as the named convenience methods.
+[[method]]
+class = "FlatFilesNamespace"
+name = "request"
+python = true
+typescript = true
+cpp = true
+rust = true
+[method.signature]
+params = ["String", "String", "String"]
+returns = "FlatFileRowList"
+rust_params = ["FlatFileSecType", "FlatFileReqType", "String"]
+
+# The blob-to-disk helper writes a flat-file blob straight to a path in the vendor
+# wire format (csv / jsonl) without decoding into rows. Its home class and method
+# spelling diverge per binding: Python exposes it on the unified `Client` as
+# `flatfile_to_path` (one word), TypeScript on `Client` (and `HistoricalClient`)
+# as `flatFileToPath`, C++ on the `FlatFiles` namespace as `to_path`, and the Rust
+# core as `FlatFiles::to_path` on the `Client::flat_files()` view. A single row
+# pins all four; the per-binding home-class + name override below routes the
+# canonical row to each binding's actual symbol so the divergence reads as
+# convention, not drift, and a drop on any binding trips the gate.
+[[method]]
+class = "FlatFilesNamespace"
+name = "flatFileToPath"
+python = true
+typescript = true
+cpp = true
+rust = true         # `FlatFiles::to_path` on the `Client::flat_files()` view
+# Five params (sec-type, req-type, date, dest-path, wire-format). The first
+# three are Strings everywhere; the dest-path + format diverge per binding
+# (typed `impl AsRef<Path>` + `FlatFileFormat` enum on Rust; an optional
+# format String on the managed bindings), so the param list is pinned per
+# lang. The return is the written path (managed String / Rust `PathBuf`) or
+# `void` (C++ writes in place) — carried by the `WrittenPath` canonical.
+[method.signature]
+params = ["String", "String", "String", "String", "Option<String>"]
+returns = "WrittenPath"
+cpp_params = ["String", "String", "String", "String", "String"]
+rust_params = ["FlatFileSecType", "FlatFileReqType", "String", "DestPath", "FlatFileFormat"]
+
+# ── StreamView signature specs (the `client.stream()` lifecycle view) ──
+#
+# The Rust core column is intentionally absent: the core `StreamSurface`
+# and `StreamingClient` surfaces legitimately differ (the observability
+# reverse scan covers their real risk), so neither is enrolled in
+# `RUST_METHOD_CLASS` and the `rust` signature-lang stays deferred.
+[[method]]
+class = "StreamView"
+name = "startStreaming"
+python = true
+typescript = true
+cpp = false  # C++ uses `setCallback` for the same role; tracked below
+# Registers the per-event callback and opens the session. The callback is a
+# Python callable; the napi `ThreadsafeFunction` generics are binding
+# machinery with no cross-binding contract, so `ts_napi` is left unpinned.
+[method.signature]
+params = ["Callback"]
+returns = "()"
+skip_langs = ["ts_napi"]
+
+[[method]]
+class = "StreamView"
+name = "stopStreaming"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "()"
+
+[[method]]
+class = "StreamView"
+name = "shutdown"
+python = true
+typescript = true
+cpp = false  # C++ frees through the RAII destructor on `Client`
+[method.signature]
+returns = "()"
+
+[[method]]
+class = "StreamView"
+name = "reconnect"
+python = true
+typescript = true
+cpp = true
+# Every binding exposes the lifecycle method as `reconnect`. The core view
+# spells it `reconnect_streaming` (the standalone `StreamingClient` has no
+# method form at all — reconnection there is config-driven); that core
+# naming split is the maintainer's to resolve and is flagged separately.
+[method.signature]
+returns = "()"
+
+[[method]]
+class = "StreamView"
+name = "isStreaming"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "bool"
+
+[[method]]
+class = "StreamView"
+name = "batches"
+python = true
+typescript = true
+cpp = true
+# The pull-based columnar reader. The tuning arguments are passed per-binding
+# idiom: Python keyword-only `Option`s, the managed `BatchesOptions` object on
+# TypeScript, four positional defaults (with the `Backpressure` enum) on C++.
+# The shared contract is the reader return.
+[method.signature]
+params = ["Option<usize>", "Option<u64>", "Option<String>", "Option<usize>"]
+returns = "RecordBatchStream"
+ts_napi_params = ["Option<BatchesOptions>"]
+# The options bag is OPTIONAL on the `.d.ts` (`batches(options?: BatchesOptions)`);
+# pin it as `Option<...>` so a required-vs-optional drift on the param fails.
+ts_dts_params = ["Option<BatchesOptions>"]
+cpp_params = ["usize", "Duration", "Backpressure", "usize"]
+
+[[method]]
+class = "StreamView"
+name = "isAuthenticated"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "bool"
+
+[[method]]
+class = "StreamView"
+name = "awaitDrain"
+python = true
+typescript = true
+cpp = true
+# The drain-deadline argument: a millisecond span (the C++ form is
+# `std::chrono::milliseconds`); returns whether the buffer drained in time.
+[method.signature]
+params = ["Duration"]
+returns = "bool"
+
+[[method]]
+class = "StreamView"
+name = "subscribe"
+python = true
+typescript = true
+cpp = true
+# One built subscription. Python takes the polymorphic value it coerces; the
+# napi / C++ take their typed `Subscription` / `FluentSubscription` handle.
+[method.signature]
+params = ["Subscription"]
+returns = "()"
+
+[[method]]
+class = "StreamView"
+name = "subscribeMany"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+params = ["SubscriptionList"]
+returns = "()"
+
+[[method]]
+class = "StreamView"
+name = "unsubscribe"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+params = ["Subscription"]
+returns = "()"
+
+[[method]]
+class = "StreamView"
+name = "unsubscribeMany"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+params = ["SubscriptionList"]
+returns = "()"
+
+[[method]]
+class = "StreamView"
+name = "activeSubscriptions"
+python = true
+typescript = true
+cpp = true
+# The per-contract snapshot: a typed list on Python / C++, a JSON tree on
+# TypeScript. The core view returns `Result<Vec<..>>` while the standalone
+# `StreamingClient` returns a bare `Vec<..>`; fallibility is unwrapped before
+# the compare, so the binding spec is identical — that core fallibility split
+# is the maintainer's to resolve and is flagged separately.
+[method.signature]
+returns = "Subscriptions"
+
+[[method]]
+class = "StreamView"
+name = "activeFullSubscriptions"
+python = true
+typescript = true
+cpp = true
+# The full-stream snapshot (C++ element type `FullSubscription`). Same core
+# `Result`-vs-bare split as `activeSubscriptions`, flagged separately.
+[method.signature]
+returns = "FullSubscriptions"
+
+[[method]]
+class = "StreamView"
+name = "droppedEventCount"
+python = true
+typescript = true
+cpp = true
+# Cumulative dropped-event counter. Every binding exposes it as
+# `droppedEventCount`; the core spells it `dropped_event_count` on this view
+# but `dropped_count` on the standalone `StreamingClient`, both folded to the
+# one row name by `CORE_STREAMING_METHOD_RENAMES`.
+[method.signature]
+returns = "u64"
+
+[[method]]
+class = "StreamView"
+name = "ringOccupancy"
+python = true
+typescript = true
+cpp = true
+# Core / Python return the platform-width `usize`; the C++ binding mirrors the
+# fixed-width `uint64_t` of the C ABI accessor it wraps, so the C++ return is
+# pinned to the fixed-width canonical for that lang alone.
+[method.signature]
+returns = "usize"
+cpp_returns = "u64"
+
+[[method]]
+class = "StreamView"
+name = "ringCapacity"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "usize"
+cpp_returns = "u64"
+
+[[method]]
+class = "StreamView"
+name = "panicCount"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "u64"
+
+[[method]]
+class = "StreamView"
+name = "slowCallbackCount"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "u64"
+
+[[method]]
+class = "StreamView"
+name = "setSlowCallbackThresholdUs"
+python = true
+typescript = true
+cpp = true
+# The argument is an integer microsecond count on every binding (`u64` /
+# `BigInt` / `uint64_t`). The core takes a `Duration` and converts from
+# microseconds internally, so the `Us` suffix names the binding unit, not the
+# core type; the naming is flagged for the maintainer.
+[method.signature]
+params = ["u64"]
+returns = "()"
+
+[[method]]
+class = "StreamView"
+name = "millisSinceLastEvent"
+python = true
+typescript = true
+cpp = true
+# Milliseconds since the last event, absent before the first. Python /
+# TypeScript return the optional directly; C++ uses the status-plus-out-param
+# ABI shape (`int32_t` status, the value via `uint64_t*`).
+[method.signature]
+returns = "Option<u64>"
+cpp_params = ["uint64_t*"]
+cpp_returns = "i32"
+
+[[method]]
+class = "StreamView"
+name = "lastEventReceivedAtUnixNanos"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "i64"
+
+[[method]]
+class = "StreamView"
+name = "lastConnectedAddr"
+python = true
+typescript = true
+cpp = true
+# The peer address of the live session. Python / TypeScript return the
+# optional string; C++ returns a bare `std::string` (empty when no session).
+# The core view returns `Option<String>` while the standalone
+# `StreamingClient` returns a bare `String`; that core split is flagged.
+[method.signature]
+returns = "Option<String>"
+cpp_returns = "String"
+
+[[method]]
+class = "StreamView"
+name = "setCallback"
+python = false  # Python uses `startStreaming(callback)` for the same role
+typescript = false  # TypeScript uses `startStreaming(callback)` likewise
+cpp = true
+# C++-only callback registrar (the `startStreaming` role on Python / TS).
+[method.signature]
+cpp_params = ["Callback"]
+cpp_returns = "()"
+
+# ── StreamingClient (the standalone streaming-only client) ──
+#
+# Not on TypeScript today (tracked as a follow-up under issue #545 in
+# the class-level row above). Every `typescript = false` below reflects
+# the same gap and is NOT an action item by itself.
+
+# ── StreamingClient signature specs (the standalone streaming-only client) ──
+#
+# The same binding signatures as the matching `StreamView` rows. The Rust
+# core column is deferred for the same reason (the core `StreamingClient`
+# surface is not in `RUST_METHOD_CLASS`). `batches` has no row here — the
+# columnar reader ships only on the unified `StreamView`.
+[[method]]
+class = "StreamingClient"
+name = "startStreaming"
+python = true
+typescript = true
+cpp = false  # C++ uses `setCallback` for the same role
+[method.signature]
+params = ["Callback"]
+returns = "()"
+skip_langs = ["ts_napi"]
+
+[[method]]
+class = "StreamingClient"
+name = "stopStreaming"
+python = true
+typescript = true
+cpp = false  # C++ frees through the RAII destructor on `StreamingClient`
+[method.signature]
+returns = "()"
+
+[[method]]
+class = "StreamingClient"
+name = "shutdown"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "()"
+
+[[method]]
+class = "StreamingClient"
+name = "reconnect"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "()"
+
+[[method]]
+class = "StreamingClient"
+name = "isStreaming"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "bool"
+
+[[method]]
+class = "StreamingClient"
+name = "isAuthenticated"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "bool"
+
+[[method]]
+class = "StreamingClient"
+name = "awaitDrain"
+python = true
+typescript = true
+cpp = false  # C++ drain barrier runs inside the RAII destructor
+[method.signature]
+params = ["Duration"]
+returns = "bool"
+
+[[method]]
+class = "StreamingClient"
+name = "subscribe"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+params = ["Subscription"]
+returns = "()"
+
+[[method]]
+class = "StreamingClient"
+name = "subscribeMany"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+params = ["SubscriptionList"]
+returns = "()"
+
+[[method]]
+class = "StreamingClient"
+name = "unsubscribe"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+params = ["Subscription"]
+returns = "()"
+
+[[method]]
+class = "StreamingClient"
+name = "unsubscribeMany"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+params = ["SubscriptionList"]
+returns = "()"
+
+[[method]]
+class = "StreamingClient"
+name = "activeSubscriptions"
+python = true
+typescript = true
+cpp = true
+# Bare `Vec<..>` on the core `StreamingClient` (vs `Result<Vec<..>>` on the
+# `StreamView`); fallibility is unwrapped, so the binding spec matches.
+[method.signature]
+returns = "Subscriptions"
+
+[[method]]
+class = "StreamingClient"
+name = "activeFullSubscriptions"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "FullSubscriptions"
+
+[[method]]
+class = "StreamingClient"
+name = "droppedEventCount"
+python = true
+typescript = true
+cpp = true
+# Core `dropped_count` on this surface, `dropped_event_count` on the
+# `StreamView`; both fold to this row name via `CORE_STREAMING_METHOD_RENAMES`.
+[method.signature]
+returns = "u64"
+
+[[method]]
+class = "StreamingClient"
+name = "ringOccupancy"
+python = true
+typescript = true
+cpp = true
+# Core / Python return the platform-width `usize`; the C++ binding mirrors the
+# fixed-width `uint64_t` of the C ABI accessor it wraps (see the StreamView
+# twin), so the C++ return is pinned to the fixed-width canonical for that lang.
+[method.signature]
+returns = "usize"
+cpp_returns = "u64"
+
+[[method]]
+class = "StreamingClient"
+name = "ringCapacity"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "usize"
+cpp_returns = "u64"
+
+[[method]]
+class = "StreamingClient"
+name = "panicCount"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "u64"
+
+[[method]]
+class = "StreamingClient"
+name = "slowCallbackCount"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "u64"
+
+[[method]]
+class = "StreamingClient"
+name = "setSlowCallbackThresholdUs"
+python = true
+typescript = true
+cpp = true
+# Integer microseconds on every binding; the core takes a `Duration`. Same
+# `Us`-names-the-unit naming flagged on the `StreamView` row.
+[method.signature]
+params = ["u64"]
+returns = "()"
+
+[[method]]
+class = "StreamingClient"
+name = "millisSinceLastEvent"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "Option<u64>"
+cpp_params = ["uint64_t*"]
+cpp_returns = "i32"
+
+[[method]]
+class = "StreamingClient"
+name = "lastEventReceivedAtUnixNanos"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "i64"
+
+[[method]]
+class = "StreamingClient"
+name = "lastConnectedAddr"
+python = true
+typescript = true
+cpp = true
+# Bare `String` on the core `StreamingClient` (vs `Option<String>` on the
+# `StreamView`); C++ returns `std::string`, Python / TypeScript the optional.
+[method.signature]
+returns = "Option<String>"
+cpp_returns = "String"
+
+[[method]]
+class = "StreamingClient"
+name = "setCallback"
+python = false
+typescript = false
+cpp = true
+[method.signature]
+cpp_params = ["Callback"]
+cpp_returns = "()"
+
+# ── Credentials (the auth-handle class) ──
+#
+# TypeScript takes credentials as constructor arguments rather than a
+# class (see the class-level row above), so every column below is
+# `false` — the row exists to document the cross-binding factory
+# contract on Python + C++.
+
+[[method]]
+class = "Credentials"
+name = "fromFile"
+python = true
+typescript = true   # `Credentials.fromFile(path)` napi factory
+cpp = true
+# Path-string factory returning a `Credentials` handle.
+[method.signature]
+params = ["String"]
+returns = "Credentials"
+
+[[method]]
+class = "Credentials"
+name = "fromEmail"
+python = false  # Python uses the `Credentials(email, password)` constructor
+typescript = false
+cpp = true
+# C++-only email + password factory (Python uses the constructor instead).
+[method.signature]
+params = ["String", "String"]
+returns = "Credentials"
+
+# API-key authentication: the alternative to email + password. Every
+# binding exposes both the bare-key and key-with-email factory, so both
+# columns stay `true` across Python (`from_api_key` /
+# `from_api_key_with_email` staticmethods), TypeScript (`fromApiKey` /
+# `fromApiKeyWithEmail` napi factories), and C++ (`from_api_key` /
+# `from_api_key_with_email` static members over the
+# `thetadatadx_credentials_from_api_key*` C ABI symbols).
+
+[[method]]
+class = "Credentials"
+name = "fromApiKey"
+python = true
+typescript = true   # `Credentials.fromApiKey(key)` napi factory
+cpp = true
+# Bare API-key factory.
+[method.signature]
+params = ["String"]
+returns = "Credentials"
+
+[[method]]
+class = "Credentials"
+name = "fromApiKeyWithEmail"
+python = true
+typescript = true   # `Credentials.fromApiKeyWithEmail(email, key)` napi factory
+cpp = true
+# API-key + email factory.
+[method.signature]
+params = ["String", "String"]
+returns = "Credentials"
+
+# Strict env-only sourcing: read `THETADATA_API_KEY` from the
+# environment with no `creds.txt` fallback (unset or empty is an error).
+# Symmetric with the other `Credentials` factories, so all columns stay
+# `true` across Python (`from_env` staticmethod), TypeScript (`fromEnv`
+# napi factory), and C++ (`from_env` static member over the
+# `thetadatadx_credentials_from_env` C ABI symbol). The `Client`-level
+# `Client.from_env` / `connectWith({ apiKeyFromEnv })` paths are a
+# separate surface, not a substitute for the factory.
+
+[[method]]
+class = "Credentials"
+name = "fromEnv"
+python = true       # `Credentials.from_env()` staticmethod
+typescript = true   # `Credentials.fromEnv()` napi factory
+cpp = true          # `Credentials::from_env()` over `thetadatadx_credentials_from_env`
+# Strict env-only factory (no path argument).
+[method.signature]
+params = []
+returns = "Credentials"
+
+# Environment-or-file sourcing: read `THETADATA_API_KEY` from the
+# environment, else fall back to the two-line credentials file. Every
+# binding exposes it, so all columns stay `true` across Python
+# (`from_env_or_file` staticmethod), TypeScript (`fromEnvOrFile` napi
+# factory), and C++ (`from_env_or_file` static member over the
+# `thetadatadx_credentials_from_env_or_file` C ABI symbol).
+
+[[method]]
+class = "Credentials"
+name = "fromEnvOrFile"
+python = true
+typescript = true   # `Credentials.fromEnvOrFile(path)` napi factory
+cpp = true
+# Env-or-file factory: the fallback-path string argument.
+[method.signature]
+params = ["String"]
+returns = "Credentials"
+
+# Dotenv sourcing: read credentials from a `.env`-format file.
+# `THETADATA_API_KEY` selects an API key; otherwise `THETADATA_EMAIL` +
+# `THETADATA_PASSWORD` build email + password credentials. Every binding
+# exposes it, so all columns stay `true` across Python (`from_dotenv`
+# staticmethod), TypeScript (`fromDotenv` napi factory), and C++
+# (`from_dotenv` static member over the
+# `thetadatadx_credentials_from_dotenv` C ABI symbol).
+
+[[method]]
+class = "Credentials"
+name = "fromDotenv"
+python = true
+typescript = true   # `Credentials.fromDotenv(path)` napi factory
+cpp = true
+# Dotenv-file factory: the `.env` path string argument.
+[method.signature]
+params = ["String"]
+returns = "Credentials"
+
+# ── Config (the streaming/historical client configuration class) ──
+#
+# Field-level setters are tracked by the dotted `[[class]]` rows above
+# (e.g. `ReconnectConfig.wait_ms`, `RetryPolicy.initial_delay_ms`).
+# The factory rows below pin the three environment-tier constructors.
+
+[[method]]
+class = "Config"
+name = "production"
+python = true
+typescript = true
+cpp = true
+# Zero-arg env-tier preset factory; returns a `Config` (`Self` on the managed
+# constructors, the value type in C++).
+[method.signature]
+returns = "Config"
+
+[[method]]
+class = "Config"
+name = "dev"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "Config"
+
+[[method]]
+class = "Config"
+name = "stage"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "Config"
+
+# Dotenv sourcing for the configuration: read the cluster selector
+# (`THETADATA_HISTORICAL_TYPE`) and the documented host overrides from a
+# `.env`-format file. The mirror of `Credentials.fromDotenv` on the Config
+# class, so a single `.env` file serves both the credential and the
+# environment selection. Every binding exposes it: Python (`from_dotenv`
+# staticmethod), TypeScript (`fromDotenv` napi factory), and C++
+# (`from_dotenv` static member over the `thetadatadx_config_from_dotenv`
+# C ABI symbol).
+
+[[method]]
+class = "Config"
+name = "fromDotenv"
+python = true
+typescript = true   # `Config.fromDotenv(path)` napi factory
+cpp = true
+# `.env` path in, `Config` out.
+[method.signature]
+params = ["String"]
+returns = "Config"
+
+# The wait-strategy / flush-mode knobs diverge on C++: the managed bindings
+# pass / return the mode as a String name, while C++ uses the integer enum
+# code (`int`), so those cells are per-lang overrides. The iteration-count and
+# park-microsecond knobs are plain integers everywhere (napi widens the small
+# counts to `f64`, its native number type — the `usize`→`f64` sanction family).
+[[method]]
+class = "Config"
+name = "setFlushMode"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+params = ["String"]
+returns = "()"
+cpp_params = ["i32"]
+
+[[method]]
+class = "Config"
+name = "flushMode"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "String"
+cpp_returns = "i32"
+# The Python stub constrains the knob to its exact value set; pin the Literal
+# so adding / removing / renaming a member fails (the bare `String` would hide
+# the value-set drift). The pyo3-source `python` lane still reads `&str`.
+python_pyi_returns = 'Literal["batched", "immediate"]'
+
+[[method]]
+class = "Config"
+name = "setWaitStrategy"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+params = ["String"]
+returns = "()"
+cpp_params = ["i32"]
+
+[[method]]
+class = "Config"
+name = "waitStrategy"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "String"
+cpp_returns = "i32"
+python_pyi_returns = 'Literal["low_latency", "balanced", "efficient", "busy_spin"]'
+
+[[method]]
+class = "Config"
+name = "setWaitSpinIters"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+params = ["u32"]
+returns = "()"
+ts_napi_params = ["f64"]
+
+[[method]]
+class = "Config"
+name = "waitSpinIters"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "u32"
+
+[[method]]
+class = "Config"
+name = "setWaitYieldIters"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+params = ["u32"]
+returns = "()"
+ts_napi_params = ["f64"]
+
+[[method]]
+class = "Config"
+name = "waitYieldIters"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "u32"
+
+[[method]]
+class = "Config"
+name = "setWaitParkUs"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+params = ["u64"]
+returns = "()"
+
+[[method]]
+class = "Config"
+name = "waitParkUs"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "u64"
+
+# The consumer-CPU pin is an optional core index. The managed bindings carry
+# it as an optional integer (`Option<usize>` / `Option<f64>` / `Option<u32>`);
+# C++ sentinel-encodes the option as a bare `int64_t` (-1 = unpinned), so the
+# C++ param + return are per-lang `i64` overrides.
+[[method]]
+class = "Config"
+name = "setConsumerCpu"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+params = ["Option<usize>"]
+returns = "()"
+cpp_params = ["i64"]
+
+[[method]]
+class = "Config"
+name = "consumerCpu"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "Option<usize>"
+cpp_returns = "i64"
+
+# The `flushMode` / `deriveOhlcvc` readback getters are exposed on
+# every binding: Python (`Config.flush_mode` / `.derive_ohlcvc`
+# properties), TypeScript (`Config.flushMode` / `.deriveOhlcvc`
+# getters), C++ (`Config::get_flush_mode()` etc. over the FFI
+# `thetadatadx_config_get_*` symbols). Both the Python `#[getter]` accessors and
+# the C++ readback getters carry a uniform `get_` Rust/C++ fn prefix
+# (pyo3 strips it so the Python property name stays bare); the parity
+# gate accepts that per-language convention against the bare row. The
+# matching setters are tracked by the dotted `[[class]]` rows
+# `StreamingConfig.flush_mode` / `StreamingConfig.derive_ohlcvc`.
+[[method]]
+class = "Config"
+name = "deriveOhlcvc"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "bool"
+
+# The historical (MDDS) and streaming (FPSS) environments are read back
+# through two independent getters. The two channels are selected
+# independently: the production / stage / dev presets (and the
+# `THETADATA_HISTORICAL_TYPE` / `THETADATA_STREAMING_TYPE` dotenv keys) set each
+# channel, and these getters read each one back. `historicalEnvironment`
+# reads a `"PROD"` / `"STAGE"` string, the same selector spelling the
+# inline client takes as `historicalType` / `historical_type`; `streamingEnvironment`
+# reads a `"PROD"` / `"DEV"` string, matching `streamingType` / `streaming_type`.
+# Each is exposed on every binding: Python (`Config.historical_environment`
+# / `Config.streaming_environment` properties), TypeScript
+# (`Config.historicalEnvironment` / `Config.streamingEnvironment`
+# getters), C++ (`Config::get_historical_environment()` /
+# `Config::get_streaming_environment()` over the FFI
+# `thetadatadx_config_get_historical_environment` /
+# `thetadatadx_config_get_streaming_environment` symbols). There is no
+# matching setter row: each selector is chosen by the `production` /
+# `stage` / `dev` factories, not a free-standing field write.
+[[method]]
+class = "Config"
+name = "historicalEnvironment"
+python = true
+typescript = true
+cpp = true
+# Reads back the selector string (`"PROD"` / `"STAGE"`); C++ `std::string`.
+[method.signature]
+returns = "String"
+python_pyi_returns = 'Literal["PROD", "STAGE"]'
+
+[[method]]
+class = "Config"
+name = "streamingEnvironment"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "String"
+python_pyi_returns = 'Literal["PROD", "DEV"]'
+
+# The reconnect-jitter and streaming-host-selection readbacks. Both are
+# value-constrained enums exposed as readback getters on every binding: Python
+# (`Config.reconnect_jitter` / `Config.streaming_host_selection` properties),
+# TypeScript (`get reconnectJitter()` / `get streamingHostSelection()`), C++
+# (`Config::get_reconnect_jitter()` / `Config::get_streaming_host_selection()`,
+# each returning the enum's `int` discriminant). The `.pyi` constrains each to
+# its exact value set, pinned via `python_pyi_returns` so a value-set drift
+# fails — without these getter rows the constrained knobs were presence-tracked
+# only (the config-field roster), never type-checked on the stub.
+[[method]]
+class = "Config"
+name = "reconnectJitter"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "String"
+cpp_returns = "i32"
+python_pyi_returns = 'Literal["full", "equal", "decorrelated", "none"]'
+
+[[method]]
+class = "Config"
+name = "streamingHostSelection"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "String"
+cpp_returns = "i32"
+python_pyi_returns = 'Literal["shuffled", "fixed_order"]'
+
+# Custom reconnect-policy callback registration. A field-shaped getter
+# is meaningless for a callback, so the registration is tracked as a
+# method row (Python `config.reconnect_callback = fn` setter, TS
+# `setReconnectCallback`, C++ `set_reconnect_callback` over the FFI
+# `thetadatadx_config_set_reconnect_callback` symbol).
+[[method]]
+class = "Config"
+name = "setReconnectCallback"
+python = true
+typescript = true
+cpp = true
+
+# ── Subscription builders (the fluent per-contract / full-stream entry points) ──
+#
+# `Contract.quote() / .trade() / .openInterest() / .marketValue()` build a
+# per-contract subscription; `SecType.fullTrades() / .fullOpenInterest()`
+# build a full-stream subscription for the security type. Each binding
+# exposes the full set: Python (`impl PyContract` / `impl PySecType`),
+# TypeScript (`impl ContractRef` / `impl SecType`), and C++
+# (`class FluentContract` / `class FluentSecType`, routed via the alias
+# tables). The cross-binding `class` is the canonical pyclass name
+# (`Contract` / `SecType`); the per-binding resolvers route it to each
+# collector's struct key. Dropping or renaming a builder on any binding
+# trips the per-method gate.
+
+# Each builder is zero-arg and returns the built fluent subscription value
+# object (`PySubscription` / napi `Subscription` / C++ `FluentSubscription`),
+# carried by the `BuiltSubscription` return canonical.
+[[method]]
+class = "Contract"
+name = "quote"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "BuiltSubscription"
+
+[[method]]
+class = "Contract"
+name = "trade"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "BuiltSubscription"
+
+[[method]]
+class = "Contract"
+name = "openInterest"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "BuiltSubscription"
+
+[[method]]
+class = "Contract"
+name = "marketValue"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "BuiltSubscription"
+
+[[method]]
+class = "SecType"
+name = "fullTrades"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "BuiltSubscription"
+
+[[method]]
+class = "SecType"
+name = "fullOpenInterest"
+python = true
+typescript = true
+cpp = true
+[method.signature]
+returns = "BuiltSubscription"
+
+# ── Subscription getters (the built fluent subscription handle) ──
+#
+# The three bindings expose the built subscription's identity through
+# DELIBERATELY divergent accessors, encoded per column rather than forced
+# into false symmetry:
+#   * Python / TypeScript carry the wire-string `kind`, the `isFull`
+#     boolean, the nested `contract`, and `secType`.
+#   * C++ exposes the wire-string under `kind_string()` (its bare `kind()`
+#     returns the typed `Kind` enum, exempt from the reverse scan), the
+#     full/per-contract distinction as the typed `scope()` enum instead of
+#     a bool, and FLATTENS the contract into `symbol()` / `expiration()` /
+#     `strike()` / `right()` / `is_option()`.
+# `kind` routes to the C++ `kind_string` member via METHOD_BINDING_OVERRIDES.
+[[method]]
+class = "Subscription"
+name = "kind"
+python = true
+typescript = true
+cpp = true          # C++ `kind_string()` (wire string); bare `kind()` is the typed enum
+# The wire-kind label: a string on every binding (C++ via `kind_string()`).
+[method.signature]
+returns = "String"
+
+[[method]]
+class = "Subscription"
+name = "scope"
+python = false      # Python uses the `isFull` boolean
+typescript = false  # TypeScript uses the `isFull` boolean
+cpp = true          # typed `Scope` enum — the C++ form of the full/per-contract split
+# C++-only typed enum (`FluentSubscription::Scope`); no managed twin.
+[method.signature]
+cpp_returns = "Scope"
+
+[[method]]
+class = "Subscription"
+name = "isFull"
+python = true
+typescript = true
+cpp = false         # C++ exposes the typed `scope()` enum instead of a bool
+[method.signature]
+returns = "bool"
+
+[[method]]
+class = "Subscription"
+name = "contract"
+python = true
+typescript = true
+cpp = false         # C++ flattens the contract into the accessors below
+# The nested contract handle, optional (a full-stream subscription has none).
+[method.signature]
+returns = "Option<Contract>"
+
+[[method]]
+class = "Subscription"
+name = "secType"
+python = true
+typescript = true
+cpp = true
+# Python / TypeScript return the optional typed sec-type handle; C++ returns
+# the wire string label of the sec type instead.
+[method.signature]
+returns = "Option<SecType>"
+cpp_returns = "String"
+
+[[method]]
+class = "Subscription"
+name = "symbol"
+python = false      # Python / TypeScript reach this through `contract`
+typescript = false
+cpp = true          # flattened contract accessor
+[method.signature]
+cpp_returns = "String"
+
+[[method]]
+class = "Subscription"
+name = "expiration"
+python = false
+typescript = false
+cpp = true          # flattened contract accessor
+[method.signature]
+cpp_returns = "String"
+
+[[method]]
+class = "Subscription"
+name = "strike"
+python = false
+typescript = false
+cpp = true          # flattened contract accessor
+[method.signature]
+cpp_returns = "String"
+
+[[method]]
+class = "Subscription"
+name = "right"
+python = false
+typescript = false
+cpp = true          # flattened contract accessor
+[method.signature]
+cpp_returns = "String"
+
+[[method]]
+class = "Subscription"
+name = "isOption"
+python = false
+typescript = false
+cpp = true          # flattened contract accessor (`is_option()`)
+[method.signature]
+cpp_returns = "bool"
+
+# ── RecordBatchStream (the pull-based columnar reader) ──
+#
+# The cross-binding-meaningful surface is `close` / `schema` / `dropped`.
+# Per-binding iterator/context idioms (`__next__`, `[Symbol.asyncIterator]`,
+# `ReadNext`, the C++ static `create`) carry no cross-binding contract and
+# are named in RECORD_BATCH_STREAM_EXEMPT_METHODS. The TypeScript reader is
+# the JS wrapper in `streaming-session.{js,d.ts}`, harvested by the wrapper
+# interface collector.
+[[method]]
+class = "RecordBatchStream"
+name = "close"
+python = true
+typescript = true
+cpp = true
+# The TypeScript reader is a JS-wrapper class (streaming-session.{js,d.ts})
+# with NO napi Rust `fn`, so `ts_napi` is skipped; the `.d.ts` `close(): void`
+# is cross-checked best-effort.
+[method.signature]
+returns = "()"
+skip_langs = ["ts_napi"]
+
+[[method]]
+class = "RecordBatchStream"
+name = "schema"
+python = true
+typescript = true
+cpp = true
+# The fixed Arrow schema every batch carries: a Python schema object, the C++
+# `std::shared_ptr<arrow::Schema>`. TypeScript exposes it as a `.d.ts`
+# `readonly` property (not a `fn`), so `ts_napi` is skipped.
+[method.signature]
+returns = "Schema"
+skip_langs = ["ts_napi"]
+
+[[method]]
+class = "RecordBatchStream"
+name = "dropped"
+python = true
+typescript = true
+cpp = true
+# Count of batches dropped under back-pressure.
+[method.signature]
+returns = "u64"
+skip_langs = ["ts_napi"]
+
+# ── FlatFileRowList (the decoded flat-file row vector) ──
+#
+# `count` and `toArrowIpc` are the two cross-binding-meaningful methods;
+# each binding spells them idiomatically, routed via METHOD_BINDING_OVERRIDES
+# (`count` -> Python `__len__` / TypeScript `len` / C++ `size`; `toArrowIpc`
+# -> Python `to_arrow` / TypeScript `toArrowIpc` / C++ `to_arrow_ipc`). The
+# remaining materializers are intentionally per-language and recorded as
+# asymmetric rows. The emptiness idiom (`__bool__` / `isEmpty`) carries no
+# cross-binding contract and is in FLATFILE_ROWLIST_EXEMPT_METHODS.
+[[method]]
+class = "FlatFileRowList"
+name = "count"
+python = true
+typescript = true
+cpp = true
+# Decoded row count: one usize element count across all bindings.
+[method.signature]
+returns = "usize"
+
+[[method]]
+class = "FlatFileRowList"
+name = "toArrowIpc"
+python = true
+typescript = true
+cpp = true
+# Arrow IPC stream bytes: a Python bytes object, a Node Buffer, a C++ byte
+# vector.
+[method.signature]
+returns = "Bytes"
+
+[[method]]
+class = "FlatFileRowList"
+name = "toPandas"
+python = true       # pandas materializer — Python only
+typescript = false
+cpp = false
+[method.signature]
+returns = "PyObject"
+
+[[method]]
+class = "FlatFileRowList"
+name = "toPolars"
+python = true       # polars materializer — Python only
+typescript = false
+cpp = false
+[method.signature]
+returns = "PyObject"
+
+[[method]]
+class = "FlatFileRowList"
+name = "toList"
+python = true       # list-of-dicts materializer — Python only
+typescript = false
+cpp = false
+[method.signature]
+returns = "PyObject"
+
+[[method]]
+class = "FlatFileRowList"
+name = "toJson"
+python = false
+typescript = true   # JSON-string materializer — TypeScript only
+cpp = false
+[method.signature]
+returns = "String"
+
+[[method]]
+class = "FlatFileRowList"
+name = "get"
+python = false
+typescript = false
+cpp = true          # raw-handle accessor for zero-copy bridges — C++ only
+# Returns the borrowed C-ABI handle pointer for zero-copy bridges — a raw
+# `const ThetaDataDxFlatFileRowList*`, compared by exact C-ABI spelling.
+[method.signature]
+cpp_returns = "const ThetaDataDxFlatFileRowList*"
+
+# ── Config lifecycle setters with non-scalar shapes ──
+#
+# These ride the method matrix (not only the scalar setter/getter parity)
+# because their argument shape is non-scalar (the reconnect policy enum,
+# the construction-time ring/worker sizing): the method rows pin presence
+# per binding and anchor future signature parity. The getter rows resolve
+# the per-binding readback spelling (`get_*` on Python / C++, the bare
+# camelCase property on TypeScript) through the existing `get_`-prefix
+# fallback in the forward check.
+[[method]]
+class = "Config"
+name = "setReconnectPolicy"
+python = true
+typescript = true
+cpp = true
+# Python / TypeScript take the friendly wire string ("auto" / "manual"); C++
+# takes the typed reconnect-policy enum as its int discriminant over the C ABI.
+[method.signature]
+params = ["String"]
+returns = "()"
+cpp_params = ["i32"]
+
+[[method]]
+class = "Config"
+name = "reconnectPolicy"
+python = true
+typescript = true
+cpp = true
+# The setter's readback: the wire string on Python / TypeScript, the enum int
+# (`int32_t`) on C++ — the same managed-string vs C++-enum-int split.
+[method.signature]
+returns = "String"
+cpp_returns = "i32"
+
+[[method]]
+class = "Config"
+name = "setStreamingRingSize"
+python = true
+typescript = true
+cpp = true
+# Ring capacity (a power of two). One usize element count across all bindings
+# (napi widens to BigInt, C++ to size_t through the type map).
+[method.signature]
+params = ["usize"]
+returns = "()"
+
+# The ring-size readback, exposed on every binding: Python
+# (`Config.streaming_ring_size` property), TypeScript
+# (`get streamingRingSize(): bigint`), C++ (`Config::get_streaming_ring_size()`
+# over the `thetadatadx_config_get_streaming_ring_size` FFI symbol). This row
+# pins the readback's TYPE on the `.pyi` lane — the `setStreamingRingSize`
+# setter above degrades that lane to the assignable property, so without this
+# getter row a `streaming_ring_size` stub drift to a non-integer would pass.
+[[method]]
+class = "Config"
+name = "streamingRingSize"
+python = true
+typescript = true
+cpp = true
+# usize element count: napi widens to BigInt, C++ to size_t, the stub to int.
+[method.signature]
+returns = "usize"
+
+[[method]]
+class = "Config"
+name = "setWorkerThreads"
+python = true
+typescript = true
+cpp = true
+# Optional tokio worker-thread count (None = auto). Python / TypeScript carry
+# the optional directly; the C ABI splits `Option<usize>` into the explicit
+# `(has_value: bool, n: size_t)` pair and returns an `i32` status, so C++
+# mirrors that widened ABI shape.
+[method.signature]
+params = ["Option<usize>"]
+returns = "()"
+cpp_params = ["bool", "usize"]
+cpp_returns = "i32"
+
+[[method]]
+class = "Config"
+name = "workerThreads"
+python = true
+typescript = true
+cpp = true
+# Readback of the optional worker-thread count (None = auto). C++ reads it
+# through the `get_worker_threads` accessor as `std::optional<size_t>`.
+[method.signature]
+returns = "Option<usize>"
+
+# ── Client Python-only auth-time readbacks ──
+#
+# `sessionUuid` / `subscriptionInfo` expose an auth-time value on the
+# Python unified client with no symmetric TypeScript / C++ method, so they
+# are enrolled here (rather than carried as bare reverse-scan exemptions)
+# to keep the asymmetry explicit and tracked.
+[[method]]
+class = "Client"
+name = "sessionUuid"
+python = true
+typescript = false
+cpp = false
+rust = true         # `pub fn session_uuid` on the Rust unified client
+# Zero-arg readback of the session UUID string (Python + Rust).
+[method.signature]
+returns = "String"
+
+[[method]]
+class = "Client"
+name = "subscriptionInfo"
+python = true
+typescript = false
+cpp = false
+rust = true         # `pub fn subscription_info` on the Rust unified client
+# Active-subscription snapshot: Python a `Vec<(root, kind)>` tuple list, the
+# Rust core the opaque `SubscriptionInfo` struct (per-binding return shapes).
+[method.signature]
+returns = "SubscriptionInfo"
+
+# ─── Value-field TYPE parity ──────────────────────────────────────────
+#
+# Each row pins the declared Rust-side type of one field on one value
+# class per binding (`python` = the pyclass struct field type,
+# `typescript` = the napi object struct field type; omit a key where
+# the spelling is binding-specific). The checker reads the struct
+# bodies — generated and hand-written alike — so a binding cannot
+# silently drift a unit-bearing field type. These rows pin the typed
+# surfaces this matrix exists to keep honest: strike is dollars
+# (f64) under the bare name on every surface, the option right is the
+# logical character string, the calendar day type is the vendor
+# vocabulary, the EOD time pair carries the vendor's `created` /
+# `last_trade` semantics, contract identity is optional, and the
+# Python keyword escape keeps `lambda_` reachable.
+
+[[value_field]]
+class = "ContractRef"            # Python streaming event payload
+name = "strike"
+python = "Option<f64>"
+
+[[value_field]]
+class = "Contract"               # TypeScript streaming event payload
+name = "strike"
+typescript = "Option<f64>"
+
+# The exact wire integer alongside dollars `strike`, pinned so the raw
+# representation cannot silently re-type to a float or drop on any
+# streaming-event payload. The `cpp` key pins the generated `#[repr(C)]`
+# `ThetaDataDxContract` member: the C ABI carries the raw `int32_t`
+# directly (the sibling `has_*` flags model optionality on the wire), so
+# the C side is no longer silently exempt from the unit-bearing field the
+# managed bindings decode.
+[[value_field]]
+class = "ContractRef"            # Python streaming event payload
+name = "strike_thousandths"
+python = "Option<i32>"
+cpp = "int32_t"
+
+[[value_field]]
+class = "Contract"               # TypeScript streaming event payload
+name = "strike_thousandths"
+typescript = "Option<i32>"
+cpp = "int32_t"
+
+[[value_field]]
+class = "ContractRef"
+name = "right"
+python = "Option<String>"
+
+# The TypeScript streaming-payload twin of `ContractRef.right`. Pins the
+# option-right character as the logical string on the TS event payload so
+# the identity triplet (strike / strike_thousandths / right) stays
+# symmetric with the Python `ContractRef` surface and cannot drift back to
+# a raw wire integer.
+[[value_field]]
+class = "Contract"               # TypeScript streaming event payload
+name = "right"
+typescript = "Option<String>"
+
+# OptionContract list rows carry the logical right character on every
+# binding, including the hand-written C++ value struct. The `cpp` key
+# pins the header type so a regression back to the raw wire integer
+# trips the gate.
+[[value_field]]
+class = "OptionContract"
+name = "right"
+python = "String"
+typescript = "String"
+cpp = "char"
+
+[[value_field]]
+class = "EodTick"
+name = "created_ms_of_day"
+python = "i32"
+typescript = "i32"
+
+[[value_field]]
+class = "EodTick"
+name = "last_trade_ms_of_day"
+python = "i32"
+typescript = "i32"
+
+[[value_field]]
+class = "CalendarDay"
+name = "is_open"
+python = "bool"
+typescript = "bool"
+
+[[value_field]]
+class = "CalendarDay"
+name = "status"
+python = "String"
+typescript = "String"
+
+[[value_field]]
+class = "TradeTick"
+name = "strike"
+python = "Option<f64>"
+typescript = "Option<f64>"
+
+[[value_field]]
+class = "TradeTick"
+name = "right"
+python = "Option<String>"
+typescript = "Option<String>"
+
+[[value_field]]
+class = "OptionContract"
+name = "right"
+python = "String"
+typescript = "String"
+
+[[value_field]]
+class = "GreeksAllTick"
+name = "lambda_"
+python = "f64"
+
+[[value_field]]
+class = "GreeksAllTick"
+name = "lambda"
+typescript = "f64"
+
+# ─── TradeTick flag-word accessors ────────────────────────────────────
+#
+# Boolean accessors decoded from the integer condition / flag columns
+# (`is_cancelled`, `regular_trading_hours`, ...). One schema source
+# (`tick_schema.toml::[types.TradeTick].flag_accessors`) projects them
+# into all four surfaces, so they stay in lockstep by construction and
+# the `generate_sdk_surfaces --check` drift gate — not this matrix —
+# guards a regression: a flag added or dropped in the schema regenerates
+# Rust (hand-written `impl TradeTick`), the Python computed properties,
+# the TypeScript object fields, and the C++ free functions atomically.
+#
+# The shape is the idiomatic one per binding, so the surface is not
+# uniform across them: Rust + Python expose methods / computed
+# properties, C++ exposes `thetadatadx::<name>(const TradeTick&)` free functions
+# (tick rows are C struct aliases with no member methods), and
+# TypeScript carries precomputed `bool` fields on the `#[napi(object)]`
+# row (TS tick rows are plain data objects, also method-less). Only the
+# TypeScript half lands as a struct field this checker can read, so the
+# `[[value_field]]` rows below pin that half; the Rust / Python / C++
+# shapes are pinned by the shared-source drift gate. All six flags are
+# anchored here so the matrix stays complete as flags are added.
+
+[[value_field]]
+class = "TradeTick"
+name = "is_cancelled"
+typescript = "bool"
+
+[[value_field]]
+class = "TradeTick"
+name = "regular_trading_hours"
+typescript = "bool"
+
+[[value_field]]
+class = "TradeTick"
+name = "is_seller"
+typescript = "bool"
+
+[[value_field]]
+class = "TradeTick"
+name = "trade_condition_no_last"
+typescript = "bool"
+
+[[value_field]]
+class = "TradeTick"
+name = "price_condition_set_last"
+typescript = "bool"
+
+[[value_field]]
+class = "TradeTick"
+name = "is_incremental_volume"
+typescript = "bool"
+
+# ─── `*_timestamp_ms` epoch accessors ─────────────────────────────────
+#
+# Unix-epoch-millisecond conveniences combining a tick's `date` column
+# with each of its milliseconds-of-day columns (`ms_of_day` →
+# `timestamp_ms`, `<x>_ms_of_day` → `<x>_timestamp_ms`). One schema
+# source (`tick_schema.toml` columns, projected through
+# `timestamp_accessor_fields`) emits them onto every surface, and every
+# surface funnels through the one DST-aware core
+# (`thetadatadx::time::date_ms_to_epoch_ms`) — no binding reimplements the
+# Eastern-Time offset rules. They stay in lockstep by construction and
+# the `generate_sdk_surfaces --check` drift gate guards a regression: a
+# milliseconds-of-day column added or dropped regenerates the Rust
+# inherent `impl`, the Python computed properties, the TypeScript object
+# fields, and (for the free-function form) the C++ side atomically.
+#
+# The shape is the idiomatic one per binding, so the surface is not
+# uniform across them: Rust + Python expose `Option<i64>` methods /
+# computed properties; C++ exposes one `thetadatadx::timestamp_ms(date,
+# ms_of_day)` free function reused for every `(date, *_ms_of_day)` pair
+# (tick rows are C struct aliases with no member methods) over the
+# `thetadatadx_timestamp_ms` C ABI; TypeScript carries precomputed
+# `Option<BigInt>` fields on the `#[napi(object)]` row (TS tick rows are
+# plain data objects, also method-less). Only the TypeScript half lands
+# as a struct field this checker can read, so the `[[value_field]]` rows
+# below pin that half; the Python computed properties, the Rust inherent
+# `impl`, and the single C++ free function are pinned by the shared-source
+# drift gate. Encoding a `cpp = ...` per-tick field here would assert a
+# struct member that does not exist (the C++ shape is the one free
+# function), so it is recorded in this note rather than forced into a
+# false match.
+
+[[value_field]]
+class = "EodTick"
+name = "created_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "EodTick"
+name = "last_trade_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksAllTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksAllTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksEodTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksEodTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksFirstOrderTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksFirstOrderTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksSecondOrderTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksSecondOrderTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksThirdOrderTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "GreeksThirdOrderTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "IndexPriceAtTimeTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "IvTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "IvTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "MarketValueTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "OhlcTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "OpenInterestTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "PriceTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "QuoteTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksAllTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksAllTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksFirstOrderTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksFirstOrderTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksImpliedVolatilityTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksImpliedVolatilityTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksSecondOrderTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksSecondOrderTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksThirdOrderTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeGreeksThirdOrderTick"
+name = "underlying_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeQuoteTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeQuoteTick"
+name = "quote_timestamp_ms"
+typescript = "Option<BigInt>"
+
+[[value_field]]
+class = "TradeTick"
+name = "timestamp_ms"
+typescript = "Option<BigInt>"
+
+# ─── Arrow-IPC terminal on history results ────────────────────────────
+#
+# The columnar Arrow exit on an in-band history result is present on every
+# binding: Python via the `<TickName>List.to_arrow()` terminal, TypeScript
+# via the generated `<tick>ToArrowIpc(rows)` napi free functions, and C++
+# via the generated `thetadatadx::<collection>_to_arrow_ipc(std::vector<Tick>)`
+# free functions over the `thetadatadx_<collection>_to_arrow_ipc` C ABI. All three
+# binding surfaces are generated from `tick_schema.toml` and funnel through
+# the one `TicksArrowExt::to_arrow` + Arrow IPC `StreamWriter` path, so they
+# stay in lockstep by construction; the `generate_sdk_surfaces --check`
+# drift gate and the `check_c_abi_completeness` header/symbol parity gate
+# guard a regression. They are free functions, not methods on a tracked
+# class, so they are not expressible as `[[method]]` / `[[value_field]]`
+# rows — this note records the contract the drift gates enforce.
+
+
+# ─── Historical server-stream surface ([[historical_streaming]]) ──────
+#
+# Every buffered historical endpoint has a server-stream companion: the
+# core `request.stream(handler)` primitive surfaced as a per-binding
+# terminal that pumps each decoded gRPC chunk through a callback with
+# memory bounded to a single chunk, never the full result. The terminal
+# is named per language idiom:
+#
+#   python      — `.stream(handler)` + `.stream_async(handler)` on the
+#                 `<Endpoint>Builder` pyclass.
+#   typescript  — `<endpoint>Stream(...args, options, callback)` on the
+#                 `Client` napi class.
+#   cpp         — `<endpoint>_stream(...args, callback, options)` on the
+#                 C++ `Client` wrapper.
+#   ffi         — the `thetadatadx_<endpoint>_stream(...)` extern "C" symbol.
+#
+# These terminals live on per-endpoint builders / as endpoint-named
+# methods, NOT on a class the `[[method]]` rows cover, so without this
+# family a binding could ship streaming on some endpoints and silently
+# omit it on others (or on a whole binding) with no checker noticing.
+# The collector set is reconciled against these rows in both directions:
+# a declared row that does not match the binding state fails, and an
+# endpoint that streams on any binding without a row fails. `name` is the
+# canonical snake_case endpoint name (initialisms collapse: the codegen
+# emits `stockHistoryEODStream` in TS and `StockHistoryEodBuilder` in
+# Python, both tracked here as `stock_history_eod`).
+
+[[historical_streaming]]
+name = "index_at_time_price"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "index_history_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "index_history_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "index_history_price"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "interest_rate_history_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_at_time_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_at_time_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_history_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_history_greeks_all"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_history_greeks_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_history_greeks_first_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_history_greeks_implied_volatility"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_history_greeks_second_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_history_greeks_third_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_history_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_history_open_interest"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_history_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_history_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_history_trade_greeks_all"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_history_trade_greeks_first_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_history_trade_greeks_implied_volatility"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_history_trade_greeks_second_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_history_trade_greeks_third_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_history_trade_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "option_list_contracts"
+rust = true
+python = true
+typescript = true
+# The zero-copy chunk callback hands back the same flat #[repr(C)] tick the
+# buffered tick array exposes. option_list_contracts is the lone streaming
+# return whose row carries an owned symbol string, so its C ABI form
+# (ThetaDataDxOptionContract, a char* symbol) is a distinct layout the buffered path
+# marshals per row. That per-row allocation is exactly the heap traffic
+# streaming exists to avoid and has no stable lifetime inside a borrowed-slice
+# callback, so contract discovery keeps its buffered C-ABI form only. The
+# managed bindings marshal per row in GC'd memory and stream it regardless.
+cpp = false
+ffi = false
+
+[[historical_streaming]]
+name = "stock_at_time_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "stock_at_time_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "stock_history_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "stock_history_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "stock_history_ohlc_range"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "stock_history_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "stock_history_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_streaming]]
+name = "stock_history_trade_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+
+# ─── Historical async query surface ([[historical_async]]) ────────────
+#
+# Every buffered historical endpoint carries a non-blocking query
+# companion so callers can run a request off the calling thread without
+# managing their own threads. The shape is per-binding idiom:
+#
+#   python      — `<Endpoint>Builder.list_async()` awaitable terminal, the
+#                 async twin of the blocking `list()` collect.
+#   typescript  — the buffered `<endpoint>` method is itself `async` and
+#                 returns a `Promise`; there is no separate `_async` name.
+#   cpp         — `<endpoint>_async(...)` on the `Historical` view,
+#                 returning `std::future<std::vector<Row>>` over the
+#                 blocking member via `std::async`.
+#
+# There is no C ABI row: the async surface is a binding-layer concern
+# over the existing blocking `thetadatadx_<endpoint>_with_options`
+# symbols. C has no awaitable type — its idiom is callback / poll — so
+# the C ABI stays blocking-only by design.
+#
+# Like the streaming family, these terminals are endpoint-named methods
+# NOT covered by the `[[method]]` rows, so without this family a binding
+# could ship the async query on some endpoints and silently omit it on
+# others (or on a whole binding) with no checker noticing.
+
+[[historical_async]]
+name = "calendar_on_date"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "calendar_open_today"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "calendar_year"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "index_at_time_price"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "index_history_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "index_history_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "index_history_price"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "index_list_dates"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "index_list_symbols"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "index_snapshot_market_value"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "index_snapshot_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "index_snapshot_price"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "interest_rate_history_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_at_time_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_at_time_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_greeks_all"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_greeks_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_greeks_first_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_greeks_implied_volatility"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_greeks_second_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_greeks_third_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_open_interest"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_trade_greeks_all"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_trade_greeks_first_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_trade_greeks_implied_volatility"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_trade_greeks_second_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_trade_greeks_third_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_history_trade_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_list_contracts"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_list_dates"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_list_expirations"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_list_strikes"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_list_symbols"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_greeks_all"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_greeks_first_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_greeks_implied_volatility"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_greeks_second_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_greeks_third_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_market_value"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_open_interest"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "option_snapshot_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_at_time_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_at_time_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_history_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_history_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_history_ohlc_range"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_history_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_history_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_history_trade_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_list_dates"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_list_symbols"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_snapshot_market_value"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_snapshot_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_snapshot_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+[[historical_async]]
+name = "stock_snapshot_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+
+# ─── Historical buffered base surface ([[historical_base]]) ───────────
+#
+# Every buffered historical endpoint exposes a blocking query terminal on
+# ALL FIVE surfaces. This is the core "every endpoint exists everywhere"
+# guarantee — previously asserted only transitively (via the async / stream
+# companions on the managed bindings) and not at all on the C-ABI base.
+#
+#   rust        — `HistoricalClient::<endpoint>` buffered method, generated
+#                 from the registry of record (`endpoint_surface.toml`).
+#   python      — `<Endpoint>Builder.list()` collect terminal.
+#   typescript  — the buffered `<endpoint>` method on `HistoricalView`
+#                 (itself async-returning, so the buffered and async surfaces
+#                 coincide there).
+#   cpp         — `Historical::<endpoint>(...)` blocking member.
+#   ffi         — the `thetadatadx_<endpoint>_with_options` extern "C" base
+#                 symbol, read from the SHIPPED header
+#                 `thetadatadx-cpp/include/endpoint_with_options.h.inc` so a stale
+#                 regenerated header is caught.
+#
+# `name` is the canonical snake_case endpoint name. The Rust column is the
+# source of truth: a dropped or renamed endpoint vanishes from the registry
+# and every downstream surface in lockstep, and this family trips. The
+# shipped header, the `thetadatadx-ffi/src` source, and the Rust registry are
+# cross-checked for agreement so a header/source/registry divergence trips
+# without duplicating the broader `.so`-vs-header completeness checker
+# (`scripts/ci/check_c_abi_completeness.py`).
+
+[[historical_base]]
+name = "calendar_on_date"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "calendar_open_today"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "calendar_year"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "index_at_time_price"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "index_history_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "index_history_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "index_history_price"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "index_list_dates"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "index_list_symbols"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "index_snapshot_market_value"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "index_snapshot_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "index_snapshot_price"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "interest_rate_history_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_at_time_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_at_time_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_greeks_all"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_greeks_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_greeks_first_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_greeks_implied_volatility"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_greeks_second_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_greeks_third_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_open_interest"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_trade_greeks_all"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_trade_greeks_first_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_trade_greeks_implied_volatility"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_trade_greeks_second_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_trade_greeks_third_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_history_trade_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_list_contracts"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_list_dates"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_list_expirations"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_list_strikes"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_list_symbols"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_greeks_all"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_greeks_first_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_greeks_implied_volatility"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_greeks_second_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_greeks_third_order"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_market_value"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_open_interest"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "option_snapshot_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_at_time_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_at_time_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_history_eod"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_history_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_history_ohlc_range"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_history_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_history_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_history_trade_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_list_dates"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_list_symbols"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_snapshot_market_value"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_snapshot_ohlc"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_snapshot_quote"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[historical_base]]
+name = "stock_snapshot_trade"
+rust = true
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+# ─── Client construction-from-file convenience ([[from_file]]) ────────
+#
+# Every standalone client class exposes a one-call file-construction
+# convenience: load credentials from a two-line file (line 1 = email,
+# line 2 = password) and connect, defaulting to the production
+# configuration. It composes `Credentials::from_file(path)` with the
+# class's `connect`, named per language idiom:
+#
+#   python      — `<Class>.from_file(path, config=None)` staticmethod on
+#                 the pyclass.
+#   typescript  — `<Class>.connectFromFile(path, config?)` napi factory.
+#   cpp         — `<Class>::from_file(path, config = Config::production())`
+#                 static member on the C++ wrapper.
+#   ffi         — the `thetadatadx_<stem>_connect_from_file(path, config)`
+#                 extern "C" symbol (`client` / `historical` / `streaming`).
+#
+# The construction entry point is not a data method the `[[method]]`
+# rows cover, and its spelling differs per binding, so without this
+# family a binding could grow `from_file` on one client and silently
+# omit it on another. The collector set is reconciled against these
+# rows in both directions: a declared row that does not match the
+# binding state fails, and a client that exposes file-construction on
+# any binding without a row fails. `name` is the cross-binding client
+# class identifier (the same name used by the `[[class]]` rows).
+
+[[from_file]]
+name = "Client"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[from_file]]
+name = "HistoricalClient"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[from_file]]
+name = "StreamingClient"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+# ─── Client construction (connect) surface ([[connect]]) ──────────────
+#
+# The base construction entry point per standalone client: connect with
+# an in-memory `Credentials` + `Config`. The spelling differs per binding
+# — Python exposes a `#[new]` constructor (`Client(creds, config)`),
+# TypeScript / C++ a `connect` static factory, the C ABI a
+# `thetadatadx_<stem>_connect` symbol — so it cannot ride a `[[method]]`
+# row. `name` is the cross-binding client class identifier. C++
+# `StreamingClient` constructs through `from_file` / the RAII handle
+# rather than a static `connect`, so its `cpp` column is `false` while
+# the C ABI symbol and the Python / TypeScript construction all exist.
+# `AsyncClient` is the Python-only async wrapper over `Client`; it has no
+# C ABI / TypeScript / C++ twin, so it is gated on Python alone.
+
+[[connect]]
+name = "Client"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[connect]]
+name = "HistoricalClient"
+python = true
+typescript = true
+cpp = true
+ffi = true
+
+[[connect]]
+name = "StreamingClient"
+python = true
+typescript = true
+cpp = false  # C++ constructs via `from_file` / the RAII handle, not a static `connect`
+ffi = true
+
+[[connect]]
+name = "AsyncClient"
+python = true
+typescript = false  # Python-only async wrapper over `Client`
+cpp = false
+ffi = false
+
+# ─── C-ABI streaming-batch / borrowed-handle externs ───────────────────
+#
+# A small family of `extern "C"` symbols underpins the columnar streaming
+# reader, the flat-file Arrow bridge, and the borrowed historical handle.
+# They are not endpoint (`_with_options` / `_stream`) symbols, config
+# accessors, or utilities, so no other family tracks them — a `[[ffi_symbol]]`
+# row pins each one's existence so it cannot be removed (breaking the C++
+# RecordBatchStream / FlatFileRowList wrappers) without tripping the gate.
+# The `name` is the bare symbol with the `thetadatadx_` prefix stripped; the
+# checker re-derives the full `thetadatadx_<name>` extern when matching
+# `thetadatadx-ffi/src/**`. The reverse FFI-orphan scan additionally guarantees no
+# C-ABI symbol ships without belonging to some enrolled family.
+#
+# Each of these eight hand-written symbols carries an optional
+# `[ffi_symbol.signature]` pinning its C param list + return: the extern's
+# declared signature is extracted and compared on the `ffi` lang, where the
+# opaque handle pointers (`*const ThetaDataDxClient`) and owned-struct returns
+# (`ThetaDataDxArrowBytes`) compare by exact C-ABI spelling. The
+# macro-generated per-tick `*_to_arrow_ipc` terminals below carry NO signature:
+# they are emitted from one `tick_array_to_arrow_ipc!` macro, so their shape is
+# identical by construction — the name-only row already pins their existence.
+[[ffi_symbol]]
+name = "client_batches_open"
+[ffi_symbol.signature]
+params = ["*const ThetaDataDxClient", "usize", "u64", "i32", "usize"]
+returns = "*mut ThetaDataDxRecordBatchStream"
+
+[[ffi_symbol]]
+name = "client_historical"
+[ffi_symbol.signature]
+params = ["*const ThetaDataDxClient"]
+returns = "*const ThetaDataDxHistoricalClient"
+
+[[ffi_symbol]]
+name = "record_batch_stream_next_ipc"
+[ffi_symbol.signature]
+params = ["*const ThetaDataDxRecordBatchStream", "*mut ThetaDataDxArrowBytes"]
+returns = "i32"
+
+[[ffi_symbol]]
+name = "record_batch_stream_schema_ipc"
+[ffi_symbol.signature]
+params = ["*const ThetaDataDxRecordBatchStream", "*mut ThetaDataDxArrowBytes"]
+returns = "i32"
+
+[[ffi_symbol]]
+name = "record_batch_stream_dropped"
+[ffi_symbol.signature]
+params = ["*const ThetaDataDxRecordBatchStream"]
+returns = "u64"
+
+[[ffi_symbol]]
+name = "record_batch_stream_close"
+[ffi_symbol.signature]
+params = ["*const ThetaDataDxRecordBatchStream"]
+returns = "()"
+
+[[ffi_symbol]]
+name = "record_batch_stream_free"
+[ffi_symbol.signature]
+params = ["*mut ThetaDataDxRecordBatchStream"]
+returns = "()"
+
+[[ffi_symbol]]
+name = "flatfile_rows_to_arrow_ipc"
+[ffi_symbol.signature]
+params = ["*const ThetaDataDxFlatFileRowList"]
+returns = "ThetaDataDxFlatFileBytes"
+
+# Per-tick Arrow IPC terminals (`thetadatadx_<kind>_ticks_to_arrow_ipc`,
+# `thetadatadx_calendar_days_to_arrow_ipc`). Emitted by the
+# `tick_array_to_arrow_ipc!` macro in `thetadatadx-ffi/src/types.rs` — the symbol name is
+# the macro's first argument, so the name lives only at the invocation site.
+# Each is a cross-binding data contract the C++ `tick_arrow_ipc.hpp.inc`
+# binds by name (one `*_to_arrow_ipc` free function per tick wrapper), the
+# columnar exit Python exposes via `<TickName>List.to_arrow()`. A row pins
+# each one so a rename/removal trips before it can break arrow-cpp consumers.
+[[ffi_symbol]]
+name = "eod_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "ohlc_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "trade_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "quote_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "greeks_all_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "greeks_eod_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "greeks_first_order_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "greeks_second_order_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "greeks_third_order_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "trade_greeks_all_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "trade_greeks_first_order_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "trade_greeks_second_order_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "trade_greeks_third_order_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "trade_greeks_implied_volatility_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "iv_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "price_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "index_price_at_time_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "open_interest_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "market_value_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "calendar_days_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "interest_rate_ticks_to_arrow_ipc"
+
+[[ffi_symbol]]
+name = "trade_quote_ticks_to_arrow_ipc"

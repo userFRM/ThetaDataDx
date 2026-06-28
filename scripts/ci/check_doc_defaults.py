@@ -6,7 +6,7 @@ docstrings, the NAPI docstrings that generate ``index.d.ts``, the C++
 Doxygen, and the config-crate docstrings themselves) advertises a
 default value for each tuning knob: ``Default 250``, ``defaults to 30``,
 ``default 30_000``, and so on. The single source of truth for those
-values is the Rust config crate ``crates/thetadatadx/src/config/*.rs`` —
+values is the Rust config crate ``thetadatadx-rs/src/config/*.rs`` —
 the ``impl Default`` / ``production_defaults`` constructors and the const
 bounds. A documented default that disagrees with the constructor is a
 shipped lie: it tells a caller the SDK behaves one way while the binary
@@ -58,7 +58,7 @@ from typing import Callable, Optional
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
-CONFIG_DIR = pathlib.Path("crates/thetadatadx/src/config")
+CONFIG_DIR = pathlib.Path("thetadatadx-rs/src/config")
 
 
 # ── Canonical-value parsing ──────────────────────────────────────────
@@ -495,8 +495,8 @@ def build_surfaces() -> list[Surface]:
     # caught by the same anchor's window.
     ffi = Surface(
         "ffi",
-        pathlib.Path("ffi/src/auth.rs"),
-        extra_paths=[pathlib.Path("ffi/src/config_accessors.rs")],
+        pathlib.Path("thetadatadx-ffi/src/auth.rs"),
+        extra_paths=[pathlib.Path("thetadatadx-ffi/src/config_accessors.rs")],
     )
     ffi.fields = [
         SurfaceField("reconnect.max_attempts", _re(r"set_reconnect_max_attempts\b")),
@@ -569,7 +569,7 @@ def build_surfaces() -> list[Surface]:
     surfaces.append(ffi)
 
     # C++ Doxygen — the `.h` (C ABI) header.
-    cpp_h = Surface("cpp.h", pathlib.Path("sdks/cpp/include/thetadatadx.h"))
+    cpp_h = Surface("cpp.h", pathlib.Path("thetadatadx-cpp/include/thetadatadx.h"))
     cpp_h.fields = [
         SurfaceField("reconnect.max_attempts", _re(r"set_reconnect_max_attempts\b")),
         SurfaceField(
@@ -645,9 +645,9 @@ def build_surfaces() -> list[Surface]:
     # hand-written reconnect knobs stay in `config_class.rs`. Scan both.
     ts = Surface(
         "typescript",
-        pathlib.Path("sdks/typescript/src/config_class.rs"),
+        pathlib.Path("thetadatadx-ts/src/config_class.rs"),
         extra_paths=[
-            pathlib.Path("sdks/typescript/src/_generated/config_accessors.rs")
+            pathlib.Path("thetadatadx-ts/src/_generated/config_accessors.rs")
         ],
     )
     ts.fields = [
@@ -707,7 +707,7 @@ def build_surfaces() -> list[Surface]:
     # attribute docstring; the anchor is the typed attribute line.
     pyi = Surface(
         "python.pyi",
-        pathlib.Path("sdks/python/python/thetadatadx/__init__.pyi"),
+        pathlib.Path("thetadatadx-py/python/thetadatadx/__init__.pyi"),
         doc_direction="below",
     )
     pyi.fields = [
@@ -806,7 +806,7 @@ def _print_mismatches(mismatches: list[Mismatch]) -> None:
             )
     print(
         "  -> Correct the doc comment to the Rust constructor value in "
-        "crates/thetadatadx/src/config/*.rs."
+        "thetadatadx-rs/src/config/*.rs."
     )
 
 
@@ -935,12 +935,12 @@ pub unsafe extern "C" fn thetadatadx_config_set_flatfiles_max_attempts() {}
         (cfg / "reconnect.rs").write_text(reconnect_rs, encoding="utf-8")
         (cfg / "retry.rs").write_text(retry_rs, encoding="utf-8")
         (cfg / "mdds.rs").write_text(mdds_rs, encoding="utf-8")
-        ffi_dir = root / "ffi" / "src"
+        ffi_dir = root / "thetadatadx-ffi" / "src"
         ffi_dir.mkdir(parents=True, exist_ok=True)
         (ffi_dir / "auth.rs").write_text(ffi_body, encoding="utf-8")
 
     # A minimal surface registry scoped to the synthetic FFI file.
-    synthetic = Surface("ffi", pathlib.Path("ffi/src/auth.rs"))
+    synthetic = Surface("ffi", pathlib.Path("thetadatadx-ffi/src/auth.rs"))
     synthetic.fields = [
         SurfaceField("reconnect.wait_ms", _re(r"set_reconnect_wait_ms\b")),
         SurfaceField("streaming.timeout_ms", _re(r"set_streaming_timeout_ms\b")),

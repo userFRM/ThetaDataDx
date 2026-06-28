@@ -9,12 +9,12 @@ distribution channels; one slipped credential is permanent.
 
 Usage::
 
-    # auto-discover artifacts in dist/ + sdks/typescript/
+    # auto-discover artifacts in dist/ + thetadatadx-ts/
     python3 scripts/dev/inspect_artifacts.py
 
     # inspect a specific wheel / tarball / directory
     python3 scripts/dev/inspect_artifacts.py dist/thetadatadx-10.0.0-py3-none-any.whl
-    python3 scripts/dev/inspect_artifacts.py sdks/typescript/thetadatadx-10.0.0.tgz
+    python3 scripts/dev/inspect_artifacts.py thetadatadx-ts/thetadatadx-10.0.0.tgz
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ FORBIDDEN_GLOBS = (
     # outside the repo) and its siblings. Scoped to the `.txt`,
     # `.json`, `.yaml`, `.yml`, `.toml` extensions so the pattern does
     # not falsely flag well-named Rust source like
-    # `crates/thetadatadx/src/auth/creds.rs` which is shipped on
+    # `thetadatadx-rs/src/auth/creds.rs` which is shipped on
     # purpose inside the published sdist.
     "creds*.txt",
     "creds*.json",
@@ -107,8 +107,8 @@ def _discover() -> list[pathlib.Path]:
     candidates: list[pathlib.Path] = []
     for d in (
         REPO_ROOT / "dist",
-        REPO_ROOT / "sdks" / "python" / "dist",
-        REPO_ROOT / "sdks" / "typescript",
+        REPO_ROOT / "thetadatadx-py" / "dist",
+        REPO_ROOT / "thetadatadx-ts",
     ):
         if not d.is_dir():
             continue

@@ -1,0 +1,174 @@
+"""
+Streaming context manager (`with client.streaming(callback) as session:`)
+lifecycle tests.
+
+Pins the contract that the wrapper:
+
+* registers the callback via `start_streaming(callback)` on `__enter__`;
+* pairs `stop_streaming()` + `await_drain(5000)` on `__exit__`;
+* emits a `RuntimeWarning` when the drain barrier times out, without
+  swallowing the original exception from the `with` body;
+* exposes every public `subscribe_*` / `unsubscribe_*` method on the
+  underlying `Client` via `StreamingSession.__getattr__` proxy --
+  no hand-listed mirror, single source of truth.
+
+Live tests are gated on ``THETADATADX_TEST_CREDS=path/to/creds.txt``
+because the underlying `Client` needs a real FPSS handshake.
+Static surface tests run without credentials.
+"""
+
+from __future__ import annotations
+
+import os
+import warnings
+from typing import Any
+
+import pytest
+
+
+def _import_module():
+    try:
+        import thetadatadx as mod
+    except ImportError:
+        pytest.skip(
+            "thetadatadx native extension not built "
+            "-- run `maturin develop` from thetadatadx-py/"
+        )
+    return mod
+
+
+@pytest.fixture
+def client():
+    """Build a real `Client` client or skip the test."""
+    creds_path = os.environ.get("THETADATADX_TEST_CREDS")
+    if not creds_path:
+        pytest.skip(
+            "set THETADATADX_TEST_CREDS=path/to/creds.txt to enable this live test"
+        )
+    mod = _import_module()
+    creds = mod.Credentials.from_file(creds_path)
+    config = mod.Config.production()
+    client = mod.Client(creds, config)
+    yield client
+    try:
+        client.stream.stop_streaming()
+    except Exception:
+        pass
+
+
+def _noop_callback(_event: Any) -> None:
+    """Callback used for lifecycle assertions (no per-event work).
+
+    The LMAX Disruptor consumer invokes this under the GIL for every
+    FPSS event. The test harness cares about the context-manager
+    lifecycle hooks, not about per-event delivery.
+    """
+
+
+def test_streaming_session_class_exported() -> None:
+    """`StreamingSession` is exported alongside `Client` so users
+    can type-annotate the bound name from `with client.streaming(cb) as s`.
+    """
+    mod = _import_module()
+    assert hasattr(mod, "StreamingSession"), "StreamingSession should be a public symbol"
+
+
+def test_thetadatadx_has_streaming_factory() -> None:
+    """`client.streaming(callback)` is the user-facing entry point. Verify
+    the method exists on the class without needing a live connection.
+    """
+    mod = _import_module()
+    assert hasattr(mod.Client, "streaming")
+
+
+def test_unified_stream_view_exposes_is_authenticated() -> None:
+    """`client.stream.is_authenticated()` mirrors the standalone
+    `StreamingClient.is_authenticated()` on the unified surface (cross-
+    binding parity with C++ `Stream::is_authenticated()` and TypeScript
+    `StreamView.isAuthenticated`). Asserted offline on the `StreamView`
+    type alongside `is_streaming` so the cross-binding accessor cannot be
+    dropped without a test failure even when no live credentials are set.
+    """
+    mod = _import_module()
+    assert hasattr(mod, "StreamView"), "thetadatadx must export `StreamView`"
+    assert hasattr(mod.StreamView, "is_streaming"), (
+        "StreamView must expose is_streaming()"
+    )
+    assert hasattr(mod.StreamView, "is_authenticated"), (
+        "StreamView must expose is_authenticated() (cross-binding parity "
+        "with the standalone StreamingClient and the C++ / TypeScript surfaces)"
+    )
+
+
+def test_unified_stream_view_is_authenticated_false_before_start(client) -> None:
+    """Before any `start_streaming` the live slot is empty, so
+    `client.stream.is_authenticated()` reads `False` (live-gated)."""
+    assert client.stream.is_authenticated() is False, (
+        "StreamView.is_authenticated() must read False before streaming starts"
+    )
+
+
+def test_context_manager_enter_exit_lifecycle(client) -> None:
+    """`with client.streaming(callback) as session:` enters by calling
+    `start_streaming(callback)` and exits by calling
+    `stop_streaming()` + `await_drain(5000)`.
+    """
+    assert client.stream.is_streaming() is False
+    with client.streaming(_noop_callback) as session:
+        # `session` is the StreamingSession; subscribe methods proxy
+        # through __getattr__ to the underlying Client.
+        assert client.stream.is_streaming() is True
+        # Exercise the proxy SSOT: a method that lives on
+        # `Client` is reachable on `session` without a hand-listed
+        # mirror.
+        active = session.active_subscriptions()
+        assert isinstance(active, list)
+    # __exit__ must have called stop_streaming() (not just dropped the
+    # ref) so is_streaming() flips back to False.
+    assert client.stream.is_streaming() is False
+
+
+def test_context_manager_swallows_no_exceptions(client) -> None:
+    """`__exit__` returns False so exceptions raised inside the `with`
+    body propagate. The wrapper must NOT mask body errors with its own
+    drain-timeout warning logic.
+    """
+    sentinel = RuntimeError("body sentinel -- must propagate through __exit__")
+    with pytest.raises(RuntimeError, match="body sentinel"):
+        with client.streaming(_noop_callback) as _session:
+            raise sentinel
+    # is_streaming flipped to False -- stop_streaming ran in __exit__.
+    assert client.stream.is_streaming() is False
+
+
+def test_context_manager_proxies_subscribe_methods(client) -> None:
+    """SSOT: every public method on `Client` is reachable on the
+    bound session via `StreamingSession.__getattr__`. There is NO
+    hand-listed mirror -- adding a new subscribe method to
+    `Client` makes it callable through the session automatically.
+    """
+    from thetadatadx import Contract
+
+    with client.streaming(_noop_callback) as session:
+        # The polymorphic `subscribe(sub)` lives on `Client`, not
+        # on `StreamingSession`. Proxy must forward.
+        session.subscribe(Contract.stock("AAPL").quote())
+        # `dropped_event_count` lives on `Client`, not on
+        # `StreamingSession`. Proxy must forward and return an int.
+        count = session.dropped_event_count()
+        assert isinstance(count, int)
+        assert count >= 0
+        # `unsubscribe(sub)` round-trips back to a clean state.
+        session.unsubscribe(Contract.stock("AAPL").quote())
+
+
+def test_double_enter_raises(client) -> None:
+    """Re-entering the same session is a programming error: each
+    `__enter__` consumes the stored callback. The second enter must
+    raise rather than silently re-register.
+    """
+    cm = client.streaming(_noop_callback)
+    with cm as _session:
+        pass
+    with pytest.raises(RuntimeError, match="callback already consumed"):
+        cm.__enter__()

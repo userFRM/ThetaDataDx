@@ -2,8 +2,8 @@
 """Verify that user-visible package metadata stays in lockstep with Cargo.toml.
 
 The TypeScript SDK ships through npm and pins its version in
-``sdks/typescript/package.json`` plus three per-platform packages under
-``sdks/typescript/npm/`` plus three ``optionalDependencies`` entries.
+``thetadatadx-ts/package.json`` plus three per-platform packages under
+``thetadatadx-ts/npm/`` plus three ``optionalDependencies`` entries.
 The Rust workspace bumps its Cargo.toml independently. When any of those
 fall out of sync (which happened across v8.0.27 / v8.0.28 / v8.0.29 and
 left npm stuck on v8.0.26 because the publish workflow keys off
@@ -11,11 +11,11 @@ left npm stuck on v8.0.26 because the publish workflow keys off
 ages while git tags advance.
 
 This script fails CI when any tracked version disagrees with the
-canonical ``crates/thetadatadx/Cargo.toml`` version.
+canonical ``thetadatadx-rs/Cargo.toml`` version.
 
-The published Python wheel is covered too. ``sdks/python/pyproject.toml``
+The published Python wheel is covered too. ``thetadatadx-py/pyproject.toml``
 declares ``dynamic = ["version"]`` with the maturin backend, so the wheel
-version is read from ``sdks/python/Cargo.toml`` ``[package].version`` at
+version is read from ``thetadatadx-py/Cargo.toml`` ``[package].version`` at
 build time rather than from any literal in ``pyproject.toml``; the gate
 asserts that crate version against the canonical one.
 
@@ -44,8 +44,8 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-CANONICAL_CARGO = ROOT / "crates" / "thetadatadx" / "Cargo.toml"
-CMAKE_LISTS = ROOT / "sdks" / "cpp" / "CMakeLists.txt"
+CANONICAL_CARGO = ROOT / "thetadatadx-rs" / "Cargo.toml"
+CMAKE_LISTS = ROOT / "thetadatadx-cpp" / "CMakeLists.txt"
 # The published REST contract. Its `info.version` is the version a
 # generated client stamps into its user-agent / about strings, yet it was
 # governed by no gate: `check_version_sync` never read this file and
@@ -54,13 +54,13 @@ CMAKE_LISTS = ROOT / "sdks" / "cpp" / "CMakeLists.txt"
 # could fall a full release behind canonical undetected. The gate now
 # asserts `info.version` against the canonical version.
 OPENAPI_YAML = ROOT / "docs-site" / "docs" / "public" / "thetadatadx.yaml"
-PY_INIT = ROOT / "sdks" / "python" / "python" / "thetadatadx" / "__init__.py"
+PY_INIT = ROOT / "thetadatadx-py" / "python" / "thetadatadx" / "__init__.py"
 # The published Python wheel version is NOT pinned in `pyproject.toml`
 # (it declares `dynamic = ["version"]` with `build-backend = "maturin"`);
 # maturin reads it from the binding crate's `[package].version`. The gate
 # must therefore assert THIS file against the canonical version, or the
 # wheel uploaded to PyPI can age independently of every other artifact.
-PY_CARGO = ROOT / "sdks" / "python" / "Cargo.toml"
+PY_CARGO = ROOT / "thetadatadx-py" / "Cargo.toml"
 
 # Accepted values for the `__version__` fallback in the Python SDK
 # `__init__.py`. `"unknown"` is the canonical sentinel — anything that
@@ -81,7 +81,7 @@ def cargo_version(path: Path) -> str:
 
 # Every workspace crate's published / advertised version must move in
 # lockstep with the canonical one. The previous gate asserted only the
-# canonical `crates/thetadatadx/Cargo.toml` and `sdks/python/Cargo.toml`
+# canonical `thetadatadx-rs/Cargo.toml` and `thetadatadx-py/Cargo.toml`
 # manifests, leaving the FFI, CLI, server, MCP, and TypeScript-binding
 # crates — plus EVERY `Cargo.lock` — unscanned. The server and MCP
 # binaries advertise their version at runtime via `CARGO_PKG_VERSION`
@@ -187,7 +187,7 @@ def package_json_optional_deps(path: Path) -> dict[str, str]:
 def cmake_project_version(path: Path) -> str | None:
     """Extract the `project(... VERSION x.y.z ...)` value from a
     CMakeLists.txt. U4 closure: the version-sync check previously
-    returned clean even when `sdks/cpp/CMakeLists.txt` still pinned
+    returned clean even when `thetadatadx-cpp/CMakeLists.txt` still pinned
     `VERSION 8.0.23` against a Cargo-side v10. Match the `VERSION
     x.y.z` substring inside the `project(...)` call so a future CMake
     drift fails this gate.
@@ -237,7 +237,7 @@ def openapi_info_version(path: Path) -> str | None:
 # U5 closure: the same gate scans documentation pins for the
 # `thetadatadx = "<version>"` shape. Drift between the canonical Cargo
 # version and a doc pin silently aged the docs across v9 → v10, and again
-# across the rc series: `crates/thetadatadx/README.md` ships verbatim to
+# across the rc series: `thetadatadx-rs/README.md` ships verbatim to
 # docs.rs (it is the crate's `readme = "README.md"`) yet a hand-picked
 # three-path list never scanned it, so it pinned `13.0.0-rc.1` against a
 # canonical `13.0.0-rc.5` undetected. The gate now discovers EVERY `*.md`
@@ -364,7 +364,7 @@ def main() -> int:
 
     failures: list[str] = []
 
-    ts_root = ROOT / "sdks" / "typescript" / "package.json"
+    ts_root = ROOT / "thetadatadx-ts" / "package.json"
     if package_json_version(ts_root) != canonical:
         failures.append(
             f"{ts_root.relative_to(ROOT)} version is "
@@ -385,9 +385,9 @@ def main() -> int:
                 f"{package_json_version(platform_pkg)}, expected {canonical}"
             )
 
-    # Published Python wheel version. `sdks/python/pyproject.toml` is
+    # Published Python wheel version. `thetadatadx-py/pyproject.toml` is
     # `dynamic = ["version"]` + maturin, so the wheel version is taken
-    # from `sdks/python/Cargo.toml` `[package].version` at build time, not
+    # from `thetadatadx-py/Cargo.toml` `[package].version` at build time, not
     # from any literal in `pyproject.toml`. Asserting that crate version
     # is what stops the PyPI wheel from silently aging while every other
     # tracked artifact advances.
@@ -485,7 +485,7 @@ def _selftest() -> int:
       version that `pyproject.toml`'s `dynamic = ["version"]` + maturin
       stamps onto the PyPI upload.
     * Doc-pin discovery (G3): against a synthetic temp ROOT, an install
-      doc (`sdks/README.md`) is discovered while a changelog, a release
+      doc (`thetadatadx-py/README.md`) is discovered while a changelog, a release
       note, and a migration guide are excluded; a stale pin in the install
       doc is flagged and the historical-pin files never leak in.
     * Manifest + lockfile coverage (G4): a drifted first-party crate
@@ -614,7 +614,7 @@ def _selftest() -> int:
         ROOT = root
         DOC_PIN_PATHS = None  # force production discovery against the temp ROOT
         try:
-            install_doc = root / "sdks" / "README.md"
+            install_doc = root / "thetadatadx-py" / "README.md"
             install_doc.parent.mkdir(parents=True, exist_ok=True)
             install_doc.write_text('thetadatadx = "13.0.0-rc.1"\n', encoding="utf-8")
 
@@ -630,7 +630,7 @@ def _selftest() -> int:
             migration.write_text('thetadatadx = "11"\n', encoding="utf-8")
 
             discovered = {p.relative_to(root).as_posix() for p in _discover_doc_pin_files()}
-            if "sdks/README.md" not in discovered:
+            if "thetadatadx-py/README.md" not in discovered:
                 failures.append(
                     "doc-pin-discovery: an install doc outside the old "
                     "hardcoded list was not discovered (the recursive *.md "
@@ -648,7 +648,7 @@ def _selftest() -> int:
                     )
 
             mismatches = doc_pin_mismatches(canonical)
-            if not any("sdks/README.md" in m for m in mismatches):
+            if not any("thetadatadx-py/README.md" in m for m in mismatches):
                 failures.append(
                     "doc-pin-discovery: the stale pin in the discovered install "
                     "doc was not flagged as a mismatch"

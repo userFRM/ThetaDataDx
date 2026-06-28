@@ -22,7 +22,7 @@ references internals:
 * Rust `src/` — the implementation; it is *supposed* to name its crates.
 * `tests/`, `benches/`, `__tests__/` — e.g. the no-GIL audit test that
   asserts `block_on` is absent from a hot path, or the helper test that
-  mirrors `crates/.../tdbe/` source paths. Flagging those would punish
+  mirrors `thetadatadx-rs/.../tdbe/` source paths. Flagging those would punish
   the very gates that keep the surface clean.
 * `node_modules/`, build/target directories.
 
@@ -66,15 +66,15 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 # CMake PUBLIC include path), the typed Python package, and the four
 # distributed TypeScript files named in the npm package `files` field.
 SCAN_GLOBS = (
-    "sdks/cpp/include/*.h",
-    "sdks/cpp/include/*.hpp",
-    "sdks/cpp/include/*.inc",
-    "sdks/python/python/thetadatadx/**/*.py",
-    "sdks/python/python/thetadatadx/**/*.pyi",
-    "sdks/typescript/index.d.ts",
-    "sdks/typescript/index.js",
-    "sdks/typescript/streaming-session.d.ts",
-    "sdks/typescript/streaming-session.js",
+    "thetadatadx-cpp/include/*.h",
+    "thetadatadx-cpp/include/*.hpp",
+    "thetadatadx-cpp/include/*.inc",
+    "thetadatadx-py/python/thetadatadx/**/*.py",
+    "thetadatadx-py/python/thetadatadx/**/*.pyi",
+    "thetadatadx-ts/index.d.ts",
+    "thetadatadx-ts/index.js",
+    "thetadatadx-ts/streaming-session.d.ts",
+    "thetadatadx-ts/streaming-session.js",
     # Per-SDK READMEs ship verbatim as the package long-description: the
     # Python README becomes the PyPI page (`pyproject.toml` `readme =
     # "README.md"`), the TypeScript README is packed into the npm tarball
@@ -82,7 +82,9 @@ SCAN_GLOBS = (
     # source SDK. They are as user-facing as the headers and stubs, so an
     # internal-name leak in any of them reaches every reader of the
     # package page.
-    "sdks/*/README.md",
+    "thetadatadx-py/README.md",
+    "thetadatadx-ts/README.md",
+    "thetadatadx-cpp/README.md",
 )
 
 
@@ -268,11 +270,11 @@ def _selftest() -> int:
       `arc-swap`, `DashMap`, `rustc-hash`, `epoll`, `kqueue`,
       `pyo3-async-runtimes`, `future_into_py`, `SharedProducer`,
       `StateCell`) — every one must be flagged. A planted `firehose` in a
-      shipped `sdks/cpp/include/*.h` is the canonical bypass this closes.
+      shipped `thetadatadx-cpp/include/*.h` is the canonical bypass this closes.
       (`worker pool` is intentionally absent — see the FORBIDDEN_PATTERNS
       note; worker-thread vocabulary is adjudicated public surface.)
-    * A shipped README (`sdks/python/README.md`) naming an internal
-      runtime crate — must be flagged, proving `sdks/*/README.md` is in
+    * A shipped README (`thetadatadx-py/README.md`) naming an internal
+      runtime crate — must be flagged, proving the per-package README is in
       the scan set (the PyPI / npm long-description leak that previously
       went unscanned).
     """
@@ -334,33 +336,33 @@ def _selftest() -> int:
     with tempfile.TemporaryDirectory() as td:
         root = pathlib.Path(td)
 
-        leaky = root / "sdks" / "cpp" / "include" / "leaky.h"
+        leaky = root / "thetadatadx-cpp" / "include" / "leaky.h"
         leaky.parent.mkdir(parents=True, exist_ok=True)
         leaky.write_text(leaky_header, encoding="utf-8")
 
-        clean = root / "sdks" / "python" / "python" / "thetadatadx" / "__init__.pyi"
+        clean = root / "thetadatadx-py" / "python" / "thetadatadx" / "__init__.pyi"
         clean.parent.mkdir(parents=True, exist_ok=True)
         clean.write_text(clean_stub, encoding="utf-8")
 
-        vendor = root / "sdks" / "typescript" / "index.d.ts"
+        vendor = root / "thetadatadx-ts" / "index.d.ts"
         vendor.parent.mkdir(parents=True, exist_ok=True)
         vendor.write_text(vendor_only, encoding="utf-8")
 
-        variants = root / "sdks" / "cpp" / "include" / "variants.h"
+        variants = root / "thetadatadx-cpp" / "include" / "variants.h"
         variants.parent.mkdir(parents=True, exist_ok=True)
         variants.write_text(case_and_separator_variants, encoding="utf-8")
 
-        extended = root / "sdks" / "cpp" / "include" / "extended.h"
+        extended = root / "thetadatadx-cpp" / "include" / "extended.h"
         extended.parent.mkdir(parents=True, exist_ok=True)
         extended.write_text(extended_deny_variants, encoding="utf-8")
 
-        readme = root / "sdks" / "python" / "README.md"
+        readme = root / "thetadatadx-py" / "README.md"
         readme.parent.mkdir(parents=True, exist_ok=True)
         readme.write_text(leaky_readme, encoding="utf-8")
 
         # A test file naming internals must be ignored even though it
         # lives under the SDK tree — proves the exclusion works.
-        test_file = root / "sdks" / "python" / "tests" / "test_no_gil.py"
+        test_file = root / "thetadatadx-py" / "tests" / "test_no_gil.py"
         test_file.parent.mkdir(parents=True, exist_ok=True)
         test_file.write_text("assert 'block_on' not in source\n", encoding="utf-8")
 
@@ -443,7 +445,7 @@ def _selftest() -> int:
         if not any(rel.name == "README.md" for (rel, _, _, _) in hits):
             print(
                 "selftest FAILED: the impl-IP leak in the shipped "
-                "sdks/*/README.md long-description was not flagged"
+                "per-package README long-description was not flagged"
             )
             return 1
 

@@ -49,9 +49,9 @@ jobs:
         with:
           filters: |
             python:
-              - 'sdks/python/**'
-              - 'ffi/**'
-              - 'crates/**'
+              - 'thetadatadx-py/**'
+              - 'thetadatadx-ffi/**'
+              - 'thetadatadx-rs/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
               - '.github/workflows/python.yml'
@@ -117,7 +117,7 @@ jobs:
       # warning (including new ones) stays fatal.
       - name: Clippy (Python SDK)
         shell: bash
-        working-directory: sdks/python
+        working-directory: thetadatadx-py
         run: cargo clippy --all-targets -- -D warnings -A clippy::too_many_arguments
       - shell: bash
         run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
@@ -132,13 +132,13 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           # `--interpreter python3.12` targets the abi3 floor declared in
-          # `sdks/python/Cargo.toml` (pyo3/abi3-py312). The default
+          # `thetadatadx-py/Cargo.toml` (pyo3/abi3-py312). The default
           # `python` binary inside the manylinux2014 Docker image is
           # Python 2.7, which lacks `sys.implementation` and breaks
           # maturin's interpreter probe; `python3.12` resolves cleanly
           # inside the image.
           command: build
-          args: --release -m sdks/python/Cargo.toml -o dist/ --interpreter python3.12
+          args: --release -m thetadatadx-py/Cargo.toml -o dist/ --interpreter python3.12
           manylinux: '2014'
           target: x86_64
           # The manylinux2014 CentOS 7 image ships no `protoc`, which
@@ -167,13 +167,13 @@ jobs:
         run: |
           python -m maturin build \
             --release \
-            -m sdks/python/Cargo.toml \
+            -m thetadatadx-py/Cargo.toml \
             -o dist/ \
             --interpreter "python${{ matrix.python }}"
       - name: Build wheel (macOS / Windows)
         if: matrix.os != 'ubuntu-latest'
         shell: bash
-        run: python -m maturin build --release -m sdks/python/Cargo.toml -o dist/ --interpreter python
+        run: python -m maturin build --release -m thetadatadx-py/Cargo.toml -o dist/ --interpreter python
       - name: Install wheel
         shell: bash
         run: python -m pip install --force-reinstall dist/*.whl
@@ -198,7 +198,7 @@ jobs:
         shell: bash
         run: |
           python -m pip install pytest
-          python -m pytest sdks/python/tests/ -v
+          python -m pytest thetadatadx-py/tests/ -v
       - name: Inspect wheel contents (Gate 12 / #555)
         shell: bash
         run: python3 scripts/dev/inspect_artifacts.py dist/*.whl
@@ -246,7 +246,7 @@ jobs:
         shell: bash
         run: |
           python -m mypy.stubtest thetadatadx \
-            --allowlist sdks/python/stubtest_allowlist.txt \
+            --allowlist thetadatadx-py/stubtest_allowlist.txt \
             --ignore-missing-stub \
             --ignore-disjoint-bases \
             --ignore-positional-only
@@ -276,8 +276,8 @@ jobs:
           /tmp/thetadatadx-smoke/bin/pip install --upgrade pip
           /tmp/thetadatadx-smoke/bin/pip install pytest
           /tmp/thetadatadx-smoke/bin/pip install dist/*.whl
-          /tmp/thetadatadx-smoke/bin/python -m pytest sdks/python/tests/test_fresh_install_smoke.py -v
-          /tmp/thetadatadx-smoke/bin/python -m pytest sdks/python/tests/test_module_exports.py -v
+          /tmp/thetadatadx-smoke/bin/python -m pytest thetadatadx-py/tests/test_fresh_install_smoke.py -v
+          /tmp/thetadatadx-smoke/bin/python -m pytest thetadatadx-py/tests/test_module_exports.py -v
 
   nogil-throughput:
     # Parallel-throughput gate — only meaningful on the free-threaded
@@ -294,7 +294,7 @@ jobs:
     # a real GIL regression still trips it, while transient runner
     # contention no longer fails the gate. The matching pytest
     # assertion lives in
-    # `sdks/python/tests/test_no_gil.py::test_parallel_throughput_bench_runs`
+    # `thetadatadx-py/tests/test_no_gil.py::test_parallel_throughput_bench_runs`
     # and is kept in lockstep at 1.8x.
     name: Parallel throughput (nogil gate, py${{ matrix.python }})
     runs-on: ubuntu-latest
@@ -320,7 +320,7 @@ jobs:
       - name: Parallel throughput (nogil gate)
         shell: bash
         run: |
-          python sdks/python/benches/bench_parallel_throughput.py | tee bench.json
+          python thetadatadx-py/benches/bench_parallel_throughput.py | tee bench.json
           python - <<'PY'
           import json, pathlib, sys
           payload = json.loads(pathlib.Path("bench.json").read_text().strip().splitlines()[-1])
@@ -405,7 +405,7 @@ jobs:
         shell: bash
         run: |
           python -m pip install pytest
-          python -m pytest sdks/python/tests/ -v
+          python -m pytest thetadatadx-py/tests/ -v
 
   sdist:
     name: Build source distribution
@@ -427,7 +427,7 @@ jobs:
       - shell: bash
         run: python -m pip install --upgrade pip "maturin>=1.9.4,<2.0"
       - shell: bash
-        run: python -m maturin sdist -m sdks/python/Cargo.toml -o dist/
+        run: python -m maturin sdist -m thetadatadx-py/Cargo.toml -o dist/
       - name: Inspect sdist contents (Gate 12 / #555)
         shell: bash
         run: python3 scripts/dev/inspect_artifacts.py dist/*.tar.gz

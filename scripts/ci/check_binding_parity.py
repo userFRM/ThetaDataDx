@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Cross-binding parity check (Gate 2 / issue #545 + #595).
 
-Reads `sdks/parity.toml` — the declared cross-binding presence matrix
+Reads `parity.toml` — the declared cross-binding presence matrix
 — and compares each row's `python` / `typescript` / `cpp` claims to
 the actual binding state extracted from:
 
@@ -9,7 +9,7 @@ Class-level rows (no dot in `name`):
 - Python: every `m.add_class::<T>()` registered in `lib.rs` + helper
   `register_*` calls, expanded statically by parsing the Rust source.
   Mirrors the regex powering `test_no_pyclass_name_collisions.py`.
-- TypeScript: the package entry resolved from `sdks/typescript/package.json`
+- TypeScript: the package entry resolved from `thetadatadx-ts/package.json`
   `types` (declarations) and `main` (runtime). The gate scans that entry,
   follows its `export * from './...'` re-exports, and harvests
   `export class X` / `export declare class X` / `export declare const X`
@@ -17,22 +17,22 @@ Class-level rows (no dot in `name`):
   actually-shipped surface (the napi `index.*` re-export PLUS the wrapper-side
   classes such as the context-managed session and the typed-error leaves).
 - C++: `^class X` / `^struct X` declarations in
-  `sdks/cpp/include/thetadatadx.hpp`. The `.h` header is C-only and not
+  `thetadatadx-cpp/include/thetadatadx.hpp`. The `.h` header is C-only and not
   considered for parity.
 
 Field-level rows (dotted `name`, e.g. `ReconnectConfig.wait_ms`):
 - Python: `#[setter] fn set_<canonical>` and `#[getter] fn <canonical>`
-  parsed from `sdks/python/src/*.rs`. The canonical name composes the
+  parsed from `thetadatadx-py/src/*.rs`. The canonical name composes the
   struct prefix (e.g. `reconnect_`) with the row suffix (`wait_ms`).
 - TypeScript napi: `#[napi(js_name = "set<CamelCase>")]` and the
-  matching getter declaration in `sdks/typescript/src/*.rs`. The
+  matching getter declaration in `thetadatadx-ts/src/*.rs`. The
   CamelCase form lifts the snake_case canonical name.
 - C++: `set_<canonical>` / `get_<canonical>` member functions on the
   `class Config { ... }` body in `thetadatadx.hpp` PLUS the matching
   `thetadatadx_config_set_<canonical>` C-ABI declaration in `thetadatadx.h`.
 - FFI: `thetadatadx_config_set_<canonical>` AND
   `thetadatadx_config_get_<canonical>` (or the `_explicit` widened-ABI shape)
-  parsed from `ffi/src/*.rs`. Any binding flagged `true` on a field
+  parsed from `thetadatadx-ffi/src/*.rs`. Any binding flagged `true` on a field
   row implies the FFI symbol exists, because every higher-level
   binding forwards into the same C ABI.
 
@@ -45,15 +45,15 @@ Historical endpoint families (`[[historical_base]]` /
 `[[historical_async]]` / `[[historical_streaming]]`): the buffered,
 async-query, and server-stream surfaces per endpoint. Each carries a
 `rust` column whose source of truth is the registry of record,
-`crates/thetadatadx/endpoint_surface.toml` — the file the build pipeline
+`thetadatadx-rs/endpoint_surface.toml` — the file the build pipeline
 generates every binding's historical method from. The Rust buffered
 surface is every `[[endpoints]]` entry except the four `*_stream` FPSS
 subscription endpoints (61 endpoints); the Rust streaming subset mirrors
 the build's `endpoint_streams` SSOT (list / snapshot / calendar endpoints
 get no server-stream terminal). `[[historical_base]]` additionally pins
 the C-ABI `thetadatadx_<endpoint>_with_options` base symbol read from the
-SHIPPED header (`sdks/cpp/include/endpoint_with_options.h.inc`) and
-cross-checks the shipped header, the `ffi/src` source, and the registry
+SHIPPED header (`thetadatadx-cpp/include/endpoint_with_options.h.inc`) and
+cross-checks the shipped header, the `thetadatadx-ffi/src` source, and the registry
 for agreement so a stale regenerated header is caught. This is the core
 "every endpoint exists on all five surfaces" guarantee.
 
@@ -87,12 +87,12 @@ from typing import Any
 
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-PARITY_TOML = REPO_ROOT / "sdks" / "parity.toml"
-PY_SRC = REPO_ROOT / "sdks" / "python" / "src"
+PARITY_TOML = REPO_ROOT / "parity.toml"
+PY_SRC = REPO_ROOT / "thetadatadx-py" / "src"
 # The shipped PEP 561 stub — the client-facing Python type surface
 # (mypy / pyright) the `python_pyi` signature lane checks against the spec.
-PY_PYI = REPO_ROOT / "sdks" / "python" / "python" / "thetadatadx" / "__init__.pyi"
-TS_PKG_DIR = REPO_ROOT / "sdks" / "typescript"
+PY_PYI = REPO_ROOT / "thetadatadx-py" / "python" / "thetadatadx" / "__init__.pyi"
+TS_PKG_DIR = REPO_ROOT / "thetadatadx-ts"
 
 
 def _resolve_ts_entry(pkg_dir: pathlib.Path, key: str, fallback: str) -> pathlib.Path:
@@ -123,20 +123,20 @@ def _resolve_ts_entry(pkg_dir: pathlib.Path, key: str, fallback: str) -> pathlib
 # the wrapper-side exports on top.
 TS_DTS = _resolve_ts_entry(TS_PKG_DIR, "types", "index.d.ts")
 TS_MAIN_JS = _resolve_ts_entry(TS_PKG_DIR, "main", "index.js")
-TS_SRC = REPO_ROOT / "sdks" / "typescript" / "src"
-CPP_HPP = REPO_ROOT / "sdks" / "cpp" / "include" / "thetadatadx.hpp"
-CPP_H = REPO_ROOT / "sdks" / "cpp" / "include" / "thetadatadx.h"
-FFI_SRC = REPO_ROOT / "ffi" / "src"
-CONFIG_DIR = REPO_ROOT / "crates" / "thetadatadx" / "src" / "config"
+TS_SRC = REPO_ROOT / "thetadatadx-ts" / "src"
+CPP_HPP = REPO_ROOT / "thetadatadx-cpp" / "include" / "thetadatadx.hpp"
+CPP_H = REPO_ROOT / "thetadatadx-cpp" / "include" / "thetadatadx.h"
+FFI_SRC = REPO_ROOT / "thetadatadx-ffi" / "src"
+CONFIG_DIR = REPO_ROOT / "thetadatadx-rs" / "src" / "config"
 RUST_CLIENT_BUILDER_RS = (
-    REPO_ROOT / "crates" / "thetadatadx" / "src" / "client_builder.rs"
+    REPO_ROOT / "thetadatadx-rs" / "src" / "client_builder.rs"
 )
 # Core Rust streaming surfaces whose public observability accessors must
 # each carry a parity row. The unified surface lives on the
 # `StreamSurface` view returned by `Client::stream()`; the standalone
 # surface is the `StreamingClient` FPSS client.
-CORE_CLIENT_RS = REPO_ROOT / "crates" / "thetadatadx" / "src" / "client.rs"
-CORE_FPSS_MOD_RS = REPO_ROOT / "crates" / "thetadatadx" / "src" / "fpss" / "mod.rs"
+CORE_CLIENT_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "client.rs"
+CORE_FPSS_MOD_RS = REPO_ROOT / "thetadatadx-rs" / "src" / "fpss" / "mod.rs"
 # The canonical endpoint registry of record. The build pipeline generates
 # the Rust historical surface (`HistoricalClient::<endpoint>` methods + the
 # per-endpoint streaming builders) from this file; the parity gate reads it
@@ -145,24 +145,24 @@ CORE_FPSS_MOD_RS = REPO_ROOT / "crates" / "thetadatadx" / "src" / "fpss" / "mod.
 # real-time subscription endpoints) is one of the buffered historical
 # endpoints (the 61-endpoint base surface).
 ENDPOINT_SURFACE_TOML = (
-    REPO_ROOT / "crates" / "thetadatadx" / "endpoint_surface.toml"
+    REPO_ROOT / "thetadatadx-rs" / "endpoint_surface.toml"
 )
 # The shipped C-ABI base header fragment. `thetadatadx.h` includes it; it
 # declares one `thetadatadx_<endpoint>_with_options` extern "C" symbol per
-# buffered endpoint. Reading the SHIPPED header (not just the `ffi/src`
+# buffered endpoint. Reading the SHIPPED header (not just the `thetadatadx-ffi/src`
 # source) catches a stale regenerated header that drifted from the Rust
 # source of truth.
 ENDPOINT_WITH_OPTIONS_INC = (
-    REPO_ROOT / "sdks" / "cpp" / "include" / "endpoint_with_options.h.inc"
+    REPO_ROOT / "thetadatadx-cpp" / "include" / "endpoint_with_options.h.inc"
 )
 # The two generated consumers of the request-options SSOT: the C++ fluent
 # `with_*` setters and the FFI `#[repr(C)]` bridge struct. Both are emitted
 # from `endpoint_surface.toml` and must carry the same option roster.
 ENDPOINT_OPTIONS_HPP_INC = (
-    REPO_ROOT / "sdks" / "cpp" / "include" / "endpoint_options.hpp.inc"
+    REPO_ROOT / "thetadatadx-cpp" / "include" / "endpoint_options.hpp.inc"
 )
 ENDPOINT_REQUEST_OPTIONS_RS = (
-    REPO_ROOT / "ffi" / "src" / "endpoint_request_options.rs"
+    REPO_ROOT / "thetadatadx-ffi" / "src" / "endpoint_request_options.rs"
 )
 
 
@@ -1117,7 +1117,7 @@ def _collect_cpp_setters(cpp_hpp: pathlib.Path, cpp_h: pathlib.Path) -> set[str]
 
 
 def _collect_ffi_setters(ffi_src: pathlib.Path) -> set[str]:
-    """FFI extern C setter declarations in `ffi/src/*.rs`. The
+    """FFI extern C setter declarations in `thetadatadx-ffi/src/*.rs`. The
     convention is ``thetadatadx_config_set_<name>``. Getter presence is not
     gated — several write-only knobs (e.g. the per-class reconnect
     budgets) have no FFI getter by design.
@@ -1522,7 +1522,7 @@ def _check_client_builder_setter_parity(
 
 
 # The canonical JS-visible `Client.connectWith(...)` option-field roster.
-# The Rust `ClientConnectOptions` struct in `sdks/typescript/src/lib.rs`
+# The Rust `ClientConnectOptions` struct in `thetadatadx-ts/src/lib.rs`
 # must emit exactly this set after napi camel-casing. A dropped, renamed,
 # or newly-added field trips here even if no `[[connect]]` / `[[method]]`
 # row changes, so the inline connect surface stays pinned.
@@ -1544,7 +1544,7 @@ def _collect_typescript_connect_with_fields(ts_lib_rs: pathlib.Path) -> set[str]
     """JS-visible field names on `ClientConnectOptions`.
 
     Parses the `#[napi(object)] pub struct ClientConnectOptions { ... }`
-    body in `sdks/typescript/src/lib.rs`, honoring an explicit
+    body in `thetadatadx-ts/src/lib.rs`, honoring an explicit
     `#[napi(js_name = "...")]` on a field when present and otherwise
     applying napi-rs' snake_case → camelCase object-field mapping.
     """
@@ -1702,7 +1702,7 @@ PUB_FIELD_RE = re.compile(
 def _collect_rust_pub_fields(config_dir: pathlib.Path) -> dict[str, set[str]]:
     """Return `{struct_name: {field, ...}}` for every scoped struct.
 
-    Parses `crates/thetadatadx/src/config/*.rs`. Skips fields on
+    Parses `thetadatadx-rs/src/config/*.rs`. Skips fields on
     structs not listed in `SCOPED_STRUCTS` — `DirectConfig`'s pub
     fields are nested-struct accessors that the class-level gate
     already covers.
@@ -1713,7 +1713,7 @@ def _collect_rust_pub_fields(config_dir: pathlib.Path) -> dict[str, set[str]]:
     for rs in config_dir.rglob("*.rs"):
         text = _read_source(rs)
         # Find every `pub struct X {` block and walk forward until the
-        # closing brace. The structs in `crates/thetadatadx/src/config/`
+        # closing brace. The structs in `thetadatadx-rs/src/config/`
         # never nest other struct definitions; a depth=1 brace counter
         # suffices.
         for header in STRUCT_HEADER_RE.finditer(text):
@@ -2035,8 +2035,8 @@ def _expand_cpp_includes(hpp_text: str, include_dir: pathlib.Path) -> str:
     """Inline every `#include "<name>.inc"` directive against the
     matching file under `include_dir`. The `*.inc` files extend a
     class body with generator-emitted member declarations
-    (`sdks/cpp/include/fpss.hpp.inc` adds `StreamingClient` methods that
-    live in `crates/thetadatadx/sdk_surface.toml`), and the parity
+    (`thetadatadx-cpp/include/fpss.hpp.inc` adds `StreamingClient` methods that
+    live in `thetadatadx-rs/sdk_surface.toml`), and the parity
     gate must see those declarations as part of the surrounding
     class body.
 
@@ -2366,7 +2366,7 @@ PYI_SETTER_PROPERTY_ROWS: frozenset[tuple[str, str]] = frozenset(
 # Parity-toml `class` field → the Rust struct the Rust method collector
 # keys on. The flat-file namespace is the borrowed `FlatFiles` view
 # returned by `Client::flat_files()`; the unified entry-point client is
-# `Client`. Both live in `crates/thetadatadx/src/client.rs`. A row class
+# `Client`. Both live in `thetadatadx-rs/src/client.rs`. A row class
 # absent from this table is not gated on the Rust column (Python /
 # TypeScript / C++ only), so the Rust column is opt-in per row — exactly
 # the surfaces where Rust must mirror the other bindings.
@@ -2584,7 +2584,7 @@ def _check_method_rows(
             )
 
         # TypeScript: napi-attributed method declared inside the
-        # matching `impl <ClassName>` block under `sdks/typescript/src/`.
+        # matching `impl <ClassName>` block under `thetadatadx-ts/src/`.
         # The collector records both the `js_name` and the auto-
         # camelCased fn-name spelling so a row's `name` can match
         # against either.
@@ -2601,7 +2601,7 @@ def _check_method_rows(
                 f"actual={actual_ts} ({verb} -- expected "
                 f'`#[napi(js_name = "{ts_member}")]` (or bare `#[napi]`) '
                 f"inside `impl {ts_lookup_class}` under "
-                f"sdks/typescript/src/)"
+                f"thetadatadx-ts/src/)"
             )
 
         # C++: `<snake>(` member declaration inside the matching
@@ -2629,7 +2629,7 @@ def _check_method_rows(
                 f"  {class_name}.{camel}.cpp: declared={declared_cpp}, "
                 f"actual={actual_cpp} ({verb} -- expected `{cpp_member}(` "
                 f"or `get_{cpp_member}(` inside `class {cpp_class}` body in "
-                f"sdks/cpp/include/thetadatadx.hpp)"
+                f"thetadatadx-cpp/include/thetadatadx.hpp)"
             )
 
         # Rust: `pub fn <snake>` / `pub async fn <snake>` inside the
@@ -2661,7 +2661,7 @@ def _check_method_rows(
                     f"actual={actual_rust} ({verb} -- expected "
                     f"`pub fn {rust_member}` or `pub async fn {rust_member}` "
                     f"inside `impl {rust_lookup_class}` in "
-                    f"crates/thetadatadx/src/client.rs)"
+                    f"thetadatadx-rs/src/client.rs)"
                 )
 
     # Reverse-direction orphan scan for Client-level helper methods. A helper
@@ -3015,7 +3015,7 @@ def _check_core_streaming_method_rows(
                     f"  {core_class}::{name}: public observability accessor on "
                     f"the core streaming surface has no `[[method]]` row "
                     f"(expected `class = \"{row_class}\"`, `name = "
-                    f"\"{row_name}\"` in sdks/parity.toml). A wired-but-"
+                    f"\"{row_name}\"` in parity.toml). A wired-but-"
                     f"unenrolled accessor reaches none of the bindings — add "
                     f"the row and bind it on python / typescript / cpp."
                 )
@@ -3158,7 +3158,7 @@ def _collect_cpp_utility_functions(cpp_hpp: pathlib.Path) -> set[str]:
     namespace of the C++ wrapper.
 
     The calculator declarations live in
-    `sdks/cpp/include/utilities.hpp.inc`, pulled into `thetadatadx.hpp` via
+    `thetadatadx-cpp/include/utilities.hpp.inc`, pulled into `thetadatadx.hpp` via
     `#include "utilities.hpp.inc"`. `_expand_cpp_includes` inlines the
     `.inc` first, then a `<ret> <name>(` shape outside any `class {...}`
     body is a free function. The collector blanks class bodies (mirroring
@@ -3414,10 +3414,10 @@ CANONICAL_SUBSCRIPTION_KINDS: frozenset[str] = frozenset(
 )
 
 SUBSCRIPTION_RS = (
-    REPO_ROOT / "crates" / "thetadatadx" / "src" / "fpss" / "protocol" / "subscription.rs"
+    REPO_ROOT / "thetadatadx-rs" / "src" / "fpss" / "protocol" / "subscription.rs"
 )
-PY_FLUENT_RS = REPO_ROOT / "sdks" / "python" / "src" / "fluent.rs"
-TS_FLUENT_RS = REPO_ROOT / "sdks" / "typescript" / "src" / "fluent.rs"
+PY_FLUENT_RS = REPO_ROOT / "thetadatadx-py" / "src" / "fluent.rs"
+TS_FLUENT_RS = REPO_ROOT / "thetadatadx-ts" / "src" / "fluent.rs"
 
 
 # A snake_case string literal that is one of the canonical kind labels OR
@@ -3645,9 +3645,9 @@ CANONICAL_ERROR_CODES: dict[str, int] = {
     "THETADATADX_ERR_INVALID_PARAMETER": 13,
 }
 
-PY_ERRORS_RS = REPO_ROOT / "sdks" / "python" / "src" / "errors.rs"
-TS_LIB_RS = REPO_ROOT / "sdks" / "typescript" / "src" / "lib.rs"
-FFI_ERROR_RS = REPO_ROOT / "ffi" / "src" / "error.rs"
+PY_ERRORS_RS = REPO_ROOT / "thetadatadx-py" / "src" / "errors.rs"
+TS_LIB_RS = REPO_ROOT / "thetadatadx-ts" / "src" / "lib.rs"
+FFI_ERROR_RS = REPO_ROOT / "thetadatadx-ffi" / "src" / "error.rs"
 
 # A class name ending in `Error` is a candidate leaf. The fixed roster
 # filters harvested identifiers to the canonical leaves so a stray
@@ -3827,10 +3827,10 @@ def _check_error_leaf_parity(
     if ffi_codes and ffi_codes != canonical_codes:
         for name, value in sorted(canonical_codes.items()):
             if name not in ffi_codes:
-                errors.append(f"  ffi: `{name}` is not defined in ffi/src/error.rs")
+                errors.append(f"  ffi: `{name}` is not defined in thetadatadx-ffi/src/error.rs")
             elif ffi_codes[name] != value:
                 errors.append(
-                    f"  ffi: `{name}` = {ffi_codes[name]} in ffi/src/error.rs, "
+                    f"  ffi: `{name}` = {ffi_codes[name]} in thetadatadx-ffi/src/error.rs, "
                     f"canonical is {value}"
                 )
         for name in sorted(set(ffi_codes) - set(canonical_codes)):
@@ -3845,8 +3845,8 @@ def _check_error_leaf_parity(
         for name, value in sorted(ffi_codes.items()):
             if name not in cpp_codes:
                 errors.append(
-                    f"  cpp header: `{name}` defined in ffi/src/error.rs but "
-                    f"missing from sdks/cpp/include/thetadatadx.h"
+                    f"  cpp header: `{name}` defined in thetadatadx-ffi/src/error.rs but "
+                    f"missing from thetadatadx-cpp/include/thetadatadx.h"
                 )
             elif cpp_codes[name] != value:
                 errors.append(
@@ -3926,11 +3926,11 @@ def _endpoint_method_to_snake(name: str) -> str:
 #
 #   * Python: `fn stream` + `fn stream_async` on each `<Endpoint>Builder`
 #     pyclass (generated into
-#     `sdks/python/src/_generated/historical_methods.rs`).
+#     `thetadatadx-py/src/_generated/historical_methods.rs`).
 #   * TypeScript: a `<endpoint>Stream` method on the `Client`
 #     napi class (generated into
-#     `sdks/typescript/src/_generated/historical_methods.rs`).
-#   * C ABI: a `thetadatadx_<endpoint>_stream` extern "C" symbol in `ffi/src/`.
+#     `thetadatadx-ts/src/_generated/historical_methods.rs`).
+#   * C ABI: a `thetadatadx_<endpoint>_stream` extern "C" symbol in `thetadatadx-ffi/src/`.
 #   * C++: an `<endpoint>_stream` member on the `Client` wrapper
 #     (`thetadatadx.hpp` + its `.inc` fragments).
 #
@@ -4009,7 +4009,7 @@ def _collect_typescript_streaming_endpoints(
 
 def _collect_ffi_streaming_endpoints(ffi_src: pathlib.Path) -> set[str]:
     """Snake_case endpoint names whose `thetadatadx_<endpoint>_stream` extern "C"
-    symbol exists in `ffi/src/`.
+    symbol exists in `thetadatadx-ffi/src/`.
 
     The `thetadatadx_client_*` / `thetadatadx_streaming_*` callback symbols never match
     the `thetadatadx_<name>_stream` shape (their stems are `client` / `streaming`
@@ -4124,7 +4124,7 @@ def _check_historical_streaming_rows(
 #
 #   * Python: an `<endpoint>_async` method on the historical surface,
 #     returning an awaitable (generated into
-#     `sdks/python/src/_generated/historical_methods.rs`).
+#     `thetadatadx-py/src/_generated/historical_methods.rs`).
 #   * TypeScript: the buffered `<endpoint>` method is itself `async` and
 #     returns a `Promise`, so there is no separate `_async` name — the
 #     presence of the buffered endpoint method on `HistoricalView` IS the
@@ -4415,8 +4415,8 @@ def _collect_cabi_base_endpoints(with_options_inc: pathlib.Path) -> set[str]:
     """Snake_case endpoint names whose `thetadatadx_<endpoint>_with_options`
     base symbol is declared in the SHIPPED C-ABI header fragment.
 
-    Reads `sdks/cpp/include/endpoint_with_options.h.inc` — the header
-    `thetadatadx.h` includes — rather than the `ffi/src` source, so a stale
+    Reads `thetadatadx-cpp/include/endpoint_with_options.h.inc` — the header
+    `thetadatadx.h` includes — rather than the `thetadatadx-ffi/src` source, so a stale
     regenerated header that dropped (or renamed) a base symbol relative to
     the Rust source of truth is caught. The base family cross-checks this
     set against the Rust registry, so a header/registry divergence in EITHER
@@ -4433,7 +4433,7 @@ def _collect_cabi_base_endpoints(with_options_inc: pathlib.Path) -> set[str]:
 
 def _collect_ffi_base_endpoints(ffi_src: pathlib.Path) -> set[str]:
     """Snake_case endpoint names whose `thetadatadx_<endpoint>_with_options`
-    base symbol is DEFINED in the `ffi/src` Rust source.
+    base symbol is DEFINED in the `thetadatadx-ffi/src` Rust source.
 
     The companion to `_collect_cabi_base_endpoints`: the shipped header
     declares the symbol, this source defines it. The base family asserts the
@@ -4518,7 +4518,7 @@ def _check_historical_base_rows(
     1. Reverse-direction orphan scan: an endpoint present on ANY surface but
        with no row at all trips, so a new endpoint cannot slip in untracked.
     2. Header/source/registry agreement: the shipped C-ABI header
-       (`cabi_base`), the `ffi/src` source (`ffi_base`), and the Rust
+       (`cabi_base`), the `thetadatadx-ffi/src` source (`ffi_base`), and the Rust
        registry (`rust_buffered`) must declare the same base set. A stale
        header that drifted from the source of truth trips here, without
        duplicating the broader `.so`↔header completeness checker.
@@ -4573,20 +4573,20 @@ def _check_historical_base_rows(
 
     # Header / source / registry agreement on the C-ABI base set. The
     # shipped header is what downstream C / C++ consumers compile against;
-    # it must declare exactly the base symbols the `ffi/src` source defines
+    # it must declare exactly the base symbols the `thetadatadx-ffi/src` source defines
     # and the Rust registry generates. A divergence in any direction is a
     # stale-artifact defect that no per-row column would surface on its own.
     if cabi_base and ffi_base and cabi_base != ffi_base:
         for ep in sorted(ffi_base - cabi_base):
             errors.append(
-                f"  {ep}: `thetadatadx_{ep}_with_options` is defined in ffi/src "
+                f"  {ep}: `thetadatadx_{ep}_with_options` is defined in thetadatadx-ffi/src "
                 f"but missing from the shipped header "
-                f"sdks/cpp/include/endpoint_with_options.h.inc (stale header)."
+                f"thetadatadx-cpp/include/endpoint_with_options.h.inc (stale header)."
             )
         for ep in sorted(cabi_base - ffi_base):
             errors.append(
                 f"  {ep}: `thetadatadx_{ep}_with_options` is declared in the "
-                f"shipped header but not defined in ffi/src (dangling header "
+                f"shipped header but not defined in thetadatadx-ffi/src (dangling header "
                 f"declaration)."
             )
     if cabi_base and rust_buffered and cabi_base != rust_buffered:
@@ -4703,7 +4703,7 @@ def _collect_cpp_from_file_classes(cpp_methods: dict[str, set[str]]) -> set[str]
 
 def _collect_ffi_from_file_stems(ffi_src: pathlib.Path) -> set[str]:
     """C ABI symbol stems whose `thetadatadx_<stem>_connect_from_file` extern "C"
-    symbol exists in `ffi/src/`.
+    symbol exists in `thetadatadx-ffi/src/`.
 
     Returns the bare stems (`client` / `historical` / `streaming`); the
     checker maps each parity class name to its stem via
@@ -4898,7 +4898,7 @@ def _collect_cpp_connect_classes(cpp_methods: dict[str, set[str]]) -> set[str]:
 
 def _collect_ffi_connect_stems(ffi_src: pathlib.Path) -> set[str]:
     """C ABI symbol stems whose `thetadatadx_<stem>_connect` extern "C"
-    symbol exists in `ffi/src/`.
+    symbol exists in `thetadatadx-ffi/src/`.
 
     The `_connect_from_file` convenience shares the `_connect` prefix, so
     the regex anchors on a `(` immediately after `_connect` to match only
@@ -5349,8 +5349,8 @@ def _check_orphan_rust_fields(
     return errors
 
 
-VALUE_FIELD_PY_SRC = REPO_ROOT / "sdks" / "python" / "src"
-VALUE_FIELD_TS_SRC = REPO_ROOT / "sdks" / "typescript" / "src"
+VALUE_FIELD_PY_SRC = REPO_ROOT / "thetadatadx-py" / "src"
+VALUE_FIELD_TS_SRC = REPO_ROOT / "thetadatadx-ts" / "src"
 
 
 def _struct_field_type(src_dir: pathlib.Path, struct: str, field: str) -> str | None:
@@ -5409,7 +5409,7 @@ def _cpp_struct_field_type(hpp: pathlib.Path, struct: str, field: str) -> str | 
 # header uses, so it needs its own reader. The streaming contract payload
 # (`ThetaDataDxContract`) lives here and carries the unit-bearing wire
 # fields (`strike` dollars + `strike_thousandths` the raw integer).
-CPP_C_STRUCT_INC = REPO_ROOT / "sdks" / "cpp" / "include" / "fpss_event_structs.h.inc"
+CPP_C_STRUCT_INC = REPO_ROOT / "thetadatadx-cpp" / "include" / "fpss_event_structs.h.inc"
 
 # Parity-toml value `class` → the generated C-ABI struct that backs it,
 # for fields whose C-ABI shape is the source of truth rather than a C++
@@ -5662,7 +5662,7 @@ def _check_value_field_roster(rows: list[dict[str, Any]]) -> list[str]:
 # stripped.
 #
 # The `*_tick_array_free` / `*_array_free` block is the per-tick deallocator
-# the `tick_array_free!` macro emits in `ffi/src/types.rs` (one per tick
+# the `tick_array_free!` macro emits in `thetadatadx-ffi/src/types.rs` (one per tick
 # wrapper, plus the `calendar_day_array_free` calendar variant). The symbol
 # name is the macro's first argument, so the orphan scan only sees these once
 # `_collect_ffi_all_symbols` harvests macro-invocation sites; each is a pure
@@ -5812,7 +5812,7 @@ _FFI_FLATFILE_SYMBOLS: frozenset[str] = frozenset(
 
 
 def _collect_ffi_all_symbols(ffi_src: pathlib.Path) -> set[str]:
-    """Every `extern "C" fn thetadatadx_<name>` declared under `ffi/src/**`,
+    """Every `extern "C" fn thetadatadx_<name>` declared under `thetadatadx-ffi/src/**`,
     as the bare `<name>` (prefix stripped).
 
     This is the full C-ABI symbol universe the orphan scan reduces against
@@ -5820,7 +5820,7 @@ def _collect_ffi_all_symbols(ffi_src: pathlib.Path) -> set[str]:
 
     * `fn thetadatadx_<name>(` — symbols spelled literally (the bulk).
     * `<macro>!(thetadatadx_<name>, ...)` — symbols whose name is a macro
-      ARGUMENT, invisible to the literal-`fn` regex. `ffi/src/types.rs`
+      ARGUMENT, invisible to the literal-`fn` regex. `thetadatadx-ffi/src/types.rs`
       emits these through `tick_array_free!` (the per-tick `*_array_free`
       deallocators) and `tick_array_to_arrow_ipc!` (the per-tick
       `*_ticks_to_arrow_ipc` columnar terminals the C++
@@ -5882,7 +5882,7 @@ def _check_ffi_symbol_rows(
     ffi_src: pathlib.Path,
 ) -> list[str]:
     """Forward check for `[[ffi_symbol]]` rows: each declared symbol must
-    exist as an `extern "C"` declaration under `ffi/src/**`.
+    exist as an `extern "C"` declaration under `thetadatadx-ffi/src/**`.
 
     A row whose symbol vanished (renamed / removed) trips, so the
     streaming-batch / borrowed-handle ABI cannot silently break the C++
@@ -5908,7 +5908,7 @@ def _check_ffi_symbol_rows(
         if name not in all_symbols:
             errors.append(
                 f"  thetadatadx_{name}: enrolled `[[ffi_symbol]]` row has no "
-                f"matching `extern \"C\" fn thetadatadx_{name}` under ffi/src/. "
+                f"matching `extern \"C\" fn thetadatadx_{name}` under thetadatadx-ffi/src/. "
                 f"Either restore the symbol or drop the row."
             )
             continue
@@ -7483,7 +7483,7 @@ def _sig_extract_rust(client_rs: pathlib.Path, struct: str, method: str) -> tupl
 
 def _sig_extract_ffi(ffi_src: pathlib.Path, symbol: str) -> tuple[list[str], str] | None:
     """FFI signature: the `extern "C" fn thetadatadx_<symbol>(<params>) -> ret`
-    parameter list under `ffi/src/**`. No receiver stripping — a C ABI fn has
+    parameter list under `thetadatadx-ffi/src/**`. No receiver stripping — a C ABI fn has
     none; the return defaults to `()` (no `-> T`)."""
     if not ffi_src.is_dir():
         return None
@@ -8173,7 +8173,7 @@ def main(argv: list[str] | None = None) -> int:
         had_errors = True
         print(
             f"check_binding_parity: {len(class_mismatches)} class-level "
-            f"mismatch(es) vs sdks/parity.toml:"
+            f"mismatch(es) vs parity.toml:"
         )
         for e in class_mismatches:
             print(e)
@@ -8449,7 +8449,7 @@ def main(argv: list[str] | None = None) -> int:
     if had_errors:
         print(
             "Fix: either land the missing binding, or update "
-            "sdks/parity.toml to reflect the intended state. Every "
+            "parity.toml to reflect the intended state. Every "
             "cross-binding asymmetry must be explicit + tracked."
         )
         return 1
@@ -8507,7 +8507,7 @@ def _run_selftest() -> int:
     Each test materialises a temporary tree with the binding sources
     needed to exercise one specific pass/fail axis, then invokes the
     parity-row evaluator. The selftest is intentionally hermetic — it
-    does not touch the live `sdks/` tree, so running it never depends
+    does not touch the live binding tree, so running it never depends
     on the current state of the production bindings.
     """
     n_pass = 0
@@ -9314,7 +9314,7 @@ def _run_selftest() -> int:
     def _case_ffi_macro_symbol_harvested_and_governed() -> None:
         """A C-ABI extern whose name is a MACRO ARGUMENT (the
         `tick_array_free!` / `tick_array_to_arrow_ipc!` shape in
-        `ffi/src/types.rs`) is harvested by `_collect_ffi_all_symbols`, and an
+        `thetadatadx-ffi/src/types.rs`) is harvested by `_collect_ffi_all_symbols`, and an
         unenrolled one trips the orphan scan — so the macro blindness that hid
         44 externs from the literal-`fn` regex cannot regress."""
         with tempfile.TemporaryDirectory() as tmp:
@@ -10939,7 +10939,7 @@ def _run_selftest() -> int:
         )
 
     def _case_hist_base_header_source_divergence_trips() -> None:
-        """A shipped header that dropped a base symbol the `ffi/src` source
+        """A shipped header that dropped a base symbol the `thetadatadx-ffi/src` source
         still defines (a stale regenerated header) trips, independent of any
         per-row column."""
         rows = [
@@ -10976,7 +10976,7 @@ def _run_selftest() -> int:
         """The live buffered base surface is symmetric across all five
         surfaces: every one of the 61 endpoints present on Rust / Python /
         TypeScript / C++ / the C-ABI base, and the shipped header agrees with
-        the `ffi/src` source and the Rust registry."""
+        the `thetadatadx-ffi/src` source and the Rust registry."""
         data = tomllib.loads(PARITY_TOML.read_text(encoding="utf-8"))
         rows = data.get("historical_base", [])
         assert rows, "live parity.toml must declare [[historical_base]] rows"

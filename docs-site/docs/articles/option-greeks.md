@@ -28,6 +28,6 @@ g = all_greeks(spot=450.0, strike=455.0, rate=0.05, div_yield=0.015,
 print(g.iv, g.delta, g.gamma)
 ```
 
-Inputs are spot, strike, rate, dividend yield (both as decimals: `0.05` = 5%), time to expiration in years, the market option price, and the right. The same seven arguments drive the `iv` / `greeks` [CLI](/cli) subcommands and the MCP server's offline tools.
+Inputs are spot, strike, rate, dividend yield (both as decimals: `0.05` = 5%), time to expiration in years, the market option price, and the right. The same seven arguments drive the MCP server's offline `iv` / `greeks` tools.
 
 Greek-by-Greek field definitions appear on every Greeks reference page's response table.

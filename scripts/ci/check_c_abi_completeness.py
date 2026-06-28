@@ -3,7 +3,7 @@
 
 Every exported `thetadatadx_*` C ABI symbol that ends up in the compiled
 shared library `libthetadatadx_ffi.so` MUST appear as a function
-DECLARATION in `sdks/cpp/include/thetadatadx.h` (or one of its `.inc`
+DECLARATION in `thetadatadx-cpp/include/thetadatadx.h` (or one of its `.inc`
 includes). Drift on the C-side header is invisible to `cargo build`
 because the headers are hand-maintained and the link contract only
 breaks at the user's compile time, after they've already pip-installed
@@ -21,7 +21,7 @@ is gone now that only real declarations are collected.
 
 The symbol inventory is sourced from the compiled library via
 `nm -D --defined-only` rather than a regex pass over
-`ffi/src/**/*.rs`. The regex pass missed macro-emitted symbols
+`thetadatadx-ffi/src/**/*.rs`. The regex pass missed macro-emitted symbols
 (e.g. `thetadatadx_*_tick_array_free` emitted by the `tick_array_free!`
 macro), so a macro-generated free fn that the C++ headers did not
 ship would link-error on user builds. The nm-based inventory is the
@@ -57,8 +57,8 @@ import sys
 
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
-FFI_SRC = REPO_ROOT / "ffi" / "src"
-CPP_INCLUDE = REPO_ROOT / "sdks" / "cpp" / "include"
+FFI_SRC = REPO_ROOT / "thetadatadx-ffi" / "src"
+CPP_INCLUDE = REPO_ROOT / "thetadatadx-cpp" / "include"
 # Linux / macOS share the .so / .dylib output naming; the loader
 # helper below tries each in turn so the gate runs unchanged on
 # macOS hosts during local development.
@@ -225,7 +225,7 @@ def collect_ffi_symbols_via_nm() -> set[str] | None:
 
 
 def collect_ffi_symbols_via_regex() -> set[str]:
-    """Fallback: scan `ffi/src/**/*.rs` for literal
+    """Fallback: scan `thetadatadx-ffi/src/**/*.rs` for literal
     `extern "C" fn thetadatadx_<name>` declarations. This MISSES macro-emitted
     symbols (`tick_array_free!`, etc.) and is intentionally only the
     diagnostic-fallback path — `collect_ffi_symbols_via_nm` is the
@@ -334,12 +334,12 @@ def main() -> int:
     if missing_in_header:
         print(
             f"check_c_abi_completeness: {len(missing_in_header)} symbol(s) defined "
-            "in ffi/src but absent from C headers:"
+            "in thetadatadx-ffi/src but absent from C headers:"
         )
         for name in missing_in_header:
             print(f"  {name}")
         print(
-            "\nFix: add the missing decl(s) to sdks/cpp/include/thetadatadx.h "
+            "\nFix: add the missing decl(s) to thetadatadx-cpp/include/thetadatadx.h "
             "(or the appropriate `*.inc` include). The C++ wrapper "
             "compiles against these headers — a missing decl breaks "
             "user builds at the link step, not at `cargo build`."
@@ -354,13 +354,13 @@ def main() -> int:
     if extras:
         print(
             f"check_c_abi_completeness: {len(extras)} symbol(s) declared in C "
-            "headers but absent from ffi/src:"
+            "headers but absent from thetadatadx-ffi/src:"
         )
         for name in sorted(extras):
             print(f"  {name}")
         print(
             "\nFix: either implement the symbol with "
-            "`#[no_mangle] pub extern \"C\"` in `ffi/src/`, or remove "
+            "`#[no_mangle] pub extern \"C\"` in `thetadatadx-ffi/src/`, or remove "
             "the header decl. A header-only decl breaks consumer "
             "builds at LINK time (not compile), which is the "
             "regression mode that lands in CI nightly. If the symbol "
@@ -538,7 +538,7 @@ def _selftest() -> int:
         "tick_arrow_ipc.hpp.inc": False,
     }
     for fname, expected in scope_cases.items():
-        got = _is_c_decl_header(pathlib.Path("sdks/cpp/include") / fname)
+        got = _is_c_decl_header(pathlib.Path("thetadatadx-cpp/include") / fname)
         if got != expected:
             failures.append(
                 f"file-scope: _is_c_decl_header({fname!r}) returned {got}, "

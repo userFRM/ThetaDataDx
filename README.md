@@ -44,7 +44,7 @@ npm install thetadatadx        # TypeScript / Node.js
 cargo add thetadatadx          # Rust
 ```
 
-C++ ships as a header plus a small implementation file over a prebuilt library (a CMake target wires it up). See the [C++ guide](sdks/cpp/).
+C++ ships as a header plus a small implementation file over a prebuilt library (a CMake target wires it up). See the [C++ guide](thetadatadx-cpp/).
 
 ## Quick start
 
@@ -281,12 +281,11 @@ common `ThetaDataError` base.
 
 | Path | Package | Purpose |
 |---|---|---|
-| [`crates/thetadatadx`](crates/thetadatadx/) | `thetadatadx` (crates.io) | The Rust SDK: tick types, Greeks, price math, and the network client in one crate |
-| [`sdks/python`](sdks/python/) | `thetadatadx` (PyPI) | Python package with DataFrame adapters |
-| [`sdks/typescript`](sdks/typescript/) | `thetadatadx` (npm) | TypeScript / Node.js package, prebuilt binaries |
-| [`sdks/cpp`](sdks/cpp/) | header + prebuilt library | C++ wrapper over the C ABI |
-| [`ffi/`](ffi/) | release artifacts | C ABI for embedders |
-| [`tools/cli`](tools/cli/) | `thetadatadx` | Command-line client |
+| [`thetadatadx-rs`](thetadatadx-rs/) | `thetadatadx` (crates.io) | The Rust SDK: tick types, Greeks, price math, and the network client in one crate |
+| [`thetadatadx-py`](thetadatadx-py/) | `thetadatadx` (PyPI) | Python package with DataFrame adapters |
+| [`thetadatadx-ts`](thetadatadx-ts/) | `thetadatadx` (npm) | TypeScript / Node.js package, prebuilt binaries |
+| [`thetadatadx-cpp`](thetadatadx-cpp/) | header + prebuilt library | C++ wrapper over the C ABI |
+| [`thetadatadx-ffi`](thetadatadx-ffi/) | release artifacts | C ABI for embedders |
 | [`tools/server`](tools/server/) | `thetadatadx-server` | Local HTTP / WebSocket server |
 | [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp` | MCP server exposing every historical endpoint to AI clients |
 | [`docs-site`](docs-site/) | — | Documentation site (GitHub Pages) |

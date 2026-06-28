@@ -1,57 +1,55 @@
 # Force LF line endings on generated SDK surfaces so that
 # `generate_sdk_surfaces --check` doesn't false-positive on Windows.
-ffi/src/endpoint_request_options.rs  text eol=lf linguist-generated=true
-ffi/src/endpoint_with_options.rs     text eol=lf linguist-generated=true
-sdks/cpp/include/endpoint_options.hpp.inc    text eol=lf linguist-generated=true
-sdks/cpp/include/endpoint_request_options.h.inc text eol=lf linguist-generated=true
-sdks/cpp/include/endpoint_with_options.h.inc text eol=lf linguist-generated=true
-sdks/cpp/include/fpss.hpp.inc        text eol=lf linguist-generated=true
-sdks/cpp/include/historical.hpp.inc  text eol=lf linguist-generated=true
-sdks/cpp/include/utilities.hpp.inc   text eol=lf linguist-generated=true
-sdks/cpp/src/fpss.cpp.inc            text eol=lf linguist-generated=true
-sdks/cpp/src/historical.cpp.inc      text eol=lf linguist-generated=true
-sdks/cpp/src/lifecycle.cpp.inc       text eol=lf linguist-generated=true
-sdks/cpp/src/utilities.cpp.inc       text eol=lf linguist-generated=true
-sdks/python/src/historical_methods.rs text eol=lf linguist-generated=true
-sdks/python/src/streaming_methods.rs text eol=lf linguist-generated=true
+thetadatadx-ffi/src/endpoint_request_options.rs  text eol=lf linguist-generated=true
+thetadatadx-ffi/src/endpoint_with_options.rs     text eol=lf linguist-generated=true
+thetadatadx-cpp/include/endpoint_options.hpp.inc    text eol=lf linguist-generated=true
+thetadatadx-cpp/include/endpoint_request_options.h.inc text eol=lf linguist-generated=true
+thetadatadx-cpp/include/endpoint_with_options.h.inc text eol=lf linguist-generated=true
+thetadatadx-cpp/include/fpss.hpp.inc        text eol=lf linguist-generated=true
+thetadatadx-cpp/include/historical.hpp.inc  text eol=lf linguist-generated=true
+thetadatadx-cpp/include/utilities.hpp.inc   text eol=lf linguist-generated=true
+thetadatadx-cpp/src/fpss.cpp.inc            text eol=lf linguist-generated=true
+thetadatadx-cpp/src/historical.cpp.inc      text eol=lf linguist-generated=true
+thetadatadx-cpp/src/lifecycle.cpp.inc       text eol=lf linguist-generated=true
+thetadatadx-cpp/src/utilities.cpp.inc       text eol=lf linguist-generated=true
+thetadatadx-py/src/historical_methods.rs text eol=lf linguist-generated=true
+thetadatadx-py/src/streaming_methods.rs text eol=lf linguist-generated=true
 scripts/ci/check_python.py           text eol=lf linguist-generated=true
-sdks/python/src/fpss_event_classes.rs text eol=lf linguist-generated=true
-sdks/python/src/tick_classes.rs      text eol=lf linguist-generated=true
-sdks/python/src/tick_arrow.rs        text eol=lf linguist-generated=true
-sdks/python/src/buffered_event.rs    text eol=lf linguist-generated=true
-sdks/python/src/utility_functions.rs text eol=lf linguist-generated=true
-tools/cli/src/utilities.rs           text eol=lf linguist-generated=true
+thetadatadx-py/src/fpss_event_classes.rs text eol=lf linguist-generated=true
+thetadatadx-py/src/tick_classes.rs      text eol=lf linguist-generated=true
+thetadatadx-py/src/tick_arrow.rs        text eol=lf linguist-generated=true
+thetadatadx-py/src/buffered_event.rs    text eol=lf linguist-generated=true
+thetadatadx-py/src/utility_functions.rs text eol=lf linguist-generated=true
 tools/mcp/src/utilities.rs           text eol=lf linguist-generated=true
-sdks/typescript/src/historical_methods.rs text eol=lf linguist-generated=true
-sdks/typescript/src/streaming_methods.rs text eol=lf linguist-generated=true
-sdks/typescript/src/tick_classes.rs  text eol=lf linguist-generated=true
-sdks/typescript/src/fpss_event_classes.rs text eol=lf linguist-generated=true
-sdks/typescript/src/buffered_event.rs text eol=lf linguist-generated=true
-sdks/cpp/include/fpss_event_structs.h.inc text eol=lf linguist-generated=true
+thetadatadx-ts/src/historical_methods.rs text eol=lf linguist-generated=true
+thetadatadx-ts/src/streaming_methods.rs text eol=lf linguist-generated=true
+thetadatadx-ts/src/tick_classes.rs  text eol=lf linguist-generated=true
+thetadatadx-ts/src/fpss_event_classes.rs text eol=lf linguist-generated=true
+thetadatadx-ts/src/buffered_event.rs text eol=lf linguist-generated=true
+thetadatadx-cpp/include/fpss_event_structs.h.inc text eol=lf linguist-generated=true
 
 # Generated validator surfaces that were missed from the original list.
-scripts/ci/check_cli.py              text eol=lf linguist-generated=true
-sdks/cpp/examples/validate.cpp       text eol=lf linguist-generated=true
+thetadatadx-cpp/examples/validate.cpp       text eol=lf linguist-generated=true
 
 # Generated config-accessor surfaces (config_surface.toml -> build.rs).
-ffi/src/config_accessors.rs              text eol=lf linguist-generated=true
-sdks/cpp/include/config_accessors.hpp.inc text eol=lf linguist-generated=true
-sdks/python/src/_generated/config_accessors.rs text eol=lf linguist-generated=true
-sdks/typescript/src/_generated/config_accessors.rs text eol=lf linguist-generated=true
+thetadatadx-ffi/src/config_accessors.rs              text eol=lf linguist-generated=true
+thetadatadx-cpp/include/config_accessors.hpp.inc text eol=lf linguist-generated=true
+thetadatadx-py/src/_generated/config_accessors.rs text eol=lf linguist-generated=true
+thetadatadx-ts/src/_generated/config_accessors.rs text eol=lf linguist-generated=true
 # The accessor doc strings are read out of this TOML and rendered verbatim
 # into the surfaces above; it must stay LF so a Windows checkout emits the
 # same bytes as Linux and `generate_sdk_surfaces --check` doesn't false-positive.
-crates/thetadatadx/config_surface.toml   text eol=lf
+thetadatadx-rs/config_surface.toml   text eol=lf
 
 # include_str! templates for the code generators. Must stay LF on every
 # checkout so Windows builds emit the same bytes as Linux and
 # `generate_sdk_surfaces --check` doesn't false-positive.
 *.tmpl text eol=lf
 *.ipynb linguist-documentation
-sdks/typescript/index.js                 text eol=lf linguist-generated=true
-sdks/typescript/index.d.ts               text eol=lf linguist-generated=true
+thetadatadx-ts/index.js                 text eol=lf linguist-generated=true
+thetadatadx-ts/index.d.ts               text eol=lf linguist-generated=true
 
 # Codegen drift snapshot. Must stay LF on every checkout so Windows
 # builds emit the same bytes as Linux and the build-time drift check
 # does not false-positive.
-crates/thetadatadx/proto/beta_endpoints.snapshot.rs text eol=lf linguist-generated=true
+thetadatadx-rs/proto/beta_endpoints.snapshot.rs text eol=lf linguist-generated=true

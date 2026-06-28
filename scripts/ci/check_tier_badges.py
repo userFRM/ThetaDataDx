@@ -137,7 +137,7 @@ def refresh_snapshot() -> None:
         "#\n"
         "# This file is the pinned upstream ThetaData OpenAPI v3 spec. Both the\n"
         "# tier-badge check (scripts/ci/check_tier_badges.py) and the Rust validator\n"
-        "# generator (crates/thetadatadx/build_support/endpoints/) derive endpoint\n"
+        "# generator (thetadatadx-rs/build_support/endpoints/) derive endpoint\n"
         "# min-subscription tiers and expiration-wildcard support from it, so both\n"
         "# human docs and generated machinery agree on one pinned schema. Refresh\n"
         "# with the command above when ThetaData publishes a new spec.\n"

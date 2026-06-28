@@ -4,13 +4,13 @@
 Usage:
     scripts/release/bump_version.py 8.0.30
 
-Reads the canonical version from ``crates/thetadatadx/Cargo.toml`` (only
+Reads the canonical version from ``thetadatadx-rs/Cargo.toml`` (only
 to print "from -> to" for context), then walks every file that pins a
 version of the published artifact and rewrites it. All four npm
-``package.json`` files, the seven member Cargo.toml files (thetadatadx +
-ffi + tools/cli + tools/mcp + tools/server + sdks/python +
-sdks/typescript), and the three ``optionalDependencies`` pins inside
-``sdks/typescript/package.json``. Cargo.lock files are refreshed via
+``package.json`` files, the six member Cargo.toml files (thetadatadx +
+ffi + tools/mcp + tools/server + thetadatadx-py +
+thetadatadx-ts), and the three ``optionalDependencies`` pins inside
+``thetadatadx-ts/package.json``. Cargo.lock files are refreshed via
 ``cargo update --workspace`` against every manifest that carries its own
 lockfile.
 
@@ -18,7 +18,7 @@ After the bump, ``scripts/ci/check_version_sync.py`` runs to verify nothing
 got missed. Exits non-zero if anything is out of sync.
 
 This is the only supported way to bump the SDK version. Doing it by
-hand reliably misses ``sdks/typescript/`` files (lesson from npm being
+hand reliably misses ``thetadatadx-ts/`` files (lesson from npm being
 stuck at v8.0.26 across v8.0.27 / v8.0.28 / v8.0.29 releases).
 """
 
@@ -33,20 +33,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 
 WORKSPACE_CARGOS = [
-    ROOT / "crates" / "thetadatadx" / "Cargo.toml",
-    ROOT / "ffi" / "Cargo.toml",
-    ROOT / "tools" / "cli" / "Cargo.toml",
+    ROOT / "thetadatadx-rs" / "Cargo.toml",
+    ROOT / "thetadatadx-ffi" / "Cargo.toml",
     ROOT / "tools" / "mcp" / "Cargo.toml",
     ROOT / "tools" / "server" / "Cargo.toml",
-    ROOT / "sdks" / "python" / "Cargo.toml",
-    ROOT / "sdks" / "typescript" / "Cargo.toml",
+    ROOT / "thetadatadx-py" / "Cargo.toml",
+    ROOT / "thetadatadx-ts" / "Cargo.toml",
 ]
 
 SUB_LOCK_MANIFESTS = [
     ROOT / "tools" / "mcp" / "Cargo.toml",
     ROOT / "tools" / "server" / "Cargo.toml",
-    ROOT / "sdks" / "python" / "Cargo.toml",
-    ROOT / "sdks" / "typescript" / "Cargo.toml",
+    ROOT / "thetadatadx-py" / "Cargo.toml",
+    ROOT / "thetadatadx-ts" / "Cargo.toml",
 ]
 
 
@@ -64,10 +63,10 @@ def parse_semver(value: str) -> tuple[int, int, int]:
 
 
 def current_canonical() -> str:
-    text = (ROOT / "crates" / "thetadatadx" / "Cargo.toml").read_text()
+    text = (ROOT / "thetadatadx-rs" / "Cargo.toml").read_text()
     match = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
     if not match:
-        sys.exit("could not parse current version from crates/thetadatadx/Cargo.toml")
+        sys.exit("could not parse current version from thetadatadx-rs/Cargo.toml")
     return match.group(1)
 
 
@@ -137,11 +136,11 @@ def main(argv: list[str]) -> int:
         print(f"  bumped {cargo.relative_to(ROOT)}")
 
     bump_root_package_json(
-        ROOT / "sdks" / "typescript" / "package.json", current, target
+        ROOT / "thetadatadx-ts" / "package.json", current, target
     )
-    print("  bumped sdks/typescript/package.json (+ optionalDependencies)")
+    print("  bumped thetadatadx-ts/package.json (+ optionalDependencies)")
 
-    for platform_pkg in (ROOT / "sdks" / "typescript" / "npm").glob("*/package.json"):
+    for platform_pkg in (ROOT / "thetadatadx-ts" / "npm").glob("*/package.json"):
         bump_platform_package_json(platform_pkg, current, target)
         print(f"  bumped {platform_pkg.relative_to(ROOT)}")
 

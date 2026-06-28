@@ -48,9 +48,9 @@ jobs:
         with:
           filters: |
             typescript:
-              - 'sdks/typescript/**'
-              - 'ffi/**'
-              - 'crates/**'
+              - 'thetadatadx-ts/**'
+              - 'thetadatadx-ffi/**'
+              - 'thetadatadx-rs/**'
               - 'Cargo.toml'
               - 'Cargo.lock'
               - '.github/workflows/typescript.yml'
@@ -89,17 +89,17 @@ jobs:
         with:
           key: ${{ matrix.target }}
       - uses: ./.github/actions/install-protoc
-      - working-directory: sdks/typescript
+      - working-directory: thetadatadx-ts
         run: npm install
       # `too_many_arguments` is allow-listed because every offender is a
       # generated napi endpoint method whose signature mirrors the
       # underlying REST surface — not a real code smell. Every other
       # warning (including new ones) stays fatal.
       - name: Clippy (TypeScript SDK)
-        working-directory: sdks/typescript
+        working-directory: thetadatadx-ts
         run: cargo clippy --all-targets --target ${{ matrix.target }} -- -D warnings -A clippy::too_many_arguments
       - name: Build native addon
-        working-directory: sdks/typescript
+        working-directory: thetadatadx-ts
         # Mirror the local `npm run build` two-step: napi-rs emits
         # `index.d.ts`, then `scripts/postbuild_alias_contract.mjs`
         # appends the U7 `export const Contract: typeof ContractRef;`
@@ -116,10 +116,10 @@ jobs:
       # published types lie about the runtime.
       - name: Verify index.d.ts is in sync with native build
         if: matrix.os == 'ubuntu-latest'
-        working-directory: sdks/typescript
+        working-directory: thetadatadx-ts
         run: |
           if ! git diff --exit-code -- index.d.ts; then
-            echo "::error::sdks/typescript/index.d.ts is out of sync with the napi build. Run \`npm run build\` locally and commit the regenerated file." >&2
+            echo "::error::thetadatadx-ts/index.d.ts is out of sync with the napi build. Run \`npm run build\` locally and commit the regenerated file." >&2
             exit 1
           fi
       # H9: run `npm test` on every advertised platform (Linux,
@@ -127,7 +127,7 @@ jobs:
       # with the Python and Rust matrices: every platform we ship a
       # prebuilt addon for has its tests run on that platform.
       - name: Test
-        working-directory: sdks/typescript
+        working-directory: thetadatadx-ts
         run: npm test
       # Gate 3 (#546) - TypeScript side: extract tsdoc `@example` /
       # fenced-code blocks from `index.d.ts` and run each one with
@@ -150,7 +150,7 @@ jobs:
       #               machine-checkable fences.
       - name: Doc-example harness
         if: matrix.os == 'ubuntu-latest'
-        working-directory: sdks/typescript
+        working-directory: thetadatadx-ts
         run: node scripts/run_doc_examples.mjs
       # H9: emit the public-surface shape manifest so the
       # cross-language agreement validator (`scripts/ci/check_agreement.py`)
@@ -159,7 +159,7 @@ jobs:
       # only run on Linux to avoid duplicate uploads.
       - name: Emit TypeScript shape manifest
         if: matrix.os == 'ubuntu-latest'
-        run: node sdks/typescript/scripts/emit_validator_manifest.mjs
+        run: node thetadatadx-ts/scripts/emit_validator_manifest.mjs
       - name: Validator self-test (Python diff engine)
         if: matrix.os == 'ubuntu-latest'
         run: python3 scripts/ci/tests/test_check_agreement.py
@@ -172,7 +172,7 @@ jobs:
           if-no-files-found: error
       - name: Pack + inspect npm tarball (Gate 12 / #555)
         if: matrix.os == 'ubuntu-latest'
-        working-directory: sdks/typescript
+        working-directory: thetadatadx-ts
         run: |
           npm pack --json | tee ../../npm-pack.json
           tar tzf thetadatadx-*.tgz | head -50
@@ -180,7 +180,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: bindings-${{ matrix.target }}
-          path: sdks/typescript/thetadatadx.*.node
+          path: thetadatadx-ts/thetadatadx.*.node
           if-no-files-found: error
 
   publish:
@@ -197,20 +197,20 @@ jobs:
         with:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
-      - working-directory: sdks/typescript
+      - working-directory: thetadatadx-ts
         run: npm install
       - name: Download all artifacts
         uses: actions/download-artifact@v8
         with:
-          path: sdks/typescript/artifacts
+          path: thetadatadx-ts/artifacts
       - name: Move binaries into platform packages
-        working-directory: sdks/typescript
+        working-directory: thetadatadx-ts
         run: npx napi artifacts --output-dir artifacts
       - name: List platform packages
-        working-directory: sdks/typescript
+        working-directory: thetadatadx-ts
         run: ls -lR npm/
       - name: Publish platform packages
-        working-directory: sdks/typescript
+        working-directory: thetadatadx-ts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
@@ -228,7 +228,7 @@ jobs:
             fi
           done
       - name: Publish root package
-        working-directory: sdks/typescript
+        working-directory: thetadatadx-ts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |

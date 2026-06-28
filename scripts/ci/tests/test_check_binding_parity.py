@@ -914,14 +914,14 @@ def test_cabi_base_matches_registry() -> None:
 
 
 def test_cabi_header_matches_ffi_source() -> None:
-    """The shipped header and the `ffi/src` source declare / define the same
+    """The shipped header and the `thetadatadx-ffi/src` source declare / define the same
     base symbols — a stale regenerated header that drifted from the source of
     truth is caught.
     """
     cabi = cbp._collect_cabi_base_endpoints(cbp.ENDPOINT_WITH_OPTIONS_INC)
     ffi = cbp._collect_ffi_base_endpoints(cbp.FFI_SRC)
     assert cabi == ffi, (
-        f"shipped header must agree with ffi/src base symbols; "
+        f"shipped header must agree with thetadatadx-ffi/src base symbols; "
         f"header-only={sorted(cabi - ffi)!r}, source-only={sorted(ffi - cabi)!r}"
     )
 
@@ -991,7 +991,7 @@ def test_historical_base_missing_on_cabi_trips() -> None:
 
 
 def test_historical_base_header_source_divergence_trips() -> None:
-    """A shipped header that dropped a base symbol the `ffi/src` source still
+    """A shipped header that dropped a base symbol the `thetadatadx-ffi/src` source still
     defines (a stale regenerated header) trips, independent of any per-row
     column.
     """
@@ -1030,7 +1030,7 @@ def test_historical_base_untracked_orphan_trips() -> None:
 def test_historical_base_live_sources_clean() -> None:
     """The live buffered base surface is symmetric across all five surfaces:
     every one of the 61 endpoints present on Rust / Python / TypeScript /
-    C++ / the C-ABI base, with the shipped header, the `ffi/src` source, and
+    C++ / the C-ABI base, with the shipped header, the `thetadatadx-ffi/src` source, and
     the Rust registry in agreement.
     """
     import tomllib

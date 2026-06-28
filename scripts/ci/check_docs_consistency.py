@@ -33,7 +33,7 @@ import tomllib
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SURFACE = tomllib.loads((ROOT / "crates/thetadatadx/endpoint_surface.toml").read_text())
+SURFACE = tomllib.loads((ROOT / "thetadatadx-rs/endpoint_surface.toml").read_text())
 ENDPOINTS = SURFACE["endpoints"]
 TEMPLATES = SURFACE["templates"]
 ENDPOINT_NAMES = {ep["name"] for ep in ENDPOINTS}
@@ -60,7 +60,7 @@ OPENAPI_YAML = DOCS_SITE / "public/thetadatadx.yaml"
 # (`SecType::as_wire` lower-cased and `ReqType::as_str`). The OpenAPI flat-file
 # enums must match this matrix exactly, so the gate derives the expected matrix
 # from this file rather than carrying a hand-maintained copy that could drift.
-FLATFILE_TYPES_RS = ROOT / "crates/thetadatadx/src/flatfiles/types.rs"
+FLATFILE_TYPES_RS = ROOT / "thetadatadx-rs/src/flatfiles/types.rs"
 
 # The MCP server source is the single source of truth for the tool surface a
 # connected `tools/list` returns: the registry historical endpoints (one tool
@@ -278,12 +278,12 @@ def check_static_docs() -> None:
         "Every generated historical endpoint plus `ping`, `all_greeks`, and `implied_volatility`.",
     )
     # Version strings in getting-started docs must match the canonical
-    # workspace version; derive it from `crates/thetadatadx/Cargo.toml`
+    # workspace version; derive it from `thetadatadx-rs/Cargo.toml`
     # so the pin tracks bumps automatically instead of pinning a literal
     # that silently ages. The version-sync gate
     # (`scripts/ci/check_version_sync.py`) enforces the major separately.
     cargo_version = tomllib.loads(
-        (ROOT / "crates/thetadatadx/Cargo.toml").read_text()
+        (ROOT / "thetadatadx-rs/Cargo.toml").read_text()
     )["package"]["version"]
     expect_contains(
         DOCS_SITE / "articles/getting-started.md",
@@ -329,16 +329,6 @@ def check_static_docs() -> None:
         expect_not_contains(path, "&exp=")
         expect_not_contains(path, "&ivl=")
 
-    sdk_overview = ROOT / "sdks/README.md"
-    expect_contains(sdk_overview, "`ThetaDataDxClient` / `ThetaDataDxStreamHandle`")
-    expect_contains(sdk_overview, "| **Unified** | `thetadatadx_client_connect`, `thetadatadx_client_historical`, `thetadatadx_client_*`, `thetadatadx_client_free` |")
-    # The streaming surface exposes a polymorphic
-    # thetadatadx_streaming_subscribe / _unsubscribe pair over
-    # ThetaDataDxSubscriptionRequest. The contract here is "the standalone
-    # streaming row leads with thetadatadx_streaming_connect" — exact wording
-    # sufficient.
-    expect_contains(sdk_overview, "**Standalone streaming** | `thetadatadx_streaming_connect`")
-
     # Strikes are dollars on every client-facing surface, with no
     # exception. The WebSocket subscribe envelope takes the strike in
     # dollars exactly like the SDKs; the scaled-integer wire form never
@@ -349,8 +339,6 @@ def check_static_docs() -> None:
         (DOCS_SITE / "streaming/options").glob("*.md")
     )
     strike_docs = list((DOCS_SITE / "reference/option").rglob("*.md")) + [
-        ROOT / "tools/cli/README.md",
-        DOCS_SITE / "cli.md",
         ROOT / "tools/server/README.md",
         *server_pages,
         *streaming_option_pages,
@@ -371,12 +359,8 @@ def check_static_docs() -> None:
             fail(f"{path.relative_to(ROOT)} contains stale strike text: '570000'")
 
     expect_contains(
-        ROOT / "crates/thetadatadx/endpoint_surface.toml",
+        ROOT / "thetadatadx-rs/endpoint_surface.toml",
         'description = "ET wall-clock time in HH:MM:SS.SSS (e.g. 09:30:00.000 for 9:30 AM ET; legacy 34200000 is also accepted)"',
-    )
-    expect_contains(
-        ROOT / "tools/cli/README.md",
-        "thetadatadx stock at_time_trade AAPL 20240101 20240301 09:30:00.000",
     )
     # The generated at-time pages inherit the same wording from the
     # registry; pin one so a registry rewrite that loses the format
@@ -389,17 +373,13 @@ def check_static_docs() -> None:
         OPENAPI_YAML,
         'description: ET wall-clock time in HH:MM:SS.SSS (e.g. "09:30:00.000" for 9:30 AM ET; legacy "34200000" is also accepted)',
     )
-    expect_not_contains(
-        ROOT / "tools/cli/README.md",
-        '34200000   # 9:30 AM',
-    )
 
     # Wave K replaced the per-tick subscribe_* family with the polymorphic
     # subscribe(Subscription) entry point that takes a typed value built
     # via Contract.option(...).quote() / .trade() / .open_interest(). The
     # README now documents the new shape; the assertion below pins it.
     expect_contains(
-        ROOT / "sdks/python/README.md",
+        ROOT / "thetadatadx-py/README.md",
         "`Contract.option(symbol, *, expiration, strike, right)`",
     )
     # Streaming pages (hand-written guides + generated stream-type pages)
@@ -1221,7 +1201,7 @@ def check_mcp_tool_inventory() -> None:
 
 def check_endpoint_option_surface() -> None:
     rust_fields = extract_struct_fields(
-        ROOT / "ffi/src/endpoint_request_options.rs",
+        ROOT / "thetadatadx-ffi/src/endpoint_request_options.rs",
         r"pub struct ThetaDataDxEndpointRequestOptions \{(.*?)\n\}",
         r"^\s*pub\s+([a-z_]+)\s*:",
     )
@@ -1231,11 +1211,11 @@ def check_endpoint_option_surface() -> None:
         missing = sorted(ALL_OPTION_FIELDS - rust_fields)
         extra = sorted(rust_fields - ALL_OPTION_FIELDS)
         fail(
-            "ffi/src/endpoint_request_options.rs endpoint option fields drifted from endpoint_surface.toml. "
+            "thetadatadx-ffi/src/endpoint_request_options.rs endpoint option fields drifted from endpoint_surface.toml. "
             f"missing={missing or '[]'} extra={extra or '[]'}"
         )
 
-    c_path = ROOT / "sdks/cpp/include/endpoint_request_options.h.inc"
+    c_path = ROOT / "thetadatadx-cpp/include/endpoint_request_options.h.inc"
     c_fields = extract_struct_fields(
         c_path,
         r"typedef struct \{(.*?)\n\}\s*ThetaDataDxEndpointRequestOptions;",
@@ -1252,7 +1232,7 @@ def check_endpoint_option_surface() -> None:
         )
 
     cpp_fields = extract_struct_fields(
-        ROOT / "sdks/cpp/include/endpoint_options.hpp.inc",
+        ROOT / "thetadatadx-cpp/include/endpoint_options.hpp.inc",
         r"struct EndpointRequestOptions \{(.*?)\n\};",
         r"^\s*std::optional<[^>]+>\s+([a-z_]+);",
     )
@@ -1260,16 +1240,16 @@ def check_endpoint_option_surface() -> None:
         missing = sorted(ALL_OPTION_FIELDS - cpp_fields)
         extra = sorted(cpp_fields - ALL_OPTION_FIELDS)
         fail(
-            "sdks/cpp/include/endpoint_options.hpp.inc EndpointRequestOptions fields drifted from endpoint_surface.toml. "
+            "thetadatadx-cpp/include/endpoint_options.hpp.inc EndpointRequestOptions fields drifted from endpoint_surface.toml. "
             f"missing={missing or '[]'} extra={extra or '[]'}"
         )
 
     for path in [
-        ROOT / "ffi/src/lib.rs",
-        ROOT / "sdks/cpp/include/thetadatadx.h",
-        ROOT / "sdks/cpp/include/thetadatadx.hpp",
-        ROOT / "sdks/cpp/src/thetadatadx.cpp",
-        ROOT / "sdks/cpp/README.md",
+        ROOT / "thetadatadx-ffi/src/lib.rs",
+        ROOT / "thetadatadx-cpp/include/thetadatadx.h",
+        ROOT / "thetadatadx-cpp/include/thetadatadx.hpp",
+        ROOT / "thetadatadx-cpp/src/thetadatadx.cpp",
+        ROOT / "thetadatadx-cpp/README.md",
         DOCS_SITE / "reference/option/history/greeks/eod.md",
     ]:
         expect_not_contains(path, "OptionRequestOptions")

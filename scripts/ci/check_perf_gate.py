@@ -22,7 +22,7 @@ The count is produced by the `bench_decode_allocations` harness, which
 installs a counting global allocator ONLY in that bench binary (the
 shipped library allocator is unchanged) and writes the per-row figures
 to `target/perf-gate/decode_allocations.json`. This script diffs that
-file against `crates/thetadatadx/benches/baseline/perf_gate.json`.
+file against `thetadatadx-rs/benches/baseline/perf_gate.json`.
 
 GATE SHAPE (mirrors check_bench_regression.py)
 ----------------------------------------------
@@ -114,7 +114,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--baseline",
-        default="crates/thetadatadx/benches/baseline/perf_gate.json",
+        default="thetadatadx-rs/benches/baseline/perf_gate.json",
         type=pathlib.Path,
         help="committed baseline JSON to diff against",
     )

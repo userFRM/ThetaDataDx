@@ -289,7 +289,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // `Drop` impl zeros the backing allocation before it is freed.
     //
     // `Credentials::new` allocates its own internally-zeroized copy (see
-    // `crates/thetadatadx/src/auth/creds.rs`), so passing a temporary
+    // `thetadatadx-rs/src/auth/creds.rs`), so passing a temporary
     // `String` clone via `as_str().to_string()` is safe: the
     // intermediate `String` is consumed by the `Into<String>` bound and
     // re-wrapped in `Credentials`'s own `Zeroizing<String>`. Our
