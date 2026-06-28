@@ -63,11 +63,13 @@ thetadatadx\.HistoricalClient\.__new__
 thetadatadx\.HistoricalClient\.__getattr__
 thetadatadx\.StreamingSession\.__getattr__
 
-# `__exit__` on pyo3 context managers carries default values for
-# the three positional args at runtime (matching `Optional[...] = None`
-# semantics). The hand-written stub elides the defaults because the
-# user is never going to call `__exit__` directly. Allow the swap.
+# `__exit__` / `__aexit__` on pyo3 context managers carry default
+# values for the three positional args at runtime (matching
+# `Optional[...] = None` semantics). The hand-written stub elides the
+# defaults because the user is never going to call them directly, only
+# through `with` / `async with`. Allow the swap.
 thetadatadx\..*\.__exit__
+thetadatadx\..*\.__aexit__
 
 # `EventCallback` is a `Callable[..., None]` alias declared in the
 # stub for documentation purposes — it never appears at runtime
