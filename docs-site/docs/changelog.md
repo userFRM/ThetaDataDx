@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.0.0-rc.6] - 2026-06-28
+
+### Breaking changes
+
+- **Server:** the bundled HTTP server now speaks the v3 `/v3` contract on every REST and WebSocket route (#959). REST responses drop the `{header, response}` envelope for the bare v3 body, fold each date plus milliseconds-of-day pair into one ISO local-datetime string under the field name the v3 schema documents per endpoint (`timestamp`, `trade_timestamp` / `quote_timestamp`, `created` / `last_trade`, `underlying_timestamp`), spell the option right as `CALL` / `PUT`, rename `implied_volatility` to `implied_vol` (and the bid/ask variants), group option rows under their `(expiration, strike, right)` contract as `{"response":[{"contract":{...},"data":[...]}]}`, return list endpoints as single-key objects, default an absent `format` to CSV with the v3 column order and CRLF framing, and serve the v3 route and parameter spellings (the request-type path-segment routes, the `/v3/{sec_type}/flat_file/{req_type}` form, `/v3/calendar/today`, `/v3/calendar/year_holidays`, `/v3/interest_rate/history/eod`, and upstream parameter defaults), rejecting a deprecated v2 query parameter with `410 Gone` that names its v3 replacement. The default bind address changes to `0.0.0.0`; pass `--bind 127.0.0.1` for loopback-only.
+
+### Removed
+
+- A number of unused public API items with no in-tree callers were removed across the core, FFI, C++, Python, TypeScript, and server surfaces (#964, #965, #971, #975, #994). Each removed item had no functional caller and is not reachable through any documented client workflow.
+
+### Fixed
+
+- **C++:** an async historical query (`<endpoint>_async`) launched from a temporary `client.historical()` view can no longer use the client after it is freed (#997, #1001, #1002). The view and the owning client co-own the underlying handle and the streaming callback state, so a returned future may safely outlive the object it was launched from (including a client destroyed mid-query while streaming), and the handle is freed exactly once, only after the last in-flight future completes.
+- **Streaming:** stopping, freeing, or reconnecting a standalone streaming client no longer holds the internal lock across the shutdown drain wait, so a user callback that re-enters a status read while events drain cannot deadlock teardown (#979, #980). Both the live and the already-shut-down free paths release the lock before the drain wait.
+- **Streaming:** a streaming client whose delivery loop dies on an unexpected error now reports unhealthy immediately rather than only after teardown (#999). The dispatcher publishes a failed state from its own thread the moment an outer panic ends event iteration, so `is_streaming` / `is_authenticated` (Python and the C ABI) fold to false without waiting for a teardown that may never come; per-callback panic isolation is unchanged.
+- **TypeScript:** the streaming dispatcher publishes a failed state when its event loop ends on an outer panic, so `isStreaming()` / `isAuthenticated()` report a dead delivery loop even when no teardown is called; the process-wide async runtime build is fallible and surfaces a build failure as a typed error at connect rather than panicking (#998).
+- **TypeScript:** the config tuning setters and the drain-timeout arguments validate their numeric input at the binding boundary, so a negative, fractional, non-finite, or out-of-range value is rejected as `InvalidParameterError` instead of being silently rewritten; burst-size and attempt-budget knobs additionally reject `0` (#998).
+- **TypeScript:** reconstructing a tick from an Arrow IPC stream rejects a `bigint` whose magnitude does not fit the destination `i64` column with `InvalidParameterError`, naming the column, instead of silently truncating it (#1000).
+- **Server:** the WebSocket surface emits and accepts the option `strike` in dollars in both directions, matching the unit the SDK, REST, and documentation already speak (#981). A `$550.00` strike serializes as `550.0`, and a subscribe payload carries the strike as a dollars number; the wire's fixed-point integer never leaves the codec layer.
+- **Server:** a malformed (non-UTF-8 percent-encoded) flat-file path segment now returns the canonical JSON error envelope with status `400` and `Content-Type: application/json`, matching the query and POST siblings, instead of a plain-text rejection (#988).
+
+### Documentation
+
+- The reference Parameters table and the OpenAPI document now describe the `expiration=*` and `right=*` chain-wide wildcards on every option endpoint that accepts them, rendered from the endpoint capability so the note cannot drift from the served behavior; the nine endpoints that reject `expiration=*` keep the plain description (#960, #963).
+- The streaming guide pulls a synchronous record batch with `next_blocking` (#995).
+
+### Changed
+
+- **Branding:** the project logo is refreshed and shown at the top of every package README so it renders on GitHub and on the package registries (#961).
+
+### Security
+
+- Routine dependency maintenance refreshes the Cargo and npm lockfiles across the workspace and the four standalone manifests (#996): rustls 0.23.41 (synced across all five lockfiles), napi 3.9.4, time 0.3.51, zerocopy 0.8.52, zeroize 1.9.0, and wasm-bindgen 0.2.126, with patch and minor bumps elsewhere and a refreshed npm package-lock. These are version updates, not a fix for any reported advisory; the dependency advisory scan reports none.
+
 ## [13.0.0-rc.5] - 2026-06-24
 
 ### Breaking changes
