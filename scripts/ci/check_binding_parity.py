@@ -6307,6 +6307,53 @@ SIGNATURE_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
     # fails closed (those bindings carry the bool, not the enum).
     "Scope": {"cpp": ("Scope", "FluentSubscription::Scope")},
     "Kind": {"cpp": ("Kind", "FluentSubscription::Kind")},
+    # A single built subscription handed to subscribe / unsubscribe. Each
+    # binding takes its own value-object spelling: Python the polymorphic
+    # `&Bound<PyAny>` it coerces internally (a `Subscription` or a contract
+    # spec), the napi `&Subscription` handle (qualified `&fluent::Subscription`
+    # when imported through the module path), the `.d.ts` `Subscription`, the
+    # C++ `const FluentSubscription&`.
+    "Subscription": {
+        "python": ("&Bound<'_, PyAny>", "PyObject", "Py<PyAny>"),
+        "ts_napi": ("&fluent::Subscription", "&Subscription"),
+        "ts_dts": ("Subscription",),
+        "cpp": ("const class FluentSubscription&", "const FluentSubscription&"),
+    },
+    # The iterable of subscriptions handed to subscribeMany / unsubscribeMany.
+    # Python takes the same polymorphic `&Bound<PyAny>` (an iterable it
+    # coerces); the napi `Vec<&Subscription>`; the `.d.ts` `Array<Subscription>`;
+    # the C++ `std::initializer_list<FluentSubscription>`.
+    "SubscriptionList": {
+        "python": ("&Bound<'_, PyAny>",),
+        "ts_napi": ("Vec<&fluent::Subscription>", "Vec<&Subscription>"),
+        "ts_dts": ("Array<Subscription>",),
+        "cpp": (
+            "std::initializer_list<class FluentSubscription>",
+            "std::initializer_list<FluentSubscription>",
+        ),
+    },
+    # The per-event streaming callback handed to startStreaming / setCallback.
+    # Python takes a `Py<PyAny>` callable; C++ a `std::function`. The napi
+    # `ThreadsafeFunction<...>` carries a long generic argument list that is
+    # pure binding machinery (queue depth, status), so the napi callback param
+    # is left to a `skip_langs = ["ts_napi"]` on the row rather than pinned
+    # here — there is no cross-binding contract in those generics.
+    "Callback": {
+        "python": ("Py<PyAny>", "PyObject"),
+        "cpp": ("std::function<void(const StreamEvent&)>",),
+    },
+    # The optional batch-reader tuning bag on `StreamView.batches`. The managed
+    # bindings pass a single options object (the napi / `.d.ts` `BatchesOptions`
+    # struct); Python and C++ spread it into positional / keyword params
+    # instead, so this cell covers only the object-passing bindings.
+    "BatchesOptions": {
+        "ts_napi": ("BatchesOptions", "crate::streaming_batches::BatchesOptions"),
+        "ts_dts": ("BatchesOptions",),
+    },
+    # The C++-only back-pressure mode enum on `StreamView.batches` (block vs
+    # drop-oldest); the managed bindings pass the mode as the `BatchesOptions`
+    # field instead, so only the C++ cell exists.
+    "Backpressure": {"cpp": ("Backpressure",)},
 }
 
 # Return-position canonical types (the result / unit wrappers). Kept apart
@@ -6362,6 +6409,45 @@ SIGNATURE_RETURN_TYPE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
         "ts_napi": ("Credentials", "napi::Result<Credentials>"),
         "cpp": ("Credentials",),
     },
+    # The per-contract active-subscription snapshot. Each binding returns its
+    # own collection shape: Python a `Vec<Subscription>` of typed handles (the
+    # `StreamView` surface wraps it in `PyResult`, unwrapped before the
+    # compare), the napi a `serde_json::Value` JSON tree (`.d.ts` `any`), C++ a
+    # `std::vector<Subscription>`. There is no single scalar twin, so the
+    # divergence is encoded per binding here rather than forced symmetric.
+    "Subscriptions": {
+        "python": ("Vec<crate::fluent::PySubscription>", "Vec<PySubscription>"),
+        "ts_napi": ("serde_json::Value",),
+        "ts_dts": ("any",),
+        "cpp": ("std::vector<Subscription>",),
+    },
+    # The full-stream active-subscription snapshot. Same per-binding collection
+    # shapes as `Subscriptions`, except the C++ element type is the full-stream
+    # `FullSubscription` (the managed bindings return the same typed list / JSON
+    # tree as the per-contract variant).
+    "FullSubscriptions": {
+        "python": ("Vec<crate::fluent::PySubscription>", "Vec<PySubscription>"),
+        "ts_napi": ("serde_json::Value",),
+        "ts_dts": ("any",),
+        "cpp": ("std::vector<FullSubscription>",),
+    },
+    # The pull-based columnar reader returned by `StreamView.batches`. Python
+    # hands back the `RecordBatchStream` pyclass (wrapped in `PyResult`,
+    # unwrapped before the compare), the napi the `RecordBatchStreamHandle`
+    # transport, the `.d.ts` the `Promise<RecordBatchStream>` JS wrapper, C++
+    # the `std::shared_ptr<RecordBatchStream>` (an `arrow::RecordBatchReader`).
+    "RecordBatchStream": {
+        "python": (
+            "crate::streaming_batches::RecordBatchStream",
+            "RecordBatchStream",
+        ),
+        "ts_napi": (
+            "crate::streaming_batches::RecordBatchStreamHandle",
+            "RecordBatchStreamHandle",
+        ),
+        "ts_dts": ("Promise<RecordBatchStream>", "RecordBatchStream"),
+        "cpp": ("std::shared_ptr<RecordBatchStream>",),
+    },
 }
 
 
@@ -6378,12 +6464,16 @@ def _sig_canon_type(raw: str) -> str:
 
 def _sig_unwrap_result(spelling: str) -> str:
     """Strip one fallible-result wrapper from a RETURN spelling: `PyResult<T>`
-    / `napi::Result<T>` / `Result<T>` → `T`. Fallibility is a per-binding
-    surface property (pyo3 `PyResult`, a thrown napi error), not a
-    cross-binding return-type difference the signature gate pins, so the inner
-    `T` is what the type map / Option rule compares. A non-wrapped spelling is
-    returned unchanged."""
-    m = re.fullmatch(r"(?:Py|napi::)?Result\s*<\s*(.+)\s*>", spelling.strip())
+    / `napi::Result<T>` / `Result<T>` → `T`. An optional module qualifier on
+    the wrapper is tolerated (`pyo3::PyResult<T>`, the fully-qualified form one
+    streaming accessor writes), so the inner `T` is compared regardless of how
+    the binding spells the path. Fallibility is a per-binding surface property
+    (pyo3 `PyResult`, a thrown napi error), not a cross-binding return-type
+    difference the signature gate pins. A non-wrapped spelling is returned
+    unchanged."""
+    m = re.fullmatch(
+        r"(?:[A-Za-z_][\w:]*::)?(?:Py)?Result\s*<\s*(.+)\s*>", spelling.strip()
+    )
     return m.group(1).strip() if m else spelling.strip()
 
 
@@ -6675,6 +6765,11 @@ def _sig_cpp_return_before(prefix: str) -> str | None:
     with a leading `virtual`/`static`/`inline`/`constexpr` specifier dropped.
     Returns None when nothing precedes (a constructor)."""
     seg = re.split(r"[;{}]", prefix)[-1]
+    # A preprocessor directive (`#ifdef THETADATADX_CPP_ARROW`, `#endif`)
+    # carries no `;`/`{`/`}`, so a method guarded by one — the Arrow-gated
+    # `Stream::batches` — would otherwise prepend the whole directive run to
+    # its return type. The directive line is a boundary, not a return token.
+    seg = re.sub(r"(?m)^\s*#.*$", "", seg)
     for kw in _SIG_CPP_ACCESS_KEYWORDS:
         seg = re.sub(rf".*\b{kw}\s*:", "", seg, flags=re.S)
     ret = re.sub(
@@ -11196,6 +11291,27 @@ def _run_selftest() -> int:
             )
             assert _sig_extract_cpp(hpp, "Rows", "get") == ([], "const Handle*")
 
+    def _case_sig_extract_cpp_preprocessor_guarded_return() -> None:
+        """A method behind a `#ifdef` (the Arrow-gated `Stream::batches`) must
+        extract its real return type — the preprocessor directive carries no
+        `;`/`{`/`}`, so without stripping it the directive run prepends onto the
+        return spelling (`#ifdef ... std::shared_ptr<...>`) and the type compare
+        fails closed on a legitimate signature."""
+        with tempfile.TemporaryDirectory() as tmp:
+            hpp = pathlib.Path(tmp) / "h.hpp"
+            hpp.write_text(
+                "class Stream {\npublic:\n"
+                "    bool is_streaming() const;\n"
+                "#ifdef THETADATADX_CPP_ARROW\n"
+                "    std::shared_ptr<RecordBatchStream> batches(size_t n) const;\n"
+                "#endif\n};\n",
+                encoding="utf-8",
+            )
+            assert _sig_extract_cpp(hpp, "Stream", "batches") == (
+                ["size_t"],
+                "std::shared_ptr<RecordBatchStream>",
+            )
+
     def _case_sig_ffi_opaque_pointer_exact() -> None:
         """For the `ffi` lang an unmapped canonical (a raw handle pointer / a
         C-ABI owned struct) compares by EXACT spelling — the C ABI is the
@@ -11247,6 +11363,9 @@ def _run_selftest() -> int:
             "X.workerThreads", ([], "Option<usize>"), ([], "napi::Result<Option<u32>>"), "ts_napi"
         )
         assert errs == [], errs
+        # A fully-qualified `pyo3::PyResult<T>` (the `activeFullSubscriptions`
+        # view spelling) unwraps past the module qualifier to its inner `T`.
+        assert _sig_unwrap_result("pyo3::PyResult<Vec<Subscription>>") == "Vec<Subscription>"
         # The qualified napi BigInt param folds to the bare `BigInt` cell.
         errs = _sig_compare_one(
             "X.setRing", (["usize"], "()"), (["napi::bindgen_prelude::BigInt"], "napi::Result<()>"), "ts_napi"
@@ -11552,6 +11671,7 @@ def _run_selftest() -> int:
     _case("sig extractor — C++ get_ getter prefix", _case_sig_extract_cpp_getter_prefix)
     _case("sig extractor — C++ elaborated-type param not class def", _case_sig_extract_cpp_elaborated_type_param)
     _case("sig extractor — C++ in-body call shadow rejected", _case_sig_extract_cpp_in_body_call_shadow)
+    _case("sig extractor — C++ #ifdef-guarded return stripped", _case_sig_extract_cpp_preprocessor_guarded_return)
     _case("sig type-map — FFI opaque pointer exact match", _case_sig_ffi_opaque_pointer_exact)
     _case("sig type-map — C++ raw handle exact match", _case_sig_cpp_raw_handle_exact)
     _case("sig type-map — return result-unwrap + lifetime/napi-path fold", _case_sig_return_result_unwrap_and_lifetime)
