@@ -1217,12 +1217,25 @@ typescript = true
 cpp = true
 rust = true         # `FlatFiles::to_path` on the `Client::flat_files()` view
 
+# ── StreamView signature specs (the `client.stream()` lifecycle view) ──
+#
+# The Rust core column is intentionally absent: the core `StreamSurface`
+# and `StreamingClient` surfaces legitimately differ (the observability
+# reverse scan covers their real risk), so neither is enrolled in
+# `RUST_METHOD_CLASS` and the `rust` signature-lang stays deferred.
 [[method]]
 class = "StreamView"
 name = "startStreaming"
 python = true
 typescript = true
 cpp = false  # C++ uses `setCallback` for the same role; tracked below
+# Registers the per-event callback and opens the session. The callback is a
+# Python callable; the napi `ThreadsafeFunction` generics are binding
+# machinery with no cross-binding contract, so `ts_napi` is left unpinned.
+[method.signature]
+params = ["Callback"]
+returns = "()"
+skip_langs = ["ts_napi"]
 
 [[method]]
 class = "StreamView"
@@ -1230,6 +1243,8 @@ name = "stopStreaming"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "()"
 
 [[method]]
 class = "StreamView"
@@ -1237,6 +1252,8 @@ name = "shutdown"
 python = true
 typescript = true
 cpp = false  # C++ frees through the RAII destructor on `Client`
+[method.signature]
+returns = "()"
 
 [[method]]
 class = "StreamView"
@@ -1244,6 +1261,12 @@ name = "reconnect"
 python = true
 typescript = true
 cpp = true
+# Every binding exposes the lifecycle method as `reconnect`. The core view
+# spells it `reconnect_streaming` (the standalone `StreamingClient` has no
+# method form at all — reconnection there is config-driven); that core
+# naming split is the maintainer's to resolve and is flagged separately.
+[method.signature]
+returns = "()"
 
 [[method]]
 class = "StreamView"
@@ -1251,6 +1274,8 @@ name = "isStreaming"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "bool"
 
 [[method]]
 class = "StreamView"
@@ -1258,6 +1283,16 @@ name = "batches"
 python = true
 typescript = true
 cpp = true
+# The pull-based columnar reader. The tuning arguments are passed per-binding
+# idiom: Python keyword-only `Option`s, the managed `BatchesOptions` object on
+# TypeScript, four positional defaults (with the `Backpressure` enum) on C++.
+# The shared contract is the reader return.
+[method.signature]
+params = ["Option<usize>", "Option<u64>", "Option<String>", "Option<usize>"]
+returns = "RecordBatchStream"
+ts_napi_params = ["Option<BatchesOptions>"]
+ts_dts_params = ["BatchesOptions"]
+cpp_params = ["usize", "Duration", "Backpressure", "usize"]
 
 [[method]]
 class = "StreamView"
@@ -1265,6 +1300,8 @@ name = "isAuthenticated"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "bool"
 
 [[method]]
 class = "StreamView"
@@ -1272,6 +1309,11 @@ name = "awaitDrain"
 python = true
 typescript = true
 cpp = true
+# The drain-deadline argument: a millisecond span (the C++ form is
+# `std::chrono::milliseconds`); returns whether the buffer drained in time.
+[method.signature]
+params = ["Duration"]
+returns = "bool"
 
 [[method]]
 class = "StreamView"
@@ -1279,6 +1321,11 @@ name = "subscribe"
 python = true
 typescript = true
 cpp = true
+# One built subscription. Python takes the polymorphic value it coerces; the
+# napi / C++ take their typed `Subscription` / `FluentSubscription` handle.
+[method.signature]
+params = ["Subscription"]
+returns = "()"
 
 [[method]]
 class = "StreamView"
@@ -1286,6 +1333,9 @@ name = "subscribeMany"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+params = ["SubscriptionList"]
+returns = "()"
 
 [[method]]
 class = "StreamView"
@@ -1293,6 +1343,9 @@ name = "unsubscribe"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+params = ["Subscription"]
+returns = "()"
 
 [[method]]
 class = "StreamView"
@@ -1300,6 +1353,9 @@ name = "unsubscribeMany"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+params = ["SubscriptionList"]
+returns = "()"
 
 [[method]]
 class = "StreamView"
@@ -1307,6 +1363,13 @@ name = "activeSubscriptions"
 python = true
 typescript = true
 cpp = true
+# The per-contract snapshot: a typed list on Python / C++, a JSON tree on
+# TypeScript. The core view returns `Result<Vec<..>>` while the standalone
+# `StreamingClient` returns a bare `Vec<..>`; fallibility is unwrapped before
+# the compare, so the binding spec is identical — that core fallibility split
+# is the maintainer's to resolve and is flagged separately.
+[method.signature]
+returns = "Subscriptions"
 
 [[method]]
 class = "StreamView"
@@ -1314,6 +1377,10 @@ name = "activeFullSubscriptions"
 python = true
 typescript = true
 cpp = true
+# The full-stream snapshot (C++ element type `FullSubscription`). Same core
+# `Result`-vs-bare split as `activeSubscriptions`, flagged separately.
+[method.signature]
+returns = "FullSubscriptions"
 
 [[method]]
 class = "StreamView"
@@ -1321,6 +1388,12 @@ name = "droppedEventCount"
 python = true
 typescript = true
 cpp = true
+# Cumulative dropped-event counter. Every binding exposes it as
+# `droppedEventCount`; the core spells it `dropped_event_count` on this view
+# but `dropped_count` on the standalone `StreamingClient`, both folded to the
+# one row name by `CORE_STREAMING_METHOD_RENAMES`.
+[method.signature]
+returns = "u64"
 
 [[method]]
 class = "StreamView"
@@ -1328,6 +1401,8 @@ name = "ringOccupancy"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "usize"
 
 [[method]]
 class = "StreamView"
@@ -1335,6 +1410,8 @@ name = "ringCapacity"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "usize"
 
 [[method]]
 class = "StreamView"
@@ -1342,6 +1419,8 @@ name = "panicCount"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "u64"
 
 [[method]]
 class = "StreamView"
@@ -1349,6 +1428,8 @@ name = "slowCallbackCount"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "u64"
 
 [[method]]
 class = "StreamView"
@@ -1356,6 +1437,13 @@ name = "setSlowCallbackThresholdUs"
 python = true
 typescript = true
 cpp = true
+# The argument is an integer microsecond count on every binding (`u64` /
+# `BigInt` / `uint64_t`). The core takes a `Duration` and converts from
+# microseconds internally, so the `Us` suffix names the binding unit, not the
+# core type; the naming is flagged for the maintainer.
+[method.signature]
+params = ["u64"]
+returns = "()"
 
 [[method]]
 class = "StreamView"
@@ -1363,6 +1451,13 @@ name = "millisSinceLastEvent"
 python = true
 typescript = true
 cpp = true
+# Milliseconds since the last event, absent before the first. Python /
+# TypeScript return the optional directly; C++ uses the status-plus-out-param
+# ABI shape (`int32_t` status, the value via `uint64_t*`).
+[method.signature]
+returns = "Option<u64>"
+cpp_params = ["uint64_t*"]
+cpp_returns = "i32"
 
 [[method]]
 class = "StreamView"
@@ -1370,6 +1465,8 @@ name = "lastEventReceivedAtUnixNanos"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "i64"
 
 [[method]]
 class = "StreamView"
@@ -1377,6 +1474,13 @@ name = "lastConnectedAddr"
 python = true
 typescript = true
 cpp = true
+# The peer address of the live session. Python / TypeScript return the
+# optional string; C++ returns a bare `std::string` (empty when no session).
+# The core view returns `Option<String>` while the standalone
+# `StreamingClient` returns a bare `String`; that core split is flagged.
+[method.signature]
+returns = "Option<String>"
+cpp_returns = "String"
 
 [[method]]
 class = "StreamView"
@@ -1384,6 +1488,10 @@ name = "setCallback"
 python = false  # Python uses `startStreaming(callback)` for the same role
 typescript = false  # TypeScript uses `startStreaming(callback)` likewise
 cpp = true
+# C++-only callback registrar (the `startStreaming` role on Python / TS).
+[method.signature]
+cpp_params = ["Callback"]
+cpp_returns = "()"
 
 # ── StreamingClient (the standalone streaming-only client) ──
 #
@@ -1391,12 +1499,22 @@ cpp = true
 # the class-level row above). Every `typescript = false` below reflects
 # the same gap and is NOT an action item by itself.
 
+# ── StreamingClient signature specs (the standalone streaming-only client) ──
+#
+# The same binding signatures as the matching `StreamView` rows. The Rust
+# core column is deferred for the same reason (the core `StreamingClient`
+# surface is not in `RUST_METHOD_CLASS`). `batches` has no row here — the
+# columnar reader ships only on the unified `StreamView`.
 [[method]]
 class = "StreamingClient"
 name = "startStreaming"
 python = true
 typescript = true
 cpp = false  # C++ uses `setCallback` for the same role
+[method.signature]
+params = ["Callback"]
+returns = "()"
+skip_langs = ["ts_napi"]
 
 [[method]]
 class = "StreamingClient"
@@ -1404,6 +1522,8 @@ name = "stopStreaming"
 python = true
 typescript = true
 cpp = false  # C++ frees through the RAII destructor on `StreamingClient`
+[method.signature]
+returns = "()"
 
 [[method]]
 class = "StreamingClient"
@@ -1411,6 +1531,8 @@ name = "shutdown"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "()"
 
 [[method]]
 class = "StreamingClient"
@@ -1418,6 +1540,8 @@ name = "reconnect"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "()"
 
 [[method]]
 class = "StreamingClient"
@@ -1425,6 +1549,8 @@ name = "isStreaming"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "bool"
 
 [[method]]
 class = "StreamingClient"
@@ -1432,6 +1558,8 @@ name = "isAuthenticated"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "bool"
 
 [[method]]
 class = "StreamingClient"
@@ -1439,6 +1567,9 @@ name = "awaitDrain"
 python = true
 typescript = true
 cpp = false  # C++ drain barrier runs inside the RAII destructor
+[method.signature]
+params = ["Duration"]
+returns = "bool"
 
 [[method]]
 class = "StreamingClient"
@@ -1446,6 +1577,9 @@ name = "subscribe"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+params = ["Subscription"]
+returns = "()"
 
 [[method]]
 class = "StreamingClient"
@@ -1453,6 +1587,9 @@ name = "subscribeMany"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+params = ["SubscriptionList"]
+returns = "()"
 
 [[method]]
 class = "StreamingClient"
@@ -1460,6 +1597,9 @@ name = "unsubscribe"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+params = ["Subscription"]
+returns = "()"
 
 [[method]]
 class = "StreamingClient"
@@ -1467,6 +1607,9 @@ name = "unsubscribeMany"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+params = ["SubscriptionList"]
+returns = "()"
 
 [[method]]
 class = "StreamingClient"
@@ -1474,6 +1617,10 @@ name = "activeSubscriptions"
 python = true
 typescript = true
 cpp = true
+# Bare `Vec<..>` on the core `StreamingClient` (vs `Result<Vec<..>>` on the
+# `StreamView`); fallibility is unwrapped, so the binding spec matches.
+[method.signature]
+returns = "Subscriptions"
 
 [[method]]
 class = "StreamingClient"
@@ -1481,6 +1628,8 @@ name = "activeFullSubscriptions"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "FullSubscriptions"
 
 [[method]]
 class = "StreamingClient"
@@ -1488,6 +1637,10 @@ name = "droppedEventCount"
 python = true
 typescript = true
 cpp = true
+# Core `dropped_count` on this surface, `dropped_event_count` on the
+# `StreamView`; both fold to this row name via `CORE_STREAMING_METHOD_RENAMES`.
+[method.signature]
+returns = "u64"
 
 [[method]]
 class = "StreamingClient"
@@ -1495,6 +1648,8 @@ name = "ringOccupancy"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "usize"
 
 [[method]]
 class = "StreamingClient"
@@ -1502,6 +1657,8 @@ name = "ringCapacity"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "usize"
 
 [[method]]
 class = "StreamingClient"
@@ -1509,6 +1666,8 @@ name = "panicCount"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "u64"
 
 [[method]]
 class = "StreamingClient"
@@ -1516,6 +1675,8 @@ name = "slowCallbackCount"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "u64"
 
 [[method]]
 class = "StreamingClient"
@@ -1523,6 +1684,11 @@ name = "setSlowCallbackThresholdUs"
 python = true
 typescript = true
 cpp = true
+# Integer microseconds on every binding; the core takes a `Duration`. Same
+# `Us`-names-the-unit naming flagged on the `StreamView` row.
+[method.signature]
+params = ["u64"]
+returns = "()"
 
 [[method]]
 class = "StreamingClient"
@@ -1530,6 +1696,10 @@ name = "millisSinceLastEvent"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "Option<u64>"
+cpp_params = ["uint64_t*"]
+cpp_returns = "i32"
 
 [[method]]
 class = "StreamingClient"
@@ -1537,6 +1707,8 @@ name = "lastEventReceivedAtUnixNanos"
 python = true
 typescript = true
 cpp = true
+[method.signature]
+returns = "i64"
 
 [[method]]
 class = "StreamingClient"
@@ -1544,6 +1716,11 @@ name = "lastConnectedAddr"
 python = true
 typescript = true
 cpp = true
+# Bare `String` on the core `StreamingClient` (vs `Option<String>` on the
+# `StreamView`); C++ returns `std::string`, Python / TypeScript the optional.
+[method.signature]
+returns = "Option<String>"
+cpp_returns = "String"
 
 [[method]]
 class = "StreamingClient"
@@ -1551,6 +1728,9 @@ name = "setCallback"
 python = false
 typescript = false
 cpp = true
+[method.signature]
+cpp_params = ["Callback"]
+cpp_returns = "()"
 
 # ── Credentials (the auth-handle class) ──
 #

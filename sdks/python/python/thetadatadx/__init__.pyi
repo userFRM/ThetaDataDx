@@ -5103,6 +5103,22 @@ class StreamView:
         """
         ...
 
+    def batches(
+        self,
+        *,
+        batch_size: Optional[int] = None,
+        linger_ms: Optional[int] = None,
+        backpressure: Optional[str] = None,
+        capacity: Optional[int] = None,
+    ) -> RecordBatchStream:
+        """Open a pull-based columnar reader over the live stream.
+
+        Returns a :class:`RecordBatchStream` yielding ``pyarrow.RecordBatch``
+        objects. ``backpressure`` selects ``"block"`` (lossless, the default)
+        or ``"drop_oldest"`` (bounded by ``capacity`` buffered batches).
+        """
+        ...
+
     def stop_streaming(self) -> None:
         """Stop streaming while keeping the historical client usable.
 
@@ -5937,6 +5953,72 @@ class HistoricalClient:
 # ─────────────────────────────────────────────────────────────────────
 # Streaming context managers + iterator
 # ─────────────────────────────────────────────────────────────────────
+
+
+@final
+class RecordBatchStream:
+    """Pull-based columnar reader returned by :meth:`StreamView.batches`.
+
+    Synchronous and asynchronous iterable, and a context manager on both
+    protocols; each iteration yields a ``pyarrow.RecordBatch``. Closing the
+    reader (explicitly, or on block exit) releases the underlying stream.
+    """
+
+    def __iter__(self) -> RecordBatchStream:
+        """Return ``self`` as a synchronous iterator."""
+        ...
+
+    def __next__(self) -> Any:
+        """Return the next ``pyarrow.RecordBatch``; raise ``StopIteration`` at end."""
+        ...
+
+    def __aiter__(self) -> RecordBatchStream:
+        """Return ``self`` as an asynchronous iterator."""
+        ...
+
+    async def __anext__(self) -> Any:
+        """Return the next ``pyarrow.RecordBatch``; raise ``StopAsyncIteration`` at end."""
+        ...
+
+    def __enter__(self) -> RecordBatchStream:
+        """Return the reader for use as a context manager."""
+        ...
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[Any],
+    ) -> bool:
+        """Close the reader; never suppresses exceptions."""
+        ...
+
+    async def __aenter__(self) -> RecordBatchStream:
+        """Return the reader for use as an async context manager."""
+        ...
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[Any],
+    ) -> bool:
+        """Close the reader; never suppresses exceptions."""
+        ...
+
+    def close(self) -> None:
+        """Release the underlying stream. Idempotent."""
+        ...
+
+    @property
+    def schema(self) -> Any:
+        """The fixed ``pyarrow.Schema`` every batch carries."""
+        ...
+
+    @property
+    def dropped(self) -> int:
+        """Count of batches dropped under back-pressure."""
+        ...
 
 
 @final
