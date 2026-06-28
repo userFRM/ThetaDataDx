@@ -35,16 +35,6 @@
 | `price_compare_1000` | 2.34 us | 2.34 ns/op | Cross-type comparison (scaling) |
 | `price_display_1000` | 104.8 us | 104.8 ns/op | Format to string |
 
-### Greeks (`greeks.rs`) - 5 benchmarks
-
-| Benchmark | Median | Description |
-|-----------|--------|-------------|
-| `greeks_delta_only` | 22.8 ns | Single delta computation |
-| `greeks_value` | 37.6 ns | Black-Scholes option value |
-| `all_greeks_individual` | 434.6 ns | 22 Greeks via individual function calls |
-| `greeks_iv_solver` | 523.2 ns | Implied volatility bisection solver |
-| `all_greeks` | 639.9 ns | Full 22 Greeks + IV (precomputed intermediates) |
-
 ### Response Decoding (`decode.rs`) - 9 benchmarks
 
 | Benchmark | Median | Per-unit | Description |
@@ -119,7 +109,6 @@ cargo bench -p thetadatadx --bench bench
 
 # Run a specific group
 cargo bench -p thetadatadx --bench bench -- fit
-cargo bench -p thetadatadx --bench bench -- greeks
 cargo bench -p thetadatadx --bench bench -- price
 cargo bench -p thetadatadx --bench bench -- decode
 cargo bench -p thetadatadx --bench bench -- frame

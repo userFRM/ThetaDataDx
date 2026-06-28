@@ -68,14 +68,14 @@ pub(crate) fn wire_strike_opt(strike: &str) -> Option<String> {
 ///
 /// # Errors
 ///
-/// Returns the parse error from [`thetadatadx::greeks::parse_right`] if
+/// Returns the parse error from [`thetadatadx::right::parse_right`] if
 /// `right` is not one of the accepted SDK surface forms. The result is
 /// the crate's public [`thetadatadx::Error`] so this helper resolves
 /// identically in the library and in the `generate_sdk_surfaces` binary,
 /// which share this file via `#[path]`.
 pub(crate) fn wire_right_opt(right: &str) -> Result<Option<String>, thetadatadx::Error> {
     Ok(Some(
-        thetadatadx::greeks::parse_right(right)?
+        thetadatadx::right::parse_right(right)?
             .as_mdds_str()
             .to_string(),
     ))

@@ -200,37 +200,6 @@ struct FullSubscription {
     std::string sec_type;
 };
 
-// ── Greeks result (from standalone thetadatadx_all_greeks) ──
-
-/// Full set of option Greeks and Black-Scholes intermediates returned by the
-/// standalone `thetadatadx_all_greeks` computation, alongside the implied volatility
-/// solve result (`iv`, `iv_error`).
-struct GreeksResult {
-    double value;
-    double delta;
-    double gamma;
-    double theta;
-    double vega;
-    double rho;
-    double iv;
-    double iv_error;
-    double vanna;
-    double charm;
-    double vomma;
-    double veta;
-    double vera;
-    double speed;
-    double zomma;
-    double color;
-    double ultima;
-    double d1;
-    double d2;
-    double dual_delta;
-    double dual_gamma;
-    double epsilon;
-    double lambda;
-};
-
 // ══════════════════════════════════════════════════════════════════════════
 // Typed exception hierarchy
 // ══════════════════════════════════════════════════════════════════════════
@@ -1304,10 +1273,6 @@ private:
     std::unique_ptr<std::function<void(const StreamEvent&)>> callback_;
     std::unique_ptr<ThetaDataDxStreamHandle, StreamingHandleDeleter> handle_;
 };
-
-// ── Standalone Greeks functions ──
-
-#include "utilities.hpp.inc"
 
 // ── FLATFILES surface ────────────────────────────────────────────────
 //

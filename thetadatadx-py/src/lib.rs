@@ -1730,7 +1730,6 @@ fn thetadatadx_py(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<flatfile_methods::FlatFileRowList>()?;
     register_fpss_event_classes(m)?;
     register_tick_classes(m)?;
-    register_generated_utility_functions(m)?;
     register_generated_historical_builders(m)?;
     coerce::register_string_enums(m)?;
     register_generated_util_submodule(m)?;

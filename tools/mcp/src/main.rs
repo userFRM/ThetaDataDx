@@ -333,14 +333,13 @@ fn is_hex_token_at(bytes: &[u8], pos: usize) -> bool {
 
 /// Tools that run without a connected ThetaData client.
 ///
-/// `ping` reports server status; `all_greeks` and `implied_volatility` are pure
-/// Black-Scholes computations that never touch an upstream server. When no
-/// client is connected the server advertises exactly these — the rest of the
+/// `ping` reports server status without touching an upstream server. When no
+/// client is connected the server advertises exactly this — the rest of the
 /// surface (registry historical endpoints, flat-file tools) requires a live
 /// connection and is withheld until one exists, so `tools/list` never offers a
 /// tool a `tools/call` would reject for lack of a client. The set must match
 /// the offline-mode tools the README and process banner promise.
-const OFFLINE_TOOL_NAMES: [&str; 3] = ["ping", "all_greeks", "implied_volatility"];
+const OFFLINE_TOOL_NAMES: [&str; 1] = ["ping"];
 
 /// Tool definitions to advertise given the current connection state.
 ///
@@ -1016,16 +1015,7 @@ fn serialize_endpoint_output(name: &str, output: &EndpointOutput) -> Value {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  Argument extraction helpers
-// ═══════════════════════════════════════════════════════════════════════════
-
-fn arg_f64(args: &Value, key: &str) -> Result<f64, String> {
-    args.get(key)
-        .and_then(|v: &Value| v.as_f64())
-        .ok_or_else(|| format!("missing required number argument: {key}"))
-}
-
+/// Read a required string argument from a JSON tool-call `args` map.
 fn arg_str(args: &Value, key: &str) -> Result<String, String> {
     args.get(key)
         .and_then(|v: &Value| v.as_str())
@@ -1353,7 +1343,7 @@ fn resolve_credentials(args: &mut Args) -> Option<Credentials> {
                 }
             },
             None => {
-                tracing::info!("no credentials provided, starting in offline mode (ping, all_greeks, implied_volatility only)");
+                tracing::info!("no credentials provided, starting in offline mode (ping only)");
                 None
             }
         },
@@ -1407,7 +1397,7 @@ fn parse_args() -> Args {
                 eprintln!("THETADATA_API_KEY, THETADATA_EMAIL + THETADATA_PASSWORD,");
                 eprintln!("then the --creds file.");
                 eprintln!("If none resolve, the server starts in offline mode");
-                eprintln!("(only ping, all_greeks, and implied_volatility tools work).");
+                eprintln!("(only the ping tool works).");
                 std::process::exit(0);
             }
             _ => {
@@ -1743,7 +1733,7 @@ mod tests {
     }
 
     /// Offline (`connected = false`), `tools/list` must advertise exactly the
-    /// three tools that run without an upstream connection — the same set the
+    /// tools that run without an upstream connection — the same set the
     /// README and process banner promise — and nothing that `tools/call` would
     /// reject for lack of a client.
     #[test]

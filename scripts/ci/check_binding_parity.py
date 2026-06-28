@@ -952,7 +952,6 @@ def _is_implicitly_tracked(name: str) -> bool:
         "UnknownControl",
         "UnknownFrame",
         "OptionContract",
-        "AllGreeks",
     }:
         return True
     return False
@@ -3024,11 +3023,10 @@ def _check_core_streaming_method_rows(
 
 # ─── Free-function (utility) discovery ──────────────────────────────
 #
-# The standalone utility surface — the offline Greeks calculator
-# (`all_greeks` / `implied_volatility`), the conditions / exchange /
-# calendar / sequence lookups (`condition_name`, `exchange_symbol`,
+# The standalone utility surface — the conditions / exchange / calendar /
+# sequence lookups (`condition_name`, `exchange_symbol`,
 # `calendar_status_name`, `timestamp_ms`, `sequence_signed_to_unsigned`,
-# ...), and the Python-only date-range splitter — is exposed as free
+# ...) and the Python-only date-range splitter — is exposed as free
 # functions / namespace functions per binding, NOT as methods on a class
 # the `[[method]]` rows cover. These collectors find each binding's
 # utility surface so the `[[utility]]` rows can pin the cross-binding
@@ -3063,9 +3061,8 @@ PY_NON_UTILITY_PYFUNCTIONS: frozenset[str] = frozenset(
 def _collect_python_utility_functions(py_src: pathlib.Path) -> set[str]:
     """Snake_case names of every public-utility `#[pyfunction]`.
 
-    The offline calculators (`all_greeks` / `implied_volatility`), the
-    `thetadatadx.util` submodule lookups, and the date-range splitter are
-    all module-level `#[pyfunction] fn <name>`. The attribute may carry a
+    The `thetadatadx.util` submodule lookups and the date-range splitter
+    are module-level `#[pyfunction] fn <name>`. The attribute may carry a
     `(...)` arg list (a `#[pyo3(...)]` sibling on the next line), so the
     regex tolerates an optional attribute body before the `fn`. Internal
     decode-bench / introspection hooks (`PY_NON_UTILITY_PYFUNCTIONS`) are
@@ -3085,16 +3082,14 @@ def _collect_python_utility_functions(py_src: pathlib.Path) -> set[str]:
 def _collect_typescript_utility_functions(ts_src: pathlib.Path) -> set[str]:
     """Snake_case names of the TypeScript utility surface.
 
-    Two shapes: the offline calculators are napi FREE functions
-    (`#[napi] pub fn all_greeks`), while the conditions / exchange /
-    calendar / sequence lookups are static methods on the `Util` namespace
-    class (`#[napi(js_name = "conditionName")] pub fn condition_name` inside
-    `impl Util`). The free-function scan below collects the former; the
-    `Util`-class methods are merged in by the caller via
-    `_collect_typescript_class_methods`, camelCase folded back to
-    snake_case. Both surfaces normalise to the bare snake_case name so a
-    single `[[utility]]` row matches Python / C++ / FFI and TypeScript
-    alike.
+    The conditions / exchange / calendar / sequence lookups are static
+    methods on the `Util` namespace class (`#[napi(js_name =
+    "conditionName")] pub fn condition_name` inside `impl Util`), merged in
+    by the caller via `_collect_typescript_class_methods` with camelCase
+    folded back to snake_case. This scan collects any napi FREE functions
+    (none today, but kept so a future free-function utility is caught);
+    both surfaces normalise to the bare snake_case name so a single
+    `[[utility]]` row matches Python / C++ / FFI and TypeScript alike.
 
     A napi free function is a `#[napi(...)]`-attributed `pub fn <name>`
     that is NOT inside an `impl` block. Functions inside `impl` blocks
@@ -3205,11 +3200,11 @@ def _collect_cpp_utility_functions(cpp_hpp: pathlib.Path) -> set[str]:
 
 
 def _collect_ffi_utility_functions(ffi_src: pathlib.Path) -> set[str]:
-    """Bare calculator names whose `thetadatadx_<name>` C ABI symbol exists.
+    """Bare utility names whose `thetadatadx_<name>` C ABI symbol exists.
 
-    The FFI exposes the calculators as `extern "C" fn thetadatadx_all_greeks` /
-    `fn thetadatadx_implied_volatility`. The collector strips the `thetadatadx_` prefix so
-    the result matches the canonical `[[utility]]` row name directly.
+    The FFI exposes each utility as an `extern "C" fn thetadatadx_<name>`. The
+    collector strips the `thetadatadx_` prefix so the result matches the
+    canonical `[[utility]]` row name directly.
     """
     out: set[str] = set()
     if not ffi_src.is_dir():
@@ -5773,13 +5768,11 @@ _FFI_ERROR_SYMBOLS: frozenset[str] = frozenset(
     {"last_error", "last_error_code", "last_error_retry_after_ms", "clear_error"}
 )
 
-# Standalone utility symbols (the `[[utility]]` family — calculators,
+# Standalone utility symbols (the `[[utility]]` family —
 # condition/exchange/sequence/calendar lookups, the strike/timestamp
 # converters).
 _FFI_UTILITY_SYMBOLS: frozenset[str] = frozenset(
     {
-        "all_greeks",
-        "implied_volatility",
         "condition_description",
         "condition_is_cancel",
         "condition_name",
@@ -7896,14 +7889,14 @@ def main(argv: list[str] | None = None) -> int:
     # any enrolling row, trips here — the `strike_thousandths` defect class.
     value_field_roster_errors = _check_value_field_roster(value_field_rows)
 
-    # Free-function (utility) parity ([[utility]] rows) — the offline
-    # Greeks calculator (`all_greeks` / `implied_volatility`) is a free
-    # function on every binding, tracked here because it is not a method
-    # on any class the `[[method]]` rows cover.
+    # Free-function (utility) parity ([[utility]] rows) — the standalone
+    # condition / exchange / calendar / sequence lookups and converters are
+    # free functions / namespace methods, tracked here because they are not
+    # methods on any class the `[[method]]` rows cover.
     py_utils = _collect_python_utility_functions(PY_SRC)
-    # The TS utility surface spans napi free functions (the calculators)
-    # and the `Util` namespace-class static methods (the lookups); merge
-    # both so every cross-binding row resolves regardless of TS shape.
+    # The TS utility surface spans napi free functions and the `Util`
+    # namespace-class static methods (the lookups); merge both so every
+    # cross-binding row resolves regardless of TS shape.
     ts_utils = _ts_utility_surface(
         _collect_typescript_utility_functions(TS_SRC), ts_class_methods
     )
@@ -7915,8 +7908,7 @@ def main(argv: list[str] | None = None) -> int:
     # Reverse-direction orphan check: every standalone utility on the
     # cleanly-enumerable Python / TypeScript surfaces must be named by some
     # [[utility]] row (the conditions / exchange / calendar / sequence
-    # roster that previously lived only as the `all_greeks` pair while a
-    # dozen other utils drifted untracked).
+    # roster, so none drifts untracked).
     utility_roster_errors = _check_utility_roster_complete(
         utility_rows, py_utils, ts_utils
     )

@@ -3,8 +3,8 @@
 use std::fmt::Write as _;
 
 use super::common::{
-    find_utility_param, generated_header, greek_result_fields, mcp_json_type,
-    mcp_param_description, mcp_param_name, rust_string_array_literal, rust_string_literal,
+    generated_header, mcp_json_type, mcp_param_description, mcp_param_name,
+    rust_string_array_literal, rust_string_literal,
 };
 use super::spec::{UtilityKind, UtilitySpec};
 
@@ -17,11 +17,51 @@ pub(super) fn render_mcp_utilities(utilities: &[&UtilitySpec]) -> String {
         out.push_str(&mcp_tool_definition(utility));
     }
     out.push_str("}\n\n");
-    out.push_str(include_str!("templates/mcp/try_execute_preamble.rs.tmpl"));
+    out.push_str(&render_try_execute_preamble(utilities));
     for utility in utilities {
         out.push_str(&mcp_execute_arm(utility));
     }
     out.push_str("        _ => None,\n    }\n}\n");
+    out
+}
+
+/// Whether any execute arm reads the JSON `args` map (and so needs the
+/// `param_or_return!` argument-fetch helper). `ping` reads only the
+/// connection state and the server clock, so a roster of arg-free
+/// utilities emits neither the `args` binding nor the macro.
+fn any_utility_reads_args(utilities: &[&UtilitySpec]) -> bool {
+    utilities
+        .iter()
+        .any(|u| !matches!(u.kind, UtilityKind::Ping))
+}
+
+/// Emit the `try_execute_generated_utility` signature + `match name`
+/// opener. The `args` parameter and the `param_or_return!` argument-fetch
+/// macro are emitted only when an arm reads them, so an arg-free roster
+/// does not carry an unused binding or macro.
+fn render_try_execute_preamble(utilities: &[&UtilitySpec]) -> String {
+    let reads_args = any_utility_reads_args(utilities);
+    let args_binding = if reads_args { "args" } else { "_args" };
+    let mut out = String::new();
+    out.push_str("async fn try_execute_generated_utility(\n");
+    out.push_str("    client: Option<&Client>,\n");
+    out.push_str("    name: &str,\n");
+    writeln!(out, "    {args_binding}: &Value,").unwrap();
+    out.push_str("    start_time: std::time::Instant,\n");
+    out.push_str(") -> Option<Result<Value, ToolError>> {\n");
+    if reads_args {
+        out.push_str("    macro_rules! param_or_return {\n");
+        out.push_str("        ($expr:expr) => {\n");
+        out.push_str("            match $expr {\n");
+        out.push_str("                Ok(value) => value,\n");
+        out.push_str(
+            "                Err(error) => return Some(Err(ToolError::InvalidParams(error))),\n",
+        );
+        out.push_str("            }\n");
+        out.push_str("        };\n");
+        out.push_str("    }\n");
+    }
+    out.push_str("    match name {\n");
     out
 }
 
@@ -95,34 +135,6 @@ fn mcp_execute_arm(utility: &UtilitySpec) -> String {
             out.push_str("                \"connected\": client.is_some(),\n");
             out.push_str("            })))\n");
         }
-        UtilityKind::AllGreeks => {
-            out.push_str(&emit_greeks_arg_fetch(utility));
-            out.push_str("            let g = match thetadatadx::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, &right) {\n");
-            out.push_str("                Ok(g) => g,\n");
-            out.push_str("                Err(e) => return Some(Err(ToolError::InvalidParams(e.to_string()))),\n");
-            out.push_str("            };\n");
-            out.push_str("            Some(Ok(json!({\n");
-            for (field, rust_field) in greek_result_fields() {
-                writeln!(
-                    out,
-                    "                {}: g.{rust_field},",
-                    rust_string_literal(field)
-                )
-                .unwrap();
-            }
-            out.push_str("            })))\n");
-        }
-        UtilityKind::ImpliedVolatility => {
-            out.push_str(&emit_greeks_arg_fetch(utility));
-            out.push_str("            let (iv, err) = match thetadatadx::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, &right) {\n");
-            out.push_str("                Ok(pair) => pair,\n");
-            out.push_str("                Err(e) => return Some(Err(ToolError::InvalidParams(e.to_string()))),\n");
-            out.push_str("            };\n");
-            out.push_str("            Some(Ok(json!({\n");
-            out.push_str("                \"implied_volatility\": iv,\n");
-            out.push_str("                \"error\": err,\n");
-            out.push_str("            })))\n");
-        }
         UtilityKind::Forwarder
         | UtilityKind::CalendarStatusName
         | UtilityKind::TimestampMs
@@ -132,35 +144,5 @@ fn mcp_execute_arm(utility: &UtilitySpec) -> String {
         }
     }
     out.push_str("        }\n");
-    out
-}
-
-/// Emit the shared argument-fetch preamble for the option-pricing utilities
-/// (`all_greeks` / `implied_volatility`): seven `param_or_return!` reads
-/// binding `spot`/`strike`/`rate`/`div_yield`/`tte`/`option_price` (f64) and
-/// `right` (str), each keyed by the utility's own parameter name.
-fn emit_greeks_arg_fetch(utility: &UtilitySpec) -> String {
-    let mut out = String::new();
-    for (local, key) in [
-        ("spot", "spot"),
-        ("strike", "strike"),
-        ("rate", "rate"),
-        ("div_yield", "div_yield"),
-        ("tte", "tte"),
-        ("option_price", "option_price"),
-    ] {
-        writeln!(
-            out,
-            "            let {local} = param_or_return!(arg_f64(args, {}));",
-            rust_string_literal(mcp_param_name(find_utility_param(utility, key)))
-        )
-        .unwrap();
-    }
-    writeln!(
-        out,
-        "            let right = param_or_return!(arg_str(args, {}));",
-        rust_string_literal(mcp_param_name(find_utility_param(utility, "right")))
-    )
-    .unwrap();
     out
 }

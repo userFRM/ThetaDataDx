@@ -716,14 +716,12 @@ include!("_generated/buffered_event.rs");
 #[cfg(not(test))]
 mod bench_streaming;
 
-// ── Offline Greeks calculator free functions (generated from sdk_surface.toml) ──
+// ── Cross-language lookup-table helpers (generated from sdk_surface.toml) ──
 //
-// Emits the `AllGreeks` `#[napi(object)]` plus the `allGreeks(...)` /
-// `impliedVolatility(...)` napi free functions. They cross the napi
-// boundary into the same `thetadatadx::greeks::{all_greeks,
-// implied_volatility}` core the Python / C++ / C ABI calculators call,
-// so the Greek values are bit-identical across every binding. Change
-// `sdk_surface.toml` and regenerate, never hand-edit the generated file.
+// Emits the `Util` napi class of static condition / exchange / calendar /
+// timestamp / sequence helpers, mirroring the Python `thetadatadx.util`
+// submodule. Change `sdk_surface.toml` and regenerate, never hand-edit the
+// generated file.
 
 include!("_generated/utility_functions.rs");
 

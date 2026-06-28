@@ -1,11 +1,11 @@
 ---
 title: MCP Server
-description: Give any Model Context Protocol client live access to every historical endpoint plus offline Greeks tools.
+description: Give any Model Context Protocol client live access to every historical endpoint.
 ---
 
 # MCP Server
 
-`thetadatadx-mcp` is a Model Context Protocol server over stdio: any MCP-capable client (Claude Desktop, Cursor, and others) gets a tool per historical endpoint plus the offline Greeks calculators, speaking JSON-RPC 2.0.
+`thetadatadx-mcp` is a Model Context Protocol server over stdio: any MCP-capable client (Claude Desktop, Cursor, and others) gets a tool per historical endpoint, speaking JSON-RPC 2.0.
 
 ## Install
 
@@ -54,7 +54,7 @@ Keep credentials in environment variables or a secrets manager — not in config
 
 ## Tools
 
-Every generated historical endpoint plus `ping`, `all_greeks`, and `implied_volatility`. Tool names and parameters match the [reference pages](/reference/) one-to-one, so the model's tool list is the same surface you read here.
+Every generated historical endpoint plus `ping`. Tool names and parameters match the [reference pages](/reference/) one-to-one, so the model's tool list is the same surface you read here.
 
 When credentials are present the connected surface also carries six flat-file tools. Each pulls a whole-universe daily blob for a single date, writes it to disk as CSV or JSON Lines, and returns the written path:
 
@@ -65,7 +65,7 @@ When credentials are present the connected surface also carries six flat-file to
 - `thetadatadx_flatfile_stock_trade_quote`: stock trade-quote flat file.
 - `thetadatadx_flatfile_stock_eod`: stock end-of-day flat file.
 
-Without credentials, the server still starts and serves the offline tools (`ping`, `all_greeks`, `implied_volatility`) — useful for testing the integration or computing Greeks with no subscription. The flat-file tools and the historical endpoints need a live connection.
+Without credentials, the server still starts and serves the offline tool (`ping`) — useful for testing the integration. The flat-file tools and the historical endpoints need a live connection.
 
 ## Option queries from a model
 
@@ -79,7 +79,7 @@ Without credentials, the server still starts and serves the offline tools (`ping
 Run `thetadatadx-mcp` by hand: the process must start silently and wait on stdin. Anything printed to stdout breaks the JSON-RPC channel — logs go to stderr by design, so a corrupted stdout usually means a wrapper script is echoing.
 :::
 
-::: details Only three tools appear
+::: details Only `ping` appears
 That is offline mode: credentials were missing or rejected. Check `THETADATA_API_KEY`, or `THETADATA_EMAIL` / `THETADATA_PASSWORD`, in the client's `env` block.
 :::
 

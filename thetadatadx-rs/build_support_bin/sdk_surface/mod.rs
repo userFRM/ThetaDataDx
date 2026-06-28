@@ -97,11 +97,6 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         .iter()
         .filter(|utility| utility.targets.contains(&UtilityTarget::Typescript))
         .collect();
-    let cpp_utilities: Vec<&UtilitySpec> = spec
-        .utilities
-        .iter()
-        .filter(|utility| utility.targets.contains(&UtilityTarget::Cpp))
-        .collect();
     let mcp_utilities: Vec<&UtilitySpec> = spec
         .utilities
         .iter()
@@ -132,14 +127,6 @@ fn render_sdk_generated_files() -> Result<Vec<GeneratedSourceFile>, Box<dyn std:
         GeneratedSourceFile {
             relative_path: "thetadatadx-cpp/src/fpss.cpp.inc",
             contents: cpp::render_cpp_fpss_defs(&cpp_fpss_methods),
-        },
-        GeneratedSourceFile {
-            relative_path: "thetadatadx-cpp/include/utilities.hpp.inc",
-            contents: cpp::render_cpp_utility_decls(&cpp_utilities),
-        },
-        GeneratedSourceFile {
-            relative_path: "thetadatadx-cpp/src/utilities.cpp.inc",
-            contents: cpp::render_cpp_utility_defs(&cpp_utilities),
         },
         GeneratedSourceFile {
             relative_path: "thetadatadx-cpp/src/lifecycle.cpp.inc",

@@ -19,7 +19,6 @@ The C++ SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, op
 - **Complete coverage** — stocks, options, indices, and rates across 65 typed endpoints.
 - **Three access modes** — point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **Typed structs, no JSON** — every endpoint returns a `std::vector` of decoded structs; prices arrive as `double`.
-- **Greeks without a round-trip** — first- through third-order Black-Scholes Greeks and an implied-volatility solver, computed locally.
 - **RAII throughout** — clients own their connections and clean up on scope exit; methods throw on failure.
 - **Header plus a thin implementation file** — `thetadatadx.hpp` with the RAII wrappers, and `src/thetadatadx.cpp` carrying their out-of-line definitions, over a prebuilt C ABI shared library.
 
@@ -185,19 +184,6 @@ while (reader->ReadNext(&batch).ok() && batch != nullptr) {
 // `reader` closes (unsubscribe + tear down) when the last reference drops.
 ```
 
-## Greeks calculator
-
-A full Black-Scholes calculator — first- through third-order Greeks plus an implied-volatility solver — runs locally, no connection required:
-
-```cpp
-auto g = thetadatadx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C");
-std::printf("IV=%.4f delta=%.4f gamma=%.6f vega=%.4f\n", g.iv, g.delta, g.gamma, g.vega);
-
-auto [iv, err] = thetadatadx::implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C");
-```
-
-`right` accepts `"C"` / `"P"` or `"call"` / `"put"` (case-insensitive).
-
 ## Flat files
 
 Whole-universe daily snapshots for one `(security type, request type, date)` at a time, served by the `thetadatadx::Client`. The decoded schema follows the request type, so the wrapper emits Arrow IPC bytes — pair with arrow-cpp on the consumer side to materialise an `arrow::Table`:
@@ -221,7 +207,7 @@ The flat-file distribution serves a fixed set of datasets: option `trade_quote` 
 
 ## Endpoint coverage
 
-65 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming and the local Greeks calculator.
+65 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
 
 | Category | Endpoints | Examples |
 |---|---|---|

@@ -363,15 +363,8 @@ harness = false
 required-features = ["__test-helpers"]
 
 # Data-format layer micro-benchmarks. These exercise the internal `tdbe`
-# module directly: the Black-Scholes Greek primitives, the enum lookups,
-# and the tick field accessors. `bench_greeks` reaches the full
-# Black-Scholes surface re-exported behind `__internal`; `bench_enums` /
-# `bench_tick` ride the stable public types.
-[[bench]]
-name = "bench_greeks"
-harness = false
-required-features = ["__internal"]
-
+# module directly: the enum lookups and the tick field accessors.
+# `bench_enums` / `bench_tick` ride the stable public types.
 [[bench]]
 name = "bench_enums"
 harness = false

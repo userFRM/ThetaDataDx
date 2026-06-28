@@ -92,7 +92,7 @@
 // `wire_semantics.rs` is `#[path]`-shared between this library and the
 // `generate_sdk_surfaces` binary's code-generation tree. The binary sees
 // the library as the external `thetadatadx` crate, so the shared file
-// names the offline right-parser through `thetadatadx::greeks` rather than
+// names the option-right parser through `thetadatadx::right` rather than
 // `crate::`. This self-alias lets the same `thetadatadx::` path resolve
 // inside the library build too.
 extern crate self as thetadatadx;
@@ -457,29 +457,18 @@ pub use crate::tdbe::types::enums::{
 #[doc(hidden)]
 pub use crate::tdbe::types::price::{Price, PriceError, PriceType, MAX_PRICE_TYPE};
 
-// ─── Offline Black-Scholes (Greeks + implied volatility) ─────────────────────
+// ─── Option-right parsing ────────────────────────────────────────────────────
 
-/// Offline Black-Scholes Greeks and implied-volatility solver.
+/// Canonical parser for the option `right` parameter.
 ///
-/// All calculations follow the standard Black-Scholes-Merton model.
-/// Use [`all_greeks`] to compute the full Greek surface from a quoted option
-/// price, or [`implied_volatility`] for the bisection IV solve alone.
-pub mod greeks {
-    /// Error returned by the offline analytics surface ([`all_greeks`],
-    /// [`implied_volatility`], [`parse_right`], [`parse_right_strict`]) for
-    /// an unrecognised `right` or an out-of-domain input. Distinct from the
-    /// networking [`crate::Error`]; it converts into it via `?`.
-    pub use crate::tdbe::error::Error;
-    pub use crate::tdbe::greeks::{all_greeks, implied_volatility, GreeksResult};
-    pub use crate::tdbe::right::{parse_right, parse_right_strict, ParsedRight};
+/// Accepts `call`/`put`/`both`/`C`/`P`/`*` (case-insensitive) at every
+/// user-facing input boundary. Use [`parse_right`] where the wildcard is
+/// meaningful and [`parse_right_strict`] where a single side is required.
+pub mod right {
+    pub use crate::tdbe::right::{parse_right, parse_right_strict, ParsedRight, RightError};
 }
-// Crate-root re-export of the offline-analytics surface. `greeks::Error`
-// is deliberately NOT glob-promoted here — the crate root already binds
-// the networking [`Error`], and the analytics error stays addressable as
-// `greeks::Error`.
-pub use greeks::{
-    all_greeks, implied_volatility, parse_right, parse_right_strict, GreeksResult, ParsedRight,
-};
+// Crate-root re-export of the option-right parser.
+pub use right::{parse_right, parse_right_strict, ParsedRight, RightError};
 
 // ─── Utility modules ─────────────────────────────────────────────────────────
 
@@ -531,17 +520,6 @@ pub use crate::tdbe::json_canon;
 #[cfg(feature = "__internal")]
 #[doc(hidden)]
 pub use crate::tdbe::codec;
-
-/// Full Black-Scholes primitive surface (`value`, `delta`, `gamma`, the
-/// higher-order Greeks, and the IV solver). The curated [`greeks`] module
-/// re-exports only the three stable entry points; this doc-hidden alias
-/// gives the offline-pricing bench the per-Greek functions it measures.
-///
-/// Only available when the `__internal` feature is enabled. NOT a stable
-/// public surface — for workspace tools and bindings only.
-#[cfg(feature = "__internal")]
-#[doc(hidden)]
-pub use crate::tdbe::greeks as black_scholes;
 
 /// Calendar-day market status enum (`Open`, `EarlyClose`, `FullClose`,
 /// `Weekend`). The generated tick constructors validate the wire string
