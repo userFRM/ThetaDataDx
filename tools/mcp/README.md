@@ -29,7 +29,7 @@ No install step is needed: point your MCP client at `npx -y thetadatadx-mcp` (se
 Rust users can install the binary directly instead:
 
 ```bash
-cargo install thetadatadx-mcp --git https://github.com/userFRM/ThetaDataDx
+git clone https://github.com/userFRM/ThetaDataDx && cargo install --path ThetaDataDx/tools/mcp
 ```
 
 Or build from source:
@@ -37,7 +37,7 @@ Or build from source:
 ```bash
 cd tools/mcp
 cargo build --release
-# Binary at ../../target/release/thetadatadx-mcp
+# Binary at tools/mcp/target/release/thetadatadx-mcp
 ```
 
 ## Configuration

@@ -28,7 +28,7 @@ function binaryPath() {
       `thetadatadx-mcp does not ship a prebuilt binary for ${key}.\n` +
         `Supported: ${Object.keys(PACKAGES).join(", ")}.\n` +
         `Build from source instead:\n` +
-        `  cargo install thetadatadx-mcp --git https://github.com/userFRM/ThetaDataDx`,
+        `  git clone https://github.com/userFRM/ThetaDataDx && cargo install --path ThetaDataDx/tools/mcp`,
     );
   }
   const exe = process.platform === "win32" ? "thetadatadx-mcp.exe" : "thetadatadx-mcp";
@@ -44,7 +44,7 @@ function binaryPath() {
         `host does not match, or when optional dependencies are disabled\n` +
         `(e.g. --no-optional, --omit=optional, or a locked-down CI install).\n` +
         `Reinstall with optional dependencies enabled, or build from source:\n` +
-        `  cargo install thetadatadx-mcp --git https://github.com/userFRM/ThetaDataDx`,
+        `  git clone https://github.com/userFRM/ThetaDataDx && cargo install --path ThetaDataDx/tools/mcp`,
     );
   }
 }

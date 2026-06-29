@@ -140,6 +140,34 @@ jobs:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
 
+      # Refuse to publish unless the Release tag matches the version every
+      # package.json carries. A `release: published` fires for any tag, so
+      # without this an accidental or mis-tagged Release would publish the
+      # branch's current version (and pick its `next`/`latest` dist-tag from
+      # it). Assert (1) all six manifests — launcher + five platform — agree,
+      # then (2) the tag is exactly `v<version>` (the repo's tag convention).
+      # `RELEASE_TAG` comes via env, never interpolated into the script body.
+      - name: Preflight — tag matches package version
+        working-directory: tools/mcp/npm
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./thetadatadx-mcp/package.json').version")
+          for dir in thetadatadx-mcp linux-x64 linux-arm64 darwin-x64 darwin-arm64 win32-x64; do
+            v=$(node -p "require('./${dir}/package.json').version")
+            if [ "$v" != "$version" ]; then
+              echo "::error::package version mismatch: ${dir}/package.json is ${v}, launcher is ${version} — all six manifests must agree"
+              exit 1
+            fi
+          done
+          if [ "$RELEASE_TAG" != "v${version}" ]; then
+            echo "::error::release tag ${RELEASE_TAG} does not match package version ${version} (expected tag v${version}) — refusing to publish"
+            exit 1
+          fi
+          echo "preflight ok: tag ${RELEASE_TAG} matches version ${version}"
+
       - name: Download all binary artifacts
         uses: actions/download-artifact@v8
         with:
