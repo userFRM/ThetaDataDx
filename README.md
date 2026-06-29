@@ -32,7 +32,7 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 - **Complete coverage**: stocks, options, indices, and rates across 65 typed endpoints.
 - **Three access modes, one client**: point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **DataFrames built in**: every result chains straight to Polars, pandas, or Arrow over a zero-copy boundary.
-- **Greeks without a round-trip**: first- through third-order Black-Scholes Greeks and an implied-volatility solver, computed locally.
+- **Greeks on demand**: first- through third-order Greeks and implied volatility, served straight from the option endpoints.
 - **The same surface in every language**: identical methods and identical typed errors, Python through Rust.
 - **No terminal to run**: a direct connection to ThetaData; nothing to install and babysit locally.
 
@@ -257,7 +257,7 @@ with client.streaming(on_event) as session:
 ## Endpoint coverage
 
 65 typed endpoints across stocks, options, indices, the market calendar, and
-interest rates, plus real-time streaming and a local Greeks calculator.
+interest rates, plus real-time streaming.
 
 | Category | Endpoints | Examples |
 |---|---|---|
@@ -281,7 +281,7 @@ common `ThetaDataError` base.
 
 | Path | Package | Purpose |
 |---|---|---|
-| [`thetadatadx-rs`](thetadatadx-rs/) | `thetadatadx` (crates.io) | The Rust SDK: tick types, Greeks, price math, and the network client in one crate |
+| [`thetadatadx-rs`](thetadatadx-rs/) | `thetadatadx` (crates.io) | The Rust SDK: tick types, decoders, and the network client in one crate |
 | [`thetadatadx-py`](thetadatadx-py/) | `thetadatadx` (PyPI) | Python package with DataFrame adapters |
 | [`thetadatadx-ts`](thetadatadx-ts/) | `thetadatadx` (npm) | TypeScript / Node.js package, prebuilt binaries |
 | [`thetadatadx-cpp`](thetadatadx-cpp/) | header + prebuilt library | C++ wrapper over the C ABI |
