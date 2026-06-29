@@ -37,60 +37,59 @@ jobs:
   # whether a pull_request touched code that warrants the expensive
   # cross-platform / compile-heavy work. Non-PR events (push to main,
   # schedule, tag, merge_group) ignore these outputs and always run the
-  # full heavy lane, so coverage is never lost.
+  # full heavy lane, so coverage is never lost. The filter definition is
+  # shared across every lane via the reusable `paths.yml`.
   # ───────────────────────────────────────────────────────────────
   changes:
     name: Detect changed paths
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    # paths-filter calls the GitHub REST API on pull_request events to
-    # diff the head against the base, which needs pull-requests: read.
-    # contents: read is restated so the workflow-level grant is not
-    # dropped when the job declares its own permission block.
     permissions:
       contents: read
       pull-requests: read
+    uses: ./.github/workflows/paths.yml
+
+  # ───────────────────────────────────────────────────────────────
+  # Matrix planner. Emits the OS matrix the cross-platform heavy jobs
+  # consume via `fromJSON`. On a pull_request the matrix is the Linux
+  # leg only — the macOS/Windows legs are proven post-merge on main, on
+  # the nightly schedule, on tags, and in the merge queue, where the
+  # full matrix always runs. Skipping individual legs with a leg-level
+  # `if` would skip the whole job, so the breadth is chosen here at the
+  # matrix source instead.
+  # ───────────────────────────────────────────────────────────────
+  setup:
+    name: Plan matrices
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
-      rust: ${{ steps.filter.outputs.rust }}
-      ffi: ${{ steps.filter.outputs.ffi }}
-      semver: ${{ steps.filter.outputs.semver }}
+      ffi_matrix: ${{ steps.plan.outputs.ffi_matrix }}
+      bindings_matrix: ${{ steps.plan.outputs.bindings_matrix }}
+      lint_matrix: ${{ steps.plan.outputs.lint_matrix }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: dorny/paths-filter@v4
-        id: filter
-        with:
-          filters: |
-            # The Rust core, FFI, every cargo manifest the workspace and
-            # the SDK crates pull in, plus the scripts the heavy Rust jobs
-            # drive. A docs-only or config-only PR matches none of these
-            # and skips the compile-heavy lane.
-            rust:
-              - 'thetadatadx-rs/**'
-              - 'thetadatadx-ffi/**'
-              - 'tools/**'
-              - 'thetadatadx-py/**'
-              - 'thetadatadx-ts/**'
-              - 'thetadatadx-cpp/**'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - 'scripts/ci/**'
-              - 'scripts/dev/**'
-              - '.github/workflows/ci.yml'
-              - '.github/actions/**'
-            ffi:
-              - 'thetadatadx-rs/**'
-              - 'thetadatadx-ffi/**'
-              - 'thetadatadx-cpp/**'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - '.github/workflows/ci.yml'
-              - '.github/actions/**'
-            semver:
-              - 'thetadatadx-rs/**'
-              - 'thetadatadx-ffi/**'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - '.github/workflows/ci.yml'
+      - name: Choose matrix breadth
+        id: plan
+        shell: bash
+        env:
+          IS_PR: ${{ github.event_name == 'pull_request' }}
+        run: |
+          set -euo pipefail
+          if [ "${IS_PR}" = "true" ]; then
+            # PR: Linux only for the cross-platform builds; ubuntu/MSRV
+            # clippy only for the lint matrix.
+            ffi='[{"os":"ubuntu-latest","artifact-name":"ffi-linux-x86_64","artifact-path":"target/release/libthetadatadx_ffi.so\ntarget/release/libthetadatadx_ffi.a"}]'
+            bindings='[{"os":"ubuntu-latest","ffi_artifact":"ffi-linux-x86_64"}]'
+            lint='[{"os":"ubuntu-latest","toolchain":"1.88"}]'
+          else
+            # main / tag / schedule / merge_group: full cross-platform set.
+            ffi='[{"os":"ubuntu-latest","artifact-name":"ffi-linux-x86_64","artifact-path":"target/release/libthetadatadx_ffi.so\ntarget/release/libthetadatadx_ffi.a"},{"os":"macos-latest","artifact-name":"ffi-macos-arm64","artifact-path":"target/release/libthetadatadx_ffi.dylib\ntarget/release/libthetadatadx_ffi.a"},{"os":"windows-latest","artifact-name":"ffi-windows-msvc-x86_64","artifact-path":"target/release/thetadatadx_ffi.dll\ntarget/release/thetadatadx_ffi.dll.lib"}]'
+            bindings='[{"os":"ubuntu-latest","ffi_artifact":"ffi-linux-x86_64"},{"os":"macos-latest","ffi_artifact":"ffi-macos-arm64"},{"os":"windows-latest","ffi_artifact":"ffi-windows-msvc-x86_64"}]'
+            lint='[{"os":"ubuntu-latest","toolchain":"1.88"},{"os":"macos-latest","toolchain":"stable"},{"os":"windows-latest","toolchain":"stable"}]'
+          fi
+          {
+            echo "ffi_matrix={\"include\":${ffi}}"
+            echo "bindings_matrix={\"include\":${bindings}}"
+            echo "lint_matrix={\"include\":${lint}}"
+          } >> "$GITHUB_OUTPUT"
 
   # ═══════════════════════════════════════════════════════════════
   # FAST LANE. Runs on every PR (drafts included), every push to main,
@@ -351,27 +350,31 @@ jobs:
 
   lint-matrix:
     name: Lint (${{ matrix.os }}, ${{ matrix.toolchain }})
-    needs: changes
+    needs: [changes, setup]
+    # The `full-ci` label and the source-touching-rename safety net
+    # (`force_full`) each force the heavy lane on their own, so both sit
+    # OUTSIDE the docs fast-path clause: a `full-ci` PR runs even when the
+    # diff is docs-render-only, and a rename that moved real source into
+    # the doc tree runs even though the rename-blind dorny flag is false.
+    # Absent both, the original selective behavior holds — skip when the
+    # diff is docs-render-only or the per-language flag is false.
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.draft == false &&
-       (needs.changes.outputs.rust == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+       (contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+        needs.changes.outputs.force_full == 'true' ||
+        (needs.changes.outputs.docs_render_only != 'true' &&
+         needs.changes.outputs.rust == 'true')))
     strategy:
       fail-fast: false
-      matrix:
-        # The Linux stable clippy pass is the fast-lane `clippy` job; this
-        # matrix covers the cross-platform runners and the MSRV floor that
-        # do not belong on the per-push critical path.
-        os: [macos-latest, windows-latest]
-        toolchain: [stable]
-        include:
-          # MSRV floor declared in `[workspace.package].rust-version`.
-          # Pin a Linux runner to the floor toolchain so a dependency
-          # bump that pulls in a newer rustc requirement fails CI before
-          # it reaches release.
-          - os: ubuntu-latest
-            toolchain: "1.88"
+      # The Linux stable clippy pass is the fast-lane `clippy` job; this
+      # matrix covers the MSRV floor (Linux, declared in
+      # `[workspace.package].rust-version`) plus the cross-platform
+      # runners. The `setup` planner keeps a PR to the ubuntu/MSRV leg —
+      # which catches a dependency bump that lifts the rustc floor before
+      # release — and defers the macOS/Windows clippy legs to main and
+      # the nightly run, off the per-push critical path.
+      matrix: ${{ fromJSON(needs.setup.outputs.lint_matrix) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     steps:
@@ -387,11 +390,15 @@ jobs:
   test:
     name: Test
     needs: changes
+    # full-ci and force_full each force the heavy lane on their own (see
+    # the lint-matrix note); otherwise the original selective behavior.
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.draft == false &&
-       (needs.changes.outputs.rust == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+       (contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+        needs.changes.outputs.force_full == 'true' ||
+        (needs.changes.outputs.docs_render_only != 'true' &&
+         needs.changes.outputs.rust == 'true')))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -427,11 +434,15 @@ jobs:
   feature-tests:
     name: Feature-gated tests (columnar + panic boundary)
     needs: changes
+    # full-ci and force_full each force the heavy lane on their own (see
+    # the lint-matrix note); otherwise the original selective behavior.
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.draft == false &&
-       (needs.changes.outputs.rust == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+       (contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+        needs.changes.outputs.force_full == 'true' ||
+        (needs.changes.outputs.docs_render_only != 'true' &&
+         needs.changes.outputs.rust == 'true')))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -454,11 +465,15 @@ jobs:
   rustdoc:
     name: Rustdoc — Gate 13 catches broken intra-doc links
     needs: changes
+    # full-ci and force_full each force the heavy lane on their own (see
+    # the lint-matrix note); otherwise the original selective behavior.
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.draft == false &&
-       (needs.changes.outputs.rust == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+       (contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+        needs.changes.outputs.force_full == 'true' ||
+        (needs.changes.outputs.docs_render_only != 'true' &&
+         needs.changes.outputs.rust == 'true')))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -483,11 +498,13 @@ jobs:
   bench:
     name: Bench regression gate
     needs: changes
+    # Criterion wall-clock benches are runner-sensitive and the baseline
+    # is admittedly deferred, so this never runs on a PR — the
+    # deterministic allocations `perf-gate` covers per-PR regressions.
+    # Runs post-merge on main, on the nightly schedule, on tags, and in
+    # the merge queue, where a real regression is caught before release.
     if: >-
-      github.event_name != 'pull_request' ||
-      (github.event.pull_request.draft == false &&
-       (needs.changes.outputs.rust == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+      github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -543,14 +560,19 @@ jobs:
     # rebased directly onto main); on a PR it runs only when the crate or
     # FFI sources changed or the `full-ci` label is set, and never on a
     # draft.
+    # full-ci and force_full each force the PR heavy lane on their own (see
+    # the lint-matrix note); otherwise the original selective behavior. The
+    # non-PR branch (main / tag / schedule / merge_group) is unchanged.
     if: >-
       (github.event_name != 'pull_request' &&
        (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'schedule' || github.event_name == 'merge_group')) ||
       (github.event_name == 'pull_request' &&
        github.event.pull_request.draft == false &&
-       (needs.changes.outputs.semver == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+       (contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+        needs.changes.outputs.force_full == 'true' ||
+        (needs.changes.outputs.docs_render_only != 'true' &&
+         needs.changes.outputs.semver == 'true')))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -574,11 +596,15 @@ jobs:
   surfaces:
     name: Extended Surfaces
     needs: changes
+    # full-ci and force_full each force the heavy lane on their own (see
+    # the lint-matrix note); otherwise the original selective behavior.
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.draft == false &&
-       (needs.changes.outputs.rust == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+       (contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+        needs.changes.outputs.force_full == 'true' ||
+        (needs.changes.outputs.docs_render_only != 'true' &&
+         needs.changes.outputs.rust == 'true')))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -617,34 +643,64 @@ jobs:
           npm run build
           npm test
 
+  # ───────────────────────────────────────────────────────────────
+  # Doc-render fast lane. The markdown-emitting doc generator
+  # (`build_support_bin/endpoints/docs_render/**`) and the checked-in
+  # doc-site output tree cannot change the compiled library or any SDK
+  # binding surface, so a PR that touches ONLY those skips the whole
+  # cross-platform matrix (`test` / `surfaces` / `build-ffi` /
+  # `sdk-bindings` / `cpp-tests` and the Python/TS lanes). The doc
+  # regeneration `--check`s and fmt already run on EVERY PR in the
+  # always-on fast lane (`wire-schema-drift` runs both
+  # `generate_sdk_surfaces --check` and `generate_docs_site --check`;
+  # `fmt` runs repo-wide), so this job only adds the gaps that the fast
+  # lane misses for the feature-gated generator: clippy of the two
+  # generator bins (the default `clippy --workspace` does not enable
+  # their `config-file` / `__internal` required-features, so it never
+  # compiles them) and intra-doc-link rustdoc. On any PR that also
+  # touches real source it does not run (the full matrix does instead),
+  # and it never runs on push/tag/schedule.
+  # ───────────────────────────────────────────────────────────────
+  docs-render-check:
+    name: Doc-render lint + rustdoc
+    needs: changes
+    if: >-
+      github.event_name == 'pull_request' &&
+      needs.changes.outputs.docs_render_only == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-rust-deps
+        with:
+          components: clippy
+      # Clippy the feature-gated generator bins (and the shared
+      # `build_support_bin` tree both compile) — the gap the always-on
+      # `clippy --workspace --all-targets` leaves because it does not
+      # enable their required-features.
+      - run: cargo clippy -p thetadatadx --bin generate_docs_site --features config-file,__internal --locked -- -D warnings
+      - run: cargo clippy -p thetadatadx --bin generate_sdk_surfaces --features config-file --locked -- -D warnings
+      # Intra-doc link hygiene on the core crate the generator lives in.
+      - run: cargo doc --no-deps -p thetadatadx --features "config-file" --locked
+
   build-ffi:
     name: Build FFI (${{ matrix.os }})
-    needs: changes
+    needs: [changes, setup]
+    # full-ci and force_full each force the heavy lane on their own (see
+    # the lint-matrix note); otherwise the original selective behavior.
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.draft == false &&
-       (needs.changes.outputs.ffi == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+       (contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+        needs.changes.outputs.force_full == 'true' ||
+        (needs.changes.outputs.docs_render_only != 'true' &&
+         needs.changes.outputs.ffi == 'true')))
+    # A PR builds the Linux target only; the macOS/Windows targets are
+    # proven post-merge on main, on the nightly schedule, on tags, and in
+    # the merge queue. The OS set is chosen by the `setup` planner.
     strategy:
       fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        include:
-          - os: ubuntu-latest
-            artifact-name: ffi-linux-x86_64
-            artifact-path: |
-              target/release/libthetadatadx_ffi.so
-              target/release/libthetadatadx_ffi.a
-          - os: macos-latest
-            artifact-name: ffi-macos-arm64
-            artifact-path: |
-              target/release/libthetadatadx_ffi.dylib
-              target/release/libthetadatadx_ffi.a
-          - os: windows-latest
-            artifact-name: ffi-windows-msvc-x86_64
-            artifact-path: |
-              target/release/thetadatadx_ffi.dll
-              target/release/thetadatadx_ffi.dll.lib
+      matrix: ${{ fromJSON(needs.setup.outputs.ffi_matrix) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 75
     steps:
@@ -674,18 +730,14 @@ jobs:
   sdk-bindings:
     name: SDK Bindings (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: build-ffi
+    needs: [setup, build-ffi]
     timeout-minutes: 30
+    # The OS set mirrors `build-ffi` (it consumes those artifacts): Linux
+    # only on a PR, full cross-platform on main/tag/nightly. When
+    # `build-ffi` skips (docs-render-only PR), this skips with it.
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            ffi_artifact: ffi-linux-x86_64
-          - os: macos-latest
-            ffi_artifact: ffi-macos-arm64
-          - os: windows-latest
-            ffi_artifact: ffi-windows-msvc-x86_64
+      matrix: ${{ fromJSON(needs.setup.outputs.bindings_matrix) }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -844,6 +896,7 @@ jobs:
     timeout-minutes: 5
     needs:
       - changes
+      - setup
       - fmt
       - clippy
       - core-test
@@ -866,6 +919,7 @@ jobs:
       - bench
       - semver
       - surfaces
+      - docs-render-check
       - build-ffi
       - sdk-bindings
       - cpp-tests
