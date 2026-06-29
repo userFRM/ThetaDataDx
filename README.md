@@ -295,6 +295,10 @@ common `ThetaDataError` base.
 - [Documentation site](https://userfrm.github.io/ThetaDataDx/): getting started, API reference, streaming, server, and MCP
 - [Changelog](CHANGELOG.md)
 
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for where the project is headed. Up next: a [native Go SDK](https://github.com/userFRM/ThetaDataDx/issues/1019), a [self-updating server](https://github.com/userFRM/ThetaDataDx/issues/957), and [`npx`-installable MCP](https://github.com/userFRM/ThetaDataDx/issues/1020).
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and the
