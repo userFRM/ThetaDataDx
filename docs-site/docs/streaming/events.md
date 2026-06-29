@@ -121,7 +121,7 @@ Over the [server's WebSocket](/server/websocket), each event arrives as one JSON
 
 | Kind | Fields | Delivered for |
 |---|---|---|
-| `quote` | NBBO sides: `bid` / `ask` price, size, exchange, condition; `ms_of_day`, `date`, `received_at_ns` | [Quote streams](/streaming/stocks/quote) |
+| `quote` | Best bid and offer (BBO for stocks, NBBO for options): `bid` / `ask` price, size, exchange, condition; `ms_of_day`, `date`, `received_at_ns` | [Quote streams](/streaming/stocks/quote) |
 | `trade` | `price`, `size`, `exchange`, `condition` (+ extended conditions), `sequence`, flags, `ms_of_day`, `date`, `received_at_ns` | [Trade](/streaming/stocks/trade), [full-trade](/streaming/options/full-trade), and [index price](/streaming/indices/price) streams |
 | `open_interest` | `open_interest`, `ms_of_day`, `date`, `received_at_ns` | [Open-interest streams](/streaming/options/open-interest) |
 | `ohlcvc` | `open`, `high`, `low`, `close`, `volume`, `count`, `ms_of_day`, `date`, `received_at_ns` | Bars derived from any active trade subscription |
