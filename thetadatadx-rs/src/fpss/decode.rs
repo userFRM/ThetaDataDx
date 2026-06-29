@@ -835,7 +835,21 @@ pub fn decode_frame(
             // observed in the same session — e.g. a client-side
             // reconnect produces `Reconnected`, while a transparent
             // server-side reconnect produces `ReconnectedServer`.
+            //
+            // A server-side reconnect re-establishes the upstream session
+            // WITHOUT dropping the client's TCP socket, so the io_loop's own
+            // reconnect path (which clears delta state) never runs. The fresh
+            // server backend restarts its FIT delta stream — the first tick
+            // per contract is absolute again — and may re-announce contract
+            // IDs with different shapes. Decoding those fresh absolute rows
+            // against the pre-reconnect baseline accumulates deltas onto stale
+            // values and mangles every subsequent tick until a START/STOP/
+            // Restart clears it. Mirror the START/STOP/Restart arms: clear the
+            // delta decode state AND both contract caches so post-reconnect
+            // ticks decode as fresh baselines.
             tracing::debug!("FPSS server RECONNECTED frame received");
+            delta_state.clear();
+            local_contracts.clear();
             (
                 Some(FpssEventInternal::Control(StreamControl::ReconnectedServer)),
                 None,
@@ -1272,6 +1286,115 @@ mod tests {
             !delta_state.ohlcvc.contains_key(&42),
             "Restart must clear delta state so downstream deltas don't \
              decode against a stale baseline"
+        );
+    }
+
+    /// A server-side reconnect (code 13, `ReconnectedServer`) re-establishes
+    /// the upstream session without dropping the client's TCP socket, so the
+    /// io_loop's own reconnect clear never runs. The fresh backend restarts
+    /// its FIT delta stream: the first tick per contract is absolute again.
+    /// The `Reconnected` arm must clear the delta-decode state so that fresh
+    /// absolute row decodes as a clean baseline. Without the clear the row is
+    /// mistaken for a delta and accumulated onto the stale pre-reconnect
+    /// baseline, mangling the tick — the user-reported post-reconnect desync.
+    ///
+    /// Pins the value path (the emitted trade price), which is unambiguous:
+    /// with the clear the post-reconnect absolute price is exactly the fresh
+    /// row's price; without it the price is `fresh + stale` and the assertion
+    /// fails. This is the test that fails before the fix and passes after.
+    #[test]
+    fn server_reconnect_resets_delta_state_so_next_tick_is_fresh_baseline() {
+        let cid = 200;
+        // A full 16-field trade row for `cid`, price cell = 18_750_000.
+        let abs_row = |price: i32| {
+            encode_fit_row(&[
+                cid,        // contract_id
+                34_200_000, // ms_of_day
+                1,          // sequence
+                0, 0, 0, 0,     // ext1..ext4
+                0,     // condition
+                100,   // size
+                57,    // exchange
+                price, // price
+                0, 0, 0,          // cond_flags, price_flags, vol_type
+                0,          // records_back
+                8,          // price_type
+                20_250_428, // date
+            ])
+        };
+
+        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        local_contracts.insert(cid, Arc::new(Contract::stock("SPY")));
+        let authenticated = AtomicBool::new(true);
+        let shutdown = AtomicBool::new(false);
+        let mut delta_state = DeltaState::new();
+
+        let price_of = |evt: Option<FpssEventInternal>| -> f64 {
+            match expect_public(&evt.expect("trade must emit a primary event")) {
+                StreamEvent::Data(StreamData::Trade { price, .. }) => *price,
+                other => panic!("expected Data(Trade), got {other:?}"),
+            }
+        };
+
+        // 1) Seed an absolute baseline trade for `cid`.
+        let baseline_price = 18_750_000;
+        let (p0, _) = decode_frame(
+            StreamMsgType::Trade,
+            &abs_row(baseline_price),
+            &authenticated,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+            false,
+        );
+        let p0 = price_of(p0);
+
+        // 2) Server-side transparent reconnect: socket stays up, server
+        //    restarts its delta stream. This arm must clear delta state.
+        let (rc, _) = decode_frame(
+            StreamMsgType::Reconnected,
+            &[],
+            &authenticated,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+            false,
+        );
+        match expect_public(&rc.expect("Reconnected must emit a primary event")) {
+            StreamEvent::Control(StreamControl::ReconnectedServer) => {}
+            other => panic!("expected Control(ReconnectedServer), got {other:?}"),
+        }
+
+        // 3) Fresh absolute trade from the restarted stream, different price.
+        //    The contract cache was cleared too, so re-announce it (mirrors
+        //    the server re-sending CONTRACT after a restart).
+        local_contracts.insert(cid, Arc::new(Contract::stock("SPY")));
+        let fresh_price = 99_990_000;
+        let (p1, _) = decode_frame(
+            StreamMsgType::Trade,
+            &abs_row(fresh_price),
+            &authenticated,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+            false,
+        );
+        let p1 = price_of(p1);
+
+        let expected = Price::new(fresh_price, 8).to_f64();
+        assert!(
+            (p0 - Price::new(baseline_price, 8).to_f64()).abs() < f64::EPSILON,
+            "baseline trade must decode to its absolute price"
+        );
+        // The load-bearing assertion: post-reconnect the price is the FRESH
+        // absolute value, not `fresh + stale`. Without the `Reconnected` clear
+        // the row is treated as a delta and `price` decodes to
+        // `(fresh + baseline)` (a mangled tick) and this fails.
+        assert!(
+            (p1 - expected).abs() < f64::EPSILON,
+            "post server-reconnect trade must decode as a FRESH absolute \
+             baseline (expected price {expected}, got {p1}); a stale baseline \
+             would accumulate the fresh row as a delta and mangle the tick"
         );
     }
 
