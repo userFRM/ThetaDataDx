@@ -93,7 +93,7 @@ typed event classes:
 
 ```python
 import time
-from thetadatadx import Contract, Ohlcvc, Quote, Trade
+from thetadatadx import Contract, MarketValue, Quote, Trade
 
 def on_event(event):
     match event:
@@ -108,12 +108,10 @@ def on_event(event):
                 f"bid_size={bs} ask_size={asz} bid_exchange={bx} "
                 f"ask_exchange={ax} ms_of_day={ms}"
             )
-        # The full-trade stream sends a quote and an OHLC bar before each
-        # trade, so the same callback also receives Ohlcvc bars.
-        case Ohlcvc(open=o, high=h, low=lo, close=cl, volume=v, contract=c):
+        case MarketValue(market_bid=mb, market_ask=ma, market_price=mp, ms_of_day=ms, contract=c):
             print(
-                f"{c.symbol} {c.expiration} {c.strike:g} {c.right} bar "
-                f"o={o:.2f} h={h:.2f} l={lo:.2f} c={cl:.2f} volume={v}"
+                f"{c.symbol} {c.expiration} {c.strike:g} {c.right} market_value "
+                f"bid={mb:.2f} ask={ma:.2f} price={mp:.2f} ms_of_day={ms}"
             )
 
 spy_call = Contract.option("SPY", expiration="20260619", strike="550", right="C")
@@ -243,10 +241,24 @@ instead of buffering it. See [Request sizing](https://userfrm.github.io/ThetaDat
 One connection, one authentication. Historical queries work immediately; the
 streaming transport connects on the first subscription. Subscribe specific
 contracts with the fluent `Contract` API, or take a whole-market feed: every
-option trade across the universe, no per-contract setup:
+option trade across the universe, no per-contract setup. The full-trade feed
+sends a quote and an OHLC bar before each trade, so add an `Ohlcvc` case to the
+callback to handle the bars:
 
 ```python
-with client.streaming(on_event) as session:
+from thetadatadx import Ohlcvc
+
+def on_full_trade(event):
+    match event:
+        case Ohlcvc(open=o, high=h, low=lo, close=cl, volume=v, contract=c):
+            print(
+                f"{c.symbol} {c.expiration} {c.strike:g} {c.right} bar "
+                f"o={o:.2f} h={h:.2f} l={lo:.2f} c={cl:.2f} volume={v}"
+            )
+        case _:
+            on_event(event)   # reuse the quote/trade handling above
+
+with client.streaming(on_full_trade) as session:
     session.subscribe(SecType.OPTION.full_trades())
     time.sleep(60)   # the callback runs on the streaming thread; keep it fast
 ```
