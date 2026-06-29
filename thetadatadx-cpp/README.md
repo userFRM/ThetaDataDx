@@ -141,17 +141,6 @@ int main() {
                           << " ms_of_day=" << event.quote.ms_of_day
                           << '\n';
                 break;
-            // The full-trade stream sends a quote and an OHLC bar before each
-            // trade, so the same callback also receives OHLCVC bars.
-            case THETADATADX_STREAM_OHLCVC:
-                std::cout << event.ohlcvc.contract.symbol
-                          << " bar open=" << event.ohlcvc.open
-                          << " high=" << event.ohlcvc.high
-                          << " low=" << event.ohlcvc.low
-                          << " close=" << event.ohlcvc.close
-                          << " volume=" << event.ohlcvc.volume
-                          << '\n';
-                break;
             default:
                 break;
         }
@@ -170,9 +159,26 @@ int main() {
 }
 ```
 
-Every subscription is the same value, so quotes, trades, and open interest across contracts mix freely. Or take a whole-market feed — every option trade across the universe — with no per-contract setup:
+Every subscription is the same value, so quotes, trades, and open interest across contracts mix freely. Or take a whole-market feed — every option trade across the universe — with no per-contract setup. The full-trade feed sends a quote and an OHLC bar before each trade, so add an `OHLCVC` case to the callback to handle the bars:
 
 ```cpp
+streaming.set_callback([](const thetadatadx::StreamEvent& event) {
+    switch (event.kind) {
+        case THETADATADX_STREAM_OHLCVC:
+            std::cout << event.ohlcvc.contract.symbol
+                      << " bar open=" << event.ohlcvc.open
+                      << " high=" << event.ohlcvc.high
+                      << " low=" << event.ohlcvc.low
+                      << " close=" << event.ohlcvc.close
+                      << " volume=" << event.ohlcvc.volume
+                      << '\n';
+            break;
+        // ...plus the quote/trade cases from above.
+        default:
+            break;
+    }
+});
+
 streaming.subscribe(thetadatadx::SecType::option().full_trades());   // the callback runs per event — keep it fast
 ```
 
