@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.0.0-rc.7] - 2026-06-29
+
+### Added
+
+- **MCP server on npm:** the MCP server is now distributed as an npm package and runs with `npx -y thetadatadx-mcp`, the one-line config every MCP client expects, with no Rust toolchain required (#1023). `cargo install` stays for Rust users.
+
+### Documentation
+
+- The streaming reference is corrected: per-security-type market-value pages are added for stocks and options, the streamed-trade field set is narrowed to what the feed actually delivers (with the extended fields marked as extended-format-only), a WebSocket-frame note clarifies the payload subset carried on the wire, and an open-interest availability banner records that open interest has no streaming frame while remaining a valid SDK event (#1018).
+- The READMEs drop the removed client-side Greeks calculator; the option Greeks are served straight from the option endpoints (#1024).
+- The npx MCP config is surfaced in the README install block, and the public roadmap is published (#1025, #1021).
+
 ## [13.0.0-rc.6] - 2026-06-29
 
 ### Breaking changes

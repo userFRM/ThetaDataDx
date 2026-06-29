@@ -192,7 +192,7 @@ int main() {
 
 ```toml
 [dependencies]
-thetadatadx = "13.0.0-rc.6"
+thetadatadx = "13.0.0-rc.7"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
