@@ -7,7 +7,7 @@ description: "Open-interest updates for an option contract."
 
 # Option Open Interest
 
-::: danger NOT YET WIRED BY THETADATA
+::: danger NOT YET WIRED BY THETADATA SOFTWARE ENGINEERS
 
 Streaming open interest is not live on the upstream feed yet, so this subscription does not deliver ticks. For open interest today, use the [flat files](/articles/flat-files) (last 7 days) or the [historical open-interest endpoint](/reference/option/history/open-interest).
 

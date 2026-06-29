@@ -88,11 +88,32 @@ fn load_event_schema() -> Result<EventSchema, Box<dyn std::error::Error>> {
     Ok(toml::from_str(&raw)?)
 }
 
-fn render_event_table(schema: &EventSchema, event: &str) -> String {
+/// Renders the "Event fields" table. `only` restricts the rows to a
+/// field subset (the streaming payload for events whose schema also
+/// carries historical/REST-only columns, e.g. `Trade`); `None` renders
+/// the full schema. Returns `(markdown, rendered field names)` so the
+/// caller can compare the table against the WebSocket-frame subset.
+fn render_event_table(
+    schema: &EventSchema,
+    event: &str,
+    only: Option<&[&str]>,
+) -> (String, Vec<String>) {
     let def = schema
         .events
         .get(event)
         .unwrap_or_else(|| panic!("event {event} not found in fpss_event_schema.toml"));
+    let cols: Vec<&EventColumn> = match only {
+        Some(names) => names
+            .iter()
+            .map(|n| {
+                def.columns
+                    .iter()
+                    .find(|c| c.name == *n)
+                    .unwrap_or_else(|| panic!("field {n} not in {event} schema"))
+            })
+            .collect(),
+        None => def.columns.iter().collect(),
+    };
     let mut out = String::new();
     let _ = writeln!(out, "## Event fields\n");
     let _ = writeln!(
@@ -100,7 +121,7 @@ fn render_event_table(schema: &EventSchema, event: &str) -> String {
         "Each update arrives as a `{event}` event with these fields:\n"
     );
     out.push_str("| Field | Type | Description |\n|---|---|---|\n");
-    for col in &def.columns {
+    for col in &cols {
         let _ = writeln!(
             out,
             "| `{}` | {} | {} |",
@@ -114,7 +135,7 @@ fn render_event_table(schema: &EventSchema, event: &str) -> String {
          `expiration`, `right`, and the strike. See [Handling Events](/streaming/events) \
          for the full event catalogue and per-language field shapes.\n\n",
     );
-    out
+    (out, cols.iter().map(|c| c.name.clone()).collect())
 }
 
 // ───────────────────────── Stream-type matrix ───────────────────────────────
@@ -578,7 +599,7 @@ pub(super) fn render_stream_pages() -> Result<Vec<(String, String)>, Box<dyn std
         if let Some(body) = spec.warning {
             let _ = writeln!(
                 out,
-                "::: danger NOT YET WIRED BY THETADATA\n\n{body}\n\n:::\n"
+                "::: danger NOT YET WIRED BY THETADATA SOFTWARE ENGINEERS\n\n{body}\n\n:::\n"
             );
         }
         let _ = writeln!(out, "{}\n", spec.prose);
@@ -616,8 +637,18 @@ pub(super) fn render_stream_pages() -> Result<Vec<(String, String)>, Box<dyn std
             );
         }
 
-        out.push_str(&render_event_table(&schema, spec.event));
-        if let Some(fields) = ws_frame_fields(spec.event) {
+        // Trade streams deliver only the WebSocket-frame subset; the
+        // rest of the schema's columns are historical/REST-only, so the
+        // table renders that subset rather than over-documenting them.
+        let table_only = (spec.event == "Trade")
+            .then(|| ws_frame_fields("Trade").expect("Trade has a WebSocket frame"));
+        let (table, table_fields) = render_event_table(&schema, spec.event, table_only);
+        out.push_str(&table);
+        // The WebSocket-frame note only earns its place when the table
+        // lists more fields than the raw frame carries; when the table
+        // already is the frame subset (Trade) the note is redundant.
+        let ws_subset = ws_frame_fields(spec.event);
+        if let Some(fields) = ws_subset.filter(|ws| table_fields.len() > ws.len()) {
             let inline = fields
                 .iter()
                 .map(|f| format!("`{f}`"))

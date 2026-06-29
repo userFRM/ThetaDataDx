@@ -125,27 +125,13 @@ Each update arrives as a `Trade` event with these fields:
 
 | Field | Type | Description |
 |---|---|---|
-| `contract` | contract | Resolved contract identity (symbol, security type, and option fields). |
 | `ms_of_day` | i32 | Milliseconds since midnight Eastern Time. |
 | `sequence` | i32 | Exchange-assigned trade sequence number. |
-| `ext_condition1` | i32 | Additional trade condition code. |
-| `ext_condition2` | i32 | Additional trade condition code. |
-| `ext_condition3` | i32 | Additional trade condition code. |
-| `ext_condition4` | i32 | Additional trade condition code. |
-| `condition` | i32 | Trade condition code. |
 | `size` | i32 | Number of contracts or shares traded. |
-| `exchange` | i32 | Exchange code where the trade executed. |
+| `condition` | i32 | Trade condition code. |
 | `price` | f64 | Trade price. |
-| `condition_flags` | i32 | Trade condition flags bitmap. |
-| `price_flags` | i32 | Trade price flags bitmap. |
-| `volume_type` | i32 | Volume reporting mode: 0 = incremental, 1 = cumulative. |
-| `records_back` | i32 | Offset of this record behind the most recent record. |
+| `exchange` | i32 | Exchange code where the trade executed. |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
-| `received_at_ns` | u64 | Local receive timestamp, nanoseconds since the Unix epoch. |
 
 The `contract` field carries `symbol`, the security type, and — for options — `expiration`, `right`, and the strike. See [Handling Events](/streaming/events) for the full event catalogue and per-language field shapes.
-
-## WebSocket frame
-
-The native SDK callbacks (Rust/Python/TypeScript/C++) receive every field above. Each raw WebSocket frame (the **Server** tab) is `{ "header": {…}, "contract": {…}, "trade": {…} }`: `header` and `contract` are always present, while the `trade` payload object carries only the terminal-compatible subset: `ms_of_day`, `sequence`, `size`, `condition`, `price`, `exchange`, `date`. The remaining event fields are delivered to the SDK callbacks, not the `trade` payload object.
 
