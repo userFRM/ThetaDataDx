@@ -1,0 +1,165 @@
+name: Changed paths
+
+# Reusable path-relevance filter shared by every lane (ci / python /
+# typescript / perf-gate). Each lane used to carry its own identical
+# `dorny/paths-filter` block; they drifted independently. The filter
+# definition now lives here once and every lane calls it via
+# `uses: ./.github/workflows/paths.yml`, so a path-set change lands in
+# one place. Outputs keep the exact names the callers already read
+# (`needs.changes.outputs.rust` etc.), so consumers are unchanged.
+on:
+  workflow_call:
+    outputs:
+      rust:
+        description: Core/FFI/SDK Rust sources or any cargo manifest changed.
+        value: ${{ jobs.filter.outputs.rust }}
+      ffi:
+        description: Rust/FFI/C++ sources changed (FFI build relevance).
+        value: ${{ jobs.filter.outputs.ffi }}
+      semver:
+        description: Public Rust API surface (core/FFI) changed.
+        value: ${{ jobs.filter.outputs.semver }}
+      python:
+        description: Python SDK, FFI, or core sources changed.
+        value: ${{ jobs.filter.outputs.python }}
+      typescript:
+        description: TypeScript SDK, FFI, or core sources changed.
+        value: ${{ jobs.filter.outputs.typescript }}
+      perf:
+        description: Core/FFI sources relevant to the allocation perf gate changed.
+        value: ${{ jobs.filter.outputs.perf }}
+      docs_render_only:
+        description: >-
+          Every changed file is a markdown-emitting doc generator
+          (build_support_bin/endpoints/docs_render/**) or the checked-in
+          doc-site output tree (docs-site/**). True only when the PR
+          touches nothing that can change the compiled library or any SDK
+          binding surface, so the cross-platform matrix is safe to skip
+          while the doc drift/correctness checks still run.
+        value: ${{ jobs.filter.outputs.docs_render_only }}
+
+permissions:
+  contents: read
+
+jobs:
+  filter:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # paths-filter calls the GitHub REST API on pull_request events to
+    # diff the head against the base, which needs pull-requests: read.
+    # contents: read is restated so the workflow-level grant is not
+    # dropped when the job declares its own permission block.
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      ffi: ${{ steps.filter.outputs.ffi }}
+      semver: ${{ steps.filter.outputs.semver }}
+      python: ${{ steps.filter.outputs.python }}
+      typescript: ${{ steps.filter.outputs.typescript }}
+      perf: ${{ steps.filter.outputs.perf }}
+      # docs-render-only is derived by comparing the count of changed
+      # files under the markdown-doc paths against the total changed-file
+      # count. Equal (and non-zero) means nothing outside the doc lane
+      # changed. `dorny/paths-filter` cannot subtract a subpath from a
+      # broad glob in its default `some` mode (a `!` pattern is OR'd, not
+      # negated), so a count comparison is the robust signal. It fails
+      # safe: any file outside the doc set makes the counts differ and the
+      # full matrix runs.
+      docs_render_only: ${{ steps.docs_render_only.outputs.value }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            # The Rust core, FFI, every cargo manifest the workspace and
+            # the SDK crates pull in, plus the scripts the heavy Rust jobs
+            # drive. A docs-only or config-only PR matches none of these
+            # and skips the compile-heavy lane.
+            rust:
+              - 'thetadatadx-rs/**'
+              - 'thetadatadx-ffi/**'
+              - 'tools/**'
+              - 'thetadatadx-py/**'
+              - 'thetadatadx-ts/**'
+              - 'thetadatadx-cpp/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'scripts/ci/**'
+              - 'scripts/dev/**'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/paths.yml'
+              - '.github/actions/**'
+            ffi:
+              - 'thetadatadx-rs/**'
+              - 'thetadatadx-ffi/**'
+              - 'thetadatadx-cpp/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/paths.yml'
+              - '.github/actions/**'
+            semver:
+              - 'thetadatadx-rs/**'
+              - 'thetadatadx-ffi/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/paths.yml'
+            python:
+              - 'thetadatadx-py/**'
+              - 'thetadatadx-ffi/**'
+              - 'thetadatadx-rs/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/workflows/python.yml'
+              - '.github/workflows/paths.yml'
+              - '.github/actions/**'
+            typescript:
+              - 'thetadatadx-ts/**'
+              - 'thetadatadx-ffi/**'
+              - 'thetadatadx-rs/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/workflows/typescript.yml'
+              - '.github/workflows/paths.yml'
+              - '.github/actions/**'
+            perf:
+              - 'thetadatadx-rs/**'
+              - 'thetadatadx-ffi/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'scripts/ci/check_perf_gate.py'
+              - '.github/workflows/perf-gate.yml'
+              - '.github/workflows/paths.yml'
+              - '.github/actions/**'
+            # The markdown-emitting doc generator and the checked-in
+            # doc-site output tree. ONLY these: the code-emitting
+            # generators (sdk_surface / sdk_render / fpss_events / ticks)
+            # change the compiled SDK binding surface and are deliberately
+            # excluded so they still fire the full matrix.
+            docs_render:
+              - 'thetadatadx-rs/build_support_bin/endpoints/docs_render/**'
+              - 'thetadatadx-rs/src/bin/generate_docs_site.rs'
+              - 'docs-site/**'
+            # Total changed-file count, for the docs-render-only derivation.
+            all:
+              - '**'
+      - name: Derive docs-render-only
+        id: docs_render_only
+        shell: bash
+        env:
+          DOCS_RENDER_COUNT: ${{ steps.filter.outputs.docs_render_count }}
+          ALL_COUNT: ${{ steps.filter.outputs.all_count }}
+        run: |
+          set -euo pipefail
+          # docs-render-only iff every changed file matched the docs_render
+          # filter (equal counts) and at least one file changed.
+          if [ "${ALL_COUNT}" -gt 0 ] && [ "${DOCS_RENDER_COUNT}" = "${ALL_COUNT}" ]; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+          fi

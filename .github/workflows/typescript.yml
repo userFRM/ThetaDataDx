@@ -30,35 +30,44 @@ env:
 jobs:
   changes:
     name: Detect changed paths
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    # paths-filter calls the GitHub REST API on pull_request events to
-    # diff the head against the base, which needs pull-requests: read.
-    # contents: read is restated so the workflow-level grant is not
-    # dropped when the job declares its own permission block.
     permissions:
       contents: read
       pull-requests: read
+    uses: ./.github/workflows/paths.yml
+
+  # Matrix planner. On a PR the native-addon build is the linux-gnu
+  # target only; the macOS/Windows addons are proven post-merge on main,
+  # on the nightly schedule, on tags, and in the merge queue. The
+  # gate/manifest/test steps already gate on the ubuntu leg, so a PR
+  # still runs them.
+  setup:
+    name: Plan matrix
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
-      typescript: ${{ steps.filter.outputs.typescript }}
+      build_matrix: ${{ steps.plan.outputs.build_matrix }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: dorny/paths-filter@v4
-        id: filter
-        with:
-          filters: |
-            typescript:
-              - 'thetadatadx-ts/**'
-              - 'thetadatadx-ffi/**'
-              - 'thetadatadx-rs/**'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - '.github/workflows/typescript.yml'
-              - '.github/actions/**'
+      - name: Choose matrix breadth
+        id: plan
+        shell: bash
+        env:
+          IS_PR: ${{ github.event_name == 'pull_request' }}
+        run: |
+          set -euo pipefail
+          linux='{"os":"ubuntu-latest","target":"x86_64-unknown-linux-gnu"}'
+          if [ "${IS_PR}" = "true" ]; then
+            build="[${linux}]"
+          else
+            macos='{"os":"macos-latest","target":"aarch64-apple-darwin"}'
+            windows='{"os":"windows-latest","target":"x86_64-pc-windows-msvc"}'
+            build="[${linux},${macos},${windows}]"
+          fi
+          echo "build_matrix={\"include\":${build}}" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build (${{ matrix.target }})
-    needs: changes
+    needs: [changes, setup]
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.draft == false &&
@@ -67,14 +76,7 @@ jobs:
     timeout-minutes: 45
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-          - os: macos-latest
-            target: aarch64-apple-darwin
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
+      matrix: ${{ fromJSON(needs.setup.outputs.build_matrix) }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -261,6 +263,7 @@ jobs:
     timeout-minutes: 5
     needs:
       - changes
+      - setup
       - build
       - publish
     steps:
