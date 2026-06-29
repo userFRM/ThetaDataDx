@@ -89,12 +89,18 @@ jobs:
   build:
     name: Build wheel (${{ matrix.label }})
     needs: [changes, setup]
+    # full-ci and force_full each force the heavy lane on their own: a
+    # full-ci PR runs even when the diff is docs-render-only, and a rename
+    # that moved real source into the doc tree runs even though the
+    # rename-blind dorny `python` flag is false. Absent both, the original
+    # selective behavior holds.
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.draft == false &&
-       needs.changes.outputs.docs_render_only != 'true' &&
-       (needs.changes.outputs.python == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+       (contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+        needs.changes.outputs.force_full == 'true' ||
+        (needs.changes.outputs.docs_render_only != 'true' &&
+         needs.changes.outputs.python == 'true')))
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
@@ -382,12 +388,15 @@ jobs:
   sdist:
     name: Build source distribution
     needs: changes
+    # full-ci and force_full each force the heavy lane on their own (see
+    # the build note); otherwise the original selective behavior.
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.draft == false &&
-       needs.changes.outputs.docs_render_only != 'true' &&
-       (needs.changes.outputs.python == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+       (contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+        needs.changes.outputs.force_full == 'true' ||
+        (needs.changes.outputs.docs_render_only != 'true' &&
+         needs.changes.outputs.python == 'true')))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

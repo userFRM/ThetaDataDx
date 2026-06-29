@@ -351,12 +351,20 @@ jobs:
   lint-matrix:
     name: Lint (${{ matrix.os }}, ${{ matrix.toolchain }})
     needs: [changes, setup]
+    # The `full-ci` label and the source-touching-rename safety net
+    # (`force_full`) each force the heavy lane on their own, so both sit
+    # OUTSIDE the docs fast-path clause: a `full-ci` PR runs even when the
+    # diff is docs-render-only, and a rename that moved real source into
+    # the doc tree runs even though the rename-blind dorny flag is false.
+    # Absent both, the original selective behavior holds — skip when the
+    # diff is docs-render-only or the per-language flag is false.
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.draft == false &&
-       needs.changes.outputs.docs_render_only != 'true' &&
-       (needs.changes.outputs.rust == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+       (contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+        needs.changes.outputs.force_full == 'true' ||
+        (needs.changes.outputs.docs_render_only != 'true' &&
+         needs.changes.outputs.rust == 'true')))
     strategy:
       fail-fast: false
       # The Linux stable clippy pass is the fast-lane `clippy` job; this
@@ -382,12 +390,15 @@ jobs:
   test:
     name: Test
     needs: changes
+    # full-ci and force_full each force the heavy lane on their own (see
+    # the lint-matrix note); otherwise the original selective behavior.
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.draft == false &&
-       needs.changes.outputs.docs_render_only != 'true' &&
-       (needs.changes.outputs.rust == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+       (contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+        needs.changes.outputs.force_full == 'true' ||
+        (needs.changes.outputs.docs_render_only != 'true' &&
+         needs.changes.outputs.rust == 'true')))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -423,12 +434,15 @@ jobs:
   feature-tests:
     name: Feature-gated tests (columnar + panic boundary)
     needs: changes
+    # full-ci and force_full each force the heavy lane on their own (see
+    # the lint-matrix note); otherwise the original selective behavior.
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.draft == false &&
-       needs.changes.outputs.docs_render_only != 'true' &&
-       (needs.changes.outputs.rust == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+       (contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+        needs.changes.outputs.force_full == 'true' ||
+        (needs.changes.outputs.docs_render_only != 'true' &&
+         needs.changes.outputs.rust == 'true')))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -451,12 +465,15 @@ jobs:
   rustdoc:
     name: Rustdoc — Gate 13 catches broken intra-doc links
     needs: changes
+    # full-ci and force_full each force the heavy lane on their own (see
+    # the lint-matrix note); otherwise the original selective behavior.
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.draft == false &&
-       needs.changes.outputs.docs_render_only != 'true' &&
-       (needs.changes.outputs.rust == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+       (contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+        needs.changes.outputs.force_full == 'true' ||
+        (needs.changes.outputs.docs_render_only != 'true' &&
+         needs.changes.outputs.rust == 'true')))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -543,15 +560,19 @@ jobs:
     # rebased directly onto main); on a PR it runs only when the crate or
     # FFI sources changed or the `full-ci` label is set, and never on a
     # draft.
+    # full-ci and force_full each force the PR heavy lane on their own (see
+    # the lint-matrix note); otherwise the original selective behavior. The
+    # non-PR branch (main / tag / schedule / merge_group) is unchanged.
     if: >-
       (github.event_name != 'pull_request' &&
        (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') ||
         github.event_name == 'schedule' || github.event_name == 'merge_group')) ||
       (github.event_name == 'pull_request' &&
        github.event.pull_request.draft == false &&
-       needs.changes.outputs.docs_render_only != 'true' &&
-       (needs.changes.outputs.semver == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+       (contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+        needs.changes.outputs.force_full == 'true' ||
+        (needs.changes.outputs.docs_render_only != 'true' &&
+         needs.changes.outputs.semver == 'true')))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -575,12 +596,15 @@ jobs:
   surfaces:
     name: Extended Surfaces
     needs: changes
+    # full-ci and force_full each force the heavy lane on their own (see
+    # the lint-matrix note); otherwise the original selective behavior.
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.draft == false &&
-       needs.changes.outputs.docs_render_only != 'true' &&
-       (needs.changes.outputs.rust == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+       (contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+        needs.changes.outputs.force_full == 'true' ||
+        (needs.changes.outputs.docs_render_only != 'true' &&
+         needs.changes.outputs.rust == 'true')))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -662,12 +686,15 @@ jobs:
   build-ffi:
     name: Build FFI (${{ matrix.os }})
     needs: [changes, setup]
+    # full-ci and force_full each force the heavy lane on their own (see
+    # the lint-matrix note); otherwise the original selective behavior.
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.draft == false &&
-       needs.changes.outputs.docs_render_only != 'true' &&
-       (needs.changes.outputs.ffi == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+       (contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+        needs.changes.outputs.force_full == 'true' ||
+        (needs.changes.outputs.docs_render_only != 'true' &&
+         needs.changes.outputs.ffi == 'true')))
     # A PR builds the Linux target only; the macOS/Windows targets are
     # proven post-merge on main, on the nightly schedule, on tags, and in
     # the merge queue. The OS set is chosen by the `setup` planner.

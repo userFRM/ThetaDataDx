@@ -37,6 +37,18 @@ on:
           binding surface, so the cross-platform matrix is safe to skip
           while the doc drift/correctness checks still run.
         value: ${{ jobs.filter.outputs.docs_render_only }}
+      force_full:
+        description: >-
+          A rename or copy moved a path that is NOT in the doc set into or
+          out of it. The PR changed-files API and dorny/paths-filter see a
+          rename by its destination only, so a real source file renamed
+          INTO docs-site/** reads as docs-only there and the per-language
+          flags stay false. This output is the safety net: it is true when
+          any rename/copy row has an outside-the-doc-set path on either
+          side, which forces the full heavy matrix regardless of the
+          rename-blind per-language flags. A docs-internal rename (both
+          sides in the set) leaves it false, so the fast path is kept.
+        value: ${{ jobs.filter.outputs.force_full }}
 
 permissions:
   contents: read
@@ -70,6 +82,16 @@ jobs:
       # the doc set. Any path outside it (including a rename's old path)
       # makes the value false and the full matrix runs. Fails safe.
       docs_render_only: ${{ steps.docs_render_only.outputs.value }}
+      # force_full closes the same rename hole on the per-language side.
+      # The dorny flags above (rust/python/typescript/perf) see only a
+      # rename's destination, so a real source file renamed INTO the doc
+      # tree reads as docs-only there: every per-language flag is false
+      # AND docs_render_only is false (its old path is outside the set),
+      # and the heavy lanes — gated on the dorny flags — would skip,
+      # dropping coverage. This output forces the full matrix when any
+      # rename/copy touches a non-doc path. Derived from the same
+      # name-status pass.
+      force_full: ${{ steps.docs_render_only.outputs.force_full }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -164,19 +186,27 @@ jobs:
           set -euo pipefail
           if [ "${EVENT_NAME}" != "pull_request" ]; then
             echo "value=false" >> "$GITHUB_OUTPUT"
+            echo "force_full=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           merge_base=$(git merge-base "${BASE_SHA}" HEAD)
           docs_only=true
           had_change=false
+          # force_full is the per-language rename safety net (see the
+          # job-output comment): true when any rename/copy row carries a
+          # non-doc path on either side, which the rename-blind dorny flags
+          # cannot see. A docs-internal rename (both sides in the set)
+          # leaves it false.
+          force_full=false
           # Read tab-separated name-status rows. Field 1 is the status; for
           # a rename/copy the source path is field 2 and the dest is field
           # 3, otherwise the single path is field 2.
           while IFS=$'\t' read -r status p1 p2; do
             [ -z "${status}" ] && continue
             had_change=true
+            is_move=false
             case "${status}" in
-              R*|C*) paths="${p1} ${p2}" ;;
+              R*|C*) paths="${p1} ${p2}"; is_move=true ;;
               *)     paths="${p1}" ;;
             esac
             for path in ${paths}; do
@@ -184,7 +214,10 @@ jobs:
                 thetadatadx-rs/build_support_bin/endpoints/docs_render/*) ;;
                 thetadatadx-rs/src/bin/generate_docs_site.rs) ;;
                 docs-site/*) ;;
-                *) docs_only=false ;;
+                # A non-doc path: never docs-only, and if it rode in on a
+                # rename/copy the dorny flags missed its other side, so
+                # force the full matrix.
+                *) docs_only=false; [ "${is_move}" = true ] && force_full=true ;;
               esac
             done
           done < <(git diff --name-status "${merge_base}" HEAD)
@@ -193,3 +226,4 @@ jobs:
           else
             echo "value=false" >> "$GITHUB_OUTPUT"
           fi
+          echo "force_full=${force_full}" >> "$GITHUB_OUTPUT"
