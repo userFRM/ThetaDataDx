@@ -72,12 +72,13 @@ jobs:
       python: ${{ steps.filter.outputs.python }}
       typescript: ${{ steps.filter.outputs.typescript }}
       perf: ${{ steps.filter.outputs.perf }}
-      # docs-render-only is derived from `git diff --name-status` against
-      # the merge base, NOT from `dorny/paths-filter`. The PR changed-files
-      # API surfaces a rename by its destination path only, so a rename of
-      # real source INTO the doc tree would read as docs-only under a path
-      # filter and wrongly skip the matrix. The name-status diff exposes
-      # both sides of every rename (`R<score>\told\tnew`), and the value is
+      # docs-render-only is derived from `git diff --name-status -M -C`
+      # against the merge base, NOT from `dorny/paths-filter`. The PR
+      # changed-files API surfaces a rename by its destination path only, so
+      # a rename of real source INTO the doc tree would read as docs-only
+      # under a path filter and wrongly skip the matrix. With rename/copy
+      # detection on, the name-status diff exposes both sides of every
+      # rename (an `R<score>` record carrying old and new), and the value is
       # true only when EVERY path — old and new side of any rename — is in
       # the doc set. Any path outside it (including a rename's old path)
       # makes the value false and the full matrix runs. Fails safe.
@@ -165,17 +166,20 @@ jobs:
               - '.github/actions/**'
       # Rename-safe docs-render-only derivation. Only meaningful on a PR
       # (every other event runs the full matrix regardless), so it emits
-      # false for non-PR events without touching git. `--name-status`
-      # against the merge base lists one row per change: `A`/`M`/`D` carry
-      # a single path, `R<score>` and `C<score>` carry an old AND a new
-      # path (tab-separated). Every path on every row — both sides of a
-      # rename or copy — must fall inside the doc set
+      # false for non-PR events without touching git. `--name-status -M -C`
+      # against the merge base lists one record per change with rename and
+      # copy detection on, so a source-into-docs move surfaces as an
+      # `R<score>` record (old + new path) instead of the rename-blind D+A
+      # pair; `A`/`M`/`D` carry a single path. Every path on every record —
+      # both sides of a rename or copy — must fall inside the doc set
       # (build_support_bin/endpoints/docs_render, generate_docs_site.rs,
       # docs-site). The code-emitting generators (sdk_surface / sdk_render
       # / fpss_events / ticks) are deliberately NOT in the set: they change
       # the compiled SDK binding surface and must still fire the full
       # matrix. A rename of any real source INTO docs-site keeps its old
       # path outside the set, so the value is false and the matrix runs.
+      # `-z` emits NUL-terminated fields so paths with spaces or shell
+      # metacharacters are parsed by their literal bytes.
       - name: Derive docs-render-only
         id: docs_render_only
         shell: bash
@@ -198,29 +202,43 @@ jobs:
           # cannot see. A docs-internal rename (both sides in the set)
           # leaves it false.
           force_full=false
-          # Read tab-separated name-status rows. Field 1 is the status; for
-          # a rename/copy the source path is field 2 and the dest is field
-          # 3, otherwise the single path is field 2.
-          while IFS=$'\t' read -r status p1 p2; do
-            [ -z "${status}" ] && continue
+          # Classify one path. A non-doc path clears docs_only, and when it
+          # rode in on a rename/copy (is_move) forces the full matrix. Always
+          # invoked quoted so a path with a space or glob metacharacter
+          # matches by its literal value; never word-split or glob-expanded.
+          # The case arms must leave $? = 0 so the call is set -e safe.
+          classify() {
+            case "$1" in
+              thetadatadx-rs/build_support_bin/endpoints/docs_render/*) ;;
+              thetadatadx-rs/src/bin/generate_docs_site.rs) ;;
+              docs-site/*) ;;
+              *)
+                docs_only=false
+                if [ "${is_move}" = true ]; then force_full=true; fi
+                ;;
+            esac
+          }
+          # -M -C makes git report a source-into-docs move as one R* row with
+          # the old path on its old side, not as separate D+A rows that hide
+          # the move from the force_full logic. -z makes every field its own
+          # NUL-terminated record: a normal change is status + path, a
+          # rename/copy is status + old + new. read returns non-zero when the
+          # NUL it consumes is the record's final byte (no data follows), but
+          # the field is already set, so swallow that status to stay set -e
+          # safe; the outer read's non-zero at true EOF ends the loop.
+          while IFS= read -r -d '' status; do
             had_change=true
             is_move=false
             case "${status}" in
-              R*|C*) paths="${p1} ${p2}"; is_move=true ;;
-              *)     paths="${p1}" ;;
+              R*|C*) is_move=true ;;
             esac
-            for path in ${paths}; do
-              case "${path}" in
-                thetadatadx-rs/build_support_bin/endpoints/docs_render/*) ;;
-                thetadatadx-rs/src/bin/generate_docs_site.rs) ;;
-                docs-site/*) ;;
-                # A non-doc path: never docs-only, and if it rode in on a
-                # rename/copy the dorny flags missed its other side, so
-                # force the full matrix.
-                *) docs_only=false; [ "${is_move}" = true ] && force_full=true ;;
-              esac
-            done
-          done < <(git diff --name-status "${merge_base}" HEAD)
+            IFS= read -r -d '' p1 || :
+            classify "${p1}"
+            if [ "${is_move}" = true ]; then
+              IFS= read -r -d '' p2 || :
+              classify "${p2}"
+            fi
+          done < <(git diff --name-status -M -C -z "${merge_base}" HEAD)
           if [ "${had_change}" = true ] && [ "${docs_only}" = true ]; then
             echo "value=true" >> "$GITHUB_OUTPUT"
           else
