@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.0.0-rc.6] - 2026-06-29
+
+### Breaking changes
+
+- **Server:** the bundled HTTP server now speaks the v3 REST and WebSocket contract (#959). REST responses drop the older `{header, response}` envelope for the v3 `{response}` body, fold the separate date and ms-of-day columns into one ISO local-datetime per endpoint, spell the option right as `CALL` / `PUT`, group option rows under their `{expiration, strike, right}` contract, default an absent `format` to CSV with CRLF framing and the v3 column order, and return errors as a plain-text status. The WebSocket surface emits and parses the v3 stream shape. The server also now binds `0.0.0.0` by default.
+- **CLI tool removed:** the bundled `thetadatadx` command-line binary is removed (#1011). The SDKs and the bundled HTTP server are unaffected.
+- **Client-side Greeks calculator removed:** the SDK's local Black-Scholes Greeks calculator is removed across every binding (#1016): Rust `all_greeks` / `implied_volatility` and the per-Greek primitives, the TypeScript `allGreeks` / `impliedVolatility`, and the FFI, C++, and MCP equivalents. ThetaData's own served Greeks are unchanged and still available: the eod, trade, and snapshot greeks endpoints and their tick types are untouched. Only the client-computed calculator is gone. The option-right parser moves out of the greeks namespace to `thetadatadx::right`.
+
+### Removed
+
+- The client-side Black-Scholes Greeks calculator (#1016) and the bundled CLI tool (#1011), both listed under Breaking changes above.
+- A number of unused public API items with no callers, across the core and the FFI surface (#964, #965, #971, #975, #994).
+
+### Fixed
+
+- **C++:** an async historical-view use-after-free is fixed (#997, #1001, #1002). Async historical methods are ref-qualified so a call on a dangling temporary view is a compile error, the underlying handle is shared into the async future rather than captured by reference, and the streaming callback state is co-owned by the view so a future can no longer outlive the state it reads.
+- **Streaming teardown:** two teardown deadlocks are fixed. Shutting down, freeing, or reconnecting a standalone streaming client no longer hangs when the user callback, draining events, re-enters a status read on the same client; teardown now releases the lock that read needs before waiting for the drain (#979, #980).
+- **TypeScript:** numeric inputs are validated at the boundary (#998, #999, #1000). The config knobs, the drain timeouts, and the worker, CPU, and iteration setters reject a non-finite, negative, fractional, or out-of-range value as `InvalidParameterError` instead of silently coercing it; the Arrow reconstruct path rejects a bigint that would not narrow losslessly into an i64 column; and the streaming dispatcher publishes a failed state when its event loop dies, so `isStreaming()` and `isAuthenticated()` report the dead loop even if teardown is never called.
+- **Server:** the WebSocket subscribe and contract envelope carry the option strike in dollars, not thousandths, matching the unit the SDK, REST, and docs already use (#981).
+- **Server:** a malformed flat-file path segment now returns the canonical JSON error envelope its sibling routes return, rather than a default plain-text rejection (#988).
+
+### Documentation
+
+- The expiration and right chain wildcards are documented from the endpoint capability set (#960, #963).
+- The streaming guide uses the synchronous pull (`next_blocking`) for its blocking example (#995).
+- The documentation site landing page is redesigned around the SDK surfaces and the developer experience (#1015).
+
+### Security
+
+- A routine dependency refresh across the Rust and npm trees (#996), with zero advisories outstanding. This is maintenance, not a fix for any reported vulnerability.
+
 ## [13.0.0-rc.5] - 2026-06-24
 
 ### Breaking changes
