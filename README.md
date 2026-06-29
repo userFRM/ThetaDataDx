@@ -297,7 +297,7 @@ common `ThetaDataError` base.
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for where the project is headed. Up next: a [native Go SDK](https://github.com/userFRM/ThetaDataDx/issues/1019) and [`npx`-installable MCP](https://github.com/userFRM/ThetaDataDx/issues/1020).
+See [ROADMAP.md](ROADMAP.md) for where the project is headed. Up next: a [native Go SDK](https://github.com/userFRM/ThetaDataDx/issues/1019), a [self-updating server](https://github.com/userFRM/ThetaDataDx/issues/957), and [`npx`-installable MCP](https://github.com/userFRM/ThetaDataDx/issues/1020).
 
 ## Contributing
 
