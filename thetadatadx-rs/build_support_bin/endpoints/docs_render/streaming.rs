@@ -359,6 +359,8 @@ fn rust_tab(spec: &StreamSpec) -> String {
     let needs_sectype = spec.rust_sub.starts_with("SecType");
     let imports = if needs_sectype {
         "use thetadatadx::streaming::SecTypeExt;\nuse thetadatadx::streaming::{StreamData, StreamEvent};\nuse thetadatadx::SecType;"
+    } else if spec.rust_sub.contains("OptionLeg") {
+        "use thetadatadx::streaming::{Contract, OptionLeg};\nuse thetadatadx::streaming::{StreamData, StreamEvent};"
     } else {
         "use thetadatadx::streaming::Contract;\nuse thetadatadx::streaming::{StreamData, StreamEvent};"
     };
@@ -621,11 +623,23 @@ pub(super) fn render_stream_pages() -> Result<Vec<(String, String)>, Box<dyn std
                 .map(|f| format!("`{f}`"))
                 .collect::<Vec<_>>()
                 .join(", ");
+            // Payload-object key = the frame's lowercased event type, the
+            // same `event_type.to_ascii_lowercase()` the server uses in
+            // `tools/server/src/ws/format.rs`. Keyed on the event, not the
+            // subscription's `ws_req_type` (a FULL_TRADES subscription still
+            // delivers `Trade` frames keyed `trade`).
+            let payload = match spec.event {
+                "Quote" => "quote",
+                "Trade" => "trade",
+                "MarketValue" => "market_value",
+                other => panic!("no WebSocket payload key for event {other}"),
+            };
             let _ = write!(
                 out,
                 "## WebSocket frame\n\nThe native SDK callbacks (Rust/Python/TypeScript/C++) receive every field above. \
-                 The raw WebSocket frame (the **Server** tab) carries only the terminal-compatible subset: {inline}. \
-                 The remaining fields are delivered to the SDK callbacks, not the WebSocket frame.\n\n",
+                 Each raw WebSocket frame (the **Server** tab) is `{{ \"header\": {{…}}, \"contract\": {{…}}, \"{payload}\": {{…}} }}`: \
+                 `header` and `contract` are always present, while the `{payload}` payload object carries only the terminal-compatible subset: {inline}. \
+                 The remaining event fields are delivered to the SDK callbacks, not the `{payload}` payload object.\n\n",
             );
         }
         pages.push((spec.path.to_string(), out));

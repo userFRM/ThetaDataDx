@@ -22,7 +22,7 @@ The snippets below assume a connected client with streaming started — see [Get
 <template #rust>
 
 ```rust
-use thetadatadx::streaming::Contract;
+use thetadatadx::streaming::{Contract, OptionLeg};
 use thetadatadx::streaming::{StreamData, StreamEvent};
 
 client.stream().start_streaming(|event: &StreamEvent| {

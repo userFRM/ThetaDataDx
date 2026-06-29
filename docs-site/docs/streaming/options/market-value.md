@@ -16,7 +16,7 @@ The snippets below assume a connected client with streaming started — see [Get
 <template #rust>
 
 ```rust
-use thetadatadx::streaming::Contract;
+use thetadatadx::streaming::{Contract, OptionLeg};
 use thetadatadx::streaming::{StreamData, StreamEvent};
 
 client.stream().start_streaming(|event: &StreamEvent| {
@@ -133,5 +133,5 @@ The `contract` field carries `symbol`, the security type, and — for options �
 
 ## WebSocket frame
 
-The native SDK callbacks (Rust/Python/TypeScript/C++) receive every field above. The raw WebSocket frame (the **Server** tab) carries only the terminal-compatible subset: `ms_of_day`, `market_bid`, `market_ask`, `market_price`, `date`. The remaining fields are delivered to the SDK callbacks, not the WebSocket frame.
+The native SDK callbacks (Rust/Python/TypeScript/C++) receive every field above. Each raw WebSocket frame (the **Server** tab) is `{ "header": {…}, "contract": {…}, "market_value": {…} }`: `header` and `contract` are always present, while the `market_value` payload object carries only the terminal-compatible subset: `ms_of_day`, `market_bid`, `market_ask`, `market_price`, `date`. The remaining event fields are delivered to the SDK callbacks, not the `market_value` payload object.
 
