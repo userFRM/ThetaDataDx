@@ -65,7 +65,7 @@ type ActiveSubs = Arc<Mutex<Vec<(super::protocol::SubscriptionKind, Contract)>>>
 /// echoes the uncorrelated `-1` sentinel a matching `remove` can never key on,
 /// would otherwise leave its entry resident for the life of a session that
 /// never reconnects. Stale entries are swept on insert (see
-/// [`PENDING_SUB_TTL`] and [`PENDING_SUB_CAP`]).
+/// [`PENDING_SUB_TTL`]).
 type PendingSubs = Arc<Mutex<HashMap<i32, PendingSubEntry>>>;
 
 /// A pending subscribe correlation plus the instant it was recorded.
@@ -84,41 +84,14 @@ pub(in crate::fpss) struct PendingSubEntry {
 /// can never be matched, so retaining it only grows the map.
 const PENDING_SUB_TTL: std::time::Duration = std::time::Duration::from_secs(300);
 
-/// Hard ceiling on resident pending correlations. A burst of subscribes whose
-/// responses are all suppressed could otherwise outrun the TTL sweep within a
-/// single window; past this many entries the oldest are dropped so the map can
-/// never grow without bound.
-const PENDING_SUB_CAP: usize = 4096;
-
 /// Drop pending correlations that can no longer be matched.
 ///
-/// Sweeps entries older than [`PENDING_SUB_TTL`], then, if the map still
-/// exceeds [`PENDING_SUB_CAP`], drops the oldest entries down to the cap. The
-/// caller holds the `pending_subs` lock; the sweep touches only in-memory map
-/// state and performs no I/O, so the lock is never held across a syscall.
+/// Sweeps entries older than [`PENDING_SUB_TTL`]. The caller holds the
+/// `pending_subs` lock; the sweep touches only in-memory map state and
+/// performs no I/O, so the lock is never held across a syscall.
 pub(in crate::fpss) fn evict_stale_pending(map: &mut HashMap<i32, PendingSubEntry>) {
     let now = std::time::Instant::now();
-    let before = map.len();
     map.retain(|_, entry| now.duration_since(entry.recorded_at) < PENDING_SUB_TTL);
-
-    if map.len() > PENDING_SUB_CAP {
-        let mut by_age: Vec<(i32, std::time::Instant)> =
-            map.iter().map(|(id, e)| (*id, e.recorded_at)).collect();
-        by_age.sort_unstable_by_key(|(_, recorded_at)| *recorded_at);
-        let overflow = map.len() - PENDING_SUB_CAP;
-        for (id, _) in by_age.into_iter().take(overflow) {
-            map.remove(&id);
-        }
-    }
-
-    let evicted = before.saturating_sub(map.len());
-    if evicted > 0 {
-        tracing::warn!(
-            evicted,
-            resident = map.len(),
-            "evicted unanswered subscribe correlations; a server response was never matched"
-        );
-    }
 }
 
 /// Drop the in-flight subscribe correlation(s) for one tracked identity.
@@ -2934,41 +2907,6 @@ mod tests {
         assert!(
             map.contains_key(&2),
             "a fresh correlation must survive eviction"
-        );
-    }
-
-    /// Past the hard cap the oldest correlations are dropped so the registry
-    /// can never grow without bound within a single TTL window.
-    #[test]
-    fn pending_registry_is_capped() {
-        use super::super::protocol::{PendingSub, SubscriptionKind};
-        use std::collections::HashMap;
-
-        let mut map: HashMap<i32, PendingSubEntry> = HashMap::new();
-        let base = std::time::Instant::now();
-        // One past the cap, all within the TTL window so only the cap sweep
-        // applies. Older `recorded_at` for lower ids so the oldest is id 0.
-        for id in 0..=(PENDING_SUB_CAP as i32) {
-            map.insert(
-                id,
-                PendingSubEntry {
-                    sub: PendingSub::Contract(SubscriptionKind::Trade, Contract::stock("SYM")),
-                    recorded_at: base + std::time::Duration::from_millis(id as u64),
-                },
-            );
-        }
-        assert_eq!(map.len(), PENDING_SUB_CAP + 1);
-
-        evict_stale_pending(&mut map);
-
-        assert_eq!(
-            map.len(),
-            PENDING_SUB_CAP,
-            "registry must be held at the cap"
-        );
-        assert!(
-            !map.contains_key(&0),
-            "the oldest entry must be the one dropped"
         );
     }
 
