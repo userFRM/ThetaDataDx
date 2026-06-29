@@ -94,13 +94,7 @@ export default defineConfig({
           { text: 'WebSocket Streaming', link: '/server/websocket' },
         ],
       },
-      {
-        text: 'Tools',
-        collapsed: true,
-        items: [
-          { text: 'MCP Server', link: '/mcp' },
-        ],
-      },
+      { text: 'MCP', link: '/mcp' },
       {
         text: 'Project',
         collapsed: true,
