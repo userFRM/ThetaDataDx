@@ -103,24 +103,26 @@ jobs:
         run: cargo build --release --locked --manifest-path tools/mcp/Cargo.toml --target ${{ matrix.target }}
 
       - name: Stage binary
-        id: stage
         shell: bash
+        # Stage into a workspace-relative dir, not `mktemp -d`: on the Windows
+        # runner `bash` is git-bash, whose `mktemp` returns an MSYS `/tmp/...`
+        # path that the upload-artifact action (native Windows) cannot resolve.
+        # A relative path resolves against the workspace for both.
         run: |
           set -euo pipefail
           bindir="tools/mcp/target/${{ matrix.target }}/release"
-          stage="$(mktemp -d)"
+          rm -rf stage && mkdir -p stage
           if [ "${{ runner.os }}" = "Windows" ]; then
-            cp "$bindir/thetadatadx-mcp.exe" "$stage/"
+            cp "$bindir/thetadatadx-mcp.exe" stage/
           else
-            cp "$bindir/thetadatadx-mcp" "$stage/"
+            cp "$bindir/thetadatadx-mcp" stage/
           fi
-          echo "dir=$stage" >> "$GITHUB_OUTPUT"
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v7
         with:
           name: mcp-${{ matrix.platform }}
-          path: ${{ steps.stage.outputs.dir }}/thetadatadx-mcp*
+          path: stage/thetadatadx-mcp*
           if-no-files-found: error
 
   publish:
