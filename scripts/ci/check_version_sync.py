@@ -385,6 +385,27 @@ def main() -> int:
                 f"{package_json_version(platform_pkg)}, expected {canonical}"
             )
 
+    # The MCP server ships to npm as well (`npx -y thetadatadx-mcp`): a
+    # launcher package plus one prebuilt-binary package per platform, all
+    # under `tools/mcp/npm/`. They pin the canonical version exactly like
+    # the TypeScript packages and are bumped by `bump_version.py` in the
+    # same pass; scan every `package.json` (launcher + platforms) and the
+    # launcher's optionalDependencies so a missed bump trips this gate
+    # instead of shipping a launcher that depends on a stale binary
+    # package.
+    for mcp_pkg in (ROOT / "tools" / "mcp" / "npm").glob("*/package.json"):
+        if package_json_version(mcp_pkg) != canonical:
+            failures.append(
+                f"{mcp_pkg.relative_to(ROOT)} version is "
+                f"{package_json_version(mcp_pkg)}, expected {canonical}"
+            )
+        for name, pinned in package_json_optional_deps(mcp_pkg).items():
+            if pinned != canonical:
+                failures.append(
+                    f"{mcp_pkg.relative_to(ROOT)} optionalDependencies"
+                    f"['{name}'] is {pinned}, expected {canonical}"
+                )
+
     # Published Python wheel version. `thetadatadx-py/pyproject.toml` is
     # `dynamic = ["version"]` + maturin, so the wheel version is taken
     # from `thetadatadx-py/Cargo.toml` `[package].version` at build time, not

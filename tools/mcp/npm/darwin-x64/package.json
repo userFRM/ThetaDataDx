@@ -1,0 +1,23 @@
+{
+  "name": "thetadatadx-mcp-darwin-x64",
+  "version": "13.0.0-rc.6",
+  "description": "thetadatadx-mcp prebuilt server binary for darwin-x64",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/userFRM/ThetaDataDx"
+  },
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "main": "thetadatadx-mcp",
+  "files": [
+    "thetadatadx-mcp"
+  ],
+  "engines": {
+    "node": ">= 18"
+  }
+}

@@ -24,6 +24,10 @@ The server authenticates **once** at startup, keeps the `Client` client alive, a
 
 ## Install
 
+No install step is needed: point your MCP client at `npx -y thetadatadx-mcp` (see [Configuration](#configuration)). `npx` downloads a prebuilt binary for your platform (Linux, macOS, and Windows on x64 and arm64) and runs it on demand.
+
+Rust users can install the binary directly instead:
+
 ```bash
 cargo install thetadatadx-mcp --git https://github.com/userFRM/ThetaDataDx
 ```
@@ -60,16 +64,16 @@ If no credentials are provided, the server starts in **offline mode**: only `pin
 
 ### Stdio MCP clients (config file)
 
-Most MCP clients read an `mcpServers` block from a project-local or user-level settings file. The shape is identical across clients; consult your client's docs for the exact file path.
+Most MCP clients read an `mcpServers` block from a project-local or user-level settings file. The shape is identical across clients; consult your client's docs for the exact file path. The `npx` command needs no prior install:
 
 ```json
 {
   "mcpServers": {
     "thetadata": {
-      "command": "thetadatadx-mcp",
+      "command": "npx",
+      "args": ["-y", "thetadatadx-mcp"],
       "env": {
-        "THETADATA_EMAIL": "you@example.com",
-        "THETADATA_PASSWORD": "your-password"
+        "THETADATA_API_KEY": "your-api-key"
       }
     }
   }
@@ -82,12 +86,14 @@ Or with a creds file:
 {
   "mcpServers": {
     "thetadata": {
-      "command": "thetadatadx-mcp",
-      "args": ["--creds", "/path/to/creds.txt"]
+      "command": "npx",
+      "args": ["-y", "thetadatadx-mcp", "--creds", "/path/to/creds.txt"]
     }
   }
 }
 ```
+
+If you installed the binary with `cargo install`, set `"command": "thetadatadx-mcp"` and drop the `npx` wrapper args.
 
 ### Cursor
 

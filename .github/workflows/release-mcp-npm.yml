@@ -1,0 +1,210 @@
+name: Release MCP npm Package
+
+# Ships the MCP server (`tools/mcp`) to npm so `npx -y thetadatadx-mcp` runs
+# it with no Rust toolchain. The model mirrors esbuild / biome: a tiny JS
+# launcher package (`thetadatadx-mcp`) plus one prebuilt-binary package per
+# platform (`thetadatadx-mcp-<platform>`), wired as optionalDependencies so
+# npm installs only the host's binary.
+#
+# Each platform's binary is built on that platform's own native runner (no
+# cross-compilation from a single host), matching release-server.yml. On a
+# published GitHub Release the packages are published to npm; a manual
+# workflow_dispatch builds and uploads the binaries as workflow artifacts
+# only (no publish), so a release candidate can be smoke-tested without a
+# registry push.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-mcp-npm-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x64 — static musl so the one binary runs on any
+          # glibc/musl distribution; the platform package declares no
+          # `libc`, matching that portability.
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            platform: linux-x64
+          # Linux arm64 — native arm runner, static musl for the same reason.
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
+            platform: linux-arm64
+          # macOS arm64 (Apple silicon) — the native target of the runner.
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            platform: darwin-arm64
+          # macOS x64 (Intel) — cross-target on the same Apple-silicon
+          # runner via `rustup target add`; both Apple targets share
+          # macos-latest.
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            platform: darwin-x64
+          # Windows x64 — MSVC toolchain, `.exe`.
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            platform: win32-x64
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # The MCP crate declares its own `[workspace]`, so its build
+          # output lands under `tools/mcp/target`. Key the cache on the
+          # target triple so each matrix leg keeps a separate cache.
+          workspaces: tools/mcp
+          key: ${{ matrix.target }}
+
+      # `thetadatadx` builds its gRPC client from `proto/mdds.proto` via
+      # prost-build, which needs the protobuf compiler on every runner.
+      - uses: ./.github/actions/install-protoc
+
+      # musl is not a host target on the ubuntu runners. `musl-tools`
+      # provides the `musl-gcc` wrapper that ring / zstd's C build invokes
+      # when targeting the `*-unknown-linux-musl` triples.
+      - name: Install musl toolchain (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Add Rust target
+        shell: bash
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build release binary
+        shell: bash
+        # The musl C builds (ring, zstd) need an explicit compiler; cargo
+        # reads the target-scoped CC. Darwin/MSVC legs ignore the x64 var,
+        # and the arm64 leg sets its own.
+        env:
+          CC_x86_64_unknown_linux_musl: musl-gcc
+          CC_aarch64_unknown_linux_musl: musl-gcc
+        run: cargo build --release --locked --manifest-path tools/mcp/Cargo.toml --target ${{ matrix.target }}
+
+      - name: Stage binary
+        id: stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          bindir="tools/mcp/target/${{ matrix.target }}/release"
+          stage="$(mktemp -d)"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "$bindir/thetadatadx-mcp.exe" "$stage/"
+          else
+            cp "$bindir/thetadatadx-mcp" "$stage/"
+          fi
+          echo "dir=$stage" >> "$GITHUB_OUTPUT"
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: mcp-${{ matrix.platform }}
+          path: ${{ steps.stage.outputs.dir }}/thetadatadx-mcp*
+          if-no-files-found: error
+
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    needs: build
+    # Publish only on a real tag/release; workflow_dispatch builds the
+    # binaries (above) for testing but never pushes to the registry.
+    if: github.event_name == 'release'
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Download all binary artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: mcp-artifacts
+
+      # Drop each downloaded binary into its platform package. The artifact
+      # folder name encodes the platform; map it back to the Rust triple
+      # `populate.mjs` expects.
+      - name: Populate platform packages
+        working-directory: tools/mcp/npm
+        shell: bash
+        run: |
+          set -euo pipefail
+          declare -A TRIPLE=(
+            [linux-x64]=x86_64-unknown-linux-musl
+            [linux-arm64]=aarch64-unknown-linux-musl
+            [darwin-x64]=x86_64-apple-darwin
+            [darwin-arm64]=aarch64-apple-darwin
+            [win32-x64]=x86_64-pc-windows-msvc
+          )
+          for platform in "${!TRIPLE[@]}"; do
+            dir="$GITHUB_WORKSPACE/mcp-artifacts/mcp-${platform}"
+            bin="$dir/thetadatadx-mcp"
+            [ "$platform" = "win32-x64" ] && bin="$dir/thetadatadx-mcp.exe"
+            node scripts/populate.mjs "${TRIPLE[$platform]}" "$bin"
+          done
+          ls -lR -- */thetadatadx-mcp* || true
+
+      # Publish the platform packages first, then the launcher — so a
+      # freshly installed launcher always finds its optionalDependency on
+      # the registry. Idempotent: skip a version already published. The
+      # dist-tag mirrors the TypeScript SDK — a hyphenated pre-release
+      # version (e.g. `13.0.0-rc.6`) goes to `next`, a final release to
+      # `latest`.
+      - name: Publish platform packages
+        working-directory: tools/mcp/npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for dir in linux-x64 linux-arm64 darwin-x64 darwin-arm64 win32-x64; do
+            pkg_name=$(node -p "require('./${dir}/package.json').name")
+            pkg_version=$(node -p "require('./${dir}/package.json').version")
+            if npm view "${pkg_name}@${pkg_version}" version 2>/dev/null; then
+              echo "skip ${pkg_name}@${pkg_version} (already published)"
+            else
+              dist_tag=latest
+              case "$pkg_version" in *-*) dist_tag=next;; esac
+              npm publish "$dir" --access public --tag "$dist_tag"
+            fi
+          done
+
+      - name: Publish launcher package
+        working-directory: tools/mcp/npm/thetadatadx-mcp
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pkg_version=$(node -p "require('./package.json').version")
+          if npm view "thetadatadx-mcp@${pkg_version}" version 2>/dev/null; then
+            echo "skip thetadatadx-mcp@${pkg_version} (already published)"
+          else
+            dist_tag=latest
+            case "$pkg_version" in *-*) dist_tag=next;; esac
+            npm publish --provenance --access public --tag "$dist_tag"
+          fi
