@@ -71,6 +71,7 @@ jobs:
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.draft == false &&
+       needs.changes.outputs.docs_render_only != 'true' &&
        (needs.changes.outputs.typescript == 'true' ||
         contains(github.event.pull_request.labels.*.name, 'full-ci')))
     timeout-minutes: 45

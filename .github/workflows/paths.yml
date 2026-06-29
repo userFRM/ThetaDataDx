@@ -60,17 +60,22 @@ jobs:
       python: ${{ steps.filter.outputs.python }}
       typescript: ${{ steps.filter.outputs.typescript }}
       perf: ${{ steps.filter.outputs.perf }}
-      # docs-render-only is derived by comparing the count of changed
-      # files under the markdown-doc paths against the total changed-file
-      # count. Equal (and non-zero) means nothing outside the doc lane
-      # changed. `dorny/paths-filter` cannot subtract a subpath from a
-      # broad glob in its default `some` mode (a `!` pattern is OR'd, not
-      # negated), so a count comparison is the robust signal. It fails
-      # safe: any file outside the doc set makes the counts differ and the
-      # full matrix runs.
+      # docs-render-only is derived from `git diff --name-status` against
+      # the merge base, NOT from `dorny/paths-filter`. The PR changed-files
+      # API surfaces a rename by its destination path only, so a rename of
+      # real source INTO the doc tree would read as docs-only under a path
+      # filter and wrongly skip the matrix. The name-status diff exposes
+      # both sides of every rename (`R<score>\told\tnew`), and the value is
+      # true only when EVERY path — old and new side of any rename — is in
+      # the doc set. Any path outside it (including a rename's old path)
+      # makes the value false and the full matrix runs. Fails safe.
       docs_render_only: ${{ steps.docs_render_only.outputs.value }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The merge-base diff below needs the base branch history; the
+          # default shallow checkout has no merge base to diff against.
+          fetch-depth: 0
       - uses: dorny/paths-filter@v4
         id: filter
         with:
@@ -136,29 +141,54 @@ jobs:
               - '.github/workflows/perf-gate.yml'
               - '.github/workflows/paths.yml'
               - '.github/actions/**'
-            # The markdown-emitting doc generator and the checked-in
-            # doc-site output tree. ONLY these: the code-emitting
-            # generators (sdk_surface / sdk_render / fpss_events / ticks)
-            # change the compiled SDK binding surface and are deliberately
-            # excluded so they still fire the full matrix.
-            docs_render:
-              - 'thetadatadx-rs/build_support_bin/endpoints/docs_render/**'
-              - 'thetadatadx-rs/src/bin/generate_docs_site.rs'
-              - 'docs-site/**'
-            # Total changed-file count, for the docs-render-only derivation.
-            all:
-              - '**'
+      # Rename-safe docs-render-only derivation. Only meaningful on a PR
+      # (every other event runs the full matrix regardless), so it emits
+      # false for non-PR events without touching git. `--name-status`
+      # against the merge base lists one row per change: `A`/`M`/`D` carry
+      # a single path, `R<score>` and `C<score>` carry an old AND a new
+      # path (tab-separated). Every path on every row — both sides of a
+      # rename or copy — must fall inside the doc set
+      # (build_support_bin/endpoints/docs_render, generate_docs_site.rs,
+      # docs-site). The code-emitting generators (sdk_surface / sdk_render
+      # / fpss_events / ticks) are deliberately NOT in the set: they change
+      # the compiled SDK binding surface and must still fire the full
+      # matrix. A rename of any real source INTO docs-site keeps its old
+      # path outside the set, so the value is false and the matrix runs.
       - name: Derive docs-render-only
         id: docs_render_only
         shell: bash
         env:
-          DOCS_RENDER_COUNT: ${{ steps.filter.outputs.docs_render_count }}
-          ALL_COUNT: ${{ steps.filter.outputs.all_count }}
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          # docs-render-only iff every changed file matched the docs_render
-          # filter (equal counts) and at least one file changed.
-          if [ "${ALL_COUNT}" -gt 0 ] && [ "${DOCS_RENDER_COUNT}" = "${ALL_COUNT}" ]; then
+          if [ "${EVENT_NAME}" != "pull_request" ]; then
+            echo "value=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          merge_base=$(git merge-base "${BASE_SHA}" HEAD)
+          docs_only=true
+          had_change=false
+          # Read tab-separated name-status rows. Field 1 is the status; for
+          # a rename/copy the source path is field 2 and the dest is field
+          # 3, otherwise the single path is field 2.
+          while IFS=$'\t' read -r status p1 p2; do
+            [ -z "${status}" ] && continue
+            had_change=true
+            case "${status}" in
+              R*|C*) paths="${p1} ${p2}" ;;
+              *)     paths="${p1}" ;;
+            esac
+            for path in ${paths}; do
+              case "${path}" in
+                thetadatadx-rs/build_support_bin/endpoints/docs_render/*) ;;
+                thetadatadx-rs/src/bin/generate_docs_site.rs) ;;
+                docs-site/*) ;;
+                *) docs_only=false ;;
+              esac
+            done
+          done < <(git diff --name-status "${merge_base}" HEAD)
+          if [ "${had_change}" = true ] && [ "${docs_only}" = true ]; then
             echo "value=true" >> "$GITHUB_OUTPUT"
           else
             echo "value=false" >> "$GITHUB_OUTPUT"
