@@ -2937,15 +2937,19 @@ public:
     /// one.
     std::string kind_string() const {
         if (scope_ == Scope::Full) {
-            // Only Trade and OpenInterest have a full-stream broadcast on
-            // the streaming wire; Quote and MarketValue are per-contract only.
-            // A full-stream `FluentSubscription` is therefore only ever
-            // built for those two kinds (see `FluentSecType::full_trades`
-            // / `full_open_interest`), and the label set is the same two
-            // strings the Python / TypeScript `Subscription.kind` accessors
-            // emit. The
-            // remaining kinds fall through to the trade label so the
-            // method never invents a non-canonical string.
+            // Only Trade and OpenInterest are requestable as full-stream
+            // subscriptions; there is no standalone full-stream Quote or
+            // MarketValue subscription. That asymmetry is about subscription
+            // shape, not the data delivered: a full-trade subscription still
+            // carries quote, OHLC, and trade messages for each traded
+            // contract (the last BBO/NBBO and a bar precede the trade),
+            // surfaced as Quote, Ohlcvc, and Trade events. A full-stream
+            // `FluentSubscription` is therefore only ever built for those two
+            // kinds (see `FluentSecType::full_trades` / `full_open_interest`),
+            // and the label set is the same two strings the Python /
+            // TypeScript `Subscription.kind` accessors emit. The remaining
+            // kinds fall through to the trade label so the method never
+            // invents a non-canonical string.
             switch (kind_) {
                 case Kind::OpenInterest: return "full_open_interest";
                 case Kind::Trade:

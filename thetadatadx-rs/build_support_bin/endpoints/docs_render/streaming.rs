@@ -32,18 +32,31 @@ struct EventColumn {
 /// the generator rather than `fpss_event_schema.toml` because that
 /// registry also drives generated SDK structs — annotating it would
 /// reshape every binding surface for a docs-only need.
-fn event_field_doc(name: &str) -> &'static str {
+fn event_field_doc(name: &str, book: &str) -> String {
+    // The quote bid/ask sentences name the order book for the page's
+    // security type: stocks carry the BBO on the Nasdaq Basic feed, options
+    // carry the OPRA NBBO. Every other field is book-independent and falls
+    // through to `event_field_doc_static`.
+    match name {
+        "bid" => format!("Last {book} bid price."),
+        "ask" => format!("Last {book} ask price."),
+        "bid_size" => format!("Last {book} bid size."),
+        "ask_size" => format!("Last {book} ask size."),
+        "bid_exchange" => format!("Exchange code of the {book} bid."),
+        "ask_exchange" => format!("Exchange code of the {book} ask."),
+        _ => event_field_doc_static(name).to_string(),
+    }
+}
+
+/// Book-independent field sentences. Split from [`event_field_doc`] so the
+/// bid/ask fields can interpolate the order-book term while everything else
+/// stays a `&'static str`.
+fn event_field_doc_static(name: &str) -> &'static str {
     match name {
         "contract" => "Resolved contract identity (symbol, security type, and option fields).",
         "received_at_ns" => "Local receive timestamp, nanoseconds since the Unix epoch.",
         "ms_of_day" => "Milliseconds since midnight Eastern Time.",
         "date" => "Trading date as a YYYYMMDD integer.",
-        "bid" => "Last NBBO bid price.",
-        "ask" => "Last NBBO ask price.",
-        "bid_size" => "Last NBBO bid size.",
-        "ask_size" => "Last NBBO ask size.",
-        "bid_exchange" => "Exchange code of the NBBO bid.",
-        "ask_exchange" => "Exchange code of the NBBO ask.",
         "bid_condition" => "Quote condition code on the bid side.",
         "ask_condition" => "Quote condition code on the ask side.",
         "price" => "Trade price.",
@@ -106,7 +119,7 @@ const CONDITIONAL_TRADE_FIELDS: &[&str] = &[
 /// native SDK callbacks receive every column. Returns `(markdown,
 /// rendered field names)` so the caller can compare the table against
 /// the WebSocket-frame subset.
-fn render_event_table(schema: &EventSchema, event: &str) -> (String, Vec<String>) {
+fn render_event_table(schema: &EventSchema, event: &str, book: &str) -> (String, Vec<String>) {
     let def = schema
         .events
         .get(event)
@@ -121,7 +134,7 @@ fn render_event_table(schema: &EventSchema, event: &str) -> (String, Vec<String>
     out.push_str("| Field | Type | Description |\n|---|---|---|\n");
     for col in &cols {
         let ty = event_field_type(&col.ty);
-        let doc = event_field_doc(&col.name);
+        let doc = event_field_doc(&col.name, book);
         if CONDITIONAL_TRADE_FIELDS.contains(&col.name.as_str()) {
             // Muted row + a short "why" note; the gray is the signal.
             let _ = writeln!(
@@ -177,8 +190,8 @@ const STREAMS: &[StreamSpec] = &[
     StreamSpec {
         path: "streaming/stocks/quote",
         title: "Stock Quotes",
-        description: "Real-time NBBO quote stream for a stock.",
-        prose: "Streams every NBBO update for one stock. Each change to the national best bid or offer delivers a `Quote` event to the registered callback.",
+        description: "Real-time BBO quote stream for a stock.",
+        prose: "Streams every BBO quote for one stock from the Nasdaq Basic feed. Each change to the best bid or offer delivers a `Quote` event to the registered callback.",
         event: "Quote",
         rust_sub: "Contract::stock(\"AAPL\").quote()",
         python_sub: "Contract.stock(\"AAPL\").quote()",
@@ -391,27 +404,34 @@ fn rust_tab(spec: &StreamSpec) -> String {
     } else {
         "use thetadatadx::streaming::Contract;\nuse thetadatadx::streaming::{StreamData, StreamEvent};"
     };
-    let (pattern, print) = match spec.event {
-        "Quote" => (
-            "StreamEvent::Data(StreamData::Quote { contract, bid, ask, .. })",
-            "println!(\"{} bid={bid} ask={ask}\", contract.symbol);",
-        ),
-        "Trade" => (
-            "StreamEvent::Data(StreamData::Trade { contract, price, size, .. })",
-            "println!(\"{} price={price} size={size}\", contract.symbol);",
-        ),
-        "OpenInterest" => (
-            "StreamEvent::Data(StreamData::OpenInterest { contract, open_interest, .. })",
-            "println!(\"{} oi={open_interest}\", contract.symbol);",
-        ),
-        "MarketValue" => (
-            "StreamEvent::Data(StreamData::MarketValue { contract, market_price, .. })",
-            "println!(\"{} market_price={market_price}\", contract.symbol);",
-        ),
-        other => panic!("no Rust callback template for event {other}"),
+    // Full-trade pages handle all three delivered events; every other page
+    // narrows on its single event kind.
+    let callback = if spec.ws_req_type == "FULL_TRADES" {
+        "client.stream().start_streaming(|event: &StreamEvent| match event {\n    StreamEvent::Data(StreamData::Quote { contract, bid, ask, .. }) => {\n        println!(\"{} quote bid={bid} ask={ask}\", contract.symbol);\n    }\n    StreamEvent::Data(StreamData::Ohlcvc { contract, open, high, low, close, .. }) => {\n        println!(\"{} bar o={open} h={high} l={low} c={close}\", contract.symbol);\n    }\n    StreamEvent::Data(StreamData::Trade { contract, price, size, .. }) => {\n        println!(\"{} trade price={price} size={size}\", contract.symbol);\n    }\n    _ => {}\n})?;".to_string()
+    } else {
+        let (pattern, print) = match spec.event {
+            "Quote" => (
+                "StreamEvent::Data(StreamData::Quote { contract, bid, ask, .. })",
+                "println!(\"{} bid={bid} ask={ask}\", contract.symbol);",
+            ),
+            "Trade" => (
+                "StreamEvent::Data(StreamData::Trade { contract, price, size, .. })",
+                "println!(\"{} price={price} size={size}\", contract.symbol);",
+            ),
+            "OpenInterest" => (
+                "StreamEvent::Data(StreamData::OpenInterest { contract, open_interest, .. })",
+                "println!(\"{} oi={open_interest}\", contract.symbol);",
+            ),
+            "MarketValue" => (
+                "StreamEvent::Data(StreamData::MarketValue { contract, market_price, .. })",
+                "println!(\"{} market_price={market_price}\", contract.symbol);",
+            ),
+            other => panic!("no Rust callback template for event {other}"),
+        };
+        format!("client.stream().start_streaming(|event: &StreamEvent| {{\n    if let {pattern} = event {{\n        {print}\n    }}\n}})?;")
     };
     format!(
-        "```rust\n{imports}\n\nclient.stream().start_streaming(|event: &StreamEvent| {{\n    if let {pattern} = event {{\n        {print}\n    }}\n}})?;\n\nlet sub = {};\nclient.stream().subscribe(sub.clone())?;\n\n// Remove this stream; the session stays open for other subscriptions.\nclient.stream().unsubscribe(sub)?;\n```\n",
+        "```rust\n{imports}\n\n{callback}\n\nlet sub = {};\nclient.stream().subscribe(sub.clone())?;\n\n// Remove this stream; the session stays open for other subscriptions.\nclient.stream().unsubscribe(sub)?;\n```\n",
         spec.rust_sub
     )
 }
@@ -422,27 +442,34 @@ fn python_tab(spec: &StreamSpec) -> String {
     } else {
         "from thetadatadx import Contract"
     };
-    let (kind, print) = match spec.event {
-        "Quote" => (
-            "quote",
-            "print(event.contract.symbol, event.bid, event.ask)",
-        ),
-        "Trade" => (
-            "trade",
-            "print(event.contract.symbol, event.price, event.size)",
-        ),
-        "OpenInterest" => (
-            "open_interest",
-            "print(event.contract.symbol, event.open_interest)",
-        ),
-        "MarketValue" => (
-            "market_value",
-            "print(event.contract.symbol, event.market_price)",
-        ),
-        other => panic!("no Python callback template for event {other}"),
+    // Full-trade pages handle all three delivered events; every other page
+    // narrows on its single event kind.
+    let body = if spec.ws_req_type == "FULL_TRADES" {
+        "def on_event(event):\n    if event.kind == \"quote\":\n        print(event.contract.symbol, \"quote\", event.bid, event.ask)\n    elif event.kind == \"ohlcvc\":\n        print(event.contract.symbol, \"bar\", event.open, event.high, event.low, event.close)\n    elif event.kind == \"trade\":\n        print(event.contract.symbol, \"trade\", event.price, event.size)".to_string()
+    } else {
+        let (kind, print) = match spec.event {
+            "Quote" => (
+                "quote",
+                "print(event.contract.symbol, event.bid, event.ask)",
+            ),
+            "Trade" => (
+                "trade",
+                "print(event.contract.symbol, event.price, event.size)",
+            ),
+            "OpenInterest" => (
+                "open_interest",
+                "print(event.contract.symbol, event.open_interest)",
+            ),
+            "MarketValue" => (
+                "market_value",
+                "print(event.contract.symbol, event.market_price)",
+            ),
+            other => panic!("no Python callback template for event {other}"),
+        };
+        format!("def on_event(event):\n    if event.kind == \"{kind}\":\n        {print}")
     };
     format!(
-        "```python\n{import}\n\ndef on_event(event):\n    if event.kind == \"{kind}\":\n        {print}\n\nclient.stream.start_streaming(on_event)\n\nsub = {}\nclient.stream.subscribe(sub)\n\n# Remove this stream; the session stays open for other subscriptions.\nclient.stream.unsubscribe(sub)\n```\n",
+        "```python\n{import}\n\n{body}\n\nclient.stream.start_streaming(on_event)\n\nsub = {}\nclient.stream.subscribe(sub)\n\n# Remove this stream; the session stays open for other subscriptions.\nclient.stream.unsubscribe(sub)\n```\n",
         spec.python_sub
     )
 }
@@ -453,61 +480,75 @@ fn typescript_tab(spec: &StreamSpec) -> String {
     } else {
         "import { Contract } from 'thetadatadx';"
     };
-    let (kind, payload, print) = match spec.event {
-        "Quote" => (
-            "quote",
-            "quote",
-            "console.log(e.contract.symbol, e.bid, e.ask);",
-        ),
-        "Trade" => (
-            "trade",
-            "trade",
-            "console.log(e.contract.symbol, e.price, e.size);",
-        ),
-        "OpenInterest" => (
-            "open_interest",
-            "openInterest",
-            "console.log(e.contract.symbol, e.openInterest);",
-        ),
-        "MarketValue" => (
-            "market_value",
-            "marketValue",
-            "console.log(e.contract.symbol, e.marketPrice);",
-        ),
-        other => panic!("no TypeScript callback template for event {other}"),
+    // Full-trade pages handle all three delivered events; every other page
+    // narrows on its single event kind.
+    let body = if spec.ws_req_type == "FULL_TRADES" {
+        "await client.stream.startStreaming((event) => {\n  switch (event.kind) {\n    case 'quote': {\n      const q = event.quote!;\n      console.log(q.contract.symbol, 'quote', q.bid, q.ask);\n      break;\n    }\n    case 'ohlcvc': {\n      const b = event.ohlcvc!;\n      console.log(b.contract.symbol, 'bar', b.open, b.high, b.low, b.close);\n      break;\n    }\n    case 'trade': {\n      const t = event.trade!;\n      console.log(t.contract.symbol, 'trade', t.price, t.size);\n      break;\n    }\n  }\n});".to_string()
+    } else {
+        let (kind, payload, print) = match spec.event {
+            "Quote" => (
+                "quote",
+                "quote",
+                "console.log(e.contract.symbol, e.bid, e.ask);",
+            ),
+            "Trade" => (
+                "trade",
+                "trade",
+                "console.log(e.contract.symbol, e.price, e.size);",
+            ),
+            "OpenInterest" => (
+                "open_interest",
+                "openInterest",
+                "console.log(e.contract.symbol, e.openInterest);",
+            ),
+            "MarketValue" => (
+                "market_value",
+                "marketValue",
+                "console.log(e.contract.symbol, e.marketPrice);",
+            ),
+            other => panic!("no TypeScript callback template for event {other}"),
+        };
+        format!("await client.stream.startStreaming((event) => {{\n  if (event.kind === '{kind}') {{\n    const e = event.{payload}!;\n    {print}\n  }}\n}});")
     };
     format!(
-        "```typescript\n{import}\n\nawait client.stream.startStreaming((event) => {{\n  if (event.kind === '{kind}') {{\n    const e = event.{payload}!;\n    {print}\n  }}\n}});\n\nconst sub = {};\nclient.stream.subscribe(sub);\n\n// Remove this stream; the session stays open for other subscriptions.\nclient.stream.unsubscribe(sub);\n```\n",
+        "```typescript\n{import}\n\n{body}\n\nconst sub = {};\nclient.stream.subscribe(sub);\n\n// Remove this stream; the session stays open for other subscriptions.\nclient.stream.unsubscribe(sub);\n```\n",
         spec.ts_sub
     )
 }
 
 fn cpp_tab(spec: &StreamSpec) -> String {
-    let (kind, payload, print) = match spec.event {
-        "Quote" => (
-            "THETADATADX_STREAM_QUOTE",
-            "quote",
-            "std::cout << e.contract.symbol << \" bid=\" << e.bid << \" ask=\" << e.ask << \"\\n\";",
-        ),
-        "Trade" => (
-            "THETADATADX_STREAM_TRADE",
-            "trade",
-            "std::cout << e.contract.symbol << \" price=\" << e.price << \" size=\" << e.size << \"\\n\";",
-        ),
-        "OpenInterest" => (
-            "THETADATADX_STREAM_OPEN_INTEREST",
-            "open_interest",
-            "std::cout << e.contract.symbol << \" oi=\" << e.open_interest << \"\\n\";",
-        ),
-        "MarketValue" => (
-            "THETADATADX_STREAM_MARKET_VALUE",
-            "market_value",
-            "std::cout << e.contract.symbol << \" market_price=\" << e.market_price << \"\\n\";",
-        ),
-        other => panic!("no C++ callback template for event {other}"),
+    // Full-trade pages handle all three delivered events; every other page
+    // narrows on its single event kind.
+    let body = if spec.ws_req_type == "FULL_TRADES" {
+        "client.stream().set_callback([](const thetadatadx::StreamEvent& event) {\n    switch (event.kind) {\n        case THETADATADX_STREAM_QUOTE:\n            std::cout << event.quote.contract.symbol << \" quote bid=\" << event.quote.bid << \" ask=\" << event.quote.ask << \"\\n\";\n            break;\n        case THETADATADX_STREAM_OHLCVC:\n            std::cout << event.ohlcvc.contract.symbol << \" bar o=\" << event.ohlcvc.open << \" c=\" << event.ohlcvc.close << \"\\n\";\n            break;\n        case THETADATADX_STREAM_TRADE:\n            std::cout << event.trade.contract.symbol << \" trade price=\" << event.trade.price << \" size=\" << event.trade.size << \"\\n\";\n            break;\n        default:\n            break;\n    }\n});".to_string()
+    } else {
+        let (kind, payload, print) = match spec.event {
+            "Quote" => (
+                "THETADATADX_STREAM_QUOTE",
+                "quote",
+                "std::cout << e.contract.symbol << \" bid=\" << e.bid << \" ask=\" << e.ask << \"\\n\";",
+            ),
+            "Trade" => (
+                "THETADATADX_STREAM_TRADE",
+                "trade",
+                "std::cout << e.contract.symbol << \" price=\" << e.price << \" size=\" << e.size << \"\\n\";",
+            ),
+            "OpenInterest" => (
+                "THETADATADX_STREAM_OPEN_INTEREST",
+                "open_interest",
+                "std::cout << e.contract.symbol << \" oi=\" << e.open_interest << \"\\n\";",
+            ),
+            "MarketValue" => (
+                "THETADATADX_STREAM_MARKET_VALUE",
+                "market_value",
+                "std::cout << e.contract.symbol << \" market_price=\" << e.market_price << \"\\n\";",
+            ),
+            other => panic!("no C++ callback template for event {other}"),
+        };
+        format!("client.stream().set_callback([](const thetadatadx::StreamEvent& event) {{\n    if (event.kind == {kind}) {{\n        auto& e = event.{payload};\n        {print}\n    }}\n}});")
     };
     format!(
-        "```cpp\nclient.stream().set_callback([](const thetadatadx::StreamEvent& event) {{\n    if (event.kind == {kind}) {{\n        auto& e = event.{payload};\n        {print}\n    }}\n}});\n\nauto sub = {};\nclient.stream().subscribe(sub);\n\n// Remove this stream; the session stays open for other subscriptions.\nclient.stream().unsubscribe(sub);\n```\n",
+        "```cpp\n{body}\n\nauto sub = {};\nclient.stream().subscribe(sub);\n\n// Remove this stream; the session stays open for other subscriptions.\nclient.stream().unsubscribe(sub);\n```\n",
         spec.cpp_sub
     )
 }
@@ -717,6 +758,13 @@ pub(super) fn render_stream_pages() -> Result<Vec<(String, String)>, Box<dyn std
         // (options add the next two NBBO quotes after), so these pages lead
         // with the delivery sequence and document all three event types.
         let is_full_trade = spec.ws_req_type == "FULL_TRADES";
+        // Order-book term for this page's quote fields: stocks carry the BBO
+        // on the Nasdaq Basic feed, options the OPRA NBBO.
+        let book = if spec.ws_sec_type == "STOCK" {
+            "BBO"
+        } else {
+            "NBBO"
+        };
         if is_full_trade {
             out.push_str(&full_trade_delivery(spec));
         } else if spec.event == "Trade" {
@@ -731,12 +779,12 @@ pub(super) fn render_stream_pages() -> Result<Vec<(String, String)>, Box<dyn std
         // pages also render the Quote and Ohlcvc tables, since the stream
         // delivers those events too.
         if is_full_trade {
-            let (quote_table, _) = render_event_table(&schema, "Quote");
+            let (quote_table, _) = render_event_table(&schema, "Quote", book);
             out.push_str(&quote_table);
-            let (ohlcvc_table, _) = render_event_table(&schema, "Ohlcvc");
+            let (ohlcvc_table, _) = render_event_table(&schema, "Ohlcvc", book);
             out.push_str(&ohlcvc_table);
         }
-        let (table, table_fields) = render_event_table(&schema, spec.event);
+        let (table, table_fields) = render_event_table(&schema, spec.event, book);
         out.push_str(&table);
         // The WebSocket-frame note only earns its place when the table
         // lists more fields than the raw frame carries.

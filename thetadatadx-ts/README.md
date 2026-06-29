@@ -102,6 +102,14 @@ await client.stream.startStreaming((event) => {
       `bid_size=${bidSize} ask_size=${askSize} bid_exchange=${bidExchange} ` +
       `ask_exchange=${askExchange} ms_of_day=${msOfDay}`,
     );
+  } else if (event.kind === 'ohlcvc' && event.ohlcvc) {
+    // The full-trade stream sends a quote and an OHLC bar before each trade,
+    // so the same callback also receives ohlcvc bars.
+    const { contract, open, high, low, close, volume } = event.ohlcvc;
+    console.log(
+      `${contract.symbol} ${contract.expiration} ${contract.strike} ${contract.right} bar ` +
+      `o=${open} h=${high} l=${low} c=${close} volume=${volume}`,
+    );
   }
 });
 

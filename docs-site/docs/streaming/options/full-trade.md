@@ -20,10 +20,17 @@ use thetadatadx::streaming::SecTypeExt;
 use thetadatadx::streaming::{StreamData, StreamEvent};
 use thetadatadx::SecType;
 
-client.stream().start_streaming(|event: &StreamEvent| {
-    if let StreamEvent::Data(StreamData::Trade { contract, price, size, .. }) = event {
-        println!("{} price={price} size={size}", contract.symbol);
+client.stream().start_streaming(|event: &StreamEvent| match event {
+    StreamEvent::Data(StreamData::Quote { contract, bid, ask, .. }) => {
+        println!("{} quote bid={bid} ask={ask}", contract.symbol);
     }
+    StreamEvent::Data(StreamData::Ohlcvc { contract, open, high, low, close, .. }) => {
+        println!("{} bar o={open} h={high} l={low} c={close}", contract.symbol);
+    }
+    StreamEvent::Data(StreamData::Trade { contract, price, size, .. }) => {
+        println!("{} trade price={price} size={size}", contract.symbol);
+    }
+    _ => {}
 })?;
 
 let sub = SecType::Option.full_trades();
@@ -41,8 +48,12 @@ client.stream().unsubscribe(sub)?;
 from thetadatadx import SecType
 
 def on_event(event):
-    if event.kind == "trade":
-        print(event.contract.symbol, event.price, event.size)
+    if event.kind == "quote":
+        print(event.contract.symbol, "quote", event.bid, event.ask)
+    elif event.kind == "ohlcvc":
+        print(event.contract.symbol, "bar", event.open, event.high, event.low, event.close)
+    elif event.kind == "trade":
+        print(event.contract.symbol, "trade", event.price, event.size)
 
 client.stream.start_streaming(on_event)
 
@@ -61,9 +72,22 @@ client.stream.unsubscribe(sub)
 import { SecType } from 'thetadatadx';
 
 await client.stream.startStreaming((event) => {
-  if (event.kind === 'trade') {
-    const e = event.trade!;
-    console.log(e.contract.symbol, e.price, e.size);
+  switch (event.kind) {
+    case 'quote': {
+      const q = event.quote!;
+      console.log(q.contract.symbol, 'quote', q.bid, q.ask);
+      break;
+    }
+    case 'ohlcvc': {
+      const b = event.ohlcvc!;
+      console.log(b.contract.symbol, 'bar', b.open, b.high, b.low, b.close);
+      break;
+    }
+    case 'trade': {
+      const t = event.trade!;
+      console.log(t.contract.symbol, 'trade', t.price, t.size);
+      break;
+    }
   }
 });
 
@@ -80,9 +104,18 @@ client.stream.unsubscribe(sub);
 
 ```cpp
 client.stream().set_callback([](const thetadatadx::StreamEvent& event) {
-    if (event.kind == THETADATADX_STREAM_TRADE) {
-        auto& e = event.trade;
-        std::cout << e.contract.symbol << " price=" << e.price << " size=" << e.size << "\n";
+    switch (event.kind) {
+        case THETADATADX_STREAM_QUOTE:
+            std::cout << event.quote.contract.symbol << " quote bid=" << event.quote.bid << " ask=" << event.quote.ask << "\n";
+            break;
+        case THETADATADX_STREAM_OHLCVC:
+            std::cout << event.ohlcvc.contract.symbol << " bar o=" << event.ohlcvc.open << " c=" << event.ohlcvc.close << "\n";
+            break;
+        case THETADATADX_STREAM_TRADE:
+            std::cout << event.trade.contract.symbol << " trade price=" << event.trade.price << " size=" << event.trade.size << "\n";
+            break;
+        default:
+            break;
     }
 });
 

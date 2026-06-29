@@ -22,6 +22,7 @@ from thetadatadx import (
     Config,
     Contract,
     Credentials,
+    Ohlcvc,
     Quote,
     SecType,
     Client,
@@ -36,6 +37,10 @@ def on_event(event):
             print(f"[{c.symbol}] TRADE {px:.2f} x {sz}")
         case Quote(bid=b, ask=a, contract=c):
             print(f"[{c.symbol}] QUOTE bid={b:.2f} ask={a:.2f}")
+        # The full-trade stream sends a quote and an OHLC bar before each
+        # trade, so the same callback also receives Ohlcvc bars.
+        case Ohlcvc(open=o, high=h, low=lo, close=cl, contract=c):
+            print(f"[{c.symbol}] BAR o={o:.2f} h={h:.2f} l={lo:.2f} c={cl:.2f}")
         case _:
             pass
 

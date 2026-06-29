@@ -37,6 +37,15 @@ async function main(): Promise<void> {
         );
         break;
       }
+      case "ohlcvc": {
+        // The full-trade stream sends a quote and an OHLC bar before each
+        // trade, so the same callback also receives ohlcvc bars.
+        const bar = event.ohlcvc!;
+        console.log(
+          `[${bar.contract.symbol}] BAR o=${bar.open.toFixed(2)} h=${bar.high.toFixed(2)} l=${bar.low.toFixed(2)} c=${bar.close.toFixed(2)}`,
+        );
+        break;
+      }
       default:
         break;
     }
