@@ -113,7 +113,7 @@ websocat ws://127.0.0.1:25520/v1/events
 
 </SdkTabs>
 
-## Event fields
+## `MarketValue` event fields
 
 Each update arrives as a `MarketValue` event with these fields:
 

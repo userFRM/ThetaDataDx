@@ -141,6 +141,17 @@ int main() {
                           << " ms_of_day=" << event.quote.ms_of_day
                           << '\n';
                 break;
+            // The full-trade stream sends a quote and an OHLC bar before each
+            // trade, so the same callback also receives OHLCVC bars.
+            case THETADATADX_STREAM_OHLCVC:
+                std::cout << event.ohlcvc.contract.symbol
+                          << " bar open=" << event.ohlcvc.open
+                          << " high=" << event.ohlcvc.high
+                          << " low=" << event.ohlcvc.low
+                          << " close=" << event.ohlcvc.close
+                          << " volume=" << event.ohlcvc.volume
+                          << '\n';
+                break;
             default:
                 break;
         }

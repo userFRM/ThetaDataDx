@@ -93,7 +93,7 @@ typed event classes:
 
 ```python
 import time
-from thetadatadx import Contract, Quote, Trade
+from thetadatadx import Contract, Ohlcvc, Quote, Trade
 
 def on_event(event):
     match event:
@@ -107,6 +107,13 @@ def on_event(event):
                 f"{c.symbol} {c.expiration} {c.strike:g} {c.right} quote bid={b:.2f} ask={a:.2f} "
                 f"bid_size={bs} ask_size={asz} bid_exchange={bx} "
                 f"ask_exchange={ax} ms_of_day={ms}"
+            )
+        # The full-trade stream sends a quote and an OHLC bar before each
+        # trade, so the same callback also receives Ohlcvc bars.
+        case Ohlcvc(open=o, high=h, low=lo, close=cl, volume=v, contract=c):
+            print(
+                f"{c.symbol} {c.expiration} {c.strike:g} {c.right} bar "
+                f"o={o:.2f} h={h:.2f} l={lo:.2f} c={cl:.2f} volume={v}"
             )
 
 spy_call = Contract.option("SPY", expiration="20260619", strike="550", right="C")

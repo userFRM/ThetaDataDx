@@ -129,6 +129,21 @@ client.stream().start_streaming(|event: &StreamEvent| {
                 "{contract} quote bid={bid} ask={ask} bid_size={bid_size} ask_size={ask_size} bid_exchange={bid_exchange} ask_exchange={ask_exchange} ms_of_day={ms_of_day}",
             );
         }
+        // The full-trade stream sends a quote and an OHLC bar before each
+        // trade, so the same callback also receives Ohlcvc bars.
+        StreamEvent::Data(StreamData::Ohlcvc {
+            contract,
+            open,
+            high,
+            low,
+            close,
+            volume,
+            ..
+        }) => {
+            println!(
+                "{contract} bar open={open} high={high} low={low} close={close} volume={volume}",
+            );
+        }
         _ => {}
     }
 })?;

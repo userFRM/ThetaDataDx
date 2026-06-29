@@ -121,7 +121,7 @@ The WebSocket envelope takes the strike in dollars (`570` = $570.00), the same a
 
 </SdkTabs>
 
-## Event fields
+## `OpenInterest` event fields
 
 Each update arrives as a `OpenInterest` event with these fields:
 

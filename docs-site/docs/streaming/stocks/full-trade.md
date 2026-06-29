@@ -7,7 +7,7 @@ description: "Every trade across all stocks in one subscription."
 
 # Stock Full Trades
 
-Streams every trade print across the entire stock universe — one subscription, no per-symbol management. Each execution delivers a `Trade` event; read the symbol off the event's `contract`.
+Streams every trade print across the entire stock universe — one subscription, no per-symbol management. For each traded symbol the stream delivers three events, not just the trade: a `Quote` (the last BBO), an `Ohlcvc` bar, and then the `Trade` print itself. Read the symbol off each event's `contract`.
 
 The snippets below assume a connected client with streaming started — see [Getting Started](/streaming/) for the connect-and-stream ladder.
 
@@ -20,10 +20,17 @@ use thetadatadx::streaming::SecTypeExt;
 use thetadatadx::streaming::{StreamData, StreamEvent};
 use thetadatadx::SecType;
 
-client.stream().start_streaming(|event: &StreamEvent| {
-    if let StreamEvent::Data(StreamData::Trade { contract, price, size, .. }) = event {
-        println!("{} price={price} size={size}", contract.symbol);
+client.stream().start_streaming(|event: &StreamEvent| match event {
+    StreamEvent::Data(StreamData::Quote { contract, bid, ask, .. }) => {
+        println!("{} quote bid={bid} ask={ask}", contract.symbol);
     }
+    StreamEvent::Data(StreamData::Ohlcvc { contract, open, high, low, close, .. }) => {
+        println!("{} bar o={open} h={high} l={low} c={close}", contract.symbol);
+    }
+    StreamEvent::Data(StreamData::Trade { contract, price, size, .. }) => {
+        println!("{} trade price={price} size={size}", contract.symbol);
+    }
+    _ => {}
 })?;
 
 let sub = SecType::Stock.full_trades();
@@ -41,8 +48,12 @@ client.stream().unsubscribe(sub)?;
 from thetadatadx import SecType
 
 def on_event(event):
-    if event.kind == "trade":
-        print(event.contract.symbol, event.price, event.size)
+    if event.kind == "quote":
+        print(event.contract.symbol, "quote", event.bid, event.ask)
+    elif event.kind == "ohlcvc":
+        print(event.contract.symbol, "bar", event.open, event.high, event.low, event.close)
+    elif event.kind == "trade":
+        print(event.contract.symbol, "trade", event.price, event.size)
 
 client.stream.start_streaming(on_event)
 
@@ -61,9 +72,22 @@ client.stream.unsubscribe(sub)
 import { SecType } from 'thetadatadx';
 
 await client.stream.startStreaming((event) => {
-  if (event.kind === 'trade') {
-    const e = event.trade!;
-    console.log(e.contract.symbol, e.price, e.size);
+  switch (event.kind) {
+    case 'quote': {
+      const q = event.quote!;
+      console.log(q.contract.symbol, 'quote', q.bid, q.ask);
+      break;
+    }
+    case 'ohlcvc': {
+      const b = event.ohlcvc!;
+      console.log(b.contract.symbol, 'bar', b.open, b.high, b.low, b.close);
+      break;
+    }
+    case 'trade': {
+      const t = event.trade!;
+      console.log(t.contract.symbol, 'trade', t.price, t.size);
+      break;
+    }
   }
 });
 
@@ -80,9 +104,18 @@ client.stream.unsubscribe(sub);
 
 ```cpp
 client.stream().set_callback([](const thetadatadx::StreamEvent& event) {
-    if (event.kind == THETADATADX_STREAM_TRADE) {
-        auto& e = event.trade;
-        std::cout << e.contract.symbol << " price=" << e.price << " size=" << e.size << "\n";
+    switch (event.kind) {
+        case THETADATADX_STREAM_QUOTE:
+            std::cout << event.quote.contract.symbol << " quote bid=" << event.quote.bid << " ask=" << event.quote.ask << "\n";
+            break;
+        case THETADATADX_STREAM_OHLCVC:
+            std::cout << event.ohlcvc.contract.symbol << " bar o=" << event.ohlcvc.open << " c=" << event.ohlcvc.close << "\n";
+            break;
+        case THETADATADX_STREAM_TRADE:
+            std::cout << event.trade.contract.symbol << " trade price=" << event.trade.price << " size=" << event.trade.size << "\n";
+            break;
+        default:
+            break;
     }
 });
 
@@ -114,11 +147,69 @@ websocat ws://127.0.0.1:25520/v1/events
 
 </SdkTabs>
 
-## Derived OHLCVC bars
+## What the stream delivers
 
-With `derive_ohlcvc` enabled (the default), this trade stream also delivers a derived `Ohlcvc` bar alongside the trades: the SDK accumulates one per contract from the trade prints, so a single subscription yields both `Trade` and `Ohlcvc` events. Handle the `Ohlcvc` event the same way you handle `Trade`. To receive trades only, turn it off on the configuration before connecting — `config.derive_ohlcvc = False` (Python), `config.setDeriveOhlcvc(false)` (TypeScript), `config.set_derive_ohlcvc(false)` (C++), `thetadatadx_config_set_derive_ohlcvc(cfg, false)` (C ABI), or `config.streaming.derive_ohlcvc = false` (Rust).
+This is not a trade-only feed. For every traded contract the stream delivers three event types: a `Quote`, an `Ohlcvc` bar, and the `Trade` print. The `Quote` (the last BBO) and the `Ohlcvc` bar are sent automatically before the trade occurs, then the `Trade` follows. Narrow on `event.kind` (`quote` / `ohlcvc` / `trade`) to handle each, and read the contract identity off every event's `contract`.
 
-## Event fields
+**Per-contract sequence**
+
+```text
+quote  QQQ  bid/ask (last BBO)
+ohlcvc QQQ  open/high/low/close, volume, count
+trade  QQQ  price, size, exchange, condition
+```
+
+
+## OHLC bars
+
+The `Ohlcvc` bars on this stream come from upstream automatically — one is sent for each traded contract before its trade, you do not subscribe to them separately. On top of that, with `derive_ohlcvc` enabled (the default) the SDK also synthesizes a running bar from each trade print, so an actively traded contract yields additional `Ohlcvc` events between the upstream bars. The upstream bars are always delivered; the toggle only controls the extra synthesized ones. To receive only the upstream bars, turn it off on the configuration before connecting — `config.derive_ohlcvc = False` (Python), `config.setDeriveOhlcvc(false)` (TypeScript), `config.set_derive_ohlcvc(false)` (C++), `thetadatadx_config_set_derive_ohlcvc(cfg, false)` (C ABI), or `config.streaming.derive_ohlcvc = false` (Rust).
+
+## Before you subscribe
+
+- This stream requires a Stocks Pro subscription.
+- Each new stream request must use a higher `id` than the last; reusing an `id` stops the terminal from automatically resubscribing your earlier streams after a reconnect. The SDK manages the `id` for you; the WebSocket envelope sets it explicitly.
+
+## `Quote` event fields
+
+Each update arrives as a `Quote` event with these fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `contract` | contract | Resolved contract identity (symbol, security type, and option fields). |
+| `ms_of_day` | i32 | Milliseconds since midnight Eastern Time. |
+| `bid_size` | i32 | Last BBO bid size. |
+| `bid_exchange` | i32 | Exchange code of the BBO bid. |
+| `bid` | f64 | Last BBO bid price. |
+| `bid_condition` | i32 | Quote condition code on the bid side. |
+| `ask_size` | i32 | Last BBO ask size. |
+| `ask_exchange` | i32 | Exchange code of the BBO ask. |
+| `ask` | f64 | Last BBO ask price. |
+| `ask_condition` | i32 | Quote condition code on the ask side. |
+| `date` | i32 | Trading date as a YYYYMMDD integer. |
+| `received_at_ns` | u64 | Local receive timestamp, nanoseconds since the Unix epoch. |
+
+The `contract` field carries `symbol`, the security type, and — for options — `expiration`, `right`, and the strike. See [Handling Events](/streaming/events) for the full event catalogue and per-language field shapes.
+
+## `Ohlcvc` event fields
+
+Each update arrives as a `Ohlcvc` event with these fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `contract` | contract | Resolved contract identity (symbol, security type, and option fields). |
+| `ms_of_day` | i32 | Milliseconds since midnight Eastern Time. |
+| `open` | f64 | Opening trade price of the bar. |
+| `high` | f64 | Highest traded price of the bar. |
+| `low` | f64 | Lowest traded price of the bar. |
+| `close` | f64 | Closing traded price of the bar. |
+| `volume` | i64 | Number of contracts or shares traded in the bar. |
+| `count` | i64 | Number of trades in the bar. |
+| `date` | i32 | Trading date as a YYYYMMDD integer. |
+| `received_at_ns` | u64 | Local receive timestamp, nanoseconds since the Unix epoch. |
+
+The `contract` field carries `symbol`, the security type, and — for options — `expiration`, `right`, and the strike. See [Handling Events](/streaming/events) for the full event catalogue and per-language field shapes.
+
+## `Trade` event fields
 
 Each update arrives as a `Trade` event with these fields:
 
