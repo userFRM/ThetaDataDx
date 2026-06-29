@@ -10,6 +10,7 @@ Stabilizing v13 toward a stable `13.0.0` release. The release-candidate series i
 
 - **Native Go SDK** ([#1019](https://github.com/userFRM/ThetaDataDx/issues/1019)). A first-class Go SDK written in pure Go, not a cgo wrapper. It will be a native peer of the other SDKs, held to the same machine-enforced cross-SDK parity guarantee, so Go keeps everything that makes it Go: static-binary cross-compilation, the goroutine scheduler under streaming load, and a toolchain-free `go get`.
 - **Self-updating server** ([#957](https://github.com/userFRM/ThetaDataDx/issues/957)). Push a tagged release and running servers pick it up, verify its signature, and swap themselves in, with staged rollout and a force-upgrade floor. Operators get urgent fixes without a manual re-download.
+- **Live-state tools in the MCP** ([#1027](https://github.com/userFRM/ThetaDataDx/issues/1027)). The MCP gains a background subscription and pull-query tools so a model can watch a contract and read its live state on demand (`latest`, a bounded `window`, OHLCV bars) instead of consuming the raw feed. Raw data only; the derived signals stay in the analytics layer.
 
 ## Recently shipped
 
