@@ -18,7 +18,7 @@ The Rust SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, o
 
 - **Complete coverage** — stocks, options, indices, and rates across 65 typed endpoints.
 - **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
-- **Greeks without a round-trip** — first- through third-order Black-Scholes Greeks and an implied-volatility solver, computed locally.
+- **Greeks on demand** — first- through third-order Greeks and implied volatility, served straight from the option endpoints.
 - **Buffer or stream** — every history builder yields a `Vec<Tick>` on `.await`, or chunk-by-chunk via `.stream(handler)`.
 - **Typed errors** — one `Error` enum across every transport, plus a dedicated `StreamError` for the streaming path.
 - **DataFrames on demand** — opt into the `polars` / `arrow` features for a zero-copy conversion off any result.
@@ -184,10 +184,6 @@ let path = thetadatadx::flatfile_request(
     std::path::Path::new("/tmp/option-trade-quote"), FlatFileFormat::Csv,
 ).await?;
 ```
-
-## Greeks calculator
-
-A full Black-Scholes calculator — first- through third-order Greeks plus an implied-volatility solver — runs locally, no request required.
 
 ## DataFrames
 
