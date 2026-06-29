@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.0.0-rc.9] - 2026-06-29
+
+### Added
+
+- **MCP server on npm:** the `thetadatadx-mcp` server is available on npm and runs with `npx -y thetadatadx-mcp`, the one-line config every MCP client expects, with no Rust toolchain required. `cargo install` stays for Rust users.
+
+### Documentation
+
+- The full-trade streaming pages now document the complete event delivery: for each traded contract the stream delivers a quote (BBO for stocks, NBBO for options), an OHLC bar, and the trade itself, and the quote terminology is now correct per asset class (#1029).
+
 ## [13.0.0-rc.8] - 2026-06-29
 
 ### Added

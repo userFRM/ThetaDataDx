@@ -219,7 +219,7 @@ jobs:
             else
               dist_tag=latest
               case "$pkg_version" in *-*) dist_tag=next;; esac
-              npm publish "$dir" --access public --tag "$dist_tag"
+              npm publish "./$dir" --access public --tag "$dist_tag"
             fi
           done
 
