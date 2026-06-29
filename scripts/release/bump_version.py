@@ -6,11 +6,12 @@ Usage:
 
 Reads the canonical version from ``thetadatadx-rs/Cargo.toml`` (only
 to print "from -> to" for context), then walks every file that pins a
-version of the published artifact and rewrites it. All four npm
-``package.json`` files, the six member Cargo.toml files (thetadatadx +
-ffi + tools/mcp + tools/server + thetadatadx-py +
-thetadatadx-ts), and the three ``optionalDependencies`` pins inside
-``thetadatadx-ts/package.json``. Cargo.lock files are refreshed via
+version of the published artifact and rewrites it. Every npm
+``package.json`` file (the TypeScript SDK launcher + its three platform
+packages, and the MCP server launcher + its five platform packages), the
+six member Cargo.toml files (thetadatadx + ffi + tools/mcp + tools/server
++ thetadatadx-py + thetadatadx-ts), and the ``optionalDependencies`` pins
+inside both ``package.json`` launchers. Cargo.lock files are refreshed via
 ``cargo update --workspace`` against every manifest that carries its own
 lockfile.
 
@@ -141,6 +142,22 @@ def main(argv: list[str]) -> int:
     print("  bumped thetadatadx-ts/package.json (+ optionalDependencies)")
 
     for platform_pkg in (ROOT / "thetadatadx-ts" / "npm").glob("*/package.json"):
+        bump_platform_package_json(platform_pkg, current, target)
+        print(f"  bumped {platform_pkg.relative_to(ROOT)}")
+
+    # The MCP server ships to npm too (`npx -y thetadatadx-mcp`): a launcher
+    # package with per-platform binary packages as optionalDependencies,
+    # mirroring the TypeScript SDK layout under `tools/mcp/npm/`.
+    bump_root_package_json(
+        ROOT / "tools" / "mcp" / "npm" / "thetadatadx-mcp" / "package.json",
+        current,
+        target,
+    )
+    print("  bumped tools/mcp/npm/thetadatadx-mcp/package.json (+ optionalDependencies)")
+
+    for platform_pkg in (ROOT / "tools" / "mcp" / "npm").glob("*/package.json"):
+        if platform_pkg.parent.name == "thetadatadx-mcp":
+            continue  # the launcher package, bumped above
         bump_platform_package_json(platform_pkg, current, target)
         print(f"  bumped {platform_pkg.relative_to(ROOT)}")
 
