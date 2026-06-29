@@ -113,7 +113,7 @@ websocat ws://127.0.0.1:25520/v1/events
 
 </SdkTabs>
 
-## Event fields
+## `Quote` event fields
 
 Each update arrives as a `Quote` event with these fields:
 

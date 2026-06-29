@@ -115,7 +115,7 @@ The WebSocket envelope takes the strike in dollars (`570` = $570.00), the same a
 
 </SdkTabs>
 
-## Event fields
+## `Quote` event fields
 
 Each update arrives as a `Quote` event with these fields:
 

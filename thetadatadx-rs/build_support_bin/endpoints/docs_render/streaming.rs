@@ -113,7 +113,7 @@ fn render_event_table(schema: &EventSchema, event: &str) -> (String, Vec<String>
         .unwrap_or_else(|| panic!("event {event} not found in fpss_event_schema.toml"));
     let cols: Vec<&EventColumn> = def.columns.iter().collect();
     let mut out = String::new();
-    let _ = writeln!(out, "## Event fields\n");
+    let _ = writeln!(out, "## `{event}` event fields\n");
     let _ = writeln!(
         out,
         "Each update arrives as a `{event}` event with these fields:\n"
@@ -212,7 +212,7 @@ const STREAMS: &[StreamSpec] = &[
         path: "streaming/stocks/full-trade",
         title: "Stock Full Trades",
         description: "Every trade across all stocks in one subscription.",
-        prose: "Streams every trade print across the entire stock universe — one subscription, no per-symbol management. Each execution delivers a `Trade` event; read the symbol off the event's `contract`.",
+        prose: "Streams every trade print across the entire stock universe — one subscription, no per-symbol management. For each traded symbol the stream delivers three events, not just the trade: a `Quote` (the last BBO), an `Ohlcvc` bar, and then the `Trade` print itself. Read the symbol off each event's `contract`.",
         event: "Trade",
         rust_sub: "SecType::Stock.full_trades()",
         python_sub: "SecType.STOCK.full_trades()",
@@ -297,7 +297,7 @@ const STREAMS: &[StreamSpec] = &[
         path: "streaming/options/full-trade",
         title: "Option Full Trades",
         description: "Every option trade across all underlyings in one subscription.",
-        prose: "Streams every option trade print across the entire OPRA universe — one subscription, no per-contract management. Each execution delivers a `Trade` event; read the contract identity off the event.",
+        prose: "Streams every option trade print across the entire OPRA universe — one subscription, no per-contract management. For each traded contract the stream delivers more than the trade: a `Quote` (the last NBBO) and an `Ohlcvc` bar arrive before the `Trade` print, and the next two NBBO `Quote` updates for that contract arrive after it. Read the contract identity off each event's `contract`.",
         event: "Trade",
         rust_sub: "SecType::Option.full_trades()",
         python_sub: "SecType.OPTION.full_trades()",
@@ -537,6 +537,81 @@ fn http_tab(spec: &StreamSpec) -> String {
     out
 }
 
+// ───────────────────────── Full-trade delivery section ──────────────────────
+
+/// Renders the multi-event delivery section for a full-trade page: the
+/// per-contract event sequence (quote + OHLC bar before the trade,
+/// options also send the next two NBBO quotes after), an annotated
+/// example of the sequence, the OHLC / `derive_ohlcvc` note, and the
+/// caveats that apply to the full-trade subscription.
+fn full_trade_delivery(spec: &StreamSpec) -> String {
+    let is_option = spec.ws_sec_type == "OPTION";
+    // Options quote the NBBO; stocks quote the BBO on the Nasdaq Basic feed.
+    let book = if is_option { "NBBO" } else { "BBO" };
+    let after = if is_option {
+        " The next two NBBO updates for that contract then arrive as `Quote` events after the trade."
+    } else {
+        ""
+    };
+
+    let mut out = String::from("## What the stream delivers\n\n");
+    let _ = write!(
+        out,
+        "This is not a trade-only feed. For every traded contract the stream delivers three event \
+         types: a `Quote`, an `Ohlcvc` bar, and the `Trade` print. The `Quote` (the last {book}) and \
+         the `Ohlcvc` bar are sent automatically before the trade occurs, then the `Trade` follows.{after} \
+         Narrow on `event.kind` (`quote` / `ohlcvc` / `trade`) to handle each, and read the contract \
+         identity off every event's `contract`.\n\n",
+    );
+
+    // Example: show the sequence as it reaches the callback.
+    let (contract_line, strike_note) = if is_option {
+        (
+            "QQQ 20231110 P 360.00",
+            // TD encodes the strike in 1/10-cent on the wire; the SDK
+            // surfaces it in dollars on the resolved contract.
+            "\n\nThe `Ohlcvc` bar and the trailing `Quote` updates carry the same `contract`. On the wire ThetaData encodes the option strike in tenths of a cent (a $360.00 strike as `3600000`); the SDK resolves it to the dollar strike on `event.contract`.\n",
+        )
+    } else {
+        ("QQQ", "\n")
+    };
+    let _ = write!(
+        out,
+        "**Per-contract sequence**\n\n```text\nquote  {contract}  bid/ask (last {book})\nohlcvc {contract}  open/high/low/close, volume, count\ntrade  {contract}  price, size, exchange, condition{after_line}\n```\n{strike_note}\n",
+        contract = contract_line,
+        after_line = if is_option {
+            "\nquote  QQQ 20231110 P 360.00  (next NBBO)\nquote  QQQ 20231110 P 360.00  (next NBBO)"
+        } else {
+            ""
+        },
+    );
+
+    // OHLC behavior: upstream sends bars automatically; derive_ohlcvc adds
+    // a per-trade synthesized bar on top. Spelling out what the toggle does
+    // (and does not) is the fix for the old "derived only" framing.
+    out.push_str(
+        "## OHLC bars\n\nThe `Ohlcvc` bars on this stream come from upstream automatically — one is sent for each traded contract before its trade, you do not subscribe to them separately. On top of that, with `derive_ohlcvc` enabled (the default) the SDK also synthesizes a running bar from each trade print, so an actively traded contract yields additional `Ohlcvc` events between the upstream bars. The upstream bars are always delivered; the toggle only controls the extra synthesized ones. To receive only the upstream bars, turn it off on the configuration before connecting — `config.derive_ohlcvc = False` (Python), `config.setDeriveOhlcvc(false)` (TypeScript), `config.set_derive_ohlcvc(false)` (C++), `thetadatadx_config_set_derive_ohlcvc(cfg, false)` (C ABI), or `config.streaming.derive_ohlcvc = false` (Rust).\n\n",
+    );
+
+    // Caveats carried from ThetaData's reference that apply to the request.
+    let pro = if is_option {
+        "an Options Pro subscription"
+    } else {
+        "a Stocks Pro subscription"
+    };
+    let _ = write!(
+        out,
+        "## Before you subscribe\n\n- This stream requires {pro}.\n- Each new stream request must use a higher `id` than the last; reusing an `id` stops the terminal from automatically resubscribing your earlier streams after a reconnect. The SDK manages the `id` for you; the WebSocket envelope sets it explicitly.\n",
+    );
+    if is_option {
+        out.push_str(
+            "- The WebSocket envelope and the SDK builders take the option strike in dollars; the tenths-of-a-cent wire encoding is internal.\n",
+        );
+    }
+    out.push('\n');
+    out
+}
+
 // ───────────────────────── Page assembly ────────────────────────────────────
 
 /// WebSocket-frame field subset per event, mirroring the terminal
@@ -637,7 +712,14 @@ pub(super) fn render_stream_pages() -> Result<Vec<(String, String)>, Box<dyn std
         );
         out.push_str("</SdkTabs>\n\n");
 
-        if spec.event == "Trade" {
+        // The full-trade stream is multi-event: upstream sends a quote and
+        // an OHLC bar for every traded contract before the trade print
+        // (options add the next two NBBO quotes after), so these pages lead
+        // with the delivery sequence and document all three event types.
+        let is_full_trade = spec.ws_req_type == "FULL_TRADES";
+        if is_full_trade {
+            out.push_str(&full_trade_delivery(spec));
+        } else if spec.event == "Trade" {
             out.push_str(
                 "## Derived OHLCVC bars\n\nWith `derive_ohlcvc` enabled (the default), this trade stream also delivers a derived `Ohlcvc` bar alongside the trades: the SDK accumulates one per contract from the trade prints, so a single subscription yields both `Trade` and `Ohlcvc` events. Handle the `Ohlcvc` event the same way you handle `Trade`. To receive trades only, turn it off on the configuration before connecting — `config.derive_ohlcvc = False` (Python), `config.setDeriveOhlcvc(false)` (TypeScript), `config.set_derive_ohlcvc(false)` (C++), `thetadatadx_config_set_derive_ohlcvc(cfg, false)` (C ABI), or `config.streaming.derive_ohlcvc = false` (Rust).\n\n",
             );
@@ -645,7 +727,15 @@ pub(super) fn render_stream_pages() -> Result<Vec<(String, String)>, Box<dyn std
 
         // The table documents the full event schema — the native SDK
         // callbacks receive every column. A narrower WebSocket frame is
-        // covered by the note below, not by trimming the table.
+        // covered by the note below, not by trimming the table. Full-trade
+        // pages also render the Quote and Ohlcvc tables, since the stream
+        // delivers those events too.
+        if is_full_trade {
+            let (quote_table, _) = render_event_table(&schema, "Quote");
+            out.push_str(&quote_table);
+            let (ohlcvc_table, _) = render_event_table(&schema, "Ohlcvc");
+            out.push_str(&ohlcvc_table);
+        }
         let (table, table_fields) = render_event_table(&schema, spec.event);
         out.push_str(&table);
         // The WebSocket-frame note only earns its place when the table

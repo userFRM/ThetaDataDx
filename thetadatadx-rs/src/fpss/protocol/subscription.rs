@@ -81,16 +81,20 @@ impl SubscriptionKind {
 
     /// Stable snake_case label for this kind when carried as a
     /// *full-stream* subscription, or `None` if the kind has no
-    /// full-stream form on the FPSS wire.
+    /// full-stream subscription form.
     ///
     /// Full-stream snapshots
     /// ([`crate::StreamSurface::active_full_subscriptions`]) store the
     /// kind as a [`SubscriptionKind`], but the cross-binding label carries
     /// the `full_` prefix so a full-stream open-interest row never reads
-    /// the same as a per-contract one. Only `Trade` and `OpenInterest`
-    /// have a full-stream broadcast; `Quote` and `MarketValue` are
-    /// per-contract only and return `None` (the binding drops the row),
-    /// matching the Python / TypeScript projections.
+    /// the same as a per-contract one. Only `Trade` and `OpenInterest` are
+    /// requestable as full-stream subscriptions; `Quote` and `MarketValue`
+    /// have no standalone full-stream form and return `None` (the binding
+    /// drops the row), matching the Python / TypeScript projections. This
+    /// is about subscription shape, not the data carried: a `full_trades`
+    /// subscription still delivers quote and OHLC messages — the last
+    /// BBO/NBBO and a bar are broadcast for each traded contract before its
+    /// trade — surfaced as `Quote` and `Ohlcvc` events.
     #[must_use]
     pub fn full_kind_str(self) -> Option<&'static str> {
         match self {
@@ -126,13 +130,17 @@ pub(crate) enum PendingSub {
 
 /// Tick kind for full-stream (security-type-scoped) subscriptions.
 ///
-/// Full-stream subscriptions are strictly a strict subset of
-/// [`SubscriptionKind`]: the FPSS server accepts full-stream Trade
-/// and OpenInterest, but never full-stream Quote (the quote feed is
-/// addressed per-contract only). Modeling that asymmetry as a
-/// dedicated enum keeps "give me every option trade" and "give me
-/// every quote on this contract" from looking interchangeable on the
-/// public surface.
+/// The *requestable* full-stream kinds are a subset of
+/// [`SubscriptionKind`]: the server accepts a full-stream Trade or
+/// OpenInterest subscription, but there is no standalone full-stream
+/// Quote subscription — a quote-only feed is addressed per-contract.
+/// This constrains what you can subscribe to, not what a full-stream
+/// subscription delivers: a full-trade subscription carries quote, OHLC,
+/// and trade messages for each traded contract (the last BBO/NBBO and a
+/// bar precede the trade), surfaced as `Quote`, `Ohlcvc`, and `Trade`
+/// events. Modeling the subscription asymmetry as a dedicated enum keeps
+/// "give me every option trade" and "give me every quote on this
+/// contract" from looking interchangeable on the public surface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FullSubscriptionKind {

@@ -7,7 +7,7 @@ description: "Every trade across all stocks in one subscription."
 
 # Stock Full Trades
 
-Streams every trade print across the entire stock universe — one subscription, no per-symbol management. Each execution delivers a `Trade` event; read the symbol off the event's `contract`.
+Streams every trade print across the entire stock universe — one subscription, no per-symbol management. For each traded symbol the stream delivers three events, not just the trade: a `Quote` (the last BBO), an `Ohlcvc` bar, and then the `Trade` print itself. Read the symbol off each event's `contract`.
 
 The snippets below assume a connected client with streaming started — see [Getting Started](/streaming/) for the connect-and-stream ladder.
 
@@ -114,11 +114,69 @@ websocat ws://127.0.0.1:25520/v1/events
 
 </SdkTabs>
 
-## Derived OHLCVC bars
+## What the stream delivers
 
-With `derive_ohlcvc` enabled (the default), this trade stream also delivers a derived `Ohlcvc` bar alongside the trades: the SDK accumulates one per contract from the trade prints, so a single subscription yields both `Trade` and `Ohlcvc` events. Handle the `Ohlcvc` event the same way you handle `Trade`. To receive trades only, turn it off on the configuration before connecting — `config.derive_ohlcvc = False` (Python), `config.setDeriveOhlcvc(false)` (TypeScript), `config.set_derive_ohlcvc(false)` (C++), `thetadatadx_config_set_derive_ohlcvc(cfg, false)` (C ABI), or `config.streaming.derive_ohlcvc = false` (Rust).
+This is not a trade-only feed. For every traded contract the stream delivers three event types: a `Quote`, an `Ohlcvc` bar, and the `Trade` print. The `Quote` (the last BBO) and the `Ohlcvc` bar are sent automatically before the trade occurs, then the `Trade` follows. Narrow on `event.kind` (`quote` / `ohlcvc` / `trade`) to handle each, and read the contract identity off every event's `contract`.
 
-## Event fields
+**Per-contract sequence**
+
+```text
+quote  QQQ  bid/ask (last BBO)
+ohlcvc QQQ  open/high/low/close, volume, count
+trade  QQQ  price, size, exchange, condition
+```
+
+
+## OHLC bars
+
+The `Ohlcvc` bars on this stream come from upstream automatically — one is sent for each traded contract before its trade, you do not subscribe to them separately. On top of that, with `derive_ohlcvc` enabled (the default) the SDK also synthesizes a running bar from each trade print, so an actively traded contract yields additional `Ohlcvc` events between the upstream bars. The upstream bars are always delivered; the toggle only controls the extra synthesized ones. To receive only the upstream bars, turn it off on the configuration before connecting — `config.derive_ohlcvc = False` (Python), `config.setDeriveOhlcvc(false)` (TypeScript), `config.set_derive_ohlcvc(false)` (C++), `thetadatadx_config_set_derive_ohlcvc(cfg, false)` (C ABI), or `config.streaming.derive_ohlcvc = false` (Rust).
+
+## Before you subscribe
+
+- This stream requires a Stocks Pro subscription.
+- Each new stream request must use a higher `id` than the last; reusing an `id` stops the terminal from automatically resubscribing your earlier streams after a reconnect. The SDK manages the `id` for you; the WebSocket envelope sets it explicitly.
+
+## `Quote` event fields
+
+Each update arrives as a `Quote` event with these fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `contract` | contract | Resolved contract identity (symbol, security type, and option fields). |
+| `ms_of_day` | i32 | Milliseconds since midnight Eastern Time. |
+| `bid_size` | i32 | Last NBBO bid size. |
+| `bid_exchange` | i32 | Exchange code of the NBBO bid. |
+| `bid` | f64 | Last NBBO bid price. |
+| `bid_condition` | i32 | Quote condition code on the bid side. |
+| `ask_size` | i32 | Last NBBO ask size. |
+| `ask_exchange` | i32 | Exchange code of the NBBO ask. |
+| `ask` | f64 | Last NBBO ask price. |
+| `ask_condition` | i32 | Quote condition code on the ask side. |
+| `date` | i32 | Trading date as a YYYYMMDD integer. |
+| `received_at_ns` | u64 | Local receive timestamp, nanoseconds since the Unix epoch. |
+
+The `contract` field carries `symbol`, the security type, and — for options — `expiration`, `right`, and the strike. See [Handling Events](/streaming/events) for the full event catalogue and per-language field shapes.
+
+## `Ohlcvc` event fields
+
+Each update arrives as a `Ohlcvc` event with these fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `contract` | contract | Resolved contract identity (symbol, security type, and option fields). |
+| `ms_of_day` | i32 | Milliseconds since midnight Eastern Time. |
+| `open` | f64 | Opening trade price of the bar. |
+| `high` | f64 | Highest traded price of the bar. |
+| `low` | f64 | Lowest traded price of the bar. |
+| `close` | f64 | Closing traded price of the bar. |
+| `volume` | i64 | Number of contracts or shares traded in the bar. |
+| `count` | i64 | Number of trades in the bar. |
+| `date` | i32 | Trading date as a YYYYMMDD integer. |
+| `received_at_ns` | u64 | Local receive timestamp, nanoseconds since the Unix epoch. |
+
+The `contract` field carries `symbol`, the security type, and — for options — `expiration`, `right`, and the strike. See [Handling Events](/streaming/events) for the full event catalogue and per-language field shapes.
+
+## `Trade` event fields
 
 Each update arrives as a `Trade` event with these fields:
 

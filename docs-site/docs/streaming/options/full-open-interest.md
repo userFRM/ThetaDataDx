@@ -120,7 +120,7 @@ websocat ws://127.0.0.1:25520/v1/events
 
 </SdkTabs>
 
-## Event fields
+## `OpenInterest` event fields
 
 Each update arrives as a `OpenInterest` event with these fields:
 
