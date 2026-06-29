@@ -54,7 +54,7 @@ pub(crate) const ERROR_IO_PENDING: i32 = 997;
 ///   overlapped I/O layer. Maps to `ErrorKind::Uncategorized` in `std`,
 ///   so a `kind()` match alone misses it.
 #[must_use]
-pub(crate) fn is_transient_read(io_err: &std::io::Error) -> bool {
+pub fn is_transient_read(io_err: &std::io::Error) -> bool {
     matches!(
         io_err.kind(),
         std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut

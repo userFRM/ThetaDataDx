@@ -19,7 +19,7 @@ use super::super::framing::{is_drain_yield, read_frame_into_with_stall_timeout, 
 use super::super::protocol::parse_disconnect_reason;
 
 /// Outcome of a single login handshake.
-pub(in crate::fpss) enum LoginResult {
+pub enum LoginResult {
     Success(String),
     Disconnected(RemoveReason),
 }
@@ -60,7 +60,7 @@ fn handshake_deadline(read_timeout: Duration) -> Instant {
 /// post-login `decode_frame` dispatch uses — a typed control frame that
 /// precedes `METADATA` would otherwise be lost, since the handshake loop
 /// consumes it before the main dispatch can turn it into a typed event.
-pub(in crate::fpss) fn wait_for_login(
+pub fn wait_for_login(
     stream: &mut connection::FpssStream,
     pending_control: &mut Vec<StreamControl>,
     read_timeout: Duration,

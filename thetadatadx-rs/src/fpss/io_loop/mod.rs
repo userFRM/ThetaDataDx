@@ -18,7 +18,10 @@
 mod login;
 mod ping;
 
-pub(in crate::fpss) use login::{wait_for_login, LoginResult};
+// Re-exported (`pub`) so the `__internal` fpss surface (`fpss::internals`) can
+// hand the login handshake to a downstream consumer that owns the read loop;
+// crate-internal callers reach the same items through this import.
+pub use login::{wait_for_login, LoginResult};
 pub(in crate::fpss) use ping::ping_loop;
 
 use std::collections::HashMap;
