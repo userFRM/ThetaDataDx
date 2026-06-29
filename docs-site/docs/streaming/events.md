@@ -111,7 +111,7 @@ client.stream().set_callback([](const thetadatadx::StreamEvent& event) {
 websocat ws://127.0.0.1:25520/v1/events
 ```
 
-Over the [server's WebSocket](/server/websocket), each event arrives as one JSON message with a `header.type` of `QUOTE`, `TRADE`, `OHLC`, `OPEN_INTEREST`, or `STATUS`.
+Over the [server's WebSocket](/server/websocket), each event arrives as one JSON message with a `header.type` of `QUOTE`, `TRADE`, `OHLC`, or `STATUS`. Open interest is a valid SDK event but has no WebSocket frame — the native SDK callbacks deliver it; the server does not serialize it over the WebSocket.
 
 </template>
 

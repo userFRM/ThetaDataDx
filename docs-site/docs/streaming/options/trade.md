@@ -16,7 +16,7 @@ The snippets below assume a connected client with streaming started — see [Get
 <template #rust>
 
 ```rust
-use thetadatadx::streaming::Contract;
+use thetadatadx::streaming::{Contract, OptionLeg};
 use thetadatadx::streaming::{StreamData, StreamEvent};
 
 client.stream().start_streaming(|event: &StreamEvent| {
@@ -128,20 +128,24 @@ Each update arrives as a `Trade` event with these fields:
 | `contract` | contract | Resolved contract identity (symbol, security type, and option fields). |
 | `ms_of_day` | i32 | Milliseconds since midnight Eastern Time. |
 | `sequence` | i32 | Exchange-assigned trade sequence number. |
-| `ext_condition1` | i32 | Additional trade condition code. |
-| `ext_condition2` | i32 | Additional trade condition code. |
-| `ext_condition3` | i32 | Additional trade condition code. |
-| `ext_condition4` | i32 | Additional trade condition code. |
+| <span class="field-conditional">`ext_condition1`</span> | <span class="field-conditional">i32</span> | <span class="field-conditional">Additional trade condition code. Extended-format trades only; zero on a standard trade.</span> |
+| <span class="field-conditional">`ext_condition2`</span> | <span class="field-conditional">i32</span> | <span class="field-conditional">Additional trade condition code. Extended-format trades only; zero on a standard trade.</span> |
+| <span class="field-conditional">`ext_condition3`</span> | <span class="field-conditional">i32</span> | <span class="field-conditional">Additional trade condition code. Extended-format trades only; zero on a standard trade.</span> |
+| <span class="field-conditional">`ext_condition4`</span> | <span class="field-conditional">i32</span> | <span class="field-conditional">Additional trade condition code. Extended-format trades only; zero on a standard trade.</span> |
 | `condition` | i32 | Trade condition code. |
 | `size` | i32 | Number of contracts or shares traded. |
 | `exchange` | i32 | Exchange code where the trade executed. |
 | `price` | f64 | Trade price. |
-| `condition_flags` | i32 | Trade condition flags bitmap. |
-| `price_flags` | i32 | Trade price flags bitmap. |
-| `volume_type` | i32 | Volume reporting mode: 0 = incremental, 1 = cumulative. |
-| `records_back` | i32 | Offset of this record behind the most recent record. |
+| <span class="field-conditional">`condition_flags`</span> | <span class="field-conditional">i32</span> | <span class="field-conditional">Trade condition flags bitmap. Extended-format trades only; zero on a standard trade.</span> |
+| <span class="field-conditional">`price_flags`</span> | <span class="field-conditional">i32</span> | <span class="field-conditional">Trade price flags bitmap. Extended-format trades only; zero on a standard trade.</span> |
+| <span class="field-conditional">`volume_type`</span> | <span class="field-conditional">i32</span> | <span class="field-conditional">Volume reporting mode: 0 = incremental, 1 = cumulative. Extended-format trades only; zero on a standard trade.</span> |
+| <span class="field-conditional">`records_back`</span> | <span class="field-conditional">i32</span> | <span class="field-conditional">Offset of this record behind the most recent record. Extended-format trades only; zero on a standard trade.</span> |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 | `received_at_ns` | u64 | Local receive timestamp, nanoseconds since the Unix epoch. |
 
 The `contract` field carries `symbol`, the security type, and — for options — `expiration`, `right`, and the strike. See [Handling Events](/streaming/events) for the full event catalogue and per-language field shapes.
+
+## WebSocket frame
+
+The native SDK callbacks (Rust/Python/TypeScript/C++) receive every field above. Each raw WebSocket frame (the **Server** tab) is `{ "header": {…}, "contract": {…}, "trade": {…} }`: `header` and `contract` are always present, while the `trade` payload object carries only the terminal-compatible subset: `ms_of_day`, `sequence`, `size`, `condition`, `price`, `exchange`, `date`. The remaining event fields are delivered to the SDK callbacks, not the `trade` payload object.
 

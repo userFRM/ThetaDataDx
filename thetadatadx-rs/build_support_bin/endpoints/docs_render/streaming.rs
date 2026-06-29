@@ -88,11 +88,30 @@ fn load_event_schema() -> Result<EventSchema, Box<dyn std::error::Error>> {
     Ok(toml::from_str(&raw)?)
 }
 
-fn render_event_table(schema: &EventSchema, event: &str) -> String {
+/// Trade fields the extended print populates and a standard print leaves
+/// zero. The table grays these rows so the always-present / conditional
+/// split reads at a glance. Trade-only: no other event carries them.
+const CONDITIONAL_TRADE_FIELDS: &[&str] = &[
+    "ext_condition1",
+    "ext_condition2",
+    "ext_condition3",
+    "ext_condition4",
+    "condition_flags",
+    "price_flags",
+    "volume_type",
+    "records_back",
+];
+
+/// Renders the "Event fields" table for the full event schema — the
+/// native SDK callbacks receive every column. Returns `(markdown,
+/// rendered field names)` so the caller can compare the table against
+/// the WebSocket-frame subset.
+fn render_event_table(schema: &EventSchema, event: &str) -> (String, Vec<String>) {
     let def = schema
         .events
         .get(event)
         .unwrap_or_else(|| panic!("event {event} not found in fpss_event_schema.toml"));
+    let cols: Vec<&EventColumn> = def.columns.iter().collect();
     let mut out = String::new();
     let _ = writeln!(out, "## Event fields\n");
     let _ = writeln!(
@@ -100,21 +119,29 @@ fn render_event_table(schema: &EventSchema, event: &str) -> String {
         "Each update arrives as a `{event}` event with these fields:\n"
     );
     out.push_str("| Field | Type | Description |\n|---|---|---|\n");
-    for col in &def.columns {
-        let _ = writeln!(
-            out,
-            "| `{}` | {} | {} |",
-            col.name,
-            event_field_type(&col.ty),
-            event_field_doc(&col.name)
-        );
+    for col in &cols {
+        let ty = event_field_type(&col.ty);
+        let doc = event_field_doc(&col.name);
+        if CONDITIONAL_TRADE_FIELDS.contains(&col.name.as_str()) {
+            // Muted row + a short "why" note; the gray is the signal.
+            let _ = writeln!(
+                out,
+                "| <span class=\"field-conditional\">`{}`</span> \
+                 | <span class=\"field-conditional\">{ty}</span> \
+                 | <span class=\"field-conditional\">{doc} Extended-format trades only; \
+                 zero on a standard trade.</span> |",
+                col.name,
+            );
+        } else {
+            let _ = writeln!(out, "| `{}` | {ty} | {doc} |", col.name);
+        }
     }
     out.push_str(
         "\nThe `contract` field carries `symbol`, the security type, and — for options — \
          `expiration`, `right`, and the strike. See [Handling Events](/streaming/events) \
          for the full event catalogue and per-language field shapes.\n\n",
     );
-    out
+    (out, cols.iter().map(|c| c.name.clone()).collect())
 }
 
 // ───────────────────────── Stream-type matrix ───────────────────────────────
@@ -140,6 +167,10 @@ struct StreamSpec {
     group: &'static str,
     /// Sidebar item label.
     label: &'static str,
+    /// Optional danger banner rendered at the top of the page body when
+    /// the subscription is accepted by the SDK but the upstream feed does
+    /// not deliver ticks for it yet.
+    warning: Option<&'static str>,
 }
 
 const STREAMS: &[StreamSpec] = &[
@@ -158,6 +189,7 @@ const STREAMS: &[StreamSpec] = &[
         ws_contract: Some(r#"{"symbol": "AAPL"}"#),
         group: "Stocks",
         label: "Quote",
+        warning: None,
     },
     StreamSpec {
         path: "streaming/stocks/trade",
@@ -174,6 +206,7 @@ const STREAMS: &[StreamSpec] = &[
         ws_contract: Some(r#"{"symbol": "AAPL"}"#),
         group: "Stocks",
         label: "Trade",
+        warning: None,
     },
     StreamSpec {
         path: "streaming/stocks/full-trade",
@@ -190,6 +223,24 @@ const STREAMS: &[StreamSpec] = &[
         ws_contract: None,
         group: "Stocks",
         label: "Full Trades",
+        warning: None,
+    },
+    StreamSpec {
+        path: "streaming/stocks/market-value",
+        title: "Stock Market Value",
+        description: "Real-time calculated market value for a stock.",
+        prose: "Streams the calculated market value for one stock, delivered as a `MarketValue` event. Each update carries the calculated `market_bid`, `market_ask`, and `market_price`.",
+        event: "MarketValue",
+        rust_sub: "Contract::stock(\"AAPL\").market_value()",
+        python_sub: "Contract.stock(\"AAPL\").market_value()",
+        ts_sub: "Contract.stock('AAPL').marketValue()",
+        cpp_sub: "thetadatadx::Contract::stock(\"AAPL\").market_value()",
+        ws_req_type: "MARKET_VALUE",
+        ws_sec_type: "STOCK",
+        ws_contract: Some(r#"{"symbol": "AAPL"}"#),
+        group: "Stocks",
+        label: "Market Value",
+        warning: None,
     },
     StreamSpec {
         path: "streaming/options/quote",
@@ -206,6 +257,7 @@ const STREAMS: &[StreamSpec] = &[
         ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570, "right": "C"}"#),
         group: "Options",
         label: "Quote",
+        warning: None,
     },
     StreamSpec {
         path: "streaming/options/trade",
@@ -222,6 +274,7 @@ const STREAMS: &[StreamSpec] = &[
         ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570, "right": "C"}"#),
         group: "Options",
         label: "Trade",
+        warning: None,
     },
     StreamSpec {
         path: "streaming/options/open-interest",
@@ -238,6 +291,7 @@ const STREAMS: &[StreamSpec] = &[
         ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570, "right": "C"}"#),
         group: "Options",
         label: "Open Interest",
+        warning: Some("Streaming open interest is not live on the upstream feed yet, so this subscription does not deliver ticks. For open interest today, use the [flat files](/articles/flat-files) (last 7 days) or the [historical open-interest endpoint](/reference/option/history/open-interest)."),
     },
     StreamSpec {
         path: "streaming/options/full-trade",
@@ -254,6 +308,7 @@ const STREAMS: &[StreamSpec] = &[
         ws_contract: None,
         group: "Options",
         label: "Full Trades",
+        warning: None,
     },
     StreamSpec {
         path: "streaming/options/full-open-interest",
@@ -270,6 +325,24 @@ const STREAMS: &[StreamSpec] = &[
         ws_contract: None,
         group: "Options",
         label: "Full Open Interest",
+        warning: Some("Streaming open interest is not live on the upstream feed yet, so this subscription does not deliver ticks. For open interest today, use the [flat files](/articles/flat-files) (last 7 days) or the [historical open-interest endpoint](/reference/option/history/open-interest)."),
+    },
+    StreamSpec {
+        path: "streaming/options/market-value",
+        title: "Option Market Value",
+        description: "Real-time calculated market value for an option contract.",
+        prose: "Streams the calculated market value for one option contract, delivered as a `MarketValue` event. Each update carries the calculated `market_bid`, `market_ask`, and `market_price`.",
+        event: "MarketValue",
+        rust_sub: "Contract::option(\"SPY\", OptionLeg { expiration: \"20260618\", strike: \"570\", right: \"C\" })?.market_value()",
+        python_sub: "Contract.option(\"SPY\", expiration=\"20260618\", strike=\"570\", right=\"C\").market_value()",
+        ts_sub: "Contract.option('SPY', { expiration: '20260618', strike: '570', right: 'C' }).marketValue()",
+        cpp_sub: "thetadatadx::Contract::option(\"SPY\", {.expiration = \"20260618\", .strike = \"570\", .right = \"C\"}).market_value()",
+        ws_req_type: "MARKET_VALUE",
+        ws_sec_type: "OPTION",
+        ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570, "right": "C"}"#),
+        group: "Options",
+        label: "Market Value",
+        warning: None,
     },
     StreamSpec {
         path: "streaming/indices/price",
@@ -286,6 +359,7 @@ const STREAMS: &[StreamSpec] = &[
         ws_contract: Some(r#"{"symbol": "SPX"}"#),
         group: "Indices",
         label: "Price",
+        warning: None,
     },
     StreamSpec {
         path: "streaming/indices/market-value",
@@ -302,6 +376,7 @@ const STREAMS: &[StreamSpec] = &[
         ws_contract: Some(r#"{"symbol": "SPX"}"#),
         group: "Indices",
         label: "Market Value",
+        warning: None,
     },
 ];
 
@@ -311,6 +386,8 @@ fn rust_tab(spec: &StreamSpec) -> String {
     let needs_sectype = spec.rust_sub.starts_with("SecType");
     let imports = if needs_sectype {
         "use thetadatadx::streaming::SecTypeExt;\nuse thetadatadx::streaming::{StreamData, StreamEvent};\nuse thetadatadx::SecType;"
+    } else if spec.rust_sub.contains("OptionLeg") {
+        "use thetadatadx::streaming::{Contract, OptionLeg};\nuse thetadatadx::streaming::{StreamData, StreamEvent};"
     } else {
         "use thetadatadx::streaming::Contract;\nuse thetadatadx::streaming::{StreamData, StreamEvent};"
     };
@@ -462,6 +539,53 @@ fn http_tab(spec: &StreamSpec) -> String {
 
 // ───────────────────────── Page assembly ────────────────────────────────────
 
+/// WebSocket-frame field subset per event, mirroring the terminal
+/// serializer in `tools/server/src/ws/format.rs` (the authority — keep
+/// in sync). `None` = the event has no WebSocket frame.
+fn ws_frame_fields(event: &str) -> Option<&'static [&'static str]> {
+    Some(match event {
+        "Quote" => &[
+            "ms_of_day",
+            "bid_size",
+            "bid_exchange",
+            "bid",
+            "bid_condition",
+            "ask_size",
+            "ask_exchange",
+            "ask",
+            "ask_condition",
+            "date",
+        ],
+        "Trade" => &[
+            "ms_of_day",
+            "sequence",
+            "size",
+            "condition",
+            "price",
+            "exchange",
+            "date",
+        ],
+        "Ohlcvc" => &[
+            "ms_of_day",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "count",
+            "date",
+        ],
+        "MarketValue" => &[
+            "ms_of_day",
+            "market_bid",
+            "market_ask",
+            "market_price",
+            "date",
+        ],
+        _ => return None,
+    })
+}
+
 /// Renders one reference page per stream type, returning each as a
 /// `(path, contents)` pair: title, prose, per-language tabs, and the
 /// event field table.
@@ -478,6 +602,12 @@ pub(super) fn render_stream_pages() -> Result<Vec<(String, String)>, Box<dyn std
             "\n<!-- @generated by `generate_docs_site` from fpss_event_schema.toml. Do not edit by hand. -->\n\n",
         );
         let _ = writeln!(out, "# {}\n", spec.title);
+        if let Some(body) = spec.warning {
+            let _ = writeln!(
+                out,
+                "::: danger NOT YET WIRED BY THETADATA SOFTWARE ENGINEERS\n\n{body}\n\n:::\n"
+            );
+        }
         let _ = writeln!(out, "{}\n", spec.prose);
         out.push_str(
             "The snippets below assume a connected client with streaming started — see [Getting Started](/streaming/) for the connect-and-stream ladder.\n",
@@ -513,7 +643,42 @@ pub(super) fn render_stream_pages() -> Result<Vec<(String, String)>, Box<dyn std
             );
         }
 
-        out.push_str(&render_event_table(&schema, spec.event));
+        // The table documents the full event schema — the native SDK
+        // callbacks receive every column. A narrower WebSocket frame is
+        // covered by the note below, not by trimming the table.
+        let (table, table_fields) = render_event_table(&schema, spec.event);
+        out.push_str(&table);
+        // The WebSocket-frame note only earns its place when the table
+        // lists more fields than the raw frame carries.
+        let ws_subset = ws_frame_fields(spec.event);
+        if let Some(fields) = ws_subset.filter(|ws| table_fields.len() > ws.len()) {
+            let inline = fields
+                .iter()
+                .map(|f| format!("`{f}`"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            // Payload-object key = the frame's lowercased event type, the
+            // same `event_type.to_ascii_lowercase()` the server uses in
+            // `tools/server/src/ws/format.rs`. Keyed on the event, not the
+            // subscription's `ws_req_type` (a FULL_TRADES subscription still
+            // delivers `Trade` frames keyed `trade`).
+            let payload = match spec.event {
+                "Quote" => "quote",
+                "Trade" => "trade",
+                // Server emits the OHLCVC bar as an OHLC frame; key is the
+                // lowercased `header.type` (`StreamData::Ohlcvc => "OHLC"`).
+                "Ohlcvc" => "ohlc",
+                "MarketValue" => "market_value",
+                other => panic!("no WebSocket payload key for event {other}"),
+            };
+            let _ = write!(
+                out,
+                "## WebSocket frame\n\nThe native SDK callbacks (Rust/Python/TypeScript/C++) receive every field above. \
+                 Each raw WebSocket frame (the **Server** tab) is `{{ \"header\": {{…}}, \"contract\": {{…}}, \"{payload}\": {{…}} }}`: \
+                 `header` and `contract` are always present, while the `{payload}` payload object carries only the terminal-compatible subset: {inline}. \
+                 The remaining event fields are delivered to the SDK callbacks, not the `{payload}` payload object.\n\n",
+            );
+        }
         pages.push((spec.path.to_string(), out));
     }
     Ok(pages)
