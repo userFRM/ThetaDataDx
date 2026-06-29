@@ -44,6 +44,12 @@ npm install thetadatadx        # TypeScript / Node.js
 cargo add thetadatadx          # Rust
 ```
 
+Point an AI client (Claude Desktop, Cursor, and others) at the MCP server, no install and no Rust toolchain:
+
+```json
+{ "command": "npx", "args": ["-y", "thetadatadx-mcp"], "env": { "THETADATA_API_KEY": "your_key" } }
+```
+
 C++ ships as a header plus a small implementation file over a prebuilt library (a CMake target wires it up). See the [C++ guide](thetadatadx-cpp/).
 
 ## Quick start
