@@ -134,3 +134,7 @@ Each update arrives as a `Quote` event with these fields:
 
 The `contract` field carries `symbol`, the security type, and — for options — `expiration`, `right`, and the strike. See [Handling Events](/streaming/events) for the full event catalogue and per-language field shapes.
 
+## WebSocket frame
+
+The native SDK callbacks (Rust/Python/TypeScript/C++) receive every field above. The raw WebSocket frame (the **Server** tab) carries only the terminal-compatible subset: `ms_of_day`, `bid_size`, `bid_exchange`, `bid`, `bid_condition`, `ask_size`, `ask_exchange`, `ask`, `ask_condition`, `date`. The remaining fields are delivered to the SDK callbacks, not the WebSocket frame.
+
