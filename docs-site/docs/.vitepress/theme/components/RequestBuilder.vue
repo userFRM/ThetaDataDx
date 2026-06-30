@@ -301,33 +301,40 @@ const code = computed(() => {
   switch (active.value) {
     case 'python': {
       const imp = importSymbols('python').join(', ')
+      const req = reqArgs('python')
       const opt = filledOpt.value
         .map((o) => `${o.key}=${fmtVal('python', o.type, vals.value[o.key])}`)
         .join(', ')
+      const empty = !req && !opt
       if (callStyle.value === 'async') {
         const optLine = opt ? `\n        ${opt},` : ''
+        // Zero-arg call collapses to bare `method_async()`; otherwise the
+        // multi-line arg block (a trailing comma after an empty block is a
+        // stray-comma syntax error).
+        const call = empty
+          ? `${c.method.python}_async()`
+          : `${c.method.python}_async(\n        ${req},${optLine}\n    )`
         return `import asyncio
 from thetadatadx import ${imp}
 
 async def main():
     ${clientLine('python').line}
 
-    rows = await client${hist('python')}.${c.method.python}_async(
-        ${reqArgs('python')},${optLine}
-    )
+    rows = await client${hist('python')}.${call}
     for t in rows:
         print(${pyPrint.value})
 
 asyncio.run(main())`
       }
       const optLine = opt ? `\n    ${opt},` : ''
+      const call = empty
+        ? `${c.method.python}()`
+        : `${c.method.python}(\n    ${req},${optLine}\n)`
       return `from thetadatadx import ${imp}
 
 ${clientLine('python').line}
 
-rows = client${hist('python')}.${c.method.python}(
-    ${reqArgs('python')},${optLine}
-)
+rows = client${hist('python')}.${call}
 for t in rows:
     print(${pyPrint.value})`
     }
@@ -356,17 +363,19 @@ async fn main() -> Result<(), thetadatadx::Error> {
     }
     case 'typescript': {
       const imp = importSymbols('typescript').join(', ')
+      const req = reqArgs('typescript')
       const opt = filledOpt.value
         .map((o) => `${camel(o.key)}: ${fmtVal('typescript', o.type, vals.value[o.key])}`)
         .join(', ')
       const optLine = opt ? `\n  { ${opt} },` : ''
+      // Zero-arg call collapses to bare `method()`; otherwise the multi-line
+      // arg block (a leading comma on an empty arg list is a syntax error).
+      const call = !req && !opt ? `${c.method.ts}()` : `${c.method.ts}(\n  ${req},${optLine}\n)`
       return `import { ${imp} } from "thetadatadx";
 
 ${clientLine('typescript').line}
 
-const rows = await client${hist('typescript')}.${c.method.ts}(
-  ${reqArgs('typescript')},${optLine}
-);
+const rows = await client${hist('typescript')}.${call};
 for (const t of rows) {
   console.log(${tsPrint.value});
 }`
