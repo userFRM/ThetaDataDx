@@ -117,8 +117,7 @@ pub mod internals {
     pub use super::io_loop::{wait_for_login, LoginResult};
     pub use super::protocol::wire::{
         build_credentials_payload, build_full_type_subscribe_payload, build_ping_payload,
-        build_stop_payload, build_subscribe_payload, parse_contract_message,
-        parse_disconnect_reason, parse_req_response,
+        build_stop_payload, build_subscribe_payload,
     };
 }
 
