@@ -104,6 +104,7 @@ pub mod __test_internals {
 /// bump, and absent unless `__internal` is enabled, so `cargo-semver-checks`
 /// (default features) never sees it.
 #[cfg(feature = "__internal")]
+#[doc(hidden)]
 pub mod internals {
     pub use super::connection::{connect_to_servers, FpssStream, TcpKeepaliveSpec};
     pub use super::decode::decode_frame;
