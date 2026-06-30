@@ -316,7 +316,7 @@ pub fn decode_frame(
     // Stack-allocated tick buffer reused across every FIT-decoded arm. The
     // decoder writes the absolute field values directly here; the match arm
     // reads `buf[i]` to construct the public `StreamData` variant. Sized at
-    // the widest tick shape (`TRADE_FIELDS = 16`) so every arm shares one
+    // the widest tick shape (`MAX_DATA_FIELDS`) so every arm shares one
     // buffer with zero heap traffic on the decode hot path.
     let mut buf: TickFields = [0; super::delta::MAX_DATA_FIELDS];
 
@@ -427,29 +427,30 @@ pub fn decode_frame(
                 Some((contract_id, n_data)) => {
                     warn_unknown_contract(contract_id, "trade", delta_state, local_contracts);
 
-                    // Only the 8-field and 16-field trade layouts have known
-                    // cell positions. Any other width would force one of the
-                    // two index sets onto a payload that does not match it,
-                    // reading never-populated slots as price / price_type /
-                    // date and silently emitting a wrong tick. Worse, the
-                    // width is cached per contract on the first absolute row,
-                    // so a single off-spec width would mis-decode every later
-                    // delta row for that contract. Treat it as a decode
-                    // failure and surface `Unparseable`, mirroring the
-                    // invalid-price_type handling, rather than continuing.
-                    if n_data != 8 && n_data != TRADE_FIELDS {
+                    // The FPSS stream trade is the 8-field layout, the only
+                    // width with a known cell map here. (The 16-field
+                    // "extended" trade is an MDDS gRPC shape on a different
+                    // protocol and never reaches this decoder.) Any other
+                    // width would force the 8-field index set onto a payload
+                    // that does not match it, reading never-populated slots as
+                    // price / price_type / date and silently emitting a wrong
+                    // tick. Worse, the width is cached per contract on the
+                    // first absolute row, so a single off-spec width would
+                    // mis-decode every later delta row for that contract.
+                    // Treat it as a decode failure and surface `Unparseable`,
+                    // mirroring the invalid-price_type handling.
+                    if n_data != 8 {
                         FPSS_TRADE_DECODE_FAILURES.increment(1);
                         tracing::warn!(
                             contract_id,
                             n_data,
-                            "unexpected trade field count (expected 8 or 16); marking unparseable"
+                            "unexpected trade field count (expected 8); marking unparseable"
                         );
                         return (Some(FpssEventInternal::Unparseable), None);
                     }
 
                     // 8-field: [ms_of_day, sequence, size, condition, price, exchange, price_type, date]
-                    // 16-field: [ms_of_day, sequence, ext1..ext4, condition, size, exchange, price, cond_flags, price_flags, vol_type, records_back, price_type, date]
-                    let (price_idx, pt_idx) = if n_data <= 8 { (4, 6) } else { (9, 14) };
+                    let (price_idx, pt_idx) = (4, 6);
                     let pt = buf[pt_idx];
                     let Some(price_f64) = strict_fpss_price(buf[price_idx], pt) else {
                         FPSS_TRADE_DECODE_FAILURES.increment(1);
@@ -460,56 +461,31 @@ pub fn decode_frame(
                     FPSS_TRADE_EVENTS.increment(1);
 
                     let contract_arc = resolve_contract(contract_id, local_contracts);
-                    let trade_event = if n_data <= 8 {
-                        FpssEventInternal::Data(StreamData::Trade {
-                            contract: Arc::clone(&contract_arc),
-                            ms_of_day: buf[0],
-                            sequence: buf[1],
-                            ext_condition1: 0,
-                            ext_condition2: 0,
-                            ext_condition3: 0,
-                            ext_condition4: 0,
-                            condition: buf[3],
-                            size: buf[2],
-                            exchange: buf[5],
-                            price: price_f64,
-                            condition_flags: 0,
-                            price_flags: 0,
-                            volume_type: 0,
-                            records_back: 0,
-                            date: buf[7],
-                            received_at_ns,
-                        })
-                    } else {
-                        FpssEventInternal::Data(StreamData::Trade {
-                            contract: Arc::clone(&contract_arc),
-                            ms_of_day: buf[0],
-                            sequence: buf[1],
-                            ext_condition1: buf[2],
-                            ext_condition2: buf[3],
-                            ext_condition3: buf[4],
-                            ext_condition4: buf[5],
-                            condition: buf[6],
-                            size: buf[7],
-                            exchange: buf[8],
-                            price: price_f64,
-                            condition_flags: buf[10],
-                            price_flags: buf[11],
-                            volume_type: buf[12],
-                            records_back: buf[13],
-                            date: buf[15],
-                            received_at_ns,
-                        })
-                    };
+                    let trade_event = FpssEventInternal::Data(StreamData::Trade {
+                        contract: Arc::clone(&contract_arc),
+                        ms_of_day: buf[0],
+                        sequence: buf[1],
+                        ext_condition1: 0,
+                        ext_condition2: 0,
+                        ext_condition3: 0,
+                        ext_condition4: 0,
+                        condition: buf[3],
+                        size: buf[2],
+                        exchange: buf[5],
+                        price: price_f64,
+                        condition_flags: 0,
+                        price_flags: 0,
+                        volume_type: 0,
+                        records_back: 0,
+                        date: buf[7],
+                        received_at_ns,
+                    });
 
-                    // Extract for OHLCVC derivation (format-aware). The
-                    // 8-field layout carries no `records_back`, so every
-                    // 8-field print is a fresh trade (`records_back == 0`).
-                    let (ms_of_day, size, price, price_type, date, records_back) = if n_data <= 8 {
-                        (buf[0], buf[2], buf[4], buf[6], buf[7], 0)
-                    } else {
-                        (buf[0], buf[7], buf[9], buf[14], buf[15], buf[13])
-                    };
+                    // Extract for OHLCVC derivation. The 8-field layout carries
+                    // no `records_back`, so every print is a fresh trade
+                    // (`records_back == 0`).
+                    let (ms_of_day, size, price, price_type, date, records_back) =
+                        (buf[0], buf[2], buf[4], buf[6], buf[7], 0);
 
                     // Derive OHLCVC from trade only if enabled and the
                     // server has already seeded a bar.
@@ -1050,105 +1026,6 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // 16-field trade mapping (drives the full `decode_frame` pipeline)
-    // -----------------------------------------------------------------------
-
-    /// 16-field production trade layout — drives `decode_frame` so the
-    /// FIT decode + every field on the public `StreamData::Trade` variant
-    /// (including the extended-condition + flag fields the 8-field
-    /// layout zeroes out) is asserted against the real decode path
-    /// rather than a hand-copied mapping.
-    #[test]
-    fn decode_frame_16field_trade_emits_trade_data_with_extended_fields() {
-        // 16-field trade layout (production format):
-        //   FIT fields: [contract_id, ms_of_day, sequence, ext1, ext2, ext3, ext4,
-        //                condition, size, exchange, price, cond_flags, price_flags,
-        //                vol_type, records_back, price_type, date]
-        //   = 1 contract_id + 16 data fields = 17 FIT fields total
-        let fit_payload = encode_fit_row(&[
-            200,      // contract_id
-            34200000, // ms_of_day
-            99999,    // sequence
-            1,        // ext_condition1
-            2,        // ext_condition2
-            3,        // ext_condition3
-            4,        // ext_condition4
-            15,       // condition
-            500,      // size
-            57,       // exchange
-            18750000, // price
-            7,        // condition_flags
-            3,        // price_flags
-            1,        // volume_type
-            0,        // records_back
-            8,        // price_type
-            20250428, // date
-        ]);
-
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
-        let spy: Arc<Contract> = Arc::new(Contract::stock("SPY"));
-        local_contracts.insert(200, Arc::clone(&spy));
-
-        let authenticated = AtomicBool::new(true);
-        let shutdown = AtomicBool::new(false);
-        let mut delta_state = DeltaState::new();
-        let (primary, _secondary) = decode_frame(
-            StreamMsgType::Trade,
-            &fit_payload,
-            &authenticated,
-            &mut local_contracts,
-            &shutdown,
-            &mut delta_state,
-            false,
-        );
-
-        let evt = primary.expect("decode_frame must emit a primary Trade event");
-        let public = expect_public(&evt);
-        match public {
-            StreamEvent::Data(StreamData::Trade {
-                contract,
-                ms_of_day,
-                sequence,
-                ext_condition1,
-                ext_condition2,
-                ext_condition3,
-                ext_condition4,
-                condition,
-                size,
-                exchange,
-                price,
-                condition_flags,
-                price_flags,
-                volume_type,
-                records_back,
-                date,
-                ..
-            }) => {
-                assert_eq!(&*contract.symbol, "SPY");
-                assert_eq!(*ms_of_day, 34200000);
-                assert_eq!(*sequence, 99999);
-                assert_eq!(*ext_condition1, 1);
-                assert_eq!(*ext_condition2, 2);
-                assert_eq!(*ext_condition3, 3);
-                assert_eq!(*ext_condition4, 4);
-                assert_eq!(*condition, 15);
-                assert_eq!(*size, 500);
-                assert_eq!(*exchange, 57);
-                assert!(
-                    (*price - Price::new(18750000, 8).to_f64()).abs() < f64::EPSILON,
-                    "price must reassemble via Price::new(value, price_type)"
-                );
-                assert_eq!(*condition_flags, 7);
-                assert_eq!(*price_flags, 3);
-                assert_eq!(*volume_type, 1);
-                assert_eq!(*records_back, 0);
-                assert_eq!(*date, 20250428);
-            }
-            other => panic!("expected Trade, got {other:?}"),
-        }
-    }
-
-    // -----------------------------------------------------------------------
     // Off-spec trade width rejection
     // -----------------------------------------------------------------------
 
@@ -1305,19 +1182,16 @@ mod tests {
     #[test]
     fn server_reconnect_resets_delta_state_so_next_tick_is_fresh_baseline() {
         let cid = 200;
-        // A full 16-field trade row for `cid`, price cell = 18_750_000.
+        // An 8-field FPSS stream trade row for `cid`, price cell = 18_750_000.
         let abs_row = |price: i32| {
             encode_fit_row(&[
                 cid,        // contract_id
                 34_200_000, // ms_of_day
                 1,          // sequence
-                0, 0, 0, 0,     // ext1..ext4
-                0,     // condition
-                100,   // size
-                57,    // exchange
-                price, // price
-                0, 0, 0,          // cond_flags, price_flags, vol_type
-                0,          // records_back
+                100,        // size
+                0,          // condition
+                price,      // price
+                57,         // exchange
                 8,          // price_type
                 20_250_428, // date
             ])
@@ -1753,52 +1627,6 @@ mod tests {
             other => {
                 panic!("expected Unparseable for out-of-range Trade price_type, got {other:?}")
             }
-        }
-    }
-
-    #[test]
-    fn decode_frame_16field_trade_invalid_price_type_drops_to_unparseable() {
-        // 16-field trade layout:
-        //   [contract_id, ms_of_day, sequence, ext1, ext2, ext3, ext4,
-        //    condition, size, exchange, price, cond_flags,
-        //    price_flags, vol_type, records_back, price_type, date]
-        let fit_payload = encode_fit_row(&[
-            500,
-            34_200_000,
-            99_999,
-            1,
-            2,
-            3,
-            4,
-            15,
-            500,
-            57,
-            18_750_000,
-            7,
-            3,
-            1,
-            0,
-            i32::MAX,
-            20_250_428,
-        ]);
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
-        local_contracts.insert(500, Arc::new(Contract::stock("SPY")));
-        let authenticated = AtomicBool::new(true);
-        let shutdown = AtomicBool::new(false);
-        let mut delta_state = DeltaState::new();
-        let (primary, secondary) = decode_frame(
-            StreamMsgType::Trade,
-            &fit_payload,
-            &authenticated,
-            &mut local_contracts,
-            &shutdown,
-            &mut delta_state,
-            false,
-        );
-        assert!(secondary.is_none());
-        match primary {
-            Some(FpssEventInternal::Unparseable) => {}
-            other => panic!("expected Unparseable for i32::MAX Trade price_type, got {other:?}"),
         }
     }
 
