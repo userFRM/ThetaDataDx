@@ -18,6 +18,13 @@
 mod login;
 mod ping;
 
+// Re-exported so the `__internal` fpss surface (`fpss::internals`) can hand the
+// login handshake to a downstream consumer that owns the read loop. `pub` only
+// under the feature; otherwise crate-internal, matching the convention used by
+// the crate's other `__internal`-gated surfaces.
+#[cfg(feature = "__internal")]
+pub use login::{wait_for_login, LoginResult};
+#[cfg(not(feature = "__internal"))]
 pub(in crate::fpss) use login::{wait_for_login, LoginResult};
 pub(in crate::fpss) use ping::ping_loop;
 

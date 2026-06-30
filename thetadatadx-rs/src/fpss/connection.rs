@@ -46,7 +46,7 @@ pub type FpssStream = StreamOwned<ClientConnection, TcpStream>;
 /// Mirrors the three `StreamingConfig` keepalive knobs; bundled so the
 /// connect path takes one argument instead of three loose integers.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct TcpKeepaliveSpec {
+pub struct TcpKeepaliveSpec {
     /// Idle time before the first probe.
     pub idle: Duration,
     /// Interval between unanswered probes.
@@ -229,7 +229,7 @@ pub(crate) fn order_hosts(
 /// # Errors
 ///
 /// Returns an error on network, authentication, or parsing failure.
-pub(crate) fn connect_to_servers(
+pub fn connect_to_servers(
     servers: &[(&str, u16)],
     connect_timeout: Duration,
     read_timeout: Duration,
