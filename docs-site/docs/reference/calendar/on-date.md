@@ -14,9 +14,6 @@ const cfg = {
   optional: [],
   print: ["date", "is_open", "status"],
   returns: "CalendarDay",
-  sample: [
-    {"close":null,"open":null,"type":"full_close"},
-  ],
 }
 </script>
 

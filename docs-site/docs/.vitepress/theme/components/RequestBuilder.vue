@@ -303,7 +303,7 @@ function copy() {
     </div>
 
     <div v-if="cfg.sample" class="rb-resp">
-      <div class="rb-resp-h"><span class="rb-dot" /> Sample response · <code>{{ cfg.returns || 'rows' }}</code></div>
+      <div class="rb-resp-h"><span class="rb-dot" /> Sample response · <code>JSON</code></div>
       <pre class="rb-pre"><code class="hljs" v-html="sampleHl"></code></pre>
     </div>
     </div>

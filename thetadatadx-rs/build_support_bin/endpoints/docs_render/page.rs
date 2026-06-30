@@ -174,10 +174,14 @@ fn render_params_section(endpoint: &GeneratedEndpoint) -> String {
 }
 
 /// Quote a value as a JS string literal for the generated `cfg` object.
-/// Parameter names and fixture values are simple tokens; escape
-/// defensively so a stray quote or backslash can never break the page.
+/// `serde_json` fully escapes the string (quotes, backslashes, newlines, control
+/// chars), which is also a valid JS string literal; the `</` rewrite stops an
+/// embedded `</script>` from closing the host `<script setup>` tag, since the
+/// HTML tokenizer runs before the JS parser.
 fn js_str(s: &str) -> String {
-    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+    serde_json::to_string(s)
+        .unwrap_or_else(|_| "\"\"".to_string())
+        .replace("</", "<\\/")
 }
 
 /// Build the `<script setup>` block holding the `cfg` object that drives the
@@ -243,22 +247,27 @@ fn render_builder_cfg(endpoint: &GeneratedEndpoint) -> Result<String, Box<dyn st
         // bare row and has no per-field tick sample.
         out.push_str("  scalar: true,\n");
     } else {
-        let print: Vec<String> = response::display_fields(&endpoint.return_type)
-            .iter()
-            .copied()
-            .map(js_str)
-            .collect();
+        let fields = response::display_fields(&endpoint.return_type);
+        let print: Vec<String> = fields.iter().copied().map(js_str).collect();
         let _ = writeln!(out, "  print: [{}],", print.join(", "));
         let _ = writeln!(
             out,
             "  returns: {},",
             js_str(&response::schema_type_name(&endpoint.return_type))
         );
+        // The upstream OpenAPI example is the wire/JSON shape; for some endpoints
+        // (e.g. calendar) it shares no field names with the SDK tick type and
+        // would only mislead next to the schema table. Emit it only when it
+        // overlaps the documented display fields.
         let sample = samples::td_example_rows(&endpoint._rest_path);
-        if !sample.is_empty() {
+        let overlaps = sample
+            .first()
+            .and_then(|r| r.as_object())
+            .is_some_and(|o| o.keys().any(|k| fields.contains(&k.as_str())));
+        if overlaps {
             let rows: Vec<String> = sample
                 .iter()
-                .map(|r| serde_json::to_string(r).unwrap_or_default())
+                .map(|r| serde_json::to_string(r).expect("serde_json::Value re-serializes"))
                 .collect();
             let _ = writeln!(out, "  sample: [\n    {},\n  ],", rows.join(",\n    "));
         }
