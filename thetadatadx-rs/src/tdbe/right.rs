@@ -1,13 +1,12 @@
 //! Canonical parser for the option `right` parameter.
 //!
-//! Every user-facing input boundary (MDDS endpoints, FPSS contracts, CLI,
-//! SDK surfaces, the Greeks utilities) funnels `right` strings through
-//! [`parse_right`] so that the accepted vocabulary and validation rules
-//! live in exactly one place.
+//! Every user-facing input boundary (MDDS endpoints, FPSS contracts,
+//! SDK surfaces) funnels `right` strings through [`parse_right`] so that
+//! the accepted vocabulary and validation rules live in exactly one place.
 //!
-//! Lives in the internal data-format layer so the Greeks utilities reuse
-//! the same parser. The public surface re-exports [`parse_right`],
-//! [`parse_right_strict`], and [`ParsedRight`] through `thetadatadx::greeks`.
+//! General-purpose option-right vocabulary, independent of any one
+//! endpoint or analytic. The public surface re-exports [`parse_right`],
+//! [`parse_right_strict`], and [`ParsedRight`] through `thetadatadx::right`.
 //!
 //! # Accepted input
 //!
@@ -21,8 +20,8 @@
 //! - `"both"`, `"BOTH"`, `"*"` — wildcard; only valid where the endpoint
 //!   supports it (e.g. snapshot / history endpoints taking `strike="0"`)
 //!
-//! Anything else returns [`crate::greeks::Error::Config`] with
-//! a descriptive message. No silent defaults.
+//! Anything else returns [`RightError`] with a descriptive message. No
+//! silent defaults.
 //!
 //! # Upstream vs ours
 //!
@@ -31,7 +30,26 @@
 //! `both`. We extend the accepted set with short-form `C`/`P` for SDK
 //! ergonomics — a strict superset, so any upstream client continues to work.
 
-use crate::tdbe::error::Error;
+use thiserror::Error;
+
+/// Error returned when a `right` string does not match an accepted form.
+///
+/// Carries its own variant rather than borrowing a broader error enum so
+/// the option-right vocabulary stays self-contained. Bridges into the
+/// crate's public [`crate::Error`] via `From` so callers can use `?`.
+#[derive(Error, Debug)]
+pub enum RightError {
+    /// The input did not match any accepted `right` form.
+    #[error("{0}")]
+    Invalid(String),
+}
+
+impl From<RightError> for crate::Error {
+    fn from(err: RightError) -> Self {
+        let RightError::Invalid(message) = err;
+        crate::Error::config_invalid("right", message)
+    }
+}
 
 /// Parsed representation of the option `right` parameter.
 ///
@@ -76,17 +94,17 @@ impl ParsedRight {
 /// Parse a user-supplied `right` string.
 ///
 /// Accepts `call`/`put`/`both`/`C`/`P`/`*` in any case. Returns
-/// [`crate::greeks::Error::Config`] for anything else.
+/// [`RightError`] for anything else.
 ///
 /// # Errors
 ///
-/// Returns [`crate::greeks::Error::Config`] if the input does
-/// not match any of the accepted forms.
+/// Returns [`RightError`] if the input does not match any of the accepted
+/// forms.
 ///
 /// # Examples
 ///
 /// ```
-/// use thetadatadx::greeks::{parse_right, ParsedRight};
+/// use thetadatadx::right::{parse_right, ParsedRight};
 ///
 /// assert_eq!(parse_right("C").unwrap(), ParsedRight::Call);
 /// assert_eq!(parse_right("put").unwrap(), ParsedRight::Put);
@@ -94,7 +112,7 @@ impl ParsedRight {
 /// assert_eq!(parse_right("*").unwrap(), ParsedRight::Both);
 /// assert!(parse_right("xyz").is_err());
 /// ```
-pub fn parse_right(input: &str) -> Result<ParsedRight, Error> {
+pub fn parse_right(input: &str) -> Result<ParsedRight, RightError> {
     // `*` is punctuation — handle before the lowercase dance.
     if input == "*" {
         return Ok(ParsedRight::Both);
@@ -105,7 +123,7 @@ pub fn parse_right(input: &str) -> Result<ParsedRight, Error> {
         "c" | "call" => Ok(ParsedRight::Call),
         "p" | "put" => Ok(ParsedRight::Put),
         "both" => Ok(ParsedRight::Both),
-        _ => Err(Error::Config(format!(
+        _ => Err(RightError::Invalid(format!(
             "invalid option right: '{input}' (expected one of: 'call', 'put', 'both', 'C', 'P', '*' -- case-insensitive)"
         ))),
     }
@@ -113,18 +131,18 @@ pub fn parse_right(input: &str) -> Result<ParsedRight, Error> {
 
 /// Parse a `right` that must resolve to a single side (call or put).
 ///
-/// Returns [`crate::greeks::Error::Config`] if the input parses
-/// to [`ParsedRight::Both`]. Use this for endpoints where the wildcard is not
-/// meaningful (e.g. FPSS per-contract subscriptions, Greeks utilities).
+/// Returns [`RightError`] if the input parses to [`ParsedRight::Both`]. Use
+/// this for endpoints where the wildcard is not meaningful (e.g. FPSS
+/// per-contract subscriptions).
 ///
 /// # Errors
 ///
-/// Returns [`crate::greeks::Error::Config`] for invalid inputs
-/// and for the `both` / `*` wildcards.
-pub fn parse_right_strict(input: &str) -> Result<ParsedRight, Error> {
+/// Returns [`RightError`] for invalid inputs and for the `both` / `*`
+/// wildcards.
+pub fn parse_right_strict(input: &str) -> Result<ParsedRight, RightError> {
     let parsed = parse_right(input)?;
     if matches!(parsed, ParsedRight::Both) {
-        return Err(Error::Config(format!(
+        return Err(RightError::Invalid(format!(
             "option right '{input}' resolves to 'both' but this endpoint requires a single side (call or put)"
         )));
     }

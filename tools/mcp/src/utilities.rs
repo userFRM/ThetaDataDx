@@ -11,56 +11,14 @@ fn push_generated_utility_tool_definitions(tools: &mut Vec<Value>) {
             "required": []
         }
     }));
-    tools.push(json!({
-        "name": "all_greeks",
-        "description": "Compute all 23 Black-Scholes Greeks OFFLINE (no ThetaData server needed). Returns value, delta, gamma, theta, vega, rho, IV, iv_error, vanna, charm, vomma, veta, speed, zomma, color, ultima, d1, d2, dual_delta, dual_gamma, epsilon, lambda, vera.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "spot": { "type": "number", "description": "Spot price (underlying)" },
-                "strike": { "type": "number", "description": "Strike price." },
-                "rate": { "type": "number", "description": "Risk-free rate (e.g. 0.05 for 5%)" },
-                "dividend_yield": { "type": "number", "description": "Dividend yield (e.g. 0.02 for 2%)" },
-                "time_to_expiry": { "type": "number", "description": "Time to expiration in years (e.g. 0.25 for 3 months)" },
-                "option_price": { "type": "number", "description": "Market price of the option" },
-                "right": { "type": "string", "description": "Option side: \"C\"/\"P\" or \"call\"/\"put\" (case-insensitive)", "enum": ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] }
-            },
-            "required": ["spot", "strike", "rate", "dividend_yield", "time_to_expiry", "option_price", "right"]
-        }
-    }));
-    tools.push(json!({
-        "name": "implied_volatility",
-        "description": "Compute implied volatility OFFLINE using bisection (no ThetaData server needed). Returns IV and error.",
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "spot": { "type": "number", "description": "Spot price (underlying)" },
-                "strike": { "type": "number", "description": "Strike price." },
-                "rate": { "type": "number", "description": "Risk-free rate (e.g. 0.05)" },
-                "dividend_yield": { "type": "number", "description": "Dividend yield (e.g. 0.02)" },
-                "time_to_expiry": { "type": "number", "description": "Time to expiration in years" },
-                "option_price": { "type": "number", "description": "Market price of the option" },
-                "right": { "type": "string", "description": "Option side: \"C\"/\"P\" or \"call\"/\"put\" (case-insensitive)", "enum": ["C", "P", "c", "p", "call", "put", "CALL", "PUT", "Call", "Put"] }
-            },
-            "required": ["spot", "strike", "rate", "dividend_yield", "time_to_expiry", "option_price", "right"]
-        }
-    }));
 }
 
 async fn try_execute_generated_utility(
     client: Option<&Client>,
     name: &str,
-    args: &Value,
+    _args: &Value,
     start_time: std::time::Instant,
 ) -> Option<Result<Value, ToolError>> {
-    macro_rules! param_or_return {
-        ($expr:expr) => {
-            match $expr {
-                Ok(value) => value,
-                Err(error) => return Some(Err(ToolError::InvalidParams(error))),
-            }
-        };
-    }
     match name {
         "ping" => {
             let uptime = start_time.elapsed();
@@ -70,61 +28,6 @@ async fn try_execute_generated_utility(
                 "version": VERSION,
                 "uptime_secs": uptime.as_secs(),
                 "connected": client.is_some(),
-            })))
-        }
-        "all_greeks" => {
-            let spot = param_or_return!(arg_f64(args, "spot"));
-            let strike = param_or_return!(arg_f64(args, "strike"));
-            let rate = param_or_return!(arg_f64(args, "rate"));
-            let div_yield = param_or_return!(arg_f64(args, "dividend_yield"));
-            let tte = param_or_return!(arg_f64(args, "time_to_expiry"));
-            let option_price = param_or_return!(arg_f64(args, "option_price"));
-            let right = param_or_return!(arg_str(args, "right"));
-            let g = match thetadatadx::greeks::all_greeks(spot, strike, rate, div_yield, tte, option_price, &right) {
-                Ok(g) => g,
-                Err(e) => return Some(Err(ToolError::InvalidParams(e.to_string()))),
-            };
-            Some(Ok(json!({
-                "value": g.value,
-                "iv": g.iv,
-                "iv_error": g.iv_error,
-                "delta": g.delta,
-                "gamma": g.gamma,
-                "theta": g.theta,
-                "vega": g.vega,
-                "rho": g.rho,
-                "vanna": g.vanna,
-                "charm": g.charm,
-                "vomma": g.vomma,
-                "veta": g.veta,
-                "vera": g.vera,
-                "speed": g.speed,
-                "zomma": g.zomma,
-                "color": g.color,
-                "ultima": g.ultima,
-                "d1": g.d1,
-                "d2": g.d2,
-                "dual_delta": g.dual_delta,
-                "dual_gamma": g.dual_gamma,
-                "epsilon": g.epsilon,
-                "lambda": g.lambda,
-            })))
-        }
-        "implied_volatility" => {
-            let spot = param_or_return!(arg_f64(args, "spot"));
-            let strike = param_or_return!(arg_f64(args, "strike"));
-            let rate = param_or_return!(arg_f64(args, "rate"));
-            let div_yield = param_or_return!(arg_f64(args, "dividend_yield"));
-            let tte = param_or_return!(arg_f64(args, "time_to_expiry"));
-            let option_price = param_or_return!(arg_f64(args, "option_price"));
-            let right = param_or_return!(arg_str(args, "right"));
-            let (iv, err) = match thetadatadx::greeks::implied_volatility(spot, strike, rate, div_yield, tte, option_price, &right) {
-                Ok(pair) => pair,
-                Err(e) => return Some(Err(ToolError::InvalidParams(e.to_string()))),
-            };
-            Some(Ok(json!({
-                "implied_volatility": iv,
-                "error": err,
             })))
         }
         _ => None,

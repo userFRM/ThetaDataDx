@@ -1,183 +1,95 @@
-//! Sample-output decoding for the endpoint reference pages.
+//! OpenAPI-example samples for the endpoint reference pages.
 //!
-//! Each endpoint that has a checked-in capture fixture
-//! (`tests/fixtures/captures/<endpoint>.pb.zst` — a real production
-//! response, zstd-wrapped protobuf) gets a small example-response table
-//! decoded through the production pipeline (`decode_data_table` + the
-//! generated per-tick parser). Endpoints without a capture render the
-//! schema only — sample data is never fabricated.
+//! Each endpoint's example-response rows are lifted from the upstream
+//! OpenAPI spec's `application/json` example, so every page shows a real,
+//! vendor-documented sample. Endpoints whose spec has no JSON example
+//! (e.g. list endpoints) render the schema only — sample data is never
+//! fabricated.
 
-use std::io::Read as _;
-use std::path::PathBuf;
+use std::sync::OnceLock;
 
-use prost::Message as _;
-
-use super::super::model::GeneratedEndpoint;
+use serde_json::Value;
 
 const SAMPLE_ROWS: usize = 3;
 
-/// Decoded sample rows from a capture fixture, ready for the example
-/// table on a reference page.
-pub(super) struct DecodedSample {
-    /// First rows, stringified in `tick_schema.toml` column order.
-    pub(super) rows: Vec<Vec<String>>,
-    /// Total row count of the capture.
-    pub(super) total_rows: usize,
+/// Vendored upstream OpenAPI spec, relative to the generator's package-root
+/// cwd. Read once and cached for the example lookups below.
+fn openapi_text() -> &'static str {
+    static TEXT: OnceLock<String> = OnceLock::new();
+    TEXT.get_or_init(|| {
+        std::fs::read_to_string("../scripts/ci/data/upstream_openapi.yaml").unwrap_or_default()
+    })
 }
 
-fn captures_dir() -> PathBuf {
-    // The generator binary sets its cwd to the package root.
-    PathBuf::from("tests/fixtures/captures")
+/// Example response rows for `rest_path` (e.g. "/v3/option/history/ohlc"),
+/// lifted from the upstream OpenAPI spec's `application/json` example so every
+/// endpoint shows a real, vendor-documented sample. Flat (`response: [..]`)
+/// and option (`response: [{contract, data: [..]}]`) shapes both reduce to the
+/// record list; the first `SAMPLE_ROWS` are returned. Empty when the spec has
+/// no JSON example (e.g. list endpoints), leaving the page sample-less.
+pub(super) fn td_example_rows(rest_path: &str) -> Vec<Value> {
+    let yaml_path = rest_path.strip_prefix("/v3").unwrap_or(rest_path);
+    let Some(example) = extract_json_example(openapi_text(), yaml_path) else {
+        return Vec::new();
+    };
+    let Ok(parsed) = serde_json::from_str::<Value>(&example) else {
+        return Vec::new();
+    };
+    let Some(rows) = parsed.get("response").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    let records = rows
+        .first()
+        .and_then(|r| r.get("data"))
+        .and_then(Value::as_array)
+        .unwrap_or(rows);
+    records.iter().take(SAMPLE_ROWS).cloned().collect()
 }
 
-/// Format an `f64` for the sample table: up to six decimals, trailing
-/// zeros trimmed (display precision only — values come straight from
-/// the production decode pipeline).
-fn fmt_f64(v: f64) -> String {
-    let s = format!("{v:.6}");
-    let s = s.trim_end_matches('0').trim_end_matches('.');
-    if s.is_empty() || s == "-" {
-        "0".to_string()
-    } else {
-        s.to_string()
-    }
-}
+/// Pull the first `application/json` `example: |` block under `path` from the
+/// raw OpenAPI text. Line/indent-based to avoid a YAML dependency, mirroring
+/// the existing upstream-spec parser. JSON ignores the residual indentation.
+fn extract_json_example(text: &str, path: &str) -> Option<String> {
+    let lines: Vec<&str> = text.lines().collect();
+    let indent_of = |l: &str| l.len() - l.trim_start().len();
 
-/// Stringify the first rows of a decoded tick vec using a field list
-/// that mirrors the `columns` order in `tick_schema.toml`. The row
-/// width is asserted against the schema by the caller.
-macro_rules! rows {
-    ($ticks:expr, [$($field:ident : $kind:tt),+ $(,)?]) => {{
-        let ticks = $ticks;
-        let total = ticks.len();
-        let rows: Vec<Vec<String>> = ticks
+    // The OpenAPI path key is the endpoint REST path, optionally followed by a
+    // single trailing `/{...}` path-parameter template segment: `/option/list/
+    // contracts` is documented under `/option/list/contracts/{request_type}`.
+    // Match the exact key or that one templated tail, and nothing longer, so a
+    // sibling path (an unrelated longer route) is never picked up by mistake.
+    let matches_key = |trimmed: &str| {
+        trimmed == format!("{path}:")
+            || trimmed
+                .strip_prefix(path)
+                .and_then(|rest| rest.strip_prefix("/{"))
+                .and_then(|rest| rest.strip_suffix("}:"))
+                .is_some_and(|seg| !seg.is_empty() && !seg.contains('/'))
+    };
+
+    let start = lines
+        .iter()
+        .position(|l| indent_of(l) == 2 && matches_key(l.trim_start()))?;
+    let end = lines[start + 1..]
+        .iter()
+        .position(|l| indent_of(l) == 2 && l.trim_start().starts_with('/'))
+        .map_or(lines.len(), |p| start + 1 + p);
+    let block = &lines[start..end];
+
+    let json_idx = block.iter().position(|l| l.trim() == "application/json:")?;
+    let ex_idx = json_idx
+        + block[json_idx..]
             .iter()
-            .take(SAMPLE_ROWS)
-            .map(|t| vec![$(rows!(@cell t, $field, $kind)),+])
-            .collect();
-        DecodedSample { rows, total_rows: total }
-    }};
-    (@cell $t:ident, $field:ident, f) => { fmt_f64($t.$field) };
-    (@cell $t:ident, $field:ident, i) => { $t.$field.to_string() };
-    (@cell $t:ident, $field:ident, s) => { $t.$field.to_string() };
-}
+            .position(|l| l.trim_start().starts_with("example:"))?;
+    let ex_indent = indent_of(block[ex_idx]);
 
-/// Decode the capture for `endpoint`, if one exists.
-pub(super) fn decode_capture(
-    endpoint: &GeneratedEndpoint,
-) -> Result<Option<DecodedSample>, Box<dyn std::error::Error>> {
-    let path = captures_dir().join(format!("{}.pb.zst", endpoint.name));
-    if !path.exists() {
-        return Ok(None);
-    }
-
-    let bytes = std::fs::read(&path)?;
-    let mut response = if bytes.starts_with(&[0x28, 0xb5, 0x2f, 0xfd]) {
-        let mut decoder = zstd::Decoder::new(&bytes[..])?;
-        let mut inner = Vec::new();
-        decoder.read_to_end(&mut inner)?;
-        thetadatadx::wire::ResponseData::decode(inner.as_slice())?
-    } else {
-        thetadatadx::wire::ResponseData::decode(bytes.as_slice())?
-    };
-    let table = thetadatadx::decode::decode_data_table(&mut response)?;
-
-    use thetadatadx::decode as d;
-    let sample = match endpoint.return_type.as_str() {
-        "TradeTicks" => rows!(d::parse_trade_ticks(&table)?, [
-            ms_of_day: i, sequence: i, ext_condition1: i, ext_condition2: i,
-            ext_condition3: i, ext_condition4: i, condition: i, size: i,
-            exchange: i, price: f, condition_flags: i, price_flags: i,
-            volume_type: i, records_back: i, date: i,
-        ]),
-        "TradeQuoteTicks" => rows!(d::parse_trade_quote_ticks(&table)?, [
-            ms_of_day: i, sequence: i, ext_condition1: i, ext_condition2: i,
-            ext_condition3: i, ext_condition4: i, condition: i, size: i,
-            exchange: i, price: f, condition_flags: i, price_flags: i,
-            volume_type: i, records_back: i, quote_ms_of_day: i, bid_size: i,
-            bid_exchange: i, bid: f, bid_condition: i, ask_size: i,
-            ask_exchange: i, ask: f, ask_condition: i, date: i,
-        ]),
-        "OhlcTicks" => rows!(d::parse_ohlc_ticks(&table)?, [
-            ms_of_day: i, open: f, high: f, low: f, close: f, volume: i,
-            count: i, vwap: f, date: i,
-        ]),
-        "EodTicks" => rows!(d::parse_eod_ticks(&table)?, [
-            created_ms_of_day: i, last_trade_ms_of_day: i, open: f, high: f, low: f, close: f,
-            volume: i, count: i, bid_size: i, bid_exchange: i, bid: f,
-            bid_condition: i, ask_size: i, ask_exchange: i, ask: f,
-            ask_condition: i, date: i,
-        ]),
-        "GreeksAllTicks" => rows!(d::parse_greeks_all_ticks(&table)?, [
-            ms_of_day: i, bid: f, ask: f, implied_volatility: f, delta: f,
-            gamma: f, theta: f, vega: f, rho: f, iv_error: f, vanna: f,
-            charm: f, vomma: f, veta: f, speed: f, zomma: f, color: f,
-            ultima: f, d1: f, d2: f, dual_delta: f, dual_gamma: f,
-            epsilon: f, lambda: f, vera: f, underlying_ms_of_day: i,
-            underlying_price: f, date: i,
-        ]),
-        "GreeksEodTicks" => rows!(d::parse_greeks_eod_ticks(&table)?, [
-            ms_of_day: i, open: f, high: f, low: f, close: f, volume: i,
-            count: i, bid_size: i, bid_exchange: i, bid: f, bid_condition: i,
-            ask_size: i, ask_exchange: i, ask: f, ask_condition: i, delta: f,
-            theta: f, vega: f, rho: f, epsilon: f, lambda: f, gamma: f,
-            vanna: f, charm: f, vomma: f, veta: f, vera: f, speed: f,
-            zomma: f, color: f, ultima: f, d1: f, d2: f, dual_delta: f,
-            dual_gamma: f, implied_volatility: f, iv_error: f,
-            underlying_ms_of_day: i, underlying_price: f, date: i,
-        ]),
-        "TradeGreeksAllTicks" => rows!(d::parse_trade_greeks_all_ticks(&table)?, [
-            ms_of_day: i, sequence: i, ext_condition1: i, ext_condition2: i,
-            ext_condition3: i, ext_condition4: i, condition: i, size: i,
-            exchange: i, price: f, delta: f, theta: f, vega: f, rho: f,
-            epsilon: f, lambda: f, gamma: f, vanna: f, charm: f, vomma: f,
-            veta: f, vera: f, speed: f, zomma: f, color: f, ultima: f,
-            d1: f, d2: f, dual_delta: f, dual_gamma: f,
-            implied_volatility: f, iv_error: f, underlying_ms_of_day: i,
-            underlying_price: f, date: i,
-        ]),
-        "TradeGreeksFirstOrderTicks" => rows!(d::parse_trade_greeks_first_order_ticks(&table)?, [
-            ms_of_day: i, sequence: i, ext_condition1: i, ext_condition2: i,
-            ext_condition3: i, ext_condition4: i, condition: i, size: i,
-            exchange: i, price: f, delta: f, theta: f, vega: f, rho: f,
-            epsilon: f, lambda: f, implied_volatility: f, iv_error: f,
-            underlying_ms_of_day: i, underlying_price: f, date: i,
-        ]),
-        "TradeGreeksSecondOrderTicks" => rows!(d::parse_trade_greeks_second_order_ticks(&table)?, [
-            ms_of_day: i, sequence: i, ext_condition1: i, ext_condition2: i,
-            ext_condition3: i, ext_condition4: i, condition: i, size: i,
-            exchange: i, price: f, gamma: f, vanna: f, charm: f, vomma: f,
-            veta: f, implied_volatility: f, iv_error: f,
-            underlying_ms_of_day: i, underlying_price: f, date: i,
-        ]),
-        "TradeGreeksThirdOrderTicks" => rows!(d::parse_trade_greeks_third_order_ticks(&table)?, [
-            ms_of_day: i, sequence: i, ext_condition1: i, ext_condition2: i,
-            ext_condition3: i, ext_condition4: i, condition: i, size: i,
-            exchange: i, price: f, speed: f, zomma: f, color: f, ultima: f,
-            implied_volatility: f, iv_error: f, underlying_ms_of_day: i,
-            underlying_price: f, date: i,
-        ]),
-        "TradeGreeksImpliedVolatilityTicks" => {
-            rows!(d::parse_trade_greeks_implied_volatility_ticks(&table)?, [
-                ms_of_day: i, sequence: i, ext_condition1: i, ext_condition2: i,
-                ext_condition3: i, ext_condition4: i, condition: i, size: i,
-                exchange: i, price: f, implied_volatility: f, iv_error: f,
-                underlying_ms_of_day: i, underlying_price: f, date: i,
-            ])
+    let mut out = String::new();
+    for line in &block[ex_idx + 1..] {
+        if !line.trim().is_empty() && indent_of(line) <= ex_indent {
+            break;
         }
-        "IndexPriceAtTimeTicks" => rows!(d::parse_index_price_at_time_ticks(&table)?, [
-            ms_of_day: i, sequence: i, ext_condition1: i, ext_condition2: i,
-            ext_condition3: i, ext_condition4: i, condition: i, size: i,
-            exchange: i, price: f, date: i,
-        ]),
-        "CalendarDays" => rows!(d::parse_calendar_days_v3(&table)?, [
-            date: i, is_open: i, open_time: i, close_time: i, status: i,
-        ]),
-        other => panic!(
-            "capture fixture exists for endpoint {} but decode_capture has no \
-             dispatch arm for collection {other}",
-            endpoint.name
-        ),
-    };
-    Ok(Some(sample))
+        out.push_str(line);
+        out.push('\n');
+    }
+    (!out.trim().is_empty()).then_some(out)
 }

@@ -7,6 +7,12 @@ description: "Open-interest updates for an option contract."
 
 # Option Open Interest
 
+::: danger NOT YET WIRED BY THETADATA SOFTWARE ENGINEERS
+
+Streaming open interest is not live on the upstream feed yet, so this subscription does not deliver ticks. For open interest today, use the [flat files](/articles/flat-files) (last 7 days) or the [historical open-interest endpoint](/reference/option/history/open-interest).
+
+:::
+
 Streams open-interest updates for one option contract. OPRA reports open interest each morning around 06:30 ET, reflecting the prior session; each report delivers an `OpenInterest` event.
 
 The snippets below assume a connected client with streaming started — see [Getting Started](/streaming/) for the connect-and-stream ladder.
@@ -16,7 +22,7 @@ The snippets below assume a connected client with streaming started — see [Get
 <template #rust>
 
 ```rust
-use thetadatadx::streaming::Contract;
+use thetadatadx::streaming::{Contract, OptionLeg};
 use thetadatadx::streaming::{StreamData, StreamEvent};
 
 client.stream().start_streaming(|event: &StreamEvent| {
@@ -115,7 +121,7 @@ The WebSocket envelope takes the strike in dollars (`570` = $570.00), the same a
 
 </SdkTabs>
 
-## Event fields
+## `OpenInterest` event fields
 
 Each update arrives as a `OpenInterest` event with these fields:
 

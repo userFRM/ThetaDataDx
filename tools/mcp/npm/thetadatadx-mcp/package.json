@@ -1,0 +1,26 @@
+{
+  "name": "thetadatadx-mcp",
+  "version": "13.0.0-rc.10",
+  "description": "MCP server for ThetaData market data — run it with `npx -y thetadatadx-mcp`, no Rust toolchain required",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/userFRM/ThetaDataDx"
+  },
+  "bin": {
+    "thetadatadx-mcp": "bin/cli.js"
+  },
+  "files": [
+    "bin/cli.js"
+  ],
+  "optionalDependencies": {
+    "thetadatadx-mcp-linux-x64": "13.0.0-rc.10",
+    "thetadatadx-mcp-linux-arm64": "13.0.0-rc.10",
+    "thetadatadx-mcp-darwin-x64": "13.0.0-rc.10",
+    "thetadatadx-mcp-darwin-arm64": "13.0.0-rc.10",
+    "thetadatadx-mcp-win32-x64": "13.0.0-rc.10"
+  },
+  "engines": {
+    "node": ">= 18"
+  }
+}

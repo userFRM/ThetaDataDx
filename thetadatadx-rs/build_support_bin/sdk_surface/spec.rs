@@ -6,8 +6,6 @@
 
 use serde::Deserialize;
 
-use super::common::offline_greeks_param_layout;
-
 /// Parsed `sdk_surface.toml`: the schema version plus the declared methods and utilities.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -99,8 +97,6 @@ pub(super) struct UtilitySpec {
 #[serde(rename_all = "snake_case")]
 pub(super) enum UtilityKind {
     Ping,
-    AllGreeks,
-    ImpliedVolatility,
     /// Thin one-line forward into a `thetadatadx::utils::*` lookup table.
     /// Body, params, and return type come from `forward_call` /
     /// `forward_return` plus the declared `params`, so the 10 lookup
@@ -177,6 +173,16 @@ pub(super) enum ParamType {
 type MethodShape<'a> = (
     Option<&'a str>,
     &'a [MethodTarget],
+    bool,
+    &'a [(&'static str, ParamType)],
+);
+
+/// Per-kind expected shape of a utility: optional fixed name, allowed targets,
+/// whether the targets list must be exact, and the required `(name, type)`
+/// param layout. The utility twin of [`MethodShape`], over [`UtilityTarget`].
+type UtilityShape<'a> = (
+    Option<&'a str>,
+    &'a [UtilityTarget],
     bool,
     &'a [(&'static str, ParamType)],
 );
@@ -469,29 +475,11 @@ fn validate_utility_spec(utility: &UtilitySpec) -> Result<(), Box<dyn std::error
         .into());
     }
 
-    use UtilityTarget::{Cpp, Mcp, Python, Typescript};
-    let greeks_params = offline_greeks_param_layout();
+    use UtilityTarget::{Mcp, Python, Typescript};
     // Forwarders are name-agnostic (the name is the forwarded helper's
     // name); `expected_name = None` skips the fixed-name check below.
-    let (expected_name, allowed_targets, exact_targets, params): (
-        Option<&str>,
-        &[UtilityTarget],
-        bool,
-        &[(&str, ParamType)],
-    ) = match utility.kind {
+    let (expected_name, allowed_targets, exact_targets, params): UtilityShape = match utility.kind {
         UtilityKind::Ping => (Some("ping"), &[Mcp], true, &[]),
-        UtilityKind::AllGreeks => (
-            Some("all_greeks"),
-            &[Python, Typescript, Cpp, Mcp],
-            false,
-            &greeks_params,
-        ),
-        UtilityKind::ImpliedVolatility => (
-            Some("implied_volatility"),
-            &[Python, Typescript, Cpp, Mcp],
-            false,
-            &greeks_params,
-        ),
         UtilityKind::Forwarder => (None, &[Python, Typescript], true, FORWARDER_CODE_PARAMS),
         UtilityKind::CalendarStatusName => (
             Some("calendar_status_name"),

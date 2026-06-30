@@ -7,6 +7,12 @@ description: "Open-interest updates for every option contract in one subscriptio
 
 # Option Full Open Interest
 
+::: danger NOT YET WIRED BY THETADATA SOFTWARE ENGINEERS
+
+Streaming open interest is not live on the upstream feed yet, so this subscription does not deliver ticks. For open interest today, use the [flat files](/articles/flat-files) (last 7 days) or the [historical open-interest endpoint](/reference/option/history/open-interest).
+
+:::
+
 Streams the morning open-interest reports for every option contract — one subscription covering the entire OPRA universe. Each report delivers an `OpenInterest` event.
 
 The snippets below assume a connected client with streaming started — see [Getting Started](/streaming/) for the connect-and-stream ladder.
@@ -114,7 +120,7 @@ websocat ws://127.0.0.1:25520/v1/events
 
 </SdkTabs>
 
-## Event fields
+## `OpenInterest` event fields
 
 Each update arrives as a `OpenInterest` event with these fields:
 

@@ -18,7 +18,7 @@ The Rust SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, o
 
 - **Complete coverage** — stocks, options, indices, and rates across 65 typed endpoints.
 - **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
-- **Greeks without a round-trip** — first- through third-order Black-Scholes Greeks and an implied-volatility solver, computed locally.
+- **Greeks on demand** — first- through third-order Greeks and implied volatility, served straight from the option endpoints.
 - **Buffer or stream** — every history builder yields a `Vec<Tick>` on `.await`, or chunk-by-chunk via `.stream(handler)`.
 - **Typed errors** — one `Error` enum across every transport, plus a dedicated `StreamError` for the streaming path.
 - **DataFrames on demand** — opt into the `polars` / `arrow` features for a zero-copy conversion off any result.
@@ -27,14 +27,14 @@ The Rust SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, o
 
 ```toml
 [dependencies]
-thetadatadx = "13.0.0-rc.5"
+thetadatadx = "13.0.0-rc.10"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
 Opt into DataFrame ergonomics with the `polars` or `arrow` feature:
 
 ```toml
-thetadatadx = { version = "13.0.0-rc.5", features = ["polars"] }
+thetadatadx = { version = "13.0.0-rc.10", features = ["polars"] }
 ```
 
 ## Quick start
@@ -129,6 +129,21 @@ client.stream().start_streaming(|event: &StreamEvent| {
                 "{contract} quote bid={bid} ask={ask} bid_size={bid_size} ask_size={ask_size} bid_exchange={bid_exchange} ask_exchange={ask_exchange} ms_of_day={ms_of_day}",
             );
         }
+        // The full-trade stream sends a quote and an OHLC bar before each
+        // trade, so the same callback also receives Ohlcvc bars.
+        StreamEvent::Data(StreamData::Ohlcvc {
+            contract,
+            open,
+            high,
+            low,
+            close,
+            volume,
+            ..
+        }) => {
+            println!(
+                "{contract} bar open={open} high={high} low={low} close={close} volume={volume}",
+            );
+        }
         _ => {}
     }
 })?;
@@ -184,10 +199,6 @@ let path = thetadatadx::flatfile_request(
     std::path::Path::new("/tmp/option-trade-quote"), FlatFileFormat::Csv,
 ).await?;
 ```
-
-## Greeks calculator
-
-A full Black-Scholes calculator — first- through third-order Greeks plus an implied-volatility solver — runs locally, no request required.
 
 ## DataFrames
 

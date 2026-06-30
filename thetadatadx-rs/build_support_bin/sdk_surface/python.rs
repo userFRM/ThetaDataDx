@@ -2,9 +2,7 @@
 
 use std::fmt::Write as _;
 
-use super::common::{
-    generated_header, greek_result_fields, push_rust_doc_comment, python_field_ident, python_type,
-};
+use super::common::{generated_header, push_rust_doc_comment};
 use super::spec::{
     assert_forwarder_code_params, ForwardReturn, MethodKind, MethodSpec, UtilityKind, UtilitySpec,
 };
@@ -42,68 +40,14 @@ pub(super) fn render_python_streaming_methods(methods: &[&MethodSpec]) -> String
     out
 }
 
-/// Whether a utility kind lives in the `thetadatadx.util` submodule (the
-/// lookup-table helpers) rather than as a top-level `#[pyfunction]` on the
-/// root module (the offline Greeks calculators).
-fn is_util_submodule_kind(kind: UtilityKind) -> bool {
-    matches!(
-        kind,
-        UtilityKind::Forwarder
-            | UtilityKind::CalendarStatusName
-            | UtilityKind::TimestampMs
-            | UtilityKind::SequenceSignedToUnsigned
-            | UtilityKind::SequenceUnsignedToSigned
-    )
-}
-
-/// Renders the Python utility functions source: the `AllGreeks` pyclass, the `#[pyfunction]` wrappers, and their module registration helpers.
+/// Renders the Python utility functions source: the `#[pyfunction]`
+/// lookup-table wrappers and the `thetadatadx.util` submodule registration.
 pub(super) fn render_python_utility_functions(utilities: &[&UtilitySpec]) -> String {
     let mut out = String::new();
     out.push_str(generated_header());
 
-    // Two registration scopes: the offline Greeks calculators bind on the
-    // root module; the lookup-table helpers bind on the `thetadatadx.util`
-    // submodule. Partition once so each renders into its own helper.
-    let root: Vec<&&UtilitySpec> = utilities
-        .iter()
-        .filter(|u| !is_util_submodule_kind(u.kind))
-        .collect();
-    let util_mod: Vec<&&UtilitySpec> = utilities
-        .iter()
-        .filter(|u| is_util_submodule_kind(u.kind))
-        .collect();
-
-    // Emit the AllGreeks pyclass wrapper BEFORE any `#[pyfunction]` that
-    // returns it. Mirrors the typed-pyclass policy applied to every other
-    // Python return path — no PyDict leaks into the public Python surface.
-    let has_all_greeks = root
-        .iter()
-        .any(|u| matches!(u.kind, UtilityKind::AllGreeks));
-    if has_all_greeks {
-        out.push_str(&render_all_greeks_pyclass());
-        out.push('\n');
-    }
-
-    for utility in &root {
-        out.push_str(&python_utility_function(utility));
-        out.push('\n');
-    }
-    out.push_str(
-        "fn register_generated_utility_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {\n",
-    );
-    if has_all_greeks {
-        out.push_str("    m.add_class::<AllGreeks>()?;\n");
-    }
-    for utility in &root {
-        writeln!(
-            out,
-            "    m.add_function(wrap_pyfunction!({}, m)?)?;",
-            utility.name
-        )
-        .unwrap();
-    }
-    out.push_str("    Ok(())\n");
-    out.push_str("}\n\n");
+    // Every utility binds on the `thetadatadx.util` submodule.
+    let util_mod: Vec<&&UtilitySpec> = utilities.iter().collect();
 
     for utility in &util_mod {
         out.push_str(&python_utility_function(utility));
@@ -152,29 +96,6 @@ fn render_util_submodule_register(utilities: &[&&UtilitySpec]) -> String {
     out.push_str("    parent.add_submodule(&util)?;\n");
     out.push_str("    Ok(())\n");
     out.push_str("}\n");
-    out
-}
-
-/// Emit a typed `AllGreeks` pyclass so `all_greeks(...)` returns a
-/// frozen, attribute-accessible value instead of a `PyDict`. Fields
-/// mirror `thetadatadx::greeks::GreeksResult` 1:1 via `greek_result_fields()`.
-fn render_all_greeks_pyclass() -> String {
-    let mut out = String::new();
-    out.push_str(include_str!(
-        "templates/python/all_greeks_pyclass_header.rs.tmpl"
-    ));
-    for (field, _rust_field) in greek_result_fields() {
-        // PEP 8 keyword escape (`lambda` -> `lambda_`) keeps every
-        // attribute reachable with normal Python syntax, matching the
-        // tick pyclasses (`GreeksAllTick.lambda_`). Without it the
-        // `lambda` Greek would be reachable only via `getattr`.
-        writeln!(out, "    #[pyo3(get)]").unwrap();
-        writeln!(out, "    pub {}: f64,", python_field_ident(field)).unwrap();
-    }
-    out.push_str("}\n\n");
-    out.push_str(include_str!(
-        "templates/python/all_greeks_pymethods.rs.tmpl"
-    ));
     out
 }
 
@@ -425,7 +346,6 @@ fn python_streaming_method(method: &MethodSpec) -> String {
 /// phrasing.
 fn python_utility_doc(utility: &UtilitySpec) -> Option<&str> {
     match utility.kind {
-        UtilityKind::AllGreeks | UtilityKind::ImpliedVolatility => Some(&utility.doc),
         UtilityKind::CalendarStatusName => Some(
             "Vendor vocabulary text for a calendar-day `status` code (`0` ->\n\
              `\"open\"`, `1` -> `\"early_close\"`, `2` -> `\"full_close\"`, `3` ->\n\
@@ -553,69 +473,6 @@ fn python_utility_function(utility: &UtilitySpec) -> String {
             out.push_str("    Ok(thetadatadx::utils::sequences::unsigned_to_signed(\n");
             out.push_str("        unsigned_value,\n");
             out.push_str("    ))\n");
-            out.push_str("}\n");
-        }
-        UtilityKind::AllGreeks => {
-            writeln!(out, "fn {}(", utility.name).unwrap();
-            for param in &utility.params {
-                writeln!(
-                    out,
-                    "    {}: {},",
-                    param.name,
-                    python_type(param.param_type)
-                )
-                .unwrap();
-            }
-            out.push_str(") -> PyResult<AllGreeks> {\n");
-            writeln!(
-                out,
-                "    let g = thetadatadx::greeks::all_greeks({}).map_err(thetadatadx::Error::from).map_err(to_py_err)?;",
-                utility
-                    .params
-                    .iter()
-                    .map(|param| param.name.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
-            .unwrap();
-            out.push_str("    Ok(AllGreeks {\n");
-            for (field, rust_field) in greek_result_fields() {
-                // The pyclass field carries the Python keyword escape
-                // (`lambda_`); the `GreeksResult` member it reads stays
-                // the bare Rust name (`lambda`).
-                writeln!(
-                    out,
-                    "        {}: g.{rust_field},",
-                    python_field_ident(field)
-                )
-                .unwrap();
-            }
-            out.push_str("    })\n");
-            out.push_str("}\n");
-        }
-        UtilityKind::ImpliedVolatility => {
-            writeln!(out, "fn {}(", utility.name).unwrap();
-            for param in &utility.params {
-                writeln!(
-                    out,
-                    "    {}: {},",
-                    param.name,
-                    python_type(param.param_type)
-                )
-                .unwrap();
-            }
-            out.push_str(") -> PyResult<(f64, f64)> {\n");
-            writeln!(
-                out,
-                "    thetadatadx::greeks::implied_volatility({}).map_err(thetadatadx::Error::from).map_err(to_py_err)",
-                utility
-                    .params
-                    .iter()
-                    .map(|param| param.name.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )
-            .unwrap();
             out.push_str("}\n");
         }
         other => panic!("unsupported Python utility kind: {other:?}"),

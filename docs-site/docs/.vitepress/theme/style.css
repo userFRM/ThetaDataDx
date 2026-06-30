@@ -350,3 +350,9 @@ div[class*='language-'] .lang {
 .dark .VPFeature:hover .VPImage {
   filter: invert(1);
 }
+
+/* Conditional event-table fields: muted to mark "extended-format trades only" rows. */
+.field-conditional,
+.field-conditional code {
+  color: var(--vp-c-text-3);
+}

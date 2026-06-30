@@ -97,6 +97,30 @@ pub mod __test_internals {
     pub use disruptor::Polling; // VOCAB-OK: internal crate name, not user-facing
 }
 
+/// Crate-private FPSS decode / wire / framing / login / connection surface,
+/// exposed behind `__internal` for a downstream consumer that drives the
+/// decode into its own ingest ring (no Disruptor, no second consumer thread).
+/// NOT part of the supported public API: subject to change without a SemVer
+/// bump, and absent unless `__internal` is enabled, so `cargo-semver-checks`
+/// (default features) never sees it.
+#[cfg(feature = "__internal")]
+#[doc(hidden)]
+pub mod internals {
+    pub use super::connection::{connect_to_servers, FpssStream, TcpKeepaliveSpec};
+    pub use super::decode::decode_frame;
+    pub use super::delta::DeltaState;
+    pub use super::events::FpssEventInternal;
+    pub use super::framing::{
+        is_drain_yield, is_transient_read, read_frame_into_with_stall_timeout, write_raw_frame,
+        write_raw_frame_no_flush, FrameReadState, MAX_PAYLOAD_LEN,
+    };
+    pub use super::io_loop::{wait_for_login, LoginResult};
+    pub use super::protocol::wire::{
+        build_credentials_payload, build_full_type_subscribe_payload, build_ping_payload,
+        build_stop_payload, build_subscribe_payload,
+    };
+}
+
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::mpsc as std_mpsc;

@@ -91,10 +91,4 @@ StreamingClient::~StreamingClient() {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  Standalone utilities (generated)
-// ═══════════════════════════════════════════════════════════════
-
-#include "utilities.cpp.inc"
-
 } // namespace thetadatadx

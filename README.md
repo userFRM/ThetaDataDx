@@ -32,7 +32,7 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 - **Complete coverage**: stocks, options, indices, and rates across 65 typed endpoints.
 - **Three access modes, one client**: point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **DataFrames built in**: every result chains straight to Polars, pandas, or Arrow over a zero-copy boundary.
-- **Greeks without a round-trip**: first- through third-order Black-Scholes Greeks and an implied-volatility solver, computed locally.
+- **Greeks on demand**: first- through third-order Greeks and implied volatility, served straight from the option endpoints.
 - **The same surface in every language**: identical methods and identical typed errors, Python through Rust.
 - **No terminal to run**: a direct connection to ThetaData; nothing to install and babysit locally.
 
@@ -42,6 +42,12 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 pip install thetadatadx        # Python
 npm install thetadatadx        # TypeScript / Node.js
 cargo add thetadatadx          # Rust
+```
+
+Point an AI client (Claude Desktop, Cursor, and others) at the MCP server, no install and no Rust toolchain:
+
+```json
+{ "command": "npx", "args": ["-y", "thetadatadx-mcp"], "env": { "THETADATA_API_KEY": "your_key" } }
 ```
 
 C++ ships as a header plus a small implementation file over a prebuilt library (a CMake target wires it up). See the [C++ guide](thetadatadx-cpp/).
@@ -87,7 +93,7 @@ typed event classes:
 
 ```python
 import time
-from thetadatadx import Contract, Quote, Trade
+from thetadatadx import Contract, MarketValue, Quote, Trade
 
 def on_event(event):
     match event:
@@ -101,6 +107,11 @@ def on_event(event):
                 f"{c.symbol} {c.expiration} {c.strike:g} {c.right} quote bid={b:.2f} ask={a:.2f} "
                 f"bid_size={bs} ask_size={asz} bid_exchange={bx} "
                 f"ask_exchange={ax} ms_of_day={ms}"
+            )
+        case MarketValue(market_bid=mb, market_ask=ma, market_price=mp, ms_of_day=ms, contract=c):
+            print(
+                f"{c.symbol} {c.expiration} {c.strike:g} {c.right} market_value "
+                f"bid={mb:.2f} ask={ma:.2f} price={mp:.2f} ms_of_day={ms}"
             )
 
 spy_call = Contract.option("SPY", expiration="20260619", strike="550", right="C")
@@ -186,7 +197,7 @@ int main() {
 
 ```toml
 [dependencies]
-thetadatadx = "13.0.0-rc.5"
+thetadatadx = "13.0.0-rc.10"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
@@ -230,10 +241,24 @@ instead of buffering it. See [Request sizing](https://userfrm.github.io/ThetaDat
 One connection, one authentication. Historical queries work immediately; the
 streaming transport connects on the first subscription. Subscribe specific
 contracts with the fluent `Contract` API, or take a whole-market feed: every
-option trade across the universe, no per-contract setup:
+option trade across the universe, no per-contract setup. The full-trade feed
+sends a quote and an OHLC bar before each trade, so add an `Ohlcvc` case to the
+callback to handle the bars:
 
 ```python
-with client.streaming(on_event) as session:
+from thetadatadx import Ohlcvc
+
+def on_full_trade(event):
+    match event:
+        case Ohlcvc(open=o, high=h, low=lo, close=cl, volume=v, contract=c):
+            print(
+                f"{c.symbol} {c.expiration} {c.strike:g} {c.right} bar "
+                f"o={o:.2f} h={h:.2f} l={lo:.2f} c={cl:.2f} volume={v}"
+            )
+        case _:
+            on_event(event)   # reuse the quote/trade handling above
+
+with client.streaming(on_full_trade) as session:
     session.subscribe(SecType.OPTION.full_trades())
     time.sleep(60)   # the callback runs on the streaming thread; keep it fast
 ```
@@ -257,7 +282,7 @@ with client.streaming(on_event) as session:
 ## Endpoint coverage
 
 65 typed endpoints across stocks, options, indices, the market calendar, and
-interest rates, plus real-time streaming and a local Greeks calculator.
+interest rates, plus real-time streaming.
 
 | Category | Endpoints | Examples |
 |---|---|---|
@@ -281,19 +306,23 @@ common `ThetaDataError` base.
 
 | Path | Package | Purpose |
 |---|---|---|
-| [`thetadatadx-rs`](thetadatadx-rs/) | `thetadatadx` (crates.io) | The Rust SDK: tick types, Greeks, price math, and the network client in one crate |
+| [`thetadatadx-rs`](thetadatadx-rs/) | `thetadatadx` (crates.io) | The Rust SDK: tick types, decoders, and the network client in one crate |
 | [`thetadatadx-py`](thetadatadx-py/) | `thetadatadx` (PyPI) | Python package with DataFrame adapters |
 | [`thetadatadx-ts`](thetadatadx-ts/) | `thetadatadx` (npm) | TypeScript / Node.js package, prebuilt binaries |
 | [`thetadatadx-cpp`](thetadatadx-cpp/) | header + prebuilt library | C++ wrapper over the C ABI |
 | [`thetadatadx-ffi`](thetadatadx-ffi/) | release artifacts | C ABI for embedders |
 | [`tools/server`](tools/server/) | `thetadatadx-server` | Local HTTP / WebSocket server |
-| [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp` | MCP server exposing every historical endpoint to AI clients |
+| [`tools/mcp`](tools/mcp/) | `thetadatadx-mcp` (npm) | MCP server exposing every historical endpoint to AI clients |
 | [`docs-site`](docs-site/) | — | Documentation site (GitHub Pages) |
 
 ## Documentation
 
 - [Documentation site](https://userfrm.github.io/ThetaDataDx/): getting started, API reference, streaming, server, and MCP
 - [Changelog](CHANGELOG.md)
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for where the project is headed. Up next: a [native Go SDK](https://github.com/userFRM/ThetaDataDx/issues/1019) and a [self-updating server](https://github.com/userFRM/ThetaDataDx/issues/957). The MCP server now runs straight from npm — `npx -y thetadatadx-mcp`.
 
 ## Contributing
 

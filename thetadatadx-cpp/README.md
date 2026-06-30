@@ -19,7 +19,6 @@ The C++ SDK for [ThetaData](https://thetadata.us) market data. Pull US stock, op
 - **Complete coverage** — stocks, options, indices, and rates across 65 typed endpoints.
 - **Three access modes** — point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **Typed structs, no JSON** — every endpoint returns a `std::vector` of decoded structs; prices arrive as `double`.
-- **Greeks without a round-trip** — first- through third-order Black-Scholes Greeks and an implied-volatility solver, computed locally.
 - **RAII throughout** — clients own their connections and clean up on scope exit; methods throw on failure.
 - **Header plus a thin implementation file** — `thetadatadx.hpp` with the RAII wrappers, and `src/thetadatadx.cpp` carrying their out-of-line definitions, over a prebuilt C ABI shared library.
 
@@ -160,9 +159,26 @@ int main() {
 }
 ```
 
-Every subscription is the same value, so quotes, trades, and open interest across contracts mix freely. Or take a whole-market feed — every option trade across the universe — with no per-contract setup:
+Every subscription is the same value, so quotes, trades, and open interest across contracts mix freely. Or take a whole-market feed — every option trade across the universe — with no per-contract setup. The full-trade feed sends a quote and an OHLC bar before each trade, so add an `OHLCVC` case to the callback to handle the bars:
 
 ```cpp
+streaming.set_callback([](const thetadatadx::StreamEvent& event) {
+    switch (event.kind) {
+        case THETADATADX_STREAM_OHLCVC:
+            std::cout << event.ohlcvc.contract.symbol
+                      << " bar open=" << event.ohlcvc.open
+                      << " high=" << event.ohlcvc.high
+                      << " low=" << event.ohlcvc.low
+                      << " close=" << event.ohlcvc.close
+                      << " volume=" << event.ohlcvc.volume
+                      << '\n';
+            break;
+        // ...plus the quote/trade cases from above.
+        default:
+            break;
+    }
+});
+
 streaming.subscribe(thetadatadx::SecType::option().full_trades());   // the callback runs per event — keep it fast
 ```
 
@@ -184,19 +200,6 @@ while (reader->ReadNext(&batch).ok() && batch != nullptr) {
 }
 // `reader` closes (unsubscribe + tear down) when the last reference drops.
 ```
-
-## Greeks calculator
-
-A full Black-Scholes calculator — first- through third-order Greeks plus an implied-volatility solver — runs locally, no connection required:
-
-```cpp
-auto g = thetadatadx::all_greeks(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C");
-std::printf("IV=%.4f delta=%.4f gamma=%.6f vega=%.4f\n", g.iv, g.delta, g.gamma, g.vega);
-
-auto [iv, err] = thetadatadx::implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C");
-```
-
-`right` accepts `"C"` / `"P"` or `"call"` / `"put"` (case-insensitive).
 
 ## Flat files
 
@@ -221,7 +224,7 @@ The flat-file distribution serves a fixed set of datasets: option `trade_quote` 
 
 ## Endpoint coverage
 
-65 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming and the local Greeks calculator.
+65 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
 
 | Category | Endpoints | Examples |
 |---|---|---|

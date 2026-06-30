@@ -45,40 +45,26 @@ env:
 jobs:
   changes:
     name: Detect changed paths
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    # paths-filter calls the GitHub REST API on pull_request events to
-    # diff the head against the base, which needs pull-requests: read.
-    # contents: read is restated so the workflow-level grant is not
-    # dropped when the job declares its own permission block.
     permissions:
       contents: read
       pull-requests: read
-    outputs:
-      perf: ${{ steps.filter.outputs.perf }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dorny/paths-filter@v4
-        id: filter
-        with:
-          filters: |
-            perf:
-              - 'thetadatadx-rs/**'
-              - 'thetadatadx-ffi/**'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - 'scripts/ci/check_perf_gate.py'
-              - '.github/workflows/perf-gate.yml'
-              - '.github/actions/**'
+    uses: ./.github/workflows/paths.yml
 
   decode-allocations:
     name: Decode allocations-per-row gate
     needs: changes
+    # full-ci and force_full each force the heavy lane on their own: a
+    # full-ci PR runs even when the diff is docs-render-only, and a rename
+    # that moved real source into the doc tree runs even though the
+    # rename-blind dorny `perf` flag is false. Absent both, the original
+    # selective behavior holds.
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.draft == false &&
-       (needs.changes.outputs.perf == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+       (contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+        needs.changes.outputs.force_full == 'true' ||
+        (needs.changes.outputs.docs_render_only != 'true' &&
+         needs.changes.outputs.perf == 'true')))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

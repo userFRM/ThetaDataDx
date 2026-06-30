@@ -24,8 +24,12 @@ The server authenticates **once** at startup, keeps the `Client` client alive, a
 
 ## Install
 
+No install step is needed: point your MCP client at `npx -y thetadatadx-mcp` (see [Configuration](#configuration)). `npx` downloads a prebuilt binary for your platform (Linux, macOS, and Windows on x64 and arm64) and runs it on demand.
+
+Rust users can install the binary directly instead:
+
 ```bash
-cargo install thetadatadx-mcp --git https://github.com/userFRM/ThetaDataDx
+git clone https://github.com/userFRM/ThetaDataDx && cargo install --path ThetaDataDx/tools/mcp
 ```
 
 Or build from source:
@@ -33,7 +37,7 @@ Or build from source:
 ```bash
 cd tools/mcp
 cargo build --release
-# Binary at ../../target/release/thetadatadx-mcp
+# Binary at tools/mcp/target/release/thetadatadx-mcp
 ```
 
 ## Configuration
@@ -56,20 +60,20 @@ thetadatadx-mcp --creds ~/creds.txt
 
 Credentials are resolved in this order, highest first: the `--api-key` flag, then `THETADATA_API_KEY`, then `THETADATA_EMAIL` + `THETADATA_PASSWORD`, then the `--creds` file. These are the same names the SDK and the server use.
 
-If no credentials are provided, the server starts in **offline mode**: only `ping`, `all_greeks`, and `implied_volatility` tools are available.
+If no credentials are provided, the server starts in **offline mode**: only `ping` is available.
 
 ### Stdio MCP clients (config file)
 
-Most MCP clients read an `mcpServers` block from a project-local or user-level settings file. The shape is identical across clients; consult your client's docs for the exact file path.
+Most MCP clients read an `mcpServers` block from a project-local or user-level settings file. The shape is identical across clients; consult your client's docs for the exact file path. The `npx` command needs no prior install:
 
 ```json
 {
   "mcpServers": {
     "thetadata": {
-      "command": "thetadatadx-mcp",
+      "command": "npx",
+      "args": ["-y", "thetadatadx-mcp"],
       "env": {
-        "THETADATA_EMAIL": "you@example.com",
-        "THETADATA_PASSWORD": "your-password"
+        "THETADATA_API_KEY": "your-api-key"
       }
     }
   }
@@ -82,12 +86,14 @@ Or with a creds file:
 {
   "mcpServers": {
     "thetadata": {
-      "command": "thetadatadx-mcp",
-      "args": ["--creds", "/path/to/creds.txt"]
+      "command": "npx",
+      "args": ["-y", "thetadatadx-mcp", "--creds", "/path/to/creds.txt"]
     }
   }
 }
 ```
+
+If you installed the binary with `cargo install`, set `"command": "thetadatadx-mcp"` and drop the `npx` wrapper args.
 
 ### Cursor
 
@@ -116,15 +122,13 @@ The server speaks standard MCP over stdio:
 
 ## Available Tools
 
-Every generated historical endpoint plus 3 offline tools (`ping`, `all_greeks`, `implied_volatility`) and, when connected, 6 flat-file tools.
+Every generated historical endpoint plus 1 offline tool (`ping`) and, when connected, 6 flat-file tools.
 
-### Offline (3 total: `ping`, `all_greeks`, `implied_volatility`)
+### Offline (1 total: `ping`)
 
-These tools do not require a ThetaData account or a network round-trip; they are available even when the server is started in offline mode.
+This tool does not require a ThetaData account or a network round-trip; it is available even when the server is started in offline mode.
 
 - `ping` - server status
-- `all_greeks` - compute all 23 Black-Scholes Greeks
-- `implied_volatility` - IV solver via bisection
 
 ### Stock Data (14 tools)
 - `stock_list_symbols`, `stock_list_dates`
@@ -201,17 +205,6 @@ Response:
 ```
 
 This returns a filtered bulk response across multiple strikes. If you change `strike` to `"385"`, the response is limited to that single contract.
-
-### Compute Greeks offline
-
-```json
-{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"all_greeks","arguments":{"spot":150.0,"strike":155.0,"rate":0.05,"dividend_yield":0.01,"time_to_expiry":0.25,"option_price":5.50,"right":"call"}}}
-```
-
-Response:
-```json
-{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"{\"value\":5.50,\"iv\":0.234,\"delta\":0.456,...}"}]}}
-```
 
 ### Check server status
 

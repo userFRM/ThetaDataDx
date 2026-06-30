@@ -270,12 +270,12 @@ def check_static_docs() -> None:
     )
     expect_contains(
         ROOT / "tools/mcp/README.md",
-        "Every generated historical endpoint plus 3 offline tools (`ping`, `all_greeks`, `implied_volatility`) and, when connected, 6 flat-file tools.",
+        "Every generated historical endpoint plus 1 offline tool (`ping`) and, when connected, 6 flat-file tools.",
     )
 
     expect_contains(
         DOCS_SITE / "mcp.md",
-        "Every generated historical endpoint plus `ping`, `all_greeks`, and `implied_volatility`.",
+        "Every generated historical endpoint plus `ping`.",
     )
     # Version strings in getting-started docs must match the canonical
     # workspace version; derive it from `thetadatadx-rs/Cargo.toml`
@@ -450,7 +450,9 @@ def check_reference_pages() -> None:
                 f"{path.relative_to(ROOT)} — run the docs generator"
             )
         text = path.read_text()
-        for marker in ("@generated", "<SdkTabs>", "## Parameters", "## Response"):
+        # The interactive request builder (`<RequestBuilder :cfg="cfg" />`) is the
+        # current per-page anatomy; it replaced the static `<SdkTabs>` code block.
+        for marker in ("@generated", "<RequestBuilder", "## Parameters", "## Response"):
             if marker not in text:
                 fail(f"{path.relative_to(ROOT)} missing page-anatomy marker {marker!r}")
         if not re.search(r'<TierBadge tier="(free|value|standard|professional)" />', text):

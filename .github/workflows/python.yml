@@ -31,74 +31,81 @@ env:
 jobs:
   changes:
     name: Detect changed paths
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    # paths-filter calls the GitHub REST API on pull_request events to
-    # diff the head against the base, which needs pull-requests: read.
-    # contents: read is restated so the workflow-level grant is not
-    # dropped when the job declares its own permission block.
     permissions:
       contents: read
       pull-requests: read
+    uses: ./.github/workflows/paths.yml
+
+  # Matrix planner. On a PR the wheel matrix is the ubuntu/3.12 abi3 leg
+  # plus the ubuntu/3.14t free-threaded (GIL-release) leg — the two that
+  # carry the real per-PR risk; the macOS/Windows and other wheels are
+  # proven post-merge on main, on the nightly schedule, on tags, and in
+  # the merge queue. The ABI3 `compatibility` smoke runs its single
+  # ubuntu/3.14 leg (the newest ABI, the real compat risk) on a PR and
+  # the full os×py grid otherwise.
+  setup:
+    name: Plan matrices
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
-      python: ${{ steps.filter.outputs.python }}
+      build_matrix: ${{ steps.plan.outputs.build_matrix }}
+      compat_matrix: ${{ steps.plan.outputs.compat_matrix }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: dorny/paths-filter@v4
-        id: filter
-        with:
-          filters: |
-            python:
-              - 'thetadatadx-py/**'
-              - 'thetadatadx-ffi/**'
-              - 'thetadatadx-rs/**'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - '.github/workflows/python.yml'
-              - '.github/actions/**'
+      - name: Choose matrix breadth
+        id: plan
+        shell: bash
+        env:
+          IS_PR: ${{ github.event_name == 'pull_request' }}
+        run: |
+          set -euo pipefail
+          ubuntu312='{"os":"ubuntu-latest","python":"3.12","label":"ubuntu py3.12"}'
+          ubuntu314t='{"os":"ubuntu-latest","python":"3.14t","label":"ubuntu py3.14t (nogil)"}'
+          if [ "${IS_PR}" = "true" ]; then
+            build="[${ubuntu312},${ubuntu314t}]"
+            compat='[{"os":"ubuntu-latest","python":"3.14"}]'
+          else
+            macos312='{"os":"macos-latest","python":"3.12","label":"macos py3.12"}'
+            windows312='{"os":"windows-latest","python":"3.12","label":"windows py3.12"}'
+            build="[${ubuntu312},${macos312},${windows312},${ubuntu314t}]"
+            compat='[{"os":"ubuntu-latest","python":"3.12"},{"os":"ubuntu-latest","python":"3.14"},{"os":"macos-latest","python":"3.12"},{"os":"macos-latest","python":"3.14"},{"os":"windows-latest","python":"3.12"},{"os":"windows-latest","python":"3.14"}]'
+          fi
+          {
+            echo "build_matrix={\"include\":${build}}"
+            echo "compat_matrix={\"include\":${compat}}"
+          } >> "$GITHUB_OUTPUT"
 
   # Single guard reused by every heavy job below. On any non-PR event
   # (push to main, schedule, tag, merge_group) the matrix runs in full.
   # On a PR it runs only for a non-draft whose changes touched the
-  # Python SDK / FFI / core, or that carries the `full-ci` label.
+  # Python SDK / FFI / core, or that carries the `full-ci` label. The
+  # PEP 703 free-threaded build emits a per-version wheel
+  # (`cp314-cp314t-*`) rather than an `abi3` wheel because the
+  # free-threaded ABI is not stable-ABI compatible; the `gil_used =
+  # false` attribute on the `#[pymodule]` keeps the GIL disabled after
+  # import. The free-threaded floor is CPython 3.14 (PyO3 does not
+  # support free-threaded builds below 3.14). The OS/interpreter set is
+  # chosen by the `setup` planner.
   build:
     name: Build wheel (${{ matrix.label }})
-    needs: changes
+    needs: [changes, setup]
+    # full-ci and force_full each force the heavy lane on their own: a
+    # full-ci PR runs even when the diff is docs-render-only, and a rename
+    # that moved real source into the doc tree runs even though the
+    # rename-blind dorny `python` flag is false. Absent both, the original
+    # selective behavior holds.
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.draft == false &&
-       (needs.changes.outputs.python == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+       (contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+        needs.changes.outputs.force_full == 'true' ||
+        (needs.changes.outputs.docs_render_only != 'true' &&
+         needs.changes.outputs.python == 'true')))
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            python: "3.12"
-            label: ubuntu py3.12
-          - os: macos-latest
-            python: "3.12"
-            label: macos py3.12
-          - os: windows-latest
-            python: "3.12"
-            label: windows py3.12
-          # PEP 703 free-threaded build. PyO3 emits a per-version wheel
-          # (`cp314-cp314t-*`) rather than an `abi3` wheel because the
-          # free-threaded ABI is not compatible with the stable ABI
-          # surface — the wheel tag is intentionally narrower than the
-          # baseline matrix. The `gil_used = false` attribute on the
-          # `#[pymodule]` keeps the GIL disabled after import; without
-          # it the free-threaded interpreter auto-re-enables the GIL
-          # on first import of an extension module and defeats the
-          # entire purpose of shipping nogil wheels. The free-threaded
-          # floor is CPython 3.14: PyO3 does not support the
-          # free-threaded build of CPython below 3.14, so 3.13t carries
-          # no nogil wheel.
-          - os: ubuntu-latest
-            python: "3.14t"
-            label: ubuntu py3.14t (nogil)
+      matrix: ${{ fromJSON(needs.setup.outputs.build_matrix) }}
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-rust-deps
@@ -182,11 +189,11 @@ jobs:
         run: |
           python - <<'PY'
           import thetadatadx
-          from thetadatadx import implied_volatility
+          from thetadatadx import Contract
 
-          iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30.0 / 365.0, 8.50, "C")
+          option = Contract.option("SPY", expiration="20260620", strike="550", right="C")
           print(thetadatadx.__file__)
-          print(round(iv, 6), round(err, 6))
+          print(option.symbol, thetadatadx.__version__)
           PY
       # Run the Python pytest suite against the freshly-installed wheel. The
       # `THETADATADX_TEST_CREDS`-gated tests skip cleanly without secrets so this
@@ -279,72 +286,16 @@ jobs:
           /tmp/thetadatadx-smoke/bin/python -m pytest thetadatadx-py/tests/test_fresh_install_smoke.py -v
           /tmp/thetadatadx-smoke/bin/python -m pytest thetadatadx-py/tests/test_module_exports.py -v
 
-  nogil-throughput:
-    # Parallel-throughput gate — only meaningful on the free-threaded
-    # interpreter, where the contended/baseline ratio reveals whether
-    # the GIL is truly released on the dispatcher hot path. The gate
-    # asserts the nogil interpreter sees < 1.8x overhead under CPU
-    # contention; a regression that re-acquires the GIL surfaces
-    # here as a ratio approaching the GIL-build value (~2x).
-    #
-    # Threshold raised from 1.5x to 1.8x. The 1.5x bound was too
-    # tight for GH shared-runner perf jitter — false positives at
-    # ~1.55x masked the gate's signal value. The 1.8x bound is below
-    # the held-GIL band (~2.0x observed on the stock 3.13 build) so
-    # a real GIL regression still trips it, while transient runner
-    # contention no longer fails the gate. The matching pytest
-    # assertion lives in
-    # `thetadatadx-py/tests/test_no_gil.py::test_parallel_throughput_bench_runs`
-    # and is kept in lockstep at 1.8x.
-    name: Parallel throughput (nogil gate, py${{ matrix.python }})
-    runs-on: ubuntu-latest
-    needs: build
-    timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        python: ["3.14t"]
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python }}
-      - uses: actions/download-artifact@v8
-        with:
-          name: wheel-Linux-${{ matrix.python }}
-          path: dist/
-      - shell: bash
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install --force-reinstall dist/*.whl
-      - name: Parallel throughput (nogil gate)
-        shell: bash
-        run: |
-          python thetadatadx-py/benches/bench_parallel_throughput.py | tee bench.json
-          python - <<'PY'
-          import json, pathlib, sys
-          payload = json.loads(pathlib.Path("bench.json").read_text().strip().splitlines()[-1])
-          ratio = payload["overhead_ratio"]
-          gil = payload["gil_enabled"]
-          print(f"interpreter={payload['python']} gil={gil} overhead={ratio:.3f}x")
-          # Free-threaded build must keep overhead under 1.8x. A held
-          # GIL pushes the ratio to ~2x (observed on stock 3.13: 2.06x).
-          if gil:
-              sys.exit("nogil gate triggered on a GIL-enabled interpreter")
-          if ratio >= 1.8:
-              sys.exit(f"nogil overhead ratio {ratio:.3f}x ≥ 1.8x — GIL may be held on hot path")
-          PY
-
   compatibility:
     name: ABI3 smoke (${{ matrix.os }} py${{ matrix.python }})
     runs-on: ${{ matrix.os }}
-    needs: build
+    needs: [setup, build]
     timeout-minutes: 15
+    # PR: the single ubuntu/3.14 leg (newest ABI = the real compat risk);
+    # full os×py grid on main/tag/nightly. Set by the `setup` planner.
     strategy:
       fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        python: ["3.12", "3.14"]
+      matrix: ${{ fromJSON(needs.setup.outputs.compat_matrix) }}
     steps:
       - uses: actions/setup-python@v6
         with:
@@ -401,6 +352,33 @@ jobs:
           )
           print(f"thetadatadx imported on {sys.version.split()[0]}, GIL stayed disabled")
           PY
+      # Parallel-throughput gate — meaningful only on the free-threaded
+      # interpreter, where the contended/baseline ratio reveals whether
+      # the GIL is truly released on the dispatcher hot path. Asserts the
+      # nogil interpreter sees < 1.8x overhead under CPU contention; a
+      # regression that re-acquires the GIL pushes the ratio toward the
+      # held-GIL band (~2x observed on stock 3.13). Folded into this job
+      # because it downloads the same 3.14t wheel and asserts on the same
+      # interpreter as the GIL-stays-disabled check above. The threshold
+      # is kept in lockstep at 1.8x with
+      # `thetadatadx-py/tests/test_no_gil.py::test_parallel_throughput_bench_runs`.
+      - name: Parallel throughput (nogil gate)
+        shell: bash
+        run: |
+          python thetadatadx-py/benches/bench_parallel_throughput.py | tee bench.json
+          python - <<'PY'
+          import json, pathlib, sys
+          payload = json.loads(pathlib.Path("bench.json").read_text().strip().splitlines()[-1])
+          ratio = payload["overhead_ratio"]
+          gil = payload["gil_enabled"]
+          print(f"interpreter={payload['python']} gil={gil} overhead={ratio:.3f}x")
+          # Free-threaded build must keep overhead under 1.8x. A held
+          # GIL pushes the ratio to ~2x (observed on stock 3.13: 2.06x).
+          if gil:
+              sys.exit("nogil gate triggered on a GIL-enabled interpreter")
+          if ratio >= 1.8:
+              sys.exit(f"nogil overhead ratio {ratio:.3f}x ≥ 1.8x — GIL may be held on hot path")
+          PY
       - name: Pytest suite on freethreaded
         shell: bash
         run: |
@@ -410,11 +388,15 @@ jobs:
   sdist:
     name: Build source distribution
     needs: changes
+    # full-ci and force_full each force the heavy lane on their own (see
+    # the build note); otherwise the original selective behavior.
     if: >-
       github.event_name != 'pull_request' ||
       (github.event.pull_request.draft == false &&
-       (needs.changes.outputs.python == 'true' ||
-        contains(github.event.pull_request.labels.*.name, 'full-ci')))
+       (contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+        needs.changes.outputs.force_full == 'true' ||
+        (needs.changes.outputs.docs_render_only != 'true' &&
+         needs.changes.outputs.python == 'true')))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -476,10 +458,10 @@ jobs:
     timeout-minutes: 5
     needs:
       - changes
+      - setup
       - build
       - stubtest
       - fresh-install-smoke
-      - nogil-throughput
       - compatibility
       - freethreaded
       - sdist

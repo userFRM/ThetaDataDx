@@ -20,7 +20,6 @@ The Python SDK for [ThetaData](https://thetadata.us) market data. Pull US stock,
 - **Complete coverage** — stocks, options, indices, and rates across 65 typed endpoints.
 - **Three access modes, one client** — point-in-time history, real-time streaming, and bulk flat-file downloads.
 - **DataFrames built in** — every result chains straight to Polars, pandas, or Arrow over a zero-copy boundary.
-- **Greeks without a round-trip** — first- through third-order Black-Scholes Greeks and an implied-volatility solver, computed locally.
 - **Typed all the way down** — every tick is a typed object with attribute access and IDE completion, not a dict.
 - **No terminal to run** — a direct connection to ThetaData; nothing to install and babysit locally.
 
@@ -165,10 +164,22 @@ with client.streaming(on_event) as session:
 
 The option constructor is `Contract.option(symbol, *, expiration, strike, right)` — the leg parameters are keyword-only, so the call site always reads `expiration=…, strike=…, right=…` and never depends on argument order. Pair it with `Contract.stock(symbol)` for equities.
 
-Or take a whole-market feed — every option trade across the universe, no per-contract setup:
+Or take a whole-market feed — every option trade across the universe, no per-contract setup. The full-trade feed sends a quote and an OHLC bar before each trade, so add an `Ohlcvc` case to the callback to handle the bars:
 
 ```python
-with client.streaming(on_event) as session:
+from thetadatadx import Ohlcvc
+
+def on_full_trade(event):
+    match event:
+        case Ohlcvc(open=o, high=h, low=lo, close=cl, volume=v, contract=c):
+            print(
+                f"{c.symbol} {c.expiration} {c.strike:g} {c.right} bar "
+                f"o={o:.2f} h={h:.2f} l={lo:.2f} c={cl:.2f} volume={v}"
+            )
+        case _:
+            on_event(event)   # reuse the quote/trade handling above
+
+with client.streaming(on_full_trade) as session:
     session.subscribe(SecType.OPTION.full_trades())
     time.sleep(60)   # the callback runs on the streaming thread — keep it fast
 ```
@@ -205,24 +216,6 @@ with client.stream.batches(batch_size=8192) as batches:
         print(batch.num_rows)
 ```
 
-## Greeks calculator
-
-A full Black-Scholes calculator — first- through third-order Greeks plus an implied-volatility solver — runs locally, no request required:
-
-```python
-from thetadatadx import all_greeks, implied_volatility
-
-g = all_greeks(
-    spot=450.0, strike=455.0, rate=0.05, div_yield=0.015,
-    tte=30 / 365, option_price=8.50, right="C",
-)
-print(f"IV={g.iv:.4f} delta={g.delta:.4f} gamma={g.gamma:.6f} vega={g.vega:.4f}")
-
-iv, err = implied_volatility(450.0, 455.0, 0.05, 0.015, 30 / 365, 8.50, "C")
-```
-
-`right` accepts `"C"` / `"P"` or `"call"` / `"put"` (case-insensitive).
-
 ## Flat files
 
 Whole-universe daily snapshots for one `(security type, request type, date)` at a time. The decoded schema follows the request type, so flat-file results chain through the same DataFrame terminals as history:
@@ -244,7 +237,7 @@ The flat-file distribution serves a fixed set of datasets: option `trade_quote` 
 
 ## Endpoint coverage
 
-65 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming and the local Greeks calculator.
+65 typed endpoints across stocks, options, indices, the market calendar, and interest rates, plus real-time streaming.
 
 | Category | Endpoints | Examples |
 |---|---|---|

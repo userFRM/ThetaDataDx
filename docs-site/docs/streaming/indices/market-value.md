@@ -113,7 +113,7 @@ websocat ws://127.0.0.1:25520/v1/events
 
 </SdkTabs>
 
-## Event fields
+## `MarketValue` event fields
 
 Each update arrives as a `MarketValue` event with these fields:
 
@@ -128,4 +128,8 @@ Each update arrives as a `MarketValue` event with these fields:
 | `received_at_ns` | u64 | Local receive timestamp, nanoseconds since the Unix epoch. |
 
 The `contract` field carries `symbol`, the security type, and — for options — `expiration`, `right`, and the strike. See [Handling Events](/streaming/events) for the full event catalogue and per-language field shapes.
+
+## WebSocket frame
+
+The native SDK callbacks (Rust/Python/TypeScript/C++) receive every field above. Each raw WebSocket frame (the **Server** tab) is `{ "header": {…}, "contract": {…}, "market_value": {…} }`: `header` and `contract` are always present, while the `market_value` payload object carries only the terminal-compatible subset: `ms_of_day`, `market_bid`, `market_ask`, `market_price`, `date`. The remaining event fields are delivered to the SDK callbacks, not the `market_value` payload object.
 

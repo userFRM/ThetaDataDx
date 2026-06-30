@@ -15,8 +15,7 @@ exposes:
   (:class:`Quote`, :class:`Trade`, :class:`OpenInterest`,
   :class:`Ohlcvc`, and the connection / lifecycle events).
 - A typed exception hierarchy rooted at :class:`ThetaDataError`.
-- Analytics and utility entry points such as :func:`all_greeks`,
-  :func:`implied_volatility`, and :func:`split_date_range`.
+- Utility entry points such as :func:`split_date_range`.
 
 Type checkers discover these annotations through the ``py.typed`` marker
 (PEP 561) shipped alongside this file.
@@ -6320,110 +6319,6 @@ def split_date_range(
     contiguously in chronological order.
     """
     ...
-
-
-def all_greeks(
-    spot: float,
-    strike: float,
-    rate: float,
-    div_yield: float,
-    tte: float,
-    option_price: float,
-    right: str,
-) -> AllGreeks:
-    """Compute all Black-Scholes Greeks plus implied volatility for one option.
-
-    ``right`` is ``"C"`` / ``"P"``; ``tte`` is time to expiry in years.
-    The implied volatility is solved from ``option_price`` and seeds the
-    Greek derivatives. Returns an :class:`AllGreeks` with every field
-    populated.
-    """
-    ...
-
-
-def implied_volatility(
-    spot: float,
-    strike: float,
-    rate: float,
-    div_yield: float,
-    tte: float,
-    option_price: float,
-    right: str,
-) -> tuple[float, float]:
-    """Solve the Black-Scholes implied volatility for one option.
-
-    Args:
-        spot: Underlying spot price.
-        strike: Option strike price.
-        rate: Risk-free interest rate (annualised, decimal).
-        div_yield: Continuous dividend yield (annualised, decimal).
-        tte: Time to expiry in years.
-        option_price: Observed option price to invert.
-        right: Option right, ``"C"`` (call) or ``"P"`` (put).
-
-    Returns:
-        A ``(iv, iv_error)`` pair: the implied volatility and the
-        residual ``(model_price - option_price) / option_price`` at that
-        volatility.
-    """
-    ...
-
-
-@final
-class AllGreeks:
-    """All 23 Black-Scholes Greeks plus IV returned by :func:`all_greeks`.
-
-    Fields are grouped as the model value and IV pair first, then
-    first-, second-, and third-order Greeks, then the ``d1`` / ``d2``
-    auxiliaries. Every attribute is a plain ``float``.
-    """
-
-    value: float
-    """Black-Scholes theoretical option value."""
-    iv: float
-    """Implied volatility solved from the observed option price (annualised, decimal)."""
-    iv_error: float
-    """Relative residual of the implied-volatility solve, ``(model_price - option_price) / option_price``."""
-    delta: float
-    """First derivative of value with respect to spot."""
-    gamma: float
-    """Second derivative of value with respect to spot (rate of change of delta)."""
-    theta: float
-    """Sensitivity of value to the passage of time, expressed per calendar day."""
-    vega: float
-    """Sensitivity of value to volatility."""
-    rho: float
-    """Sensitivity of value to the risk-free rate."""
-    vanna: float
-    """Sensitivity of delta to volatility (equivalently, of vega to spot)."""
-    charm: float
-    """Sensitivity of delta to the passage of time (delta decay)."""
-    vomma: float
-    """Sensitivity of vega to volatility (vega convexity)."""
-    veta: float
-    """Sensitivity of vega to the passage of time."""
-    vera: float
-    """Sensitivity of vega to the risk-free rate."""
-    speed: float
-    """Sensitivity of gamma to spot (third derivative of value in spot)."""
-    zomma: float
-    """Sensitivity of gamma to volatility."""
-    color: float
-    """Sensitivity of gamma to the passage of time (gamma decay)."""
-    ultima: float
-    """Sensitivity of vomma to volatility (third-order volatility sensitivity)."""
-    d1: float
-    """The Black-Scholes ``d1`` term."""
-    d2: float
-    """The Black-Scholes ``d2`` term (``d1 - sigma * sqrt(t)``)."""
-    dual_delta: float
-    """Sensitivity of value to the strike."""
-    dual_gamma: float
-    """Sensitivity of dual delta to the strike."""
-    epsilon: float
-    """Sensitivity of value to the dividend yield."""
-    lambda_: float
-    """Option elasticity: percentage change in value per percentage change in spot (``delta * spot / value``). Carries the PEP 8 trailing-underscore escape because ``lambda`` is a reserved Python keyword."""
 
 
 # ─────────────────────────────────────────────────────────────────────

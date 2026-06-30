@@ -13,7 +13,7 @@ info:
     All dates use YYYYMMDD format. Times use milliseconds since midnight ET.
     Intervals accept milliseconds ("60000") or shorthand ("1m"). Valid presets: 100ms, 500ms, 1s, 5s, 10s, 15s, 30s, 1m, 5m, 10m, 15m, 30m, 1h.
     All prices are f64 (double) -- decoded during parsing.
-  version: 13.0.0-rc.5
+  version: 13.0.0-rc.10
   contact:
     name: ThetaDataDx
     url: https://github.com/userFRM/ThetaDataDx
@@ -475,76 +475,6 @@ x-anchors:
         type: integer
       date:
         type: integer
-
-  greeks-result: &greeks-result
-    type: object
-    properties:
-      value:
-        type: number
-        format: double
-      delta:
-        type: number
-        format: double
-      gamma:
-        type: number
-        format: double
-      theta:
-        type: number
-        format: double
-      vega:
-        type: number
-        format: double
-      rho:
-        type: number
-        format: double
-      iv:
-        type: number
-        format: double
-      iv_error:
-        type: number
-        format: double
-      vanna:
-        type: number
-        format: double
-      charm:
-        type: number
-        format: double
-      vomma:
-        type: number
-        format: double
-      veta:
-        type: number
-        format: double
-      speed:
-        type: number
-        format: double
-      zomma:
-        type: number
-        format: double
-      color:
-        type: number
-        format: double
-      ultima:
-        type: number
-        format: double
-      d1:
-        type: number
-        format: double
-      d2:
-        type: number
-        format: double
-      dual_delta:
-        type: number
-        format: double
-      dual_gamma:
-        type: number
-        format: double
-      epsilon:
-        type: number
-        format: double
-      lambda:
-        type: number
-        format: double
 
   data-table: &data-table
     type: object
@@ -3595,7 +3525,6 @@ components:
     EodTick: *eod-tick
     OpenInterestTick: *open-interest-tick
     TradeQuoteTick: *trade-quote-tick
-    GreeksResult: *greeks-result
     DataTable: *data-table
 
     ContractSpec:

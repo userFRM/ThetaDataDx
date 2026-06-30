@@ -1,0 +1,247 @@
+name: Changed paths
+
+# Reusable path-relevance filter shared by every lane (ci / python /
+# typescript / perf-gate). Each lane used to carry its own identical
+# `dorny/paths-filter` block; they drifted independently. The filter
+# definition now lives here once and every lane calls it via
+# `uses: ./.github/workflows/paths.yml`, so a path-set change lands in
+# one place. Outputs keep the exact names the callers already read
+# (`needs.changes.outputs.rust` etc.), so consumers are unchanged.
+on:
+  workflow_call:
+    outputs:
+      rust:
+        description: Core/FFI/SDK Rust sources or any cargo manifest changed.
+        value: ${{ jobs.filter.outputs.rust }}
+      ffi:
+        description: Rust/FFI/C++ sources changed (FFI build relevance).
+        value: ${{ jobs.filter.outputs.ffi }}
+      semver:
+        description: Public Rust API surface (core/FFI) changed.
+        value: ${{ jobs.filter.outputs.semver }}
+      python:
+        description: Python SDK, FFI, or core sources changed.
+        value: ${{ jobs.filter.outputs.python }}
+      typescript:
+        description: TypeScript SDK, FFI, or core sources changed.
+        value: ${{ jobs.filter.outputs.typescript }}
+      perf:
+        description: Core/FFI sources relevant to the allocation perf gate changed.
+        value: ${{ jobs.filter.outputs.perf }}
+      docs_render_only:
+        description: >-
+          Every changed file is a markdown-emitting doc generator
+          (build_support_bin/endpoints/docs_render/**) or the checked-in
+          doc-site output tree (docs-site/**). True only when the PR
+          touches nothing that can change the compiled library or any SDK
+          binding surface, so the cross-platform matrix is safe to skip
+          while the doc drift/correctness checks still run.
+        value: ${{ jobs.filter.outputs.docs_render_only }}
+      force_full:
+        description: >-
+          A rename or copy moved a path that is NOT in the doc set into or
+          out of it. The PR changed-files API and dorny/paths-filter see a
+          rename by its destination only, so a real source file renamed
+          INTO docs-site/** reads as docs-only there and the per-language
+          flags stay false. This output is the safety net: it is true when
+          any rename/copy row has an outside-the-doc-set path on either
+          side, which forces the full heavy matrix regardless of the
+          rename-blind per-language flags. A docs-internal rename (both
+          sides in the set) leaves it false, so the fast path is kept.
+        value: ${{ jobs.filter.outputs.force_full }}
+
+permissions:
+  contents: read
+
+jobs:
+  filter:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # paths-filter calls the GitHub REST API on pull_request events to
+    # diff the head against the base, which needs pull-requests: read.
+    # contents: read is restated so the workflow-level grant is not
+    # dropped when the job declares its own permission block.
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      ffi: ${{ steps.filter.outputs.ffi }}
+      semver: ${{ steps.filter.outputs.semver }}
+      python: ${{ steps.filter.outputs.python }}
+      typescript: ${{ steps.filter.outputs.typescript }}
+      perf: ${{ steps.filter.outputs.perf }}
+      # docs-render-only is derived from `git diff --name-status -M -C`
+      # against the merge base, NOT from `dorny/paths-filter`. The PR
+      # changed-files API surfaces a rename by its destination path only, so
+      # a rename of real source INTO the doc tree would read as docs-only
+      # under a path filter and wrongly skip the matrix. With rename/copy
+      # detection on, the name-status diff exposes both sides of every
+      # rename (an `R<score>` record carrying old and new), and the value is
+      # true only when EVERY path — old and new side of any rename — is in
+      # the doc set. Any path outside it (including a rename's old path)
+      # makes the value false and the full matrix runs. Fails safe.
+      docs_render_only: ${{ steps.docs_render_only.outputs.value }}
+      # force_full closes the same rename hole on the per-language side.
+      # The dorny flags above (rust/python/typescript/perf) see only a
+      # rename's destination, so a real source file renamed INTO the doc
+      # tree reads as docs-only there: every per-language flag is false
+      # AND docs_render_only is false (its old path is outside the set),
+      # and the heavy lanes — gated on the dorny flags — would skip,
+      # dropping coverage. This output forces the full matrix when any
+      # rename/copy touches a non-doc path. Derived from the same
+      # name-status pass.
+      force_full: ${{ steps.docs_render_only.outputs.force_full }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The merge-base diff below needs the base branch history; the
+          # default shallow checkout has no merge base to diff against.
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            # The Rust core, FFI, every cargo manifest the workspace and
+            # the SDK crates pull in, plus the scripts the heavy Rust jobs
+            # drive. A docs-only or config-only PR matches none of these
+            # and skips the compile-heavy lane.
+            rust:
+              - 'thetadatadx-rs/**'
+              - 'thetadatadx-ffi/**'
+              - 'tools/**'
+              - 'thetadatadx-py/**'
+              - 'thetadatadx-ts/**'
+              - 'thetadatadx-cpp/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'scripts/ci/**'
+              - 'scripts/dev/**'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/paths.yml'
+              - '.github/actions/**'
+            ffi:
+              - 'thetadatadx-rs/**'
+              - 'thetadatadx-ffi/**'
+              - 'thetadatadx-cpp/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/paths.yml'
+              - '.github/actions/**'
+            semver:
+              - 'thetadatadx-rs/**'
+              - 'thetadatadx-ffi/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/paths.yml'
+            python:
+              - 'thetadatadx-py/**'
+              - 'thetadatadx-ffi/**'
+              - 'thetadatadx-rs/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/workflows/python.yml'
+              - '.github/workflows/paths.yml'
+              - '.github/actions/**'
+            typescript:
+              - 'thetadatadx-ts/**'
+              - 'thetadatadx-ffi/**'
+              - 'thetadatadx-rs/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - '.github/workflows/typescript.yml'
+              - '.github/workflows/paths.yml'
+              - '.github/actions/**'
+            perf:
+              - 'thetadatadx-rs/**'
+              - 'thetadatadx-ffi/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'scripts/ci/check_perf_gate.py'
+              - '.github/workflows/perf-gate.yml'
+              - '.github/workflows/paths.yml'
+              - '.github/actions/**'
+      # Rename-safe docs-render-only derivation. Only meaningful on a PR
+      # (every other event runs the full matrix regardless), so it emits
+      # false for non-PR events without touching git. `--name-status -M -C`
+      # against the merge base lists one record per change with rename and
+      # copy detection on, so a source-into-docs move surfaces as an
+      # `R<score>` record (old + new path) instead of the rename-blind D+A
+      # pair; `A`/`M`/`D` carry a single path. Every path on every record —
+      # both sides of a rename or copy — must fall inside the doc set
+      # (build_support_bin/endpoints/docs_render, generate_docs_site.rs,
+      # docs-site). The code-emitting generators (sdk_surface / sdk_render
+      # / fpss_events / ticks) are deliberately NOT in the set: they change
+      # the compiled SDK binding surface and must still fire the full
+      # matrix. A rename of any real source INTO docs-site keeps its old
+      # path outside the set, so the value is false and the matrix runs.
+      # `-z` emits NUL-terminated fields so paths with spaces or shell
+      # metacharacters are parsed by their literal bytes.
+      - name: Derive docs-render-only
+        id: docs_render_only
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME}" != "pull_request" ]; then
+            echo "value=false" >> "$GITHUB_OUTPUT"
+            echo "force_full=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          merge_base=$(git merge-base "${BASE_SHA}" HEAD)
+          docs_only=true
+          had_change=false
+          # force_full is the per-language rename safety net (see the
+          # job-output comment): true when any rename/copy row carries a
+          # non-doc path on either side, which the rename-blind dorny flags
+          # cannot see. A docs-internal rename (both sides in the set)
+          # leaves it false.
+          force_full=false
+          # Classify one path. A non-doc path clears docs_only, and when it
+          # rode in on a rename/copy (is_move) forces the full matrix. Always
+          # invoked quoted so a path with a space or glob metacharacter
+          # matches by its literal value; never word-split or glob-expanded.
+          # The case arms must leave $? = 0 so the call is set -e safe.
+          classify() {
+            case "$1" in
+              thetadatadx-rs/build_support_bin/endpoints/docs_render/*) ;;
+              thetadatadx-rs/src/bin/generate_docs_site.rs) ;;
+              docs-site/*) ;;
+              *)
+                docs_only=false
+                if [ "${is_move}" = true ]; then force_full=true; fi
+                ;;
+            esac
+          }
+          # -M -C makes git report a source-into-docs move as one R* row with
+          # the old path on its old side, not as separate D+A rows that hide
+          # the move from the force_full logic. -z makes every field its own
+          # NUL-terminated record: a normal change is status + path, a
+          # rename/copy is status + old + new. read returns non-zero when the
+          # NUL it consumes is the record's final byte (no data follows), but
+          # the field is already set, so swallow that status to stay set -e
+          # safe; the outer read's non-zero at true EOF ends the loop.
+          while IFS= read -r -d '' status; do
+            had_change=true
+            is_move=false
+            case "${status}" in
+              R*|C*) is_move=true ;;
+            esac
+            IFS= read -r -d '' p1 || :
+            classify "${p1}"
+            if [ "${is_move}" = true ]; then
+              IFS= read -r -d '' p2 || :
+              classify "${p2}"
+            fi
+          done < <(git diff --name-status -M -C -z "${merge_base}" HEAD)
+          if [ "${had_change}" = true ] && [ "${docs_only}" = true ]; then
+            echo "value=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "force_full=${force_full}" >> "$GITHUB_OUTPUT"

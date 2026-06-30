@@ -2,7 +2,7 @@
 # SDK for ThetaData market data: Rust, Python, TypeScript, C++, plus a local HTTP/WebSocket server and an MCP server.
 # One line per page: path — summary. All paths are relative to the docs site root.
 
-/ — ThetaDataDx: SDK for ThetaData market data — historical, streaming, and bulk flat files in Rust, Python, TypeScript, and C++.
+/ — ThetaDataDx: Every ThetaData endpoint, historical, streaming, and bulk, over REST, four native SDKs, or an MCP server for AI.
 /articles/ai-llms — Building with AI / LLMs: Machine-readable entry points for coding assistants and LLM agents.
 /articles/concurrent-requests — Concurrent Requests: How many historical requests run in parallel per subscription tier.
 /articles/conditions — Trade & Quote Conditions: Condition code mapping for the condition fields on trade and quote rows.
@@ -12,13 +12,13 @@
 /articles/exchanges — Exchanges: Exchange code mapping for the exchange fields on trade and quote rows.
 /articles/flat-files — Flat Files: Whole-universe daily archives — every contract for a date in one call.
 /articles/getting-started — Getting Started: Install the SDK, save your credentials, and make your first request in Rust, Python, TypeScript, or C++.
-/articles/option-greeks — Option Greeks: The model behind the Greeks endpoints and the local calculator, with input conventions.
+/articles/option-greeks — Option Greeks: The model behind the Greeks endpoints, with input conventions.
 /articles/request-sizing — Request Sizing: How to split large historical requests.
 /articles/subscriptions — Subscriptions: Minimum ThetaData subscription tier for every endpoint.
 /articles/symbology — Symbology & Contract Identity: How symbols, option contracts, dates, prices, and timestamps are written across the SDK surface.
 /articles/terminology — Terminology: The dozen terms the rest of this documentation assumes.
 /changelog — Changelog
-/mcp — MCP Server: Give any Model Context Protocol client live access to every historical endpoint plus offline Greeks tools.
+/mcp — MCP Server: Give any Model Context Protocol client live access to every historical endpoint.
 /migration/v11-to-v12 — Migrating from v11 to v12
 /migration/v12-to-v13 — Migrating from v12 to v13
 /migration/v9-to-v10 — Migrating from v9 to v10
@@ -93,10 +93,12 @@
 /streaming/indices/price — Index Price: Real-time price stream for an index.
 /streaming/options/full-open-interest — Option Full Open Interest: Open-interest updates for every option contract in one subscription.
 /streaming/options/full-trade — Option Full Trades: Every option trade across all underlyings in one subscription.
+/streaming/options/market-value — Option Market Value: Real-time calculated market value for an option contract.
 /streaming/options/open-interest — Option Open Interest: Open-interest updates for an option contract.
 /streaming/options/quote — Option Quotes: Real-time NBBO quote stream for an option contract.
 /streaming/options/trade — Option Trades: Real-time trade stream for an option contract.
 /streaming/reliability — Reconnection & Monitoring: Automatic reconnect policy, flush mode, and the counters that tell you a stream is healthy.
 /streaming/stocks/full-trade — Stock Full Trades: Every trade across all stocks in one subscription.
-/streaming/stocks/quote — Stock Quotes: Real-time NBBO quote stream for a stock.
+/streaming/stocks/market-value — Stock Market Value: Real-time calculated market value for a stock.
+/streaming/stocks/quote — Stock Quotes: Real-time BBO quote stream for a stock.
 /streaming/stocks/trade — Stock Trades: Real-time trade stream for a stock.

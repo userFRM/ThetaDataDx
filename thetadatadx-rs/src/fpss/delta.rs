@@ -111,7 +111,7 @@ impl DeltaState {
     /// Note: `last_stop` is intentionally NOT cleared here because STOP
     /// itself calls `clear()`, and the timestamp must survive to suppress
     /// stale-tick warnings for 5 seconds after the STOP signal.
-    pub(super) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.prev.clear();
         self.ohlcvc.clear();
         self.last_was_date = false;

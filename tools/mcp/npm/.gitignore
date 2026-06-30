@@ -1,0 +1,4 @@
+# Binaries are dropped into each platform package at release time by
+# scripts/populate.mjs; only the package.json files are tracked.
+*/thetadatadx-mcp
+*/thetadatadx-mcp.exe
