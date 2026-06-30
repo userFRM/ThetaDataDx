@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.0.0-rc.10] - 2026-06-30
+
+### Added
+
+- An internal-only `__internal` cargo feature re-exports the FPSS decode, wire, framing, and login surface as `fpss::internals`, for a downstream consumer that drives the decode into its own ingest loop. It is not part of the public API and carries no SemVer guarantee (#1038, #1039).
+
+### Fixed
+
+- **Post-reconnect tick desync:** the FPSS delta-decode state is now reset on reconnect, so the first ticks after a reconnect decode against a fresh baseline instead of a stale one (#1036).
+
+### Documentation
+
+- Every API reference page now renders an interactive request builder in place of the static language tabs. Pick a language, toggle the client and auth method, edit any parameter, and the example code and sample response regenerate live (#1037).
+- Scoped the full-trade event-handling note to the full-trade example in the README (#1034).
+
 ## [13.0.0-rc.9] - 2026-06-29
 
 ### Added
