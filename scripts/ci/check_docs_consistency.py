@@ -450,7 +450,9 @@ def check_reference_pages() -> None:
                 f"{path.relative_to(ROOT)} — run the docs generator"
             )
         text = path.read_text()
-        for marker in ("@generated", "<SdkTabs>", "## Parameters", "## Response"):
+        # The interactive request builder (`<RequestBuilder :cfg="cfg" />`) is the
+        # current per-page anatomy; it replaced the static `<SdkTabs>` code block.
+        for marker in ("@generated", "<RequestBuilder", "## Parameters", "## Response"):
             if marker not in text:
                 fail(f"{path.relative_to(ROOT)} missing page-anatomy marker {marker!r}")
         if not re.search(r'<TierBadge tier="(free|value|standard|professional)" />', text):

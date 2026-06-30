@@ -4,8 +4,8 @@ use std::fmt::Write as _;
 
 use super::super::super::ticks::schema::Schema;
 use super::super::model::{GeneratedEndpoint, GeneratedParam};
-use super::super::sdk_helpers::{builder_params, method_params};
-use super::{lang, response};
+use super::super::sdk_helpers::{builder_params, method_params, to_camel_case};
+use super::{lang, response, samples};
 
 /// Sidebar metadata for one endpoint page: its category, subcategory,
 /// title, and site link.
@@ -173,13 +173,112 @@ fn render_params_section(endpoint: &GeneratedEndpoint) -> String {
     out
 }
 
-fn tab(slot: &str, signature: String, example: String) -> String {
-    format!("<template #{slot}>\n\n{signature}\n**Example**\n\n{example}\n</template>\n")
+/// Quote a value as a JS string literal for the generated `cfg` object.
+/// `serde_json` fully escapes the string (quotes, backslashes, newlines, control
+/// chars), which is also a valid JS string literal; the `</` rewrite stops an
+/// embedded `</script>` from closing the host `<script setup>` tag, since the
+/// HTML tokenizer runs before the JS parser.
+fn js_str(s: &str) -> String {
+    serde_json::to_string(s)
+        .unwrap_or_else(|_| "\"\"".to_string())
+        .replace("</", "<\\/")
+}
+
+/// Build the `<script setup>` block holding the `cfg` object that drives the
+/// interactive `RequestBuilder`. Reads the same registry SSOT as the runnable
+/// examples — method names, fixture parameter values, response fields, return
+/// type, and the capture-backed sample — so the builder reshapes with the
+/// registry on every generator run, with no per-page cfg.
+fn render_builder_cfg(endpoint: &GeneratedEndpoint) -> Result<String, Box<dyn std::error::Error>> {
+    let category = &endpoint.category;
+
+    let required: Vec<String> = method_params(endpoint)
+        .into_iter()
+        .map(|p| {
+            format!(
+                "{{ key: {}, type: {}, default: {} }}",
+                js_str(&p.name),
+                js_str(docs_param_type(&p.param_type)),
+                js_str(lang::sample_value(p, category)),
+            )
+        })
+        .collect();
+
+    let showcased: Vec<&str> = lang::showcased_builder_params(endpoint)
+        .into_iter()
+        .map(|p| p.name.as_str())
+        .collect();
+    let optional: Vec<String> = builder_params(endpoint)
+        .into_iter()
+        .map(|p| {
+            let default = if showcased.contains(&p.name.as_str()) {
+                lang::sample_value(p, category).to_string()
+            } else {
+                String::new()
+            };
+            format!(
+                "{{ key: {}, type: {}, default: {} }}",
+                js_str(&p.name),
+                js_str(docs_param_type(&p.param_type)),
+                js_str(&default),
+            )
+        })
+        .collect();
+
+    let mut out = String::from("<script setup>\nconst cfg = {\n");
+    let _ = writeln!(
+        out,
+        "  httpPath: {},",
+        js_str(endpoint._rest_path.trim_start_matches('/'))
+    );
+    let _ = writeln!(
+        out,
+        "  method: {{ rust: {}, python: {}, ts: {}, cpp: {} }},",
+        js_str(&endpoint.name),
+        js_str(&endpoint.name),
+        js_str(&to_camel_case(&endpoint.name)),
+        js_str(&endpoint.name),
+    );
+    let _ = writeln!(out, "  required: [{}],", required.join(", "));
+    let _ = writeln!(out, "  optional: [{}],", optional.join(", "));
+
+    if endpoint.return_type == "StringList" {
+        // List endpoints return a flat `Vec<String>`; the builder prints the
+        // bare row and has no per-field tick sample.
+        out.push_str("  scalar: true,\n");
+    } else {
+        let fields = response::display_fields(&endpoint.return_type);
+        let print: Vec<String> = fields.iter().copied().map(js_str).collect();
+        let _ = writeln!(out, "  print: [{}],", print.join(", "));
+        let _ = writeln!(
+            out,
+            "  returns: {},",
+            js_str(&response::schema_type_name(&endpoint.return_type))
+        );
+        // The upstream OpenAPI example is the wire/JSON shape; for some endpoints
+        // (e.g. calendar) it shares no field names with the SDK tick type and
+        // would only mislead next to the schema table. Emit it only when it
+        // overlaps the documented display fields.
+        let sample = samples::td_example_rows(&endpoint._rest_path);
+        let overlaps = sample
+            .first()
+            .and_then(|r| r.as_object())
+            .is_some_and(|o| o.keys().any(|k| fields.contains(&k.as_str())));
+        if overlaps {
+            let rows: Vec<String> = sample
+                .iter()
+                .map(|r| serde_json::to_string(r).expect("serde_json::Value re-serializes"))
+                .collect();
+            let _ = writeln!(out, "  sample: [\n    {},\n  ],", rows.join(",\n    "));
+        }
+    }
+    out.push_str("}\n</script>\n\n");
+    Ok(out)
 }
 
 /// Renders a full endpoint reference page (frontmatter, tier badge,
-/// description, language tabs, parameters, response schema, and sample)
-/// and returns it alongside the page's sidebar metadata.
+/// description, interactive request builder, parameters, and response
+/// schema) and returns it alongside the page's sidebar metadata.
 pub(super) fn render_endpoint_page(
     endpoint: &GeneratedEndpoint,
     tier: &str,
@@ -193,10 +292,14 @@ pub(super) fn render_endpoint_page(
     let _ = writeln!(out, "---");
     let _ = writeln!(out, "title: {title}");
     let _ = writeln!(out, "description: \"{}\"", description.replace('"', "\\\""));
+    // The builder spans the full content width, so hide VitePress's
+    // right-hand outline aside on every reference page.
+    let _ = writeln!(out, "aside: false");
     let _ = writeln!(out, "---");
     out.push_str(
         "\n<!-- @generated by `generate_docs_site` from endpoint_surface.toml + tick_schema.toml. Do not edit by hand. -->\n\n",
     );
+    out.push_str(&render_builder_cfg(endpoint)?);
     let _ = writeln!(out, "# {title}\n");
     let _ = writeln!(out, "<TierBadge tier=\"{tier}\" />\n");
     let _ = writeln!(out, "{description}");
@@ -208,43 +311,10 @@ pub(super) fn render_endpoint_page(
         }
     }
 
-    out.push_str("\n<SdkTabs>\n\n");
-    out.push_str(&tab(
-        "rust",
-        lang::rust_signature(endpoint),
-        lang::rust_example(endpoint),
-    ));
-    out.push('\n');
-    out.push_str(&tab(
-        "python",
-        lang::python_signature(endpoint),
-        lang::python_example(endpoint),
-    ));
-    out.push('\n');
-    out.push_str(&tab(
-        "typescript",
-        lang::typescript_signature(endpoint),
-        lang::typescript_example(endpoint),
-    ));
-    out.push('\n');
-    out.push_str(&tab(
-        "cpp",
-        lang::cpp_signature(endpoint),
-        lang::cpp_example(endpoint),
-    ));
-    out.push('\n');
-    out.push_str(&tab(
-        "http",
-        lang::http_signature(endpoint),
-        lang::http_example(endpoint),
-    ));
-    out.push_str("\n</SdkTabs>\n\n");
+    out.push_str("\n<RequestBuilder :cfg=\"cfg\" />\n\n");
 
     out.push_str(&render_params_section(endpoint));
     out.push_str(&response::render_response_section(endpoint, tick_schema)?);
-    if let Some(sample) = response::render_sample_section(endpoint, tick_schema)? {
-        out.push_str(&sample);
-    }
 
     let meta = PageMeta {
         category: endpoint.category.clone(),

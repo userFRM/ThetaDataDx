@@ -21,6 +21,9 @@ export default defineConfig({
       // so target the current engines directly.
       target: 'esnext',
     },
+    optimizeDeps: {
+      esbuildOptions: { target: 'esnext' },
+    },
   },
 
   head: [

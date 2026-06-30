@@ -24,7 +24,7 @@ function isActive(t: string): boolean {
     <span
       v-for="t in tiers"
       :key="t"
-      :class="['tier-badge', `tier-${t}`, { active: isActive(t), inactive: !isActive(t) }]"
+      :class="['tier-badge', `tier-${t}`, isActive(t) ? 'on' : 'off']"
     >{{ tierLabels[t] }}</span>
   </div>
 </template>
@@ -32,43 +32,32 @@ function isActive(t: string): boolean {
 <style scoped>
 .tier-badges {
   display: inline-flex;
-  gap: 0;
-  margin: 8px 0 16px;
+  margin: 6px 0 16px;
   border-radius: 6px;
   overflow: hidden;
   border: 1px solid var(--vp-c-divider);
 }
 
 .tier-badge {
-  padding: 4px 12px;
-  font-size: 12px;
+  padding: 3px 11px;
+  font-size: 10.5px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  line-height: 1;
-  transition: all 0.15s ease;
+  letter-spacing: 0.05em;
+  line-height: 1.5;
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.14);
 }
 
-.tier-badge.active.tier-free {
-  background: #059669;
-  color: #fff;
-}
-.tier-badge.active.tier-value {
-  background: #2563eb;
-  color: #fff;
-}
-.tier-badge.active.tier-standard {
-  background: #7c3aed;
-  color: #fff;
-}
-.tier-badge.active.tier-professional {
-  background: #dc2626;
-  color: #fff;
-}
+/* distinct per-tier hues along one cohesive cool ramp */
+.tier-badge.tier-free.on { background: #14b8a6; }        /* teal */
+.tier-badge.tier-value.on { background: #3b82f6; }       /* blue */
+.tier-badge.tier-standard.on { background: #6366f1; }    /* indigo */
+.tier-badge.tier-professional.on { background: #8b5cf6; } /* violet */
 
-.tier-badge.inactive {
+.tier-badge.off {
   background: var(--vp-c-bg-soft);
   color: var(--vp-c-text-3);
-  opacity: 0.4;
+  text-shadow: none;
+  font-weight: 500;
 }
 </style>
