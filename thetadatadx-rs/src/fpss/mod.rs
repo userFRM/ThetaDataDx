@@ -111,8 +111,8 @@ pub mod internals {
     pub use super::delta::DeltaState;
     pub use super::events::FpssEventInternal;
     pub use super::framing::{
-        is_drain_yield, is_transient_read, read_frame_into_with_stall_timeout,
-        write_raw_frame, write_raw_frame_no_flush, FrameReadState, MAX_PAYLOAD_LEN,
+        is_drain_yield, is_transient_read, read_frame_into_with_stall_timeout, write_raw_frame,
+        write_raw_frame_no_flush, FrameReadState, MAX_PAYLOAD_LEN,
     };
     pub use super::io_loop::{wait_for_login, LoginResult};
     pub use super::protocol::wire::{
