@@ -177,6 +177,16 @@ type MethodShape<'a> = (
     &'a [(&'static str, ParamType)],
 );
 
+/// Per-kind expected shape of a utility: optional fixed name, allowed targets,
+/// whether the targets list must be exact, and the required `(name, type)`
+/// param layout. The utility twin of [`MethodShape`], over [`UtilityTarget`].
+type UtilityShape<'a> = (
+    Option<&'a str>,
+    &'a [UtilityTarget],
+    bool,
+    &'a [(&'static str, ParamType)],
+);
+
 /// Loads and deserializes `sdk_surface.toml` into an [`SdkSurfaceSpec`] and registers it as a build rerun trigger.
 pub(super) fn load_sdk_surface_spec() -> Result<SdkSurfaceSpec, Box<dyn std::error::Error>> {
     let spec_path = "sdk_surface.toml";
@@ -468,12 +478,7 @@ fn validate_utility_spec(utility: &UtilitySpec) -> Result<(), Box<dyn std::error
     use UtilityTarget::{Mcp, Python, Typescript};
     // Forwarders are name-agnostic (the name is the forwarded helper's
     // name); `expected_name = None` skips the fixed-name check below.
-    let (expected_name, allowed_targets, exact_targets, params): (
-        Option<&str>,
-        &[UtilityTarget],
-        bool,
-        &[(&str, ParamType)],
-    ) = match utility.kind {
+    let (expected_name, allowed_targets, exact_targets, params): UtilityShape = match utility.kind {
         UtilityKind::Ping => (Some("ping"), &[Mcp], true, &[]),
         UtilityKind::Forwarder => (None, &[Python, Typescript], true, FORWARDER_CODE_PARAMS),
         UtilityKind::CalendarStatusName => (

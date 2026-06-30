@@ -50,13 +50,26 @@ pub(super) fn td_example_rows(rest_path: &str) -> Vec<Value> {
 /// raw OpenAPI text. Line/indent-based to avoid a YAML dependency, mirroring
 /// the existing upstream-spec parser. JSON ignores the residual indentation.
 fn extract_json_example(text: &str, path: &str) -> Option<String> {
-    let path_key = format!("{path}:");
     let lines: Vec<&str> = text.lines().collect();
     let indent_of = |l: &str| l.len() - l.trim_start().len();
 
+    // The OpenAPI path key is the endpoint REST path, optionally followed by a
+    // single trailing `/{...}` path-parameter template segment: `/option/list/
+    // contracts` is documented under `/option/list/contracts/{request_type}`.
+    // Match the exact key or that one templated tail, and nothing longer, so a
+    // sibling path (an unrelated longer route) is never picked up by mistake.
+    let matches_key = |trimmed: &str| {
+        trimmed == format!("{path}:")
+            || trimmed
+                .strip_prefix(path)
+                .and_then(|rest| rest.strip_prefix("/{"))
+                .and_then(|rest| rest.strip_suffix("}:"))
+                .is_some_and(|seg| !seg.is_empty() && !seg.contains('/'))
+    };
+
     let start = lines
         .iter()
-        .position(|l| indent_of(l) == 2 && l.trim_start() == path_key)?;
+        .position(|l| indent_of(l) == 2 && matches_key(l.trim_start()))?;
     let end = lines[start + 1..]
         .iter()
         .position(|l| indent_of(l) == 2 && l.trim_start().starts_with('/'))

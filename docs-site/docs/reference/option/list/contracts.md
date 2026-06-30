@@ -14,6 +14,11 @@ const cfg = {
   optional: [{ key: "symbol", type: "string", default: "" }, { key: "max_dte", type: "int", default: "" }],
   print: ["symbol", "expiration", "strike", "right"],
   returns: "OptionContract",
+  sample: [
+    {"expiration":"2023-06-16","right":"CALL","strike":260.0,"symbol":"ABNB"},
+    {"expiration":"2023-06-16","right":"CALL","strike":260.0,"symbol":"AAPL"},
+    {"expiration":"2022-09-30","right":"CALL","strike":14.5,"symbol":"AAL"},
+  ],
 }
 </script>
 

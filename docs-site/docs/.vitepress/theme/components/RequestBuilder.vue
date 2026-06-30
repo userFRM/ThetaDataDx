@@ -60,11 +60,55 @@ const active = ref('python')
 const isCurl = computed(() => active.value === 'curl')
 
 const cls = computed(() => (clientKind.value === 'unified' ? 'Client' : 'HistoricalClient'))
-const reqArgs = computed(() => props.cfg.required.map((r) => `"${vals.value[r.key]}"`).join(', '))
 const filledOpt = computed(() => props.cfg.optional.filter((o) => (vals.value[o.key] ?? '') !== ''))
 const scalar = computed(() => !!props.cfg.scalar)
 function camel(s) {
   return s.replace(/_([a-z0-9])/g, (_, ch) => ch.toUpperCase())
+}
+
+// int/float/bool values render as bare literals; every other type (string,
+// date, symbols, enum, …) is quoted. `type` is the registry `docs_param_type`
+// (int/float/bool/date/symbols/string), carried in the cfg, so the emitted code
+// matches each parameter's real Rust/TS/C++/Python type instead of stringifying
+// everything. An unquoted allowlist (not a quoted one) keeps an unexpected type
+// safely quoted rather than emitted bare.
+const UNQUOTED_TYPES = new Set(['int', 'float', 'bool'])
+const BOOL_LIT = {
+  python: (v) => (truthy(v) ? 'True' : 'False'),
+  rust: (v) => (truthy(v) ? 'true' : 'false'),
+  typescript: (v) => (truthy(v) ? 'true' : 'false'),
+  cpp: (v) => (truthy(v) ? 'true' : 'false'),
+}
+function truthy(v) {
+  return /^(true|1|yes)$/i.test(String(v).trim())
+}
+// Escape a raw value for a double-quoted string literal: backslash and the quote
+// first, then control chars, so a value carrying `"`, `\`, or a newline cannot
+// terminate the literal or break the snippet. The escapes (`\\`, `\"`, `\n`,
+// `\r`, `\t`) are shared by Rust, TypeScript, Python, and C++ string literals.
+function escDquote(s) {
+  return String(s)
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t')
+}
+// Escape a value for a shell single-quoted string: a literal `'` becomes
+// `'\''` (close quote, escaped quote, reopen). Newlines stay literal — curl
+// accepts them inside the quoted argument.
+function escSquote(s) {
+  return String(s).replace(/'/g, "'\\''")
+}
+// Render one parameter value for a code target: bare literal for numeric/bool
+// types, an escaped double-quoted string otherwise.
+function fmtVal(lang, type, raw) {
+  if (type === 'bool') return BOOL_LIT[lang](raw)
+  if (UNQUOTED_TYPES.has(type)) return String(raw).trim() // int / float: bare literal
+  return `"${escDquote(raw)}"`
+}
+function reqArgs(lang) {
+  return props.cfg.required.map((r) => fmtVal(lang, r.type, vals.value[r.key])).join(', ')
 }
 // Per-language print bodies. Scalar (list) endpoints print the bare row;
 // TypeScript reads camelCase fields, the others snake_case.
@@ -87,51 +131,189 @@ function hist(lang) {
   return lang === 'rust' || lang === 'cpp' ? '.historical()' : '.historical'
 }
 
+// Client construction, mapped to the real SDK surface. The unified `Client`
+// has the ergonomic one-step constructors (builder / connectWith / inline
+// kwargs); the historical-only `HistoricalClient` exposes no such sugar, so it
+// is built from a `Credentials` value passed to `connect(creds, config)` (or
+// the `from_file` / connectFromFile convenience). The `auth.source === 'env'`
+// + `creds` cell sources email + password from a `.env`/creds file — the SDK
+// has no inline-from-process-env email+password constructor; the env path is
+// API-key only. Returns the construction statement plus any extra symbols to
+// import alongside the client class.
 function clientLine(lang) {
   const a = auth.value
-  const C = cls.value
-  const envNote = a.kind === 'apikey' ? 'THETADATA_API_KEY' : 'THETADATA_EMAIL + THETADATA_PASSWORD'
-  const m = {
+  // The selected auth cell as a stable key: env-apikey, inline-apikey,
+  // env-creds (file), inline-creds.
+  const cell = a.source === 'env' ? `env-${a.kind}` : `inline-${a.kind}`
+
+  // Unified Client: rich one-step constructors.
+  const unified = {
     python: {
-      env: `client = ${C}.from_env()  # reads ${envNote}`,
-      apikey: `client = ${C}(api_key="YOUR_API_KEY")`,
-      creds: `client = ${C}(email="you@example.com", password="YOUR_PASSWORD")`,
+      'env-apikey': { line: `client = Client.from_env()`, imports: [] },
+      'inline-apikey': { line: `client = Client(api_key="YOUR_API_KEY")`, imports: [] },
+      'inline-creds': {
+        line: `client = Client(email="you@example.com", password="YOUR_PASSWORD")`,
+        imports: [],
+      },
+      'env-creds': { line: `client = Client.from_file("creds.txt")`, imports: [] },
     },
     rust: {
-      env: `let client = ${C}::from_env()?; // reads ${envNote}`,
-      apikey: `let client = ${C}::with_api_key("YOUR_API_KEY")?;`,
-      creds: `let client = ${C}::with_credentials("you@example.com", "YOUR_PASSWORD")?;`,
+      'env-apikey': {
+        line: `let client = Client::builder().api_key_from_env().connect().await?;`,
+        imports: [],
+      },
+      'inline-apikey': {
+        line: `let client = Client::builder().api_key("YOUR_API_KEY").connect().await?;`,
+        imports: [],
+      },
+      'inline-creds': {
+        line: `let client = Client::builder()\n        .email_password("you@example.com", "YOUR_PASSWORD")\n        .connect()\n        .await?;`,
+        imports: [],
+      },
+      'env-creds': {
+        line: `let client = Client::connect(&Credentials::from_file("creds.txt")?, DirectConfig::production()).await?;`,
+        imports: ['Credentials', 'DirectConfig'],
+      },
     },
     typescript: {
-      env: `const client = ${C}.fromEnv(); // reads ${envNote}`,
-      apikey: `const client = new ${C}({ apiKey: "YOUR_API_KEY" });`,
-      creds: `const client = new ${C}({ email: "you@example.com", password: "YOUR_PASSWORD" });`,
+      'env-apikey': {
+        line: `const client = await Client.connectWith({ apiKeyFromEnv: true });`,
+        imports: [],
+      },
+      'inline-apikey': {
+        line: `const client = await Client.connectWith({ apiKey: "YOUR_API_KEY" });`,
+        imports: [],
+      },
+      'inline-creds': {
+        line: `const client = await Client.connectWith({ email: "you@example.com", password: "YOUR_PASSWORD" });`,
+        imports: [],
+      },
+      'env-creds': {
+        line: `const client = await Client.connectFromFile("creds.txt");`,
+        imports: [],
+      },
     },
     cpp: {
-      env: `auto client = thetadatadx::${C}::from_env(); // reads ${envNote}`,
-      apikey: `auto client = thetadatadx::${C}::with_api_key("YOUR_API_KEY");`,
-      creds: `auto client = thetadatadx::${C}::with_credentials("you@example.com", "YOUR_PASSWORD");`,
+      'env-apikey': {
+        line: `auto client = thetadatadx::Client::builder().api_key_from_env().connect();`,
+        imports: [],
+      },
+      'inline-apikey': {
+        line: `auto client = thetadatadx::Client::builder().api_key("YOUR_API_KEY").connect();`,
+        imports: [],
+      },
+      'inline-creds': {
+        line: `auto client = thetadatadx::Client::builder()\n      .email_password("you@example.com", "YOUR_PASSWORD")\n      .connect();`,
+        imports: [],
+      },
+      'env-creds': {
+        line: `auto client = thetadatadx::Client::from_file("creds.txt");`,
+        imports: [],
+      },
     },
   }
-  if (a.source === 'env') return m[lang].env
-  return a.kind === 'apikey' ? m[lang].apikey : m[lang].creds
+
+  // HistoricalClient: build a Credentials, then connect(creds, config).
+  const historical = {
+    python: {
+      'env-apikey': {
+        line: `client = HistoricalClient(Credentials.from_env(), Config.production())`,
+        imports: ['Credentials', 'Config'],
+      },
+      'inline-apikey': {
+        line: `client = HistoricalClient(Credentials.from_api_key("YOUR_API_KEY"), Config.production())`,
+        imports: ['Credentials', 'Config'],
+      },
+      'inline-creds': {
+        line: `client = HistoricalClient(Credentials("you@example.com", "YOUR_PASSWORD"), Config.production())`,
+        imports: ['Credentials', 'Config'],
+      },
+      'env-creds': { line: `client = HistoricalClient.from_file("creds.txt")`, imports: [] },
+    },
+    rust: {
+      'env-apikey': {
+        line: `let client = HistoricalClient::connect(&Credentials::from_env()?, DirectConfig::production()).await?;`,
+        imports: ['Credentials', 'DirectConfig'],
+      },
+      'inline-apikey': {
+        line: `let client = HistoricalClient::connect(&Credentials::api_key("YOUR_API_KEY"), DirectConfig::production()).await?;`,
+        imports: ['Credentials', 'DirectConfig'],
+      },
+      'inline-creds': {
+        line: `let client = HistoricalClient::connect(&Credentials::new("you@example.com", "YOUR_PASSWORD"), DirectConfig::production()).await?;`,
+        imports: ['Credentials', 'DirectConfig'],
+      },
+      'env-creds': {
+        line: `let client = HistoricalClient::connect(&Credentials::from_file("creds.txt")?, DirectConfig::production()).await?;`,
+        imports: ['Credentials', 'DirectConfig'],
+      },
+    },
+    typescript: {
+      'env-apikey': {
+        line: `const client = await HistoricalClient.connect(Credentials.fromEnv());`,
+        imports: ['Credentials'],
+      },
+      'inline-apikey': {
+        line: `const client = await HistoricalClient.connect(Credentials.fromApiKey("YOUR_API_KEY"));`,
+        imports: ['Credentials'],
+      },
+      'inline-creds': {
+        line: `const client = await HistoricalClient.connect(new Credentials("you@example.com", "YOUR_PASSWORD"));`,
+        imports: ['Credentials'],
+      },
+      'env-creds': {
+        line: `const client = await HistoricalClient.connectFromFile("creds.txt");`,
+        imports: [],
+      },
+    },
+    cpp: {
+      'env-apikey': {
+        line: `auto client = thetadatadx::HistoricalClient::connect(thetadatadx::Credentials::from_env(), thetadatadx::Config::production());`,
+        imports: [],
+      },
+      'inline-apikey': {
+        line: `auto client = thetadatadx::HistoricalClient::connect(thetadatadx::Credentials::from_api_key("YOUR_API_KEY"), thetadatadx::Config::production());`,
+        imports: [],
+      },
+      'inline-creds': {
+        line: `auto client = thetadatadx::HistoricalClient::connect(thetadatadx::Credentials::from_email("you@example.com", "YOUR_PASSWORD"), thetadatadx::Config::production());`,
+        imports: [],
+      },
+      'env-creds': {
+        line: `auto client = thetadatadx::HistoricalClient::from_file("creds.txt");`,
+        imports: [],
+      },
+    },
+  }
+
+  const table = clientKind.value === 'unified' ? unified : historical
+  return table[lang][cell]
+}
+
+// Symbols to import for the current language + auth + client selection: the
+// client class always, plus any credential/config types the construction needs.
+function importSymbols(lang) {
+  return [cls.value, ...clientLine(lang).imports]
 }
 
 const code = computed(() => {
   const c = props.cfg
   switch (active.value) {
     case 'python': {
-      const opt = filledOpt.value.map((o) => `${o.key}="${vals.value[o.key]}"`).join(', ')
+      const imp = importSymbols('python').join(', ')
+      const opt = filledOpt.value
+        .map((o) => `${o.key}=${fmtVal('python', o.type, vals.value[o.key])}`)
+        .join(', ')
       if (callStyle.value === 'async') {
         const optLine = opt ? `\n        ${opt},` : ''
         return `import asyncio
-from thetadatadx import ${cls.value}
+from thetadatadx import ${imp}
 
 async def main():
-    ${clientLine('python')}
+    ${clientLine('python').line}
 
     rows = await client${hist('python')}.${c.method.python}_async(
-        ${reqArgs.value},${optLine}
+        ${reqArgs('python')},${optLine}
     )
     for t in rows:
         print(${pyPrint.value})
@@ -139,27 +321,31 @@ async def main():
 asyncio.run(main())`
       }
       const optLine = opt ? `\n    ${opt},` : ''
-      return `from thetadatadx import ${cls.value}
+      return `from thetadatadx import ${imp}
 
-${clientLine('python')}
+${clientLine('python').line}
 
 rows = client${hist('python')}.${c.method.python}(
-    ${reqArgs.value},${optLine}
+    ${reqArgs('python')},${optLine}
 )
 for t in rows:
     print(${pyPrint.value})`
     }
     case 'rust': {
-      const opt = filledOpt.value.map((o) => `\n        .${o.key}("${vals.value[o.key]}")`).join('')
+      const syms = importSymbols('rust')
+      const use = syms.length > 1 ? `use thetadatadx::{${syms.join(', ')}};` : `use thetadatadx::${syms[0]};`
+      const opt = filledOpt.value
+        .map((o) => `\n        .${o.key}(${fmtVal('rust', o.type, vals.value[o.key])})`)
+        .join('')
       const histLine = hist('rust') ? `\n        ${hist('rust')}` : ''
-      return `use thetadatadx::${cls.value};
+      return `${use}
 
 #[tokio::main]
 async fn main() -> Result<(), thetadatadx::Error> {
-    ${clientLine('rust')}
+    ${clientLine('rust').line}
 
     let rows = client${histLine}
-        .${c.method.rust}(${reqArgs.value})${opt}
+        .${c.method.rust}(${reqArgs('rust')})${opt}
         .await?;
 
     for t in &rows {
@@ -169,38 +355,49 @@ async fn main() -> Result<(), thetadatadx::Error> {
 }`
     }
     case 'typescript': {
-      const opt = filledOpt.value.map((o) => `${camel(o.key)}: "${vals.value[o.key]}"`).join(', ')
+      const imp = importSymbols('typescript').join(', ')
+      const opt = filledOpt.value
+        .map((o) => `${camel(o.key)}: ${fmtVal('typescript', o.type, vals.value[o.key])}`)
+        .join(', ')
       const optLine = opt ? `\n  { ${opt} },` : ''
-      return `import { ${cls.value} } from "thetadatadx";
+      return `import { ${imp} } from "thetadatadx";
 
-${clientLine('typescript')}
+${clientLine('typescript').line}
 
 const rows = await client${hist('typescript')}.${c.method.ts}(
-  ${reqArgs.value},${optLine}
+  ${reqArgs('typescript')},${optLine}
 );
 for (const t of rows) {
   console.log(${tsPrint.value});
 }`
     }
     case 'cpp': {
-      const opt = filledOpt.value.map((o) => `.with_${o.key}("${vals.value[o.key]}")`).join('')
+      const opt = filledOpt.value
+        .map((o) => `.with_${o.key}(${fmtVal('cpp', o.type, vals.value[o.key])})`)
+        .join('')
       const optArg = opt ? `,\n      thetadatadx::EndpointRequestOptions{}${opt}` : ''
       return `#include <thetadatadx/thetadatadx.hpp>
 #include <iostream>
 
 int main() {
-  ${clientLine('cpp')}
-  auto rows = client${hist('cpp')}.${c.method.cpp}(${reqArgs.value}${optArg});
+  ${clientLine('cpp').line}
+  auto rows = client${hist('cpp')}.${c.method.cpp}(${reqArgs('cpp')}${optArg});
   for (const auto& t : rows) {
     std::cout << ${cppPrint.value} << "\\n";
   }
 }`
     }
     case 'curl': {
+      // Values ride the wire as strings, so every param is quoted; escape any
+      // `'` in the value for the surrounding single-quotes (close, escaped
+      // quote, reopen) so it cannot break out of the argument.
       const all = [...c.required, ...filledOpt.value]
-      const lines = all.map((f) => `  --data-urlencode '${f.key}=${vals.value[f.key]}'`).join(' \\\n')
-      return `curl -G 'http://127.0.0.1:25503/${c.httpPath}' \\
-${lines}`
+      const base = `curl -G 'http://127.0.0.1:25503/${c.httpPath}'`
+      if (all.length === 0) return base
+      const lines = all
+        .map((f) => `  --data-urlencode '${f.key}=${escSquote(vals.value[f.key])}'`)
+        .join(' \\\n')
+      return `${base} \\\n${lines}`
     }
     default:
       return ''
