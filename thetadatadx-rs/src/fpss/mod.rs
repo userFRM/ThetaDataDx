@@ -79,7 +79,7 @@ pub mod __test_internals {
     pub use super::decode::decode_frame;
     pub use super::delta::DeltaState;
     pub use super::events::FpssEventInternal;
-    pub use super::framing::{read_frame_into, FrameReadState, MAX_PAYLOAD_LEN};
+    pub use super::framing::{read_frame_into, MAX_PAYLOAD_LEN};
 
     // Production ring-constructor surface, re-exported so the streaming
     // channel bench can time the exact pipeline the live client builds:
@@ -110,8 +110,8 @@ pub mod internals {
     pub use super::delta::DeltaState;
     pub use super::events::FpssEventInternal;
     pub use super::framing::{
-        is_drain_yield, is_transient_read, read_frame_into_with_stall_timeout, write_raw_frame,
-        write_raw_frame_no_flush, FrameReadState, MAX_PAYLOAD_LEN,
+        is_transient_read, read_frame_into_with_stall_timeout, write_raw_frame,
+        write_raw_frame_no_flush, MAX_PAYLOAD_LEN,
     };
     pub use super::io_loop::{wait_for_login, LoginResult};
     pub use super::protocol::wire::{

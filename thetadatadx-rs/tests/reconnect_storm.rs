@@ -10,9 +10,9 @@
 //! What we CAN exercise without a live socket is the load-bearing
 //! invariant on every reconnect cycle:
 //!
-//! - The framing-layer state (`FrameReadState`, `frame_buf`) must
-//!   reset to idle between sessions so the new connection's bytes
-//!   land on the correct offset.
+//! - The framing reader holds no cross-call state, so each session's
+//!   bytes land on the correct offset with no residue from the last;
+//!   `frame_buf` is simply reused.
 //! - The decoder state (`DeltaState`, `local_contracts`) must survive
 //!   N session cycles without unbounded memory growth or stale
 //!   contract IDs leaking into the next session.
@@ -33,7 +33,7 @@ use std::sync::Arc;
 use thetadatadx::StreamMsgType;
 
 use thetadatadx::fpss::__test_internals::{
-    decode_frame, read_frame_into, DeltaState, FrameReadState, MAX_PAYLOAD_LEN,
+    decode_frame, read_frame_into, DeltaState, MAX_PAYLOAD_LEN,
 };
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{StreamControl, StreamEvent};
@@ -104,13 +104,12 @@ fn reconnect_storm_preserves_framing_invariants() {
         // frame, so the SDK must not carry stale ids forward.
         let mut local: HashMap<i32, Arc<Contract>> = HashMap::new();
         let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
-        let mut state = FrameReadState::new();
 
         let bytes = build_session_bytes(cycle);
         let mut cursor = Cursor::new(bytes);
 
         loop {
-            match read_frame_into(&mut cursor, &mut buf, &mut state) {
+            match read_frame_into(&mut cursor, &mut buf) {
                 Ok(Some((code, n))) => {
                     let primary = decode_frame(
                         code,
@@ -143,14 +142,9 @@ fn reconnect_storm_preserves_framing_invariants() {
             }
         }
 
-        // Per-cycle invariant: the framing state must be idle at the
-        // bottom of the cycle. A drain-yield that left
-        // `header_read > 0` would be detected here on the next
-        // iteration through `read_frame_into` (next cycle starts with
-        // a fresh state — but a leak in state would be observable
-        // through unexpected behaviour on the next call). Since
-        // `state` is dropped at the end of each cycle, the absence of
-        // a panic is the contract.
+        // Per-cycle invariant: the reader carries nothing across frames,
+        // so each cycle's session decodes independently. The absence of a
+        // panic above (no error surfaced mid-storm) is the contract.
         assert!(
             local.contains_key(&1),
             "cycle {cycle}: contract id 1 must be in local cache after ContractAssigned",
@@ -190,9 +184,8 @@ fn post_storm_normal_operation_resumes_immediately() {
     // Burn through 5 cycles of storm.
     for cycle in 0..5 {
         let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
-        let mut state = FrameReadState::new();
         let mut cursor = Cursor::new(build_session_bytes(cycle));
-        while let Ok(Some((code, n))) = read_frame_into(&mut cursor, &mut buf, &mut state) {
+        while let Ok(Some((code, n))) = read_frame_into(&mut cursor, &mut buf) {
             let _ = decode_frame(
                 code,
                 &buf[..n],
@@ -216,10 +209,9 @@ fn post_storm_normal_operation_resumes_immediately() {
     push_frame(&mut bytes, StreamMsgType::Contract as u8, &payload);
 
     let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
-    let mut state = FrameReadState::new();
     let mut cursor = Cursor::new(bytes);
     let mut events = Vec::new();
-    while let Ok(Some((code, n))) = read_frame_into(&mut cursor, &mut buf, &mut state) {
+    while let Ok(Some((code, n))) = read_frame_into(&mut cursor, &mut buf) {
         let p = decode_frame(
             code,
             &buf[..n],
