@@ -29,7 +29,6 @@ use thetadatadx_ffi::{
     thetadatadx_config_get_reconnect_wait_rate_limited_ms,
     thetadatadx_config_get_reconnect_wait_server_restart_ms,
     thetadatadx_config_get_streaming_connect_timeout_ms,
-    thetadatadx_config_get_streaming_data_watchdog_ms,
     thetadatadx_config_get_streaming_host_selection,
     thetadatadx_config_get_streaming_host_shuffle_seed,
     thetadatadx_config_get_streaming_io_read_slice_ms,
@@ -49,7 +48,6 @@ use thetadatadx_ffi::{
     thetadatadx_config_set_reconnect_wait_rate_limited_ms,
     thetadatadx_config_set_reconnect_wait_server_restart_ms,
     thetadatadx_config_set_streaming_connect_timeout_ms,
-    thetadatadx_config_set_streaming_data_watchdog_ms,
     thetadatadx_config_set_streaming_host_selection,
     thetadatadx_config_set_streaming_host_shuffle_seed,
     thetadatadx_config_set_streaming_io_read_slice_ms,
@@ -70,7 +68,6 @@ fn streaming_transport_fields_round_trip_through_c_abi() {
     let mut ping = 0u64;
     let mut ring = 0usize;
     let mut io_slice = 0u64;
-    let mut watchdog = 0u64;
     let mut ka_idle = 0u64;
     let mut ka_interval = 0u64;
     let mut ka_retries = 0u32;
@@ -90,8 +87,6 @@ fn streaming_transport_fields_round_trip_through_c_abi() {
         thetadatadx_config_set_streaming_ping_interval_ms(cfg, 1_000);
         thetadatadx_config_set_streaming_ring_size(cfg, 8_192);
         thetadatadx_config_set_streaming_io_read_slice_ms(cfg, 50);
-        // 0 disables the data watchdog.
-        thetadatadx_config_set_streaming_data_watchdog_ms(cfg, 0);
         thetadatadx_config_set_streaming_keepalive_idle_secs(cfg, 10);
         thetadatadx_config_set_streaming_keepalive_interval_secs(cfg, 5);
         thetadatadx_config_set_streaming_keepalive_retries(cfg, 4);
@@ -126,10 +121,6 @@ fn streaming_transport_fields_round_trip_through_c_abi() {
             0
         );
         assert_eq!(
-            thetadatadx_config_get_streaming_data_watchdog_ms(cfg, &mut watchdog),
-            0
-        );
-        assert_eq!(
             thetadatadx_config_get_streaming_keepalive_idle_secs(cfg, &mut ka_idle),
             0
         );
@@ -156,7 +147,6 @@ fn streaming_transport_fields_round_trip_through_c_abi() {
     assert_eq!(ping, 1_000);
     assert_eq!(ring, 8_192);
     assert_eq!(io_slice, 50);
-    assert_eq!(watchdog, 0);
     assert_eq!(ka_idle, 10);
     assert_eq!(ka_interval, 5);
     assert_eq!(ka_retries, 4);

@@ -273,8 +273,6 @@ class Config:
     """Capacity, in slots, of the streaming event ring; must be a power of two and at least 64."""
     streaming_io_read_slice_ms: int
     """Time slice, in milliseconds, the streaming I/O loop spends reading per iteration."""
-    streaming_data_watchdog_ms: int
-    """Hard wall-clock backstop, in milliseconds, above :attr:`streaming_timeout_ms` that tears down a silent stream (default 30_000; ``0`` disables)."""
     streaming_keepalive_idle_secs: int
     """Idle time, in seconds, before kernel-side TCP keepalive probing begins on the streaming socket (default 5)."""
     streaming_keepalive_interval_secs: int

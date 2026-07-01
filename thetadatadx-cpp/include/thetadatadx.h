@@ -1441,23 +1441,6 @@ void thetadatadx_config_set_streaming_io_read_slice_ms(ThetaDataDxConfig* config
 int32_t thetadatadx_config_get_streaming_io_read_slice_ms(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
- * Set the last-frame watchdog (ms): when no frame of any kind has
- * arrived for this long the session force-reconnects. 0 disables.
- * Default 30_000.
- * @param config Config handle to mutate; no-op when NULL.
- * @param v Watchdog interval in milliseconds (0 disables).
- */
-void thetadatadx_config_set_streaming_data_watchdog_ms(ThetaDataDxConfig* config, uint64_t v);
-
-/**
- * Read the current streaming data_watchdog_ms setting (default 30_000; 0 = disabled).
- * @param config Config handle to read.
- * @param out Receives the watchdog interval in milliseconds on success.
- * @return 0 on success, -1 if either pointer is null.
- */
-int32_t thetadatadx_config_get_streaming_data_watchdog_ms(const ThetaDataDxConfig* config, uint64_t* out);
-
-/**
  * Set the TCP keepalive idle time (seconds) before the first kernel
  * probe on a silent streaming socket. Default 5; validated to [1, 7_200]
  * at connect.

@@ -2351,18 +2351,6 @@ mod resilience_knob_tests {
             );
             assert_eq!(got, 25);
             assert_eq!(
-                super::thetadatadx_config_get_streaming_data_watchdog_ms(cfg, &mut got),
-                0
-            );
-            assert_eq!(got, 30_000);
-            super::thetadatadx_config_set_streaming_data_watchdog_ms(cfg, 0);
-            assert_eq!(
-                super::thetadatadx_config_get_streaming_data_watchdog_ms(cfg, &mut got),
-                0
-            );
-            assert_eq!(got, 0, "0 (watchdog disabled) round-trips");
-
-            assert_eq!(
                 super::thetadatadx_config_get_streaming_keepalive_idle_secs(cfg, &mut got),
                 0
             );

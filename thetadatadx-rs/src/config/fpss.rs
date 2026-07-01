@@ -174,7 +174,7 @@ impl std::str::FromStr for StreamingWaitStrategy {
 /// Streaming client tuning.
 ///
 /// The timing knobs (`timeout_ms`, `ping_interval_ms`,
-/// `connect_timeout_ms`, `io_read_slice_ms`, `data_watchdog_ms`, the
+/// `connect_timeout_ms`, `io_read_slice_ms`, the
 /// keepalive trio) and `ring_size` are wired into the runtime: the
 /// values flow through [`crate::fpss::StreamingClientBuilder`] into the
 /// connection, framing, and ping layers.
@@ -270,20 +270,6 @@ pub struct StreamingConfig {
     /// size does not change detection accuracy. Validated to the range
     /// `[10, 500]` ms.
     pub io_read_slice_ms: u64,
-
-    /// Last-frame watchdog (ms). Default `30_000`; `0` disables.
-    ///
-    /// A hard wall-clock backstop above the read timeout: when no
-    /// frame of any kind (data, heartbeat, control) has arrived for
-    /// this long, the I/O loop declares the connection dead and
-    /// force-reconnects, regardless of the read-timeout slice
-    /// accounting. With the default 3 s [`Self::timeout_ms`] the read
-    /// timeout normally fires first; the watchdog matters for
-    /// deployments that widen the read timeout, and it feeds the
-    /// public staleness clock
-    /// (`millis_since_last_event`) every binding exposes for
-    /// operator-side monitoring.
-    pub data_watchdog_ms: u64,
 
     /// TCP keepalive idle time (seconds) before the kernel sends the
     /// first probe on an otherwise-silent streaming socket. Default `5`.
@@ -389,7 +375,6 @@ impl StreamingConfig {
             ping_interval_ms: 250,
             connect_timeout_ms: 2_000,
             io_read_slice_ms: 25,
-            data_watchdog_ms: 30_000,
             keepalive_idle_secs: 5,
             keepalive_interval_secs: 2,
             keepalive_retries: 2,
@@ -439,18 +424,6 @@ pub mod bounds {
     pub const PING_INTERVAL_MS: std::ops::RangeInclusive<u64> = 100..=300_000;
     /// Allowed range for [`super::StreamingConfig::io_read_slice_ms`], in milliseconds.
     pub const IO_READ_SLICE_MS: std::ops::RangeInclusive<u64> = 10..=500;
-    /// Allowed non-zero range for
-    /// [`super::StreamingConfig::data_watchdog_ms`], in milliseconds.
-    ///
-    /// `0` disables the watchdog and is handled separately; any enabled
-    /// value must fall inside this band. The floor matches the streaming
-    /// read-timeout floor ([`TIMEOUT_MS`]) because the watchdog is a
-    /// wall-clock backstop that sits *above* the read timeout — a value
-    /// below `timeout_ms` would fire before the read timeout and defeat
-    /// its purpose, so the `>= timeout_ms` invariant is also enforced in
-    /// `validate`. The ceiling bounds the longest a dead link can sit
-    /// undetected by the backstop at one hour.
-    pub const DATA_WATCHDOG_MS: std::ops::RangeInclusive<u64> = 100..=3_600_000;
     /// Allowed range for [`super::StreamingConfig::keepalive_idle_secs`], in seconds.
     pub const KEEPALIVE_IDLE_SECS: std::ops::RangeInclusive<u64> = 1..=7_200;
     /// Allowed range for [`super::StreamingConfig::keepalive_interval_secs`], in seconds.
@@ -488,7 +461,6 @@ mod tests {
         assert_eq!(cfg.timeout_ms, 3_000);
         assert_eq!(cfg.ping_interval_ms, 250);
         assert_eq!(cfg.io_read_slice_ms, 25);
-        assert_eq!(cfg.data_watchdog_ms, 30_000);
         assert_eq!(cfg.keepalive_idle_secs, 5);
         assert_eq!(cfg.keepalive_interval_secs, 2);
         assert_eq!(cfg.keepalive_retries, 2);

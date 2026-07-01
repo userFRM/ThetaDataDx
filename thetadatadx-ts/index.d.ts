@@ -303,10 +303,6 @@ export declare class Config {
   setStreamingIoReadSliceMs(ms: bigint): void
   /** Current `streaming.io_read_slice_ms` value (default `25n`). */
   get streamingIoReadSliceMs(): bigint
-  /** Set the last-frame watchdog (ms): when no frame of any kind has arrived for this long the I/O loop force-reconnects. `0n` disables. Default `30_000n`. */
-  setStreamingDataWatchdogMs(ms: bigint): void
-  /** Current `streaming.data_watchdog_ms` value (default `30_000n`; `0n` = disabled). */
-  get streamingDataWatchdogMs(): bigint
   /** Set the TCP keepalive idle time (seconds) before the first kernel probe on a silent streaming socket. Default `5n`; validated to `[1, 7_200]` at connect. */
   setStreamingKeepaliveIdleSecs(ms: bigint): void
   /** Current `streaming.keepalive_idle_secs` value (default `5n`). */

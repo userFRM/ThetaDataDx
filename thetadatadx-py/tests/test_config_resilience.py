@@ -102,7 +102,6 @@ def test_streaming_transport_defaults_and_round_trip():
     assert cfg.streaming_ping_interval_ms == 250
     assert cfg.streaming_ring_size == 131_072
     assert cfg.streaming_io_read_slice_ms == 25
-    assert cfg.streaming_data_watchdog_ms == 30_000
     assert cfg.streaming_keepalive_idle_secs == 5
     assert cfg.streaming_keepalive_interval_secs == 2
     assert cfg.streaming_keepalive_retries == 2
@@ -111,7 +110,6 @@ def test_streaming_transport_defaults_and_round_trip():
     cfg.streaming_ping_interval_ms = 1_000
     cfg.streaming_ring_size = 8_192
     cfg.streaming_io_read_slice_ms = 50
-    cfg.streaming_data_watchdog_ms = 0  # disables the watchdog
     cfg.streaming_keepalive_idle_secs = 10
     cfg.streaming_keepalive_interval_secs = 5
     cfg.streaming_keepalive_retries = 4
@@ -120,7 +118,6 @@ def test_streaming_transport_defaults_and_round_trip():
     assert cfg.streaming_ping_interval_ms == 1_000
     assert cfg.streaming_ring_size == 8_192
     assert cfg.streaming_io_read_slice_ms == 50
-    assert cfg.streaming_data_watchdog_ms == 0
     assert cfg.streaming_keepalive_idle_secs == 10
     assert cfg.streaming_keepalive_interval_secs == 5
     assert cfg.streaming_keepalive_retries == 4

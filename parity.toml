@@ -642,12 +642,6 @@ typescript = true
 cpp = true
 
 [[class]]
-name = "StreamingConfig.streaming_data_watchdog_ms"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
 name = "StreamingConfig.streaming_keepalive_idle_secs"
 python = true
 typescript = true

@@ -72,15 +72,12 @@ test("streaming transport defaults and round-trip", () => {
   assert.equal(cfg.streamingPingIntervalMs, 250n);
   assert.equal(cfg.streamingRingSize, 131_072n);
   assert.equal(cfg.streamingIoReadSliceMs, 25n);
-  assert.equal(cfg.streamingDataWatchdogMs, 30_000n);
   assert.equal(cfg.streamingKeepaliveIdleSecs, 5n);
   assert.equal(cfg.streamingKeepaliveIntervalSecs, 2n);
   assert.equal(cfg.streamingKeepaliveRetries, 2);
   cfg.setStreamingTimeoutMs(10_000n);
-  cfg.setStreamingDataWatchdogMs(0n); // disables the watchdog
   cfg.setStreamingKeepaliveIdleSecs(10n);
   assert.equal(cfg.streamingTimeoutMs, 10_000n);
-  assert.equal(cfg.streamingDataWatchdogMs, 0n);
   assert.equal(cfg.streamingKeepaliveIdleSecs, 10n);
 });
 

@@ -439,7 +439,6 @@ pub struct StreamingClientBuilder<'a> {
     read_timeout_ms: u64,
     ping_interval_ms: u64,
     io_read_slice_ms: u64,
-    data_watchdog_ms: u64,
     keepalive_idle_secs: u64,
     keepalive_interval_secs: u64,
     keepalive_retries: u32,
@@ -479,7 +478,6 @@ impl<'a> StreamingClientBuilder<'a> {
             read_timeout_ms: fpss.timeout_ms,
             ping_interval_ms: fpss.ping_interval_ms,
             io_read_slice_ms: fpss.io_read_slice_ms,
-            data_watchdog_ms: fpss.data_watchdog_ms,
             keepalive_idle_secs: fpss.keepalive_idle_secs,
             keepalive_interval_secs: fpss.keepalive_interval_secs,
             keepalive_retries: fpss.keepalive_retries,
@@ -649,14 +647,6 @@ impl<'a> StreamingClientBuilder<'a> {
         self
     }
 
-    /// Last-frame watchdog (ms); `0` disables. See
-    /// [`crate::config::StreamingConfig::data_watchdog_ms`].
-    #[must_use]
-    pub fn data_watchdog_ms(mut self, ms: u64) -> Self {
-        self.data_watchdog_ms = ms;
-        self
-    }
-
     /// TCP keepalive idle time (seconds) before the first probe.
     #[must_use]
     pub fn keepalive_idle_secs(mut self, secs: u64) -> Self {
@@ -727,7 +717,6 @@ impl<'a> StreamingClientBuilder<'a> {
             read_timeout_ms: self.read_timeout_ms,
             ping_interval_ms: self.ping_interval_ms,
             io_read_slice_ms: self.io_read_slice_ms,
-            data_watchdog_ms: self.data_watchdog_ms,
             keepalive_idle_secs: self.keepalive_idle_secs,
             keepalive_interval_secs: self.keepalive_interval_secs,
             keepalive_retries: self.keepalive_retries,
@@ -765,7 +754,6 @@ pub(crate) struct FpssConnectArgs<'a> {
     pub(crate) read_timeout_ms: u64,
     pub(crate) ping_interval_ms: u64,
     pub(crate) io_read_slice_ms: u64,
-    pub(crate) data_watchdog_ms: u64,
     pub(crate) keepalive_idle_secs: u64,
     pub(crate) keepalive_interval_secs: u64,
     pub(crate) keepalive_retries: u32,
@@ -868,7 +856,6 @@ struct SpawnArgs<'a, P> {
     connect_timeout: Duration,
     read_timeout: Duration,
     io_read_slice: Duration,
-    data_watchdog: Duration,
     keepalive: connection::TcpKeepaliveSpec,
     last_event_at_ns: Arc<AtomicI64>,
     connected_addr: Arc<Mutex<String>>,
@@ -1086,7 +1073,6 @@ impl StreamingClient {
             read_timeout_ms,
             ping_interval_ms,
             io_read_slice_ms,
-            data_watchdog_ms,
             keepalive_idle_secs,
             keepalive_interval_secs,
             keepalive_retries,
@@ -1206,7 +1192,6 @@ impl StreamingClient {
             connect_timeout,
             read_timeout,
             io_read_slice: Duration::from_millis(io_read_slice_ms),
-            data_watchdog: Duration::from_millis(data_watchdog_ms),
             keepalive,
             ping_interval: Duration::from_millis(ping_interval_ms),
         })
@@ -1246,7 +1231,6 @@ impl StreamingClient {
             connect_timeout,
             read_timeout,
             io_read_slice,
-            data_watchdog,
             keepalive,
             ping_interval,
         } = args;
@@ -1409,7 +1393,6 @@ impl StreamingClient {
             connect_timeout,
             read_timeout,
             io_read_slice,
-            data_watchdog,
             keepalive,
             last_event_at_ns,
             connected_addr,
@@ -1462,7 +1445,6 @@ impl StreamingClient {
             connect_timeout,
             read_timeout,
             io_read_slice,
-            data_watchdog,
             keepalive,
             last_event_at_ns,
             connected_addr,
@@ -1529,7 +1511,6 @@ impl StreamingClient {
                     connect_timeout,
                     read_timeout,
                     io_read_slice,
-                    data_watchdog,
                     keepalive,
                     last_event_at_ns: io_last_event_at_ns,
                     connected_addr: io_connected_addr,
@@ -3108,7 +3089,6 @@ mod builder_tests {
         assert_eq!(args.read_timeout_ms, fpss.timeout_ms);
         assert_eq!(args.ping_interval_ms, fpss.ping_interval_ms);
         assert_eq!(args.io_read_slice_ms, fpss.io_read_slice_ms);
-        assert_eq!(args.data_watchdog_ms, fpss.data_watchdog_ms);
         assert_eq!(args.keepalive_idle_secs, fpss.keepalive_idle_secs);
         assert_eq!(args.keepalive_interval_secs, fpss.keepalive_interval_secs);
         assert_eq!(args.keepalive_retries, fpss.keepalive_retries);

@@ -1772,7 +1772,6 @@ RUST_FIELD_RENAMES: dict[tuple[str, str], str] = {
     ("StreamingConfig", "ping_interval_ms"): "streaming_ping_interval_ms",
     ("StreamingConfig", "connect_timeout_ms"): "streaming_connect_timeout_ms",
     ("StreamingConfig", "io_read_slice_ms"): "streaming_io_read_slice_ms",
-    ("StreamingConfig", "data_watchdog_ms"): "streaming_data_watchdog_ms",
     ("StreamingConfig", "keepalive_idle_secs"): "streaming_keepalive_idle_secs",
     ("StreamingConfig", "keepalive_interval_secs"): "streaming_keepalive_interval_secs",
     ("StreamingConfig", "keepalive_retries"): "streaming_keepalive_retries",

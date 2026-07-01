@@ -789,29 +789,6 @@ impl DirectConfig {
                 to_i64(*streaming_bounds::IO_READ_SLICE_MS.end()),
             ));
         }
-        // `data_watchdog_ms` is a wall-clock backstop above the read
-        // timeout: `0` disables it, and any enabled value must sit inside
-        // its band and at or above `timeout_ms` so the backstop cannot
-        // fire before the read timeout it is meant to backstop.
-        if self.streaming.data_watchdog_ms != 0 {
-            if !streaming_bounds::DATA_WATCHDOG_MS.contains(&self.streaming.data_watchdog_ms) {
-                return Err(Error::config_out_of_range(
-                    "streaming.data_watchdog_ms",
-                    to_i64(self.streaming.data_watchdog_ms),
-                    to_i64(*streaming_bounds::DATA_WATCHDOG_MS.start()),
-                    to_i64(*streaming_bounds::DATA_WATCHDOG_MS.end()),
-                ));
-            }
-            if self.streaming.data_watchdog_ms < self.streaming.timeout_ms {
-                return Err(Error::config_invalid(
-                    "streaming.data_watchdog_ms",
-                    format!(
-                        "data_watchdog_ms ({}) must be 0 (disabled) or >= timeout_ms ({})",
-                        self.streaming.data_watchdog_ms, self.streaming.timeout_ms
-                    ),
-                ));
-            }
-        }
         if !streaming_bounds::KEEPALIVE_IDLE_SECS.contains(&self.streaming.keepalive_idle_secs) {
             return Err(Error::config_out_of_range(
                 "streaming.keepalive_idle_secs",
@@ -2227,7 +2204,6 @@ mod tests {
         assert_eq!(validated.streaming.ping_interval_ms, 250);
         assert_eq!(validated.streaming.connect_timeout_ms, 2_000);
         assert_eq!(validated.streaming.io_read_slice_ms, 25);
-        assert_eq!(validated.streaming.data_watchdog_ms, 30_000);
         assert_eq!(validated.streaming.keepalive_idle_secs, 5);
         assert_eq!(validated.streaming.keepalive_interval_secs, 2);
         assert_eq!(validated.streaming.keepalive_retries, 2);
@@ -2243,52 +2219,6 @@ mod tests {
         config.streaming.io_read_slice_ms = 5;
         let err = config.validate().expect_err("must reject below-minimum");
         assert!(err.to_string().contains("io_read_slice_ms"));
-    }
-
-    #[test]
-    fn validate_accepts_disabled_data_watchdog() {
-        let mut config = DirectConfig::production_defaults();
-        config.streaming.data_watchdog_ms = 0;
-        let validated = config
-            .validate()
-            .expect("0 disables the watchdog and must validate");
-        assert_eq!(validated.streaming.data_watchdog_ms, 0);
-    }
-
-    #[test]
-    fn validate_rejects_data_watchdog_below_read_timeout() {
-        let mut config = DirectConfig::production_defaults();
-        // Above the band floor but below timeout_ms — the backstop would
-        // fire before the read timeout it is meant to backstop.
-        config.streaming.timeout_ms = 5_000;
-        config.streaming.data_watchdog_ms = 1_000;
-        let err = config
-            .validate()
-            .expect_err("watchdog below timeout_ms must be rejected");
-        let msg = err.to_string();
-        assert!(msg.contains("data_watchdog_ms"), "{msg}");
-        assert!(msg.contains("timeout_ms"), "{msg}");
-    }
-
-    #[test]
-    fn validate_rejects_data_watchdog_above_maximum() {
-        let mut config = DirectConfig::production_defaults();
-        config.streaming.data_watchdog_ms = 7_200_000;
-        let err = config
-            .validate()
-            .expect_err("watchdog above the ceiling must be rejected");
-        assert!(err.to_string().contains("data_watchdog_ms"));
-    }
-
-    #[test]
-    fn validate_accepts_in_range_data_watchdog() {
-        let mut config = DirectConfig::production_defaults();
-        config.streaming.timeout_ms = 3_000;
-        config.streaming.data_watchdog_ms = 60_000;
-        let validated = config
-            .validate()
-            .expect("an enabled watchdog at or above timeout_ms validates");
-        assert_eq!(validated.streaming.data_watchdog_ms, 60_000);
     }
 
     #[test]

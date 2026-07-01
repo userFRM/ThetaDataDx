@@ -796,7 +796,6 @@ impl Client {
             .read_timeout_ms(config.streaming.timeout_ms)
             .ping_interval_ms(config.streaming.ping_interval_ms)
             .io_read_slice_ms(config.streaming.io_read_slice_ms)
-            .data_watchdog_ms(config.streaming.data_watchdog_ms)
             .keepalive_idle_secs(config.streaming.keepalive_idle_secs)
             .keepalive_interval_secs(config.streaming.keepalive_interval_secs)
             .keepalive_retries(config.streaming.keepalive_retries)

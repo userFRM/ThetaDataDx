@@ -251,7 +251,6 @@ fn streaming_builder(
         .read_timeout_ms(params.streaming.timeout_ms)
         .ping_interval_ms(params.streaming.ping_interval_ms)
         .io_read_slice_ms(params.streaming.io_read_slice_ms)
-        .data_watchdog_ms(params.streaming.data_watchdog_ms)
         .keepalive_idle_secs(params.streaming.keepalive_idle_secs)
         .keepalive_interval_secs(params.streaming.keepalive_interval_secs)
         .keepalive_retries(params.streaming.keepalive_retries)
