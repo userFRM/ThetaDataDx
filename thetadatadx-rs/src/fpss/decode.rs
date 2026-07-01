@@ -1863,42 +1863,11 @@ mod tests {
         }
     }
 
-    /// A non-conformant peer that streams ever-incrementing contract ids
-    /// within a single session (no START/STOP boundary) must not grow the
-    /// delta-decode maps without limit. Feeding well past the per-session
-    /// cap keeps every map bounded at or below the cap.
-    #[test]
-    fn delta_state_bounds_unbounded_distinct_contract_ids() {
-        let mut delta_state = DeltaState::new();
-        let mut out: TickFields = [0; crate::fpss::delta::MAX_DATA_FIELDS];
-
-        // Trade frame: 1 contract_id + 8 data fields (dev-server format).
-        let n = DeltaState::SESSION_CONTRACT_CAP + 5_000;
-        for id in 0..n as i32 {
-            let payload = encode_fit_row(&[id, 34_200_000, 0, 50, 6, 5_500_000, 57, 6, 20_250_428]);
-            let res = delta_state.decode_tick(
-                StreamMsgType::Trade as u8,
-                &payload,
-                TRADE_FIELDS,
-                &mut out,
-            );
-            assert!(res.is_some(), "every distinct-id absolute tick decodes");
-        }
-
-        let (prev, field_counts) = delta_state.state_sizes();
-        let cap = DeltaState::SESSION_CONTRACT_CAP;
-        assert!(
-            prev <= cap,
-            "prev map must stay bounded by the session cap: {prev} > {cap}"
-        );
-        assert!(
-            field_counts <= cap,
-            "field_counts map must stay bounded by the session cap: {field_counts} > {cap}"
-        );
-    }
-
-    /// A normal session that stays under the cap retains every distinct
-    /// contract id: the bound never trips and no baseline is reset.
+    /// The delta-decode maps grow with the live universe and retain every
+    /// distinct contract id within a session: there is no per-session cap
+    /// (the terminal imposes none), so a large distinct-id universe is held
+    /// in full. The maps reset only at START/STOP/RESTART/RECONNECTED
+    /// session boundaries via `DeltaState::clear`.
     #[test]
     fn delta_state_normal_session_retains_all_contracts() {
         let mut delta_state = DeltaState::new();
