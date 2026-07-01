@@ -111,10 +111,10 @@ pub fn stream_batch_schema() -> Arc<Schema> {
 /// Approximate serialized bytes per row, used only to seed the Arrow IPC
 /// output buffer so it is written without re-growing from empty.
 ///
-/// Derived from the fixed [`stream_batch_schema`] columns: 23 `Int32` (4 B
-/// each = 92), 11 `Float64` + 1 `UInt64` + 2 `Int64` (8 B each = 112), and 3
+/// Derived from the fixed [`stream_batch_schema`] columns: 15 `Int32` (4 B
+/// each = 60), 11 `Float64` + 1 `UInt64` + 2 `Int64` (8 B each = 112), and 3
 /// `Utf8` columns (offset plus a short value, allowed ~16 B each = 48),
-/// totalling ~252 B; rounded up to 256 to cover per-row validity bits and
+/// totalling ~220 B; rounded up to 256 to cover per-row validity bits and
 /// alignment. This is a buffer-sizing HINT, never a correctness input — if a
 /// column is added to the schema, bump this alongside it. Sized so a full
 /// batch seeds at or above the real IPC body (no doubling regrow) while a tiny
@@ -122,7 +122,7 @@ pub fn stream_batch_schema() -> Arc<Schema> {
 pub(crate) const EST_IPC_BYTES_PER_ROW: usize = 256;
 
 /// Fixed Arrow IPC framing allowance added to the per-row estimate: the schema
-/// message (a flatbuffer over the 40-field schema, which measures ~8.5 KB on
+/// message (a flatbuffer over the 32-column schema, which measures ~8.5 KB on
 /// its own) plus the record-batch message header and stream end-of-stream
 /// marker. 16 KB covers the schema preamble for even the smallest batch, so a
 /// one-row batch (whose body is ~9.5 KB) seeds above its real IPC size and does

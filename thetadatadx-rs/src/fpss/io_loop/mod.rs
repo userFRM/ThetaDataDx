@@ -555,7 +555,7 @@ where
                         // next drop, which measures uptime from this anchor.
                         reconnect_state.note_data_received();
 
-                        let (primary, secondary) = decode_frame(
+                        let primary = decode_frame(
                             code,
                             &frame_buf[..payload_len],
                             &authenticated,
@@ -597,16 +597,6 @@ where
                                 // stall the TLS reader and cause the
                                 // vendor session to drop on a slow
                                 // user callback.
-                                dropped.fetch_add(1, Ordering::Relaxed);
-                            }
-                        }
-                        if let Some(evt) = secondary {
-                            if producer
-                                .try_publish(|slot| {
-                                    slot.event = evt;
-                                })
-                                .is_err()
-                            {
                                 dropped.fetch_add(1, Ordering::Relaxed);
                             }
                         }

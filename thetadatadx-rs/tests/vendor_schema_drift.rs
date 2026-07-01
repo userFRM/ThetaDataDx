@@ -64,7 +64,7 @@ fn single_unknown_opcode_skipped_without_desync() {
     for _ in 0..16 {
         match read_frame_into(&mut cursor, &mut buf, &mut state) {
             Ok(Some((code, n))) => {
-                let (p, s) = decode_frame(
+                let p = decode_frame(
                     code,
                     &buf[..n],
                     &authenticated,
@@ -73,11 +73,6 @@ fn single_unknown_opcode_skipped_without_desync() {
                     &mut delta,
                 );
                 if let Some(e) = p {
-                    if let Some(public) = e.as_public() {
-                        events.push(public.clone());
-                    }
-                }
-                if let Some(e) = s {
                     if let Some(public) = e.as_public() {
                         events.push(public.clone());
                     }

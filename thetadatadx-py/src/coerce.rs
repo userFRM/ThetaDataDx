@@ -41,62 +41,54 @@ impl<'py> FromPyObject<'_, 'py> for PyStringArg {
     }
 }
 
-/// A date-valued endpoint argument: accepts a `YYYYMMDD` `str` or a
-/// `date`/`datetime` object (formatted via `strftime("%Y%m%d")`).
-#[derive(Clone)]
-pub(crate) struct PyDateArg(String);
+/// Define a string-valued endpoint argument newtype that accepts a bare
+/// `str` or a Python temporal object formatted through `strftime`.
+///
+/// `PyDateArg` and `PyTimeArg` are the same newtype up to their `strftime`
+/// pattern, so they are generated from one shape rather than kept in
+/// lockstep by hand.
+macro_rules! strftime_arg {
+    ($(#[$meta:meta])* $name:ident, $fmt:literal) => {
+        $(#[$meta])*
+        #[derive(Clone)]
+        pub(crate) struct $name(String);
 
-impl PyDateArg {
-    /// Borrow the normalized `YYYYMMDD` string.
-    pub(crate) fn as_str(&self) -> &str {
-        &self.0
-    }
+        impl $name {
+            /// Borrow the normalized string.
+            pub(crate) fn as_str(&self) -> &str {
+                &self.0
+            }
 
-    /// Consume into the owned `YYYYMMDD` string.
-    pub(crate) fn into_string(self) -> String {
-        self.0
-    }
-}
-
-impl<'py> FromPyObject<'_, 'py> for PyDateArg {
-    type Error = PyErr;
-
-    fn extract(obj: pyo3::Borrowed<'_, 'py, PyAny>) -> Result<Self, Self::Error> {
-        if let Ok(value) = obj.extract::<String>() {
-            return Ok(Self(value));
+            /// Consume into the owned string.
+            pub(crate) fn into_string(self) -> String {
+                self.0
+            }
         }
-        let formatted = obj.call_method1("strftime", ("%Y%m%d",))?;
-        Ok(Self(formatted.extract::<String>()?))
-    }
-}
 
-/// A time-valued endpoint argument: accepts an `HH:MM:SS` `str` or a
-/// `time`/`datetime` object (formatted via `strftime("%H:%M:%S")`).
-#[derive(Clone)]
-pub(crate) struct PyTimeArg(String);
+        impl<'py> FromPyObject<'_, 'py> for $name {
+            type Error = PyErr;
 
-impl PyTimeArg {
-    /// Borrow the normalized `HH:MM:SS` string.
-    pub(crate) fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    /// Consume into the owned `HH:MM:SS` string.
-    pub(crate) fn into_string(self) -> String {
-        self.0
-    }
-}
-
-impl<'py> FromPyObject<'_, 'py> for PyTimeArg {
-    type Error = PyErr;
-
-    fn extract(obj: pyo3::Borrowed<'_, 'py, PyAny>) -> Result<Self, Self::Error> {
-        if let Ok(value) = obj.extract::<String>() {
-            return Ok(Self(value));
+            fn extract(obj: pyo3::Borrowed<'_, 'py, PyAny>) -> Result<Self, Self::Error> {
+                if let Ok(value) = obj.extract::<String>() {
+                    return Ok(Self(value));
+                }
+                let formatted = obj.call_method1("strftime", ($fmt,))?;
+                Ok(Self(formatted.extract::<String>()?))
+            }
         }
-        let formatted = obj.call_method1("strftime", ("%H:%M:%S",))?;
-        Ok(Self(formatted.extract::<String>()?))
-    }
+    };
+}
+
+strftime_arg! {
+    /// A date-valued endpoint argument: accepts a `YYYYMMDD` `str` or a
+    /// `date`/`datetime` object (formatted via `strftime("%Y%m%d")`).
+    PyDateArg, "%Y%m%d"
+}
+
+strftime_arg! {
+    /// A time-valued endpoint argument: accepts an `HH:MM:SS` `str` or a
+    /// `time`/`datetime` object (formatted via `strftime("%H:%M:%S")`).
+    PyTimeArg, "%H:%M:%S"
 }
 
 /// A multi-symbol endpoint argument: accepts a single symbol `str`

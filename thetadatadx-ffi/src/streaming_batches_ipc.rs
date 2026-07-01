@@ -20,7 +20,7 @@ use arrow_schema::Schema;
 /// rather than `get_array_memory_size()`, which would seed from the builder's
 /// preallocated column capacity (now batch-size-wide) and over-allocate a
 /// one-row linger-flushed batch by orders of magnitude. The per-tick and
-/// flat-file terminals (whose schemas differ from the calibrated 40-column
+/// flat-file terminals (whose schemas differ from the calibrated 32-column
 /// streaming schema) pass `0` and let the writer grow the buffer.
 ///
 /// # Errors
@@ -70,7 +70,7 @@ mod tests {
     use arrow_schema::DataType;
 
     /// Build a batch of `rows` rows under the REAL fixed streaming schema (the
-    /// same 40 columns the live reader emits), so the seed estimate is tested
+    /// same 32 columns the live reader emits), so the seed estimate is tested
     /// against a body whose per-row and framing sizes match what
     /// `estimated_ipc_len` is calibrated for, not an unrepresentative sample.
     /// Each field gets a column of its declared type; the values are arbitrary.
@@ -108,8 +108,8 @@ mod tests {
     /// the smallest and a full batch. This is the concrete check that the
     /// over-allocation regression (seeding from buffer capacity, now
     /// batch-size-wide) is gone and that the framing allowance is large enough
-    /// for the smallest batch (whose body is dominated by the 40-field schema
-    /// preamble). Tested against the REAL 40-column schema so the per-row and
+    /// for the smallest batch (whose body is dominated by the 32-column schema
+    /// preamble). Tested against the REAL 32-column schema so the per-row and
     /// framing figures are the ones being validated.
     #[test]
     fn ipc_seed_is_small_for_one_row_and_covers_real_batches() {

@@ -738,34 +738,6 @@ impl Error {
     }
 }
 
-impl From<crate::tdbe::error::Error> for Error {
-    fn from(err: crate::tdbe::error::Error) -> Self {
-        // The data-format layer carries a small error enum; fold its
-        // variants into the closest typed `thetadatadx::Error` variant so
-        // callers can use `?` when invoking the encoding layer from a
-        // `Result<_, thetadatadx::Error>` context. Every bridge routes to
-        // a typed `ConfigErrorKind` variant (`InvalidValue` for parse /
-        // domain failures, `Io` for I/O surfaces) so retry classifiers can
-        // dispatch on the structured kind. The field label is `"input"`:
-        // these failures reflect a bad caller-supplied value, never an
-        // SDK-internal name.
-        match err {
-            crate::tdbe::error::Error::Io(e) => Self::Io(e),
-            other => {
-                let display = format!("input: {other}");
-                Self::Config {
-                    kind: ConfigErrorKind::InvalidValue {
-                        field: "input".to_string(),
-                        message: other.to_string(),
-                    },
-                    message: display,
-                    source: Some(Box::new(other)),
-                }
-            }
-        }
-    }
-}
-
 impl From<crate::decode::DecodeError> for Error {
     fn from(err: crate::decode::DecodeError) -> Self {
         // Per-cell decode failures surface through the same channel as
@@ -1039,23 +1011,6 @@ mod tests {
         assert!(source
             .downcast_ref::<crate::decode::DecodeError>()
             .is_some());
-    }
-
-    #[test]
-    fn tdbe_error_bridge_preserves_source() {
-        use std::error::Error as _;
-        let cause = crate::tdbe::error::Error::Decode("bad nibble".into());
-        let cause_display = cause.to_string();
-        let err: Error = cause.into();
-        assert!(matches!(
-            err,
-            Error::Config {
-                kind: ConfigErrorKind::InvalidValue { .. },
-                ..
-            }
-        ));
-        let source = err.source().expect("bridged tdbe error carries a source");
-        assert_eq!(source.to_string(), cause_display);
     }
 
     #[test]

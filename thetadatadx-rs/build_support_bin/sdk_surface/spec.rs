@@ -516,17 +516,23 @@ fn validate_utility_spec(utility: &UtilitySpec) -> Result<(), Box<dyn std::error
             .into());
         }
     }
-    check_utility_targets(utility, allowed_targets, exact_targets)?;
+    check_targets(
+        &utility.name,
+        "utility",
+        &utility.targets,
+        allowed_targets,
+        exact_targets,
+    )?;
     check_param_layout(&utility.name, "utility", &utility.params, params)?;
 
     Ok(())
 }
 
-fn check_targets(
+fn check_targets<T: PartialEq + std::fmt::Debug>(
     owner: &str,
     label: &str,
-    actual: &[MethodTarget],
-    allowed: &[MethodTarget],
+    actual: &[T],
+    allowed: &[T],
     exact: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     for target in actual {
@@ -538,30 +544,6 @@ fn check_targets(
         return Err(
             format!("{label} '{owner}' must target exactly {allowed:?}, got {actual:?}").into(),
         );
-    }
-    Ok(())
-}
-
-fn check_utility_targets(
-    utility: &UtilitySpec,
-    allowed: &[UtilityTarget],
-    exact: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
-    for target in &utility.targets {
-        if !allowed.contains(target) {
-            return Err(format!(
-                "utility '{}' declares unsupported target {target:?}",
-                utility.name
-            )
-            .into());
-        }
-    }
-    if exact && utility.targets.len() != allowed.len() {
-        return Err(format!(
-            "utility '{}' must target exactly {allowed:?}, got {:?}",
-            utility.name, utility.targets
-        )
-        .into());
     }
     Ok(())
 }

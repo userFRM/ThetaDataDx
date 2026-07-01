@@ -16,7 +16,7 @@ pub(super) fn tick_ffi_offsets(type_name: &str, def: &TickTypeDef) -> Vec<(Strin
     let mut size = 0usize;
     for (field_name, field_type) in tick_ffi_fields(type_name, def) {
         let (field_size, field_align) = tick_ffi_field_layout(field_type);
-        size = align_to(size, field_align);
+        size = size.next_multiple_of(field_align);
         offsets.push((field_name.to_string(), size));
         size += field_size;
     }
@@ -34,9 +34,9 @@ pub(super) fn tick_ffi_size_and_align(type_name: &str, def: &TickTypeDef) -> (us
     for (_, field_type) in tick_ffi_fields(type_name, def) {
         let (field_size, field_align) = tick_ffi_field_layout(field_type);
         struct_align = struct_align.max(field_align);
-        size = align_to(size, field_align) + field_size;
+        size = size.next_multiple_of(field_align) + field_size;
     }
-    (align_to(size, struct_align), struct_align)
+    (size.next_multiple_of(struct_align), struct_align)
 }
 
 fn tick_ffi_fields<'a>(type_name: &'a str, def: &'a TickTypeDef) -> Vec<(&'a str, &'a str)> {
@@ -70,14 +70,5 @@ fn tick_ffi_field_layout(kind: &str) -> (usize, usize) {
             std::mem::align_of::<*const ()>(),
         ),
         other => panic!("unsupported tick FFI field type: {other}"),
-    }
-}
-
-fn align_to(value: usize, align: usize) -> usize {
-    let rem = value % align;
-    if rem == 0 {
-        value
-    } else {
-        value + align - rem
     }
 }

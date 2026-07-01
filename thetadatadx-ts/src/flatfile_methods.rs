@@ -81,6 +81,32 @@ async fn pull_decoded(
     spawn_endpoint_task(async move { client.flatfile_request_decoded(sec, req, &date).await }).await
 }
 
+/// Parse the string args, pull + decode the blob off the libuv thread, and
+/// write the requested format to `path`. Shared verbatim by `Client` and
+/// `HistoricalClient` — both hold an `Arc<thetadatadx::Client>` and open the
+/// same data channel, so the napi methods only forward to this.
+async fn flat_file_to_path_impl(
+    client: &Arc<thetadatadx::Client>,
+    sec_type: String,
+    req_type: String,
+    date: String,
+    path: String,
+    format: Option<String>,
+) -> napi::Result<String> {
+    let sec = parse_flatfile_sec_type(&sec_type)?;
+    let req = parse_flatfile_req_type(&req_type)?;
+    let fmt = parse_flatfile_format(format.as_deref())?;
+    let client = Arc::clone(client);
+    let path_buf = std::path::PathBuf::from(path);
+    let final_path = spawn_endpoint_task(async move {
+        client
+            .flatfile_request(sec, req, &date, &path_buf, fmt)
+            .await
+    })
+    .await?;
+    Ok(final_path.to_string_lossy().into_owned())
+}
+
 // ── FlatFileRowList ────────────────────────────────────────────────────
 
 /// JS class wrapping a decoded flat-file row vector. Created by every
@@ -252,18 +278,7 @@ impl Client {
         path: String,
         format: Option<String>,
     ) -> napi::Result<String> {
-        let sec = parse_flatfile_sec_type(&sec_type)?;
-        let req = parse_flatfile_req_type(&req_type)?;
-        let fmt = parse_flatfile_format(format.as_deref())?;
-        let client = Arc::clone(&self.client);
-        let path_buf = std::path::PathBuf::from(path);
-        let final_path = spawn_endpoint_task(async move {
-            client
-                .flatfile_request(sec, req, &date, &path_buf, fmt)
-                .await
-        })
-        .await?;
-        Ok(final_path.to_string_lossy().into_owned())
+        flat_file_to_path_impl(&self.client, sec_type, req_type, date, path, format).await
     }
 }
 
@@ -293,17 +308,6 @@ impl HistoricalClient {
         path: String,
         format: Option<String>,
     ) -> napi::Result<String> {
-        let sec = parse_flatfile_sec_type(&sec_type)?;
-        let req = parse_flatfile_req_type(&req_type)?;
-        let fmt = parse_flatfile_format(format.as_deref())?;
-        let client = Arc::clone(&self.client);
-        let path_buf = std::path::PathBuf::from(path);
-        let final_path = spawn_endpoint_task(async move {
-            client
-                .flatfile_request(sec, req, &date, &path_buf, fmt)
-                .await
-        })
-        .await?;
-        Ok(final_path.to_string_lossy().into_owned())
+        flat_file_to_path_impl(&self.client, sec_type, req_type, date, path, format).await
     }
 }

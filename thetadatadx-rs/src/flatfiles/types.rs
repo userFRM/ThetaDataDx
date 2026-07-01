@@ -120,13 +120,6 @@ pub fn flat_file_serves(sec: SecType, req: ReqType) -> bool {
     )
 }
 
-/// Lower-case dataset name for `req` as it appears in user-facing error
-/// text (e.g. `open_interest`). Matches the request-type tokens the
-/// public surface accepts.
-pub(crate) fn req_dataset_name(req: ReqType) -> &'static str {
-    req.as_str()
-}
-
 /// Every `(SecType, ReqType)` pair the flat-file distribution serves, in a
 /// stable order suitable for advertising on a tool surface.
 ///

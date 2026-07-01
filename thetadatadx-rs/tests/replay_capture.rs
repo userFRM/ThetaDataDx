@@ -236,7 +236,7 @@ fn replay_success_fixture_emits_expected_event_sequence() {
     loop {
         match read_frame_into(&mut cursor, &mut frame_buf, &mut frame_state) {
             Ok(Some((code, payload_len))) => {
-                let (primary, secondary) = decode_frame(
+                let primary = decode_frame(
                     code,
                     &frame_buf[..payload_len],
                     &authenticated,
@@ -245,11 +245,6 @@ fn replay_success_fixture_emits_expected_event_sequence() {
                     &mut delta_state,
                 );
                 if let Some(e) = primary {
-                    if let Some(public) = e.as_public() {
-                        events.push(public.clone());
-                    }
-                }
-                if let Some(e) = secondary {
                     if let Some(public) = e.as_public() {
                         events.push(public.clone());
                     }
@@ -354,7 +349,7 @@ fn replay_pathological_fixture_never_panics_or_blocks() {
     while frames_seen < 64 {
         match read_frame_into(&mut cursor, &mut frame_buf, &mut frame_state) {
             Ok(Some((code, payload_len))) => {
-                let (primary, secondary) = decode_frame(
+                let primary = decode_frame(
                     code,
                     &frame_buf[..payload_len],
                     &authenticated,
@@ -363,11 +358,6 @@ fn replay_pathological_fixture_never_panics_or_blocks() {
                     &mut delta_state,
                 );
                 if let Some(e) = primary {
-                    if let Some(public) = e.as_public() {
-                        events.push(public.clone());
-                    }
-                }
-                if let Some(e) = secondary {
                     if let Some(public) = e.as_public() {
                         events.push(public.clone());
                     }

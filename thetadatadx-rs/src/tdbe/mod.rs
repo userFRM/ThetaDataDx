@@ -10,14 +10,12 @@
 //! - **Price** -- fixed-point price encoding used by `ThetaData`
 //! - **Enums** -- [`SecType`], [`StreamMsgType`](types::enums::StreamMsgType), etc.
 //! - **FIT codec** -- 4-bit nibble encoding for FPSS tick compression
-//! - **Error** -- encoding-layer error types
 //! - **Flags** -- bit flags and condition codes for market data records
 //!
 //! Zero networking dependencies: this module is pure CPU-bound data math.
 
 pub mod codec;
 pub mod conditions;
-pub mod error;
 pub mod exchange;
 pub mod flags;
 pub mod json_canon;
@@ -27,8 +25,8 @@ pub mod time;
 pub mod types;
 
 // Module-root facade. The data-format layer keeps a complete, flat
-// re-export surface so internal callers reach `crate::tdbe::Error`,
-// `crate::tdbe::CalendarStatus`, and the tick types without threading the
+// re-export surface so internal callers reach `crate::tdbe::CalendarStatus`
+// and the tick types without threading the
 // full submodule path, and so the crate root can re-export from one
 // coherent place. The crate's curated public surface (see `lib.rs`) reaches
 // several of these through the longer submodule path, so `unused_imports`
@@ -40,8 +38,6 @@ pub mod types;
 // layer reaches through the full `types::price` leaf path, never a short
 // `crate::tdbe::Price` alias, so the encoding cannot drift onto the public
 // surface through the convenience re-export.
-#[allow(unused_imports)]
-pub use error::Error;
 #[allow(unused_imports)]
 pub use types::enums::{
     CalendarStatus, Interval, RateType, RequestType, Right, SecType, Venue, Version,
