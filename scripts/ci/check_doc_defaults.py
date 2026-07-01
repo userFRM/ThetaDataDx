@@ -159,7 +159,6 @@ def load_canonical(root: pathlib.Path = REPO_ROOT) -> dict[str, int]:
     canon["streaming.ping_interval_ms"] = _norm_int(streaming["ping_interval_ms"])
     canon["streaming.connect_timeout_ms"] = _norm_int(streaming["connect_timeout_ms"])
     canon["streaming.io_read_slice_ms"] = _norm_int(streaming["io_read_slice_ms"])
-    canon["streaming.data_watchdog_ms"] = _norm_int(streaming["data_watchdog_ms"])
     canon["streaming.keepalive_idle_secs"] = _norm_int(streaming["keepalive_idle_secs"])
     canon["streaming.keepalive_interval_secs"] = _norm_int(streaming["keepalive_interval_secs"])
     canon["streaming.keepalive_retries"] = _norm_int(streaming["keepalive_retries"])
@@ -535,7 +534,6 @@ def build_surfaces() -> list[Surface]:
         SurfaceField("streaming.connect_timeout_ms", _re(r"set_streaming_connect_timeout_ms\b")),
         SurfaceField("streaming.ping_interval_ms", _re(r"set_streaming_ping_interval_ms\b")),
         SurfaceField("streaming.io_read_slice_ms", _re(r"set_streaming_io_read_slice_ms\b")),
-        SurfaceField("streaming.data_watchdog_ms", _re(r"set_streaming_data_watchdog_ms\b")),
         SurfaceField(
             "streaming.keepalive_idle_secs", _re(r"set_streaming_keepalive_idle_secs\b")
         ),
@@ -607,7 +605,6 @@ def build_surfaces() -> list[Surface]:
         SurfaceField("streaming.connect_timeout_ms", _re(r"set_streaming_connect_timeout_ms\b")),
         SurfaceField("streaming.ping_interval_ms", _re(r"set_streaming_ping_interval_ms\b")),
         SurfaceField("streaming.io_read_slice_ms", _re(r"set_streaming_io_read_slice_ms\b")),
-        SurfaceField("streaming.data_watchdog_ms", _re(r"set_streaming_data_watchdog_ms\b")),
         SurfaceField(
             "streaming.keepalive_idle_secs", _re(r"set_streaming_keepalive_idle_secs\b")
         ),
@@ -675,7 +672,6 @@ def build_surfaces() -> list[Surface]:
         SurfaceField("streaming.connect_timeout_ms", _re(r"setStreamingConnectTimeoutMs\b")),
         SurfaceField("streaming.ping_interval_ms", _re(r"setStreamingPingIntervalMs\b")),
         SurfaceField("streaming.io_read_slice_ms", _re(r"setStreamingIoReadSliceMs\b")),
-        SurfaceField("streaming.data_watchdog_ms", _re(r"setStreamingDataWatchdogMs\b")),
         SurfaceField(
             "streaming.keepalive_idle_secs", _re(r"setStreamingKeepaliveIdleSecs\b")
         ),
@@ -756,7 +752,6 @@ def build_surfaces() -> list[Surface]:
             _re(r"^\s*flatfiles_read_timeout_secs:"),
         ),
         SurfaceField("streaming.timeout_ms", _re(r"^\s*streaming_timeout_ms:")),
-        SurfaceField("streaming.data_watchdog_ms", _re(r"^\s*streaming_data_watchdog_ms:")),
         SurfaceField(
             "streaming.keepalive_idle_secs", _re(r"^\s*streaming_keepalive_idle_secs:")
         ),
@@ -832,7 +827,6 @@ impl FpssConfig {
             ping_interval_ms: 250,
             connect_timeout_ms: 2_000,
             io_read_slice_ms: 25,
-            data_watchdog_ms: 30_000,
             keepalive_idle_secs: 5,
             keepalive_interval_secs: 2,
             keepalive_retries: 2,

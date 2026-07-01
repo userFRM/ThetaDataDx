@@ -306,7 +306,6 @@ impl FpssParams {
             .read_timeout_ms(self.streaming.timeout_ms)
             .ping_interval_ms(self.streaming.ping_interval_ms)
             .io_read_slice_ms(self.streaming.io_read_slice_ms)
-            .data_watchdog_ms(self.streaming.data_watchdog_ms)
             .keepalive_idle_secs(self.streaming.keepalive_idle_secs)
             .keepalive_interval_secs(self.streaming.keepalive_interval_secs)
             .keepalive_retries(self.streaming.keepalive_retries)
@@ -846,39 +845,6 @@ impl StreamingClient {
         napi::bindgen_prelude::BigInt::from(guard.as_ref().map_or(0, |c| c.panic_count()))
     }
 
-    /// Set the slow-callback wall-clock threshold in microseconds. When a
-    /// callback invocation runs longer than `thresholdUs`,
-    /// `slowCallbackCount()` increments and a rate-limited warning is
-    /// logged. Pass `0n` to disable the watchdog (the default).
-    /// Observability only: the watchdog never cancels the callback. No-op
-    /// when no session is live. Accepts `bigint` for the full 64-bit
-    /// unsigned range.
-    #[napi(js_name = "setSlowCallbackThresholdUs")]
-    pub fn set_slow_callback_threshold_us(
-        &self,
-        threshold_us: napi::bindgen_prelude::BigInt,
-    ) -> napi::Result<()> {
-        // Reject a negative or over-u64 BigInt rather than silently passing a
-        // wrapped/truncated value, matching the config setters' lossless check.
-        let value =
-            crate::config_class::bigint_to_u64("setSlowCallbackThresholdUs", &threshold_us)?;
-        let guard = self.lock_inner();
-        if let Some(c) = guard.as_ref() {
-            c.set_slow_callback_threshold(std::time::Duration::from_micros(value));
-        }
-        Ok(())
-    }
-
-    /// Cumulative count of user-callback invocations whose wall-clock
-    /// duration exceeded the threshold set by `setSlowCallbackThresholdUs()`.
-    /// Returns `0n` when the watchdog is disabled or no session is live.
-    /// Returned as `bigint` for the full 64-bit unsigned range.
-    #[napi(js_name = "slowCallbackCount")]
-    pub fn slow_callback_count(&self) -> napi::bindgen_prelude::BigInt {
-        let guard = self.lock_inner();
-        napi::bindgen_prelude::BigInt::from(guard.as_ref().map_or(0, |c| c.slow_callback_count()))
-    }
-
     /// Milliseconds since the most recent inbound streaming frame of any
     /// kind (data tick, heartbeat, control), or `null` when no session is
     /// live or no frame has been received yet. The operator-facing
@@ -1133,7 +1099,6 @@ mod tests {
         config.streaming.ping_interval_ms = 22_222;
         config.streaming.connect_timeout_ms = 33_333;
         config.streaming.io_read_slice_ms = 44;
-        config.streaming.data_watchdog_ms = 55_555;
         config.streaming.keepalive_idle_secs = 66;
         config.streaming.keepalive_interval_secs = 77;
         config.streaming.keepalive_retries = 8;
@@ -1165,7 +1130,6 @@ mod tests {
         assert_eq!(s.ping_interval_ms, 22_222);
         assert_eq!(s.connect_timeout_ms, 33_333);
         assert_eq!(s.io_read_slice_ms, 44);
-        assert_eq!(s.data_watchdog_ms, 55_555);
         assert_eq!(s.keepalive_idle_secs, 66);
         assert_eq!(s.keepalive_interval_secs, 77);
         assert_eq!(s.keepalive_retries, 8);

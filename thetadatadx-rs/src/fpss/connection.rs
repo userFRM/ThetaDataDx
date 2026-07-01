@@ -109,9 +109,6 @@ pub(crate) struct ConnectWithStreamArgs<'a> {
     /// Per-iteration blocking-read slice for the I/O loop. Mirrors
     /// [`crate::config::StreamingConfig::io_read_slice_ms`].
     pub io_read_slice: Duration,
-    /// Last-frame watchdog deadline; `Duration::ZERO` disables.
-    /// Mirrors [`crate::config::StreamingConfig::data_watchdog_ms`].
-    pub data_watchdog: Duration,
     /// Keepalive schedule for reconnect-time socket construction.
     pub keepalive: TcpKeepaliveSpec,
     pub ping_interval: Duration,
@@ -293,8 +290,8 @@ fn tls_client_config() -> Result<Arc<ClientConfig>, crate::error::Error> {
 /// Best-effort: a kernel that rejects the schedule (or a platform
 /// without per-socket retry control) degrades to whatever subset it
 /// accepts, with a `warn` so operators can see the reduced transport
-/// coverage. The application-level read timeout and last-frame
-/// watchdog remain the primary liveness checks.
+/// coverage. The application-level read timeout remains the primary
+/// liveness check.
 fn arm_keepalive(tcp: &TcpStream, spec: TcpKeepaliveSpec) {
     let sock = socket2::SockRef::from(tcp);
     let base = socket2::TcpKeepalive::new()

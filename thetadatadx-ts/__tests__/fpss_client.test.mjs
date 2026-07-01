@@ -78,8 +78,6 @@ describe('StreamingClient carries the full streaming surface', () => {
     'ringOccupancy',
     'ringCapacity',
     'panicCount',
-    'slowCallbackCount',
-    'setSlowCallbackThresholdUs',
     'millisSinceLastEvent',
     'lastEventReceivedAtUnixNanos',
     'lastConnectedAddr',

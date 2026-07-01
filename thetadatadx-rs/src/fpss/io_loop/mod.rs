@@ -214,9 +214,6 @@ pub(in crate::fpss) struct IoLoopArgs<P> {
     /// Per-iteration blocking-read slice. Mirrors
     /// [`crate::config::StreamingConfig::io_read_slice_ms`].
     pub io_read_slice: Duration,
-    /// Last-frame watchdog deadline; [`Duration::ZERO`] disables.
-    /// Mirrors [`crate::config::StreamingConfig::data_watchdog_ms`].
-    pub data_watchdog: Duration,
     /// Keepalive schedule for reconnect-time socket construction.
     pub keepalive: connection::TcpKeepaliveSpec,
     /// Wall-clock receive timestamp (UNIX nanoseconds; `0` = never) of
@@ -361,7 +358,6 @@ where
         connect_timeout,
         read_timeout,
         io_read_slice,
-        data_watchdog,
         keepalive,
         last_event_at_ns,
         connected_addr,
@@ -638,28 +634,12 @@ where
                     }
                     Err(ref e) if is_read_timeout(e) => {
                         let quiet = last_frame_at.elapsed();
-                        let read_deadline_hit = quiet >= read_timeout;
-                        // Last-frame watchdog: a hard wall-clock backstop
-                        // above the read timeout. With the default 3 s
-                        // read timeout the deadline above fires first;
-                        // the watchdog catches configurations that widen
-                        // the read timeout past the watchdog window.
-                        let watchdog_hit = !data_watchdog.is_zero() && quiet >= data_watchdog;
-                        if read_deadline_hit || watchdog_hit {
-                            if watchdog_hit && !read_deadline_hit {
-                                tracing::warn!(
-                                    watchdog_ms = u64::try_from(data_watchdog.as_millis())
-                                        .unwrap_or(u64::MAX),
-                                    quiet_ms = u64::try_from(quiet.as_millis()).unwrap_or(u64::MAX),
-                                    "FPSS last-frame watchdog tripped; forcing reconnect",
-                                );
-                            } else {
-                                tracing::warn!(
-                                    timeout_ms = read_timeout_ms_total,
-                                    quiet_ms = u64::try_from(quiet.as_millis()).unwrap_or(u64::MAX),
-                                    "FPSS read timed out (no frames inside the read deadline)",
-                                );
-                            }
+                        if quiet >= read_timeout {
+                            tracing::warn!(
+                                timeout_ms = read_timeout_ms_total,
+                                quiet_ms = u64::try_from(quiet.as_millis()).unwrap_or(u64::MAX),
+                                "FPSS read timed out (no frames inside the read deadline)",
+                            );
                             if producer
                                 .try_publish(|slot| {
                                     slot.event =

@@ -374,42 +374,6 @@ pub unsafe extern "C" fn thetadatadx_config_get_streaming_io_read_slice_ms(
     })
 }
 
-/// Set the last-frame watchdog (ms): when no frame of any kind has arrived for this long the I/O loop force-reconnects, regardless of the read-timeout accounting. `0` disables. Default `30_000`.
-#[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_streaming_data_watchdog_ms(
-    config: *mut ThetaDataDxConfig,
-    v: u64,
-) {
-    ffi_boundary!((), {
-        let config = require_config_mut!(config);
-        config.inner.streaming.data_watchdog_ms = v;
-    })
-}
-
-/// Read the current streaming `data_watchdog_ms` setting (default `30_000`; `0` = disabled).
-///
-/// Writes the configured value into `*out`. Returns `0` on success,
-/// `-1` if either pointer is null.
-#[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_streaming_data_watchdog_ms(
-    config: *const ThetaDataDxConfig,
-    out: *mut u64,
-) -> i32 {
-    ffi_boundary!(-1, {
-        if config.is_null() || out.is_null() {
-            set_error("config or out-parameter pointer is null");
-            return -1;
-        }
-        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
-        let config = unsafe { &*config };
-        // SAFETY: out pointer checked non-null above; the FFI contract pins the storage for the call duration and forbids concurrent calls on the same handle.
-        unsafe {
-            *out = config.inner.streaming.data_watchdog_ms;
-        }
-        0
-    })
-}
-
 /// Set the TCP keepalive idle time (seconds) before the kernel sends the first probe on a silent streaming socket. Default `5`; validated to `[1, 7_200]` at connect.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_config_set_streaming_keepalive_idle_secs(

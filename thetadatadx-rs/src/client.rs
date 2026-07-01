@@ -796,7 +796,6 @@ impl Client {
             .read_timeout_ms(config.streaming.timeout_ms)
             .ping_interval_ms(config.streaming.ping_interval_ms)
             .io_read_slice_ms(config.streaming.io_read_slice_ms)
-            .data_watchdog_ms(config.streaming.data_watchdog_ms)
             .keepalive_idle_secs(config.streaming.keepalive_idle_secs)
             .keepalive_interval_secs(config.streaming.keepalive_interval_secs)
             .keepalive_retries(config.streaming.keepalive_retries)
@@ -1184,41 +1183,6 @@ impl Client {
         let snap = self.streaming.state.load();
         if let StreamingSlot::Live { client } = &**snap {
             client.record_panic();
-        }
-    }
-
-    /// Set the slow-callback wall-clock threshold for the live
-    /// streaming session.
-    ///
-    /// When the user-callback wall-clock duration exceeds `threshold`,
-    /// [`Self::slow_callback_count`] increments and a `tracing::warn!`
-    /// fires (rate-limited per 1024 over-budget events). Pass
-    /// `Duration::ZERO` to disable. Default is disabled.
-    ///
-    /// **Observability only** — Rust cannot safely cancel arbitrary
-    /// user code, so the watchdog never kills the consumer. Operators
-    /// poll the counter and decide how to respond.
-    ///
-    /// No-op when streaming has not started; on the next
-    /// [`Self::start_streaming`] the threshold defaults back to
-    /// disabled (callers must re-arm).
-    pub(crate) fn set_slow_callback_threshold(&self, threshold: Duration) {
-        let snap = self.streaming.state.load();
-        if let StreamingSlot::Live { client } = &**snap {
-            client.set_slow_callback_threshold(threshold);
-        }
-    }
-
-    /// Snapshot of user-callback invocations whose wall-clock duration
-    /// exceeded the threshold set by
-    /// [`Self::set_slow_callback_threshold`]. Returns `0` when the
-    /// watchdog is disabled or when streaming has not started.
-    #[must_use]
-    pub(crate) fn slow_callback_count(&self) -> u64 {
-        let snap = self.streaming.state.load();
-        match &**snap {
-            StreamingSlot::Live { client } => client.slow_callback_count(),
-            StreamingSlot::Idle | StreamingSlot::Stopped => 0,
         }
     }
 
@@ -2528,21 +2492,6 @@ impl StreamSurface<'_> {
     #[doc(hidden)]
     pub fn record_panic(&self) {
         self.0.record_panic();
-    }
-
-    /// Set the slow-callback wall-clock threshold for the live session.
-    /// Pass `Duration::ZERO` to disable. No-op when streaming has not
-    /// started.
-    pub fn set_slow_callback_threshold(&self, threshold: Duration) {
-        self.0.set_slow_callback_threshold(threshold);
-    }
-
-    /// Snapshot of user-callback invocations whose wall-clock duration
-    /// exceeded the configured threshold. `0` when disabled or not
-    /// streaming.
-    #[must_use]
-    pub fn slow_callback_count(&self) -> u64 {
-        self.0.slow_callback_count()
     }
 }
 

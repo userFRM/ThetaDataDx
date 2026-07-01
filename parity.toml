@@ -642,12 +642,6 @@ typescript = true
 cpp = true
 
 [[class]]
-name = "StreamingConfig.streaming_data_watchdog_ms"
-python = true
-typescript = true
-cpp = true
-
-[[class]]
 name = "StreamingConfig.streaming_keepalive_idle_secs"
 python = true
 typescript = true
@@ -1457,29 +1451,6 @@ returns = "u64"
 
 [[method]]
 class = "StreamView"
-name = "slowCallbackCount"
-python = true
-typescript = true
-cpp = true
-[method.signature]
-returns = "u64"
-
-[[method]]
-class = "StreamView"
-name = "setSlowCallbackThresholdUs"
-python = true
-typescript = true
-cpp = true
-# The argument is an integer microsecond count on every binding (`u64` /
-# `BigInt` / `uint64_t`). The core takes a `Duration` and converts from
-# microseconds internally, so the `Us` suffix names the binding unit, not the
-# core type; the naming is flagged for the maintainer.
-[method.signature]
-params = ["u64"]
-returns = "()"
-
-[[method]]
-class = "StreamView"
 name = "millisSinceLastEvent"
 python = true
 typescript = true
@@ -1706,27 +1677,6 @@ typescript = true
 cpp = true
 [method.signature]
 returns = "u64"
-
-[[method]]
-class = "StreamingClient"
-name = "slowCallbackCount"
-python = true
-typescript = true
-cpp = true
-[method.signature]
-returns = "u64"
-
-[[method]]
-class = "StreamingClient"
-name = "setSlowCallbackThresholdUs"
-python = true
-typescript = true
-cpp = true
-# Integer microseconds on every binding; the core takes a `Duration`. Same
-# `Us`-names-the-unit naming flagged on the `StreamView` row.
-[method.signature]
-params = ["u64"]
-returns = "()"
 
 [[method]]
 class = "StreamingClient"

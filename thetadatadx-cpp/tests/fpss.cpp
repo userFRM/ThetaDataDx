@@ -40,7 +40,7 @@ TEST_CASE("StreamingClient binds the observability surface",
     // Pin the diagnostic accessors so a delete or rename fires at compile
     // time. The standalone client uses the same `dropped_event_count()`
     // spelling as the unified `Stream` view (the counter is identical on
-    // both surfaces), plus the slow-callback watchdog getter/setter.
+    // both surfaces).
     using SC = thetadatadx::StreamingClient;
     // dropped_event_count() -> uint64_t
     STATIC_REQUIRE(std::is_same_v<
@@ -53,13 +53,6 @@ TEST_CASE("StreamingClient binds the observability surface",
     // panic_count() -> uint64_t
     STATIC_REQUIRE(std::is_same_v<
         decltype(std::declval<const SC&>().panic_count()), uint64_t>);
-    // slow_callback_count() -> uint64_t
-    STATIC_REQUIRE(std::is_same_v<
-        decltype(std::declval<const SC&>().slow_callback_count()), uint64_t>);
-    // set_slow_callback_threshold_us(uint64_t) -> void
-    STATIC_REQUIRE(std::is_same_v<
-        decltype(std::declval<const SC&>().set_slow_callback_threshold_us(uint64_t{})),
-        void>);
     // is_streaming() -> bool (evened up with the unified Stream view and
     // the Python / TypeScript standalone surface)
     STATIC_REQUIRE(std::is_same_v<

@@ -240,28 +240,6 @@ impl Config {
         Ok(napi::bindgen_prelude::BigInt::from(guard.streaming.io_read_slice_ms))
     }
 
-    /// Set the last-frame watchdog (ms): when no frame of any kind has arrived for this long the I/O loop force-reconnects. `0n` disables. Default `30_000n`.
-    #[napi(js_name = "setStreamingDataWatchdogMs")]
-    pub fn set_streaming_data_watchdog_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
-        let value = bigint_to_u64("setStreamingDataWatchdogMs", &ms)?;
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.streaming.data_watchdog_ms = value;
-        Ok(())
-    }
-
-    /// Current `streaming.data_watchdog_ms` value (default `30_000n`; `0n` = disabled).
-    #[napi(getter, js_name = "streamingDataWatchdogMs")]
-    pub fn streaming_data_watchdog_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(napi::bindgen_prelude::BigInt::from(guard.streaming.data_watchdog_ms))
-    }
-
     /// Set the TCP keepalive idle time (seconds) before the first kernel probe on a silent streaming socket. Default `5n`; validated to `[1, 7_200]` at connect.
     #[napi(js_name = "setStreamingKeepaliveIdleSecs")]
     pub fn set_streaming_keepalive_idle_secs(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {

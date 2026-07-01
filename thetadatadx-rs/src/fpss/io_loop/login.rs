@@ -24,13 +24,6 @@ pub enum LoginResult {
     Disconnected(RemoveReason),
 }
 
-/// Upper bound on the number of pre-`Metadata` control frames buffered during
-/// a single handshake. A legitimate handshake emits a handful (`Connected`,
-/// an early `Ping`, a `Restart`); a peer that streams control frames without
-/// ever sending `Metadata` would otherwise grow `pending_control` without
-/// limit. Past this count the handshake is treated as a protocol violation.
-const MAX_HANDSHAKE_PENDING_CONTROL: usize = 64;
-
 /// Wall-clock budget for a single handshake, independent of the per-read
 /// socket timeout. A chatty peer that sends a control frame just before each
 /// read timeout would otherwise reset the per-read deadline forever; this
@@ -71,7 +64,6 @@ pub fn wait_for_login(
         pending_control,
         deadline,
         read_timeout,
-        MAX_HANDSHAKE_PENDING_CONTROL,
         Instant::now,
     )
 }
@@ -81,11 +73,10 @@ pub fn wait_for_login(
 /// point above and in-memory test harnesses can drive it against a
 /// buffer of pre-canned frames.
 ///
-/// `deadline` is a wall-clock backstop and `max_pending_control` caps the
-/// number of pre-`Metadata` control frames. Together they bound a peer that
-/// streams control frames without ever completing the handshake: the
-/// per-read socket timeout alone cannot, because each frame resets it.
-/// `now` injects the clock so tests can drive the deadline deterministically.
+/// `deadline` is a wall-clock backstop that bounds a peer which streams
+/// control frames without ever completing the handshake: the per-read socket
+/// timeout alone cannot, because each frame resets it. `now` injects the
+/// clock so tests can drive the deadline deterministically.
 ///
 /// The read is driven through the resumable
 /// [`read_frame_into_with_stall_timeout`] path with `stall_timeout` as the
@@ -99,7 +90,6 @@ fn wait_for_login_generic<R, C>(
     pending_control: &mut Vec<StreamControl>,
     deadline: Instant,
     stall_timeout: Duration,
-    max_pending_control: usize,
     mut now: C,
 ) -> Result<LoginResult, Error>
 where
@@ -117,15 +107,6 @@ where
                 kind: crate::error::StreamErrorKind::Timeout,
                 message: "login handshake did not complete within the handshake deadline"
                     .to_string(),
-            });
-        }
-
-        if pending_control.len() >= max_pending_control {
-            return Err(Error::Stream {
-                kind: crate::error::StreamErrorKind::ProtocolError,
-                message: format!(
-                    "login handshake buffered {max_pending_control} control frames without METADATA"
-                ),
             });
         }
 
@@ -226,8 +207,8 @@ mod tests {
         v
     }
 
-    /// Drive the handshake with bounds that never trip for the
-    /// dispatch/ordering tests: a far-future deadline and the production cap.
+    /// Drive the handshake with a far-future deadline that never trips, for
+    /// the dispatch/ordering tests.
     fn run_handshake<R: std::io::Read>(
         stream: &mut R,
         pending_control: &mut Vec<StreamControl>,
@@ -238,7 +219,6 @@ mod tests {
             pending_control,
             deadline,
             Duration::from_secs(10),
-            MAX_HANDSHAKE_PENDING_CONTROL,
             Instant::now,
         )
     }
@@ -482,7 +462,6 @@ mod tests {
             &mut pending,
             deadline,
             Duration::from_secs(10),
-            MAX_HANDSHAKE_PENDING_CONTROL,
             clock,
         );
         match result {
@@ -566,7 +545,6 @@ mod tests {
             // Long per-stall budget so only the wall-clock deadline (not the
             // per-stall timeout) can end the handshake.
             Duration::from_secs(30),
-            MAX_HANDSHAKE_PENDING_CONTROL,
             clock,
         );
         match result {
@@ -577,43 +555,5 @@ mod tests {
             Err(other) => panic!("expected an Fpss timeout error, got {other:?}"),
             Ok(_) => panic!("a partial-frame stall past the deadline must trip the cap"),
         }
-    }
-
-    /// A peer that floods control frames without METADATA must not grow
-    /// `pending_control` without bound: once the cap is reached the handshake
-    /// returns a protocol error rather than buffering forever.
-    #[test]
-    fn wait_for_login_caps_pending_control() {
-        let cap = 8usize;
-        // More control frames than the cap, and no METADATA.
-        let mut buf = Vec::new();
-        for _ in 0..(cap + 4) {
-            buf.extend_from_slice(&wire_frame(StreamMsgType::Connected, &[]));
-        }
-        let mut cursor = std::io::Cursor::new(buf);
-
-        // Far-future deadline so the cap, not the clock, is what stops it.
-        let deadline = Instant::now() + Duration::from_secs(3_600);
-        let mut pending: Vec<StreamControl> = Vec::new();
-        let result = wait_for_login_generic(
-            &mut cursor,
-            &mut pending,
-            deadline,
-            Duration::from_secs(10),
-            cap,
-            Instant::now,
-        );
-        match result {
-            Err(Error::Stream { kind, .. }) => {
-                assert!(matches!(kind, crate::error::StreamErrorKind::ProtocolError));
-            }
-            Err(other) => panic!("expected an Fpss protocol error, got {other:?}"),
-            Ok(_) => panic!("flooding control frames past the cap must error"),
-        }
-        assert_eq!(
-            pending.len(),
-            cap,
-            "buffering must stop exactly at the cap, not past it"
-        );
     }
 }

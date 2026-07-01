@@ -164,23 +164,6 @@ impl Config {
         guard.streaming.io_read_slice_ms
     }
 
-    /// Set the last-frame watchdog (ms): when no frame of any kind has
-    /// arrived for this long the I/O loop force-reconnects. ``0``
-    /// disables. Default ``30_000``.
-    #[setter]
-    fn set_streaming_data_watchdog_ms(&self, ms: u64) {
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.streaming.data_watchdog_ms = ms;
-    }
-
-    /// Current ``streaming.data_watchdog_ms`` value (default ``30_000``;
-    /// ``0`` = disabled).
-    #[getter]
-    fn get_streaming_data_watchdog_ms(&self) -> u64 {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.streaming.data_watchdog_ms
-    }
-
     /// Set the TCP keepalive idle time (seconds) before the first
     /// kernel probe on a silent streaming socket. Default ``5``;
     /// validated to ``[1, 7_200]``.

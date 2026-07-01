@@ -460,9 +460,9 @@ mod bigint_to_u64_tests {
     use super::bigint_to_u64;
     use napi::bindgen_prelude::BigInt;
 
-    // The lossless u64 decode behind the BigInt setters (incl.
-    // setSlowCallbackThresholdUs) must reject a negative or an over-u64
-    // magnitude rather than passing a wrapped/truncated value.
+    // The lossless u64 decode behind the BigInt config setters must reject
+    // a negative or an over-u64 magnitude rather than passing a
+    // wrapped/truncated value.
     #[test]
     fn rejects_negative_bigint() {
         let neg = BigInt::from(-1i64);

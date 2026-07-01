@@ -676,7 +676,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_policy(
 //
 // Scalar tuning on `StreamingConfig` exposed for embedded callers: read
 // timeout, connect timeout, ping cadence, ring size, the I/O read
-// slice, the last-frame watchdog, and the TCP keepalive schedule.
+// slice, and the TCP keepalive schedule.
 // Out-of-range values are rejected at connect time by the core
 // validator; the setters here store verbatim so the rejection carries
 // the canonical bounds message.
@@ -2350,18 +2350,6 @@ mod resilience_knob_tests {
                 0
             );
             assert_eq!(got, 25);
-            assert_eq!(
-                super::thetadatadx_config_get_streaming_data_watchdog_ms(cfg, &mut got),
-                0
-            );
-            assert_eq!(got, 30_000);
-            super::thetadatadx_config_set_streaming_data_watchdog_ms(cfg, 0);
-            assert_eq!(
-                super::thetadatadx_config_get_streaming_data_watchdog_ms(cfg, &mut got),
-                0
-            );
-            assert_eq!(got, 0, "0 (watchdog disabled) round-trips");
-
             assert_eq!(
                 super::thetadatadx_config_get_streaming_keepalive_idle_secs(cfg, &mut got),
                 0

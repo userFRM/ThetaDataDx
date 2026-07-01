@@ -303,10 +303,6 @@ export declare class Config {
   setStreamingIoReadSliceMs(ms: bigint): void
   /** Current `streaming.io_read_slice_ms` value (default `25n`). */
   get streamingIoReadSliceMs(): bigint
-  /** Set the last-frame watchdog (ms): when no frame of any kind has arrived for this long the I/O loop force-reconnects. `0n` disables. Default `30_000n`. */
-  setStreamingDataWatchdogMs(ms: bigint): void
-  /** Current `streaming.data_watchdog_ms` value (default `30_000n`; `0n` = disabled). */
-  get streamingDataWatchdogMs(): bigint
   /** Set the TCP keepalive idle time (seconds) before the first kernel probe on a silent streaming socket. Default `5n`; validated to `[1, 7_200]` at connect. */
   setStreamingKeepaliveIdleSecs(ms: bigint): void
   /** Current `streaming.keepalive_idle_secs` value (default `5n`). */
@@ -2674,23 +2670,6 @@ export declare class StreamingClient {
    */
   panicCount(): bigint
   /**
-   * Set the slow-callback wall-clock threshold in microseconds. When a
-   * callback invocation runs longer than `thresholdUs`,
-   * `slowCallbackCount()` increments and a rate-limited warning is
-   * logged. Pass `0n` to disable the watchdog (the default).
-   * Observability only: the watchdog never cancels the callback. No-op
-   * when no session is live. Accepts `bigint` for the full 64-bit
-   * unsigned range.
-   */
-  setSlowCallbackThresholdUs(thresholdUs: bigint): void
-  /**
-   * Cumulative count of user-callback invocations whose wall-clock
-   * duration exceeded the threshold set by `setSlowCallbackThresholdUs()`.
-   * Returns `0n` when the watchdog is disabled or no session is live.
-   * Returned as `bigint` for the full 64-bit unsigned range.
-   */
-  slowCallbackCount(): bigint
-  /**
    * Milliseconds since the most recent inbound streaming frame of any
    * kind (data tick, heartbeat, control), or `null` when no session is
    * live or no frame has been received yet. The operator-facing
@@ -2846,25 +2825,6 @@ export declare class StreamView {
    * (Number would top out at 2^53).
    */
   panicCount(): bigint
-  /**
-   * Set the slow-callback wall-clock threshold in microseconds.
-   *
-   * When a callback invocation runs longer than `thresholdUs`,
-   * `slowCallbackCount()` increments and a rate-limited warning is
-   * logged. Pass `0n` to disable the watchdog (the default).
-   * Observability only: the watchdog never cancels the callback. No-op
-   * before `startStreaming`. Accepts `bigint` for the full 64-bit
-   * unsigned range.
-   */
-  setSlowCallbackThresholdUs(thresholdUs: bigint): void
-  /**
-   * Cumulative count of user-callback invocations whose wall-clock
-   * duration exceeded the threshold set by `setSlowCallbackThresholdUs()`.
-   * Returns `0n` when the watchdog is disabled or before `startStreaming`.
-   * The value matches every other binding (C ABI, Python, C++). Returned
-   * as `bigint` for the full 64-bit unsigned range.
-   */
-  slowCallbackCount(): bigint
   /**
    * Snapshot of full-stream subscriptions (e.g. `OPTION` /
    * `full_trades`, `OPTION` / `full_open_interest`).

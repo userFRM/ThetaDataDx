@@ -134,18 +134,6 @@
         return out;
     }
 
-    /// Set the last-frame watchdog (ms); 0 disables. Default 30_000.
-    void set_streaming_data_watchdog_ms(std::uint64_t v) {
-        thetadatadx_config_set_streaming_data_watchdog_ms(handle_.get(), v);
-    }
-
-    /// Current streaming data_watchdog_ms (default 30_000; 0 = disabled).
-    std::uint64_t get_streaming_data_watchdog_ms() const {
-        std::uint64_t out{};
-        thetadatadx_config_get_streaming_data_watchdog_ms(handle_.get(), &out);
-        return out;
-    }
-
     /// Set the TCP keepalive idle time (seconds). Default 5; validated
     /// to [1, 7_200] at connect.
     void set_streaming_keepalive_idle_secs(std::uint64_t v) {

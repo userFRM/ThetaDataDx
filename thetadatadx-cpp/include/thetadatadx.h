@@ -1441,23 +1441,6 @@ void thetadatadx_config_set_streaming_io_read_slice_ms(ThetaDataDxConfig* config
 int32_t thetadatadx_config_get_streaming_io_read_slice_ms(const ThetaDataDxConfig* config, uint64_t* out);
 
 /**
- * Set the last-frame watchdog (ms): when no frame of any kind has
- * arrived for this long the session force-reconnects. 0 disables.
- * Default 30_000.
- * @param config Config handle to mutate; no-op when NULL.
- * @param v Watchdog interval in milliseconds (0 disables).
- */
-void thetadatadx_config_set_streaming_data_watchdog_ms(ThetaDataDxConfig* config, uint64_t v);
-
-/**
- * Read the current streaming data_watchdog_ms setting (default 30_000; 0 = disabled).
- * @param config Config handle to read.
- * @param out Receives the watchdog interval in milliseconds on success.
- * @return 0 on success, -1 if either pointer is null.
- */
-int32_t thetadatadx_config_get_streaming_data_watchdog_ms(const ThetaDataDxConfig* config, uint64_t* out);
-
-/**
  * Set the TCP keepalive idle time (seconds) before the first kernel
  * probe on a silent streaming socket. Default 5; validated to [1, 7_200]
  * at connect.
@@ -2424,24 +2407,6 @@ char* thetadatadx_streaming_last_connected_addr(const ThetaDataDxStreamHandle* h
  *          callback has been installed yet. */
 uint64_t thetadatadx_streaming_panic_count(const ThetaDataDxStreamHandle* h);
 
-/** Set the slow-callback wall-clock threshold in microseconds. When a
- *  callback invocation runs longer than threshold_us,
- *  thetadatadx_streaming_slow_callback_count increments and a rate-limited
- *  warning is logged. Pass 0 to disable. Observability-only: the watchdog
- *  never cancels the callback. No-op on a null or shut-down handle.
- *  @param h The streaming handle.
- *  @param threshold_us The wall-clock threshold in microseconds, or 0 to
- *          disable the watchdog. */
-void thetadatadx_streaming_set_slow_callback_threshold_us(const ThetaDataDxStreamHandle* h, uint64_t threshold_us);
-
-/** Cumulative count of user-callback invocations whose wall-clock duration
- *  exceeded the threshold set via
- *  thetadatadx_streaming_set_slow_callback_threshold_us.
- *  @param h The streaming handle.
- *  @return The slow-callback count, or 0 if the watchdog is disabled, the
- *          handle is null, or has been shut down. */
-uint64_t thetadatadx_streaming_slow_callback_count(const ThetaDataDxStreamHandle* h);
-
 /** Shut down the streaming client. Terminal: every subsequent
  *  set_callback / reconnect / shutdown call on this handle returns -1
  *  with a clear thetadatadx_last_error() string. The handle remains valid for
@@ -2700,25 +2665,6 @@ char* thetadatadx_client_last_connected_addr(const ThetaDataDxClient* handle);
  *  @return The contained-failure count, or 0 if the handle is null or no
  *          callback has been installed yet. */
 uint64_t thetadatadx_client_panic_count(const ThetaDataDxClient* handle);
-
-/** Set the slow-callback wall-clock threshold in microseconds on the unified
- *  handle. When a callback invocation runs longer than threshold_us,
- *  thetadatadx_client_slow_callback_count increments and a rate-limited warning
- *  is logged. Pass 0 to disable. Observability-only: the watchdog never
- *  cancels the callback. No-op on a null handle or before a callback is
- *  installed.
- *  @param handle The unified handle.
- *  @param threshold_us The wall-clock threshold in microseconds, or 0 to
- *          disable the watchdog. */
-void thetadatadx_client_set_slow_callback_threshold_us(const ThetaDataDxClient* handle, uint64_t threshold_us);
-
-/** Cumulative count of user-callback invocations whose wall-clock duration
- *  exceeded the threshold set via
- *  thetadatadx_client_set_slow_callback_threshold_us.
- *  @param handle The unified handle.
- *  @return The slow-callback count, or 0 if the watchdog is disabled, the
- *          handle is null, or no callback has been installed yet. */
-uint64_t thetadatadx_client_slow_callback_count(const ThetaDataDxClient* handle);
 
 /** Free a unified client handle. Calls thetadatadx_client_stop_streaming
  *  internally, then waits up to 5 seconds for the registered callback to

@@ -273,8 +273,6 @@ class Config:
     """Capacity, in slots, of the streaming event ring; must be a power of two and at least 64."""
     streaming_io_read_slice_ms: int
     """Time slice, in milliseconds, the streaming I/O loop spends reading per iteration."""
-    streaming_data_watchdog_ms: int
-    """Hard wall-clock backstop, in milliseconds, above :attr:`streaming_timeout_ms` that tears down a silent stream (default 30_000; ``0`` disables)."""
     streaming_keepalive_idle_secs: int
     """Idle time, in seconds, before kernel-side TCP keepalive probing begins on the streaming socket (default 5)."""
     streaming_keepalive_interval_secs: int
@@ -5251,25 +5249,6 @@ class StreamView:
         """
         ...
 
-    def set_slow_callback_threshold_us(self, threshold_us: int) -> None:
-        """Set the slow-callback wall-clock threshold in microseconds.
-
-        When a callback invocation runs longer than ``threshold_us``,
-        :meth:`slow_callback_count` increments and a rate-limited
-        warning is logged. Pass ``0`` to disable the watchdog (the
-        default). Observability only: the watchdog never cancels the
-        callback. No-op when streaming has not started.
-        """
-        ...
-
-    def slow_callback_count(self) -> int:
-        """Cumulative count of user-callback invocations whose
-        wall-clock duration exceeded the threshold set by
-        :meth:`set_slow_callback_threshold_us`. 0 when the watchdog is
-        disabled or streaming has not started.
-        """
-        ...
-
 
 @final
 class Client:
@@ -5817,25 +5796,6 @@ class StreamingClient:
 
         The fixed denominator for :meth:`ring_occupancy`; 0 when
         streaming is not active.
-        """
-        ...
-
-    def set_slow_callback_threshold_us(self, threshold_us: int) -> None:
-        """Set the slow-callback wall-clock threshold in microseconds.
-
-        When a callback invocation runs longer than ``threshold_us``,
-        :meth:`slow_callback_count` increments and a rate-limited
-        warning is logged. Pass ``0`` to disable the watchdog (the
-        default). Observability only: the watchdog never cancels the
-        callback. No-op when no session is live.
-        """
-        ...
-
-    def slow_callback_count(self) -> int:
-        """Cumulative count of user-callback invocations whose
-        wall-clock duration exceeded the threshold set by
-        :meth:`set_slow_callback_threshold_us`. 0 when the watchdog is
-        disabled or no session is live.
         """
         ...
 
