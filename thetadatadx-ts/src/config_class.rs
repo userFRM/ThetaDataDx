@@ -304,9 +304,9 @@ impl Config {
     // config_surface.toml (the `ms` / `string` carve-out kinds).
 
     // `metrics.port` (`Option<number>` exporter port), the
-    // `streaming.flushMode` / `waitStrategy` enums, and the
-    // `reconnectJitter` / `streamingHostSelection` enums are the
-    // generated `enum` / `option` accessors from config_surface.toml.
+    // `streaming.flushMode` enum, and the `reconnectJitter` /
+    // `streamingHostSelection` enums are the generated `enum` / `option`
+    // accessors from config_surface.toml.
 
     /// Target historical environment carried by this configuration:
     /// `"PROD"` for the production cluster or `"STAGE"` for staging. The

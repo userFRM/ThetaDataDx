@@ -1854,11 +1854,9 @@ cpp = true
 params = ["String"]
 returns = "Config"
 
-# The wait-strategy / flush-mode knobs diverge on C++: the managed bindings
-# pass / return the mode as a String name, while C++ uses the integer enum
-# code (`int`), so those cells are per-lang overrides. The iteration-count and
-# park-microsecond knobs are plain integers everywhere (napi widens the small
-# counts to `f64`, its native number type — the `usize`→`f64` sanction family).
+# The flush-mode knob diverges on C++: the managed bindings pass / return the
+# mode as a String name, while C++ uses the integer enum code (`int`), so those
+# cells are per-lang overrides.
 [[method]]
 class = "Config"
 name = "setFlushMode"
