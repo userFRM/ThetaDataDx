@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.0.0-rc.11] - 2026-07-01
+
+### Removed
+
+- The configurable ring wait-strategy and its tuning knobs (`wait_strategy`, `wait_spin_iters`, `wait_yield_iters`, `wait_park_us`) across every binding. The streaming consumer now runs a single fixed low-latency wait (#1057).
+- The `data_watchdog_ms` reconnect timer, which duplicated the read timeout under the default configuration (#1055).
+- The unused `flatfile_value_arrow_type` helper and several unused `DirectConfig` builder methods (#1058).
+
+### Changed
+
+- Streaming Trade and OHLCVC events carry only the fields the wire provides; the previously-synthesized extended-trade fields are removed (#1042).
+- Internal streaming simplifications with no public API or wire-behavior change: the FPSS frame reader lost its mid-frame drain-yield and per-frame deadline handling, and the delta decoder lost several unused runtime guards (#1055, #1059).
+
+### Fixed
+
+- **C++ callback use-after-free:** a retired callback is now dropped only after the consumer thread confirms quiescence; if the quiescence cap elapses first, the node is intentionally leaked (a bounded one-time leak) rather than destroyed while an invocation may still be in flight (#1056).
+
 ## [13.0.0-rc.10] - 2026-06-30
 
 ### Added

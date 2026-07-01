@@ -3236,7 +3236,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "13.0.0-rc.10"
+version = "13.0.0-rc.11"
 dependencies = [
  "arc-swap",
  "arrow-array",
@@ -3288,7 +3288,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-ffi"
-version = "13.0.0-rc.10"
+version = "13.0.0-rc.11"
 dependencies = [
  "arrow-array",
  "arrow-ipc",
