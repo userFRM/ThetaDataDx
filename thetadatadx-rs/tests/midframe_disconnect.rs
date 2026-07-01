@@ -12,12 +12,12 @@
 //! - The reader does NOT block on a stuck Read source.
 //! - The reader returns `Ok(None)` on clean pre-header EOF, or a typed
 //!   `Error::Stream { kind: ProtocolError }` on truncation.
-//! - `FrameReadState` resets cleanly between attempts so the next
-//!   reconnect-cycle reader does not desync on stale partial bytes.
+//! - Each read is independent (no cross-call state), so a torn read
+//!   leaves no residue for the next reconnect-cycle reader to desync on.
 
 use std::io::{Cursor, Error as IoError, ErrorKind, Read};
 
-use thetadatadx::fpss::__test_internals::{read_frame_into, FrameReadState, MAX_PAYLOAD_LEN};
+use thetadatadx::fpss::__test_internals::{read_frame_into, MAX_PAYLOAD_LEN};
 
 // ---------------------------------------------------------------------------
 // Read adapters
@@ -87,22 +87,17 @@ impl Read for PrefixThenUnexpectedEof {
 // ---------------------------------------------------------------------------
 
 /// Pre-header EOF (no bytes delivered yet) is a graceful close.
-/// `read_frame_into` returns `Ok(None)` and resets `FrameReadState` to
-/// idle so the reconnect path re-enters with a clean slate.
+/// `read_frame_into` returns `Ok(None)`, and a follow-up call on the
+/// still-exhausted reader returns `Ok(None)` again — no residue carried.
 #[test]
-fn pre_header_clean_eof_returns_none_and_resets_state() {
+fn pre_header_clean_eof_returns_none() {
     let mut reader = PrefixThenEof::new(Vec::new());
     let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
-    let mut state = FrameReadState::new();
 
-    let result = read_frame_into(&mut reader, &mut buf, &mut state);
+    let result = read_frame_into(&mut reader, &mut buf);
     assert!(matches!(result, Ok(None)), "got {result:?}");
 
-    // After a clean pre-header EOF the state must be idle: a fresh
-    // `FrameReadState::default()` should be byte-for-byte equivalent
-    // to what we hold, exercised through a follow-up call that
-    // immediately returns Ok(None) again.
-    let result = read_frame_into(&mut reader, &mut buf, &mut state);
+    let result = read_frame_into(&mut reader, &mut buf);
     assert!(matches!(result, Ok(None)), "got {result:?}");
 }
 
@@ -112,9 +107,8 @@ fn pre_header_clean_eof_returns_none_and_resets_state() {
 fn mid_header_clean_eof_returns_protocol_error() {
     let mut reader = PrefixThenEof::new(vec![0x05]); // single header byte
     let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
-    let mut state = FrameReadState::new();
 
-    let result = read_frame_into(&mut reader, &mut buf, &mut state);
+    let result = read_frame_into(&mut reader, &mut buf);
     assert!(
         result.is_err(),
         "mid-header EOF must surface as error; got {result:?}"
@@ -133,9 +127,8 @@ fn mid_payload_truncation_returns_protocol_error() {
 
     let mut reader = PrefixThenEof::new(bytes);
     let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
-    let mut state = FrameReadState::new();
 
-    let result = read_frame_into(&mut reader, &mut buf, &mut state);
+    let result = read_frame_into(&mut reader, &mut buf);
     assert!(
         result.is_err(),
         "mid-payload truncation must surface as error; got {result:?}"
@@ -153,21 +146,20 @@ fn mid_payload_unexpected_eof_returns_protocol_error() {
 
     let mut reader = PrefixThenUnexpectedEof::new(bytes);
     let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
-    let mut state = FrameReadState::new();
 
-    let result = read_frame_into(&mut reader, &mut buf, &mut state);
+    let result = read_frame_into(&mut reader, &mut buf);
     assert!(
         result.is_err(),
         "UnexpectedEof mid-payload must surface as error; got {result:?}"
     );
 }
 
-/// Reconnect cycle: after a torn read, instantiating a fresh
-/// `FrameReadState` and pointing at a clean stream must succeed
-/// without carrying half-decoded leftover bytes from the previous
-/// connection.
+/// Reconnect cycle: after a torn read, a fresh reader on a clean stream
+/// must decode without carrying half-decoded leftover bytes from the
+/// previous connection. Because reads hold no cross-call state, this
+/// holds by construction.
 #[test]
-fn fresh_state_after_torn_read_decodes_cleanly() {
+fn clean_stream_after_torn_read_decodes_cleanly() {
     // Cycle 1: torn mid-payload.
     let mut bytes = Vec::new();
     bytes.push(50u8);
@@ -176,11 +168,9 @@ fn fresh_state_after_torn_read_decodes_cleanly() {
 
     let mut torn_reader = PrefixThenUnexpectedEof::new(bytes);
     let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
-    let mut state = FrameReadState::new();
-    let _ = read_frame_into(&mut torn_reader, &mut buf, &mut state);
+    let _ = read_frame_into(&mut torn_reader, &mut buf);
 
-    // Cycle 2: fresh state on a clean stream — must decode without
-    // carrying torn bytes.
+    // Cycle 2: a clean stream must decode without carrying torn bytes.
     let mut clean = Vec::new();
     let payload = b"hello";
     clean.push(payload.len() as u8);
@@ -189,8 +179,7 @@ fn fresh_state_after_torn_read_decodes_cleanly() {
 
     let mut clean_reader = Cursor::new(clean);
     let mut buf2: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
-    let mut fresh_state = FrameReadState::new();
-    let result = read_frame_into(&mut clean_reader, &mut buf2, &mut fresh_state);
+    let result = read_frame_into(&mut clean_reader, &mut buf2);
     let (_code, n) = result
         .expect("fresh stream must decode")
         .expect("fresh stream must yield a frame");
@@ -205,10 +194,9 @@ fn fresh_state_after_torn_read_decodes_cleanly() {
 fn fully_dead_reader_does_not_loop() {
     let mut reader = PrefixThenUnexpectedEof::new(Vec::new());
     let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
-    let mut state = FrameReadState::new();
 
     // Bound iterations strictly: a single call must terminate in O(1).
-    let result = read_frame_into(&mut reader, &mut buf, &mut state);
+    let result = read_frame_into(&mut reader, &mut buf);
     // Pre-header `UnexpectedEof` with zero bytes seen returns
     // `Ok(None)` per `read_header_with_timeout`'s contract — graceful
     // close.

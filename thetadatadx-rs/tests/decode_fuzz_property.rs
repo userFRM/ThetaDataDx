@@ -27,7 +27,7 @@ use std::sync::Arc;
 use proptest::prelude::*;
 
 use thetadatadx::fpss::__test_internals::{
-    decode_frame, read_frame_into, DeltaState, FrameReadState, MAX_PAYLOAD_LEN,
+    decode_frame, read_frame_into, DeltaState, MAX_PAYLOAD_LEN,
 };
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::StreamMsgType;
@@ -46,10 +46,9 @@ fn drive_fuzz_input(bytes: Vec<u8>) {
     let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
     let mut delta_state = DeltaState::new();
     let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
-    let mut state = FrameReadState::new();
 
     for _ in 0..MAX_FRAMES {
-        match read_frame_into(&mut cursor, &mut buf, &mut state) {
+        match read_frame_into(&mut cursor, &mut buf) {
             Ok(Some((code, n))) => {
                 // Frame buffer must never exceed the wire-protocol cap.
                 assert!(

@@ -32,7 +32,7 @@ use std::sync::Arc;
 use thetadatadx::{RemoveReason, SecType, StreamMsgType};
 
 use thetadatadx::fpss::__test_internals::{
-    decode_frame, read_frame_into, DeltaState, FrameReadState, MAX_PAYLOAD_LEN,
+    decode_frame, read_frame_into, DeltaState, MAX_PAYLOAD_LEN,
 };
 use thetadatadx::fpss::protocol::test_wire::{
     build_credentials_payload, build_full_type_subscribe_payload, build_ping_payload,
@@ -202,7 +202,7 @@ fn build_pathological_fixture() -> Vec<u8> {
 
     // Mid-frame disconnect: declare a 200-byte payload but only
     // include 50 bytes before the file ends. The reader must NOT
-    // panic; it must surface a truncation / drain-yield error.
+    // panic; it must surface a truncation error.
     bytes.push(200u8); // len prefix
     bytes.push(StreamMsgType::Quote as u8); // code
     bytes.extend(std::iter::repeat_n(0xAB, 50));
@@ -229,12 +229,11 @@ fn replay_success_fixture_emits_expected_event_sequence() {
     let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
     let mut delta_state = DeltaState::new();
     let mut frame_buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
-    let mut frame_state = FrameReadState::new();
 
     let mut events: Vec<StreamEvent> = Vec::new();
 
     loop {
-        match read_frame_into(&mut cursor, &mut frame_buf, &mut frame_state) {
+        match read_frame_into(&mut cursor, &mut frame_buf) {
             Ok(Some((code, payload_len))) => {
                 let primary = decode_frame(
                     code,
@@ -338,7 +337,6 @@ fn replay_pathological_fixture_never_panics_or_blocks() {
     let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
     let mut delta_state = DeltaState::new();
     let mut frame_buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
-    let mut frame_state = FrameReadState::new();
 
     let mut events: Vec<StreamEvent> = Vec::new();
     let mut errored = false;
@@ -347,7 +345,7 @@ fn replay_pathological_fixture_never_panics_or_blocks() {
     // truncation error and spins instead trips this watchdog.
     let mut frames_seen: usize = 0;
     while frames_seen < 64 {
-        match read_frame_into(&mut cursor, &mut frame_buf, &mut frame_state) {
+        match read_frame_into(&mut cursor, &mut frame_buf) {
             Ok(Some((code, payload_len))) => {
                 let primary = decode_frame(
                     code,
@@ -365,7 +363,7 @@ fn replay_pathological_fixture_never_panics_or_blocks() {
             }
             Ok(None) => break, // clean EOF
             Err(_) => {
-                // Truncation / drain-yield surfaces as a typed error.
+                // Truncation surfaces as a typed error.
                 // The reader does NOT panic and the cursor stays bounded.
                 errored = true;
                 break;

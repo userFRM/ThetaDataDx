@@ -54,8 +54,7 @@ use super::decode::decode_frame;
 use super::delta::DeltaState;
 use super::events::{FpssEventInternal, IoCommand, StreamControl};
 use super::framing::{
-    self, is_drain_yield, read_frame_into_with_stall_timeout, write_raw_frame,
-    write_raw_frame_no_flush, FrameReadState,
+    self, read_frame_into_with_stall_timeout, write_raw_frame, write_raw_frame_no_flush,
 };
 use super::protocol::{self, build_login_payload, Contract};
 use super::reconnect_delay;
@@ -435,12 +434,6 @@ where
     // Reusable frame payload buffer.
     let mut frame_buf: Vec<u8> = Vec::with_capacity(framing::MAX_PAYLOAD_LEN);
 
-    // Per-frame resumption state. Preserved across `read_frame_into`
-    // calls so a drain-yield can hand control back to the command
-    // drain without losing the bytes already delivered by the TLS
-    // socket. Reset to idle on every complete frame.
-    let mut frame_state = FrameReadState::new();
-
     // Outer reconnection loop: each iteration runs one connection session.
     // On involuntary disconnect, the policy decides whether to reconnect.
     //
@@ -533,12 +526,8 @@ where
                 }
 
                 // --- Phase 1: Try to read a frame (short blocking read) ---
-                match read_frame_into_with_stall_timeout(
-                    &mut reader,
-                    &mut frame_buf,
-                    &mut frame_state,
-                    read_timeout,
-                ) {
+                match read_frame_into_with_stall_timeout(&mut reader, &mut frame_buf, read_timeout)
+                {
                     Ok(Some((code, payload_len))) => {
                         last_frame_at = Instant::now();
                         last_event_at_ns.store(unix_nanos_now(), Ordering::Relaxed);
@@ -649,23 +638,6 @@ where
                             break 'inner RemoveReason::TimedOut;
                         }
                         // Otherwise, fall through to drain commands.
-                    }
-                    Err(ref e) if is_drain_yield(e) => {
-                        // Mid-frame reader yielded so the command drain can
-                        // keep up. `frame_state` has
-                        // been updated with the exact byte offset in the
-                        // header / payload, so the next `read_frame_into`
-                        // call resumes without desync. Do NOT count this
-                        // toward `consecutive_timeouts` -- the TLS socket
-                        // IS delivering bytes, just slowly; a sustained
-                        // drain-yield is expected behaviour on a trickling
-                        // sender, not a sign of a dead connection. Fall
-                        // through to the Phase 2 drain.
-                        metrics::counter!("thetadatadx.fpss.drain_yields").increment(1);
-                        tracing::trace!(
-                            "mid-frame drain-yield -- draining outbound commands \
-                         before re-entering read"
-                        );
                     }
                     Err(e) => {
                         tracing::error!(error = %e, "FPSS read error");
@@ -1186,15 +1158,11 @@ where
         delta_state.clear();
         local_contracts.clear();
 
-        // Reset the frame reader to a clean header boundary. A drop that
-        // interrupted a partially transmitted frame leaves `frame_state`
-        // with `payload_phase == true` and a partial `payload_read`. The
-        // reborn reader below reads a brand-new session whose bytes start
-        // at a frame header, so a stale mid-frame position would consume
-        // the new session's leading bytes as the tail of a phantom frame
-        // and desync every frame after it. The invariant: a new
-        // connection always begins at a frame boundary.
-        frame_state = FrameReadState::new();
+        // The frame reader holds no cross-call state: each read consumes one
+        // complete frame from a header boundary, so a mid-frame disconnect
+        // leaves no residue for the reborn reader to desync on. The
+        // "a new connection always begins at a frame boundary" invariant
+        // holds by construction.
 
         // Fresh authenticated session. The stable-window anchor was already
         // cleared once at the reconnect decision (see `last_data_at = None`

@@ -19,7 +19,7 @@ use std::sync::Arc;
 use thetadatadx::StreamMsgType;
 
 use thetadatadx::fpss::__test_internals::{
-    decode_frame, read_frame_into, DeltaState, FrameReadState, MAX_PAYLOAD_LEN,
+    decode_frame, read_frame_into, DeltaState, MAX_PAYLOAD_LEN,
 };
 use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{StreamControl, StreamEvent};
@@ -58,11 +58,10 @@ fn single_unknown_opcode_skipped_without_desync() {
     let mut local: HashMap<i32, Arc<Contract>> = HashMap::new();
     let mut delta = DeltaState::new();
     let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
-    let mut state = FrameReadState::new();
     let mut events: Vec<StreamEvent> = Vec::new();
 
     for _ in 0..16 {
-        match read_frame_into(&mut cursor, &mut buf, &mut state) {
+        match read_frame_into(&mut cursor, &mut buf) {
             Ok(Some((code, n))) => {
                 let p = decode_frame(
                     code,
@@ -121,11 +120,10 @@ fn consecutive_unknown_opcodes_are_all_skipped() {
 
     let mut cursor = Cursor::new(bytes);
     let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
-    let mut state = FrameReadState::new();
 
     // A single read consumes and skips the entire run of unknown frames,
     // returning clean EOF — never a typed frame, never an error.
-    match read_frame_into(&mut cursor, &mut buf, &mut state) {
+    match read_frame_into(&mut cursor, &mut buf) {
         Ok(None) => {}
         Ok(Some(_)) => panic!("unknown opcode must not yield a typed frame"),
         Err(e) => panic!("a run of unknown opcodes must not escalate to an error: {e}"),
@@ -146,11 +144,10 @@ fn alternating_known_and_unknown_does_not_escalate() {
 
     let mut cursor = Cursor::new(bytes);
     let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
-    let mut state = FrameReadState::new();
 
     let mut frames = 0;
     for _ in 0..64 {
-        match read_frame_into(&mut cursor, &mut buf, &mut state) {
+        match read_frame_into(&mut cursor, &mut buf) {
             Ok(Some(_)) => frames += 1,
             Ok(None) => break,
             Err(e) => panic!("alternating sparse drift must not escalate: {e}"),
