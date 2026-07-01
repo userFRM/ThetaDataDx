@@ -117,9 +117,6 @@ pub struct FrameReadState {
     payload_read: usize,
     /// Expected payload length. Meaningful only during `payload_phase`.
     payload_len: usize,
-    /// Count of consecutive unknown codes observed during this
-    /// resumption chain. Resets when a known frame is returned.
-    consecutive_unknown: usize,
     /// Hard wall-clock deadline for the in-progress frame, armed when
     /// the first byte of the frame is read and carried across every
     /// resumed `read_frame_into*` / drain-yield re-entry. `None` until
@@ -143,8 +140,6 @@ impl FrameReadState {
         Self::default()
     }
 }
-
-const MAX_CONSECUTIVE_UNKNOWN_CODES: usize = 5;
 
 /// Read the 2-byte FPSS header with configurable per-stall timeout
 /// and drain-yield budget.
@@ -451,8 +446,8 @@ pub(crate) fn is_binary_payload(payload: &[u8]) -> bool {
 /// # Unknown message codes
 ///
 /// Frames with unrecognized codes are silently skipped (payload consumed
-/// to keep the stream aligned). After 5 consecutive unknown codes, returns
-/// an error to trigger reconnection.
+/// to keep the stream aligned), with no ceiling on how many may be
+/// skipped — the FIT decoder tolerates codes it does not recognize.
 /// # Errors
 ///
 /// Returns an error on network, authentication, or parsing failure.
@@ -542,28 +537,19 @@ pub fn read_frame_into_with_stall_timeout<R: Read>(
         // `state` is reset AFTER the code classification so a
         // drain-yield above (pre-classification) would have carried
         // the partial state through unchanged.
-        let consecutive_unknown = state.consecutive_unknown;
         let reset_state = FrameReadState::new();
         *state = reset_state;
 
         if let Some(code) = StreamMsgType::from_code(code_byte) {
             return Ok(Some((code, payload_len)));
         }
-        let new_consecutive = consecutive_unknown + 1;
-        if new_consecutive >= MAX_CONSECUTIVE_UNKNOWN_CODES {
-            return Err(crate::error::Error::Stream {
-                kind: crate::error::StreamErrorKind::ProtocolError,
-                message: format!(
-                    "framing corruption: {new_consecutive} consecutive \
-                     unknown message codes (last code: {code_byte})"
-                ),
-            });
-        }
-        state.consecutive_unknown = new_consecutive;
+        // Unrecognized code: the payload was consumed above to keep the
+        // stream aligned; skip and continue with no ceiling on how many may
+        // be skipped. The FIT decoder tolerates codes it does not recognize,
+        // matching the terminal.
         tracing::debug!(
             code = code_byte,
             payload_len,
-            consecutive_unknown = new_consecutive,
             "skipping unknown FPSS message code"
         );
     }
