@@ -122,6 +122,7 @@ Each update arrives as a `MarketValue` event with these fields:
 | Field | Type | Description |
 |---|---|---|
 | `contract` | contract | Resolved contract identity (symbol, security type, and option fields). |
+| `contract_id` | i32 | Stable numeric contract registry key; a join key, not identity. |
 | `ms_of_day` | i32 | Milliseconds since midnight Eastern Time. |
 | `market_bid` | f64 | Calculated market-value bid (stocks and options only). |
 | `market_ask` | f64 | Calculated market-value ask (stocks and options only). |
