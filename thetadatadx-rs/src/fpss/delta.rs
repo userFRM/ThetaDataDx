@@ -219,6 +219,19 @@ impl DeltaState {
         // wrong-width row leaves no state behind so a later correct absolute
         // row can re-seed cleanly.
         if is_absolute && tick_n != expected_fields {
+            // Wrong-width absolute row: reject before it seeds `prev` /
+            // `field_counts` (a wrong cached width would mis-decode every later
+            // delta row for this contract), mirroring the terminal, which
+            // requires each stream tick's exact length. `msg_code` identifies
+            // the shape; the caller surfaces `Unparseable` and bumps the
+            // per-shape decode-failure counter.
+            tracing::warn!(
+                msg_code,
+                contract_id,
+                got = tick_n,
+                expected = expected_fields,
+                "unexpected field count; marking unparseable"
+            );
             return None;
         }
 
