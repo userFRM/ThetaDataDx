@@ -62,8 +62,10 @@ static std::vector<const char*> string_ptrs(const std::vector<std::string>& item
 // We mirror `StreamingClient::operator=`'s rescue path exactly: hand BOTH the
 // retired handle and callback storage to a reclaimer that polls the same
 // drain barrier and releases them (handle first, then storage) only once the
-// consumer is confirmed quiesced, with the bounded `kReclaimQuiescenceCap` so
-// a wedged callback cannot leak — never a guessed wall-clock window.
+// consumer is confirmed quiesced — never a guessed wall-clock window. If the
+// callback is still wedged after `kReclaimQuiescenceCap`, the reclaimer leaks
+// the storage rather than destroy a `std::function` under a live invocation
+// (a bounded leak beats a use-after-free); see `reclaim_after_drain`.
 StreamingClient::~StreamingClient() {
     if (handle_) {
         thetadatadx_streaming_shutdown(handle_.get());
