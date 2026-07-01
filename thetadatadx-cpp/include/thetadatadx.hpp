@@ -1149,26 +1149,6 @@ public:
         return handle_ ? thetadatadx_streaming_panic_count(handle_.get()) : 0;
     }
 
-    /** Set the slow-callback wall-clock threshold in microseconds. When a
-     *  callback invocation runs longer than threshold_us,
-     *  slow_callback_count() increments and a rate-limited warning is
-     *  logged. Pass 0 to disable. Observability-only: the watchdog never
-     *  cancels the callback. No-op on a moved-from or shut-down client. */
-    void set_slow_callback_threshold_us(uint64_t threshold_us) const {
-        if (handle_) {
-            thetadatadx_streaming_set_slow_callback_threshold_us(handle_.get(), threshold_us);
-        }
-    }
-
-    /** Cumulative count of user-callback invocations whose wall-clock
-     *  duration exceeded the threshold set via
-     *  set_slow_callback_threshold_us(). Returns 0 when the watchdog is
-     *  disabled or no session is live. Safe to call on a moved-from
-     *  client. */
-    uint64_t slow_callback_count() const {
-        return handle_ ? thetadatadx_streaming_slow_callback_count(handle_.get()) : 0;
-    }
-
     /** Milliseconds since the most recent inbound streaming frame of
      *  any kind. Returns 0 on success with the value in *out_ms, 1
      *  when no session is live or no frame has been received yet, -1
@@ -1970,28 +1950,6 @@ public:
     /// Python / TypeScript `client.stream.panic_count` placement.
     uint64_t panic_count() const {
         return handle_ ? thetadatadx_client_panic_count(handle_.get()) : 0;
-    }
-
-    /// Set the slow-callback wall-clock threshold in microseconds. When a
-    /// callback invocation runs longer than threshold_us,
-    /// slow_callback_count() increments and a rate-limited warning is logged.
-    /// Pass 0 to disable. Observability-only: the watchdog never cancels the
-    /// callback. No-op when no callback has been installed yet. Mirrors the
-    /// Python / TypeScript `client.stream.set_slow_callback_threshold_us`
-    /// placement.
-    void set_slow_callback_threshold_us(uint64_t threshold_us) const {
-        if (handle_) {
-            thetadatadx_client_set_slow_callback_threshold_us(handle_.get(), threshold_us);
-        }
-    }
-
-    /// Cumulative count of user-callback invocations whose wall-clock duration
-    /// exceeded the threshold set via set_slow_callback_threshold_us(). Returns
-    /// 0 when the watchdog is disabled or no callback has been installed yet.
-    /// Mirrors the Python / TypeScript `client.stream.slow_callback_count`
-    /// placement.
-    uint64_t slow_callback_count() const {
-        return handle_ ? thetadatadx_client_slow_callback_count(handle_.get()) : 0;
     }
 
     /// Snapshot the currently-active full-stream subscriptions (the entire

@@ -262,7 +262,7 @@ pub fn decode_frame(
         Err(e) => {
             static FAIL_COUNT: AtomicU64 = AtomicU64::new(0);
             let prev = FAIL_COUNT.fetch_add(1, Ordering::Relaxed);
-            // Rate-limit at 1024 to match the slow-callback warn cadence.
+            // Rate-limit at 1024 to match the panic-count warn cadence.
             if prev.is_multiple_of(1024) {
                 tracing::warn!(
                     target: "thetadatadx::fpss::decode",

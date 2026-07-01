@@ -1062,7 +1062,7 @@ def _collect_typescript_setters(ts_src: pathlib.Path) -> set[str]:
         text = _read_source(rs)
         # Scope to `impl Config { ... }` blocks so a `set<X>` napi method
         # on a non-Config class (e.g. the live `StreamView` streaming
-        # knobs like `setSlowCallbackThresholdUs`) is not mistaken for a
+        # `setCallback`) is not mistaken for a
         # Config knob setter. This mirrors the Python collector, which
         # relies on `#[setter]` being a Config-property-only attribute,
         # and the C++/FFI collectors, which intersect with the
@@ -2921,8 +2921,6 @@ CORE_STREAMING_CLASS_TO_ROW: dict[str, str] = {
 CORE_STREAMING_METHOD_RENAMES: dict[str, str] = {
     "dropped_count": "droppedEventCount",
     "dropped_event_count": "droppedEventCount",
-    "slow_callback_count": "slowCallbackCount",
-    "set_slow_callback_threshold": "setSlowCallbackThresholdUs",
 }
 
 # An observability accessor is one whose name matches this shape. The
@@ -5732,8 +5730,6 @@ _FFI_OBS_SUFFIXES: frozenset[str] = frozenset(
         "ring_capacity",
         "ring_occupancy",
         "set_callback",
-        "set_slow_callback_threshold_us",
-        "slow_callback_count",
         "subscribe",
         "unsubscribe",
     }
@@ -8976,24 +8972,22 @@ def _run_selftest() -> int:
     def _case_core_streaming_positive_all_enrolled() -> None:
         """Every core observability accessor has a `[[method]]` row —
         gate is silent. Covers the `dropped_count` -> `droppedEventCount`
-        and `set_slow_callback_threshold` -> `setSlowCallbackThresholdUs`
-        renames plus the direct camelCase mappings."""
+        rename plus the direct camelCase mappings, including a
+        `set_*_threshold`-shaped setter that maps by default camelCase."""
         core_methods = {
             "StreamSurface": {
                 "dropped_event_count",
                 "ring_occupancy",
                 "ring_capacity",
                 "panic_count",
-                "slow_callback_count",
-                "set_slow_callback_threshold",
+                "set_example_threshold",
             },
             "StreamingClient": {
                 "dropped_count",
                 "ring_occupancy",
                 "ring_capacity",
                 "panic_count",
-                "slow_callback_count",
-                "set_slow_callback_threshold",
+                "set_example_threshold",
             },
         }
         rows = [
@@ -9003,8 +8997,7 @@ def _run_selftest() -> int:
                 "ringOccupancy",
                 "ringCapacity",
                 "panicCount",
-                "slowCallbackCount",
-                "setSlowCallbackThresholdUs",
+                "setExampleThreshold",
             )
         ] + [
             {"class": "StreamingClient", "name": n}
@@ -9013,8 +9006,7 @@ def _run_selftest() -> int:
                 "ringOccupancy",
                 "ringCapacity",
                 "panicCount",
-                "slowCallbackCount",
-                "setSlowCallbackThresholdUs",
+                "setExampleThreshold",
             )
         ]
         errors = _check_core_streaming_method_rows(core_methods, rows)
@@ -9025,20 +9017,20 @@ def _run_selftest() -> int:
     def _case_core_streaming_negative_unenrolled_getter() -> None:
         """A wired core counter with no `[[method]]` row trips the gate —
         the exact blind spot this check closes."""
-        core_methods = {"StreamSurface": {"slow_callback_count"}}
+        core_methods = {"StreamSurface": {"example_count"}}
         rows: list[dict[str, Any]] = []  # no enrolling row
         errors = _check_core_streaming_method_rows(core_methods, rows)
-        assert any("slow_callback_count" in e and "slowCallbackCount" in e for e in errors), (
+        assert any("example_count" in e and "exampleCount" in e for e in errors), (
             f"unenrolled core counter must trip the gate; got {errors!r}"
         )
 
     def _case_core_streaming_negative_unenrolled_setter() -> None:
         """A wired core threshold setter with no row trips, mapped to the
-        unit-suffixed binding row name."""
-        core_methods = {"StreamingClient": {"set_slow_callback_threshold"}}
+        default camelCase binding row name."""
+        core_methods = {"StreamingClient": {"set_example_threshold"}}
         rows: list[dict[str, Any]] = []
         errors = _check_core_streaming_method_rows(core_methods, rows)
-        assert any("setSlowCallbackThresholdUs" in e for e in errors), (
+        assert any("setExampleThreshold" in e for e in errors), (
             f"unenrolled core setter must trip the gate; got {errors!r}"
         )
 
@@ -9054,13 +9046,15 @@ def _run_selftest() -> int:
             assert not _is_core_observability_accessor(non_obs), (
                 f"{non_obs} must not be treated as an observability accessor"
             )
-        # The shape predicate accepts the genuine observability accessors.
+        # The shape predicate accepts the genuine observability accessors:
+        # cumulative counters (`*_count`), ring telemetry (`ring_*`), and a
+        # `set_*_threshold`-shaped setter.
         for obs in (
             "dropped_count",
             "ring_occupancy",
             "panic_count",
-            "slow_callback_count",
-            "set_slow_callback_threshold",
+            "example_count",
+            "set_example_threshold",
         ):
             assert _is_core_observability_accessor(obs), (
                 f"{obs} must be treated as an observability accessor"
