@@ -2493,7 +2493,6 @@ impl StreamSurface<'_> {
     pub fn record_panic(&self) {
         self.0.record_panic();
     }
-
 }
 
 /// Replay every saved subscription against the freshly reconnected

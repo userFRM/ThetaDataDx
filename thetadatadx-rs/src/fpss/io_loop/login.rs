@@ -59,7 +59,13 @@ pub fn wait_for_login(
     read_timeout: Duration,
 ) -> Result<LoginResult, Error> {
     let deadline = handshake_deadline(read_timeout);
-    wait_for_login_generic(stream, pending_control, deadline, read_timeout, Instant::now)
+    wait_for_login_generic(
+        stream,
+        pending_control,
+        deadline,
+        read_timeout,
+        Instant::now,
+    )
 }
 
 /// Read-generic variant of [`wait_for_login`] for unit-testable handshake
