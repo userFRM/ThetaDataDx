@@ -174,12 +174,14 @@ fn render_python_event_class_struct(event_name: &str, def: &EventDef) -> String 
     // tick-class renderer in `ticks/python_classes.rs::render_python_tick_class_struct`)
     // so pdb, Jupyter, pytest short-repr, and print()-based debugging
     // show actionable diagnostic data instead of an opaque
-    // `"Ohlcvc(...)"` placeholder. Cap at six columns to stay one-line
-    // readable; `Vec<u8>` payload columns (e.g. `UnknownFrame.payload`)
+    // `"Ohlcvc(...)"` placeholder. Cap at seven columns to stay one-line
+    // readable while still showing the leading `contract_id` join key and
+    // the primary payload field of every variant (price / bid+ask_size /
+    // volume); `Vec<u8>` payload columns (e.g. `UnknownFrame.payload`)
     // and `received_at_ns` are skipped because the first is unbounded
     // and the second is a timestamp that dwarfs the other fields
     // visually.
-    let repr_fields = fpss_event_repr_fields(&def.columns, 6);
+    let repr_fields = fpss_event_repr_fields(&def.columns, 7);
     if repr_fields.is_empty() {
         // Defensive fallback — every schema event has columns, but keep
         // the fallback so a future zero-column variant still compiles.

@@ -205,7 +205,7 @@ pub(crate) struct Ohlcvc {
 #[pymethods]
 impl Ohlcvc {
     fn __repr__(&self) -> String {
-        format!("Ohlcvc(contract_id={}, ms_of_day={}, open={}, high={}, low={}, close={})", self.contract_id, self.ms_of_day, self.open, self.high, self.low, self.close)
+        format!("Ohlcvc(contract_id={}, ms_of_day={}, open={}, high={}, low={}, close={}, volume={})", self.contract_id, self.ms_of_day, self.open, self.high, self.low, self.close, self.volume)
     }
 
     /// Streaming contract identity (`symbol`, `sec_type`,
@@ -300,7 +300,7 @@ pub(crate) struct Quote {
 #[pymethods]
 impl Quote {
     fn __repr__(&self) -> String {
-        format!("Quote(contract_id={}, ms_of_day={}, bid_size={}, bid_exchange={}, bid={}, bid_condition={})", self.contract_id, self.ms_of_day, self.bid_size, self.bid_exchange, self.bid, self.bid_condition)
+        format!("Quote(contract_id={}, ms_of_day={}, bid_size={}, bid_exchange={}, bid={}, bid_condition={}, ask_size={})", self.contract_id, self.ms_of_day, self.bid_size, self.bid_exchange, self.bid, self.bid_condition, self.ask_size)
     }
 
     /// Streaming contract identity (`symbol`, `sec_type`,
@@ -453,7 +453,7 @@ pub(crate) struct Trade {
 #[pymethods]
 impl Trade {
     fn __repr__(&self) -> String {
-        format!("Trade(contract_id={}, ms_of_day={}, sequence={}, condition={}, size={}, exchange={})", self.contract_id, self.ms_of_day, self.sequence, self.condition, self.size, self.exchange)
+        format!("Trade(contract_id={}, ms_of_day={}, sequence={}, condition={}, size={}, exchange={}, price={})", self.contract_id, self.ms_of_day, self.sequence, self.condition, self.size, self.exchange, self.price)
     }
 
     /// Streaming contract identity (`symbol`, `sec_type`,
