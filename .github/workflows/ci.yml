@@ -827,7 +827,10 @@ jobs:
           out="$(pwd)/${{ matrix.archive }}"
           if [ "${{ runner.os }}" = "Windows" ]; then
             # `7z` ships on GitHub Windows runners and produces a standard zip.
-            ( cd "$(dirname "$stage")" && 7z a -tzip "$out" "$(basename "$stage")" >/dev/null )
+            # `$out` is a Git-bash (MSYS) path (/d/a/...); native `7z` needs the
+            # Windows form (`cygpath -w`) or it writes the archive to a path the
+            # upload step cannot find.
+            ( cd "$(dirname "$stage")" && 7z a -tzip "$(cygpath -w "$out")" "$(basename "$stage")" >/dev/null )
           else
             tar -czf "$out" -C "$(dirname "$stage")" "$(basename "$stage")"
           fi
