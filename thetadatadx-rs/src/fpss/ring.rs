@@ -442,6 +442,7 @@ mod tests {
         producer.publish(|slot| {
             slot.event = FpssEventInternal::Data(StreamData::Quote {
                 contract: std::sync::Arc::clone(&ring_contract),
+                contract_id: 0,
                 ms_of_day: 34200000,
                 bid_size: 100,
                 bid_exchange: 1,
@@ -542,6 +543,7 @@ mod tests {
             producer.publish(|slot| {
                 slot.event = FpssEventInternal::Data(StreamData::Quote {
                     contract: contract_clone,
+                    contract_id: 0,
                     ms_of_day: 0,
                     bid_size: 0,
                     bid_exchange: 0,

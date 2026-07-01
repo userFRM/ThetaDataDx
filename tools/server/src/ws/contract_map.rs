@@ -34,6 +34,7 @@ mod tests {
     fn make_quote(contract: Arc<Contract>) -> StreamEvent {
         StreamEvent::Data(StreamData::Quote {
             contract,
+            contract_id: 0,
             ms_of_day: 0,
             bid_size: 0,
             bid_exchange: 0,

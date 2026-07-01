@@ -160,6 +160,7 @@ impl MarketOpen {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct MarketValue {
     pub contract: fpss::protocol::Contract,
+    #[pyo3(get)] pub contract_id: i32,
     #[pyo3(get)] pub ms_of_day: i32,
     #[pyo3(get)] pub market_bid: f64,
     #[pyo3(get)] pub market_ask: f64,
@@ -170,7 +171,7 @@ pub(crate) struct MarketValue {
 #[pymethods]
 impl MarketValue {
     fn __repr__(&self) -> String {
-        format!("MarketValue(ms_of_day={}, market_bid={}, market_ask={}, market_price={}, date={})", self.ms_of_day, self.market_bid, self.market_ask, self.market_price, self.date)
+        format!("MarketValue(contract_id={}, ms_of_day={}, market_bid={}, market_ask={}, market_price={}, date={})", self.contract_id, self.ms_of_day, self.market_bid, self.market_ask, self.market_price, self.date)
     }
 
     /// Streaming contract identity (`symbol`, `sec_type`,
@@ -190,6 +191,7 @@ impl MarketValue {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct Ohlcvc {
     pub contract: fpss::protocol::Contract,
+    #[pyo3(get)] pub contract_id: i32,
     #[pyo3(get)] pub ms_of_day: i32,
     #[pyo3(get)] pub open: f64,
     #[pyo3(get)] pub high: f64,
@@ -203,7 +205,7 @@ pub(crate) struct Ohlcvc {
 #[pymethods]
 impl Ohlcvc {
     fn __repr__(&self) -> String {
-        format!("Ohlcvc(ms_of_day={}, open={}, high={}, low={}, close={}, volume={})", self.ms_of_day, self.open, self.high, self.low, self.close, self.volume)
+        format!("Ohlcvc(contract_id={}, ms_of_day={}, open={}, high={}, low={}, close={})", self.contract_id, self.ms_of_day, self.open, self.high, self.low, self.close)
     }
 
     /// Streaming contract identity (`symbol`, `sec_type`,
@@ -223,6 +225,7 @@ impl Ohlcvc {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct OpenInterest {
     pub contract: fpss::protocol::Contract,
+    #[pyo3(get)] pub contract_id: i32,
     #[pyo3(get)] pub ms_of_day: i32,
     #[pyo3(get)] pub open_interest: i32,
     #[pyo3(get)] pub date: i32,
@@ -231,7 +234,7 @@ pub(crate) struct OpenInterest {
 #[pymethods]
 impl OpenInterest {
     fn __repr__(&self) -> String {
-        format!("OpenInterest(ms_of_day={}, open_interest={}, date={})", self.ms_of_day, self.open_interest, self.date)
+        format!("OpenInterest(contract_id={}, ms_of_day={}, open_interest={}, date={})", self.contract_id, self.ms_of_day, self.open_interest, self.date)
     }
 
     /// Streaming contract identity (`symbol`, `sec_type`,
@@ -281,6 +284,7 @@ impl Ping {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct Quote {
     pub contract: fpss::protocol::Contract,
+    #[pyo3(get)] pub contract_id: i32,
     #[pyo3(get)] pub ms_of_day: i32,
     #[pyo3(get)] pub bid_size: i32,
     #[pyo3(get)] pub bid_exchange: i32,
@@ -296,7 +300,7 @@ pub(crate) struct Quote {
 #[pymethods]
 impl Quote {
     fn __repr__(&self) -> String {
-        format!("Quote(ms_of_day={}, bid_size={}, bid_exchange={}, bid={}, bid_condition={}, ask_size={})", self.ms_of_day, self.bid_size, self.bid_exchange, self.bid, self.bid_condition, self.ask_size)
+        format!("Quote(contract_id={}, ms_of_day={}, bid_size={}, bid_exchange={}, bid={}, bid_condition={})", self.contract_id, self.ms_of_day, self.bid_size, self.bid_exchange, self.bid, self.bid_condition)
     }
 
     /// Streaming contract identity (`symbol`, `sec_type`,
@@ -436,6 +440,7 @@ impl ServerError {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct Trade {
     pub contract: fpss::protocol::Contract,
+    #[pyo3(get)] pub contract_id: i32,
     #[pyo3(get)] pub ms_of_day: i32,
     #[pyo3(get)] pub sequence: i32,
     #[pyo3(get)] pub condition: i32,
@@ -448,7 +453,7 @@ pub(crate) struct Trade {
 #[pymethods]
 impl Trade {
     fn __repr__(&self) -> String {
-        format!("Trade(ms_of_day={}, sequence={}, condition={}, size={}, exchange={}, price={})", self.ms_of_day, self.sequence, self.condition, self.size, self.exchange, self.price)
+        format!("Trade(contract_id={}, ms_of_day={}, sequence={}, condition={}, size={}, exchange={})", self.contract_id, self.ms_of_day, self.sequence, self.condition, self.size, self.exchange)
     }
 
     /// Streaming contract identity (`symbol`, `sec_type`,
@@ -505,6 +510,7 @@ pub(crate) fn fpss_event_to_typed(
         fpss::StreamEvent::Data(data) => match data {
             fpss::StreamData::MarketValue {
                 contract,
+                contract_id,
                 ms_of_day,
                 market_bid,
                 market_ask,
@@ -516,6 +522,7 @@ pub(crate) fn fpss_event_to_typed(
                 py,
                 MarketValue {
                     contract: (**contract).clone(),
+                    contract_id: *contract_id,
                     ms_of_day: *ms_of_day,
                     market_bid: *market_bid,
                     market_ask: *market_ask,
@@ -527,6 +534,7 @@ pub(crate) fn fpss_event_to_typed(
             .map(|p| p.into_any()),
             fpss::StreamData::Ohlcvc {
                 contract,
+                contract_id,
                 ms_of_day,
                 open,
                 high,
@@ -541,6 +549,7 @@ pub(crate) fn fpss_event_to_typed(
                 py,
                 Ohlcvc {
                     contract: (**contract).clone(),
+                    contract_id: *contract_id,
                     ms_of_day: *ms_of_day,
                     open: *open,
                     high: *high,
@@ -555,6 +564,7 @@ pub(crate) fn fpss_event_to_typed(
             .map(|p| p.into_any()),
             fpss::StreamData::OpenInterest {
                 contract,
+                contract_id,
                 ms_of_day,
                 open_interest,
                 date,
@@ -564,6 +574,7 @@ pub(crate) fn fpss_event_to_typed(
                 py,
                 OpenInterest {
                     contract: (**contract).clone(),
+                    contract_id: *contract_id,
                     ms_of_day: *ms_of_day,
                     open_interest: *open_interest,
                     date: *date,
@@ -573,6 +584,7 @@ pub(crate) fn fpss_event_to_typed(
             .map(|p| p.into_any()),
             fpss::StreamData::Quote {
                 contract,
+                contract_id,
                 ms_of_day,
                 bid_size,
                 bid_exchange,
@@ -589,6 +601,7 @@ pub(crate) fn fpss_event_to_typed(
                 py,
                 Quote {
                     contract: (**contract).clone(),
+                    contract_id: *contract_id,
                     ms_of_day: *ms_of_day,
                     bid_size: *bid_size,
                     bid_exchange: *bid_exchange,
@@ -605,6 +618,7 @@ pub(crate) fn fpss_event_to_typed(
             .map(|p| p.into_any()),
             fpss::StreamData::Trade {
                 contract,
+                contract_id,
                 ms_of_day,
                 sequence,
                 condition,
@@ -618,6 +632,7 @@ pub(crate) fn fpss_event_to_typed(
                 py,
                 Trade {
                     contract: (**contract).clone(),
+                    contract_id: *contract_id,
                     ms_of_day: *ms_of_day,
                     sequence: *sequence,
                     condition: *condition,

@@ -384,6 +384,7 @@ pub fn decode_frame(
                     FPSS_QUOTE_EVENTS.increment(1);
                     Some(FpssEventInternal::Data(StreamData::Quote {
                         contract: resolve_contract(contract_id, local_contracts),
+                        contract_id,
                         ms_of_day: buf[0],
                         bid_size: buf[1],
                         bid_exchange: buf[2],
@@ -453,6 +454,7 @@ pub fn decode_frame(
                     let contract_arc = resolve_contract(contract_id, local_contracts);
                     let trade_event = FpssEventInternal::Data(StreamData::Trade {
                         contract: contract_arc,
+                        contract_id,
                         ms_of_day: buf[0],
                         sequence: buf[1],
                         condition: buf[3],
@@ -486,6 +488,7 @@ pub fn decode_frame(
                     FPSS_OI_EVENTS.increment(1);
                     Some(FpssEventInternal::Data(StreamData::OpenInterest {
                         contract: resolve_contract(contract_id, local_contracts),
+                        contract_id,
                         ms_of_day: buf[0],
                         open_interest: buf[1],
                         date: buf[2],
@@ -527,6 +530,7 @@ pub fn decode_frame(
                     let count = i64::from(buf[6] as u32);
                     Some(FpssEventInternal::Data(StreamData::Ohlcvc {
                         contract: resolve_contract(contract_id, local_contracts),
+                        contract_id,
                         ms_of_day: buf[0],
                         open: o,
                         high: h,
@@ -580,6 +584,7 @@ pub fn decode_frame(
                     FPSS_MARKET_VALUE_EVENTS.increment(1);
                     Some(FpssEventInternal::Data(StreamData::MarketValue {
                         contract: resolve_contract(contract_id, local_contracts),
+                        contract_id,
                         ms_of_day: buf[0],
                         market_bid,
                         market_ask,
@@ -876,6 +881,129 @@ mod tests {
                 assert_eq!(*date, 20250428);
             }
             other => panic!("expected StreamEvent::Data(Trade), got {other:?}"),
+        }
+    }
+
+    /// Every decoded data event surfaces the raw wire `contract_id` (FIT
+    /// field 0) as a read-only join key — present and correct for a Trade
+    /// and a Quote, and equal to the value the matching `ContractAssigned`
+    /// carries once the contract resolves. Populated from the wire id, not
+    /// the resolved contract, so it is right even for the unresolved case.
+    #[test]
+    fn decode_frame_surfaces_wire_contract_id_on_data_events() {
+        const CID: i32 = 4242;
+
+        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let authenticated = AtomicBool::new(true);
+        let shutdown = AtomicBool::new(false);
+        let mut delta_state = DeltaState::new();
+
+        // ── ContractAssigned publishes the same id we expect on the ticks.
+        let mut assign_payload = Vec::new();
+        assign_payload.extend_from_slice(&CID.to_be_bytes());
+        assign_payload.extend_from_slice(&Contract::stock("AAPL").to_bytes());
+        let assigned = decode_frame(
+            StreamMsgType::Contract,
+            &assign_payload,
+            &authenticated,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+        )
+        .expect("ContractAssigned must emit an event");
+        let assigned_id = match expect_public(&assigned) {
+            StreamEvent::Control(StreamControl::ContractAssigned { id, .. }) => *id,
+            other => panic!("expected ContractAssigned, got {other:?}"),
+        };
+        assert_eq!(assigned_id, CID);
+
+        // ── Trade: contract_id == wire id, and == the ContractAssigned id.
+        let trade_row =
+            encode_fit_row(&[CID, 34_200_000, 12_345, 50, 6, 5_500_000, 57, 6, 20_250_428]);
+        let trade = decode_frame(
+            StreamMsgType::Trade,
+            &trade_row,
+            &authenticated,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+        )
+        .expect("Trade must emit an event");
+        match expect_public(&trade) {
+            StreamEvent::Data(StreamData::Trade { contract_id, .. }) => {
+                assert_eq!(*contract_id, CID, "Trade must carry the wire contract_id");
+                assert_eq!(
+                    *contract_id, assigned_id,
+                    "resolved Trade contract_id must match the ContractAssigned id"
+                );
+            }
+            other => panic!("expected Data(Trade), got {other:?}"),
+        }
+
+        // ── Quote: same contract_id on a different tick shape.
+        let quote_row = encode_fit_row(&[
+            CID, 34_200_001, 10, 4, 15_025, 0, 12, 4, 15_030, 0, 6, 20_250_428,
+        ]);
+        let quote = decode_frame(
+            StreamMsgType::Quote,
+            &quote_row,
+            &authenticated,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+        )
+        .expect("Quote must emit an event");
+        match expect_public(&quote) {
+            StreamEvent::Data(StreamData::Quote { contract_id, .. }) => {
+                assert_eq!(*contract_id, CID, "Quote must carry the wire contract_id");
+            }
+            other => panic!("expected Data(Quote), got {other:?}"),
+        }
+    }
+
+    /// A tick that arrives before its `ContractAssigned` still surfaces the
+    /// wire `contract_id`: it is populated from the FIT wire id, not the
+    /// resolved contract, so the unresolved-sentinel case carries the real
+    /// id even though `contract.sec_type == Unknown`.
+    #[test]
+    fn decode_frame_surfaces_contract_id_even_when_unresolved() {
+        const CID: i32 = 987_654;
+        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        let authenticated = AtomicBool::new(true);
+        let shutdown = AtomicBool::new(false);
+        let mut delta_state = DeltaState::new();
+
+        // No ContractAssigned seeded: the lookup misses, the contract is the
+        // unresolved sentinel, but contract_id is the raw wire id regardless.
+        let quote_row = encode_fit_row(&[
+            CID, 34_200_000, 10, 4, 15_025, 0, 12, 4, 15_030, 0, 6, 20_250_428,
+        ]);
+        let quote = decode_frame(
+            StreamMsgType::Quote,
+            &quote_row,
+            &authenticated,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+        )
+        .expect("Quote must emit an event");
+        match expect_public(&quote) {
+            StreamEvent::Data(StreamData::Quote {
+                contract,
+                contract_id,
+                ..
+            }) => {
+                assert_eq!(
+                    contract.sec_type,
+                    crate::tdbe::types::enums::SecType::Unknown,
+                    "unresolved tick must carry the sentinel contract"
+                );
+                assert_eq!(
+                    *contract_id, CID,
+                    "contract_id must be the raw wire id even when unresolved"
+                );
+            }
+            other => panic!("expected Data(Quote), got {other:?}"),
         }
     }
 

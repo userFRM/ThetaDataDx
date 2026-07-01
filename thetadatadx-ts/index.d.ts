@@ -3829,6 +3829,7 @@ export interface MarketOpen {
 /** Streaming MarketValue tick (wire code 25). A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant). */
 export interface MarketValue {
   contract: Contract
+  contractId: number
   msOfDay: number
   marketBid: number
   marketAsk: number
@@ -3898,6 +3899,7 @@ export declare function ohlcTickToArrowIpc(rows: Array<OhlcTick>): Buffer
 /** Streaming OHLCVC bar. */
 export interface Ohlcvc {
   contract: Contract
+  contractId: number
   msOfDay: number
   open: number
   high: number
@@ -3912,6 +3914,7 @@ export interface Ohlcvc {
 /** Streaming OpenInterest tick. */
 export interface OpenInterest {
   contract: Contract
+  contractId: number
   msOfDay: number
   openInterest: number
   date: number
@@ -5078,6 +5081,7 @@ export declare function priceTickToArrowIpc(rows: Array<PriceTick>): Buffer
 /** Streaming Quote tick. */
 export interface Quote {
   contract: Contract
+  contractId: number
   msOfDay: number
   bidSize: number
   bidExchange: number
@@ -5556,6 +5560,7 @@ export interface StreamEvent {
 /** Streaming Trade tick. */
 export interface Trade {
   contract: Contract
+  contractId: number
   msOfDay: number
   sequence: number
   condition: number
