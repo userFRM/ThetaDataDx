@@ -1716,7 +1716,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx"
-version = "13.0.0-rc.10"
+version = "13.0.0-rc.11"
 dependencies = [
  "arc-swap",
  "bytes",
@@ -1757,7 +1757,7 @@ dependencies = [
 
 [[package]]
 name = "thetadatadx-mcp"
-version = "13.0.0-rc.10"
+version = "13.0.0-rc.11"
 dependencies = [
  "serde",
  "sonic-rs",
