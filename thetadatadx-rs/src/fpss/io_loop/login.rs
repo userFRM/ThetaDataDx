@@ -7,7 +7,7 @@
 //! captured for replay onto the event bus once the Disruptor producer
 //! is live.
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use crate::tdbe::types::enums::{RemoveReason, StreamMsgType};
 
@@ -22,18 +22,6 @@ use super::super::protocol::parse_disconnect_reason;
 pub enum LoginResult {
     Success(String),
     Disconnected(RemoveReason),
-}
-
-/// Wall-clock budget for a single handshake, independent of the per-read
-/// socket timeout. A chatty peer that sends a control frame just before each
-/// read timeout would otherwise reset the per-read deadline forever; this
-/// caps the total time the reconnect thread can spend in one handshake.
-fn handshake_deadline(read_timeout: Duration) -> Instant {
-    // Generous relative to a single read so a legitimately slow but
-    // progressing handshake is never cut off, yet bounded so a chatty
-    // no-`Metadata` peer cannot wedge the reconnect thread.
-    let budget = (read_timeout.saturating_mul(5)).max(Duration::from_secs(15));
-    Instant::now() + budget
 }
 
 /// Wait for the server's login response (blocking).
@@ -58,14 +46,7 @@ pub fn wait_for_login(
     pending_control: &mut Vec<StreamControl>,
     read_timeout: Duration,
 ) -> Result<LoginResult, Error> {
-    let deadline = handshake_deadline(read_timeout);
-    wait_for_login_generic(
-        stream,
-        pending_control,
-        deadline,
-        read_timeout,
-        Instant::now,
-    )
+    wait_for_login_generic(stream, pending_control, read_timeout)
 }
 
 /// Read-generic variant of [`wait_for_login`] for unit-testable handshake
@@ -73,37 +54,24 @@ pub fn wait_for_login(
 /// point above and in-memory test harnesses can drive it against a
 /// buffer of pre-canned frames.
 ///
-/// `deadline` is a wall-clock backstop that bounds a peer which streams
-/// control frames without ever completing the handshake: the per-read socket
-/// timeout alone cannot, because each frame resets it. `now` injects the
-/// clock so tests can drive the deadline deterministically. It is checked
-/// between complete frames; a single frame's read is bounded by
-/// `stall_timeout` (the per-stall no-progress budget the reader enforces),
-/// so a peer that dribbles a partial frame and then goes silent is cut off
-/// by that stall timeout rather than held indefinitely.
-fn wait_for_login_generic<R, C>(
+/// Login is bounded solely by the socket read timeout, exactly like the
+/// terminal: a mute peer that sends nothing surfaces a pre-header read
+/// timeout (`WouldBlock` / `TimedOut`) which propagates as an error the
+/// caller reconnects on, and a peer that dribbles a partial frame then goes
+/// silent is cut off by the per-stall no-progress budget (`stall_timeout`).
+/// There is no wall-clock handshake cap.
+fn wait_for_login_generic<R>(
     stream: &mut R,
     pending_control: &mut Vec<StreamControl>,
-    deadline: Instant,
     stall_timeout: Duration,
-    mut now: C,
 ) -> Result<LoginResult, Error>
 where
     R: std::io::Read,
-    C: FnMut() -> Instant,
 {
     // Reused across frames. Each read consumes one complete frame bounded by
-    // the per-stall timeout; the wall-clock deadline is checked between frames.
+    // the per-stall / socket read timeout.
     let mut frame_buf: Vec<u8> = Vec::new();
     loop {
-        if now() >= deadline {
-            return Err(Error::Stream {
-                kind: crate::error::StreamErrorKind::Timeout,
-                message: "login handshake did not complete within the handshake deadline"
-                    .to_string(),
-            });
-        }
-
         let (code, payload_len) =
             match read_frame_into_with_stall_timeout(stream, &mut frame_buf, stall_timeout) {
                 Ok(Some(frame)) => frame,
@@ -192,20 +160,14 @@ mod tests {
         v
     }
 
-    /// Drive the handshake with a far-future deadline that never trips, for
-    /// the dispatch/ordering tests.
+    /// Drive the handshake with a generous per-stall timeout for the
+    /// dispatch/ordering tests (the in-memory cursors always have a complete
+    /// frame ready, so the timeout never trips).
     fn run_handshake<R: std::io::Read>(
         stream: &mut R,
         pending_control: &mut Vec<StreamControl>,
     ) -> Result<LoginResult, Error> {
-        let deadline = Instant::now() + Duration::from_secs(3_600);
-        wait_for_login_generic(
-            stream,
-            pending_control,
-            deadline,
-            Duration::from_secs(10),
-            Instant::now,
-        )
+        wait_for_login_generic(stream, pending_control, Duration::from_secs(10))
     }
 
     /// A CONNECTED frame arriving BEFORE METADATA must be captured in
@@ -413,48 +375,46 @@ mod tests {
         assert!(matches!(pending[3], StreamControl::Restart));
     }
 
-    /// A peer that streams control frames without ever sending METADATA must
-    /// not wedge the handshake. With the per-read socket timeout reset by
-    /// every frame, the wall-clock deadline is the only backstop: once it
-    /// passes, the handshake returns a timeout instead of looping forever.
-    #[test]
-    fn wait_for_login_chatty_no_metadata_hits_deadline() {
-        // A long buffer of PING frames and no METADATA: read_frame always has
-        // a frame to return, so only the deadline can stop the loop.
-        let mut buf = Vec::new();
-        for _ in 0..1_000 {
-            buf.extend_from_slice(&wire_frame(StreamMsgType::Ping, &[0x00]));
+    /// Reader that models a mute peer: the socket read timeout (`SO_RCVTIMEO`)
+    /// fires before any byte arrives, so `read` returns `WouldBlock` / `TimedOut`
+    /// with zero bytes read.
+    struct MutePeer {
+        kind: std::io::ErrorKind,
+    }
+
+    impl std::io::Read for MutePeer {
+        fn read(&mut self, _buf: &mut [u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::new(self.kind, "socket read timeout"))
         }
-        let mut cursor = std::io::Cursor::new(buf);
+    }
 
-        // A clock that jumps past the deadline after a few iterations,
-        // emulating wall-clock time advancing while the peer keeps talking.
-        let start = Instant::now();
-        let deadline = start + Duration::from_secs(10);
-        let mut ticks = 0u32;
-        let clock = move || {
-            ticks += 1;
-            if ticks > 3 {
-                deadline + Duration::from_secs(1)
-            } else {
-                start
+    /// A mute peer that never sends a login response must not wedge the
+    /// handshake: the socket read timeout fires pre-header and propagates as an
+    /// error the caller reconnects on. This is the terminal's only bound on a
+    /// silent peer — there is no separate wall-clock handshake cap. Both the
+    /// Linux/non-blocking (`WouldBlock`) and macOS/blocking (`TimedOut`)
+    /// spellings of `SO_RCVTIMEO` must terminate the handshake identically.
+    #[test]
+    fn wait_for_login_mute_peer_bounded_by_socket_read_timeout() {
+        for kind in [std::io::ErrorKind::WouldBlock, std::io::ErrorKind::TimedOut] {
+            let mut reader = MutePeer { kind };
+            let mut pending: Vec<StreamControl> = Vec::new();
+            let result = wait_for_login_generic(&mut reader, &mut pending, Duration::from_secs(10));
+            match result {
+                // A pre-header transient surfaces as `Error::Io`; the io_loop
+                // reconnect path treats any login `Err` as a failed attempt.
+                Err(Error::Io(_)) => {}
+                Ok(_) => panic!(
+                    "a mute peer that sends no login response must error, not succeed ({kind:?})"
+                ),
+                Err(other) => panic!(
+                    "a mute peer must surface the socket read timeout as Error::Io, got {other:?}"
+                ),
             }
-        };
-
-        let mut pending: Vec<StreamControl> = Vec::new();
-        let result = wait_for_login_generic(
-            &mut cursor,
-            &mut pending,
-            deadline,
-            Duration::from_secs(10),
-            clock,
-        );
-        match result {
-            Err(Error::Stream { kind, .. }) => {
-                assert!(matches!(kind, crate::error::StreamErrorKind::Timeout));
-            }
-            Err(other) => panic!("expected an Fpss timeout error, got {other:?}"),
-            Ok(_) => panic!("a chatty no-METADATA peer must trip the handshake deadline"),
+            assert!(
+                pending.is_empty(),
+                "a mute peer produced no control frames to buffer"
+            );
         }
     }
 
@@ -502,17 +462,10 @@ mod tests {
         };
 
         let mut pending: Vec<StreamControl> = Vec::new();
-        let result = wait_for_login_generic(
-            &mut reader,
-            &mut pending,
-            // Far-future wall-clock deadline: the per-stall timeout is what
-            // must end the handshake here.
-            Instant::now() + Duration::from_secs(3_600),
-            // Short per-stall budget: the permanent mid-payload silence trips
-            // it quickly.
-            Duration::from_millis(30),
-            Instant::now,
-        );
+        // Short per-stall budget: the permanent mid-payload silence trips it
+        // quickly. This per-stall no-progress timeout is the terminal's only
+        // mid-frame bound.
+        let result = wait_for_login_generic(&mut reader, &mut pending, Duration::from_millis(30));
         match result {
             Err(Error::Stream { kind, message }) => {
                 assert!(

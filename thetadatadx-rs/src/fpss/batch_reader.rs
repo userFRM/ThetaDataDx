@@ -707,7 +707,15 @@ impl RecordBatchStream {
         if self.shared.closed.load(Ordering::Acquire) {
             return Poll::Ready(None);
         }
-        guard.waker = Some(cx.waker().clone());
+        // Only re-store the waker when it would wake a different task than the
+        // one already parked, avoiding a clone on every Pending poll.
+        if !guard
+            .waker
+            .as_ref()
+            .is_some_and(|w| w.will_wake(cx.waker()))
+        {
+            guard.waker = Some(cx.waker().clone());
+        }
         Poll::Pending
     }
 

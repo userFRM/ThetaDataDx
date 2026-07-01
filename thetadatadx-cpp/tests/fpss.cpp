@@ -8,6 +8,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
+#include <optional>
 #include <string>
 #include <thread>
 
@@ -66,6 +67,57 @@ TEST_CASE("StreamingClient binds the observability surface",
     STATIC_REQUIRE(std::is_same_v<
         decltype(std::declval<const SC&>().active_full_subscriptions()),
         std::vector<thetadatadx::FullSubscription>>);
+}
+
+TEST_CASE("StreamingClient teardown without a callback completes promptly",
+          "[fpss][offline]") {
+    // `thetadatadx_streaming_connect` only allocates a handle and stashes the
+    // connection params; the FPSS TLS connection + consumer thread are created
+    // lazily at `set_callback`. So a StreamingClient can be constructed offline
+    // and, with no callback ever installed, has no consumer thread to drain.
+    // Teardown must NOT enter the retired-session reclaimer (whose poll runs
+    // for up to kReclaimQuiescenceCap = 300 s): with `callback_` null the
+    // members destruct synchronously. Regression guard for a teardown that
+    // hot-spun ~300 s and then leaked the credential-bearing handle.
+    auto creds = thetadatadx::Credentials::from_api_key("offline-test-key");
+    auto config = thetadatadx::Config::production();
+
+    const auto start = std::chrono::steady_clock::now();
+    {
+        thetadatadx::StreamingClient client(creds, config);
+        // Intentionally never call set_callback: no consumer thread, no ctx.
+    } // destructor runs here
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+
+    // Well under a second; the pre-fix hot-spin path took ~300 s.
+    REQUIRE(elapsed < std::chrono::seconds(1));
+}
+
+TEST_CASE("StreamingClient teardown after a throwing set_callback completes promptly",
+          "[fpss][offline]") {
+    // Offline, `set_callback` opens the FPSS connection, fails to reach the
+    // server, and throws — leaving `callback_` null because the adopt happens
+    // only after the FFI reports success. Teardown of such a client must also
+    // skip the reclaimer (nothing was ever wired) and destruct synchronously.
+    auto creds = thetadatadx::Credentials::from_api_key("offline-test-key");
+    auto config = thetadatadx::Config::production();
+
+    // Optional so the destructor can be timed in isolation: the connect inside
+    // set_callback may take a bounded moment to fail offline, and only the
+    // teardown must be fast. Reset() below runs the destructor under the clock.
+    auto client = std::make_optional<thetadatadx::StreamingClient>(creds, config);
+    // No server reachable offline, so the connect inside set_callback must fail
+    // and throw; the callback is NOT adopted on the throw path (callback_ stays
+    // null).
+    REQUIRE_THROWS(client->set_callback(
+        [](const thetadatadx::StreamEvent& /*event*/) {}));
+
+    const auto start = std::chrono::steady_clock::now();
+    client.reset(); // destructor runs here, with callback_ still null
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+
+    // Well under a second; the pre-fix hot-spin path took ~300 s.
+    REQUIRE(elapsed < std::chrono::seconds(1));
 }
 
 TEST_CASE("StreamingClient registers a callback and receives at least one event",
