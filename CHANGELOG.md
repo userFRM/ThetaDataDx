@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.0.0-rc.12] - 2026-07-01
+
+### Fixed
+
+- **C++ standalone `StreamingClient` teardown.** Destroying (or move-assigning) a `StreamingClient` with no callback installed no longer spins a CPU core to the drain quiescence cap and then leaks the handle; the deferred reclaim is skipped when no callback is installed and the reclaim loop paces itself (#1064).
+- **Wrong-width streaming rows no longer trap a contract.** A complete-but-narrow first row (e.g. a 7-field trade) is rejected before it seeds the per-contract field-width cache, so a later correct row decodes cleanly instead of the contract being dropped until the next session reset. Applies uniformly to every stream tick shape; dropped rows are logged and counted (#1047).
+- **Windows server archive.** The `thetadatadx-server` Windows build now zips to the expected path, so the release attaches the Windows binary (previously the archive step wrote to a mismatched path and the upload found nothing).
+
+### Changed
+
+- Streaming login is bounded solely by the socket read timeout, consistent with the rest of the read path (the separate wall-clock handshake deadline is removed) (#1064).
+
 ## [13.0.0-rc.11] - 2026-07-01
 
 ### Removed
