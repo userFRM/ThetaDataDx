@@ -3,8 +3,8 @@
 //! [`decode_frame`] is the dispatch core of the I/O loop. It runs FIT
 //! decompression through [`super::delta::DeltaState`] and emits the typed
 //! event a frame decodes to. OHLCVC bars arrive as their own wire frames
-//! (code 24) and decode alongside the other events; the decoder derives
-//! nothing.
+//! (code 24) and decode alongside the other events; the decoder emits
+//! no derived events (for example, no trade-to-OHLCVC).
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -440,12 +440,13 @@ pub fn decode_frame(
                     // mis-decode every later delta row for that contract.
                     // Treat it as a decode failure and surface `Unparseable`,
                     // mirroring the invalid-price_type handling.
-                    if n_data != 8 {
+                    if n_data != TRADE_FIELDS {
                         FPSS_TRADE_DECODE_FAILURES.increment(1);
                         tracing::warn!(
                             contract_id,
                             n_data,
-                            "unexpected trade field count (expected 8); marking unparseable"
+                            expected = TRADE_FIELDS,
+                            "unexpected trade field count; marking unparseable"
                         );
                         return (Some(FpssEventInternal::Unparseable), None);
                     }

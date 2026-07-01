@@ -100,13 +100,14 @@ pub(super) fn fpss_event_to_ws_json(
                     ..
                 } => (
                     "TRADE",
-                    // Field set matches the wire trade frame exactly:
-                    // `ms_of_day, sequence, size, condition, price,
-                    // exchange, date`. The SDK-only extras carried on the
-                    // event but omitted from the wire frame are just
-                    // `contract` (the WS envelope identifies the contract
-                    // separately) and `received_at_ns`, so a strict WS
-                    // client sees only the columns it parses.
+                    // Field set matches `EventSerializer.serializeTrade`
+                    // exactly: `ms_of_day, sequence, size, condition,
+                    // price, exchange, date`. The SDK-only extras carried
+                    // on the event but omitted from the wire frame are
+                    // just `contract` (the WS envelope identifies the
+                    // contract separately) and `received_at_ns`, so a
+                    // strict terminal WS client sees only the columns it
+                    // parses.
                     sonic_rs::json!({
                         "ms_of_day": ms_of_day,
                         "sequence": sequence,
@@ -385,13 +386,14 @@ mod tests {
         })
     }
 
-    /// The WS Trade frame carries exactly the wire trade columns:
-    /// `ms_of_day, sequence, size, condition, price, exchange, date`.
-    /// `received_at_ns` is an SDK-only column that stays off the wire and
-    /// must NOT appear, so a strict WS client sees only the field set it
-    /// parses.
+    /// The WS Trade frame carries exactly the columns
+    /// `EventSerializer.serializeTrade` emits — no more. The terminal's
+    /// trade frame is `ms_of_day, sequence, size, condition, price,
+    /// exchange, date`; `received_at_ns` is an SDK-only column that stays
+    /// off the wire and must NOT appear, so a strict terminal WS client
+    /// sees only the field set it parses.
     #[test]
-    fn trade_frame_matches_wire_field_set() {
+    fn trade_frame_matches_terminal_field_set() {
         let contract = Arc::new(Contract::stock("AAPL"));
         let event = make_trade(Arc::clone(&contract));
         let json = fpss_event_to_ws_json(&event, Some(&contract))
@@ -411,7 +413,7 @@ mod tests {
                 "Trade frame must carry the `{key}` column: {json}"
             );
         }
-        // SDK-only columns the wire trade frame never emits.
+        // SDK-only columns the terminal's trade frame never emits.
         for key in ["received_at_ns"] {
             assert!(
                 !json.contains(&format!("\"{key}\":")),
