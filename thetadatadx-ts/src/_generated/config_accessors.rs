@@ -950,40 +950,6 @@ impl Config {
         Ok(guard.streaming.flush_mode.as_str())
     }
 
-    /// Set the streaming event-ring consumer wait strategy — the
-    /// latency-vs-CPU knob applied on each ring-empty poll.
-    ///
-    /// Accepts `"low_latency"` (default — never sleeps, lowest latency,
-    /// highest idle CPU), `"balanced"` (brief park — low idle CPU),
-    /// `"efficient"` (longer park — lowest idle CPU), or `"busy_spin"`
-    /// (pure spin — pins a core). Tune the spin / yield / park counts via
-    /// `setWaitSpinIters` / `setWaitYieldIters` / `setWaitParkUs`.
-    #[napi(js_name = "setWaitStrategy")]
-    pub fn set_wait_strategy(&self, strategy: String) -> napi::Result<()> {
-        let parsed = config::StreamingWaitStrategy::parse(&strategy).ok_or_else(|| {
-            crate::invalid_parameter_err(format!(
-                "setWaitStrategy: strategy must be \"low_latency\", \"balanced\", \"efficient\", or \"busy_spin\"; got {strategy:?}"
-            ))
-        })?;
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.streaming.wait_strategy = parsed;
-        Ok(())
-    }
-
-    /// Current streaming wait strategy (`"low_latency"`, `"balanced"`,
-    /// `"efficient"`, or `"busy_spin"`).
-    #[napi(getter, js_name = "waitStrategy")]
-    pub fn wait_strategy(&self) -> napi::Result<&'static str> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.streaming.wait_strategy.as_str())
-    }
-
     /// Set the jitter strategy applied to every reconnect delay.
     /// Accepts `"full"` (default), `"equal"`, `"decorrelated"`, or
     /// `"none"` (case-insensitive).

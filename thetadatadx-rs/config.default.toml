@@ -62,19 +62,6 @@ ring_size = 131072
 # "immediate" (flush every frame, lowest send latency, more syscalls).
 flush_mode = "batched"
 
-# Consumer wait strategy when the ring is empty. Presets:
-#   "low_latency" (default) — spin, brief yield, then a short park
-#   "balanced"              — shorter spin, low idle CPU
-#   "efficient"             — minimal spin, longest park, lowest idle CPU
-#   "busy_spin"             — pure spin, no park (pins a core while idle)
-wait_strategy = "low_latency"
-
-# Fine-tune the active strategy. These override the preset's spin/yield/
-# park counts; the values below are the "low_latency" defaults.
-wait_spin_iters = 100
-wait_yield_iters = 10
-wait_park_us = 50
-
 # CPU core to pin the streaming consumer thread to. -1 (default) leaves
 # it unpinned; set a core index to reduce scheduler jitter on a busy box.
 consumer_cpu = -1

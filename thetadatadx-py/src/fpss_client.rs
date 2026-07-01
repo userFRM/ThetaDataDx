@@ -88,12 +88,6 @@ impl FpssParams {
         fpss::StreamingClientBuilder::new(&self.creds, self.streaming.hosts())
             .ring_size(self.streaming.ring_size)
             .flush_mode(self.streaming.flush_mode)
-            .wait_strategy(self.streaming.wait_strategy)
-            .wait_strategy_tuning(
-                self.streaming.wait_spin_iters,
-                self.streaming.wait_yield_iters,
-                self.streaming.wait_park_us,
-            )
             .consumer_cpu(self.streaming.consumer_cpu)
             .reconnect_policy(self.reconnect.policy.clone())
             .reconnect_wait_ms(self.reconnect.wait_ms)
@@ -936,7 +930,7 @@ impl StreamingClient {
 mod tests {
     use super::*;
     use thetadatadx::config::{
-        HostSelectionPolicy, JitterMode, ReconnectPolicy, StreamingFlushMode, StreamingWaitStrategy,
+        HostSelectionPolicy, JitterMode, ReconnectPolicy, StreamingFlushMode,
     };
 
     /// Anti-drift guard for the standalone connect path.
@@ -967,10 +961,6 @@ mod tests {
         config.streaming.keepalive_interval_secs = 77;
         config.streaming.keepalive_retries = 8;
         config.streaming.flush_mode = StreamingFlushMode::Immediate;
-        config.streaming.wait_strategy = StreamingWaitStrategy::Balanced;
-        config.streaming.wait_spin_iters = 123;
-        config.streaming.wait_yield_iters = 456;
-        config.streaming.wait_park_us = 789;
         config.streaming.consumer_cpu = Some(3);
 
         // Reconnect: flip every knob away from its production default.
@@ -998,10 +988,6 @@ mod tests {
         assert_eq!(s.keepalive_interval_secs, 77);
         assert_eq!(s.keepalive_retries, 8);
         assert_eq!(s.flush_mode, StreamingFlushMode::Immediate);
-        assert_eq!(s.wait_strategy, StreamingWaitStrategy::Balanced);
-        assert_eq!(s.wait_spin_iters, 123);
-        assert_eq!(s.wait_yield_iters, 456);
-        assert_eq!(s.wait_park_us, 789);
         assert_eq!(s.consumer_cpu, Some(3));
 
         let r = &params.reconnect;

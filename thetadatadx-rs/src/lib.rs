@@ -276,7 +276,7 @@ pub use client_builder::ClientBuilder;
 pub use config::{
     DirectConfig, FlatFilesConfig, HistoricalEnvironment, HostSelectionPolicy,
     ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, RuntimeConfig,
-    StreamingEnvironment, StreamingFlushMode, StreamingWaitStrategy,
+    StreamingEnvironment, StreamingFlushMode,
 };
 pub use error::{
     AuthErrorKind, ConfigErrorKind, DecodeErrorKind, DecompressErrorKind, Error, GrpcStatusKind,
@@ -347,20 +347,15 @@ pub mod streaming {
 
     /// Consumer wait strategies for the streaming ring.
     ///
-    /// When the consumer drains the ring faster than events arrive, it
-    /// must decide how to wait on a momentarily empty ring. For most
-    /// callers the [`crate::StreamingWaitStrategy`] preset enum plus the
-    /// `wait_spin_iters` / `wait_yield_iters` / `wait_park_us` numeric
-    /// knobs cover the full latency-versus-CPU spectrum, and that path is
-    /// the one every language binding exposes.
-    ///
-    /// A Rust caller that needs an exotic backoff the presets do not
-    /// model can instead supply any type implementing `WaitStrategy` to
+    /// The streaming client drains the ring with a fixed low-latency
+    /// wait, which every language binding uses. A Rust caller that needs
+    /// an exotic backoff can instead supply any type implementing
+    /// `WaitStrategy` to
     /// [`crate::streaming::StreamingClient::for_each_with_wait_strategy`]. The
     /// strategy is monomorphised into the drain loop, so the per-poll
     /// cost is the caller's `wait_for` body with no indirection.
     ///
-    /// `BusySpin` is the lowest-latency preset (a true busy spin);
+    /// `BusySpin` is the lowest-latency strategy (a true busy spin);
     /// `BusySpinWithSpinLoopHint` adds a `spin_loop` hint so the core
     /// can save power or switch hyper-threads; `Sleep` parks the thread
     /// for a fixed duration between polls.

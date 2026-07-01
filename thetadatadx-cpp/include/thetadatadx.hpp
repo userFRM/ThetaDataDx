@@ -820,50 +820,6 @@ public:
         return s.str();
     }
 
-    /** Set the wait-strategy spin iteration count. Throws on a null handle. */
-    void set_wait_spin_iters(uint32_t iters) {
-        if (thetadatadx_config_set_wait_spin_iters(handle_.get(), iters) != 0) {
-            detail::throw_last_ffi_error();
-        }
-    }
-
-    /** Read the wait-strategy spin iteration count. Returns `0` on a null handle. */
-    uint32_t get_wait_spin_iters() const {
-        uint32_t iters = 0;
-        thetadatadx_config_get_wait_spin_iters(handle_.get(), &iters);
-        return iters;
-    }
-
-    /** Set the wait-strategy yield iteration count. Throws on a null handle. */
-    void set_wait_yield_iters(uint32_t iters) {
-        if (thetadatadx_config_set_wait_yield_iters(handle_.get(), iters) != 0) {
-            detail::throw_last_ffi_error();
-        }
-    }
-
-    /** Read the wait-strategy yield iteration count. Returns `0` on a null handle. */
-    uint32_t get_wait_yield_iters() const {
-        uint32_t iters = 0;
-        thetadatadx_config_get_wait_yield_iters(handle_.get(), &iters);
-        return iters;
-    }
-
-    /** Set the wait-strategy park interval (microseconds; Balanced /
-     *  Efficient). Throws on a null handle. */
-    void set_wait_park_us(uint64_t park_us) {
-        if (thetadatadx_config_set_wait_park_us(handle_.get(), park_us) != 0) {
-            detail::throw_last_ffi_error();
-        }
-    }
-
-    /** Read the wait-strategy park interval in microseconds. Returns `0`
-     *  on a null handle. */
-    uint64_t get_wait_park_us() const {
-        uint64_t park_us = 0;
-        thetadatadx_config_get_wait_park_us(handle_.get(), &park_us);
-        return park_us;
-    }
-
     /** Pin the streaming consumer thread to a CPU core. A negative
      *  @p core (@c THETADATADX_CONSUMER_CPU_UNPINNED) means unpinned (the
      *  default). Throws on a null handle. */

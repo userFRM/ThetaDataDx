@@ -205,28 +205,6 @@ export declare class Config {
    * `streamingType` string the inline `Client.connectWith` factory accepts.
    */
   get streamingEnvironment(): string
-  /** Set the wait-strategy spin iteration count. */
-  setWaitSpinIters(iters: number): void
-  /** Current wait-strategy spin iteration count. */
-  get waitSpinIters(): number
-  /** Set the wait-strategy yield iteration count. */
-  setWaitYieldIters(iters: number): void
-  /** Current wait-strategy yield iteration count. */
-  get waitYieldIters(): number
-  /**
-   * Set the wait-strategy park interval in microseconds (used by the
-   * `"balanced"` / `"efficient"` strategies). The interval is a `u64`
-   * microsecond value in the core, so it marshals as a `BigInt` like
-   * the other microsecond / second streaming and reconnect knobs:
-   * `setWaitParkUs(BigInt(50))`. The core clamps the effective park
-   * interval to its supported ceiling when the wait strategy is built.
-   */
-  setWaitParkUs(parkUs: bigint): void
-  /**
-   * Current wait-strategy park interval in microseconds (returned as a
-   * `BigInt`).
-   */
-  get waitParkUs(): bigint
   /**
    * Pin the streaming consumer thread to a CPU core, or `null` to
    * leave it under the OS scheduler (default).
@@ -570,22 +548,6 @@ export declare class Config {
    * `"immediate"`).
    */
   get flushMode(): string
-  /**
-   * Set the streaming event-ring consumer wait strategy — the
-   * latency-vs-CPU knob applied on each ring-empty poll.
-   *
-   * Accepts `"low_latency"` (default — never sleeps, lowest latency,
-   * highest idle CPU), `"balanced"` (brief park — low idle CPU),
-   * `"efficient"` (longer park — lowest idle CPU), or `"busy_spin"`
-   * (pure spin — pins a core). Tune the spin / yield / park counts via
-   * `setWaitSpinIters` / `setWaitYieldIters` / `setWaitParkUs`.
-   */
-  setWaitStrategy(strategy: string): void
-  /**
-   * Current streaming wait strategy (`"low_latency"`, `"balanced"`,
-   * `"efficient"`, or `"busy_spin"`).
-   */
-  get waitStrategy(): string
   /**
    * Set the jitter strategy applied to every reconnect delay.
    * Accepts `"full"` (default), `"equal"`, `"decorrelated"`, or

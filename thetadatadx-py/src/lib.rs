@@ -462,9 +462,9 @@ impl Config {
     // config_surface.toml.
 
     // ``DirectConfig.metrics.port`` (``Optional[int]``, exporter port),
-    // the ``streaming.flush_mode`` / ``wait_strategy`` enums, and the
-    // ``reconnect.jitter`` / ``streaming.host_selection`` enums are the
-    // generated ``enum`` / ``option`` accessors in config_surface.toml.
+    // the ``streaming.flush_mode`` enum, and the ``reconnect.jitter`` /
+    // ``streaming.host_selection`` enums are the generated ``enum`` /
+    // ``option`` accessors in config_surface.toml.
 
     /// Target historical environment carried by this configuration:
     /// ``"PROD"`` for the production cluster or ``"STAGE"`` for staging.
@@ -492,51 +492,6 @@ impl Config {
     fn get_streaming_environment(&self) -> &'static str {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.streaming_environment().as_str()
-    }
-
-    /// Spin iterations the wait strategy busy-waits before yielding /
-    /// parking. Higher trades idle CPU for lower wake latency.
-    #[setter]
-    fn set_wait_spin_iters(&self, iters: u32) {
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.streaming.wait_spin_iters = iters;
-    }
-
-    /// Current wait-strategy spin iteration count.
-    #[getter]
-    fn get_wait_spin_iters(&self) -> u32 {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.streaming.wait_spin_iters
-    }
-
-    /// ``yield_now`` iterations after the spin phase, before any park.
-    #[setter]
-    fn set_wait_yield_iters(&self, iters: u32) {
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.streaming.wait_yield_iters = iters;
-    }
-
-    /// Current wait-strategy yield iteration count.
-    #[getter]
-    fn get_wait_yield_iters(&self) -> u32 {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.streaming.wait_yield_iters
-    }
-
-    /// Park interval (microseconds) for the parking wait strategies
-    /// (``"balanced"`` / ``"efficient"``). Inert for the never-sleep
-    /// strategies.
-    #[setter]
-    fn set_wait_park_us(&self, park_us: u64) {
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.streaming.wait_park_us = park_us;
-    }
-
-    /// Current wait-strategy park interval in microseconds.
-    #[getter]
-    fn get_wait_park_us(&self) -> u64 {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.streaming.wait_park_us
     }
 
     /// Set the CPU core to pin the streaming consumer thread to, or
