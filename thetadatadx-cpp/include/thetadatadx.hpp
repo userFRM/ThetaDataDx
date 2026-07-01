@@ -533,20 +533,21 @@ struct FfiString {
 /// last invocation.
 inline constexpr std::chrono::milliseconds kReclaimPollStep{50};
 
-/// Generous upper bound on how long the reclaimer waits for confirmed
-/// consumer quiescence before releasing the retired callback node anyway.
+/// Generous upper bound on how long the reclaimer polls for confirmed
+/// consumer quiescence before giving up and leaking the retired node.
 ///
 /// The reclaimer drops the retired node the instant the FFI drain barrier
 /// reports quiescence (typically single-digit milliseconds after the
 /// consumer's last invocation), so this cap is reached only by a
-/// pathologically stuck user callback that never returns. The cap is what
-/// bounds the reclaimer thread and the retired node: a wedged callback
-/// cannot leak either unboundedly. Releasing on the cap mirrors the C ABI
-/// free contract, which also proceeds with destruction after its own
-/// bounded drain wait when a callback will not return; in that case the
-/// node is released while the callback may still be running, which is the
-/// documented residual of a non-returning callback and not a regression
-/// from the previous fixed-timer behavior.
+/// pathologically stuck user callback that never returns. On the cap the
+/// reclaimer does NOT release the node — a still-running callback is still
+/// dereferencing the registered `ctx`, and destroying the `std::function`
+/// backing it while `operator()` is active is a use-after-free. The retired
+/// callables are intentionally leaked instead (see `reclaim_after_drain`):
+/// a bounded one-time leak in this pathological case (a user callback wedged
+/// for longer than the cap) is strictly safer than the UAF that releasing
+/// under a live invocation would cause. The cap only bounds the reclaimer
+/// thread's poll, not the node's lifetime.
 inline constexpr std::chrono::seconds kReclaimQuiescenceCap{300};
 
 /// Release a retired push-callback node off the calling thread, gated on
@@ -564,12 +565,15 @@ inline constexpr std::chrono::seconds kReclaimQuiescenceCap{300};
 /// handle) and returns true once quiescence is confirmed.
 ///
 /// This detaches a helper thread that polls `is_drained` until it reports
-/// quiescence (or the bounded cap elapses) and only then runs `release`,
-/// which drops the retired node and, where the helper owns it, frees the
-/// retired handle. `release` therefore happens-after the consumer's final
-/// dereference, so the dropped node is never read after free. `is_drained`
-/// and `release` run on the detached helper, never on the consumer thread,
-/// so the barrier cannot wait on work it is itself blocking.
+/// quiescence and only then runs `release`, which drops the retired node
+/// and, where the helper owns it, frees the retired handle. `release`
+/// therefore happens-after the consumer's final dereference, so the dropped
+/// node is never read after free. If the bounded cap elapses first the
+/// callback is still wedged mid-invocation, so `release` is NOT run; the
+/// callables it owns are leaked instead (a bounded leak beats destroying the
+/// `std::function` under a live `operator()`). `is_drained` and `release`
+/// run on the detached helper, never on the consumer thread, so the barrier
+/// cannot wait on work it is itself blocking.
 ///
 /// Both callables are moved into the helper so a move-only retained handle
 /// or storage can be carried in. The function returns immediately; the
@@ -581,12 +585,22 @@ inline void reclaim_after_drain(IsDrained is_drained, Release release) {
         const auto deadline = std::chrono::steady_clock::now() + kReclaimQuiescenceCap;
         while (!is_drained()) {
             if (std::chrono::steady_clock::now() >= deadline) {
-                break;
+                // Cap elapsed WITHOUT confirmed quiescence: a user callback
+                // is still dereferencing the registered `ctx`. `release`
+                // owns the retired handle + `std::function` storage; running
+                // it would destroy the `std::function` under a live
+                // `operator()`, a use-after-free. Leak instead — move the
+                // `release` callable into a heap holder that is never freed
+                // so the storage it owns outlives the wedged callback. A
+                // bounded one-time leak in this pathological case is strictly
+                // safer than the UAF that releasing here would cause.
+                new Release(std::move(release));
+                return;
             }
         }
-        // Confirmed quiescence (or the bounded cap): the consumer has
-        // finished its last dereference of the retired node, so dropping it
-        // now cannot be observed as a use-after-free.
+        // Confirmed quiescence: the consumer has finished its last
+        // dereference of the retired node, so dropping it now cannot be
+        // observed as a use-after-free.
         release();
     }).detach();
 }
@@ -1021,8 +1035,10 @@ public:
      *  retired handle and the retired callback storage to a helper thread
      *  that polls the same drain barrier and releases them only once the
      *  consumer is confirmed quiesced (handle first so its free-time
-     *  barrier still sees a live ctx, then the storage), with a bounded cap
-     *  so a wedged callback cannot leak either. The move proceeds without
+     *  barrier still sees a live ctx, then the storage). If the callback is
+     *  still wedged after the bounded cap the reclaimer leaks the storage
+     *  rather than destroy a `std::function` under a live invocation (a
+     *  bounded leak beats a use-after-free). The move proceeds without
      *  observable liveness loss to the caller. */
     StreamingClient& operator=(StreamingClient&& other) noexcept {
         if (this != &other) {
@@ -2146,10 +2162,12 @@ public:
      *  the retired handle and the retired callback state to a helper thread
      *  that polls the same drain barrier and releases them only once the
      *  consumer is confirmed quiesced (handle first so its free-time barrier
-     *  still sees a live ctx, then the node), with a bounded cap so a wedged
-     *  callback cannot leak either. The node is held by shared ownership, so
-     *  this keeps any outstanding `Stream` view's registered `ctx` valid for
-     *  the consumer's remaining invocations. */
+     *  still sees a live ctx, then the node). If the callback is still wedged
+     *  after the bounded cap the reclaimer leaks the node rather than destroy
+     *  it under a live invocation (a bounded leak beats a use-after-free). The
+     *  node is held by shared ownership, so this keeps any outstanding
+     *  `Stream` view's registered `ctx` valid for the consumer's remaining
+     *  invocations. */
     Client& operator=(Client&& other) noexcept {
         if (this != &other) {
             if (handle_) {
