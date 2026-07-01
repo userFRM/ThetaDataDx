@@ -27,6 +27,7 @@ pub(crate) enum BufferedEvent {
     /// Streaming MarketValue tick (wire code 25). A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant).
     MarketValue {
         contract: fpss::protocol::Contract,
+        contract_id: i32,
         ms_of_day: i32,
         market_bid: f64,
         market_ask: f64,
@@ -37,6 +38,7 @@ pub(crate) enum BufferedEvent {
     /// Streaming OHLCVC bar.
     Ohlcvc {
         contract: fpss::protocol::Contract,
+        contract_id: i32,
         ms_of_day: i32,
         open: f64,
         high: f64,
@@ -50,6 +52,7 @@ pub(crate) enum BufferedEvent {
     /// Streaming OpenInterest tick.
     OpenInterest {
         contract: fpss::protocol::Contract,
+        contract_id: i32,
         ms_of_day: i32,
         open_interest: i32,
         date: i32,
@@ -66,6 +69,7 @@ pub(crate) enum BufferedEvent {
     /// Streaming Quote tick.
     Quote {
         contract: fpss::protocol::Contract,
+        contract_id: i32,
         ms_of_day: i32,
         bid_size: i32,
         bid_exchange: i32,
@@ -107,6 +111,7 @@ pub(crate) enum BufferedEvent {
     /// Streaming Trade tick.
     Trade {
         contract: fpss::protocol::Contract,
+        contract_id: i32,
         ms_of_day: i32,
         sequence: i32,
         condition: i32,
@@ -130,6 +135,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::StreamEvent) -> BufferedEvent
         fpss::StreamEvent::Data(data) => match data {
             fpss::StreamData::MarketValue {
                 contract,
+                contract_id,
                 ms_of_day,
                 market_bid,
                 market_ask,
@@ -139,6 +145,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::StreamEvent) -> BufferedEvent
                 ..
             } => BufferedEvent::MarketValue {
                 contract: (**contract).clone(),
+                contract_id: *contract_id,
                 ms_of_day: *ms_of_day,
                 market_bid: *market_bid,
                 market_ask: *market_ask,
@@ -148,6 +155,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::StreamEvent) -> BufferedEvent
             },
             fpss::StreamData::Ohlcvc {
                 contract,
+                contract_id,
                 ms_of_day,
                 open,
                 high,
@@ -160,6 +168,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::StreamEvent) -> BufferedEvent
                 ..
             } => BufferedEvent::Ohlcvc {
                 contract: (**contract).clone(),
+                contract_id: *contract_id,
                 ms_of_day: *ms_of_day,
                 open: *open,
                 high: *high,
@@ -172,6 +181,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::StreamEvent) -> BufferedEvent
             },
             fpss::StreamData::OpenInterest {
                 contract,
+                contract_id,
                 ms_of_day,
                 open_interest,
                 date,
@@ -179,6 +189,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::StreamEvent) -> BufferedEvent
                 ..
             } => BufferedEvent::OpenInterest {
                 contract: (**contract).clone(),
+                contract_id: *contract_id,
                 ms_of_day: *ms_of_day,
                 open_interest: *open_interest,
                 date: *date,
@@ -186,6 +197,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::StreamEvent) -> BufferedEvent
             },
             fpss::StreamData::Quote {
                 contract,
+                contract_id,
                 ms_of_day,
                 bid_size,
                 bid_exchange,
@@ -200,6 +212,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::StreamEvent) -> BufferedEvent
                 ..
             } => BufferedEvent::Quote {
                 contract: (**contract).clone(),
+                contract_id: *contract_id,
                 ms_of_day: *ms_of_day,
                 bid_size: *bid_size,
                 bid_exchange: *bid_exchange,
@@ -214,6 +227,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::StreamEvent) -> BufferedEvent
             },
             fpss::StreamData::Trade {
                 contract,
+                contract_id,
                 ms_of_day,
                 sequence,
                 condition,
@@ -225,6 +239,7 @@ pub(crate) fn fpss_event_to_buffered(event: &fpss::StreamEvent) -> BufferedEvent
                 ..
             } => BufferedEvent::Trade {
                 contract: (**contract).clone(),
+                contract_id: *contract_id,
                 ms_of_day: *ms_of_day,
                 sequence: *sequence,
                 condition: *condition,
