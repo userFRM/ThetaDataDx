@@ -104,10 +104,10 @@ pub(super) fn fpss_event_to_ws_json(
                     // exactly: `ms_of_day, sequence, size, condition,
                     // price, exchange, date`. The SDK-only extras carried
                     // on the event but omitted from the wire frame are
-                    // `contract` and `contract_id` (the WS envelope
-                    // identifies the contract separately) and
-                    // `received_at_ns`, so a strict terminal WS client
-                    // sees only the columns it parses.
+                    // just `contract` (the WS envelope identifies the
+                    // contract separately) and `received_at_ns`, so a
+                    // strict terminal WS client sees only the columns it
+                    // parses.
                     sonic_rs::json!({
                         "ms_of_day": ms_of_day,
                         "sequence": sequence,
@@ -346,7 +346,6 @@ mod tests {
     fn make_quote(contract: Arc<Contract>) -> StreamEvent {
         StreamEvent::Data(StreamData::Quote {
             contract,
-            contract_id: 0,
             ms_of_day: 0,
             bid_size: 0,
             bid_exchange: 0,
@@ -364,7 +363,6 @@ mod tests {
     fn make_trade(contract: Arc<Contract>) -> StreamEvent {
         StreamEvent::Data(StreamData::Trade {
             contract,
-            contract_id: 0,
             ms_of_day: 1,
             sequence: 2,
             condition: 7,
@@ -379,7 +377,6 @@ mod tests {
     fn make_market_value(contract: Arc<Contract>) -> StreamEvent {
         StreamEvent::Data(StreamData::MarketValue {
             contract,
-            contract_id: 0,
             ms_of_day: 1,
             market_bid: 2.5,
             market_ask: 3.5,
@@ -703,7 +700,6 @@ mod tests {
         // OpenInterest tick -> no OPEN_INTEREST frame.
         let oi = StreamEvent::Data(StreamData::OpenInterest {
             contract: Arc::new(Contract::option_raw("SPY", 20_260_417, true, 550_000)),
-            contract_id: 0,
             ms_of_day: 1,
             open_interest: 123,
             date: 20_260_417,

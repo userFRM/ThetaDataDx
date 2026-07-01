@@ -120,7 +120,6 @@ Each update arrives as a `Trade` event with these fields:
 | Field | Type | Description |
 |---|---|---|
 | `contract` | contract | Resolved contract identity (symbol, security type, and option fields). |
-| `contract_id` | i32 | Stable numeric contract registry key; a join key, not identity. |
 | `ms_of_day` | i32 | Milliseconds since midnight Eastern Time. |
 | `sequence` | i32 | Exchange-assigned trade sequence number. |
 | `condition` | i32 | Trade condition code. |

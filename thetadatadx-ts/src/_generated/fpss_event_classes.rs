@@ -35,7 +35,6 @@ pub struct Contract {
 #[derive(Clone)]
 pub struct MarketValue {
     pub contract: Contract,
-    pub contract_id: i32,
     pub ms_of_day: i32,
     pub market_bid: f64,
     pub market_ask: f64,
@@ -50,7 +49,6 @@ pub struct MarketValue {
 #[derive(Clone)]
 pub struct Ohlcvc {
     pub contract: Contract,
-    pub contract_id: i32,
     pub ms_of_day: i32,
     pub open: f64,
     pub high: f64,
@@ -68,7 +66,6 @@ pub struct Ohlcvc {
 #[derive(Clone)]
 pub struct OpenInterest {
     pub contract: Contract,
-    pub contract_id: i32,
     pub ms_of_day: i32,
     pub open_interest: i32,
     pub date: i32,
@@ -81,7 +78,6 @@ pub struct OpenInterest {
 #[derive(Clone)]
 pub struct Quote {
     pub contract: Contract,
-    pub contract_id: i32,
     pub ms_of_day: i32,
     pub bid_size: i32,
     pub bid_exchange: i32,
@@ -101,7 +97,6 @@ pub struct Quote {
 #[derive(Clone)]
 pub struct Trade {
     pub contract: Contract,
-    pub contract_id: i32,
     pub ms_of_day: i32,
     pub sequence: i32,
     pub condition: i32,
@@ -319,7 +314,6 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> StreamEvent {
     match event {
         BufferedEvent::MarketValue {
             contract,
-            contract_id,
             ms_of_day,
             market_bid,
             market_ask,
@@ -337,7 +331,6 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> StreamEvent {
                     strike: contract.strike_dollars(),
                     strike_thousandths: contract.strike_thousandths,
                 },
-                contract_id,
                 ms_of_day,
                 market_bid,
                 market_ask,
@@ -348,7 +341,6 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> StreamEvent {
         }
         BufferedEvent::Ohlcvc {
             contract,
-            contract_id,
             ms_of_day,
             open,
             high,
@@ -369,7 +361,6 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> StreamEvent {
                     strike: contract.strike_dollars(),
                     strike_thousandths: contract.strike_thousandths,
                 },
-                contract_id,
                 ms_of_day,
                 open,
                 high,
@@ -383,7 +374,6 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> StreamEvent {
         }
         BufferedEvent::OpenInterest {
             contract,
-            contract_id,
             ms_of_day,
             open_interest,
             date,
@@ -399,7 +389,6 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> StreamEvent {
                     strike: contract.strike_dollars(),
                     strike_thousandths: contract.strike_thousandths,
                 },
-                contract_id,
                 ms_of_day,
                 open_interest,
                 date,
@@ -408,7 +397,6 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> StreamEvent {
         }
         BufferedEvent::Quote {
             contract,
-            contract_id,
             ms_of_day,
             bid_size,
             bid_exchange,
@@ -431,7 +419,6 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> StreamEvent {
                     strike: contract.strike_dollars(),
                     strike_thousandths: contract.strike_thousandths,
                 },
-                contract_id,
                 ms_of_day,
                 bid_size,
                 bid_exchange,
@@ -447,7 +434,6 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> StreamEvent {
         }
         BufferedEvent::Trade {
             contract,
-            contract_id,
             ms_of_day,
             sequence,
             condition,
@@ -467,7 +453,6 @@ pub(crate) fn buffered_event_to_typed(event: BufferedEvent) -> StreamEvent {
                     strike: contract.strike_dollars(),
                     strike_thousandths: contract.strike_thousandths,
                 },
-                contract_id,
                 ms_of_day,
                 sequence,
                 condition,

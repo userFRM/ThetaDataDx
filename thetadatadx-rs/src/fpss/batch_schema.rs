@@ -73,10 +73,6 @@ pub fn stream_batch_schema() -> Arc<Schema> {
         Field::new("expiration", DataType::Int32, true),
         Field::new("strike", DataType::Float64, true),
         Field::new("right", DataType::Utf8, true),
-        // Server-assigned registry key. A join / index key present on every
-        // data row (non-null), NOT contract identity — identity is the
-        // (symbol, expiration, strike, right) columns above.
-        Field::new("contract_id", DataType::Int32, false),
         // ── common to every data variant ──
         Field::new("ms_of_day", DataType::Int32, false),
         Field::new("date", DataType::Int32, false),
@@ -115,10 +111,10 @@ pub fn stream_batch_schema() -> Arc<Schema> {
 /// Approximate serialized bytes per row, used only to seed the Arrow IPC
 /// output buffer so it is written without re-growing from empty.
 ///
-/// Derived from the fixed [`stream_batch_schema`] columns: 16 `Int32` (4 B
-/// each = 64), 11 `Float64` + 1 `UInt64` + 2 `Int64` (8 B each = 112), and 3
+/// Derived from the fixed [`stream_batch_schema`] columns: 15 `Int32` (4 B
+/// each = 60), 11 `Float64` + 1 `UInt64` + 2 `Int64` (8 B each = 112), and 3
 /// `Utf8` columns (offset plus a short value, allowed ~16 B each = 48),
-/// totalling ~224 B; rounded up to 256 to cover per-row validity bits and
+/// totalling ~220 B; rounded up to 256 to cover per-row validity bits and
 /// alignment. This is a buffer-sizing HINT, never a correctness input — if a
 /// column is added to the schema, bump this alongside it. Sized so a full
 /// batch seeds at or above the real IPC body (no doubling regrow) while a tiny
@@ -126,7 +122,7 @@ pub fn stream_batch_schema() -> Arc<Schema> {
 pub(crate) const EST_IPC_BYTES_PER_ROW: usize = 256;
 
 /// Fixed Arrow IPC framing allowance added to the per-row estimate: the schema
-/// message (a flatbuffer over the 33-column schema, which measures ~8.5 KB on
+/// message (a flatbuffer over the 32-column schema, which measures ~8.5 KB on
 /// its own) plus the record-batch message header and stream end-of-stream
 /// marker. 16 KB covers the schema preamble for even the smallest batch, so a
 /// one-row batch (whose body is ~9.5 KB) seeds above its real IPC size and does
@@ -183,7 +179,6 @@ pub struct StreamBatchBuilder {
     expiration: Int32Builder,
     strike: Float64Builder,
     right: StringBuilder,
-    contract_id: Int32Builder,
 
     ms_of_day: Int32Builder,
     date: Int32Builder,
@@ -247,7 +242,6 @@ impl StreamBatchBuilder {
             expiration: Int32Builder::with_capacity(capacity),
             strike: Float64Builder::with_capacity(capacity),
             right: StringBuilder::with_capacity(capacity, capacity),
-            contract_id: Int32Builder::with_capacity(capacity),
             ms_of_day: Int32Builder::with_capacity(capacity),
             date: Int32Builder::with_capacity(capacity),
             received_at_ns: UInt64Builder::with_capacity(capacity),
@@ -328,7 +322,6 @@ impl StreamBatchBuilder {
         match data {
             StreamData::Quote {
                 contract,
-                contract_id,
                 ms_of_day,
                 bid_size,
                 bid_exchange,
@@ -344,7 +337,6 @@ impl StreamBatchBuilder {
                 self.push_header(
                     event_type::QUOTE,
                     contract,
-                    *contract_id,
                     *ms_of_day,
                     *date,
                     *received_at_ns,
@@ -366,7 +358,6 @@ impl StreamBatchBuilder {
             }
             StreamData::Trade {
                 contract,
-                contract_id,
                 ms_of_day,
                 sequence,
                 condition,
@@ -379,7 +370,6 @@ impl StreamBatchBuilder {
                 self.push_header(
                     event_type::TRADE,
                     contract,
-                    *contract_id,
                     *ms_of_day,
                     *date,
                     *received_at_ns,
@@ -397,7 +387,6 @@ impl StreamBatchBuilder {
             }
             StreamData::OpenInterest {
                 contract,
-                contract_id,
                 ms_of_day,
                 open_interest,
                 date,
@@ -406,7 +395,6 @@ impl StreamBatchBuilder {
                 self.push_header(
                     event_type::OPEN_INTEREST,
                     contract,
-                    *contract_id,
                     *ms_of_day,
                     *date,
                     *received_at_ns,
@@ -419,7 +407,6 @@ impl StreamBatchBuilder {
             }
             StreamData::Ohlcvc {
                 contract,
-                contract_id,
                 ms_of_day,
                 open,
                 high,
@@ -433,7 +420,6 @@ impl StreamBatchBuilder {
                 self.push_header(
                     event_type::OHLCVC,
                     contract,
-                    *contract_id,
                     *ms_of_day,
                     *date,
                     *received_at_ns,
@@ -451,7 +437,6 @@ impl StreamBatchBuilder {
             }
             StreamData::MarketValue {
                 contract,
-                contract_id,
                 ms_of_day,
                 market_bid,
                 market_ask,
@@ -462,7 +447,6 @@ impl StreamBatchBuilder {
                 self.push_header(
                     event_type::MARKET_VALUE,
                     contract,
-                    *contract_id,
                     *ms_of_day,
                     *date,
                     *received_at_ns,
@@ -500,7 +484,7 @@ impl StreamBatchBuilder {
         // `finish()` takes their backing buffer, leaving capacity at zero, so
         // re-sizing here is what keeps EVERY batch pre-allocated; without it
         // only the first batch would be sized and batches 2..N would re-grow
-        // every column from empty by doubling on the dispatcher
+        // each of the 40 columns from empty by doubling on the dispatcher
         // thread. Reusing the schema `Arc` keeps the output concat-safe and
         // avoids reallocating the schema per batch.
         let mut prev = std::mem::replace(
@@ -514,7 +498,6 @@ impl StreamBatchBuilder {
             Arc::new(prev.expiration.finish()) as ArrayRef,
             Arc::new(prev.strike.finish()) as ArrayRef,
             Arc::new(prev.right.finish()) as ArrayRef,
-            Arc::new(prev.contract_id.finish()) as ArrayRef,
             Arc::new(prev.ms_of_day.finish()) as ArrayRef,
             Arc::new(prev.date.finish()) as ArrayRef,
             Arc::new(prev.received_at_ns.finish()) as ArrayRef,
@@ -552,7 +535,6 @@ impl StreamBatchBuilder {
         &mut self,
         tag: &str,
         contract: &crate::fpss::protocol::Contract,
-        contract_id: i32,
         ms_of_day: i32,
         date: i32,
         received_at_ns: u64,
@@ -580,7 +562,6 @@ impl StreamBatchBuilder {
             // non-call/put right as absent rather than guessing a tag.
             Some(Right::Both) | None => self.right.append_null(),
         }
-        self.contract_id.append_value(contract_id);
         self.ms_of_day.append_value(ms_of_day);
         self.date.append_value(date);
         self.received_at_ns.append_value(received_at_ns);
@@ -634,7 +615,6 @@ mod tests {
     fn trade(contract: &std::sync::Arc<Contract>) -> StreamEvent {
         StreamEvent::Data(StreamData::Trade {
             contract: std::sync::Arc::clone(contract),
-            contract_id: 11,
             ms_of_day: 100,
             sequence: 7,
             condition: 0,
@@ -649,7 +629,6 @@ mod tests {
     fn quote(contract: &std::sync::Arc<Contract>) -> StreamEvent {
         StreamEvent::Data(StreamData::Quote {
             contract: std::sync::Arc::clone(contract),
-            contract_id: 12,
             ms_of_day: 200,
             bid_size: 10,
             bid_exchange: 1,
@@ -674,7 +653,6 @@ mod tests {
             "event_type",
             "symbol",
             "sec_type",
-            "contract_id",
             "ms_of_day",
             "date",
             "received_at_ns",
@@ -718,16 +696,6 @@ mod tests {
             .downcast_ref::<StringArray>()
             .unwrap();
         assert_eq!(event_type.value(0), event_type::TRADE);
-
-        // contract_id is a non-null join column carrying the wire id.
-        let contract_id = batch
-            .column_by_name("contract_id")
-            .unwrap()
-            .as_any()
-            .downcast_ref::<Int32Array>()
-            .unwrap();
-        assert!(!contract_id.is_null(0), "contract_id is non-null");
-        assert_eq!(contract_id.value(0), 11, "contract_id carries the wire id");
 
         let price = batch
             .column_by_name("price")
@@ -799,7 +767,6 @@ mod tests {
         let mut b = StreamBatchBuilder::with_capacity(8);
         b.append(&StreamEvent::Data(StreamData::Trade {
             contract: std::sync::Arc::clone(&contract),
-            contract_id: 1,
             ms_of_day: 1,
             sequence: 0,
             condition: 0,

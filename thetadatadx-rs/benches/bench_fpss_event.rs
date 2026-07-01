@@ -32,7 +32,6 @@ fn sample_contract() -> Arc<Contract> {
 fn sample_quote() -> StreamEvent {
     StreamEvent::Data(StreamData::Quote {
         contract: sample_contract(),
-        contract_id: 1,
         ms_of_day: 34_200_000,
         bid_size: 100,
         bid_exchange: 1,
@@ -50,7 +49,6 @@ fn sample_quote() -> StreamEvent {
 fn sample_trade() -> StreamEvent {
     StreamEvent::Data(StreamData::Trade {
         contract: sample_contract(),
-        contract_id: 1,
         ms_of_day: 34_200_001,
         sequence: 42,
         condition: 50,
@@ -65,7 +63,6 @@ fn sample_trade() -> StreamEvent {
 fn sample_ohlcvc() -> StreamEvent {
     StreamEvent::Data(StreamData::Ohlcvc {
         contract: sample_contract(),
-        contract_id: 1,
         ms_of_day: 34_200_000,
         open: 449.5,
         high: 450.3,

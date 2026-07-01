@@ -110,8 +110,6 @@ strike_thousandths: 0,
 pub struct ThetaDataDxStreamMarketValue {
     /// Contract this event refers to.
     pub contract: ThetaDataDxContract,
-    /// Server-assigned registry key (raw wire id). A join / index key, not contract identity.
-    pub contract_id: i32,
     /// Milliseconds since midnight Eastern Time when the event was recorded.
     pub ms_of_day: i32,
     /// Calculated market bid (dollars), nudged from the quote bid.
@@ -131,8 +129,6 @@ pub struct ThetaDataDxStreamMarketValue {
 pub struct ThetaDataDxStreamOhlcvc {
     /// Contract this event refers to.
     pub contract: ThetaDataDxContract,
-    /// Server-assigned registry key (raw wire id). A join / index key, not contract identity.
-    pub contract_id: i32,
     /// Milliseconds since midnight Eastern Time when the event was recorded.
     pub ms_of_day: i32,
     /// Opening price of the bar.
@@ -158,8 +154,6 @@ pub struct ThetaDataDxStreamOhlcvc {
 pub struct ThetaDataDxStreamOpenInterest {
     /// Contract this event refers to.
     pub contract: ThetaDataDxContract,
-    /// Server-assigned registry key (raw wire id). A join / index key, not contract identity.
-    pub contract_id: i32,
     /// Milliseconds since midnight Eastern Time when the event was recorded.
     pub ms_of_day: i32,
     /// Number of outstanding open contracts.
@@ -175,8 +169,6 @@ pub struct ThetaDataDxStreamOpenInterest {
 pub struct ThetaDataDxStreamQuote {
     /// Contract this event refers to.
     pub contract: ThetaDataDxContract,
-    /// Server-assigned registry key (raw wire id). A join / index key, not contract identity.
-    pub contract_id: i32,
     /// Milliseconds since midnight Eastern Time when the event was recorded.
     pub ms_of_day: i32,
     /// Number of contracts/shares resting at the bid.
@@ -206,8 +198,6 @@ pub struct ThetaDataDxStreamQuote {
 pub struct ThetaDataDxStreamTrade {
     /// Contract this event refers to.
     pub contract: ThetaDataDxContract,
-    /// Server-assigned registry key (raw wire id). A join / index key, not contract identity.
-    pub contract_id: i32,
     /// Milliseconds since midnight Eastern Time when the event was recorded.
     pub ms_of_day: i32,
     /// Exchange sequence number for ordering trades within the day.
@@ -535,7 +525,6 @@ const _: () = {
 // Zero-initialized defaults for inactive union-style fields.
 pub(crate) const ZERO_MARKET_VALUE: ThetaDataDxStreamMarketValue = ThetaDataDxStreamMarketValue {
     contract: ZERO_CONTRACT_STRUCT,
-    contract_id: 0,
     ms_of_day: 0,
     market_bid: 0.0,
     market_ask: 0.0,
@@ -545,7 +534,6 @@ pub(crate) const ZERO_MARKET_VALUE: ThetaDataDxStreamMarketValue = ThetaDataDxSt
 };
 pub(crate) const ZERO_OHLCVC: ThetaDataDxStreamOhlcvc = ThetaDataDxStreamOhlcvc {
     contract: ZERO_CONTRACT_STRUCT,
-    contract_id: 0,
     ms_of_day: 0,
     open: 0.0,
     high: 0.0,
@@ -558,7 +546,6 @@ pub(crate) const ZERO_OHLCVC: ThetaDataDxStreamOhlcvc = ThetaDataDxStreamOhlcvc 
 };
 pub(crate) const ZERO_OI: ThetaDataDxStreamOpenInterest = ThetaDataDxStreamOpenInterest {
     contract: ZERO_CONTRACT_STRUCT,
-    contract_id: 0,
     ms_of_day: 0,
     open_interest: 0,
     date: 0,
@@ -566,7 +553,6 @@ pub(crate) const ZERO_OI: ThetaDataDxStreamOpenInterest = ThetaDataDxStreamOpenI
 };
 pub(crate) const ZERO_QUOTE: ThetaDataDxStreamQuote = ThetaDataDxStreamQuote {
     contract: ZERO_CONTRACT_STRUCT,
-    contract_id: 0,
     ms_of_day: 0,
     bid_size: 0,
     bid_exchange: 0,
@@ -581,7 +567,6 @@ pub(crate) const ZERO_QUOTE: ThetaDataDxStreamQuote = ThetaDataDxStreamQuote {
 };
 pub(crate) const ZERO_TRADE: ThetaDataDxStreamTrade = ThetaDataDxStreamTrade {
     contract: ZERO_CONTRACT_STRUCT,
-    contract_id: 0,
     ms_of_day: 0,
     sequence: 0,
     condition: 0,

@@ -23,9 +23,7 @@ static_assert(offsetof(ThetaDataDxContract, strike_thousandths) == 32,
 
 static_assert(offsetof(ThetaDataDxStreamMarketValue, contract) == 0,
               "ThetaDataDxStreamMarketValue::contract offset drifted");
-static_assert(offsetof(ThetaDataDxStreamMarketValue, contract_id) == 40,
-              "ThetaDataDxStreamMarketValue::contract_id offset drifted");
-static_assert(offsetof(ThetaDataDxStreamMarketValue, ms_of_day) == 44,
+static_assert(offsetof(ThetaDataDxStreamMarketValue, ms_of_day) == 40,
               "ThetaDataDxStreamMarketValue::ms_of_day offset drifted");
 static_assert(offsetof(ThetaDataDxStreamMarketValue, market_bid) == 48,
               "ThetaDataDxStreamMarketValue::market_bid offset drifted");
@@ -42,9 +40,7 @@ static_assert(sizeof(ThetaDataDxStreamMarketValue) == 88,
 
 static_assert(offsetof(ThetaDataDxStreamOhlcvc, contract) == 0,
               "ThetaDataDxStreamOhlcvc::contract offset drifted");
-static_assert(offsetof(ThetaDataDxStreamOhlcvc, contract_id) == 40,
-              "ThetaDataDxStreamOhlcvc::contract_id offset drifted");
-static_assert(offsetof(ThetaDataDxStreamOhlcvc, ms_of_day) == 44,
+static_assert(offsetof(ThetaDataDxStreamOhlcvc, ms_of_day) == 40,
               "ThetaDataDxStreamOhlcvc::ms_of_day offset drifted");
 static_assert(offsetof(ThetaDataDxStreamOhlcvc, open) == 48,
               "ThetaDataDxStreamOhlcvc::open offset drifted");
@@ -67,13 +63,11 @@ static_assert(sizeof(ThetaDataDxStreamOhlcvc) == 112,
 
 static_assert(offsetof(ThetaDataDxStreamOpenInterest, contract) == 0,
               "ThetaDataDxStreamOpenInterest::contract offset drifted");
-static_assert(offsetof(ThetaDataDxStreamOpenInterest, contract_id) == 40,
-              "ThetaDataDxStreamOpenInterest::contract_id offset drifted");
-static_assert(offsetof(ThetaDataDxStreamOpenInterest, ms_of_day) == 44,
+static_assert(offsetof(ThetaDataDxStreamOpenInterest, ms_of_day) == 40,
               "ThetaDataDxStreamOpenInterest::ms_of_day offset drifted");
-static_assert(offsetof(ThetaDataDxStreamOpenInterest, open_interest) == 48,
+static_assert(offsetof(ThetaDataDxStreamOpenInterest, open_interest) == 44,
               "ThetaDataDxStreamOpenInterest::open_interest offset drifted");
-static_assert(offsetof(ThetaDataDxStreamOpenInterest, date) == 52,
+static_assert(offsetof(ThetaDataDxStreamOpenInterest, date) == 48,
               "ThetaDataDxStreamOpenInterest::date offset drifted");
 static_assert(offsetof(ThetaDataDxStreamOpenInterest, received_at_ns) == 56,
               "ThetaDataDxStreamOpenInterest::received_at_ns offset drifted");
@@ -82,13 +76,11 @@ static_assert(sizeof(ThetaDataDxStreamOpenInterest) == 64,
 
 static_assert(offsetof(ThetaDataDxStreamQuote, contract) == 0,
               "ThetaDataDxStreamQuote::contract offset drifted");
-static_assert(offsetof(ThetaDataDxStreamQuote, contract_id) == 40,
-              "ThetaDataDxStreamQuote::contract_id offset drifted");
-static_assert(offsetof(ThetaDataDxStreamQuote, ms_of_day) == 44,
+static_assert(offsetof(ThetaDataDxStreamQuote, ms_of_day) == 40,
               "ThetaDataDxStreamQuote::ms_of_day offset drifted");
-static_assert(offsetof(ThetaDataDxStreamQuote, bid_size) == 48,
+static_assert(offsetof(ThetaDataDxStreamQuote, bid_size) == 44,
               "ThetaDataDxStreamQuote::bid_size offset drifted");
-static_assert(offsetof(ThetaDataDxStreamQuote, bid_exchange) == 52,
+static_assert(offsetof(ThetaDataDxStreamQuote, bid_exchange) == 48,
               "ThetaDataDxStreamQuote::bid_exchange offset drifted");
 static_assert(offsetof(ThetaDataDxStreamQuote, bid) == 56,
               "ThetaDataDxStreamQuote::bid offset drifted");
@@ -111,17 +103,15 @@ static_assert(sizeof(ThetaDataDxStreamQuote) == 104,
 
 static_assert(offsetof(ThetaDataDxStreamTrade, contract) == 0,
               "ThetaDataDxStreamTrade::contract offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, contract_id) == 40,
-              "ThetaDataDxStreamTrade::contract_id offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, ms_of_day) == 44,
+static_assert(offsetof(ThetaDataDxStreamTrade, ms_of_day) == 40,
               "ThetaDataDxStreamTrade::ms_of_day offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, sequence) == 48,
+static_assert(offsetof(ThetaDataDxStreamTrade, sequence) == 44,
               "ThetaDataDxStreamTrade::sequence offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, condition) == 52,
+static_assert(offsetof(ThetaDataDxStreamTrade, condition) == 48,
               "ThetaDataDxStreamTrade::condition offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, size) == 56,
+static_assert(offsetof(ThetaDataDxStreamTrade, size) == 52,
               "ThetaDataDxStreamTrade::size offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, exchange) == 60,
+static_assert(offsetof(ThetaDataDxStreamTrade, exchange) == 56,
               "ThetaDataDxStreamTrade::exchange offset drifted");
 static_assert(offsetof(ThetaDataDxStreamTrade, price) == 64,
               "ThetaDataDxStreamTrade::price offset drifted");

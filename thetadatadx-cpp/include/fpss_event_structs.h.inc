@@ -57,7 +57,6 @@ int32_t strike_thousandths;
 /* Streaming MarketValue tick (wire code 25). A calculated theoretical market value derived from the real-time bid/ask — `market_bid` / `market_ask` are the quote bid/ask after a size-imbalance + spread-aware nudge, `market_price` is their integer midpoint. Per-contract only (no full-stream variant). */
 typedef struct {
     ThetaDataDxContract contract;
-    int32_t contract_id;
     int32_t ms_of_day;
     double market_bid;
     double market_ask;
@@ -69,7 +68,6 @@ typedef struct {
 /* Streaming OHLCVC bar. */
 typedef struct {
     ThetaDataDxContract contract;
-    int32_t contract_id;
     int32_t ms_of_day;
     double open;
     double high;
@@ -84,7 +82,6 @@ typedef struct {
 /* Streaming OpenInterest tick. */
 typedef struct {
     ThetaDataDxContract contract;
-    int32_t contract_id;
     int32_t ms_of_day;
     int32_t open_interest;
     int32_t date;
@@ -94,7 +91,6 @@ typedef struct {
 /* Streaming Quote tick. */
 typedef struct {
     ThetaDataDxContract contract;
-    int32_t contract_id;
     int32_t ms_of_day;
     int32_t bid_size;
     int32_t bid_exchange;
@@ -111,7 +107,6 @@ typedef struct {
 /* Streaming Trade tick. */
 typedef struct {
     ThetaDataDxContract contract;
-    int32_t contract_id;
     int32_t ms_of_day;
     int32_t sequence;
     int32_t condition;

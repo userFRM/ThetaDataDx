@@ -122,7 +122,6 @@ Each update arrives as a `Quote` event with these fields:
 | Field | Type | Description |
 |---|---|---|
 | `contract` | contract | Resolved contract identity (symbol, security type, and option fields). |
-| `contract_id` | i32 | Stable numeric contract registry key; a join key, not identity. |
 | `ms_of_day` | i32 | Milliseconds since midnight Eastern Time. |
 | `bid_size` | i32 | Last NBBO bid size. |
 | `bid_exchange` | i32 | Exchange code of the NBBO bid. |

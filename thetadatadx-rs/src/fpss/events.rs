@@ -16,11 +16,10 @@ use super::protocol::Contract;
 ///
 /// Every variant carries the fully parsed [`Contract`] as `Arc<Contract>` —
 /// users identify the contract via `contract.symbol`, `contract.expiration`,
-/// `contract.strike_thousandths`, `contract.is_call`. Each variant also
-/// carries the server-assigned `contract_id` (the raw wire registry key) as a
-/// read-only join / index key; it is NOT contract identity (see the field
-/// docs) and matches the id on the corresponding
-/// [`StreamControl::ContractAssigned`] event.
+/// `contract.strike_thousandths`, `contract.is_call`. The wire-internal numeric id the
+/// FPSS server assigns is no longer surfaced on data events; downstream code
+/// that needs an id-keyed map builds it from the
+/// [`StreamControl::ContractAssigned`] event stream.
 ///
 /// The I/O thread populates an internal `contract_id -> Arc<Contract>` cache
 /// on [`StreamControl::ContractAssigned`] so each decoded event only pays a
@@ -39,11 +38,9 @@ use super::protocol::Contract;
 /// the `__pending:` prefix (e.g. `"__pending:42"`). Production
 /// callbacks should NOT parse this prefix — it is a diagnostic payload
 /// that the WS bridge surfaces as `unresolved_contract_id` for
-/// operator visibility. The same id is available directly and
-/// type-safely as the event's `contract_id` field even in the
-/// unresolved case, so consumers never need the prefix. SDK consumers
-/// identify contracts by `(symbol, expiration, right, strike)`;
-/// `contract_id` is a join key, not identity.
+/// operator visibility. SDK consumers identify contracts by
+/// `(symbol, expiration, right, strike)` per the removal of
+/// wire ids from public data events.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum StreamData {
@@ -55,14 +52,6 @@ pub enum StreamData {
         /// when the server has not yet sent the matching
         /// `ContractAssigned` frame.
         contract: Arc<Contract>,
-        /// Stable numeric contract key assigned by the ThetaData registry
-        /// in first-ingest order. Constant for every tick of a given
-        /// contract and stable across reconnects within a session. A join
-        /// / index key — NOT contract identity: identity is (symbol,
-        /// expiration, strike, right). Opaque: it does not encode
-        /// expiration or strike. Resolve human-readable fields via the
-        /// contract or the `ContractAssigned` mapping.
-        contract_id: i32,
         /// Milliseconds since midnight Eastern Time when the quote was recorded.
         ms_of_day: i32,
         /// Number of contracts/shares resting at the bid.
@@ -94,14 +83,6 @@ pub enum StreamData {
         /// when the matching `ContractAssigned` frame has not yet
         /// arrived.
         contract: Arc<Contract>,
-        /// Stable numeric contract key assigned by the ThetaData registry
-        /// in first-ingest order. Constant for every tick of a given
-        /// contract and stable across reconnects within a session. A join
-        /// / index key — NOT contract identity: identity is (symbol,
-        /// expiration, strike, right). Opaque: it does not encode
-        /// expiration or strike. Resolve human-readable fields via the
-        /// contract or the `ContractAssigned` mapping.
-        contract_id: i32,
         /// Milliseconds since midnight Eastern Time when the trade printed.
         ms_of_day: i32,
         /// Exchange sequence number for ordering trades within the day.
@@ -127,14 +108,6 @@ pub enum StreamData {
         /// when the matching `ContractAssigned` frame has not yet
         /// arrived.
         contract: Arc<Contract>,
-        /// Stable numeric contract key assigned by the ThetaData registry
-        /// in first-ingest order. Constant for every tick of a given
-        /// contract and stable across reconnects within a session. A join
-        /// / index key — NOT contract identity: identity is (symbol,
-        /// expiration, strike, right). Opaque: it does not encode
-        /// expiration or strike. Resolve human-readable fields via the
-        /// contract or the `ContractAssigned` mapping.
-        contract_id: i32,
         /// Milliseconds since midnight Eastern Time when the open interest was recorded.
         ms_of_day: i32,
         /// Number of outstanding open contracts.
@@ -154,14 +127,6 @@ pub enum StreamData {
         /// when the matching `ContractAssigned` frame has not yet
         /// arrived.
         contract: Arc<Contract>,
-        /// Stable numeric contract key assigned by the ThetaData registry
-        /// in first-ingest order. Constant for every tick of a given
-        /// contract and stable across reconnects within a session. A join
-        /// / index key — NOT contract identity: identity is (symbol,
-        /// expiration, strike, right). Opaque: it does not encode
-        /// expiration or strike. Resolve human-readable fields via the
-        /// contract or the `ContractAssigned` mapping.
-        contract_id: i32,
         /// Milliseconds since midnight Eastern Time at the bar's open.
         ms_of_day: i32,
         /// Opening price of the bar.
@@ -196,14 +161,6 @@ pub enum StreamData {
         /// when the matching `ContractAssigned` frame has not yet
         /// arrived.
         contract: Arc<Contract>,
-        /// Stable numeric contract key assigned by the ThetaData registry
-        /// in first-ingest order. Constant for every tick of a given
-        /// contract and stable across reconnects within a session. A join
-        /// / index key — NOT contract identity: identity is (symbol,
-        /// expiration, strike, right). Opaque: it does not encode
-        /// expiration or strike. Resolve human-readable fields via the
-        /// contract or the `ContractAssigned` mapping.
-        contract_id: i32,
         /// Milliseconds since midnight Eastern Time when the market value was computed.
         ms_of_day: i32,
         /// Calculated market bid (dollars), nudged from the quote bid.
@@ -603,7 +560,6 @@ mod tests {
         let contract = Arc::new(Contract::stock("DISC"));
         let internal_data = FpssEventInternal::Data(StreamData::Quote {
             contract: Arc::clone(&contract),
-            contract_id: 0,
             ms_of_day: 0,
             bid_size: 0,
             bid_exchange: 0,
@@ -621,7 +577,6 @@ mod tests {
         });
         let public_data = StreamEvent::Data(StreamData::Quote {
             contract: Arc::clone(&contract),
-            contract_id: 0,
             ms_of_day: 0,
             bid_size: 0,
             bid_exchange: 0,
@@ -676,7 +631,6 @@ mod tests {
         let contract = Arc::new(Contract::stock("MSFT"));
         let internal = FpssEventInternal::Data(StreamData::Trade {
             contract: Arc::clone(&contract),
-            contract_id: 55,
             ms_of_day: 12_345,
             sequence: 7,
             condition: 0,
@@ -692,7 +646,6 @@ mod tests {
         match public {
             StreamEvent::Data(StreamData::Trade {
                 contract: pub_contract,
-                contract_id,
                 ms_of_day,
                 sequence,
                 price,
@@ -702,9 +655,6 @@ mod tests {
                     Arc::ptr_eq(pub_contract, &contract),
                     "reborrow must preserve the Arc<Contract> pointer identity",
                 );
-                // The wire contract_id must survive the layout-compat
-                // reborrow byte-for-byte alongside the other scalars.
-                assert_eq!(*contract_id, 55);
                 assert_eq!(*ms_of_day, 12_345);
                 assert_eq!(*sequence, 7);
                 // Decimal-ms price round-trips exactly through
@@ -795,7 +745,6 @@ mod tests {
         let contract = Arc::new(Contract::stock("AAPL"));
         let data_evt = StreamEvent::Data(StreamData::Trade {
             contract: Arc::clone(&contract),
-            contract_id: 0,
             ms_of_day: 0,
             sequence: 0,
             condition: 0,

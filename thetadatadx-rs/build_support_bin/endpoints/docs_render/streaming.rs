@@ -54,7 +54,6 @@ fn event_field_doc(name: &str, book: &str) -> String {
 fn event_field_doc_static(name: &str) -> &'static str {
     match name {
         "contract" => "Resolved contract identity (symbol, security type, and option fields).",
-        "contract_id" => "Stable numeric contract registry key; a join key, not identity.",
         "received_at_ns" => "Local receive timestamp, nanoseconds since the Unix epoch.",
         "ms_of_day" => "Milliseconds since midnight Eastern Time.",
         "date" => "Trading date as a YYYYMMDD integer.",

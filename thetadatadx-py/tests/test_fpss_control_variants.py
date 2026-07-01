@@ -151,26 +151,6 @@ def test_data_classes_still_exported(thetadatadx_mod):
         assert cls.__name__ == variant
 
 
-def test_data_events_expose_contract_id_getter(thetadatadx_mod):
-    """Every streaming data-event pyclass surfaces the server-assigned
-    `contract_id` join key as a `#[pyo3(get)]` field getter.
-
-    pyo3 generates a getter on each `#[pyo3(get)]` field, so `dir(cls)`
-    exposes `contract_id`. We do not construct the class from Python
-    (frozen + skip_from_py_object, no `#[new]`), so this pins structural
-    presence — the same offline-safe contract the control-variant field
-    tests above assert. The value path (contract_id == the wire id) is
-    pinned by the Rust decode test `decode_frame_surfaces_wire_contract_id_on_data_events`.
-    """
-    for variant in ("Quote", "Trade", "OpenInterest", "Ohlcvc", "MarketValue"):
-        cls = getattr(thetadatadx_mod, variant, None)
-        assert cls is not None, f"thetadatadx.{variant} missing"
-        assert "contract_id" in dir(cls), (
-            f"thetadatadx.{variant} missing field getter 'contract_id'; "
-            f"check `[events.{variant}]` columns in fpss_event_schema.toml"
-        )
-
-
 def test_simple_class_removed(thetadatadx_mod):
     """The flat `Simple` envelope is gone -- typed-per-variant control
     classes replace it. Pin its absence so accidental re-introduction

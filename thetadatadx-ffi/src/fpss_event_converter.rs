@@ -22,7 +22,6 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
     match event {
         StreamEvent::Data(StreamData::MarketValue {
             contract,
-            contract_id,
             ms_of_day,
             market_bid,
             market_ask,
@@ -55,7 +54,6 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     kind: ThetaDataDxStreamEventKind::MarketValue,
                     market_value: ThetaDataDxStreamMarketValue {
                         contract: thetadatadx_contract,
-                        contract_id: *contract_id,
                         ms_of_day: *ms_of_day,
                         market_bid: *market_bid,
                         market_ask: *market_ask,
@@ -74,7 +72,6 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
 
         StreamEvent::Data(StreamData::Ohlcvc {
             contract,
-            contract_id,
             ms_of_day,
             open,
             high,
@@ -110,7 +107,6 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     kind: ThetaDataDxStreamEventKind::Ohlcvc,
                     ohlcvc: ThetaDataDxStreamOhlcvc {
                         contract: thetadatadx_contract,
-                        contract_id: *contract_id,
                         ms_of_day: *ms_of_day,
                         open: *open,
                         high: *high,
@@ -132,7 +128,6 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
 
         StreamEvent::Data(StreamData::OpenInterest {
             contract,
-            contract_id,
             ms_of_day,
             open_interest,
             date,
@@ -163,7 +158,6 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     kind: ThetaDataDxStreamEventKind::OpenInterest,
                     open_interest: ThetaDataDxStreamOpenInterest {
                         contract: thetadatadx_contract,
-                        contract_id: *contract_id,
                         ms_of_day: *ms_of_day,
                         open_interest: *open_interest,
                         date: *date,
@@ -180,7 +174,6 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
 
         StreamEvent::Data(StreamData::Quote {
             contract,
-            contract_id,
             ms_of_day,
             bid_size,
             bid_exchange,
@@ -218,7 +211,6 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     kind: ThetaDataDxStreamEventKind::Quote,
                     quote: ThetaDataDxStreamQuote {
                         contract: thetadatadx_contract,
-                        contract_id: *contract_id,
                         ms_of_day: *ms_of_day,
                         bid_size: *bid_size,
                         bid_exchange: *bid_exchange,
@@ -242,7 +234,6 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
 
         StreamEvent::Data(StreamData::Trade {
             contract,
-            contract_id,
             ms_of_day,
             sequence,
             condition,
@@ -277,7 +268,6 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                     kind: ThetaDataDxStreamEventKind::Trade,
                     trade: ThetaDataDxStreamTrade {
                         contract: thetadatadx_contract,
-                        contract_id: *contract_id,
                         ms_of_day: *ms_of_day,
                         sequence: *sequence,
                         condition: *condition,

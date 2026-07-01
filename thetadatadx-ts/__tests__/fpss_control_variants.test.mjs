@@ -118,25 +118,3 @@ describe('StreamControl typed variants', () => {
     );
   });
 });
-
-describe('StreamData typed variants', () => {
-  // Every `kind = "data"` schema variant. napi-rs lowers the Rust
-  // `contract_id: i32` field to `contractId: number` on each interface.
-  const DATA_VARIANTS = ['Quote', 'Trade', 'OpenInterest', 'Ohlcvc', 'MarketValue'];
-
-  it('every data event interface carries a contractId: number join key', () => {
-    const dts = readFileSync(dtsPath, 'utf8');
-    for (const name of DATA_VARIANTS) {
-      const interfaceRe = new RegExp(`export interface ${name}\\s*\\{[^}]*\\}`, 's');
-      const match = dts.match(interfaceRe);
-      assert.ok(match, `interface ${name} missing from index.d.ts`);
-      // napi lowers `i32` to `number`; snake_case `contract_id` to camel
-      // `contractId`. The field is non-optional (present on every tick).
-      assert.match(
-        match[0],
-        /\bcontractId\s*:\s*number\b/,
-        `interface ${name} missing 'contractId: number' join key`
-      );
-    }
-  });
-});

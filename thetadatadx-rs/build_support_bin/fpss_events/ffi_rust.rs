@@ -133,9 +133,6 @@ fn fpss_column_doc(name: &str) -> String {
         "condition" => "Primary trade condition code.",
         "condition_flags" => "Bit flags qualifying the trade conditions.",
         "contract" => "Contract this event refers to.",
-        "contract_id" => {
-            "Server-assigned registry key (raw wire id). A join / index key, not contract identity."
-        }
         "count" => "Number of trades aggregated into the bar.",
         "date" => "Trading date as `YYYYMMDD`.",
         "delay_ms" => "Delay, in milliseconds, before the attempt fires.",

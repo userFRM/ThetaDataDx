@@ -90,7 +90,6 @@ unsafe impl Sync for RingSlot {}
 fn make_event(contract: &Arc<Contract>, idx: u64) -> StreamEvent {
     StreamEvent::Data(StreamData::Trade {
         contract: Arc::clone(contract),
-        contract_id: idx as i32,
         ms_of_day: (idx % 86_400_000) as i32,
         sequence: idx as i32,
         condition: 0,
