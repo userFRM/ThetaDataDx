@@ -508,7 +508,7 @@ describe('Config u32 setter input-validation parity (native)', () => {
   ];
   // Knobs where `0` is a legal value (iteration counts / keepalive
   // retries): `0` must be accepted; only the hostile shapes throw.
-  const zeroOkSetters = ['setStreamingKeepaliveRetries', 'setWaitSpinIters', 'setWaitYieldIters'];
+  const zeroOkSetters = ['setStreamingKeepaliveRetries'];
 
   const hostile = [
     ['negative', -1],

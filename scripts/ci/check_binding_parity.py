@@ -2331,10 +2331,6 @@ NAME_ONLY_METHOD_ALLOWLIST: dict[tuple[str, str], str] = {
 # The exemption is sound ONLY because every entry has a getter twin whose `.pyi`
 # property TYPE the `python_pyi` lane checks directly — verified per setter:
 #   setFlushMode        → `flushMode`           (Literal["batched", "immediate"])
-#   setWaitStrategy     → `waitStrategy`        (Literal[...] wait-strategy set)
-#   setWaitSpinIters    → `waitSpinIters`       (int)
-#   setWaitYieldIters   → `waitYieldIters`      (int)
-#   setWaitParkUs       → `waitParkUs`          (int)
 #   setConsumerCpu      → `consumerCpu`         (Optional[int])
 #   setReconnectPolicy  → `reconnectPolicy`     (str)
 #   setStreamingRingSize→ `streamingRingSize`   (int)  ← getter row added so the
@@ -2349,10 +2345,6 @@ PYI_SETTER_PROPERTY_ROWS: frozenset[tuple[str, str]] = frozenset(
     ("Config", name)
     for name in (
         "setFlushMode",
-        "setWaitStrategy",
-        "setWaitSpinIters",
-        "setWaitYieldIters",
-        "setWaitParkUs",
         "setConsumerCpu",
         "setReconnectPolicy",
         "setStreamingRingSize",
@@ -12494,10 +12486,6 @@ def _run_selftest() -> int:
         # `setStreamingRingSize` → `streamingRingSize` was the gap this closes.
         setter_to_getter = {
             "setFlushMode": ("flushMode", "flush_mode"),
-            "setWaitStrategy": ("waitStrategy", "wait_strategy"),
-            "setWaitSpinIters": ("waitSpinIters", "wait_spin_iters"),
-            "setWaitYieldIters": ("waitYieldIters", "wait_yield_iters"),
-            "setWaitParkUs": ("waitParkUs", "wait_park_us"),
             "setConsumerCpu": ("consumerCpu", "consumer_cpu"),
             "setReconnectPolicy": ("reconnectPolicy", "reconnect_policy"),
             "setStreamingRingSize": ("streamingRingSize", "streaming_ring_size"),

@@ -291,14 +291,6 @@ class Config:
     @property
     def streaming_environment(self) -> Literal["PROD", "DEV"]:
         """Target streaming environment carried by this configuration: ``"PROD"`` for the production cluster or ``"DEV"`` for the dev cluster. The streaming and historical channels are selected independently; :meth:`Config.production` / :meth:`Config.dev` (and the ``THETADATA_STREAMING_TYPE`` key on :meth:`Config.from_dotenv`) set the streaming channel, and this is the readback of that selection. Read-only: the selector is chosen by the environment-tier factories, not assigned directly. Mirrors the ``streaming_type`` string the inline :class:`Client` constructor accepts."""
-    wait_strategy: Literal["low_latency", "balanced", "efficient", "busy_spin"]
-    """Streaming event-ring consumer wait strategy — the latency-vs-CPU knob applied on each ring-empty poll. ``"low_latency"`` (default) never sleeps; ``"balanced"`` parks briefly; ``"efficient"`` parks longer; ``"busy_spin"`` pure-spins and pins a core. The setter accepts the same strings case-insensitively and raises ``ValueError`` otherwise."""
-    wait_spin_iters: int
-    """Spin iterations the wait strategy busy-waits before yielding / parking."""
-    wait_yield_iters: int
-    """``yield_now`` iterations after the spin phase, before any park."""
-    wait_park_us: int
-    """Park interval (microseconds) for the ``"balanced"`` / ``"efficient"`` strategies; inert for the never-sleep strategies."""
     consumer_cpu: Optional[int]
     """CPU core to pin the streaming consumer thread to; ``None`` (default) leaves it under the OS scheduler. An out-of-range or offline core is a best-effort no-op."""
 

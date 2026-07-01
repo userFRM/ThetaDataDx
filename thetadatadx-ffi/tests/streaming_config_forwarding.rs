@@ -1,12 +1,12 @@
 //! Round-trip regression for the standalone streaming-config forwarding
 //! over the C ABI.
 //!
-//! `wait_strategy.rs` round-trips only the wait-strategy preset + the
-//! numeric wait knobs + the consumer-cpu sentinel. It never drives the
-//! rest of the streaming transport surface or the reconnect ladder, so a
-//! regression that dropped a `streaming_*` / `reconnect_*` field on the
-//! C boundary would pass that test silently. This module pins the FULL
-//! field set the higher-level bindings already cover (Python
+//! `consumer_cpu.rs` round-trips only the consumer-cpu sentinel. It
+//! never drives the rest of the streaming transport surface or the
+//! reconnect ladder, so a regression that dropped a `streaming_*` /
+//! `reconnect_*` field on the C boundary would pass that test silently.
+//! This module pins the FULL field set the higher-level bindings already
+//! cover (Python
 //! `test_config_resilience.py::test_streaming_transport_defaults_and_round_trip`
 //! plus the reconnect round-trip tests, and the TypeScript
 //! `config_resilience` and `config_reconnect` suites), so the C ABI stays in lockstep.

@@ -304,9 +304,9 @@ impl Config {
     // config_surface.toml (the `ms` / `string` carve-out kinds).
 
     // `metrics.port` (`Option<number>` exporter port), the
-    // `streaming.flushMode` / `waitStrategy` enums, and the
-    // `reconnectJitter` / `streamingHostSelection` enums are the
-    // generated `enum` / `option` accessors from config_surface.toml.
+    // `streaming.flushMode` enum, and the `reconnectJitter` /
+    // `streamingHostSelection` enums are the generated `enum` / `option`
+    // accessors from config_surface.toml.
 
     /// Target historical environment carried by this configuration:
     /// `"PROD"` for the production cluster or `"STAGE"` for staging. The
@@ -338,80 +338,6 @@ impl Config {
             .lock()
             .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
         Ok(guard.streaming_environment().as_str())
-    }
-
-    /// Set the wait-strategy spin iteration count.
-    #[napi(js_name = "setWaitSpinIters")]
-    pub fn set_wait_spin_iters(&self, iters: f64) -> napi::Result<()> {
-        let iters = crate::validate_u32_arg("waitSpinIters", iters)?;
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.streaming.wait_spin_iters = iters;
-        Ok(())
-    }
-
-    /// Current wait-strategy spin iteration count.
-    #[napi(getter, js_name = "waitSpinIters")]
-    pub fn wait_spin_iters(&self) -> napi::Result<u32> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.streaming.wait_spin_iters)
-    }
-
-    /// Set the wait-strategy yield iteration count.
-    #[napi(js_name = "setWaitYieldIters")]
-    pub fn set_wait_yield_iters(&self, iters: f64) -> napi::Result<()> {
-        let iters = crate::validate_u32_arg("waitYieldIters", iters)?;
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.streaming.wait_yield_iters = iters;
-        Ok(())
-    }
-
-    /// Current wait-strategy yield iteration count.
-    #[napi(getter, js_name = "waitYieldIters")]
-    pub fn wait_yield_iters(&self) -> napi::Result<u32> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.streaming.wait_yield_iters)
-    }
-
-    /// Set the wait-strategy park interval in microseconds (used by the
-    /// `"balanced"` / `"efficient"` strategies). The interval is a `u64`
-    /// microsecond value in the core, so it marshals as a `BigInt` like
-    /// the other microsecond / second streaming and reconnect knobs:
-    /// `setWaitParkUs(BigInt(50))`. The core clamps the effective park
-    /// interval to its supported ceiling when the wait strategy is built.
-    #[napi(js_name = "setWaitParkUs")]
-    pub fn set_wait_park_us(&self, park_us: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
-        let value = bigint_to_u64("setWaitParkUs", &park_us)?;
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.streaming.wait_park_us = value;
-        Ok(())
-    }
-
-    /// Current wait-strategy park interval in microseconds (returned as a
-    /// `BigInt`).
-    #[napi(getter, js_name = "waitParkUs")]
-    pub fn wait_park_us(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(napi::bindgen_prelude::BigInt::from(
-            guard.streaming.wait_park_us,
-        ))
     }
 
     /// Pin the streaming consumer thread to a CPU core, or `null` to

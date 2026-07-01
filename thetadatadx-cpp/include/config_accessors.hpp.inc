@@ -517,26 +517,6 @@
         return out;
     }
 
-    /// Set the streaming event-ring consumer wait strategy.
-    /// 0=LowLatency (default), 1=Balanced, 2=Efficient, 3=BusySpin
-    /// (see the @c THETADATADX_WAIT_* constants). Throws
-    /// @c thetadatadx::InvalidParameterError when @p mode is outside the
-    /// documented `{0, 1, 2, 3}` set (and @c thetadatadx::ThetaDataError
-    /// on a null handle).
-    void set_wait_strategy(int mode) {
-        if (thetadatadx_config_set_wait_strategy(handle_.get(), mode) != 0) {
-            detail::throw_last_ffi_error();
-        }
-    }
-
-    /// Read the current streaming wait strategy. Same encoding as
-    /// @c set_wait_strategy. Returns `0` (LowLatency) on a null handle.
-    int get_wait_strategy() const {
-        int32_t out{};
-        thetadatadx_config_get_wait_strategy(handle_.get(), &out);
-        return out;
-    }
-
     /// Set the reconnect jitter mode: 0=Full (default), 1=Equal,
     /// 2=Decorrelated, 3=None. Throws @c thetadatadx::InvalidParameterError on
     /// an out-of-domain mode (and @c thetadatadx::ThetaDataError on a null

@@ -37,210 +37,65 @@
 //!
 //! # Wait Strategy
 //!
-//! [`AdaptiveWaitStrategy`] implements a three-phase wait tuned for FPSS tick
-//! intervals (~100us during active trading).
+//! [`AdaptiveWaitStrategy`] runs a fixed low-latency three-phase wait
+//! tuned for FPSS tick intervals (~100us during active trading).
 
 use std::hint;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
 
 use disruptor::{Producer, RingBufferFull, Sequence};
 
 use super::events::FpssEventInternal;
 use crate::util::cache_padded::CachePadded;
 
-/// Tuning mode for the FPSS event-ring consumer wait, branched on in
-/// [`AdaptiveWaitStrategy::wait_for`].
+/// Low-latency wait strategy for the FPSS event ring consumer.
 ///
-/// Each preset is a different point on the latency-vs-CPU curve. The
-/// mode is selected once at ring-build time and never changes for the
-/// life of the consumer, so the single match in `wait_for` is
-/// negligible against the spin / sleep body it guards.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(crate) enum WaitMode {
-    /// Spin then yield then a `spin_loop` hint; never sleeps. Lowest
-    /// latency, highest idle CPU. The crate default.
-    LowLatency,
-    /// Short spin, brief yield, then a timed park. Low idle CPU at the
-    /// cost of up to one park interval of added tail latency.
-    Balanced,
-    /// Minimal spin then a longer timed park. Lowest idle CPU.
-    Efficient,
-    /// Pure `spin_loop` hint, no yield or sleep. Absolute minimum
-    /// latency; pins a core at 100% while the ring is idle.
-    BusySpin,
-}
-
-/// Configurable wait strategy for the FPSS event ring consumer.
+/// A zero-sized `Copy` type — the disruptor's `WaitStrategy` trait is
+/// `Copy + Send`, so it lives in registers and the per-poll cost is the
+/// fixed `wait_for` body with no indirection.
 ///
-/// One `Copy` type that carries a [`WaitMode`] plus the spin / yield /
-/// park tuning, branching in [`Self::wait_for`] — the disruptor's
-/// `WaitStrategy` trait is `Copy + Send`, so the whole strategy lives
-/// in registers and the per-poll cost is the chosen mode's body, not
-/// indirection.
+/// On each ring-empty poll it runs three phases sized to cover the
+/// typical inter-tick interval (~100us during active trading):
+/// 1. **Spin** -- busy-wait 100 times (~300ns at ~3ns per iteration).
+/// 2. **Yield** -- `thread::yield_now()` 10 times, to smooth brief
+///    pauses between bursts.
+/// 3. **Spin-loop hint** -- a trailing `spin_loop` hint that covers idle
+///    periods (pre-market, post-market) without ever parking.
 ///
-/// The phases the modes draw on:
-/// 1. **Spin** -- busy-wait `spin_iters` times (lowest latency, highest CPU).
-/// 2. **Yield** -- `thread::yield_now()` `yield_iters` times (moderate).
-/// 3. **Park** -- `thread::sleep(park_us)` (low CPU, adds park-interval latency).
-///
-/// `wait_for` fires on every ring-empty poll, so the choice of mode is
-/// a direct latency-vs-CPU knob. For FPSS real-time market data the
-/// [`WaitMode::LowLatency`] default sizes the spin phase to cover the
-/// typical inter-tick interval (~100us during active trading): at ~3ns
-/// per spin iteration, 100 spins covers ~300ns, the yield phase handles
-/// brief pauses between bursts, and the trailing `spin_loop` hint covers
-/// idle periods (pre-market, post-market) without parking.
-#[derive(Copy, Clone, Debug)]
-pub struct AdaptiveWaitStrategy {
-    mode: WaitMode,
-    spin_iters: u32,
-    yield_iters: u32,
-    park_us: u64,
-}
+/// This never sleeps: lowest latency at the cost of higher idle CPU,
+/// the correct trade-off for real-time market data.
+#[derive(Copy, Clone, Debug, Default)]
+pub struct AdaptiveWaitStrategy;
 
 impl AdaptiveWaitStrategy {
-    /// Inclusive upper bound on the spin count; caps a misconfiguration
-    /// from turning the spin phase into a multi-millisecond busy-wait.
-    pub(crate) const MAX_SPIN_ITERS: u32 = 1_000_000;
-    /// Inclusive upper bound on the yield count.
-    pub(crate) const MAX_YIELD_ITERS: u32 = 100_000;
-    /// Inclusive upper bound on the park interval (microseconds); caps a
-    /// misconfiguration from parking the consumer for seconds.
-    pub(crate) const MAX_PARK_US: u64 = 1_000_000;
+    /// Number of busy-wait spins before the yield phase.
+    const SPIN_ITERS: u32 = 100;
+    /// Number of `thread::yield_now()` calls after the spin phase.
+    const YIELD_ITERS: u32 = 10;
 
-    /// [`WaitMode::LowLatency`] preset: 100 spins + 10 yields before a
+    /// The fixed low-latency strategy: 100 spins + 10 yields before a
     /// trailing `spin_loop` hint; never sleeps.
-    ///
-    /// At ~3ns per spin iteration, 100 spins = ~300ns — well within the
-    /// typical FPSS tick interval (~100us during active trading). This
-    /// is the crate default and reproduces the historical fixed
-    /// behaviour byte-for-byte.
     #[must_use]
     pub fn low_latency() -> Self {
-        Self {
-            mode: WaitMode::LowLatency,
-            spin_iters: 100,
-            yield_iters: 10,
-            park_us: 50,
-        }
-    }
-
-    /// [`WaitMode::Balanced`] preset: short spin, brief yield, then a
-    /// 50us park. Low idle CPU, ~park-interval added tail latency.
-    #[must_use]
-    pub fn balanced() -> Self {
-        Self {
-            mode: WaitMode::Balanced,
-            spin_iters: 32,
-            yield_iters: 4,
-            park_us: 50,
-        }
-    }
-
-    /// [`WaitMode::Efficient`] preset: minimal spin then a longer 250us
-    /// park. Lowest idle CPU.
-    #[must_use]
-    pub fn efficient() -> Self {
-        Self {
-            mode: WaitMode::Efficient,
-            spin_iters: 8,
-            yield_iters: 0,
-            park_us: 250,
-        }
-    }
-
-    /// [`WaitMode::BusySpin`] preset: pure `spin_loop` hint, no yield or
-    /// sleep. Absolute minimum latency; pins a core while idle.
-    #[must_use]
-    pub fn busy_spin() -> Self {
-        Self {
-            mode: WaitMode::BusySpin,
-            spin_iters: 0,
-            yield_iters: 0,
-            park_us: 0,
-        }
-    }
-
-    /// Return a copy of this strategy with the spin / yield / park
-    /// counts replaced, clamping each to its sane upper bound and
-    /// preserving the [`WaitMode`].
-    #[must_use]
-    pub(crate) fn with_tuning(self, spin_iters: u32, yield_iters: u32, park_us: u64) -> Self {
-        Self::from_mode(self.mode, spin_iters, yield_iters, park_us)
-    }
-
-    /// Build a strategy for a [`WaitMode`] with explicit spin / yield /
-    /// park tuning, clamping each parameter to its sane upper bound.
-    ///
-    /// The mode selects the phase shape; the three integers tune the
-    /// phases that mode actually uses (e.g. `park_us` is inert under
-    /// [`WaitMode::LowLatency`] / [`WaitMode::BusySpin`], which never
-    /// sleep). Clamping here means an out-of-range config can never turn
-    /// the hot-path wait into a multi-second stall.
-    pub(crate) fn from_mode(
-        mode: WaitMode,
-        spin_iters: u32,
-        yield_iters: u32,
-        park_us: u64,
-    ) -> Self {
-        Self {
-            mode,
-            spin_iters: spin_iters.min(Self::MAX_SPIN_ITERS),
-            yield_iters: yield_iters.min(Self::MAX_YIELD_ITERS),
-            park_us: park_us.min(Self::MAX_PARK_US),
-        }
-    }
-
-    /// The [`WaitMode`] that selects this strategy's phase shape.
-    ///
-    /// The mode is the deterministic identity of the resolved strategy:
-    /// it decides whether the consumer ever parks, so a caller can assert
-    /// which preset a config or builder resolved to without observing
-    /// wall-clock timing.
-    #[cfg(test)]
-    pub(crate) fn mode(&self) -> WaitMode {
-        self.mode
+        Self
     }
 }
 
 impl disruptor::wait_strategies::WaitStrategy for AdaptiveWaitStrategy {
     #[inline]
     fn wait_for(&self, _sequence: Sequence) {
-        match self.mode {
-            WaitMode::LowLatency => {
-                // Phase 1: Spin (lowest latency)
-                for _ in 0..self.spin_iters {
-                    hint::spin_loop();
-                }
-                // Phase 2: Yield (moderate)
-                for _ in 0..self.yield_iters {
-                    thread::yield_now();
-                }
-                // Phase 3: Spin-loop hint (low CPU, still responsive)
-                hint::spin_loop();
-            }
-            WaitMode::Balanced | WaitMode::Efficient => {
-                // Short spin then yield to absorb sub-microsecond gaps,
-                // then a timed park for longer idle. The disruptor
-                // re-checks the cursor after `wait_for` returns, so a
-                // timed sleep is the correct parking form — this crate
-                // has no condvar/notify path.
-                for _ in 0..self.spin_iters {
-                    hint::spin_loop();
-                }
-                for _ in 0..self.yield_iters {
-                    thread::yield_now();
-                }
-                thread::sleep(Duration::from_micros(self.park_us));
-            }
-            WaitMode::BusySpin => {
-                // Pure hint: absolute minimum latency, pins a core.
-                hint::spin_loop();
-            }
+        // Phase 1: Spin (lowest latency)
+        for _ in 0..Self::SPIN_ITERS {
+            hint::spin_loop();
         }
+        // Phase 2: Yield (moderate)
+        for _ in 0..Self::YIELD_ITERS {
+            thread::yield_now();
+        }
+        // Phase 3: Spin-loop hint (low CPU, still responsive)
+        hint::spin_loop();
     }
 }
 
@@ -514,67 +369,11 @@ mod tests {
     }
 
     #[test]
-    fn low_latency_strategy_shape() {
-        // `low_latency` MUST keep the 100-spin / 10-yield tuning and the
-        // LowLatency phase shape.
-        let s = AdaptiveWaitStrategy::low_latency();
-        assert_eq!(s.mode, WaitMode::LowLatency);
-        assert_eq!(s.spin_iters, 100);
-        assert_eq!(s.yield_iters, 10);
-    }
-
-    #[test]
-    fn preset_modes_carry_expected_shape() {
-        let balanced = AdaptiveWaitStrategy::balanced();
-        assert_eq!(balanced.mode, WaitMode::Balanced);
-        assert!(balanced.park_us > 0);
-
-        let efficient = AdaptiveWaitStrategy::efficient();
-        assert_eq!(efficient.mode, WaitMode::Efficient);
-        // Efficient parks longer than Balanced for lower idle CPU.
-        assert!(efficient.park_us >= balanced.park_us);
-
-        let busy = AdaptiveWaitStrategy::busy_spin();
-        assert_eq!(busy.mode, WaitMode::BusySpin);
-        assert_eq!(busy.yield_iters, 0);
-        assert_eq!(busy.park_us, 0);
-    }
-
-    #[test]
-    fn from_mode_clamps_out_of_range_params() {
-        let s = AdaptiveWaitStrategy::from_mode(WaitMode::Balanced, u32::MAX, u32::MAX, u64::MAX);
-        assert_eq!(s.mode, WaitMode::Balanced);
-        assert_eq!(s.spin_iters, AdaptiveWaitStrategy::MAX_SPIN_ITERS);
-        assert_eq!(s.yield_iters, AdaptiveWaitStrategy::MAX_YIELD_ITERS);
-        assert_eq!(s.park_us, AdaptiveWaitStrategy::MAX_PARK_US);
-    }
-
-    #[test]
-    fn each_preset_wait_for_returns() {
+    fn low_latency_wait_for_returns() {
         use disruptor::wait_strategies::WaitStrategy;
-        // Smoke: every preset's `wait_for` completes without hanging.
-        // Balanced / Efficient sleep (short park), BusySpin / LowLatency
-        // spin; all must return promptly.
-        for s in [
-            AdaptiveWaitStrategy::low_latency(),
-            AdaptiveWaitStrategy::busy_spin(),
-            // Keep the parked presets short for the test.
-            AdaptiveWaitStrategy::from_mode(WaitMode::Balanced, 1, 0, 1),
-            AdaptiveWaitStrategy::from_mode(WaitMode::Efficient, 1, 0, 1),
-        ] {
-            s.wait_for(0);
-        }
-    }
-
-    #[test]
-    fn parked_modes_actually_sleep() {
-        use disruptor::wait_strategies::WaitStrategy;
-        // A parked mode with a measurable park must elapse at least the
-        // park interval; LowLatency must not sleep at all.
-        let parked = AdaptiveWaitStrategy::from_mode(WaitMode::Balanced, 0, 0, 2_000);
-        let start = std::time::Instant::now();
-        parked.wait_for(0);
-        assert!(start.elapsed() >= std::time::Duration::from_micros(2_000));
+        // Smoke: the fixed low-latency `wait_for` completes promptly and
+        // never parks.
+        AdaptiveWaitStrategy::low_latency().wait_for(0);
     }
 
     #[test]

@@ -660,35 +660,6 @@ impl Config {
         guard.streaming.flush_mode.as_str()
     }
 
-    /// Set the streaming event-ring consumer wait strategy — the
-    /// latency-vs-CPU knob applied on each ring-empty poll.
-    ///
-    /// Accepts ``"low_latency"`` (default, never sleeps — lowest
-    /// latency, highest idle CPU), ``"balanced"`` (brief park — low idle
-    /// CPU), ``"efficient"`` (longer park — lowest idle CPU), or
-    /// ``"busy_spin"`` (pure spin — pins a core). Tune the individual
-    /// spin / yield / park counts via ``wait_spin_iters`` /
-    /// ``wait_yield_iters`` / ``wait_park_us``.
-    #[setter]
-    fn set_wait_strategy(&self, strategy: &str) -> PyResult<()> {
-        let parsed = config::StreamingWaitStrategy::parse(strategy).ok_or_else(|| {
-            PyValueError::new_err(format!(
-                "wait_strategy must be \"low_latency\", \"balanced\", \"efficient\", or \"busy_spin\"; got {strategy:?}"
-            ))
-        })?;
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.streaming.wait_strategy = parsed;
-        Ok(())
-    }
-
-    /// Current streaming wait strategy (``"low_latency"``,
-    /// ``"balanced"``, ``"efficient"``, or ``"busy_spin"``).
-    #[getter]
-    fn get_wait_strategy(&self) -> &'static str {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.streaming.wait_strategy.as_str()
-    }
-
     /// Set the jitter strategy applied to every reconnect delay.
     /// Accepts ``"full"`` (default), ``"equal"``, ``"decorrelated"``,
     /// or ``"none"`` (case-insensitive).

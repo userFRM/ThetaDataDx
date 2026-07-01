@@ -682,43 +682,6 @@ python = true
 typescript = true
 cpp = true
 
-# `StreamingConfig.wait_strategy` is exposed on every binding:
-# C ABI (`thetadatadx_config_set_wait_strategy`), C++ (`set_wait_strategy`),
-# Python (`Config.wait_strategy` getter + setter accepting
-# `"low_latency"` / `"balanced"` / `"efficient"` / `"busy_spin"`),
-# TypeScript (`Config.waitStrategy` getter + `setWaitStrategy`).
-[[class]]
-name = "StreamingConfig.wait_strategy"
-python = true
-typescript = true
-cpp = true
-
-# `StreamingConfig.wait_spin_iters` numeric tuning knob, exposed on every
-# binding (Python `Config.wait_spin_iters`, TypeScript `waitSpinIters` /
-# `setWaitSpinIters`, C++ `set_wait_spin_iters` / `get_wait_spin_iters`,
-# C ABI `thetadatadx_config_set_wait_spin_iters`).
-[[class]]
-name = "StreamingConfig.wait_spin_iters"
-python = true
-typescript = true
-cpp = true
-
-# `StreamingConfig.wait_yield_iters` numeric tuning knob, exposed on
-# every binding.
-[[class]]
-name = "StreamingConfig.wait_yield_iters"
-python = true
-typescript = true
-cpp = true
-
-# `StreamingConfig.wait_park_us` numeric tuning knob, exposed on every
-# binding.
-[[class]]
-name = "StreamingConfig.wait_park_us"
-python = true
-typescript = true
-cpp = true
-
 # `StreamingConfig.consumer_cpu` optional consumer-thread CPU pin,
 # exposed on every binding (Python `Config.consumer_cpu` `Optional[int]`,
 # TypeScript `consumerCpu` / `setConsumerCpu` `number | null`, C++
@@ -1891,11 +1854,9 @@ cpp = true
 params = ["String"]
 returns = "Config"
 
-# The wait-strategy / flush-mode knobs diverge on C++: the managed bindings
-# pass / return the mode as a String name, while C++ uses the integer enum
-# code (`int`), so those cells are per-lang overrides. The iteration-count and
-# park-microsecond knobs are plain integers everywhere (napi widens the small
-# counts to `f64`, its native number type — the `usize`→`f64` sanction family).
+# The flush-mode knob diverges on C++: the managed bindings pass / return the
+# mode as a String name, while C++ uses the integer enum code (`int`), so those
+# cells are per-lang overrides.
 [[method]]
 class = "Config"
 name = "setFlushMode"
@@ -1920,87 +1881,6 @@ cpp_returns = "i32"
 # so adding / removing / renaming a member fails (the bare `String` would hide
 # the value-set drift). The pyo3-source `python` lane still reads `&str`.
 python_pyi_returns = 'Literal["batched", "immediate"]'
-
-[[method]]
-class = "Config"
-name = "setWaitStrategy"
-python = true
-typescript = true
-cpp = true
-[method.signature]
-params = ["String"]
-returns = "()"
-cpp_params = ["i32"]
-
-[[method]]
-class = "Config"
-name = "waitStrategy"
-python = true
-typescript = true
-cpp = true
-[method.signature]
-returns = "String"
-cpp_returns = "i32"
-python_pyi_returns = 'Literal["low_latency", "balanced", "efficient", "busy_spin"]'
-
-[[method]]
-class = "Config"
-name = "setWaitSpinIters"
-python = true
-typescript = true
-cpp = true
-[method.signature]
-params = ["u32"]
-returns = "()"
-ts_napi_params = ["f64"]
-
-[[method]]
-class = "Config"
-name = "waitSpinIters"
-python = true
-typescript = true
-cpp = true
-[method.signature]
-returns = "u32"
-
-[[method]]
-class = "Config"
-name = "setWaitYieldIters"
-python = true
-typescript = true
-cpp = true
-[method.signature]
-params = ["u32"]
-returns = "()"
-ts_napi_params = ["f64"]
-
-[[method]]
-class = "Config"
-name = "waitYieldIters"
-python = true
-typescript = true
-cpp = true
-[method.signature]
-returns = "u32"
-
-[[method]]
-class = "Config"
-name = "setWaitParkUs"
-python = true
-typescript = true
-cpp = true
-[method.signature]
-params = ["u64"]
-returns = "()"
-
-[[method]]
-class = "Config"
-name = "waitParkUs"
-python = true
-typescript = true
-cpp = true
-[method.signature]
-returns = "u64"
 
 # The consumer-CPU pin is an optional core index. The managed bindings carry
 # it as an optional integer (`Option<usize>` / `Option<f64>` / `Option<u32>`);
