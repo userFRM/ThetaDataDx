@@ -70,7 +70,14 @@ StreamingClient::~StreamingClient() {
     if (handle_) {
         thetadatadx_streaming_shutdown(handle_.get());
         int drained = thetadatadx_streaming_await_drain(handle_.get(), 5000);
-        if (drained == 0) {
+        // Only rescue the retired session when a callback was actually
+        // installed: `callback_` is non-null only after a successful
+        // `set_callback`, which is the sole path that starts the consumer
+        // thread and wires a live `ctx`. With no callback there is no consumer
+        // to outrun, `await_drain` returns 0 on an empty barrier, and the
+        // members can destruct synchronously — `thetadatadx_streaming_free`
+        // skips its drain wait on the no-callback path.
+        if (drained == 0 && callback_) {
             const ThetaDataDxStreamHandle* raw = handle_.get();
             detail::reclaim_after_drain(
                 [raw]() {

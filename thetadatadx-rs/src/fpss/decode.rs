@@ -413,32 +413,14 @@ pub fn decode_frame(
         StreamMsgType::Trade => {
             let msg_code = code as u8;
             match delta_state.decode_tick(msg_code, payload, TRADE_FIELDS, &mut buf) {
-                Some((contract_id, n_data)) => {
+                Some((contract_id, _n)) => {
                     warn_unknown_contract(contract_id, "trade", delta_state, local_contracts);
 
-                    // The FPSS stream trade is the 8-field layout, the only
-                    // width with a known cell map here. (The 16-field
+                    // `decode_tick` rejects any row whose width is not exactly
+                    // TRADE_FIELDS (the only stream-trade layout; the 16-field
                     // "extended" trade is an MDDS gRPC shape on a different
-                    // protocol and never reaches this decoder.) Any other
-                    // width would force the 8-field index set onto a payload
-                    // that does not match it, reading never-populated slots as
-                    // price / price_type / date and silently emitting a wrong
-                    // tick. Worse, the width is cached per contract on the
-                    // first absolute row, so a single off-spec width would
-                    // mis-decode every later delta row for that contract.
-                    // Treat it as a decode failure and surface `Unparseable`,
-                    // mirroring the invalid-price_type handling.
-                    if n_data != TRADE_FIELDS {
-                        FPSS_TRADE_DECODE_FAILURES.increment(1);
-                        tracing::warn!(
-                            contract_id,
-                            n_data,
-                            expected = TRADE_FIELDS,
-                            "unexpected trade field count; marking unparseable"
-                        );
-                        return Some(FpssEventInternal::Unparseable);
-                    }
-
+                    // protocol and never reaches this decoder), so a `Some`
+                    // here is guaranteed to be the 8-field layout.
                     // 8-field: [ms_of_day, sequence, size, condition, price, exchange, price_type, date]
                     let (price_idx, pt_idx) = (4, 6);
                     let pt = buf[pt_idx];
@@ -917,6 +899,66 @@ mod tests {
         assert!(
             matches!(primary, Some(FpssEventInternal::Unparseable)),
             "an off-spec trade width must decode as Unparseable, got {primary:?}"
+        );
+    }
+
+    /// A complete-but-narrow quote row (fewer than QUOTE_FIELDS data fields)
+    /// must reject as `Unparseable`, not emit a tick whose trailing fields
+    /// (date, price_type index) are silently read from never-populated slots.
+    /// The Quote arm reads fixed indices, so without a width guard a short row
+    /// would surface a zero-filled `date`/wrong price_type as real data.
+    #[test]
+    fn decode_frame_narrow_quote_width_is_unparseable_not_silently_wrong() {
+        // 9 data fields (+ contract_id = 10 FIT fields); QUOTE_FIELDS is 11.
+        let fit_payload = encode_fit_row(&[400, 34200000, 10, 5, 15025, 0, 20, 6, 15030, 0]);
+
+        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        local_contracts.insert(400, Arc::new(Contract::stock("AAPL")));
+
+        let authenticated = AtomicBool::new(true);
+        let shutdown = AtomicBool::new(false);
+        let mut delta_state = DeltaState::new();
+        let primary = decode_frame(
+            StreamMsgType::Quote,
+            &fit_payload,
+            &authenticated,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+        );
+
+        assert!(
+            matches!(primary, Some(FpssEventInternal::Unparseable)),
+            "a narrow quote width must decode as Unparseable, got {primary:?}"
+        );
+    }
+
+    /// A complete-but-narrow OHLCVC row (fewer than OHLCVC_FIELDS data fields)
+    /// must reject as `Unparseable` rather than emit a bar whose high/low/close
+    /// or trailing volume/count/date come from unpopulated slots.
+    #[test]
+    fn decode_frame_narrow_ohlcvc_width_is_unparseable_not_silently_wrong() {
+        // 7 data fields (+ contract_id = 8 FIT fields); OHLCVC_FIELDS is 9.
+        let fit_payload = encode_fit_row(&[500, 34200000, 15000, 15100, 14900, 15050, 1000, 6]);
+
+        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        local_contracts.insert(500, Arc::new(Contract::stock("AAPL")));
+
+        let authenticated = AtomicBool::new(true);
+        let shutdown = AtomicBool::new(false);
+        let mut delta_state = DeltaState::new();
+        let primary = decode_frame(
+            StreamMsgType::Ohlcvc,
+            &fit_payload,
+            &authenticated,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+        );
+
+        assert!(
+            matches!(primary, Some(FpssEventInternal::Unparseable)),
+            "a narrow ohlcvc width must decode as Unparseable, got {primary:?}"
         );
     }
 

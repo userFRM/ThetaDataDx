@@ -597,6 +597,12 @@ inline void reclaim_after_drain(IsDrained is_drained, Release release) {
                 new Release(std::move(release));
                 return;
             }
+            // Sleep at the bottom of the loop so the reclaimer can never
+            // hot-spin regardless of what `is_drained` returns — an
+            // `is_drained` that reports "not drained" without itself blocking
+            // (e.g. an empty drain barrier that returns immediately) would
+            // otherwise busy-loop this thread until the cap.
+            std::this_thread::sleep_for(kReclaimPollStep);
         }
         // Confirmed quiescence: the consumer has finished its last
         // dereference of the retired node, so dropping it now cannot be
@@ -1003,7 +1009,13 @@ public:
                 // Block until the consumer thread quiesces. The 5 s
                 // budget matches `thetadatadx_streaming_free`'s internal barrier.
                 int drained = thetadatadx_streaming_await_drain(handle_.get(), 5000);
-                if (drained == 0) {
+                // Only rescue when a callback was actually installed: `callback_`
+                // is non-null only after a successful `set_callback`, the sole
+                // path that starts the consumer thread and wires a live `ctx`.
+                // With no callback there is nothing to outrun and `await_drain`
+                // returns 0 on the empty barrier, so fall through to the
+                // synchronous `callback_.reset()` below.
+                if (drained == 0 && callback_) {
                     // Drain barrier timed out: the consumer may still be
                     // firing through `callback_`'s storage. Hand the retired
                     // handle and storage to a reclaimer that drops them only

@@ -206,15 +206,32 @@ impl DeltaState {
         let is_absolute = !self.prev.contains_key(&key);
 
         // An absolute row defines the cached field width and seeds the delta
-        // baseline. It must not declare MORE fields than the tick shape holds:
-        // a row wider than `expected_fields` would have its trailing fields
-        // silently dropped (the scratch buffer is `total_fields` wide) and the
-        // cached width would over-report, so reject it as a decode failure.
-        // A truncated row is already rejected above via `row_complete`. A
-        // complete row with fewer fields is a legitimately narrower wire
-        // layout (e.g. the simple-format trade); the per-tick consumer
-        // validates that the narrower width is one it knows how to read.
-        if is_absolute && tick_n > expected_fields {
+        // baseline, so it must carry EXACTLY the tick shape's field count.
+        // Each stream shape has a single valid width (the terminal validates
+        // every stream tick's exact length), so a width mismatch is a decode
+        // failure regardless of direction: a wider row would have its trailing
+        // fields silently dropped (the scratch buffer is `total_fields` wide)
+        // and over-report the cached width, while a complete-but-narrow row
+        // (e.g. a 7-field trade) would seed `prev`/`field_counts` at the wrong
+        // width and mis-decode every later delta row for that contract. A
+        // truncated row is already rejected above via `row_complete`. Rejecting
+        // here, BEFORE any `prev`/`field_counts` insert, guarantees a
+        // wrong-width row leaves no state behind so a later correct absolute
+        // row can re-seed cleanly.
+        if is_absolute && tick_n != expected_fields {
+            // Wrong-width absolute row: reject before it seeds `prev` /
+            // `field_counts` (a wrong cached width would mis-decode every later
+            // delta row for this contract), mirroring the terminal, which
+            // requires each stream tick's exact length. `msg_code` identifies
+            // the shape; the caller surfaces `Unparseable` and bumps the
+            // per-shape decode-failure counter.
+            tracing::warn!(
+                msg_code,
+                contract_id,
+                got = tick_n,
+                expected = expected_fields,
+                "unexpected field count; marking unparseable"
+            );
             return None;
         }
 
@@ -294,6 +311,51 @@ mod tests {
 
     // A representative non-trade message code; the value only keys the maps.
     const QUOTE_CODE: u8 = 2;
+    // A representative trade message code; the value only keys the maps.
+    const TRADE_CODE: u8 = 1;
+
+    /// A complete-but-NARROW first row (fewer data fields than the shape's
+    /// width) must be rejected and leave NO cached baseline or width, so a
+    /// subsequent correct-width absolute row for the SAME key re-seeds cleanly.
+    /// Before the width guard rejected narrow rows, a 7-field trade passed the
+    /// (wider-only) absolute guard, seeded `prev`/`field_counts` at width 7,
+    /// and every later 8-field row for that contract decoded as a width-7 delta
+    /// and was rejected forever until session `clear()` (issue #1047).
+    #[test]
+    fn narrow_first_row_does_not_poison_width_for_later_absolute() {
+        let mut state = DeltaState::new();
+        let cid = 7;
+
+        // 7 data fields (+ contract_id = 8 values); TRADE_FIELDS is 8.
+        let narrow = encode_row(&[cid, 34_200_000, 12_345, 50, 6, 5_500_000, 57, 6]);
+        let mut out: TickFields = [0; MAX_DATA_FIELDS];
+        assert!(
+            state
+                .decode_tick(TRADE_CODE, &narrow, TRADE_FIELDS, &mut out)
+                .is_none(),
+            "a narrow first row must decode to None"
+        );
+        assert_eq!(
+            state.state_sizes(),
+            (0, 0),
+            "a rejected narrow row must leave no prev/field_counts state behind"
+        );
+
+        // A well-formed 8-field absolute row for the SAME contract must now
+        // decode cleanly at the full width — proving the narrow row did not
+        // trap the key.
+        let good = encode_row(&[cid, 34_200_001, 12_346, 51, 6, 5_500_100, 57, 6, 20_250_428]);
+        let (contract_id, n_data) = state
+            .decode_tick(TRADE_CODE, &good, TRADE_FIELDS, &mut out)
+            .expect("a correct-width row must decode after a rejected narrow row");
+        assert_eq!(contract_id, cid);
+        assert_eq!(n_data, TRADE_FIELDS);
+        assert_eq!(out[0], 34_200_001, "field 0 decodes from the clean re-seed");
+        assert_eq!(
+            out[7], 20_250_428,
+            "trailing field 7 decodes, not zero-filled"
+        );
+    }
 
     #[test]
     fn complete_quote_row_decodes_to_correct_tick() {
