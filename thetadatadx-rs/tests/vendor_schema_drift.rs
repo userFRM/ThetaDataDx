@@ -128,14 +128,12 @@ fn consecutive_unknown_opcodes_are_all_skipped() {
     let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
     let mut state = FrameReadState::new();
 
-    // Every unknown frame is consumed and skipped; the loop terminates on
-    // clean EOF (`Ok(None)`), never a typed frame and never an error.
-    loop {
-        match read_frame_into(&mut cursor, &mut buf, &mut state) {
-            Ok(Some(_)) => panic!("unknown opcode must not yield a typed frame"),
-            Ok(None) => break,
-            Err(e) => panic!("a run of unknown opcodes must not escalate to an error: {e}"),
-        }
+    // A single read consumes and skips the entire run of unknown frames,
+    // returning clean EOF — never a typed frame, never an error.
+    match read_frame_into(&mut cursor, &mut buf, &mut state) {
+        Ok(None) => {}
+        Ok(Some(_)) => panic!("unknown opcode must not yield a typed frame"),
+        Err(e) => panic!("a run of unknown opcodes must not escalate to an error: {e}"),
     }
 }
 

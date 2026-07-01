@@ -1873,7 +1873,7 @@ mod tests {
         let mut delta_state = DeltaState::new();
         let mut out: TickFields = [0; crate::fpss::delta::MAX_DATA_FIELDS];
 
-        let n = 500i32; // a generous live universe, well under the cap.
+        let n = 500i32; // a generous live universe.
         for id in 0..n {
             let payload = encode_fit_row(&[id, 34_200_000, 0, 50, 6, 5_500_000, 57, 6, 20_250_428]);
             delta_state
