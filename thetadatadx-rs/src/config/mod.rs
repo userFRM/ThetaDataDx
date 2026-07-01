@@ -946,11 +946,11 @@ impl DirectConfig {
         }
         // The streaming channel needs at least one host to dial. An empty list
         // is reachable from a full override of `vec![]` (the public
-        // `set_streaming_hosts` setter); the config-file `[streaming] hosts`
-        // path already rejects empty in `parse_streaming_hosts`. Reject it here
-        // too so every construction path fails fast at build time with a clear
-        // field error rather than at the connect attempt with a generic "no
-        // servers configured".
+        // `set_streaming_hosts` setter), so reject it here — this check is the
+        // one every construction path (builder, env, config file) routes
+        // through, so it fails fast at build time with a clear field error
+        // rather than at the connect attempt with a generic "no servers
+        // configured".
         if self.streaming.hosts.is_empty() {
             return Err(Error::config_missing("streaming.hosts"));
         }
@@ -1002,18 +1002,6 @@ impl DirectConfig {
         Ok(self)
     }
 
-    /// Build the historical endpoint URI.
-    ///
-    /// Returns the gRPC base URI for the historical service.
-    #[must_use]
-    pub fn historical_uri(&self) -> String {
-        let scheme = if self.historical.tls { "https" } else { "http" };
-        format!(
-            "{}://{}:{}",
-            scheme, self.historical.host, self.historical.port
-        )
-    }
-
     /// Set the port the Prometheus exporter should bind to when the
     /// `metrics-prometheus` cargo feature is enabled. The exporter
     /// exposes `/metrics` over HTTP on `0.0.0.0:<port>`.
@@ -1021,68 +1009,6 @@ impl DirectConfig {
     pub fn with_metrics_port(mut self, port: u16) -> Self {
         self.metrics.port = Some(port);
         self
-    }
-
-    /// Override the retry policy for transient gRPC errors.
-    #[must_use]
-    pub fn with_retry_policy(mut self, policy: RetryPolicy) -> Self {
-        self.retry = policy;
-        self
-    }
-
-    /// Override the Nexus auth URL. Intended for staging deployments —
-    /// production should use [`ENV_NEXUS_URL`] or the default.
-    #[must_use]
-    pub fn with_nexus_url(mut self, url: impl Into<String>) -> Self {
-        self.auth.nexus_url = url.into();
-        self
-    }
-
-    /// Override `QueryInfo.client_type`. Appears in server-side logs
-    /// and dashboards; useful for tagging a deployment fleet.
-    #[must_use]
-    pub fn with_client_type(mut self, client_type: impl Into<String>) -> Self {
-        self.auth.client_type = client_type.into();
-        self
-    }
-
-    /// Parse streaming hosts from a comma-separated `host:port,host:port,...` string.
-    ///
-    /// This is the format used in `config_0.properties` for `FPSS_NJ_HOSTS`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Config`] when an entry lacks a `host:port` split,
-    /// when a port does not parse as a `u16`, or when the input yields no
-    /// hosts at all.
-    pub fn parse_streaming_hosts(hosts_str: &str) -> Result<Vec<(String, u16)>, Error> {
-        let mut result = Vec::new();
-
-        for entry in hosts_str.split(',') {
-            let entry = entry.trim();
-            if entry.is_empty() {
-                continue;
-            }
-
-            let (host, port_str) = entry.rsplit_once(':').ok_or_else(|| {
-                Error::config_invalid(
-                    "streaming.hosts",
-                    format!("invalid host:port entry: '{entry}'"),
-                )
-            })?;
-
-            let port: u16 = port_str.parse().map_err(|e| {
-                Error::config_invalid("streaming.hosts", format!("invalid port in '{entry}': {e}"))
-            })?;
-
-            result.push((host.to_string(), port));
-        }
-
-        if result.is_empty() {
-            return Err(Error::config_missing("streaming.hosts"));
-        }
-
-        Ok(result)
     }
 }
 
@@ -1470,8 +1396,8 @@ mod config_file {
             out.reconnect.policy = ReconnectPolicy::Auto(ReconnectAttemptLimits::default());
 
             // TOML does not surface RetryPolicy / observability fields
-            // today — the builder API (`with_retry_policy`,
-            // `with_metrics_port`, env vars) is the opt-in path.
+            // today — the builder API (`with_metrics_port`) and env vars are
+            // the opt-in path.
             out.retry = RetryPolicy::default();
             out.auth.nexus_url = DirectConfig::DEFAULT_NEXUS_URL.to_string();
             out.auth.client_type = DirectConfig::DEFAULT_CLIENT_TYPE.to_string();
@@ -1486,19 +1412,6 @@ mod config_file {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn production_historical_uri() {
-        // `DirectConfig::production()` reads `THETADATA_HISTORICAL_*` env
-        // vars; another test in this module (`env_overrides_apply_on_production`)
-        // mutates the same env via `unsafe`, and the env is process-
-        // global. Acquire the shared test guard so the two cannot
-        // race when `cargo test` runs them in parallel.
-        let _guard = env_test_guard();
-        clear_env_matrix();
-        let config = DirectConfig::production();
-        assert_eq!(config.historical_uri(), "https://mdds-01.thetadata.us:443");
-    }
 
     #[test]
     fn production_selects_prod_on_both_channels() {
@@ -1687,24 +1600,6 @@ mod tests {
         let config = DirectConfig::production();
         assert_eq!(config.historical_host(), config.historical.host.as_str());
         assert_eq!(config.streaming_hosts(), config.streaming.hosts.as_slice());
-    }
-
-    #[test]
-    fn parse_streaming_hosts_parses_multi_host_csv_with_whitespace_and_empty_entries() {
-        let hosts = DirectConfig::parse_streaming_hosts(
-            " nj-a.thetadata.us:20000, ,nj-b.thetadata.us:20001 ",
-        )
-        .unwrap();
-        assert_eq!(hosts.len(), 2);
-        assert_eq!(hosts[0], ("nj-a.thetadata.us".to_string(), 20000));
-        assert_eq!(hosts[1], ("nj-b.thetadata.us".to_string(), 20001));
-    }
-
-    #[test]
-    fn parse_streaming_hosts_rejects_malformed_entries() {
-        assert!(DirectConfig::parse_streaming_hosts("").is_err());
-        assert!(DirectConfig::parse_streaming_hosts("host:notaport").is_err());
-        assert!(DirectConfig::parse_streaming_hosts("hostonly").is_err());
     }
 
     // -- Config file tests (only compiled with the `config-file` feature) --
@@ -3445,21 +3340,6 @@ mod tests {
             config.streaming.hosts[0],
             ("streaming.staging.example.com".to_string(), 21000)
         );
-        clear_env_matrix();
-    }
-
-    #[test]
-    fn builder_takes_precedence_over_env_var() {
-        let _guard = env_test_guard();
-        clear_env_matrix();
-        // SAFETY: `_guard` holds the process-global env-var mutex for
-        // the body of this test, so no other thread observes or mutates
-        // the environment while this write lands.
-        unsafe {
-            std::env::set_var(ENV_CLIENT_TYPE, "env-wins-when-no-builder");
-        }
-        let config = DirectConfig::production().with_client_type("builder-wins");
-        assert_eq!(config.auth.client_type, "builder-wins");
         clear_env_matrix();
     }
 
