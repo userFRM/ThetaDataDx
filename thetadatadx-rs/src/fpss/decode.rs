@@ -1,9 +1,10 @@
 //! FPSS frame decoder: wire frame -> typed [`StreamEvent`] pairs.
 //!
 //! [`decode_frame`] is the dispatch core of the I/O loop. It runs FIT
-//! decompression through [`super::delta::DeltaState`], updates the
-//! per-contract OHLCVC accumulator, and emits up to two events per frame
-//! (the primary event plus an optional derived OHLCVC for Trade frames).
+//! decompression through [`super::delta::DeltaState`] and emits the typed
+//! event a frame decodes to. OHLCVC bars arrive as their own wire frames
+//! (code 24) and decode alongside the other events; the decoder emits
+//! no derived events (for example, no trade-to-OHLCVC).
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -219,11 +220,12 @@ fn unresolved_sentinel(contract_id: i32) -> Arc<Contract> {
     })
 }
 
-/// Decode a frame into zero, one, or two `StreamEvent`s.
+/// Decode a frame into zero or one `StreamEvent`.
 ///
-/// Returns `(primary, secondary)` where `secondary` is only `Some` for Trade
-/// frames that also produce a derived OHLCVC event. This eliminates the
-/// per-frame `Vec<StreamEvent>` allocation that was on the hot path.
+/// Returns `(primary, secondary)`; `secondary` is currently always `None`
+/// (no frame emits a second event). The two-slot return keeps the hot path
+/// free of the per-frame `Vec<StreamEvent>` allocation and leaves room for a
+/// frame to fan out to a second event without changing the signature.
 ///
 /// This is the frame dispatch logic of the reader thread. Tick data frames
 /// (Quote, Trade, `OpenInterest`, Ohlcvc) are FIT-decoded and delta-decompressed
@@ -243,7 +245,6 @@ pub fn decode_frame(
     local_contracts: &mut HashMap<i32, Arc<Contract>>,
     shutdown: &AtomicBool,
     delta_state: &mut DeltaState,
-    derive_ohlcvc: bool,
 ) -> (Option<FpssEventInternal>, Option<FpssEventInternal>) {
     // Capture wall-clock timestamp once per frame for all data variants.
     //
@@ -316,7 +317,7 @@ pub fn decode_frame(
     // Stack-allocated tick buffer reused across every FIT-decoded arm. The
     // decoder writes the absolute field values directly here; the match arm
     // reads `buf[i]` to construct the public `StreamData` variant. Sized at
-    // the widest tick shape (`TRADE_FIELDS = 16`) so every arm shares one
+    // the widest tick shape (`MAX_DATA_FIELDS`) so every arm shares one
     // buffer with zero heap traffic on the decode hot path.
     let mut buf: TickFields = [0; super::delta::MAX_DATA_FIELDS];
 
@@ -427,29 +428,31 @@ pub fn decode_frame(
                 Some((contract_id, n_data)) => {
                     warn_unknown_contract(contract_id, "trade", delta_state, local_contracts);
 
-                    // Only the 8-field and 16-field trade layouts have known
-                    // cell positions. Any other width would force one of the
-                    // two index sets onto a payload that does not match it,
-                    // reading never-populated slots as price / price_type /
-                    // date and silently emitting a wrong tick. Worse, the
-                    // width is cached per contract on the first absolute row,
-                    // so a single off-spec width would mis-decode every later
-                    // delta row for that contract. Treat it as a decode
-                    // failure and surface `Unparseable`, mirroring the
-                    // invalid-price_type handling, rather than continuing.
-                    if n_data != 8 && n_data != TRADE_FIELDS {
+                    // The FPSS stream trade is the 8-field layout, the only
+                    // width with a known cell map here. (The 16-field
+                    // "extended" trade is an MDDS gRPC shape on a different
+                    // protocol and never reaches this decoder.) Any other
+                    // width would force the 8-field index set onto a payload
+                    // that does not match it, reading never-populated slots as
+                    // price / price_type / date and silently emitting a wrong
+                    // tick. Worse, the width is cached per contract on the
+                    // first absolute row, so a single off-spec width would
+                    // mis-decode every later delta row for that contract.
+                    // Treat it as a decode failure and surface `Unparseable`,
+                    // mirroring the invalid-price_type handling.
+                    if n_data != TRADE_FIELDS {
                         FPSS_TRADE_DECODE_FAILURES.increment(1);
                         tracing::warn!(
                             contract_id,
                             n_data,
-                            "unexpected trade field count (expected 8 or 16); marking unparseable"
+                            expected = TRADE_FIELDS,
+                            "unexpected trade field count; marking unparseable"
                         );
                         return (Some(FpssEventInternal::Unparseable), None);
                     }
 
                     // 8-field: [ms_of_day, sequence, size, condition, price, exchange, price_type, date]
-                    // 16-field: [ms_of_day, sequence, ext1..ext4, condition, size, exchange, price, cond_flags, price_flags, vol_type, records_back, price_type, date]
-                    let (price_idx, pt_idx) = if n_data <= 8 { (4, 6) } else { (9, 14) };
+                    let (price_idx, pt_idx) = (4, 6);
                     let pt = buf[pt_idx];
                     let Some(price_f64) = strict_fpss_price(buf[price_idx], pt) else {
                         FPSS_TRADE_DECODE_FAILURES.increment(1);
@@ -460,108 +463,18 @@ pub fn decode_frame(
                     FPSS_TRADE_EVENTS.increment(1);
 
                     let contract_arc = resolve_contract(contract_id, local_contracts);
-                    let trade_event = if n_data <= 8 {
-                        FpssEventInternal::Data(StreamData::Trade {
-                            contract: Arc::clone(&contract_arc),
-                            ms_of_day: buf[0],
-                            sequence: buf[1],
-                            ext_condition1: 0,
-                            ext_condition2: 0,
-                            ext_condition3: 0,
-                            ext_condition4: 0,
-                            condition: buf[3],
-                            size: buf[2],
-                            exchange: buf[5],
-                            price: price_f64,
-                            condition_flags: 0,
-                            price_flags: 0,
-                            volume_type: 0,
-                            records_back: 0,
-                            date: buf[7],
-                            received_at_ns,
-                        })
-                    } else {
-                        FpssEventInternal::Data(StreamData::Trade {
-                            contract: Arc::clone(&contract_arc),
-                            ms_of_day: buf[0],
-                            sequence: buf[1],
-                            ext_condition1: buf[2],
-                            ext_condition2: buf[3],
-                            ext_condition3: buf[4],
-                            ext_condition4: buf[5],
-                            condition: buf[6],
-                            size: buf[7],
-                            exchange: buf[8],
-                            price: price_f64,
-                            condition_flags: buf[10],
-                            price_flags: buf[11],
-                            volume_type: buf[12],
-                            records_back: buf[13],
-                            date: buf[15],
-                            received_at_ns,
-                        })
-                    };
-
-                    // Extract for OHLCVC derivation (format-aware). The
-                    // 8-field layout carries no `records_back`, so every
-                    // 8-field print is a fresh trade (`records_back == 0`).
-                    let (ms_of_day, size, price, price_type, date, records_back) = if n_data <= 8 {
-                        (buf[0], buf[2], buf[4], buf[6], buf[7], 0)
-                    } else {
-                        (buf[0], buf[7], buf[9], buf[14], buf[15], buf[13])
-                    };
-
-                    // Derive OHLCVC from trade only if enabled and the
-                    // server has already seeded a bar.
-                    let ohlcvc_event = if derive_ohlcvc {
-                        if let Some(acc) = delta_state.ohlcvc.get_mut(&contract_id) {
-                            if acc.initialized {
-                                acc.process_trade(
-                                    ms_of_day,
-                                    price,
-                                    size,
-                                    price_type,
-                                    date,
-                                    records_back,
-                                );
-                                let apt = acc.price_type;
-                                match (
-                                    strict_fpss_price(acc.open, apt),
-                                    strict_fpss_price(acc.high, apt),
-                                    strict_fpss_price(acc.low, apt),
-                                    strict_fpss_price(acc.close, apt),
-                                ) {
-                                    (Some(o), Some(h), Some(l), Some(c)) => {
-                                        Some(FpssEventInternal::Data(StreamData::Ohlcvc {
-                                            contract: Arc::clone(&contract_arc),
-                                            ms_of_day: acc.ms_of_day,
-                                            open: o,
-                                            high: h,
-                                            low: l,
-                                            close: c,
-                                            volume: acc.volume,
-                                            count: acc.count,
-                                            date: acc.date,
-                                            received_at_ns,
-                                        }))
-                                    }
-                                    _ => {
-                                        FPSS_OHLCVC_DECODE_FAILURES.increment(1);
-                                        FPSS_INVALID_PRICE_TYPE_OHLCVC.increment(1);
-                                        warn_invalid_price_type("ohlcvc_derived", contract_id, apt);
-                                        None
-                                    }
-                                }
-                            } else {
-                                None
-                            }
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    };
-                    (Some(trade_event), ohlcvc_event)
+                    let trade_event = FpssEventInternal::Data(StreamData::Trade {
+                        contract: contract_arc,
+                        ms_of_day: buf[0],
+                        sequence: buf[1],
+                        condition: buf[3],
+                        size: buf[2],
+                        exchange: buf[5],
+                        price: price_f64,
+                        date: buf[7],
+                        received_at_ns,
+                    });
+                    (Some(trade_event), None)
                 }
                 // DATE markers return None from decode_tick -- normal protocol flow.
                 None if delta_state.last_was_date => (None, None),
@@ -627,10 +540,6 @@ pub fn decode_frame(
                     // being sign-extended into a negative number.
                     let volume = i64::from(buf[5] as u32);
                     let count = i64::from(buf[6] as u32);
-                    let acc = delta_state.ohlcvc.entry(contract_id).or_default();
-                    acc.init_from_server(
-                        buf[0], buf[1], buf[2], buf[3], buf[4], volume, count, buf[7], buf[8],
-                    );
                     (
                         Some(FpssEventInternal::Data(StreamData::Ohlcvc {
                             contract: resolve_contract(contract_id, local_contracts),
@@ -991,13 +900,12 @@ mod tests {
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-            false,
         );
         // 8-field trades produce a primary Trade event and never a
-        // synthetic OHLCVC secondary (`derive_ohlcvc = false`).
+        // secondary event.
         assert!(
             secondary.is_none(),
-            "8-field trade must not produce a secondary OHLCVC event"
+            "8-field trade must not produce a secondary event"
         );
 
         let evt = primary.expect("decode_frame must emit a primary Trade event");
@@ -1012,14 +920,6 @@ mod tests {
                 price,
                 exchange,
                 date,
-                ext_condition1,
-                ext_condition2,
-                ext_condition3,
-                ext_condition4,
-                condition_flags,
-                price_flags,
-                volume_type,
-                records_back,
                 ..
             }) => {
                 // Contract resolves via the seeded local_contracts cache
@@ -1035,116 +935,8 @@ mod tests {
                 );
                 assert_eq!(*exchange, 57);
                 assert_eq!(*date, 20250428);
-                // 8-field trades zero out the extended-condition + flag fields.
-                assert_eq!(*ext_condition1, 0);
-                assert_eq!(*ext_condition2, 0);
-                assert_eq!(*ext_condition3, 0);
-                assert_eq!(*ext_condition4, 0);
-                assert_eq!(*condition_flags, 0);
-                assert_eq!(*price_flags, 0);
-                assert_eq!(*volume_type, 0);
-                assert_eq!(*records_back, 0);
             }
             other => panic!("expected StreamEvent::Data(Trade), got {other:?}"),
-        }
-    }
-
-    // -----------------------------------------------------------------------
-    // 16-field trade mapping (drives the full `decode_frame` pipeline)
-    // -----------------------------------------------------------------------
-
-    /// 16-field production trade layout — drives `decode_frame` so the
-    /// FIT decode + every field on the public `StreamData::Trade` variant
-    /// (including the extended-condition + flag fields the 8-field
-    /// layout zeroes out) is asserted against the real decode path
-    /// rather than a hand-copied mapping.
-    #[test]
-    fn decode_frame_16field_trade_emits_trade_data_with_extended_fields() {
-        // 16-field trade layout (production format):
-        //   FIT fields: [contract_id, ms_of_day, sequence, ext1, ext2, ext3, ext4,
-        //                condition, size, exchange, price, cond_flags, price_flags,
-        //                vol_type, records_back, price_type, date]
-        //   = 1 contract_id + 16 data fields = 17 FIT fields total
-        let fit_payload = encode_fit_row(&[
-            200,      // contract_id
-            34200000, // ms_of_day
-            99999,    // sequence
-            1,        // ext_condition1
-            2,        // ext_condition2
-            3,        // ext_condition3
-            4,        // ext_condition4
-            15,       // condition
-            500,      // size
-            57,       // exchange
-            18750000, // price
-            7,        // condition_flags
-            3,        // price_flags
-            1,        // volume_type
-            0,        // records_back
-            8,        // price_type
-            20250428, // date
-        ]);
-
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
-        let spy: Arc<Contract> = Arc::new(Contract::stock("SPY"));
-        local_contracts.insert(200, Arc::clone(&spy));
-
-        let authenticated = AtomicBool::new(true);
-        let shutdown = AtomicBool::new(false);
-        let mut delta_state = DeltaState::new();
-        let (primary, _secondary) = decode_frame(
-            StreamMsgType::Trade,
-            &fit_payload,
-            &authenticated,
-            &mut local_contracts,
-            &shutdown,
-            &mut delta_state,
-            false,
-        );
-
-        let evt = primary.expect("decode_frame must emit a primary Trade event");
-        let public = expect_public(&evt);
-        match public {
-            StreamEvent::Data(StreamData::Trade {
-                contract,
-                ms_of_day,
-                sequence,
-                ext_condition1,
-                ext_condition2,
-                ext_condition3,
-                ext_condition4,
-                condition,
-                size,
-                exchange,
-                price,
-                condition_flags,
-                price_flags,
-                volume_type,
-                records_back,
-                date,
-                ..
-            }) => {
-                assert_eq!(&*contract.symbol, "SPY");
-                assert_eq!(*ms_of_day, 34200000);
-                assert_eq!(*sequence, 99999);
-                assert_eq!(*ext_condition1, 1);
-                assert_eq!(*ext_condition2, 2);
-                assert_eq!(*ext_condition3, 3);
-                assert_eq!(*ext_condition4, 4);
-                assert_eq!(*condition, 15);
-                assert_eq!(*size, 500);
-                assert_eq!(*exchange, 57);
-                assert!(
-                    (*price - Price::new(18750000, 8).to_f64()).abs() < f64::EPSILON,
-                    "price must reassemble via Price::new(value, price_type)"
-                );
-                assert_eq!(*condition_flags, 7);
-                assert_eq!(*price_flags, 3);
-                assert_eq!(*volume_type, 1);
-                assert_eq!(*records_back, 0);
-                assert_eq!(*date, 20250428);
-            }
-            other => panic!("expected Trade, got {other:?}"),
         }
     }
 
@@ -1152,8 +944,8 @@ mod tests {
     // Off-spec trade width rejection
     // -----------------------------------------------------------------------
 
-    /// A trade row whose data-field count is neither 8 nor 16 has no known
-    /// cell layout: forcing either index set onto it would read
+    /// A trade row whose data-field count is not 8 has no known cell
+    /// layout: forcing the 8-field index set onto it would read
     /// never-populated slots as price / price_type / date and emit a
     /// silently-wrong tick, and because the width is cached per contract it
     /// would mis-decode every later row too. The decoder must reject the row
@@ -1181,7 +973,6 @@ mod tests {
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-            false,
         );
 
         assert!(
@@ -1211,7 +1002,6 @@ mod tests {
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-            false,
         );
         primary.expect("decode_frame must emit a primary event for known control codes")
     }
@@ -1258,15 +1048,27 @@ mod tests {
     fn decode_code_31_restart_emits_typed_variant_and_clears_delta_state() {
         // Seed delta state so we can verify it was cleared.
         let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
+        local_contracts.insert(42, Arc::new(Contract::stock("AAPL")));
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
         let mut delta_state = DeltaState::new();
-        // Insert a synthetic OHLCVC accumulator entry so we can assert
-        // `delta_state.clear()` actually ran on the Restart arm.
-        delta_state
-            .ohlcvc
-            .insert(42, super::super::accumulator::OhlcvcAccumulator::default());
-        assert!(delta_state.ohlcvc.contains_key(&42));
+        // Seed a real absolute trade so the delta-decode baseline is
+        // populated; the Restart arm must clear it.
+        let seed_row = encode_fit_row(&[42, 34_200_000, 1, 50, 6, 5_500_000, 57, 6, 20_250_428]);
+        let (seed, _) = decode_frame(
+            StreamMsgType::Trade,
+            &seed_row,
+            &authenticated,
+            &mut local_contracts,
+            &shutdown,
+            &mut delta_state,
+        );
+        assert!(seed.is_some(), "seed trade must decode");
+        assert_ne!(
+            delta_state.state_sizes().0,
+            0,
+            "seed trade must populate the delta baseline"
+        );
 
         let (primary, _) = decode_frame(
             StreamMsgType::Restart,
@@ -1275,15 +1077,15 @@ mod tests {
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-            false,
         );
         let primary_internal = primary.expect("Restart must emit a primary event");
         match expect_public(&primary_internal) {
             StreamEvent::Control(StreamControl::Restart) => {}
             other => panic!("expected Control(Restart), got {other:?}"),
         }
-        assert!(
-            !delta_state.ohlcvc.contains_key(&42),
+        assert_eq!(
+            delta_state.state_sizes().0,
+            0,
             "Restart must clear delta state so downstream deltas don't \
              decode against a stale baseline"
         );
@@ -1305,19 +1107,16 @@ mod tests {
     #[test]
     fn server_reconnect_resets_delta_state_so_next_tick_is_fresh_baseline() {
         let cid = 200;
-        // A full 16-field trade row for `cid`, price cell = 18_750_000.
+        // An 8-field FPSS stream trade row for `cid`, price cell = 18_750_000.
         let abs_row = |price: i32| {
             encode_fit_row(&[
                 cid,        // contract_id
                 34_200_000, // ms_of_day
                 1,          // sequence
-                0, 0, 0, 0,     // ext1..ext4
-                0,     // condition
-                100,   // size
-                57,    // exchange
-                price, // price
-                0, 0, 0,          // cond_flags, price_flags, vol_type
-                0,          // records_back
+                100,        // size
+                0,          // condition
+                price,      // price
+                57,         // exchange
                 8,          // price_type
                 20_250_428, // date
             ])
@@ -1345,7 +1144,6 @@ mod tests {
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-            false,
         );
         let p0 = price_of(p0);
 
@@ -1358,7 +1156,6 @@ mod tests {
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-            false,
         );
         match expect_public(&rc.expect("Reconnected must emit a primary event")) {
             StreamEvent::Control(StreamControl::ReconnectedServer) => {}
@@ -1377,7 +1174,6 @@ mod tests {
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-            false,
         );
         let p1 = price_of(p1);
 
@@ -1426,7 +1222,6 @@ mod tests {
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-            false,
         );
 
         let primary_internal = primary.expect("ContractAssigned must emit a primary event");
@@ -1489,7 +1284,6 @@ mod tests {
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-            false,
         );
         let primary_internal = primary.expect("Quote must emit a primary event");
         match expect_public(&primary_internal) {
@@ -1555,7 +1349,6 @@ mod tests {
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-            false,
         );
         let primary_internal = primary.expect("Quote must emit a primary event");
         match expect_public(&primary_internal) {
@@ -1629,7 +1422,6 @@ mod tests {
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-            false,
         );
         let primary_internal = primary.expect("Restart must emit a primary event");
         match expect_public(&primary_internal) {
@@ -1674,7 +1466,6 @@ mod tests {
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-            false,
         );
         let primary_internal = primary.expect("Quote must emit a primary event");
         match expect_public(&primary_internal) {
@@ -1714,7 +1505,6 @@ mod tests {
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-            false,
         );
         assert!(secondary.is_none());
         match primary {
@@ -1745,7 +1535,6 @@ mod tests {
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-            false,
         );
         assert!(secondary.is_none());
         match primary {
@@ -1753,52 +1542,6 @@ mod tests {
             other => {
                 panic!("expected Unparseable for out-of-range Trade price_type, got {other:?}")
             }
-        }
-    }
-
-    #[test]
-    fn decode_frame_16field_trade_invalid_price_type_drops_to_unparseable() {
-        // 16-field trade layout:
-        //   [contract_id, ms_of_day, sequence, ext1, ext2, ext3, ext4,
-        //    condition, size, exchange, price, cond_flags,
-        //    price_flags, vol_type, records_back, price_type, date]
-        let fit_payload = encode_fit_row(&[
-            500,
-            34_200_000,
-            99_999,
-            1,
-            2,
-            3,
-            4,
-            15,
-            500,
-            57,
-            18_750_000,
-            7,
-            3,
-            1,
-            0,
-            i32::MAX,
-            20_250_428,
-        ]);
-        let mut local_contracts: HashMap<i32, Arc<Contract>> = HashMap::new();
-        local_contracts.insert(500, Arc::new(Contract::stock("SPY")));
-        let authenticated = AtomicBool::new(true);
-        let shutdown = AtomicBool::new(false);
-        let mut delta_state = DeltaState::new();
-        let (primary, secondary) = decode_frame(
-            StreamMsgType::Trade,
-            &fit_payload,
-            &authenticated,
-            &mut local_contracts,
-            &shutdown,
-            &mut delta_state,
-            false,
-        );
-        assert!(secondary.is_none());
-        match primary {
-            Some(FpssEventInternal::Unparseable) => {}
-            other => panic!("expected Unparseable for i32::MAX Trade price_type, got {other:?}"),
         }
     }
 
@@ -1822,7 +1565,6 @@ mod tests {
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-            false,
         );
         assert!(secondary.is_none());
         match primary {
@@ -1831,14 +1573,6 @@ mod tests {
                 panic!("expected Unparseable for negative Ohlcvc price_type, got {other:?}")
             }
         }
-        assert!(
-            !delta_state
-                .ohlcvc
-                .get(&600)
-                .map(|a| a.initialized)
-                .unwrap_or(false),
-            "invalid-price_type OHLCVC frame must not seed the accumulator"
-        );
     }
 
     #[test]
@@ -1878,7 +1612,6 @@ mod tests {
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-            false,
         );
         assert!(secondary.is_none());
         match primary {
@@ -1888,14 +1621,6 @@ mod tests {
             }
             other => panic!("expected decoded Ohlcvc, got {other:?}"),
         }
-        // The accumulator the server bar seeds must hold the same positive
-        // values, so a subsequent trade advances from the correct base.
-        let acc = delta_state
-            .ohlcvc
-            .get(&600)
-            .expect("server OHLCVC frame must seed the accumulator");
-        assert_eq!(acc.volume, 2_225_611_194_i64);
-        assert_eq!(acc.count, 2_286_840_317_i64);
     }
 
     // -----------------------------------------------------------------------
@@ -2054,7 +1779,6 @@ mod tests {
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-            false,
         );
         assert!(
             secondary.is_none(),
@@ -2103,7 +1827,6 @@ mod tests {
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-            false,
         );
         assert!(secondary.is_none());
         match primary {
@@ -2129,7 +1852,6 @@ mod tests {
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-            false,
         );
         let evt = primary.expect("in-range Quote frame must emit a primary event");
         match expect_public(&evt) {
@@ -2163,7 +1885,7 @@ mod tests {
             assert!(res.is_some(), "every distinct-id absolute tick decodes");
         }
 
-        let (prev, ohlcvc, field_counts) = delta_state.state_sizes();
+        let (prev, field_counts) = delta_state.state_sizes();
         let cap = DeltaState::SESSION_CONTRACT_CAP;
         assert!(
             prev <= cap,
@@ -2173,9 +1895,6 @@ mod tests {
             field_counts <= cap,
             "field_counts map must stay bounded by the session cap: {field_counts} > {cap}"
         );
-        // `decode_tick` never inserts into `ohlcvc`, and the reset clears it
-        // alongside the other maps, so it stays empty here.
-        assert_eq!(ohlcvc, 0, "ohlcvc untouched by trade decode");
     }
 
     /// A normal session that stays under the cap retains every distinct
@@ -2193,7 +1912,7 @@ mod tests {
                 .expect("absolute tick decodes");
         }
 
-        let (prev, _ohlcvc, field_counts) = delta_state.state_sizes();
+        let (prev, field_counts) = delta_state.state_sizes();
         assert_eq!(prev, n as usize, "every distinct id retained in prev");
         assert_eq!(
             field_counts, n as usize,

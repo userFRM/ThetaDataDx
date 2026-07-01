@@ -355,13 +355,6 @@ pub struct StreamingConfig {
     /// out-of-range or offline core is a best-effort no-op at the
     /// affinity layer (a `warn` is logged) rather than a hard error.
     pub consumer_cpu: Option<usize>,
-
-    /// Whether to derive OHLCVC bars locally from trade events.
-    ///
-    /// When `true` (default), the streaming client emits derived `StreamData::Ohlcvc`
-    /// events after each trade. When `false`, only server-sent OHLCVC frames
-    /// (wire code 24) are emitted, reducing per-trade throughput overhead.
-    pub derive_ohlcvc: bool,
 }
 
 impl StreamingConfig {
@@ -406,7 +399,6 @@ impl StreamingConfig {
             wait_yield_iters: 10,
             wait_park_us: 50,
             consumer_cpu: None,
-            derive_ohlcvc: true,
         }
     }
 

@@ -109,18 +109,10 @@ typedef struct {
     ThetaDataDxContract contract;
     int32_t ms_of_day;
     int32_t sequence;
-    int32_t ext_condition1;
-    int32_t ext_condition2;
-    int32_t ext_condition3;
-    int32_t ext_condition4;
     int32_t condition;
     int32_t size;
     int32_t exchange;
     double price;
-    int32_t condition_flags;
-    int32_t price_flags;
-    int32_t volume_type;
-    int32_t records_back;
     int32_t date;
     uint64_t received_at_ns;
 } ThetaDataDxStreamTrade;

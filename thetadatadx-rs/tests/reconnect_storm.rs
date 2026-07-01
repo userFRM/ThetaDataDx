@@ -119,7 +119,6 @@ fn reconnect_storm_preserves_framing_invariants() {
                         &mut local,
                         &shutdown,
                         &mut delta,
-                        true,
                     );
                     if let Some(internal) = primary {
                         if let Some(StreamEvent::Control(c)) = internal.as_public() {
@@ -201,7 +200,6 @@ fn post_storm_normal_operation_resumes_immediately() {
                 &mut local,
                 &shutdown,
                 &mut delta,
-                true,
             );
         }
     }
@@ -229,7 +227,6 @@ fn post_storm_normal_operation_resumes_immediately() {
             &mut local,
             &shutdown,
             &mut delta,
-            true,
         );
         if let Some(e) = p {
             if let Some(public) = e.as_public() {

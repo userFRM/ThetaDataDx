@@ -113,10 +113,6 @@ websocat ws://127.0.0.1:25520/v1/events
 
 </SdkTabs>
 
-## Derived OHLCVC bars
-
-With `derive_ohlcvc` enabled (the default), this trade stream also delivers a derived `Ohlcvc` bar alongside the trades: the SDK accumulates one per contract from the trade prints, so a single subscription yields both `Trade` and `Ohlcvc` events. Handle the `Ohlcvc` event the same way you handle `Trade`. To receive trades only, turn it off on the configuration before connecting — `config.derive_ohlcvc = False` (Python), `config.setDeriveOhlcvc(false)` (TypeScript), `config.set_derive_ohlcvc(false)` (C++), `thetadatadx_config_set_derive_ohlcvc(cfg, false)` (C ABI), or `config.streaming.derive_ohlcvc = false` (Rust).
-
 ## `Trade` event fields
 
 Each update arrives as a `Trade` event with these fields:
@@ -126,18 +122,10 @@ Each update arrives as a `Trade` event with these fields:
 | `contract` | contract | Resolved contract identity (symbol, security type, and option fields). |
 | `ms_of_day` | i32 | Milliseconds since midnight Eastern Time. |
 | `sequence` | i32 | Exchange-assigned trade sequence number. |
-| <span class="field-conditional">`ext_condition1`</span> | <span class="field-conditional">i32</span> | <span class="field-conditional">Additional trade condition code. Extended-format trades only; zero on a standard trade.</span> |
-| <span class="field-conditional">`ext_condition2`</span> | <span class="field-conditional">i32</span> | <span class="field-conditional">Additional trade condition code. Extended-format trades only; zero on a standard trade.</span> |
-| <span class="field-conditional">`ext_condition3`</span> | <span class="field-conditional">i32</span> | <span class="field-conditional">Additional trade condition code. Extended-format trades only; zero on a standard trade.</span> |
-| <span class="field-conditional">`ext_condition4`</span> | <span class="field-conditional">i32</span> | <span class="field-conditional">Additional trade condition code. Extended-format trades only; zero on a standard trade.</span> |
 | `condition` | i32 | Trade condition code. |
 | `size` | i32 | Number of contracts or shares traded. |
 | `exchange` | i32 | Exchange code where the trade executed. |
 | `price` | f64 | Trade price. |
-| <span class="field-conditional">`condition_flags`</span> | <span class="field-conditional">i32</span> | <span class="field-conditional">Trade condition flags bitmap. Extended-format trades only; zero on a standard trade.</span> |
-| <span class="field-conditional">`price_flags`</span> | <span class="field-conditional">i32</span> | <span class="field-conditional">Trade price flags bitmap. Extended-format trades only; zero on a standard trade.</span> |
-| <span class="field-conditional">`volume_type`</span> | <span class="field-conditional">i32</span> | <span class="field-conditional">Volume reporting mode: 0 = incremental, 1 = cumulative. Extended-format trades only; zero on a standard trade.</span> |
-| <span class="field-conditional">`records_back`</span> | <span class="field-conditional">i32</span> | <span class="field-conditional">Offset of this record behind the most recent record. Extended-format trades only; zero on a standard trade.</span> |
 | `date` | i32 | Trading date as a YYYYMMDD integer. |
 | `received_at_ns` | u64 | Local receive timestamp, nanoseconds since the Unix epoch. |
 

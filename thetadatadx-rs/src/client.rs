@@ -792,7 +792,6 @@ impl Client {
             .reconnect_jitter(config.reconnect.jitter)
             .reconnect_replay_burst_size(config.reconnect.replay_burst_size)
             .reconnect_replay_pace_ms(config.reconnect.replay_pace_ms)
-            .derive_ohlcvc(config.streaming.derive_ohlcvc)
             .connect_timeout_ms(config.streaming.connect_timeout_ms)
             .read_timeout_ms(config.streaming.timeout_ms)
             .ping_interval_ms(config.streaming.ping_interval_ms)

@@ -50,7 +50,6 @@ def main() -> int:
 
     cfg = Config.dev()
     cfg.reconnect_policy = "manual"
-    cfg.derive_ohlcvc = False
     client = Client(Credentials.from_file(args.creds), cfg)
 
     events: "queue.Queue" = queue.Queue(maxsize=8192)

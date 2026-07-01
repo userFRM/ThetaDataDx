@@ -202,14 +202,6 @@ pub struct ThetaDataDxStreamTrade {
     pub ms_of_day: i32,
     /// Exchange sequence number for ordering trades within the day.
     pub sequence: i32,
-    /// Extended trade condition code 1.
-    pub ext_condition1: i32,
-    /// Extended trade condition code 2.
-    pub ext_condition2: i32,
-    /// Extended trade condition code 3.
-    pub ext_condition3: i32,
-    /// Extended trade condition code 4.
-    pub ext_condition4: i32,
     /// Primary trade condition code.
     pub condition: i32,
     /// Trade size in contracts/shares.
@@ -218,14 +210,6 @@ pub struct ThetaDataDxStreamTrade {
     pub exchange: i32,
     /// Trade price.
     pub price: f64,
-    /// Bit flags qualifying the trade conditions.
-    pub condition_flags: i32,
-    /// Bit flags qualifying the trade price.
-    pub price_flags: i32,
-    /// Volume classification code for the trade.
-    pub volume_type: i32,
-    /// Number of records back this trade was reported (out-of-order correction offset).
-    pub records_back: i32,
     /// Trading date as `YYYYMMDD`.
     pub date: i32,
     /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
@@ -462,7 +446,7 @@ const _: () = {
     assert!(core::mem::align_of::<ThetaDataDxStreamQuote>() == 8);
 };
 const _: () = {
-    assert!(core::mem::size_of::<ThetaDataDxStreamTrade>() == 120);
+    assert!(core::mem::size_of::<ThetaDataDxStreamTrade>() == 88);
     assert!(core::mem::align_of::<ThetaDataDxStreamTrade>() == 8);
 };
 const _: () = {
@@ -534,7 +518,7 @@ const _: () = {
     assert!(core::mem::align_of::<ThetaDataDxStreamUnknownFrame>() == 8);
 };
 const _: () = {
-    assert!(core::mem::size_of::<ThetaDataDxStreamEvent>() == 688);
+    assert!(core::mem::size_of::<ThetaDataDxStreamEvent>() == 656);
     assert!(core::mem::align_of::<ThetaDataDxStreamEvent>() == 8);
 };
 
@@ -585,18 +569,10 @@ pub(crate) const ZERO_TRADE: ThetaDataDxStreamTrade = ThetaDataDxStreamTrade {
     contract: ZERO_CONTRACT_STRUCT,
     ms_of_day: 0,
     sequence: 0,
-    ext_condition1: 0,
-    ext_condition2: 0,
-    ext_condition3: 0,
-    ext_condition4: 0,
     condition: 0,
     size: 0,
     exchange: 0,
     price: 0.0,
-    condition_flags: 0,
-    price_flags: 0,
-    volume_type: 0,
-    records_back: 0,
     date: 0,
     received_at_ns: 0,
 };

@@ -107,35 +107,19 @@ static_assert(offsetof(ThetaDataDxStreamTrade, ms_of_day) == 40,
               "ThetaDataDxStreamTrade::ms_of_day offset drifted");
 static_assert(offsetof(ThetaDataDxStreamTrade, sequence) == 44,
               "ThetaDataDxStreamTrade::sequence offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, ext_condition1) == 48,
-              "ThetaDataDxStreamTrade::ext_condition1 offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, ext_condition2) == 52,
-              "ThetaDataDxStreamTrade::ext_condition2 offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, ext_condition3) == 56,
-              "ThetaDataDxStreamTrade::ext_condition3 offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, ext_condition4) == 60,
-              "ThetaDataDxStreamTrade::ext_condition4 offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, condition) == 64,
+static_assert(offsetof(ThetaDataDxStreamTrade, condition) == 48,
               "ThetaDataDxStreamTrade::condition offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, size) == 68,
+static_assert(offsetof(ThetaDataDxStreamTrade, size) == 52,
               "ThetaDataDxStreamTrade::size offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, exchange) == 72,
+static_assert(offsetof(ThetaDataDxStreamTrade, exchange) == 56,
               "ThetaDataDxStreamTrade::exchange offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, price) == 80,
+static_assert(offsetof(ThetaDataDxStreamTrade, price) == 64,
               "ThetaDataDxStreamTrade::price offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, condition_flags) == 88,
-              "ThetaDataDxStreamTrade::condition_flags offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, price_flags) == 92,
-              "ThetaDataDxStreamTrade::price_flags offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, volume_type) == 96,
-              "ThetaDataDxStreamTrade::volume_type offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, records_back) == 100,
-              "ThetaDataDxStreamTrade::records_back offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, date) == 104,
+static_assert(offsetof(ThetaDataDxStreamTrade, date) == 72,
               "ThetaDataDxStreamTrade::date offset drifted");
-static_assert(offsetof(ThetaDataDxStreamTrade, received_at_ns) == 112,
+static_assert(offsetof(ThetaDataDxStreamTrade, received_at_ns) == 80,
               "ThetaDataDxStreamTrade::received_at_ns offset drifted");
-static_assert(sizeof(ThetaDataDxStreamTrade) == 120,
+static_assert(sizeof(ThetaDataDxStreamTrade) == 88,
               "ThetaDataDxStreamTrade total size drifted");
 
 static_assert(offsetof(ThetaDataDxStreamConnected, _padding) == 0,
@@ -251,39 +235,39 @@ static_assert(offsetof(ThetaDataDxStreamEvent, quote) == 272,
               "ThetaDataDxStreamEvent::quote offset drifted");
 static_assert(offsetof(ThetaDataDxStreamEvent, trade) == 376,
               "ThetaDataDxStreamEvent::trade offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, connected) == 496,
+static_assert(offsetof(ThetaDataDxStreamEvent, connected) == 464,
               "ThetaDataDxStreamEvent::connected offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, contract_assigned) == 504,
+static_assert(offsetof(ThetaDataDxStreamEvent, contract_assigned) == 472,
               "ThetaDataDxStreamEvent::contract_assigned offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, disconnected) == 552,
+static_assert(offsetof(ThetaDataDxStreamEvent, disconnected) == 520,
               "ThetaDataDxStreamEvent::disconnected offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, login_success) == 560,
+static_assert(offsetof(ThetaDataDxStreamEvent, login_success) == 528,
               "ThetaDataDxStreamEvent::login_success offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, market_close) == 568,
+static_assert(offsetof(ThetaDataDxStreamEvent, market_close) == 536,
               "ThetaDataDxStreamEvent::market_close offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, market_open) == 569,
+static_assert(offsetof(ThetaDataDxStreamEvent, market_open) == 537,
               "ThetaDataDxStreamEvent::market_open offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, parse_error) == 576,
+static_assert(offsetof(ThetaDataDxStreamEvent, parse_error) == 544,
               "ThetaDataDxStreamEvent::parse_error offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, ping) == 584,
+static_assert(offsetof(ThetaDataDxStreamEvent, ping) == 552,
               "ThetaDataDxStreamEvent::ping offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, reconnected) == 600,
+static_assert(offsetof(ThetaDataDxStreamEvent, reconnected) == 568,
               "ThetaDataDxStreamEvent::reconnected offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, reconnected_server) == 601,
+static_assert(offsetof(ThetaDataDxStreamEvent, reconnected_server) == 569,
               "ThetaDataDxStreamEvent::reconnected_server offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, reconnecting) == 608,
+static_assert(offsetof(ThetaDataDxStreamEvent, reconnecting) == 576,
               "ThetaDataDxStreamEvent::reconnecting offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, reconnects_exhausted) == 624,
+static_assert(offsetof(ThetaDataDxStreamEvent, reconnects_exhausted) == 592,
               "ThetaDataDxStreamEvent::reconnects_exhausted offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, req_response) == 632,
+static_assert(offsetof(ThetaDataDxStreamEvent, req_response) == 600,
               "ThetaDataDxStreamEvent::req_response offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, restart) == 640,
+static_assert(offsetof(ThetaDataDxStreamEvent, restart) == 608,
               "ThetaDataDxStreamEvent::restart offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, server_error) == 648,
+static_assert(offsetof(ThetaDataDxStreamEvent, server_error) == 616,
               "ThetaDataDxStreamEvent::server_error offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, unknown_control) == 656,
+static_assert(offsetof(ThetaDataDxStreamEvent, unknown_control) == 624,
               "ThetaDataDxStreamEvent::unknown_control offset drifted");
-static_assert(offsetof(ThetaDataDxStreamEvent, unknown_frame) == 664,
+static_assert(offsetof(ThetaDataDxStreamEvent, unknown_frame) == 632,
               "ThetaDataDxStreamEvent::unknown_frame offset drifted");
-static_assert(sizeof(ThetaDataDxStreamEvent) == 688,
+static_assert(sizeof(ThetaDataDxStreamEvent) == 656,
               "ThetaDataDxStreamEvent total size drifted");

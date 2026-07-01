@@ -466,29 +466,6 @@ impl Config {
         Ok(guard.retry.jitter)
     }
 
-    /// Set whether to derive OHLCVC bars locally from trade events.
-    /// When `false`, only server-sent OHLCVC frames are emitted,
-    /// reducing per-trade throughput overhead. Default `true`.
-    #[napi(js_name = "setDeriveOhlcvc")]
-    pub fn set_derive_ohlcvc(&self, enabled: bool) -> napi::Result<()> {
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        guard.streaming.derive_ohlcvc = enabled;
-        Ok(())
-    }
-
-    /// Current OHLCVC derivation setting.
-    #[napi(getter, js_name = "deriveOhlcvc")]
-    pub fn derive_ohlcvc(&self) -> napi::Result<bool> {
-        let guard = self
-            .inner
-            .lock()
-            .map_err(|_| napi::Error::from_reason("Config mutex poisoned"))?;
-        Ok(guard.streaming.derive_ohlcvc)
-    }
-
     /// Set the total attempt budget for the flatfile driver retry
     /// loop. `1` disables retry (single call only); higher values
     /// permit retries up to `maxAttempts - 1` after the initial call.

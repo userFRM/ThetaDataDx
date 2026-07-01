@@ -72,7 +72,6 @@ pub(crate) struct ConnectWithStreamArgs<'a> {
     pub host_selection: HostSelectionPolicy,
     pub host_shuffle_seed: u64,
     pub ring_size: usize,
-    pub derive_ohlcvc: bool,
     pub flush_mode: StreamingFlushMode,
     /// Resolved event-ring consumer wait strategy (preset + tuning, or a
     /// Rust-supplied raw strategy). Mirrors

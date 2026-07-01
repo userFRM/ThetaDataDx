@@ -92,14 +92,6 @@ pub fn stream_batch_schema() -> Arc<Schema> {
         Field::new("exchange", DataType::Int32, true),
         Field::new("sequence", DataType::Int32, true),
         Field::new("condition", DataType::Int32, true),
-        Field::new("ext_condition1", DataType::Int32, true),
-        Field::new("ext_condition2", DataType::Int32, true),
-        Field::new("ext_condition3", DataType::Int32, true),
-        Field::new("ext_condition4", DataType::Int32, true),
-        Field::new("condition_flags", DataType::Int32, true),
-        Field::new("price_flags", DataType::Int32, true),
-        Field::new("volume_type", DataType::Int32, true),
-        Field::new("records_back", DataType::Int32, true),
         // ── open-interest payload ──
         Field::new("open_interest", DataType::Int32, true),
         // ── OHLCVC payload ──
@@ -206,14 +198,6 @@ pub struct StreamBatchBuilder {
     exchange: Int32Builder,
     sequence: Int32Builder,
     condition: Int32Builder,
-    ext_condition1: Int32Builder,
-    ext_condition2: Int32Builder,
-    ext_condition3: Int32Builder,
-    ext_condition4: Int32Builder,
-    condition_flags: Int32Builder,
-    price_flags: Int32Builder,
-    volume_type: Int32Builder,
-    records_back: Int32Builder,
 
     open_interest: Int32Builder,
 
@@ -274,14 +258,6 @@ impl StreamBatchBuilder {
             exchange: Int32Builder::with_capacity(capacity),
             sequence: Int32Builder::with_capacity(capacity),
             condition: Int32Builder::with_capacity(capacity),
-            ext_condition1: Int32Builder::with_capacity(capacity),
-            ext_condition2: Int32Builder::with_capacity(capacity),
-            ext_condition3: Int32Builder::with_capacity(capacity),
-            ext_condition4: Int32Builder::with_capacity(capacity),
-            condition_flags: Int32Builder::with_capacity(capacity),
-            price_flags: Int32Builder::with_capacity(capacity),
-            volume_type: Int32Builder::with_capacity(capacity),
-            records_back: Int32Builder::with_capacity(capacity),
             open_interest: Int32Builder::with_capacity(capacity),
             open: Float64Builder::with_capacity(capacity),
             high: Float64Builder::with_capacity(capacity),
@@ -384,18 +360,10 @@ impl StreamBatchBuilder {
                 contract,
                 ms_of_day,
                 sequence,
-                ext_condition1,
-                ext_condition2,
-                ext_condition3,
-                ext_condition4,
                 condition,
                 size,
                 exchange,
                 price,
-                condition_flags,
-                price_flags,
-                volume_type,
-                records_back,
                 date,
                 received_at_ns,
             } => {
@@ -413,14 +381,6 @@ impl StreamBatchBuilder {
                 self.exchange.append_value(*exchange);
                 self.sequence.append_value(*sequence);
                 self.condition.append_value(*condition);
-                self.ext_condition1.append_value(*ext_condition1);
-                self.ext_condition2.append_value(*ext_condition2);
-                self.ext_condition3.append_value(*ext_condition3);
-                self.ext_condition4.append_value(*ext_condition4);
-                self.condition_flags.append_value(*condition_flags);
-                self.price_flags.append_value(*price_flags);
-                self.volume_type.append_value(*volume_type);
-                self.records_back.append_value(*records_back);
                 self.null_open_interest();
                 self.null_ohlcvc();
                 self.null_market_value();
@@ -554,14 +514,6 @@ impl StreamBatchBuilder {
             Arc::new(prev.exchange.finish()) as ArrayRef,
             Arc::new(prev.sequence.finish()) as ArrayRef,
             Arc::new(prev.condition.finish()) as ArrayRef,
-            Arc::new(prev.ext_condition1.finish()) as ArrayRef,
-            Arc::new(prev.ext_condition2.finish()) as ArrayRef,
-            Arc::new(prev.ext_condition3.finish()) as ArrayRef,
-            Arc::new(prev.ext_condition4.finish()) as ArrayRef,
-            Arc::new(prev.condition_flags.finish()) as ArrayRef,
-            Arc::new(prev.price_flags.finish()) as ArrayRef,
-            Arc::new(prev.volume_type.finish()) as ArrayRef,
-            Arc::new(prev.records_back.finish()) as ArrayRef,
             Arc::new(prev.open_interest.finish()) as ArrayRef,
             Arc::new(prev.open.finish()) as ArrayRef,
             Arc::new(prev.high.finish()) as ArrayRef,
@@ -632,14 +584,6 @@ impl StreamBatchBuilder {
         self.exchange.append_null();
         self.sequence.append_null();
         self.condition.append_null();
-        self.ext_condition1.append_null();
-        self.ext_condition2.append_null();
-        self.ext_condition3.append_null();
-        self.ext_condition4.append_null();
-        self.condition_flags.append_null();
-        self.price_flags.append_null();
-        self.volume_type.append_null();
-        self.records_back.append_null();
     }
 
     fn null_open_interest(&mut self) {
@@ -673,18 +617,10 @@ mod tests {
             contract: std::sync::Arc::clone(contract),
             ms_of_day: 100,
             sequence: 7,
-            ext_condition1: 0,
-            ext_condition2: 0,
-            ext_condition3: 0,
-            ext_condition4: 0,
             condition: 0,
             size: 100,
             exchange: 3,
             price: 150.25,
-            condition_flags: 0,
-            price_flags: 0,
-            volume_type: 0,
-            records_back: 0,
             date: 20240315,
             received_at_ns: 42,
         })
@@ -833,18 +769,10 @@ mod tests {
             contract: std::sync::Arc::clone(&contract),
             ms_of_day: 1,
             sequence: 0,
-            ext_condition1: 0,
-            ext_condition2: 0,
-            ext_condition3: 0,
-            ext_condition4: 0,
             condition: 0,
             size: 1,
             exchange: 0,
             price: 1.0,
-            condition_flags: 0,
-            price_flags: 0,
-            volume_type: 0,
-            records_back: 0,
             date: 20240315,
             received_at_ns: 0,
         }));

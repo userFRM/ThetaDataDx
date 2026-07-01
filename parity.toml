@@ -737,16 +737,6 @@ python = true
 typescript = true
 cpp = true
 
-# `StreamingConfig.derive_ohlcvc` is exposed on every binding: the C ABI
-# (`thetadatadx_config_set_derive_ohlcvc`), Python (`Config.derive_ohlcvc`),
-# C++ (`set_derive_ohlcvc`), and TypeScript (`Config.setDeriveOhlcvc`
-# / `deriveOhlcvc`).
-[[class]]
-name = "StreamingConfig.derive_ohlcvc"
-python = true
-typescript = true
-cpp = true
-
 # ─── AuthConfig / MetricsConfig cross-binding setters ──────────────────
 #
 # Operator-tuning knobs on `DirectConfig.auth` + `DirectConfig.metrics`.
@@ -2086,25 +2076,6 @@ cpp = true
 [method.signature]
 returns = "Option<usize>"
 cpp_returns = "i64"
-
-# The `flushMode` / `deriveOhlcvc` readback getters are exposed on
-# every binding: Python (`Config.flush_mode` / `.derive_ohlcvc`
-# properties), TypeScript (`Config.flushMode` / `.deriveOhlcvc`
-# getters), C++ (`Config::get_flush_mode()` etc. over the FFI
-# `thetadatadx_config_get_*` symbols). Both the Python `#[getter]` accessors and
-# the C++ readback getters carry a uniform `get_` Rust/C++ fn prefix
-# (pyo3 strips it so the Python property name stays bare); the parity
-# gate accepts that per-language convention against the bare row. The
-# matching setters are tracked by the dotted `[[class]]` rows
-# `StreamingConfig.flush_mode` / `StreamingConfig.derive_ohlcvc`.
-[[method]]
-class = "Config"
-name = "deriveOhlcvc"
-python = true
-typescript = true
-cpp = true
-[method.signature]
-returns = "bool"
 
 # The historical (MDDS) and streaming (FPSS) environments are read back
 # through two independent getters. The two channels are selected

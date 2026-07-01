@@ -119,10 +119,6 @@ struct Args {
     /// Skip the streaming connection at startup.
     #[arg(long)]
     no_streaming: bool,
-
-    /// Disable OHLCVC bar derivation from trades on the streaming feed.
-    #[arg(long)]
-    no_ohlcvc: bool,
 }
 
 /// Canonical environment variable names, shared with the SDK, the CLI, and
@@ -378,13 +374,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if args.streaming_region == "dev" {
             config = config.with_streaming_environment(StreamingEnvironment::Dev);
         }
-        config
-    };
-
-    // Step 2b: Apply CLI overrides to config.
-    let config = if args.no_ohlcvc {
-        config.derive_ohlcvc(false)
-    } else {
         config
     };
 

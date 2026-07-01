@@ -30,7 +30,7 @@
 # nullable shape (`Option<..>` in Rust, `Option<..>` in napi, `Optional[..]`
 # in Python via pyo3 `Option<..>`, `std::optional<..>` in C++).
 
-version = 8
+version = 9
 
 # ── Data variants — market-data ticks ─────────────────────────────────
 
@@ -59,18 +59,10 @@ columns = [
     { name = "contract",        type = "Contract" },
     { name = "ms_of_day",       type = "i32" },
     { name = "sequence",        type = "i32" },
-    { name = "ext_condition1",  type = "i32" },
-    { name = "ext_condition2",  type = "i32" },
-    { name = "ext_condition3",  type = "i32" },
-    { name = "ext_condition4",  type = "i32" },
     { name = "condition",       type = "i32" },
     { name = "size",            type = "i32" },
     { name = "exchange",        type = "i32" },
     { name = "price",           type = "f64" },
-    { name = "condition_flags", type = "i32" },
-    { name = "price_flags",     type = "i32" },
-    { name = "volume_type",     type = "i32" },
-    { name = "records_back",    type = "i32" },
     { name = "date",            type = "i32" },
     { name = "received_at_ns",  type = "u64" },
 ]

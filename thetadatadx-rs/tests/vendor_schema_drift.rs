@@ -72,7 +72,6 @@ fn single_unknown_opcode_skipped_without_desync() {
                     &mut local,
                     &shutdown,
                     &mut delta,
-                    true,
                 );
                 if let Some(e) = p {
                     if let Some(public) = e.as_public() {

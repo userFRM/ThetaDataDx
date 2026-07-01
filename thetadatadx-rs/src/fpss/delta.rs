@@ -10,21 +10,36 @@ use std::time::{Duration, Instant};
 
 use crate::tdbe::codec::fit::{apply_deltas, FitReader};
 
-use super::accumulator::OhlcvcAccumulator;
-
 /// Number of FIT fields per tick type (excluding the `contract_id` which is the
 /// first FIT field). The FIT decoder returns `n_fields` total, where field [0]
 /// is the `contract_id` and fields [1..] are the tick data.
 pub(super) const QUOTE_FIELDS: usize = 11;
-pub(super) const TRADE_FIELDS: usize = 16;
+/// The FPSS stream trade is the 8-field layout. (The 16-field "extended"
+/// trade is an MDDS gRPC shape on a different protocol and never reaches
+/// this stream decoder.)
+pub(super) const TRADE_FIELDS: usize = 8;
 pub(super) const OI_FIELDS: usize = 3;
 pub(super) const OHLCVC_FIELDS: usize = 9;
 
-/// Largest data-field count any FPSS tick shape declares (extended-format
-/// trade, 16 fields). Tick data is stored in stack arrays of this size so
-/// the decode hot path is fully heap-free and the `prev` map can carry the
+/// Largest data-field count any FPSS stream tick shape declares (the quote,
+/// at 11 fields). Tick data is stored in stack arrays of this size so the
+/// decode hot path is fully heap-free and the `prev` map can carry the
 /// previous absolute row inline rather than behind a `Vec`.
-pub(super) const MAX_DATA_FIELDS: usize = TRADE_FIELDS;
+pub(super) const MAX_DATA_FIELDS: usize = {
+    // `Ord::max` is not const-stable; fold over the tick widths so this stays
+    // the true maximum if any field count changes.
+    let mut m = QUOTE_FIELDS;
+    if TRADE_FIELDS > m {
+        m = TRADE_FIELDS;
+    }
+    if OHLCVC_FIELDS > m {
+        m = OHLCVC_FIELDS;
+    }
+    if OI_FIELDS > m {
+        m = OI_FIELDS;
+    }
+    m
+};
 
 /// One row of absolute tick data. Sized to the widest tick shape so every
 /// caller can pass the same stack buffer regardless of message type. Slots
@@ -43,8 +58,6 @@ pub struct DeltaState {
     /// step costs one stack copy + one in-place add loop with zero
     /// allocations on the hot path.
     prev: HashMap<(u8, i32), TickFields>,
-    /// Per-contract OHLCVC accumulators.
-    pub(super) ohlcvc: HashMap<i32, OhlcvcAccumulator>,
     /// Reusable scratch buffer for FIT decoding, avoiding per-tick allocation.
     /// Resized (never shrunk) to fit the largest tick type seen.
     alloc_buf: Vec<i32>,
@@ -52,8 +65,9 @@ pub struct DeltaState {
     /// Callers use this to distinguish normal DATE skips from corrupt payloads.
     pub(super) last_was_date: bool,
     /// Actual data field count from the first absolute tick for each
-    /// `(msg_type, contract_id)`. The dev server sends 8-field trades (simple
-    /// format) while production sends 16-field trades (extended format).
+    /// `(msg_type, contract_id)`. The FPSS stream trade is the 8-field
+    /// layout; the 16-field "extended" trade is an MDDS gRPC shape on a
+    /// different protocol and is never seen here.
     ///
     /// The width is fixed at the first absolute row and not revised by later
     /// rows. This is correct because the trade-format width is a server-wide
@@ -90,12 +104,12 @@ const MAX_SESSION_CONTRACT_ROWS: usize = 8192;
 impl DeltaState {
     #[doc(hidden)]
     pub fn new() -> Self {
-        // Pre-allocate the FIT scratch buffer for the largest tick type
-        // (Trade = 16 fields + 1 contract_id).
+        // Pre-allocate the FIT scratch buffer for the widest tick shape
+        // (`MAX_DATA_FIELDS` data fields + 1 contract_id). It resizes at
+        // runtime if needed, but the initial capacity is the real maximum.
         Self {
             prev: HashMap::new(),
-            ohlcvc: HashMap::new(),
-            alloc_buf: vec![0i32; TRADE_FIELDS + 1],
+            alloc_buf: vec![0i32; MAX_DATA_FIELDS + 1],
             last_was_date: false,
             field_counts: HashMap::new(),
             last_stop: None,
@@ -113,7 +127,6 @@ impl DeltaState {
     /// stale-tick warnings for 5 seconds after the STOP signal.
     pub fn clear(&mut self) {
         self.prev.clear();
-        self.ohlcvc.clear();
         self.last_was_date = false;
         self.field_counts.clear();
     }
@@ -244,7 +257,6 @@ impl DeltaState {
                     "delta-decode state exceeded per-session contract cap; resetting baselines (peer streamed an unbounded distinct-contract universe without a session boundary)"
                 );
                 self.prev.clear();
-                self.ohlcvc.clear();
                 self.field_counts.clear();
             }
             // Record the actual field count for the (possibly re-seeded) key.
@@ -265,11 +277,11 @@ impl DeltaState {
     #[cfg(test)]
     pub(super) const SESSION_CONTRACT_CAP: usize = MAX_SESSION_CONTRACT_ROWS;
 
-    /// Distinct-row counts of the three per-session maps, exposed for
+    /// Distinct-row counts of the two per-session maps, exposed for
     /// boundedness tests.
     #[cfg(test)]
-    pub(super) fn state_sizes(&self) -> (usize, usize, usize) {
-        (self.prev.len(), self.ohlcvc.len(), self.field_counts.len())
+    pub(super) fn state_sizes(&self) -> (usize, usize) {
+        (self.prev.len(), self.field_counts.len())
     }
 }
 

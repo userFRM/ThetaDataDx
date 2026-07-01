@@ -1981,23 +1981,6 @@ int32_t thetadatadx_config_set_consumer_cpu(ThetaDataDxConfig* config, int64_t c
  */
 int32_t thetadatadx_config_get_consumer_cpu(const ThetaDataDxConfig* config, int64_t* out_core);
 
-/**
- * Set streaming OHLCVC derivation on a config handle.
- * @param config Config handle to mutate; no-op when NULL.
- * @param enabled true (default) derives OHLCVC bars locally from trade
- *                events; false emits only server-sent OHLCVC frames
- *                (lower overhead).
- */
-void thetadatadx_config_set_derive_ohlcvc(ThetaDataDxConfig* config, bool enabled);
-
-/**
- * Read the current OHLCVC-derivation flag.
- * @param config Config handle to read.
- * @param out_enabled Receives the derivation flag on success.
- * @return 0 on success, -1 if either pointer is null.
- */
-int32_t thetadatadx_config_get_derive_ohlcvc(const ThetaDataDxConfig* config, bool* out_enabled);
-
 /* ── Decode pool sizing ── */
 
 /**

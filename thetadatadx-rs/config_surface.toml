@@ -967,61 +967,6 @@ Current `retry.jitter` value.
 """
 
 [[accessor]]
-symbol = "thetadatadx_config_set_derive_ohlcvc"
-kind = "set"
-param = "enabled"
-abi_type = "bool"
-path = "streaming.derive_ohlcvc"
-doc = """
-Set streaming OHLCVC derivation on a config handle.
-
-- `enabled = true` (default): derive OHLCVC bars locally from trade events
-- `enabled = false`: only emit server-sent OHLCVC frames (lower overhead)
-"""
-cpp_doc = """
-Set whether to derive OHLCVC bars locally from trades.
-"""
-py_doc = """
-Set whether to derive OHLCVC bars locally from trade events.
-
-When ``False``, only server-sent OHLCVC frames are emitted,
-reducing per-trade throughput overhead.
-"""
-ts_doc = """
-Set whether to derive OHLCVC bars locally from trade events.
-When `false`, only server-sent OHLCVC frames are emitted,
-reducing per-trade throughput overhead. Default `true`.
-"""
-py_param = "enabled"
-ts_param = "enabled"
-
-[[accessor]]
-symbol = "thetadatadx_config_get_derive_ohlcvc"
-kind = "get"
-param = "out_enabled"
-abi_type = "bool"
-path = "streaming.derive_ohlcvc"
-out_safety = """
-        // SAFETY: out pointer checked non-null above; caller pins the storage for the call duration.
-"""
-doc = """
-Read the configured streaming OHLCVC-derivation flag. Writes `true` /
-`false` into `*out_enabled`. Returns `0` on success, `-1` if either
-pointer is null.
-"""
-cpp_doc = """
-Read the current OHLCVC-derivation flag. Returns `false` on a
-null handle (matching the C ABI's `-1` failure mapping at the
-boundary).
-"""
-py_doc = """
-Get the current OHLCVC derivation setting.
-"""
-ts_doc = """
-Current OHLCVC derivation setting.
-"""
-
-[[accessor]]
 symbol = "thetadatadx_config_set_flatfiles_max_attempts"
 kind = "set"
 param = "n"

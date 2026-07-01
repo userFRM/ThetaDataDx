@@ -320,23 +320,6 @@ impl Config {
         guard.retry.jitter
     }
 
-    /// Set whether to derive OHLCVC bars locally from trade events.
-    ///
-    /// When ``False``, only server-sent OHLCVC frames are emitted,
-    /// reducing per-trade throughput overhead.
-    #[setter]
-    fn set_derive_ohlcvc(&self, enabled: bool) {
-        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.streaming.derive_ohlcvc = enabled;
-    }
-
-    /// Get the current OHLCVC derivation setting.
-    #[getter]
-    fn get_derive_ohlcvc(&self) -> bool {
-        let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        guard.streaming.derive_ohlcvc
-    }
-
     /// Set the total attempt budget for the flatfile driver retry loop.
     /// ``1`` disables retry (single call only); higher values permit
     /// retries up to ``max_attempts - 1`` after the initial call.

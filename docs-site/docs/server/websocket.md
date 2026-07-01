@@ -44,7 +44,7 @@ Option contracts carry the four-tuple, with the strike in **dollars** (a JSON nu
 
 ## Event messages
 
-Events arrive as JSON with a `header.type` of `QUOTE`, `TRADE`, or `OHLC`, plus a `STATUS` heartbeat every second. `OHLC` bars flow automatically on any active trade subscription (disable with the server's `--no-ohlcvc` flag). An `OPEN_INTEREST` subscription is accepted, but open interest has no WebSocket frame: the data is delivered through the native SDK callbacks and the REST surface, not over this endpoint.
+Events arrive as JSON with a `header.type` of `QUOTE`, `TRADE`, or `OHLC`, plus a `STATUS` heartbeat every second. `OHLC` bars arrive from upstream automatically — one per traded contract, ahead of that contract's trade; they are not derived from your subscriptions and are not subscribed to separately. An `OPEN_INTEREST` subscription is accepted, but open interest has no WebSocket frame: the data is delivered through the native SDK callbacks and the REST surface, not over this endpoint.
 
 ## Try it
 

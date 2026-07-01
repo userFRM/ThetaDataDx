@@ -1367,7 +1367,7 @@ def _check_setter_set_parity(
     declared knob resolves on the bindings it claims; this set-level
     check is the complementary direction — it catches a knob that
     landed on some bindings but silently never made it into the parity
-    matrix on the others (the `derive_ohlcvc`-missing-on-TS defect
+    matrix on the others (the `flush_mode`-missing-on-TS defect
     class). Genuine per-language idioms are folded by
     `_normalize_setter`; anything still divergent must be listed in
     `exempt` (defaults to `SETTER_PARITY_EXEMPT`) with a reason or it
@@ -11329,10 +11329,10 @@ def _run_selftest() -> int:
         """The four sets, spelled in their per-binding idioms, compare
         equal after normalization — the gate is silent.
         """
-        py = {"worker_threads", "flatfiles_jitter", "derive_ohlcvc"}
-        ts = {"worker_threads_explicit", "flat_files_jitter", "flatfiles_jitter", "derive_ohlcvc"}
-        cpp = {"worker_threads_explicit", "flatfiles_jitter", "derive_ohlcvc"}
-        ffi = {"worker_threads_explicit", "flatfiles_jitter", "derive_ohlcvc"}
+        py = {"worker_threads", "flatfiles_jitter", "flush_mode"}
+        ts = {"worker_threads_explicit", "flat_files_jitter", "flatfiles_jitter", "flush_mode"}
+        cpp = {"worker_threads_explicit", "flatfiles_jitter", "flush_mode"}
+        ffi = {"worker_threads_explicit", "flatfiles_jitter", "flush_mode"}
         errors = _check_setter_set_parity(py, ts, cpp, ffi, exempt={})
         assert errors == [], (
             f"normalized-equal sets must be silent; got {errors!r}"
@@ -11340,14 +11340,14 @@ def _run_selftest() -> int:
 
     def _case_setter_set_parity_missing_on_one_binding_trips() -> None:
         """A knob bound on three bindings but absent from TS trips — the
-        `derive_ohlcvc`-missing-on-TS defect class.
+        `flush_mode`-missing-on-TS defect class.
         """
-        py = {"derive_ohlcvc"}
+        py = {"flush_mode"}
         ts: set[str] = set()
-        cpp = {"derive_ohlcvc"}
-        ffi = {"derive_ohlcvc"}
+        cpp = {"flush_mode"}
+        ffi = {"flush_mode"}
         errors = _check_setter_set_parity(py, ts, cpp, ffi, exempt={})
-        assert any("derive_ohlcvc" in e and "typescript" in e for e in errors), (
+        assert any("flush_mode" in e and "typescript" in e for e in errors), (
             f"missing-on-TS knob must trip the set-parity gate; got {errors!r}"
         )
 

@@ -122,9 +122,9 @@ Over the [server's WebSocket](/server/websocket), each event arrives as one JSON
 | Kind | Fields | Delivered for |
 |---|---|---|
 | `quote` | Best bid and offer (BBO for stocks, NBBO for options): `bid` / `ask` price, size, exchange, condition; `ms_of_day`, `date`, `received_at_ns` | [Quote streams](/streaming/stocks/quote) |
-| `trade` | `price`, `size`, `exchange`, `condition` (+ extended conditions), `sequence`, flags, `ms_of_day`, `date`, `received_at_ns` | [Trade](/streaming/stocks/trade), [full-trade](/streaming/options/full-trade), and [index price](/streaming/indices/price) streams |
+| `trade` | `price`, `size`, `exchange`, `condition`, `sequence`, `ms_of_day`, `date`, `received_at_ns` | [Trade](/streaming/stocks/trade), [full-trade](/streaming/options/full-trade), and [index price](/streaming/indices/price) streams |
 | `open_interest` | `open_interest`, `ms_of_day`, `date`, `received_at_ns` | [Open-interest streams](/streaming/options/open-interest) |
-| `ohlcvc` | `open`, `high`, `low`, `close`, `volume`, `count`, `ms_of_day`, `date`, `received_at_ns` | Bars derived from any active trade subscription |
+| `ohlcvc` | `open`, `high`, `low`, `close`, `volume`, `count`, `ms_of_day`, `date`, `received_at_ns` | Bars that arrive from upstream automatically — one per traded contract, ahead of that contract's trade |
 | `market_value` | `market_price` (calculated value), `market_bid` / `market_ask` (stocks and options only), `ms_of_day`, `date`, `received_at_ns` | [Index market value](/streaming/indices/market-value) and per-contract market-value streams |
 
 Each stream-type page in the sidebar lists its event's complete field table.
