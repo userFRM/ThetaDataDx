@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **C++ callback use-after-free:** when the drain cap elapses without a drain, the retired callback storage is now released after the in-flight invocation returns instead of being destroyed under it (#1056).
+- **C++ callback use-after-free:** a retired callback is now dropped only after the consumer thread confirms quiescence; if the quiescence cap elapses first, the node is intentionally leaked (a bounded one-time leak) rather than destroyed while an invocation may still be in flight (#1056).
 
 ## [13.0.0-rc.10] - 2026-06-30
 
