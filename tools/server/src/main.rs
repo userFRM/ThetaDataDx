@@ -43,6 +43,18 @@ use thetadatadx::{Client, Credentials, DirectConfig};
 
 use crate::state::AppState;
 
+/// A random 128-bit token as 32 lowercase hex chars. Backs the shutdown
+/// token and the flat-file scratch-path suffix — both want an unguessable,
+/// filesystem-safe unique string.
+pub(crate) fn random_hex_token() -> String {
+    use std::fmt::Write as _;
+    let bytes: [u8; 16] = rand::random();
+    bytes.iter().fold(String::with_capacity(32), |mut s, b| {
+        let _ = write!(s, "{b:02x}");
+        s
+    })
+}
+
 // ---------------------------------------------------------------------------
 //  CLI arguments
 // ---------------------------------------------------------------------------
@@ -217,14 +229,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _log_guard = logging::init(&args.log_level, args.log_format, args.log_file.as_deref())?;
 
     // Generate a random shutdown token and print it.
-    let shutdown_token = {
-        let bytes: [u8; 16] = rand::random();
-        bytes.iter().fold(String::with_capacity(32), |mut s, b| {
-            use std::fmt::Write;
-            let _ = write!(s, "{b:02x}");
-            s
-        })
-    };
+    let shutdown_token = random_hex_token();
 
     // Startup banner. Named after the binary so operator automation
     // matching the banner string keys on the same identifier as the

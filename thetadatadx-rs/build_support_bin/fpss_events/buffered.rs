@@ -8,7 +8,7 @@
 
 use std::fmt::Write as _;
 
-use super::common::{control_rust_variant, rust_field_type};
+use super::common::{control_rust_variant, control_variant_mapping, rust_field_type};
 use super::schema::{sorted_control_events, sorted_event_names, EventDef, Schema};
 
 /// Emit the `BufferedEvent` enum + the `fpss_event_to_buffered` converter
@@ -157,7 +157,7 @@ fn render_control_match_arms(schema: &Schema) -> String {
 fn render_control_match_arm(event_name: &str, def: &EventDef) -> String {
     let mut out = String::new();
     let rust_variant = control_rust_variant(event_name);
-    let (rust_pattern, field_assigns) = control_variant_mapping(event_name, def);
+    let (rust_pattern, field_assigns) = control_variant_mapping(event_name);
     if def.columns.is_empty() {
         writeln!(
             out,
@@ -176,78 +176,4 @@ fn render_control_match_arm(event_name: &str, def: &EventDef) -> String {
         out.push_str("            },\n");
     }
     out
-}
-
-/// Per-variant Rust-pattern + field-assignment mapping. Keeps the
-/// translation from the core `StreamControl` enum's field shapes to the
-/// schema's flat scalar columns in one auditable table.
-///
-/// Returned tuple: (Rust-side `match` pattern body inside `{ ... }`,
-/// list of `field: rhs` assignments for the BufferedEvent constructor).
-fn control_variant_mapping(event_name: &str, _def: &EventDef) -> (&'static str, Vec<String>) {
-    match event_name {
-        "LoginSuccess" => (
-            "permissions",
-            vec!["permissions: permissions.clone()".to_string()],
-        ),
-        "ContractAssigned" => (
-            "id, contract",
-            vec![
-                "id: *id".to_string(),
-                "contract: (**contract).clone()".to_string(),
-            ],
-        ),
-        "ReqResponse" => (
-            "req_id, result",
-            vec![
-                "req_id: *req_id".to_string(),
-                "result: i32::from(*result as u8)".to_string(),
-            ],
-        ),
-        "ServerError" => ("message", vec!["message: message.clone()".to_string()]),
-        "Disconnected" => (
-            "reason",
-            vec!["reason: i32::from(*reason as i16)".to_string()],
-        ),
-        "Reconnecting" => (
-            "reason, attempt, delay_ms",
-            vec![
-                // `RemoveReason` is `#[repr(i16)]`, so the discriminant
-                // widens losslessly and totally into the wire `i32` — no
-                // sentinel needed. `attempt: u32` can exceed `i32::MAX`, so
-                // it saturates instead so the diagnostic value stays
-                // non-negative in a (implausible but allowed) long-lived
-                // reconnect loop.
-                "reason: i32::from(*reason as i16)".to_string(),
-                "attempt: i32::try_from(*attempt).unwrap_or(i32::MAX)".to_string(),
-                "delay_ms: *delay_ms".to_string(),
-            ],
-        ),
-        "ReconnectsExhausted" => (
-            "reason, attempts",
-            vec![
-                "reason: i32::from(*reason as i16)".to_string(),
-                // Same saturating shape as `Reconnecting.attempt`.
-                "attempts: i32::try_from(*attempts).unwrap_or(i32::MAX)".to_string(),
-            ],
-        ),
-        "ParseError" => ("message", vec!["message: message.clone()".to_string()]),
-        "UnknownFrame" => (
-            "code, payload",
-            vec![
-                "code: *code".to_string(),
-                "payload: payload.clone()".to_string(),
-            ],
-        ),
-        "Ping" => ("payload", vec!["payload: payload.clone()".to_string()]),
-        // Unit variants: pattern body is empty, no fields. Returned
-        // here for completeness, but the caller checks
-        // `def.columns.is_empty()` and emits `=>` shorthand instead.
-        "MarketOpen" | "MarketClose" | "Reconnected" | "Connected" | "ReconnectedServer"
-        | "Restart" | "UnknownControl" => ("", vec![]),
-        other => panic!(
-            "control variant '{other}' has no Rust→BufferedEvent mapping; \
-             add it to control_variant_mapping in build_support/fpss_events/buffered.rs"
-        ),
-    }
 }

@@ -107,17 +107,26 @@ where
     }
 }
 
-/// Map a `JsonRejection` onto the canonical error envelope.
+/// Define a `fn $name(&$rej) -> Response` that maps an axum extractor
+/// rejection onto the server's canonical error envelope.
 ///
-/// Pure over the rejection so the wire shape — status, `error_type`, and
-/// the presence of a diagnostic `error_msg` — is testable without driving
-/// a live request through the router. The status is carried straight from
-/// the rejection (a malformed body is `400`, a missing `Content-Type` is
-/// `415`); `bad_request` is the canonical type for a client-supplied body
-/// the server could not accept.
-fn json_rejection_response(rejection: &JsonRejection) -> Response {
-    error_response(rejection.status(), "bad_request", &rejection.body_text())
+/// Every rejection carries its own status (a malformed body is `400`, a
+/// missing `Content-Type` is `415`, a bad path segment is `400`) and a
+/// diagnostic `body_text()`; `bad_request` is the canonical `error_type`
+/// for any client-supplied input the server could not accept. Each mapper
+/// is pure over the rejection so the wire shape is testable without driving
+/// a live request through the router. `status()` / `body_text()` are inherent
+/// methods on each axum rejection (no shared trait), so this generates one
+/// named mapper per rejection type rather than a single generic function.
+macro_rules! rejection_response_fn {
+    ($name:ident, $rej:ty) => {
+        fn $name(rejection: &$rej) -> Response {
+            error_response(rejection.status(), "bad_request", &rejection.body_text())
+        }
+    };
 }
+
+rejection_response_fn!(json_rejection_response, JsonRejection);
 
 // ── Query extractor with a canonical-envelope rejection ──────────────────
 
@@ -152,27 +161,17 @@ where
     }
 }
 
-/// Map a `QueryRejection` onto the canonical error envelope.
-///
-/// Pure over the rejection so the wire shape is testable without driving
-/// a live request through the router. A query string the server could not
-/// deserialize (missing required `date`, malformed key/value) is a
-/// client-supplied input fault: `400` with `error_type="bad_request"`.
-fn query_rejection_response(rejection: &QueryRejection) -> Response {
-    error_response(rejection.status(), "bad_request", &rejection.body_text())
-}
+// A query string the server could not deserialize (missing required `date`,
+// malformed key/value) is a client-supplied input fault: `400`,
+// `error_type="bad_request"`.
+rejection_response_fn!(query_rejection_response, QueryRejection);
 
-/// Map a `PathRejection` onto the canonical error envelope.
-///
-/// The brace route matches a non-UTF-8 percent-encoded segment (`%ff`);
-/// `Path::<(String, String)>` then fails `decode_utf8()` and rejects.
-/// Without this the GET path answers axum's default plain-text 400
-/// (`Invalid UTF-8 in \`sec_type\``), diverging from the
-/// `{"header":{"error_type":...},"response":[]}` envelope the query and
-/// POST siblings return — the contract clients drive retry / backoff off.
-fn path_rejection_response(rejection: &PathRejection) -> Response {
-    error_response(rejection.status(), "bad_request", &rejection.body_text())
-}
+// The brace route matches a non-UTF-8 percent-encoded segment (`%ff`);
+// `Path::<(String, String)>` then fails `decode_utf8()` and rejects. Without
+// this the GET path answers axum's default plain-text 400 (`Invalid UTF-8 in
+// \`sec_type\``), diverging from the canonical envelope the query and POST
+// siblings return — the contract clients drive retry / backoff off.
+rejection_response_fn!(path_rejection_response, PathRejection);
 
 // ── Enum parsing ─────────────────────────────────────────────────────────
 
@@ -499,14 +498,7 @@ pub(crate) fn flatfile_paths(
         "thetadatadx_server_flatfile_{sec_type}_{}_{date}.{}.{}.partial",
         req_type as u32,
         format.extension(),
-        {
-            let bytes: [u8; 16] = rand::random();
-            bytes.iter().fold(String::with_capacity(32), |mut s, b| {
-                use std::fmt::Write;
-                let _ = write!(s, "{b:02x}");
-                s
-            })
-        },
+        crate::random_hex_token(),
     ));
     (scratch_path, final_path)
 }

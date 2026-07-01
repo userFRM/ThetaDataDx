@@ -112,7 +112,7 @@ fn reconnect_storm_preserves_framing_invariants() {
         loop {
             match read_frame_into(&mut cursor, &mut buf, &mut state) {
                 Ok(Some((code, n))) => {
-                    let (primary, _secondary) = decode_frame(
+                    let primary = decode_frame(
                         code,
                         &buf[..n],
                         &authenticated,
@@ -220,7 +220,7 @@ fn post_storm_normal_operation_resumes_immediately() {
     let mut cursor = Cursor::new(bytes);
     let mut events = Vec::new();
     while let Ok(Some((code, n))) = read_frame_into(&mut cursor, &mut buf, &mut state) {
-        let (p, _) = decode_frame(
+        let p = decode_frame(
             code,
             &buf[..n],
             &authenticated,

@@ -39,6 +39,40 @@ fn offset_to_usize(v: u64, field: &str) -> Result<usize, Error> {
     })
 }
 
+/// Split a parsed FLATFILES blob into its `(index, data)` sections.
+///
+/// The header carries 64-bit INDEX/DATA offsets and lengths; route each
+/// through the checked `usize` conversion, fold the two lengths with
+/// overflow guards, and bounds-check the computed end against the blob so a
+/// truncated capture surfaces a typed error instead of a panic on the slice.
+fn slice_sections<'a>(
+    blob: &'a [u8],
+    hdr: &crate::flatfiles::index::BlobHeader,
+) -> Result<(&'a [u8], &'a [u8]), Error> {
+    let index_start = offset_to_usize(hdr.index_offset, "index_offset")?;
+    let index_byte_len = offset_to_usize(hdr.index_byte_len, "index_byte_len")?;
+    let data_byte_len = offset_to_usize(hdr.data_byte_len, "data_byte_len")?;
+    let index_end = index_start.checked_add(index_byte_len).ok_or_else(|| {
+        Error::config_internal(format!(
+            "flatfiles: header lengths overflow usize (index_offset={index_start}, index_byte_len={index_byte_len})"
+        ))
+    })?;
+    let data_start = index_end;
+    let data_end = data_start.checked_add(data_byte_len).ok_or_else(|| {
+        Error::config_internal(format!(
+            "flatfiles: header lengths overflow usize (data_start={data_start}, data_byte_len={data_byte_len})"
+        ))
+    })?;
+    if data_end > blob.len() {
+        return Err(Error::config_internal(format!(
+            "flatfiles: blob truncated — header expected {} bytes total, got {}",
+            data_end,
+            blob.len()
+        )));
+    }
+    Ok((&blob[index_start..index_end], &blob[data_start..data_end]))
+}
+
 /// Pull a flat-file blob, decode it, and write the requested format.
 ///
 /// 1. Auth + raw-stream pull into a scratch file alongside `output_path`.
@@ -156,30 +190,7 @@ pub(crate) fn decode_to_file(
 ) -> Result<(), Error> {
     let blob = std::fs::read(raw_path)?;
     let hdr = parse_header(&blob)?;
-
-    let index_start = offset_to_usize(hdr.index_offset, "index_offset")?;
-    let index_byte_len = offset_to_usize(hdr.index_byte_len, "index_byte_len")?;
-    let data_byte_len = offset_to_usize(hdr.data_byte_len, "data_byte_len")?;
-    let index_end = index_start.checked_add(index_byte_len).ok_or_else(|| {
-        Error::config_internal(format!(
-            "flatfiles: header lengths overflow usize (index_offset={index_start}, index_byte_len={index_byte_len})"
-        ))
-    })?;
-    let data_start = index_end;
-    let data_end = data_start.checked_add(data_byte_len).ok_or_else(|| {
-        Error::config_internal(format!(
-            "flatfiles: header lengths overflow usize (data_start={data_start}, data_byte_len={data_byte_len})"
-        ))
-    })?;
-    if data_end > blob.len() {
-        return Err(Error::config_internal(format!(
-            "flatfiles: blob truncated — header expected {} bytes total, got {}",
-            data_end,
-            blob.len()
-        )));
-    }
-    let index_bytes = &blob[index_start..index_end];
-    let data_bytes = &blob[data_start..data_end];
+    let (index_bytes, data_bytes) = slice_sections(&blob, &hdr)?;
 
     let mut sink: Box<dyn RowSink> = match format {
         FlatFileFormat::Csv => Box::new(CsvSink::new(
@@ -257,7 +268,7 @@ pub async fn flatfile_request_decoded_with_config(
     let scratch = std::env::temp_dir().join(format!(
         "thetadatadx-flatfiles-{}-{}-{}-{}.raw",
         sec.as_wire(),
-        req_name(req),
+        req.as_wire(),
         date,
         random_id_hex()
     ));
@@ -296,26 +307,7 @@ async fn pull_and_decode_to_memory(
 pub(crate) fn decode_to_memory(raw_path: &Path, sec: SecType) -> Result<Vec<FlatFileRow>, Error> {
     let blob = std::fs::read(raw_path)?;
     let hdr = parse_header(&blob)?;
-
-    let index_start = offset_to_usize(hdr.index_offset, "index_offset")?;
-    let index_byte_len = offset_to_usize(hdr.index_byte_len, "index_byte_len")?;
-    let data_byte_len = offset_to_usize(hdr.data_byte_len, "data_byte_len")?;
-    let index_end = index_start
-        .checked_add(index_byte_len)
-        .ok_or_else(|| Error::config_internal("flatfiles: header lengths overflow usize"))?;
-    let data_start = index_end;
-    let data_end = data_start
-        .checked_add(data_byte_len)
-        .ok_or_else(|| Error::config_internal("flatfiles: header lengths overflow usize"))?;
-    if data_end > blob.len() {
-        return Err(Error::config_internal(format!(
-            "flatfiles: blob truncated — header expected {} bytes total, got {}",
-            data_end,
-            blob.len()
-        )));
-    }
-    let index_bytes = &blob[index_start..index_end];
-    let data_bytes = &blob[data_start..data_end];
+    let (index_bytes, data_bytes) = slice_sections(&blob, &hdr)?;
 
     let data_idx = crate::flatfiles::writer::data_indices(&hdr.fmt, hdr.price_type_idx);
     let n_columns = hdr.fmt.len();
@@ -348,17 +340,6 @@ pub(crate) fn decode_to_memory(raw_path: &Path, sec: SecType) -> Result<Vec<Flat
         }
     }
     Ok(out)
-}
-
-fn req_name(req: ReqType) -> &'static str {
-    match req {
-        ReqType::Eod => "EOD",
-        ReqType::Quote => "QUOTE",
-        ReqType::OpenInterest => "OPEN_INTEREST",
-        ReqType::Ohlc => "OHLC",
-        ReqType::Trade => "TRADE",
-        ReqType::TradeQuote => "TRADE_QUOTE",
-    }
 }
 
 #[cfg(test)]

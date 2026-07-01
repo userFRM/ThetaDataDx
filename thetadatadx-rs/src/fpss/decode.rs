@@ -222,10 +222,10 @@ fn unresolved_sentinel(contract_id: i32) -> Arc<Contract> {
 
 /// Decode a frame into zero or one `StreamEvent`.
 ///
-/// Returns `(primary, secondary)`; `secondary` is currently always `None`
-/// (no frame emits a second event). The two-slot return keeps the hot path
-/// free of the per-frame `Vec<StreamEvent>` allocation and leaves room for a
-/// frame to fan out to a second event without changing the signature.
+/// Returns `Some(event)` for a frame that decodes to a typed event, `None`
+/// for a frame that emits nothing (a DATE marker or a skipped binary Error
+/// frame). Emitting straight into the ring keeps the hot path free of any
+/// per-frame `Vec<StreamEvent>` allocation.
 ///
 /// This is the frame dispatch logic of the reader thread. Tick data frames
 /// (Quote, Trade, `OpenInterest`, Ohlcvc) are FIT-decoded and delta-decompressed
@@ -245,7 +245,7 @@ pub fn decode_frame(
     local_contracts: &mut HashMap<i32, Arc<Contract>>,
     shutdown: &AtomicBool,
     delta_state: &mut DeltaState,
-) -> (Option<FpssEventInternal>, Option<FpssEventInternal>) {
+) -> Option<FpssEventInternal> {
     // Capture wall-clock timestamp once per frame for all data variants.
     //
     // On clock skew (`SystemTime::now()` before UNIX_EPOCH — possible on
@@ -333,12 +333,9 @@ pub fn decode_frame(
             // a production deployment will not capture it by default.
             tracing::trace!(permissions = %permissions, "received METADATA");
             authenticated.store(true, Ordering::Release);
-            (
-                Some(FpssEventInternal::Control(StreamControl::LoginSuccess {
-                    permissions,
-                })),
-                None,
-            )
+            Some(FpssEventInternal::Control(StreamControl::LoginSuccess {
+                permissions,
+            }))
         }
 
         StreamMsgType::Contract => match parse_contract_message(payload) {
@@ -355,24 +352,18 @@ pub fn decode_frame(
                 // it from the `ContractAssigned` event stream — the SDK no
                 // longer holds wire-internal `contract_id` state.
                 local_contracts.insert(id, Arc::clone(&arc_contract));
-                (
-                    Some(FpssEventInternal::Control(
-                        StreamControl::ContractAssigned {
-                            id,
-                            contract: arc_contract,
-                        },
-                    )),
-                    None,
-                )
+                Some(FpssEventInternal::Control(
+                    StreamControl::ContractAssigned {
+                        id,
+                        contract: arc_contract,
+                    },
+                ))
             }
             Err(e) => {
                 tracing::warn!(error = %e, "failed to parse CONTRACT message");
-                (
-                    Some(FpssEventInternal::Control(StreamControl::Error {
-                        message: format!("failed to parse CONTRACT message: {e}"),
-                    })),
-                    None,
-                )
+                Some(FpssEventInternal::Control(StreamControl::Error {
+                    message: format!("failed to parse CONTRACT message: {e}"),
+                }))
             }
         },
 
@@ -388,36 +379,33 @@ pub fn decode_frame(
                         FPSS_QUOTE_DECODE_FAILURES.increment(1);
                         FPSS_INVALID_PRICE_TYPE_QUOTE.increment(1);
                         warn_invalid_price_type("quote", contract_id, pt);
-                        return (Some(FpssEventInternal::Unparseable), None);
+                        return Some(FpssEventInternal::Unparseable);
                     };
                     FPSS_QUOTE_EVENTS.increment(1);
-                    (
-                        Some(FpssEventInternal::Data(StreamData::Quote {
-                            contract: resolve_contract(contract_id, local_contracts),
-                            ms_of_day: buf[0],
-                            bid_size: buf[1],
-                            bid_exchange: buf[2],
-                            bid: bid_f64,
-                            bid_condition: buf[4],
-                            ask_size: buf[5],
-                            ask_exchange: buf[6],
-                            ask: ask_f64,
-                            ask_condition: buf[8],
-                            date: buf[10],
-                            received_at_ns,
-                        })),
-                        None,
-                    )
+                    Some(FpssEventInternal::Data(StreamData::Quote {
+                        contract: resolve_contract(contract_id, local_contracts),
+                        ms_of_day: buf[0],
+                        bid_size: buf[1],
+                        bid_exchange: buf[2],
+                        bid: bid_f64,
+                        bid_condition: buf[4],
+                        ask_size: buf[5],
+                        ask_exchange: buf[6],
+                        ask: ask_f64,
+                        ask_condition: buf[8],
+                        date: buf[10],
+                        received_at_ns,
+                    }))
                 }
                 // DATE markers return None from decode_tick -- this is normal
                 // protocol flow (session date boundary), not corruption.
-                None if delta_state.last_was_date => (None, None),
+                None if delta_state.last_was_date => None,
                 None => {
                     // Truncated / corrupt FIT payload. Account for it on
                     // the public counter so operators see decode pressure
                     // without raw-byte fallout reaching the user callback.
                     FPSS_QUOTE_DECODE_FAILURES.increment(1);
-                    (Some(FpssEventInternal::Unparseable), None)
+                    Some(FpssEventInternal::Unparseable)
                 }
             }
         }
@@ -448,7 +436,7 @@ pub fn decode_frame(
                             expected = TRADE_FIELDS,
                             "unexpected trade field count; marking unparseable"
                         );
-                        return (Some(FpssEventInternal::Unparseable), None);
+                        return Some(FpssEventInternal::Unparseable);
                     }
 
                     // 8-field: [ms_of_day, sequence, size, condition, price, exchange, price_type, date]
@@ -458,7 +446,7 @@ pub fn decode_frame(
                         FPSS_TRADE_DECODE_FAILURES.increment(1);
                         FPSS_INVALID_PRICE_TYPE_TRADE.increment(1);
                         warn_invalid_price_type("trade", contract_id, pt);
-                        return (Some(FpssEventInternal::Unparseable), None);
+                        return Some(FpssEventInternal::Unparseable);
                     };
                     FPSS_TRADE_EVENTS.increment(1);
 
@@ -474,13 +462,13 @@ pub fn decode_frame(
                         date: buf[7],
                         received_at_ns,
                     });
-                    (Some(trade_event), None)
+                    Some(trade_event)
                 }
                 // DATE markers return None from decode_tick -- normal protocol flow.
-                None if delta_state.last_was_date => (None, None),
+                None if delta_state.last_was_date => None,
                 None => {
                     FPSS_TRADE_DECODE_FAILURES.increment(1);
-                    (Some(FpssEventInternal::Unparseable), None)
+                    Some(FpssEventInternal::Unparseable)
                 }
             }
         }
@@ -496,21 +484,18 @@ pub fn decode_frame(
                         local_contracts,
                     );
                     FPSS_OI_EVENTS.increment(1);
-                    (
-                        Some(FpssEventInternal::Data(StreamData::OpenInterest {
-                            contract: resolve_contract(contract_id, local_contracts),
-                            ms_of_day: buf[0],
-                            open_interest: buf[1],
-                            date: buf[2],
-                            received_at_ns,
-                        })),
-                        None,
-                    )
+                    Some(FpssEventInternal::Data(StreamData::OpenInterest {
+                        contract: resolve_contract(contract_id, local_contracts),
+                        ms_of_day: buf[0],
+                        open_interest: buf[1],
+                        date: buf[2],
+                        received_at_ns,
+                    }))
                 }
-                None if delta_state.last_was_date => (None, None),
+                None if delta_state.last_was_date => None,
                 None => {
                     FPSS_OI_DECODE_FAILURES.increment(1);
-                    (Some(FpssEventInternal::Unparseable), None)
+                    Some(FpssEventInternal::Unparseable)
                 }
             }
         }
@@ -530,7 +515,7 @@ pub fn decode_frame(
                         FPSS_OHLCVC_DECODE_FAILURES.increment(1);
                         FPSS_INVALID_PRICE_TYPE_OHLCVC.increment(1);
                         warn_invalid_price_type("ohlcvc", contract_id, pt);
-                        return (Some(FpssEventInternal::Unparseable), None);
+                        return Some(FpssEventInternal::Unparseable);
                     };
                     FPSS_OHLCVC_EVENTS.increment(1);
                     // Cumulative volume (buf[5]) and trade count (buf[6]) are
@@ -540,26 +525,23 @@ pub fn decode_frame(
                     // being sign-extended into a negative number.
                     let volume = i64::from(buf[5] as u32);
                     let count = i64::from(buf[6] as u32);
-                    (
-                        Some(FpssEventInternal::Data(StreamData::Ohlcvc {
-                            contract: resolve_contract(contract_id, local_contracts),
-                            ms_of_day: buf[0],
-                            open: o,
-                            high: h,
-                            low: l,
-                            close: c,
-                            volume,
-                            count,
-                            date: buf[8],
-                            received_at_ns,
-                        })),
-                        None,
-                    )
+                    Some(FpssEventInternal::Data(StreamData::Ohlcvc {
+                        contract: resolve_contract(contract_id, local_contracts),
+                        ms_of_day: buf[0],
+                        open: o,
+                        high: h,
+                        low: l,
+                        close: c,
+                        volume,
+                        count,
+                        date: buf[8],
+                        received_at_ns,
+                    }))
                 }
-                None if delta_state.last_was_date => (None, None),
+                None if delta_state.last_was_date => None,
                 None => {
                     FPSS_OHLCVC_DECODE_FAILURES.increment(1);
-                    (Some(FpssEventInternal::Unparseable), None)
+                    Some(FpssEventInternal::Unparseable)
                 }
             }
         }
@@ -593,26 +575,23 @@ pub fn decode_frame(
                         FPSS_MARKET_VALUE_DECODE_FAILURES.increment(1);
                         FPSS_INVALID_PRICE_TYPE_MARKET_VALUE.increment(1);
                         warn_invalid_price_type("market_value", contract_id, pt);
-                        return (Some(FpssEventInternal::Unparseable), None);
+                        return Some(FpssEventInternal::Unparseable);
                     };
                     FPSS_MARKET_VALUE_EVENTS.increment(1);
-                    (
-                        Some(FpssEventInternal::Data(StreamData::MarketValue {
-                            contract: resolve_contract(contract_id, local_contracts),
-                            ms_of_day: buf[0],
-                            market_bid,
-                            market_ask,
-                            market_price,
-                            date: buf[10],
-                            received_at_ns,
-                        })),
-                        None,
-                    )
+                    Some(FpssEventInternal::Data(StreamData::MarketValue {
+                        contract: resolve_contract(contract_id, local_contracts),
+                        ms_of_day: buf[0],
+                        market_bid,
+                        market_ask,
+                        market_price,
+                        date: buf[10],
+                        received_at_ns,
+                    }))
                 }
-                None if delta_state.last_was_date => (None, None),
+                None if delta_state.last_was_date => None,
                 None => {
                     FPSS_MARKET_VALUE_DECODE_FAILURES.increment(1);
-                    (Some(FpssEventInternal::Unparseable), None)
+                    Some(FpssEventInternal::Unparseable)
                 }
             }
         }
@@ -620,22 +599,16 @@ pub fn decode_frame(
         StreamMsgType::ReqResponse => match parse_req_response(payload) {
             Ok((req_id, result)) => {
                 tracing::debug!(req_id, result = ?result, "subscription response");
-                (
-                    Some(FpssEventInternal::Control(StreamControl::ReqResponse {
-                        req_id,
-                        result,
-                    })),
-                    None,
-                )
+                Some(FpssEventInternal::Control(StreamControl::ReqResponse {
+                    req_id,
+                    result,
+                }))
             }
             Err(e) => {
                 tracing::warn!(error = %e, "failed to parse REQ_RESPONSE");
-                (
-                    Some(FpssEventInternal::Control(StreamControl::Error {
-                        message: format!("failed to parse REQ_RESPONSE: {e}"),
-                    })),
-                    None,
-                )
+                Some(FpssEventInternal::Control(StreamControl::Error {
+                    message: format!("failed to parse REQ_RESPONSE: {e}"),
+                }))
             }
         },
 
@@ -643,10 +616,7 @@ pub fn decode_frame(
             tracing::info!("market open signal received");
             delta_state.clear();
             local_contracts.clear(); // mirrors idToContract.clear() on the wire
-            (
-                Some(FpssEventInternal::Control(StreamControl::MarketOpen)),
-                None,
-            )
+            Some(FpssEventInternal::Control(StreamControl::MarketOpen))
         }
 
         StreamMsgType::Stop => {
@@ -654,10 +624,7 @@ pub fn decode_frame(
             delta_state.last_stop = Some(Instant::now());
             delta_state.clear();
             local_contracts.clear(); // mirrors idToContract.clear() on the wire
-            (
-                Some(FpssEventInternal::Control(StreamControl::MarketClose)),
-                None,
-            )
+            Some(FpssEventInternal::Control(StreamControl::MarketClose))
         }
 
         StreamMsgType::Error => {
@@ -670,16 +637,13 @@ pub fn decode_frame(
                     len = payload.len(),
                     "skipping binary Error frame (replay boundary artifact)"
                 );
-                (None, None)
+                None
             } else {
                 let message = String::from_utf8_lossy(payload).to_string();
                 tracing::warn!(message = %message, "server error");
-                (
-                    Some(FpssEventInternal::Control(StreamControl::ServerError {
-                        message,
-                    })),
-                    None,
-                )
+                Some(FpssEventInternal::Control(StreamControl::ServerError {
+                    message,
+                }))
             }
         }
 
@@ -701,12 +665,9 @@ pub fn decode_frame(
                 shutdown.store(true, Ordering::Release);
             }
 
-            (
-                Some(FpssEventInternal::Control(StreamControl::Disconnected {
-                    reason,
-                })),
-                None,
-            )
+            Some(FpssEventInternal::Control(StreamControl::Disconnected {
+                reason,
+            }))
         }
 
         // Known server→client control frames. Each of these previously
@@ -717,10 +678,7 @@ pub fn decode_frame(
             // Code 4: connection ack. Logs "connected" and returns — no
             // side effects other than acknowledging the transition.
             tracing::debug!("FPSS server CONNECTED frame received");
-            (
-                Some(FpssEventInternal::Control(StreamControl::Connected)),
-                None,
-            )
+            Some(FpssEventInternal::Control(StreamControl::Connected))
         }
 
         StreamMsgType::Ping => {
@@ -729,12 +687,9 @@ pub fn decode_frame(
             // itself sends its own independent 100ms pings. Preserve the
             // raw payload for diagnostics so anomalous heartbeats can be
             // inspected after-the-fact.
-            (
-                Some(FpssEventInternal::Control(StreamControl::Ping {
-                    payload: payload.to_vec(),
-                })),
-                None,
-            )
+            Some(FpssEventInternal::Control(StreamControl::Ping {
+                payload: payload.to_vec(),
+            }))
         }
 
         StreamMsgType::Reconnected => {
@@ -759,10 +714,7 @@ pub fn decode_frame(
             tracing::debug!("FPSS server RECONNECTED frame received");
             delta_state.clear();
             local_contracts.clear();
-            (
-                Some(FpssEventInternal::Control(StreamControl::ReconnectedServer)),
-                None,
-            )
+            Some(FpssEventInternal::Control(StreamControl::ReconnectedServer))
         }
 
         StreamMsgType::Restart => {
@@ -776,10 +728,7 @@ pub fn decode_frame(
             tracing::info!("FPSS server RESTART frame received");
             delta_state.clear();
             local_contracts.clear();
-            (
-                Some(FpssEventInternal::Control(StreamControl::Restart)),
-                None,
-            )
+            Some(FpssEventInternal::Control(StreamControl::Restart))
         }
 
         // Emit unrecognized frame codes as UnknownFrame events with raw
@@ -787,13 +736,10 @@ pub fn decode_frame(
         // for upstream bug reports instead of silently dropping them.
         other => {
             tracing::warn!(code = ?other, payload_len = payload.len(), "unrecognized FPSS frame code");
-            (
-                Some(FpssEventInternal::Control(StreamControl::UnknownFrame {
-                    code: other as u8,
-                    payload: payload.to_vec(),
-                })),
-                None,
-            )
+            Some(FpssEventInternal::Control(StreamControl::UnknownFrame {
+                code: other as u8,
+                payload: payload.to_vec(),
+            }))
         }
     }
 }
@@ -893,7 +839,7 @@ mod tests {
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
         let mut delta_state = DeltaState::new();
-        let (primary, secondary) = decode_frame(
+        let primary = decode_frame(
             StreamMsgType::Trade,
             &fit_payload,
             &authenticated,
@@ -901,13 +847,6 @@ mod tests {
             &shutdown,
             &mut delta_state,
         );
-        // 8-field trades produce a primary Trade event and never a
-        // secondary event.
-        assert!(
-            secondary.is_none(),
-            "8-field trade must not produce a secondary event"
-        );
-
         let evt = primary.expect("decode_frame must emit a primary Trade event");
         let public = expect_public(&evt);
         match public {
@@ -966,7 +905,7 @@ mod tests {
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
         let mut delta_state = DeltaState::new();
-        let (primary, secondary) = decode_frame(
+        let primary = decode_frame(
             StreamMsgType::Trade,
             &fit_payload,
             &authenticated,
@@ -975,10 +914,6 @@ mod tests {
             &mut delta_state,
         );
 
-        assert!(
-            secondary.is_none(),
-            "an off-spec trade width must not derive a secondary event"
-        );
         assert!(
             matches!(primary, Some(FpssEventInternal::Unparseable)),
             "an off-spec trade width must decode as Unparseable, got {primary:?}"
@@ -995,7 +930,7 @@ mod tests {
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
         let mut delta_state = DeltaState::new();
-        let (primary, _) = decode_frame(
+        let primary = decode_frame(
             code,
             payload,
             &authenticated,
@@ -1055,7 +990,7 @@ mod tests {
         // Seed a real absolute trade so the delta-decode baseline is
         // populated; the Restart arm must clear it.
         let seed_row = encode_fit_row(&[42, 34_200_000, 1, 50, 6, 5_500_000, 57, 6, 20_250_428]);
-        let (seed, _) = decode_frame(
+        let seed = decode_frame(
             StreamMsgType::Trade,
             &seed_row,
             &authenticated,
@@ -1070,7 +1005,7 @@ mod tests {
             "seed trade must populate the delta baseline"
         );
 
-        let (primary, _) = decode_frame(
+        let primary = decode_frame(
             StreamMsgType::Restart,
             &[],
             &authenticated,
@@ -1137,7 +1072,7 @@ mod tests {
 
         // 1) Seed an absolute baseline trade for `cid`.
         let baseline_price = 18_750_000;
-        let (p0, _) = decode_frame(
+        let p0 = decode_frame(
             StreamMsgType::Trade,
             &abs_row(baseline_price),
             &authenticated,
@@ -1149,7 +1084,7 @@ mod tests {
 
         // 2) Server-side transparent reconnect: socket stays up, server
         //    restarts its delta stream. This arm must clear delta state.
-        let (rc, _) = decode_frame(
+        let rc = decode_frame(
             StreamMsgType::Reconnected,
             &[],
             &authenticated,
@@ -1167,7 +1102,7 @@ mod tests {
         //    the server re-sending CONTRACT after a restart).
         local_contracts.insert(cid, Arc::new(Contract::stock("SPY")));
         let fresh_price = 99_990_000;
-        let (p1, _) = decode_frame(
+        let p1 = decode_frame(
             StreamMsgType::Trade,
             &abs_row(fresh_price),
             &authenticated,
@@ -1215,7 +1150,7 @@ mod tests {
         let shutdown = AtomicBool::new(false);
         let mut delta_state = DeltaState::new();
 
-        let (primary, _) = decode_frame(
+        let primary = decode_frame(
             StreamMsgType::Contract,
             &payload,
             &authenticated,
@@ -1277,7 +1212,7 @@ mod tests {
             j += 2;
         }
 
-        let (primary, _) = decode_frame(
+        let primary = decode_frame(
             StreamMsgType::Quote,
             &bytes,
             &authenticated,
@@ -1342,7 +1277,7 @@ mod tests {
             j += 2;
         }
 
-        let (primary, _) = decode_frame(
+        let primary = decode_frame(
             StreamMsgType::Quote,
             &bytes,
             &authenticated,
@@ -1415,7 +1350,7 @@ mod tests {
         let seeded = Arc::new(ProtoContract::stock("SEED"));
         local_contracts.insert(42, Arc::clone(&seeded));
 
-        let (primary, _) = decode_frame(
+        let primary = decode_frame(
             StreamMsgType::Restart,
             &[],
             &authenticated,
@@ -1459,7 +1394,7 @@ mod tests {
             j += 2;
         }
 
-        let (primary, _) = decode_frame(
+        let primary = decode_frame(
             StreamMsgType::Quote,
             &bytes,
             &authenticated,
@@ -1498,7 +1433,7 @@ mod tests {
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
         let mut delta_state = DeltaState::new();
-        let (primary, secondary) = decode_frame(
+        let primary = decode_frame(
             StreamMsgType::Quote,
             &fit_payload,
             &authenticated,
@@ -1506,7 +1441,6 @@ mod tests {
             &shutdown,
             &mut delta_state,
         );
-        assert!(secondary.is_none());
         match primary {
             Some(FpssEventInternal::Unparseable) => {}
             other => {
@@ -1528,7 +1462,7 @@ mod tests {
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
         let mut delta_state = DeltaState::new();
-        let (primary, secondary) = decode_frame(
+        let primary = decode_frame(
             StreamMsgType::Trade,
             &fit_payload,
             &authenticated,
@@ -1536,7 +1470,6 @@ mod tests {
             &shutdown,
             &mut delta_state,
         );
-        assert!(secondary.is_none());
         match primary {
             Some(FpssEventInternal::Unparseable) => {}
             other => {
@@ -1558,7 +1491,7 @@ mod tests {
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
         let mut delta_state = DeltaState::new();
-        let (primary, secondary) = decode_frame(
+        let primary = decode_frame(
             StreamMsgType::Ohlcvc,
             &fit_payload,
             &authenticated,
@@ -1566,7 +1499,6 @@ mod tests {
             &shutdown,
             &mut delta_state,
         );
-        assert!(secondary.is_none());
         match primary {
             Some(FpssEventInternal::Unparseable) => {}
             other => {
@@ -1605,7 +1537,7 @@ mod tests {
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
         let mut delta_state = DeltaState::new();
-        let (primary, secondary) = decode_frame(
+        let primary = decode_frame(
             StreamMsgType::Ohlcvc,
             &fit_payload,
             &authenticated,
@@ -1613,7 +1545,6 @@ mod tests {
             &shutdown,
             &mut delta_state,
         );
-        assert!(secondary.is_none());
         match primary {
             Some(FpssEventInternal::Data(StreamData::Ohlcvc { volume, count, .. })) => {
                 assert_eq!(volume, 2_225_611_194_i64, "volume must decode as unsigned");
@@ -1772,17 +1703,13 @@ mod tests {
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
         let mut delta_state = DeltaState::new();
-        let (primary, secondary) = decode_frame(
+        let primary = decode_frame(
             StreamMsgType::MarketValue,
             &fit_payload,
             &authenticated,
             &mut local_contracts,
             &shutdown,
             &mut delta_state,
-        );
-        assert!(
-            secondary.is_none(),
-            "market value frame yields no secondary"
         );
         let evt = primary.expect("decode_frame must emit a primary MarketValue event");
         match expect_public(&evt) {
@@ -1820,7 +1747,7 @@ mod tests {
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
         let mut delta_state = DeltaState::new();
-        let (primary, secondary) = decode_frame(
+        let primary = decode_frame(
             StreamMsgType::MarketValue,
             &fit_payload,
             &authenticated,
@@ -1828,7 +1755,6 @@ mod tests {
             &shutdown,
             &mut delta_state,
         );
-        assert!(secondary.is_none());
         match primary {
             Some(FpssEventInternal::Unparseable) => {}
             other => panic!("expected Unparseable for out-of-range price_type, got {other:?}"),
@@ -1845,7 +1771,7 @@ mod tests {
         let authenticated = AtomicBool::new(true);
         let shutdown = AtomicBool::new(false);
         let mut delta_state = DeltaState::new();
-        let (primary, _secondary) = decode_frame(
+        let primary = decode_frame(
             StreamMsgType::Quote,
             &fit_payload,
             &authenticated,

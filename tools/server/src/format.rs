@@ -606,12 +606,14 @@ fn right_label(right: char) -> sonic_rs::Value {
     }
 }
 
-/// Format a `YYYYMMDD` integer as the vendor's documented ISO
-/// `YYYY-MM-DD` expiration shape (`20260618` -> `"2026-06-18"`).
-fn expiration_label(expiration: i32) -> sonic_rs::Value {
-    let year = expiration / 10_000;
-    let month = (expiration / 100) % 100;
-    let day = expiration % 100;
+/// Format a `YYYYMMDD` integer as the vendor's documented ISO `YYYY-MM-DD`
+/// date string (`20260618` -> `"2026-06-18"`). Shared by the option
+/// `expiration` column and the calendar `date` / interest-rate `created`
+/// columns, which the spec all render as bare dates (no time component).
+fn yyyymmdd_to_iso(date: i32) -> sonic_rs::Value {
+    let year = date / 10_000;
+    let month = (date / 100) % 100;
+    let day = date % 100;
     sonic_rs::Value::from(format!("{year:04}-{month:02}-{day:02}").as_str())
 }
 
@@ -660,16 +662,6 @@ fn iso_millis_fraction(millis: i32) -> String {
     format!(".{}", padded.trim_end_matches('0'))
 }
 
-/// Format a `YYYYMMDD` integer as the v3 ISO `YYYY-MM-DD` date string.
-/// Shares the calendar `date` and interest-rate `created` columns, which
-/// the spec renders as bare dates (no time component).
-fn date_label(date: i32) -> sonic_rs::Value {
-    let year = date / 10_000;
-    let month = (date / 100) % 100;
-    let day = date % 100;
-    sonic_rs::Value::from(format!("{year:04}-{month:02}-{day:02}").as_str())
-}
-
 /// Format a millisecond-of-day offset as the v3 `HH:mm:ss` clock string
 /// (the calendar `open` / `close` columns). Milliseconds are truncated:
 /// the calendar publishes whole-second session boundaries.
@@ -691,7 +683,7 @@ fn insert_contract_id_fields(row: &mut Row, expiration: i32, strike: f64, right:
     if expiration == 0 {
         return;
     }
-    row.push("expiration", expiration_label(expiration));
+    row.push("expiration", yyyymmdd_to_iso(expiration));
     row.push(
         "strike",
         sonic_rs::to_value(&strike).expect("f64 should serialize"),
@@ -1486,7 +1478,7 @@ pub(crate) fn calendar_days_to_json(days: &[CalendarDay]) -> Vec<Row> {
             // single-day responses where the server omits the column.
             let mut row = Row::with_capacity(4);
             if d.date != 0 {
-                row.push("date", date_label(d.date));
+                row.push("date", yyyymmdd_to_iso(d.date));
             }
             row.push("type", sonic_rs::Value::from(d.status.as_str()));
             row.push("open", open);
@@ -1505,7 +1497,7 @@ pub(crate) fn interest_rate_ticks_to_json(ticks: &[InterestRateTick]) -> Vec<Row
             // as the ISO `YYYY-MM-DD` string, and leads the row with it ahead
             // of `rate`.
             row! {
-                "created": date_label(t.date),
+                "created": yyyymmdd_to_iso(t.date),
                 "rate": t.rate,
             }
         })
@@ -1522,7 +1514,7 @@ pub(crate) fn option_contracts_to_json(contracts: &[OptionContract]) -> Vec<Row>
             // order pinned by the spec example.
             row! {
                 "symbol": c.symbol.as_str(),
-                "expiration": expiration_label(c.expiration),
+                "expiration": yyyymmdd_to_iso(c.expiration),
                 "strike": c.strike,
                 "right": right_label(c.right),
             }

@@ -36,9 +36,7 @@ use crate::error::Error;
 use crate::flatfiles::framing::{msg, read_frame, Frame};
 use crate::flatfiles::mdds_spki::{ALLOWED_MDDS_HOSTS, MDDS_PORTS};
 use crate::flatfiles::session::{connect_and_login, MddsHost};
-use crate::flatfiles::types::{
-    flat_file_serves, req_dataset_name, FlatFilesUnavailableReason, ReqType, SecType,
-};
+use crate::flatfiles::types::{flat_file_serves, FlatFilesUnavailableReason, ReqType, SecType};
 
 /// Process-wide monotonic id generator. The server treats id as opaque; we
 /// use an `AtomicI64` so concurrent `flatfile_request_raw` calls cannot
@@ -82,7 +80,7 @@ fn validate_dataset(sec: SecType, req: ReqType) -> Result<(), Error> {
         format!(
             "flat-file service does not serve {} {}",
             sec.as_wire().to_ascii_lowercase(),
-            req_dataset_name(req)
+            req.as_str()
         ),
     ))
 }

@@ -23,6 +23,85 @@ pub(super) fn control_rust_variant(event_name: &str) -> &str {
     }
 }
 
+/// Per-variant Rust-`match`-pattern + field-assignment mapping for a control
+/// event, translating the core `StreamControl` enum's field shapes to the
+/// schema's flat scalar columns in one auditable table.
+///
+/// Returned tuple: (Rust-side `match` pattern body inside `{ ... }`, list of
+/// `field: rhs` assignments for the generated struct constructor). Unit
+/// variants map to `("", vec![])`; callers that emit `=>` shorthand for a
+/// column-less event never reach those arms, they are listed for
+/// completeness. Shared by the buffered-event and pyclass emitters, which
+/// build the same flat scalar rows; the ffi_rust emitter keeps its own
+/// `&'static str`-valued copy because it emits borrowed literals, not owned
+/// `String`s.
+pub(super) fn control_variant_mapping(event_name: &str) -> (&'static str, Vec<String>) {
+    match event_name {
+        "LoginSuccess" => (
+            "permissions",
+            vec!["permissions: permissions.clone()".to_string()],
+        ),
+        "ContractAssigned" => (
+            "id, contract",
+            vec![
+                "id: *id".to_string(),
+                "contract: (**contract).clone()".to_string(),
+            ],
+        ),
+        "ReqResponse" => (
+            "req_id, result",
+            vec![
+                "req_id: *req_id".to_string(),
+                "result: i32::from(*result as u8)".to_string(),
+            ],
+        ),
+        "ServerError" => ("message", vec!["message: message.clone()".to_string()]),
+        "Disconnected" => (
+            "reason",
+            vec!["reason: i32::from(*reason as i16)".to_string()],
+        ),
+        "Reconnecting" => (
+            "reason, attempt, delay_ms",
+            vec![
+                // `RemoveReason` is `#[repr(i16)]`, so the discriminant
+                // widens losslessly and totally into the wire `i32` — no
+                // sentinel needed. `attempt: u32` can exceed `i32::MAX`, so
+                // it saturates instead so the diagnostic value stays
+                // non-negative in a (implausible but allowed) long-lived
+                // reconnect loop.
+                "reason: i32::from(*reason as i16)".to_string(),
+                "attempt: i32::try_from(*attempt).unwrap_or(i32::MAX)".to_string(),
+                "delay_ms: *delay_ms".to_string(),
+            ],
+        ),
+        "ReconnectsExhausted" => (
+            "reason, attempts",
+            vec![
+                "reason: i32::from(*reason as i16)".to_string(),
+                // Same saturating shape as `Reconnecting.attempt`.
+                "attempts: i32::try_from(*attempts).unwrap_or(i32::MAX)".to_string(),
+            ],
+        ),
+        "ParseError" => ("message", vec!["message: message.clone()".to_string()]),
+        "UnknownFrame" => (
+            "code, payload",
+            vec![
+                "code: *code".to_string(),
+                "payload: payload.clone()".to_string(),
+            ],
+        ),
+        "Ping" => ("payload", vec!["payload: payload.clone()".to_string()]),
+        // Unit variants: empty pattern body, no fields. Callers emit `=>`
+        // shorthand for column-less events and never reach these arms.
+        "MarketOpen" | "MarketClose" | "Reconnected" | "Connected" | "ReconnectedServer"
+        | "Restart" | "UnknownControl" => ("", vec![]),
+        other => panic!(
+            "control variant '{other}' has no Rust field mapping; \
+             add it to control_variant_mapping in build_support/fpss_events/common.rs"
+        ),
+    }
+}
+
 /// Maps a schema column type to the Rust field type emitted on the Python `#[pyclass]` struct.
 pub(super) fn python_rust_field_type(
     column_type: &str,

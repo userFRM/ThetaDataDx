@@ -120,13 +120,6 @@ pub fn flat_file_serves(sec: SecType, req: ReqType) -> bool {
     )
 }
 
-/// Lower-case dataset name for `req` as it appears in user-facing error
-/// text (e.g. `open_interest`). Matches the request-type tokens the
-/// public surface accepts.
-pub(crate) fn req_dataset_name(req: ReqType) -> &'static str {
-    req.as_str()
-}
-
 /// Every `(SecType, ReqType)` pair the flat-file distribution serves, in a
 /// stable order suitable for advertising on a tool surface.
 ///
@@ -225,13 +218,6 @@ impl FlatFilesUnavailableReason {
                 disconnect_reason_class(*reason_code) == DisconnectReasonClass::Transient
             }
         }
-    }
-
-    /// Inverse of [`Self::is_transient`]. Provided so callers can keep
-    /// the intent line-by-line readable in classifier chains.
-    #[must_use]
-    pub fn is_terminal(&self) -> bool {
-        !self.is_transient()
     }
 
     /// Returns `true` when this is a terminal *no-data* condition: the
@@ -425,8 +411,8 @@ mod tests {
 
     /// A `NoStartDate` (ordinal 13) `DISCONNECTED` is a terminal *no-data*
     /// condition: the requested slice does not exist for this account/date.
-    /// It must NOT be retried (`is_transient` false / `is_terminal` true)
-    /// and must report as no-data so the server answers `404`, not `502`.
+    /// It must NOT be retried (`is_transient` false) and must report as
+    /// no-data so the server answers `404`, not `502`.
     /// This is the exact regression: the old login-phase classifier treated
     /// every non-credential ordinal as transient, driving a permanent
     /// no-data drop through the full retry ladder to a `502`.
@@ -437,7 +423,6 @@ mod tests {
         assert_eq!(RemoveReason::from_code(13), RemoveReason::NoStartDate);
         let reason = FlatFilesUnavailableReason::AuthRejected { reason_code: 13 };
         assert!(!reason.is_transient(), "NoStartDate must not be retried");
-        assert!(reason.is_terminal());
         assert!(
             reason.is_no_data(),
             "NoStartDate must surface as a no-data (404) condition"
@@ -469,7 +454,6 @@ mod tests {
             !reason.is_transient(),
             "an auth failure must not be retried"
         );
-        assert!(reason.is_terminal());
         assert!(
             !reason.is_no_data(),
             "GeneralValidationError is a credential/auth fault (502), not no-data (404)"

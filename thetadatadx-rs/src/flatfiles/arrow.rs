@@ -9,10 +9,10 @@
 //! in one pass.
 //!
 //! Single-source-of-truth dispatch: every binding (Python, TypeScript,
-//! C++) that wants Arrow output funnels through [`crate::flatfiles::arrow::rows_to_arrow`].
-//! The mapping `FlatFileValue -> arrow_schema::DataType` lives once in
-//! [`crate::flatfiles::arrow::flatfile_value_arrow_type`] and is reused
-//! both at schema-inference time and at builder-finalization time.
+//! C++) that wants Arrow output funnels through [`crate::flatfiles::arrow::rows_to_arrow`],
+//! which maps `FlatFileValue -> arrow_schema::DataType`
+//! (`Int -> Int32`, `Price -> Float64`) at both schema-inference and
+//! builder-finalization time.
 //!
 //! # Schema rules
 //!
@@ -47,20 +47,6 @@ use arrow_schema::{DataType, Field, Schema};
 
 use crate::error::Error;
 use crate::flatfiles::decoded_row::{FlatFileRow, FlatFileValue};
-
-/// Arrow `DataType` for a [`FlatFileValue`] variant.
-///
-/// SSOT mapping reused at schema-inference time and at column-finalize
-/// time inside [`rows_to_arrow`]. Bindings that need their own column
-/// dispatch (e.g. emitting a polars `Series` per column) should call
-/// this rather than re-derive the mapping.
-#[must_use]
-pub fn flatfile_value_arrow_type(value: &FlatFileValue) -> DataType {
-    match value {
-        FlatFileValue::Int(_) => DataType::Int32,
-        FlatFileValue::Price(_) => DataType::Float64,
-    }
-}
 
 /// Convert a slice of [`FlatFileRow`] into an Arrow [`RecordBatch`].
 ///
@@ -163,11 +149,15 @@ pub fn rows_to_arrow(rows: &[FlatFileRow]) -> Result<RecordBatch, Error> {
                 (DataBuilder::Int(b), FlatFileValue::Int(v)) => b.append_value(*v),
                 (DataBuilder::Price(b), FlatFileValue::Price(v)) => b.append_value(*v),
                 (b, v) => {
+                    let value_type = match v {
+                        FlatFileValue::Int(_) => DataType::Int32,
+                        FlatFileValue::Price(_) => DataType::Float64,
+                    };
                     return Err(Error::decode_column_type_mismatch(
                         row_idx,
                         actual_name,
                         format!("{:?}", b.data_type()),
-                        format!("{:?}", flatfile_value_arrow_type(v)),
+                        format!("{value_type:?}"),
                     ));
                 }
             }
@@ -363,17 +353,5 @@ mod tests {
             }
             other => panic!("expected Error::Decode ColumnTypeMismatch, got {other:?}"),
         }
-    }
-
-    #[test]
-    fn flatfile_value_arrow_type_dispatch() {
-        assert_eq!(
-            flatfile_value_arrow_type(&FlatFileValue::Int(0)),
-            DataType::Int32
-        );
-        assert_eq!(
-            flatfile_value_arrow_type(&FlatFileValue::Price(0.0)),
-            DataType::Float64
-        );
     }
 }

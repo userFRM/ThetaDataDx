@@ -251,6 +251,10 @@ impl Contract {
     /// the sentinel via the enum variant rather than a symbol-prefix match.
     /// The `symbol` carries the decimal wire id under the `__pending:`
     /// prefix for diagnostic correlation.
+    ///
+    /// `Contract` is `#[non_exhaustive]`, so this is the only way an
+    /// out-of-crate caller (e.g. the WS bridge's tests) can build the
+    /// sentinel to feed a formatter under test.
     #[must_use]
     pub fn pending(contract_id: i32) -> Self {
         use crate::tdbe::types::enums::SecType;

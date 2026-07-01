@@ -10,7 +10,9 @@
 
 use std::fmt::Write as _;
 
-use super::common::{control_rust_variant, is_contract, python_rust_field_type, snake_case};
+use super::common::{
+    control_rust_variant, control_variant_mapping, is_contract, python_rust_field_type, snake_case,
+};
 use super::schema::{
     sorted_control_events, sorted_data_events, sorted_event_names, ColumnDef, EventDef, Schema,
 };
@@ -432,76 +434,5 @@ fn field_rhs(column_type: &str, name: &str) -> String {
         "Contract" => format!("(**{name}).clone()"),
         // `Copy` primitives — deref the binding.
         _ => format!("*{name}"),
-    }
-}
-
-/// Per-variant Rust-pattern + pyclass field-assignment mapping. Keeps the
-/// translation from the core `StreamControl` enum's field shapes to the
-/// schema's flat scalar columns in one auditable table.
-///
-/// Returned tuple: (Rust-side `match` pattern body inside `{ ... }`,
-/// list of `field: rhs` assignments for the pyclass constructor).
-fn control_variant_mapping(event_name: &str) -> (&'static str, Vec<String>) {
-    match event_name {
-        "LoginSuccess" => (
-            "permissions",
-            vec!["permissions: permissions.clone()".to_string()],
-        ),
-        "ContractAssigned" => (
-            "id, contract",
-            vec![
-                "id: *id".to_string(),
-                // Store the contract inline; the getter materialises
-                // `ContractRef` on access.
-                "contract: (**contract).clone()".to_string(),
-            ],
-        ),
-        "ReqResponse" => (
-            "req_id, result",
-            vec![
-                "req_id: *req_id".to_string(),
-                "result: i32::from(*result as u8)".to_string(),
-            ],
-        ),
-        "ServerError" => ("message", vec!["message: message.clone()".to_string()]),
-        "Disconnected" => (
-            "reason",
-            vec!["reason: i32::from(*reason as i16)".to_string()],
-        ),
-        "Reconnecting" => (
-            "reason, attempt, delay_ms",
-            vec![
-                // `RemoveReason` is `#[repr(i16)]`, so the discriminant
-                // widens losslessly and totally into the wire `i32` — no
-                // sentinel needed. `attempt: u32` can exceed `i32::MAX`, so
-                // it saturates instead so the diagnostic value stays
-                // non-negative in a (implausible but allowed) long-lived
-                // reconnect loop.
-                "reason: i32::from(*reason as i16)".to_string(),
-                "attempt: i32::try_from(*attempt).unwrap_or(i32::MAX)".to_string(),
-                "delay_ms: *delay_ms".to_string(),
-            ],
-        ),
-        "ReconnectsExhausted" => (
-            "reason, attempts",
-            vec![
-                "reason: i32::from(*reason as i16)".to_string(),
-                // Same saturating shape as `Reconnecting.attempt`.
-                "attempts: i32::try_from(*attempts).unwrap_or(i32::MAX)".to_string(),
-            ],
-        ),
-        "ParseError" => ("message", vec!["message: message.clone()".to_string()]),
-        "UnknownFrame" => (
-            "code, payload",
-            vec![
-                "code: *code".to_string(),
-                "payload: payload.clone()".to_string(),
-            ],
-        ),
-        "Ping" => ("payload", vec!["payload: payload.clone()".to_string()]),
-        other => panic!(
-            "control variant '{other}' has no Rust→pyclass mapping; \
-             add it to control_variant_mapping in build_support/fpss_events/python.rs"
-        ),
     }
 }

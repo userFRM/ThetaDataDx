@@ -33,8 +33,8 @@ pub(super) fn c_field_layout(ty: &str) -> CFieldLayout {
 /// embedding event structs), so the contract's own internal fields are
 /// modelled here once and consumed by both the size and per-field offset
 /// helpers. Keeping this list as the single source means the asserted
-/// numbers are computed by the same `align_to` walk that places every other
-/// FPSS field, never hand-typed. Order and widths mirror the C mirror in
+/// numbers are computed by the same `next_multiple_of` walk that places every
+/// other FPSS field, never hand-typed. Order and widths mirror the C mirror in
 /// `ffi_c.rs::render_contract_struct_c` and the Rust `#[repr(C)]` struct in
 /// `ffi_rust.rs::render_contract_struct_rust`.
 fn contract_fields() -> [(&'static str, CFieldLayout); 9] {
@@ -56,15 +56,15 @@ fn contract_fields() -> [(&'static str, CFieldLayout); 9] {
 }
 
 /// Byte offset of each `ThetaDataDxContract` field, computed by the same
-/// `align_to` walk as every other FPSS struct so the emitted asserts pin the
-/// contract's internal layout directly rather than inferring it from the
-/// embedding events.
+/// `next_multiple_of` walk as every other FPSS struct so the emitted asserts
+/// pin the contract's internal layout directly rather than inferring it from
+/// the embedding events.
 pub(super) fn contract_field_offsets() -> Vec<(&'static str, usize)> {
     let fields = contract_fields();
     let mut offsets = Vec::with_capacity(fields.len());
-    let mut size = 0;
+    let mut size: usize = 0;
     for (name, layout) in fields {
-        size = align_to(size, layout.align);
+        size = size.next_multiple_of(layout.align);
         offsets.push((name, size));
         size += layout.size;
     }
@@ -113,9 +113,9 @@ pub(super) fn c_struct_size(columns: &[ColumnDef]) -> usize {
 pub(super) fn c_struct_offsets(columns: &[ColumnDef]) -> Vec<(String, usize)> {
     let expanded = expand_columns(columns);
     let mut offsets = Vec::with_capacity(expanded.len());
-    let mut size = 0;
+    let mut size: usize = 0;
     for (name, layout) in &expanded {
-        size = align_to(size, layout.align);
+        size = size.next_multiple_of(layout.align);
         offsets.push((name.clone(), size));
         size += layout.size;
     }
@@ -162,9 +162,9 @@ pub(super) fn fpss_event_size(schema: &Schema) -> usize {
 /// Returns the byte offset of each field on the tagged `ThetaDataDxStreamEvent` wrapper.
 pub(super) fn fpss_event_offsets(schema: &Schema) -> Vec<(String, usize)> {
     let mut offsets = Vec::new();
-    let mut size = 0;
+    let mut size: usize = 0;
     for (field_name, layout) in fpss_event_fields(schema) {
-        size = align_to(size, layout.align);
+        size = size.next_multiple_of(layout.align);
         offsets.push((field_name, size));
         size += layout.size;
     }
@@ -210,20 +210,11 @@ fn fpss_event_fields(schema: &Schema) -> Vec<(String, CFieldLayout)> {
 }
 
 fn c_layout(fields: impl IntoIterator<Item = CFieldLayout>) -> usize {
-    let mut size = 0;
+    let mut size: usize = 0;
     let mut struct_align = 1;
     for field in fields {
         struct_align = struct_align.max(field.align);
-        size = align_to(size, field.align) + field.size;
+        size = size.next_multiple_of(field.align) + field.size;
     }
-    align_to(size, struct_align)
-}
-
-fn align_to(value: usize, align: usize) -> usize {
-    let rem = value % align;
-    if rem == 0 {
-        value
-    } else {
-        value + align - rem
-    }
+    size.next_multiple_of(struct_align)
 }
