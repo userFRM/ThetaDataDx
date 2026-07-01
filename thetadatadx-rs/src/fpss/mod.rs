@@ -29,7 +29,6 @@
 //! # }
 //! ```
 
-mod accumulator;
 pub(crate) mod affinity;
 #[cfg(feature = "arrow")]
 pub mod batch_reader;
@@ -401,9 +400,9 @@ pub(crate) fn full_stream_sec_type_supported(sec_type: SecType) -> bool {
 /// Fluent builder for an [`StreamingClient`].
 ///
 /// Holds the connection-side knobs (credentials, hosts, ring size,
-/// flush mode, reconnect policy, OHLCVC derivation, timeouts) and
-/// returns a connected client from [`Self::build`]. Optional setters
-/// consume `self` so calls chain.
+/// flush mode, reconnect policy, timeouts) and returns a connected
+/// client from [`Self::build`]. Optional setters consume `self` so
+/// calls chain.
 ///
 /// # Example
 ///
@@ -436,7 +435,6 @@ pub struct StreamingClientBuilder<'a> {
     jitter: JitterMode,
     replay_burst_size: u32,
     replay_pace_ms: u64,
-    derive_ohlcvc: bool,
     connect_timeout_ms: u64,
     read_timeout_ms: u64,
     ping_interval_ms: u64,
@@ -477,7 +475,6 @@ impl<'a> StreamingClientBuilder<'a> {
             jitter: reconnect.jitter,
             replay_burst_size: reconnect.replay_burst_size,
             replay_pace_ms: reconnect.replay_pace_ms,
-            derive_ohlcvc: true,
             connect_timeout_ms: fpss.connect_timeout_ms,
             read_timeout_ms: fpss.timeout_ms,
             ping_interval_ms: fpss.ping_interval_ms,
@@ -623,14 +620,6 @@ impl<'a> StreamingClientBuilder<'a> {
         self
     }
 
-    /// When `false`, suppresses locally-derived `StreamData::Ohlcvc`
-    /// events. Server-sent OHLCVC frames still pass through.
-    #[must_use]
-    pub fn derive_ohlcvc(mut self, on: bool) -> Self {
-        self.derive_ohlcvc = on;
-        self
-    }
-
     /// Per-server TCP connect timeout in milliseconds.
     #[must_use]
     pub fn connect_timeout_ms(mut self, ms: u64) -> Self {
@@ -734,7 +723,6 @@ impl<'a> StreamingClientBuilder<'a> {
             jitter: self.jitter,
             replay_burst_size: self.replay_burst_size,
             replay_pace_ms: self.replay_pace_ms,
-            derive_ohlcvc: self.derive_ohlcvc,
             connect_timeout_ms: self.connect_timeout_ms,
             read_timeout_ms: self.read_timeout_ms,
             ping_interval_ms: self.ping_interval_ms,
@@ -773,7 +761,6 @@ pub(crate) struct FpssConnectArgs<'a> {
     pub(crate) jitter: JitterMode,
     pub(crate) replay_burst_size: u32,
     pub(crate) replay_pace_ms: u64,
-    pub(crate) derive_ohlcvc: bool,
     pub(crate) connect_timeout_ms: u64,
     pub(crate) read_timeout_ms: u64,
     pub(crate) ping_interval_ms: u64,
@@ -867,7 +854,6 @@ struct SpawnArgs<'a, P> {
     hosts: &'a [(String, u16)],
     host_selection: HostSelectionPolicy,
     host_shuffle_seed: u64,
-    derive_ohlcvc: bool,
     flush_mode: StreamingFlushMode,
     wait_strategy: ring::AdaptiveWaitStrategy,
     consumer_cpu: Option<usize>,
@@ -1115,7 +1101,6 @@ impl StreamingClient {
             jitter,
             replay_burst_size,
             replay_pace_ms,
-            derive_ohlcvc,
             connect_timeout_ms,
             read_timeout_ms,
             ping_interval_ms,
@@ -1226,7 +1211,6 @@ impl StreamingClient {
             host_selection,
             host_shuffle_seed: seed,
             ring_size,
-            derive_ohlcvc,
             flush_mode,
             wait_strategy,
             consumer_cpu,
@@ -1267,7 +1251,6 @@ impl StreamingClient {
             host_selection,
             host_shuffle_seed,
             ring_size,
-            derive_ohlcvc,
             flush_mode,
             wait_strategy,
             consumer_cpu,
@@ -1435,7 +1418,6 @@ impl StreamingClient {
             hosts,
             host_selection,
             host_shuffle_seed,
-            derive_ohlcvc,
             flush_mode,
             wait_strategy,
             consumer_cpu,
@@ -1491,7 +1473,6 @@ impl StreamingClient {
             hosts,
             host_selection,
             host_shuffle_seed,
-            derive_ohlcvc,
             flush_mode,
             wait_strategy,
             consumer_cpu,
@@ -1555,7 +1536,6 @@ impl StreamingClient {
                     authenticated: io_authenticated,
                     permissions,
                     pending_control,
-                    derive_ohlcvc,
                     flush_mode,
                     policy,
                     wait_ms,
@@ -2294,9 +2274,9 @@ impl StreamingClient {
     /// with a per-contract trade subscription
     /// ([`Contract::trade`]) on an individual option. The server broadcasts a
     /// contract that matches both on each feed independently, and this client
-    /// does not de-duplicate across the two scopes, so a matching contract is
-    /// delivered twice and any derived OHLCVC double-counts its volume. Pick
-    /// one scope per kind and security type.
+    /// does not de-duplicate across the two scopes, so every event for a
+    /// matching contract is delivered twice. Pick one scope per kind and
+    /// security type.
     ///
     /// # Errors
     ///
@@ -3395,7 +3375,6 @@ mod builder_tests {
             .reconnect_policy(cfg.reconnect.policy.clone())
             .reconnect_wait_ms(cfg.reconnect.wait_ms)
             .reconnect_wait_rate_limited_ms(cfg.reconnect.wait_rate_limited_ms)
-            .derive_ohlcvc(cfg.streaming.derive_ohlcvc)
             .connect_timeout_ms(cfg.streaming.connect_timeout_ms)
             .read_timeout_ms(cfg.streaming.timeout_ms)
             .ping_interval_ms(cfg.streaming.ping_interval_ms)

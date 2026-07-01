@@ -10,8 +10,6 @@ use std::time::{Duration, Instant};
 
 use crate::tdbe::codec::fit::{apply_deltas, FitReader};
 
-use super::accumulator::OhlcvcAccumulator;
-
 /// Number of FIT fields per tick type (excluding the `contract_id` which is the
 /// first FIT field). The FIT decoder returns `n_fields` total, where field [0]
 /// is the `contract_id` and fields [1..] are the tick data.
@@ -60,8 +58,6 @@ pub struct DeltaState {
     /// step costs one stack copy + one in-place add loop with zero
     /// allocations on the hot path.
     prev: HashMap<(u8, i32), TickFields>,
-    /// Per-contract OHLCVC accumulators.
-    pub(super) ohlcvc: HashMap<i32, OhlcvcAccumulator>,
     /// Reusable scratch buffer for FIT decoding, avoiding per-tick allocation.
     /// Resized (never shrunk) to fit the largest tick type seen.
     alloc_buf: Vec<i32>,
@@ -113,7 +109,6 @@ impl DeltaState {
         // runtime if needed, but the initial capacity is the real maximum.
         Self {
             prev: HashMap::new(),
-            ohlcvc: HashMap::new(),
             alloc_buf: vec![0i32; MAX_DATA_FIELDS + 1],
             last_was_date: false,
             field_counts: HashMap::new(),
@@ -132,7 +127,6 @@ impl DeltaState {
     /// stale-tick warnings for 5 seconds after the STOP signal.
     pub fn clear(&mut self) {
         self.prev.clear();
-        self.ohlcvc.clear();
         self.last_was_date = false;
         self.field_counts.clear();
     }
@@ -263,7 +257,6 @@ impl DeltaState {
                     "delta-decode state exceeded per-session contract cap; resetting baselines (peer streamed an unbounded distinct-contract universe without a session boundary)"
                 );
                 self.prev.clear();
-                self.ohlcvc.clear();
                 self.field_counts.clear();
             }
             // Record the actual field count for the (possibly re-seeded) key.
@@ -284,11 +277,11 @@ impl DeltaState {
     #[cfg(test)]
     pub(super) const SESSION_CONTRACT_CAP: usize = MAX_SESSION_CONTRACT_ROWS;
 
-    /// Distinct-row counts of the three per-session maps, exposed for
+    /// Distinct-row counts of the two per-session maps, exposed for
     /// boundedness tests.
     #[cfg(test)]
-    pub(super) fn state_sizes(&self) -> (usize, usize, usize) {
-        (self.prev.len(), self.ohlcvc.len(), self.field_counts.len())
+    pub(super) fn state_sizes(&self) -> (usize, usize) {
+        (self.prev.len(), self.field_counts.len())
     }
 }
 

@@ -1039,34 +1039,6 @@ mod pool_sizing_tests {
     }
 
     #[test]
-    fn derive_ohlcvc_round_trips() {
-        let cfg = super::thetadatadx_config_production();
-        assert!(!cfg.is_null());
-        // SAFETY: handle just returned by thetadatadx_config_production.
-        unsafe {
-            let mut enabled = true;
-            super::thetadatadx_config_set_derive_ohlcvc(cfg, false);
-            assert_eq!(
-                super::thetadatadx_config_get_derive_ohlcvc(cfg, &mut enabled),
-                0
-            );
-            assert!(!enabled);
-            super::thetadatadx_config_set_derive_ohlcvc(cfg, true);
-            assert_eq!(
-                super::thetadatadx_config_get_derive_ohlcvc(cfg, &mut enabled),
-                0
-            );
-            assert!(enabled);
-            // Null-pointer guard on the getter returns -1.
-            assert_eq!(
-                super::thetadatadx_config_get_derive_ohlcvc(std::ptr::null(), &mut enabled),
-                -1
-            );
-            super::thetadatadx_config_free(cfg);
-        }
-    }
-
-    #[test]
     fn warn_on_buffered_threshold_bytes_round_trips() {
         let cfg = super::thetadatadx_config_production();
         assert!(!cfg.is_null());

@@ -247,7 +247,6 @@ fn streaming_builder(
         .reconnect_jitter(params.reconnect.jitter)
         .reconnect_replay_burst_size(params.reconnect.replay_burst_size)
         .reconnect_replay_pace_ms(params.reconnect.replay_pace_ms)
-        .derive_ohlcvc(params.streaming.derive_ohlcvc)
         .connect_timeout_ms(params.streaming.connect_timeout_ms)
         .read_timeout_ms(params.streaming.timeout_ms)
         .ping_interval_ms(params.streaming.ping_interval_ms)

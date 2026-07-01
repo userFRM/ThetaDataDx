@@ -60,7 +60,6 @@ The server starts:
 | `--log-file` | | Also write logs to `<path>.YYYY-MM-DD`, rotated daily |
 | `--log-format` | `text` | Log line format: `text`, `json`, or `legacy` (`[YYYY-MM-DD HH:MM:SS] LEVEL: message`, UTC) |
 | `--no-streaming` | | Skip the streaming connection at startup |
-| `--no-ohlcvc` | | Disable OHLCVC bar derivation from trades on the streaming feed |
 
 Every request emits one `INFO` access-log line (method, URI, status, latency) by default. The startup banner prints `thetadatadx-server v<version>`.
 

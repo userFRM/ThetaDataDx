@@ -385,12 +385,12 @@ def test_setter_set_parity_normalizes_and_matches() -> None:
 
 def test_setter_set_parity_missing_on_ts_trips() -> None:
     """A knob bound on Python/C++/FFI but absent from TS trips — the
-    `derive_ohlcvc`-missing-on-TS defect class.
+    `flush_mode`-missing-on-TS defect class.
     """
     errors = cbp._check_setter_set_parity(
-        {"derive_ohlcvc"}, set(), {"derive_ohlcvc"}, {"derive_ohlcvc"}, exempt={}
+        {"flush_mode"}, set(), {"flush_mode"}, {"flush_mode"}, exempt={}
     )
-    assert any("derive_ohlcvc" in e and "typescript" in e for e in errors), (
+    assert any("flush_mode" in e and "typescript" in e for e in errors), (
         f"missing-on-TS knob must trip; got {errors!r}"
     )
 

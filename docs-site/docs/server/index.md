@@ -77,7 +77,6 @@ thetadatadx-server --creds creds.txt
 | `--log-file <path>` | — | Also write logs to `<path>.YYYY-MM-DD`, rotated daily. |
 | `--log-format <fmt>` | `text` | `text`, `json` (one object per line), or `legacy` (`[YYYY-MM-DD HH:MM:SS] LEVEL: message`, UTC). |
 | `--no-streaming` | — | Skip streaming startup (HTTP only). |
-| `--no-ohlcvc` | — | Disable derived OHLCVC bars on the stream. |
 
 ## Environment variables
 

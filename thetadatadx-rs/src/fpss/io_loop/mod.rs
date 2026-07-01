@@ -171,7 +171,6 @@ pub(in crate::fpss) struct IoLoopArgs<P> {
     pub authenticated: Arc<AtomicBool>,
     pub permissions: String,
     pub pending_control: Vec<StreamControl>,
-    pub derive_ohlcvc: bool,
     pub flush_mode: StreamingFlushMode,
     pub policy: ReconnectPolicy,
     /// Mirrors [`crate::config::ReconnectConfig::wait_ms`]: the
@@ -342,7 +341,6 @@ where
         authenticated,
         permissions,
         mut pending_control,
-        derive_ohlcvc,
         flush_mode,
         policy,
         wait_ms,
@@ -568,7 +566,6 @@ where
                             &mut local_contracts,
                             &shutdown,
                             &mut delta_state,
-                            derive_ohlcvc,
                         );
 
                         // Correlate a subscription response to the subscribe it

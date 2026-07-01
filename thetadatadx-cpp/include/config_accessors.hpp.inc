@@ -252,20 +252,6 @@
         return out;
     }
 
-    /// Set whether to derive OHLCVC bars locally from trades.
-    void set_derive_ohlcvc(bool enabled) {
-        thetadatadx_config_set_derive_ohlcvc(handle_.get(), enabled);
-    }
-
-    /// Read the current OHLCVC-derivation flag. Returns `false` on a
-    /// null handle (matching the C ABI's `-1` failure mapping at the
-    /// boundary).
-    bool get_derive_ohlcvc() const {
-        bool out{};
-        thetadatadx_config_get_derive_ohlcvc(handle_.get(), &out);
-        return out;
-    }
-
     /// Total attempt budget for the flatfile driver retry loop.
     /// 1 disables retry. Default 10. Validated to [1, 100].
     void set_flatfiles_max_attempts(std::uint32_t n) {

@@ -100,15 +100,13 @@ pub(super) fn fpss_event_to_ws_json(
                     ..
                 } => (
                     "TRADE",
-                    // Field set matches `EventSerializer.serializeTrade`
-                    // exactly: `ms_of_day, sequence, size, condition,
-                    // price, exchange, date`. The terminal's trade frame
-                    // does NOT carry the extended-condition columns
-                    // (`ext_condition1..4`), the `condition_flags` /
-                    // `price_flags` bitsets, `volume_type`, `records_back`,
-                    // or `received_at_ns`; those stay on the REST/Arrow
-                    // surface so a strict terminal WS client sees only the
-                    // columns it parses.
+                    // Field set matches the wire trade frame exactly:
+                    // `ms_of_day, sequence, size, condition, price,
+                    // exchange, date`. The SDK-only extras carried on the
+                    // event but omitted from the wire frame are just
+                    // `contract` (the WS envelope identifies the contract
+                    // separately) and `received_at_ns`, so a strict WS
+                    // client sees only the columns it parses.
                     sonic_rs::json!({
                         "ms_of_day": ms_of_day,
                         "sequence": sequence,
@@ -366,18 +364,10 @@ mod tests {
             contract,
             ms_of_day: 1,
             sequence: 2,
-            ext_condition1: 3,
-            ext_condition2: 4,
-            ext_condition3: 5,
-            ext_condition4: 6,
             condition: 7,
             size: 8,
             exchange: 9,
             price: 10.5,
-            condition_flags: 11,
-            price_flags: 12,
-            volume_type: 13,
-            records_back: 14,
             date: 20260617,
             received_at_ns: 15,
         })
@@ -395,15 +385,13 @@ mod tests {
         })
     }
 
-    /// The WS Trade frame carries exactly the columns
-    /// `EventSerializer.serializeTrade` emits — no more. The terminal's
-    /// trade frame is `ms_of_day, sequence, size, condition, price,
-    /// exchange, date`; the extended-condition columns, the flag bitsets,
-    /// `volume_type`, `records_back`, and `received_at_ns` stay on the
-    /// REST / Arrow surface and must NOT appear, so a strict terminal WS
-    /// client sees only the field set it parses.
+    /// The WS Trade frame carries exactly the wire trade columns:
+    /// `ms_of_day, sequence, size, condition, price, exchange, date`.
+    /// `received_at_ns` is an SDK-only column that stays off the wire and
+    /// must NOT appear, so a strict WS client sees only the field set it
+    /// parses.
     #[test]
-    fn trade_frame_matches_terminal_field_set() {
+    fn trade_frame_matches_wire_field_set() {
         let contract = Arc::new(Contract::stock("AAPL"));
         let event = make_trade(Arc::clone(&contract));
         let json = fpss_event_to_ws_json(&event, Some(&contract))
@@ -423,21 +411,11 @@ mod tests {
                 "Trade frame must carry the `{key}` column: {json}"
             );
         }
-        // Columns the terminal's trade frame never emits.
-        for key in [
-            "ext_condition1",
-            "ext_condition2",
-            "ext_condition3",
-            "ext_condition4",
-            "condition_flags",
-            "price_flags",
-            "volume_type",
-            "records_back",
-            "received_at_ns",
-        ] {
+        // SDK-only columns the wire trade frame never emits.
+        for key in ["received_at_ns"] {
             assert!(
                 !json.contains(&format!("\"{key}\":")),
-                "Trade frame must NOT carry the our-only `{key}` column: {json}"
+                "Trade frame must NOT carry the SDK-only `{key}` column: {json}"
             );
         }
         assert!(

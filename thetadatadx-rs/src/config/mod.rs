@@ -1037,16 +1037,6 @@ impl DirectConfig {
         )
     }
 
-    /// Set whether to derive OHLCVC bars locally from trade events.
-    ///
-    /// When `false`, only server-sent OHLCVC frames are emitted,
-    /// reducing per-trade throughput overhead.
-    #[must_use]
-    pub fn derive_ohlcvc(mut self, enabled: bool) -> Self {
-        self.streaming.derive_ohlcvc = enabled;
-        self
-    }
-
     /// Set the port the Prometheus exporter should bind to when the
     /// `metrics-prometheus` cargo feature is enabled. The exporter
     /// exposes `/metrics` over HTTP on `0.0.0.0:<port>`.
@@ -1495,9 +1485,6 @@ mod config_file {
             out.streaming.wait_park_us = cf.streaming.wait_park_us;
             // A negative TOML `consumer_cpu` (default `-1`) means unpinned.
             out.streaming.consumer_cpu = usize::try_from(cf.streaming.consumer_cpu).ok();
-            // Default: derive OHLCVC from trades (matches production default).
-            // Use the builder API to disable programmatically.
-            out.streaming.derive_ohlcvc = true;
 
             out.reconnect.wait_ms = cf.streaming.reconnect_wait;
             out.reconnect.wait_rate_limited_ms = cf.streaming.reconnect_wait_rate_limited;

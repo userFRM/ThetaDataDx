@@ -68,7 +68,6 @@ fn drive_fuzz_input(bytes: Vec<u8>) {
                     &mut local_contracts,
                     &shutdown,
                     &mut delta_state,
-                    /* derive_ohlcvc */ true,
                 );
             }
             Ok(None) | Err(_) => return, // bounded termination

@@ -302,7 +302,6 @@ impl FpssParams {
             .reconnect_jitter(self.reconnect.jitter)
             .reconnect_replay_burst_size(self.reconnect.replay_burst_size)
             .reconnect_replay_pace_ms(self.reconnect.replay_pace_ms)
-            .derive_ohlcvc(self.streaming.derive_ohlcvc)
             .connect_timeout_ms(self.streaming.connect_timeout_ms)
             .read_timeout_ms(self.streaming.timeout_ms)
             .ping_interval_ms(self.streaming.ping_interval_ms)
@@ -1144,7 +1143,6 @@ mod tests {
         config.streaming.wait_yield_iters = 456;
         config.streaming.wait_park_us = 789;
         config.streaming.consumer_cpu = Some(3);
-        config.streaming.derive_ohlcvc = false;
 
         // Reconnect: flip every knob away from its production default.
         config.reconnect.wait_ms = 1_010;
@@ -1177,7 +1175,6 @@ mod tests {
         assert_eq!(s.wait_yield_iters, 456);
         assert_eq!(s.wait_park_us, 789);
         assert_eq!(s.consumer_cpu, Some(3));
-        assert!(!s.derive_ohlcvc);
 
         let r = &params.reconnect;
         assert_eq!(r.wait_ms, 1_010);

@@ -63,14 +63,7 @@ fn event_field_doc_static(name: &str) -> &'static str {
         "size" => "Number of contracts or shares traded.",
         "exchange" => "Exchange code where the trade executed.",
         "condition" => "Trade condition code.",
-        "ext_condition1" | "ext_condition2" | "ext_condition3" | "ext_condition4" => {
-            "Additional trade condition code."
-        }
         "sequence" => "Exchange-assigned trade sequence number.",
-        "condition_flags" => "Trade condition flags bitmap.",
-        "price_flags" => "Trade price flags bitmap.",
-        "volume_type" => "Volume reporting mode: 0 = incremental, 1 = cumulative.",
-        "records_back" => "Offset of this record behind the most recent record.",
         "open" => "Opening trade price of the bar.",
         "high" => "Highest traded price of the bar.",
         "low" => "Lowest traded price of the bar.",
@@ -101,20 +94,6 @@ fn load_event_schema() -> Result<EventSchema, Box<dyn std::error::Error>> {
     Ok(toml::from_str(&raw)?)
 }
 
-/// Trade fields the extended print populates and a standard print leaves
-/// zero. The table grays these rows so the always-present / conditional
-/// split reads at a glance. Trade-only: no other event carries them.
-const CONDITIONAL_TRADE_FIELDS: &[&str] = &[
-    "ext_condition1",
-    "ext_condition2",
-    "ext_condition3",
-    "ext_condition4",
-    "condition_flags",
-    "price_flags",
-    "volume_type",
-    "records_back",
-];
-
 /// Renders the "Event fields" table for the full event schema — the
 /// native SDK callbacks receive every column. Returns `(markdown,
 /// rendered field names)` so the caller can compare the table against
@@ -135,19 +114,7 @@ fn render_event_table(schema: &EventSchema, event: &str, book: &str) -> (String,
     for col in &cols {
         let ty = event_field_type(&col.ty);
         let doc = event_field_doc(&col.name, book);
-        if CONDITIONAL_TRADE_FIELDS.contains(&col.name.as_str()) {
-            // Muted row + a short "why" note; the gray is the signal.
-            let _ = writeln!(
-                out,
-                "| <span class=\"field-conditional\">`{}`</span> \
-                 | <span class=\"field-conditional\">{ty}</span> \
-                 | <span class=\"field-conditional\">{doc} Extended-format trades only; \
-                 zero on a standard trade.</span> |",
-                col.name,
-            );
-        } else {
-            let _ = writeln!(out, "| `{}` | {ty} | {doc} |", col.name);
-        }
+        let _ = writeln!(out, "| `{}` | {ty} | {doc} |", col.name);
     }
     out.push_str(
         "\nThe `contract` field carries `symbol`, the security type, and — for options — \
@@ -583,8 +550,8 @@ fn http_tab(spec: &StreamSpec) -> String {
 /// Renders the multi-event delivery section for a full-trade page: the
 /// per-contract event sequence (quote + OHLC bar before the trade,
 /// options also send the next two NBBO quotes after), an annotated
-/// example of the sequence, the OHLC / `derive_ohlcvc` note, and the
-/// caveats that apply to the full-trade subscription.
+/// example of the sequence, the OHLC-bars note, and the caveats that
+/// apply to the full-trade subscription.
 fn full_trade_delivery(spec: &StreamSpec) -> String {
     let is_option = spec.ws_sec_type == "OPTION";
     // Options quote the NBBO; stocks quote the BBO on the Nasdaq Basic feed.
@@ -627,11 +594,10 @@ fn full_trade_delivery(spec: &StreamSpec) -> String {
         },
     );
 
-    // OHLC behavior: upstream sends bars automatically; derive_ohlcvc adds
-    // a per-trade synthesized bar on top. Spelling out what the toggle does
-    // (and does not) is the fix for the old "derived only" framing.
+    // OHLC behavior: the server sends one bar per traded contract,
+    // automatically, ahead of the trade — no subscription, no toggle.
     out.push_str(
-        "## OHLC bars\n\nThe `Ohlcvc` bars on this stream come from upstream automatically — one is sent for each traded contract before its trade, you do not subscribe to them separately. On top of that, with `derive_ohlcvc` enabled (the default) the SDK also synthesizes a running bar from each trade print, so an actively traded contract yields additional `Ohlcvc` events between the upstream bars. The upstream bars are always delivered; the toggle only controls the extra synthesized ones. To receive only the upstream bars, turn it off on the configuration before connecting — `config.derive_ohlcvc = False` (Python), `config.setDeriveOhlcvc(false)` (TypeScript), `config.set_derive_ohlcvc(false)` (C++), `thetadatadx_config_set_derive_ohlcvc(cfg, false)` (C ABI), or `config.streaming.derive_ohlcvc = false` (Rust).\n\n",
+        "## OHLC bars\n\nThe `Ohlcvc` bars on this stream come from upstream automatically — one is sent for each traded contract before its trade, you do not subscribe to them separately.\n\n",
     );
 
     // Caveats carried from ThetaData's reference that apply to the request.
@@ -767,10 +733,6 @@ pub(super) fn render_stream_pages() -> Result<Vec<(String, String)>, Box<dyn std
         };
         if is_full_trade {
             out.push_str(&full_trade_delivery(spec));
-        } else if spec.event == "Trade" {
-            out.push_str(
-                "## Derived OHLCVC bars\n\nWith `derive_ohlcvc` enabled (the default), this trade stream also delivers a derived `Ohlcvc` bar alongside the trades: the SDK accumulates one per contract from the trade prints, so a single subscription yields both `Trade` and `Ohlcvc` events. Handle the `Ohlcvc` event the same way you handle `Trade`. To receive trades only, turn it off on the configuration before connecting — `config.derive_ohlcvc = False` (Python), `config.setDeriveOhlcvc(false)` (TypeScript), `config.set_derive_ohlcvc(false)` (C++), `thetadatadx_config_set_derive_ohlcvc(cfg, false)` (C ABI), or `config.streaming.derive_ohlcvc = false` (Rust).\n\n",
-            );
         }
 
         // The table documents the full event schema — the native SDK

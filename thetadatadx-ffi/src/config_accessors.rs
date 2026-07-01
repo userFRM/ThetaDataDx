@@ -715,44 +715,6 @@ pub unsafe extern "C" fn thetadatadx_config_get_retry_jitter(
     })
 }
 
-/// Set streaming OHLCVC derivation on a config handle.
-///
-/// - `enabled = true` (default): derive OHLCVC bars locally from trade events
-/// - `enabled = false`: only emit server-sent OHLCVC frames (lower overhead)
-#[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_set_derive_ohlcvc(
-    config: *mut ThetaDataDxConfig,
-    enabled: bool,
-) {
-    ffi_boundary!((), {
-        let config = require_config_mut!(config);
-        config.inner.streaming.derive_ohlcvc = enabled;
-    })
-}
-
-/// Read the configured streaming OHLCVC-derivation flag. Writes `true` /
-/// `false` into `*out_enabled`. Returns `0` on success, `-1` if either
-/// pointer is null.
-#[no_mangle]
-pub unsafe extern "C" fn thetadatadx_config_get_derive_ohlcvc(
-    config: *const ThetaDataDxConfig,
-    out_enabled: *mut bool,
-) -> i32 {
-    ffi_boundary!(-1, {
-        if config.is_null() || out_enabled.is_null() {
-            set_error("config or out-parameter pointer is null");
-            return -1;
-        }
-        // SAFETY: config is a non-null `*const ThetaDataDxConfig` returned by `thetadatadx_config_*` and not yet freed; `&*` produces a shared reference valid for the call duration.
-        let config = unsafe { &*config };
-        // SAFETY: out pointer checked non-null above; caller pins the storage for the call duration.
-        unsafe {
-            *out_enabled = config.inner.streaming.derive_ohlcvc;
-        }
-        0
-    })
-}
-
 /// Set the total attempt budget for the flatfile driver retry loop.
 /// `1` disables retry (single call only); higher values permit
 /// retries up to `max_attempts - 1` after the initial call. Default

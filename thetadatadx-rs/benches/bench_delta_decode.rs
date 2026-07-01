@@ -183,7 +183,6 @@ fn bench_delta_decode_zero_alloc(c: &mut Criterion) {
         &mut local_contracts,
         &shutdown,
         &mut state,
-        false,
     );
 
     let delta_payload = sample_trade_payload(200);
@@ -200,7 +199,6 @@ fn bench_delta_decode_zero_alloc(c: &mut Criterion) {
                 &mut local_contracts,
                 &shutdown,
                 &mut state,
-                false,
             );
 
             let (bytes_before, count_before) = alloc_snapshot();
@@ -213,7 +211,6 @@ fn bench_delta_decode_zero_alloc(c: &mut Criterion) {
                     &mut local_contracts,
                     &shutdown,
                     &mut state,
-                    false,
                 );
                 black_box(result);
             }

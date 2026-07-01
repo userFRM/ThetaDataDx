@@ -87,14 +87,6 @@ pub enum StreamData {
         ms_of_day: i32,
         /// Exchange sequence number for ordering trades within the day.
         sequence: i32,
-        /// Extended trade condition code 1.
-        ext_condition1: i32,
-        /// Extended trade condition code 2.
-        ext_condition2: i32,
-        /// Extended trade condition code 3.
-        ext_condition3: i32,
-        /// Extended trade condition code 4.
-        ext_condition4: i32,
         /// Primary trade condition code.
         condition: i32,
         /// Trade size in contracts/shares.
@@ -103,14 +95,6 @@ pub enum StreamData {
         exchange: i32,
         /// Trade price.
         price: f64,
-        /// Bit flags qualifying the trade conditions.
-        condition_flags: i32,
-        /// Bit flags qualifying the trade price.
-        price_flags: i32,
-        /// Volume classification code for the trade.
-        volume_type: i32,
-        /// Number of records back this trade was reported (out-of-order correction offset).
-        records_back: i32,
         /// Trading date as `YYYYMMDD`.
         date: i32,
         /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
@@ -133,7 +117,7 @@ pub enum StreamData {
         /// Wall-clock nanoseconds since UNIX epoch, captured at frame decode time.
         received_at_ns: u64,
     },
-    /// Decoded OHLCVC bar (code 24 or trade-derived).
+    /// Decoded OHLCVC bar (code 24).
     ///
     /// `volume` and `count` are `i64` to avoid overflow on high-volume symbols.
     Ohlcvc {
@@ -649,18 +633,10 @@ mod tests {
             contract: Arc::clone(&contract),
             ms_of_day: 12_345,
             sequence: 7,
-            ext_condition1: 0,
-            ext_condition2: 0,
-            ext_condition3: 0,
-            ext_condition4: 0,
             condition: 0,
             size: 100,
             exchange: 1,
             price: 150.0,
-            condition_flags: 0,
-            price_flags: 0,
-            volume_type: 0,
-            records_back: 0,
             date: 20_260_507,
             received_at_ns: 99,
         });
@@ -771,18 +747,10 @@ mod tests {
             contract: Arc::clone(&contract),
             ms_of_day: 0,
             sequence: 0,
-            ext_condition1: 0,
-            ext_condition2: 0,
-            ext_condition3: 0,
-            ext_condition4: 0,
             condition: 0,
             size: 100,
             exchange: 0,
             price: Price::new(15025, 8).to_f64(),
-            condition_flags: 0,
-            price_flags: 0,
-            volume_type: 0,
-            records_back: 0,
             date: 20240315,
             received_at_ns: 0,
         });

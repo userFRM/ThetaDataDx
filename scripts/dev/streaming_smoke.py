@@ -45,7 +45,6 @@ def main() -> int:
 
     cfg = Config.dev()
     cfg.reconnect_policy = "manual"
-    cfg.derive_ohlcvc = False
     client = Client(Credentials.from_file(args.creds), cfg)
 
     # Push-callback delivery — fan events into a thread-safe queue so

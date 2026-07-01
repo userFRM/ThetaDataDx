@@ -285,8 +285,6 @@ class Config:
     """Streaming host-selection order: ``"shuffled"`` (fault-domain-aware per-client shuffle, seedable via :attr:`streaming_host_shuffle_seed`) or ``"fixed_order"``."""
     streaming_host_shuffle_seed: Optional[int]
     """Seed for the per-client streaming host shuffle; ``None`` draws a fresh seed each connect."""
-    derive_ohlcvc: bool
-    """Whether OHLCVC bars are derived locally from the trade stream and delivered as :class:`Ohlcvc` events."""
     flush_mode: Literal["batched", "immediate"]
     """Streaming write-flush policy. ``"batched"`` (default) flushes on the heartbeat (~100 ms); ``"immediate"`` flushes after every wire write. The setter accepts the same two strings case-insensitively and raises ``ValueError`` otherwise."""
     @property
@@ -843,14 +841,6 @@ class Trade:
     """Milliseconds since midnight Eastern Time when the trade printed."""
     sequence: int
     """Exchange sequence number ordering trades within the day."""
-    ext_condition1: int
-    """Extended trade condition code 1."""
-    ext_condition2: int
-    """Extended trade condition code 2."""
-    ext_condition3: int
-    """Extended trade condition code 3."""
-    ext_condition4: int
-    """Extended trade condition code 4."""
     condition: int
     """Primary trade condition code."""
     size: int
@@ -859,14 +849,6 @@ class Trade:
     """Exchange code where the trade printed."""
     price: float
     """Trade price in dollars."""
-    condition_flags: int
-    """Bit flags qualifying the trade conditions."""
-    price_flags: int
-    """Bit flags qualifying the trade price."""
-    volume_type: int
-    """Volume classification code for the trade."""
-    records_back: int
-    """Number of records back this trade was reported (out-of-order correction offset)."""
     date: int
     """Trading date as a ``YYYYMMDD`` integer."""
     received_at_ns: int
@@ -909,7 +891,7 @@ class OpenInterest:
 
 @final
 class Ohlcvc:
-    """An OHLCVC bar, derived locally when ``Config.derive_ohlcvc`` is ``True``."""
+    """An OHLCVC bar (wire code 24)."""
 
     contract: ContractRef
     """The contract this bar is for."""

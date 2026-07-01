@@ -378,14 +378,6 @@ export declare class Config {
   /** Current `retry.jitter` value. */
   get retryJitter(): boolean
   /**
-   * Set whether to derive OHLCVC bars locally from trade events.
-   * When `false`, only server-sent OHLCVC frames are emitted,
-   * reducing per-trade throughput overhead. Default `true`.
-   */
-  setDeriveOhlcvc(enabled: boolean): void
-  /** Current OHLCVC derivation setting. */
-  get deriveOhlcvc(): boolean
-  /**
    * Set the total attempt budget for the flatfile driver retry
    * loop. `1` disables retry (single call only); higher values
    * permit retries up to `maxAttempts - 1` after the initial call.
@@ -5644,18 +5636,10 @@ export interface Trade {
   contract: Contract
   msOfDay: number
   sequence: number
-  extCondition1: number
-  extCondition2: number
-  extCondition3: number
-  extCondition4: number
   condition: number
   size: number
   exchange: number
   price: number
-  conditionFlags: number
-  priceFlags: number
-  volumeType: number
-  recordsBack: number
   date: number
   receivedAtNs: bigint
 }

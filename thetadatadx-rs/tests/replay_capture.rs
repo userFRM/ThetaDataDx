@@ -243,7 +243,6 @@ fn replay_success_fixture_emits_expected_event_sequence() {
                     &mut local_contracts,
                     &shutdown,
                     &mut delta_state,
-                    /* derive_ohlcvc */ true,
                 );
                 if let Some(e) = primary {
                     if let Some(public) = e.as_public() {
@@ -362,7 +361,6 @@ fn replay_pathological_fixture_never_panics_or_blocks() {
                     &mut local_contracts,
                     &shutdown,
                     &mut delta_state,
-                    true,
                 );
                 if let Some(e) = primary {
                     if let Some(public) = e.as_public() {
