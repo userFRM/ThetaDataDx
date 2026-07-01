@@ -3,13 +3,14 @@
 //! Injects an unknown `StreamMsgType` value mid-session (`code = 99`)
 //! after several normal frames. Verifies:
 //!
-//! - The reader silently skips the unknown opcode (mirrors the
-//!   terminal's `case default: continue` frame skip).
+//! - The reader silently skips the unknown opcode (mirrors Java's
+//!   `case default: continue` in `PacketStream2.readFrame`).
 //! - Subsequent normal frames after the unknown opcode are consumed
 //!   without desync — the reader tracks payload bytes correctly so
 //!   the next 2-byte header lands on the right offset.
-//! - An unbroken run of unknown opcodes is skipped in full with no
-//!   ceiling, matching the terminal, which imposes no reject limit.
+//! - Five consecutive unknown opcodes escalate to a typed
+//!   `ProtocolError`, matching the framing module's
+//!   `MAX_CONSECUTIVE_UNKNOWN_CODES` cap.
 
 use std::collections::HashMap;
 use std::io::Cursor;
@@ -112,34 +113,34 @@ fn single_unknown_opcode_skipped_without_desync() {
     );
 }
 
-/// A long unbroken run of unknown opcodes is skipped in full — the
-/// framing layer imposes no reject ceiling, matching the terminal. The
-/// reader consumes every unknown frame's payload and reaches clean EOF
-/// without ever surfacing a typed frame or a framing error.
+/// Five consecutive unknown opcodes escalate to a typed framing
+/// error (matches the `MAX_CONSECUTIVE_UNKNOWN_CODES` cap).
 #[test]
-fn consecutive_unknown_opcodes_are_all_skipped() {
+fn five_consecutive_unknown_opcodes_escalate() {
     let mut bytes = Vec::new();
-    // 32 unbroken unknown opcodes — far past any historical ceiling.
-    for i in 0..32u8 {
-        push_frame(&mut bytes, 90u8.wrapping_add(i % 10), &[0xAA]);
+    for code in 90u8..=99u8 {
+        push_frame(&mut bytes, code, &[0xAA]);
     }
 
     let mut cursor = Cursor::new(bytes);
     let mut buf: Vec<u8> = Vec::with_capacity(MAX_PAYLOAD_LEN);
     let mut state = FrameReadState::new();
 
-    // A single read consumes and skips the entire run of unknown frames,
-    // returning clean EOF — never a typed frame, never an error.
-    match read_frame_into(&mut cursor, &mut buf, &mut state) {
-        Ok(None) => {}
-        Ok(Some(_)) => panic!("unknown opcode must not yield a typed frame"),
-        Err(e) => panic!("a run of unknown opcodes must not escalate to an error: {e}"),
+    // The framing layer escalates after 5 consecutive unknown opcodes
+    // — the very first read on a stream of 10 unknowns must fail closed.
+    let result = read_frame_into(&mut cursor, &mut buf, &mut state);
+    if let Ok(Some(_)) = result {
+        panic!("unknown opcode should not yield a typed frame");
     }
+    assert!(
+        result.is_err(),
+        "five consecutive unknown opcodes must surface a typed framing error",
+    );
 }
 
 /// Mixed stream: known frame, unknown frame, known frame, unknown frame...
-/// Every known frame is returned and every unknown frame is silently
-/// consumed, so a sparse drift is delivered intact with no escalation.
+/// The consecutive-unknown counter must reset on every known frame so
+/// a sparse drift never escalates to disconnect.
 #[test]
 fn alternating_known_and_unknown_does_not_escalate() {
     let mut bytes = Vec::new();

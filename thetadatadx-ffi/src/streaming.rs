@@ -213,7 +213,7 @@ struct StreamingConnectParams {
     creds: thetadatadx::Credentials,
     /// Snapshot of `DirectConfig.streaming` at handle-construction time —
     /// hosts, ring size, timeouts, keepalive schedule, host-selection
-    /// policy, watchdog, flush mode.
+    /// policy, flush mode.
     streaming: thetadatadx::config::StreamingConfig,
     /// Snapshot of `DirectConfig.reconnect` at handle-construction
     /// time — policy, per-class cadences, jitter, replay pacing.

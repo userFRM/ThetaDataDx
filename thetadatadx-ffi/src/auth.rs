@@ -676,7 +676,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_policy(
 //
 // Scalar tuning on `StreamingConfig` exposed for embedded callers: read
 // timeout, connect timeout, ping cadence, ring size, the I/O read
-// slice, the last-frame watchdog, and the TCP keepalive schedule.
+// slice, and the TCP keepalive schedule.
 // Out-of-range values are rejected at connect time by the core
 // validator; the setters here store verbatim so the rejection carries
 // the canonical bounds message.

@@ -5,7 +5,7 @@ Pins the Python surface for the reconnect cadence ladder
 (``reconnect_wait_max_ms`` / ``reconnect_wait_server_restart_ms``),
 the jitter mode, the wall-clock envelope and per-class budgets, the
 subscription-replay pacing knobs, the streaming transport knobs (timeouts,
-ping cadence, ring size, read slice, watchdog, keepalive schedule,
+ping cadence, ring size, read slice, keepalive schedule,
 host selection + shuffle seed), the historical-channel retry envelope,
 the flatfile jitter toggle, and the custom reconnect callback
 registration. The reconnect-engine semantics themselves are exercised

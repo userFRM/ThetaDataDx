@@ -40,7 +40,7 @@ TEST_CASE("StreamingClient binds the observability surface",
     // Pin the diagnostic accessors so a delete or rename fires at compile
     // time. The standalone client uses the same `dropped_event_count()`
     // spelling as the unified `Stream` view (the counter is identical on
-    // both surfaces), plus the slow-callback watchdog getter/setter.
+    // both surfaces).
     using SC = thetadatadx::StreamingClient;
     // dropped_event_count() -> uint64_t
     STATIC_REQUIRE(std::is_same_v<
