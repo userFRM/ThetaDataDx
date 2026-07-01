@@ -15,6 +15,10 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
   merge_group:
+  # Manual trigger so the tag-only release-artifact jobs (the cross-platform
+  # server builds + their upload) can be validated on any ref without cutting a
+  # version tag. Publishing stays tag-gated, so a dispatch builds and never ships.
+  workflow_dispatch:
   schedule:
     # Off-peak, off-minute nightly run of the full heavy lane so the
     # cross-platform builds, semver check, and bench gate are proven
@@ -730,10 +734,12 @@ jobs:
   build-server:
     name: Build Server (${{ matrix.archive }})
     runs-on: ${{ matrix.os }}
-    # Tag-only: the server binaries are a release artifact. On a `v*` tag the
-    # `release` job below pulls these archives into the GitHub Release; nothing
-    # consumes them on a PR, so the cross-platform build stays off the PR path.
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Tag-only (plus manual dispatch): the server binaries are a release
+    # artifact. On a `v*` tag the `release` job below pulls these archives into
+    # the GitHub Release; nothing consumes them on a PR, so the cross-platform
+    # build stays off the PR path. `workflow_dispatch` runs it on demand so the
+    # packaging + upload can be proven on any ref before a tag is cut.
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -775,7 +781,6 @@ jobs:
           CC_x86_64_unknown_linux_musl: musl-gcc
         run: cargo build --release --locked --manifest-path tools/server/Cargo.toml --target ${{ matrix.target }}
       - name: Package archive
-        id: package
         shell: bash
         run: |
           set -euo pipefail
@@ -828,18 +833,20 @@ jobs:
           if [ "${{ runner.os }}" = "Windows" ]; then
             # `7z` ships on GitHub Windows runners and produces a standard zip.
             # `$out` is a Git-bash (MSYS) path (/d/a/...); native `7z` needs the
-            # Windows form (`cygpath -w`) or it writes the archive to a path the
-            # upload step cannot find.
+            # Windows form via `cygpath -w` to write to the right location.
             ( cd "$(dirname "$stage")" && 7z a -tzip "$(cygpath -w "$out")" "$(basename "$stage")" >/dev/null )
           else
             tar -czf "$out" -C "$(dirname "$stage")" "$(basename "$stage")"
           fi
-          echo "path=$out" >> "$GITHUB_OUTPUT"
       - name: Upload archive artifact
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.archive }}
-          path: ${{ steps.package.outputs.path }}
+          # The archive is written to the workspace root. Reference it by the
+          # native workspace path so upload-artifact resolves it on every OS: a
+          # Git-bash /d/a/... path is not resolvable by the action's JS glob on
+          # Windows.
+          path: ${{ github.workspace }}/${{ matrix.archive }}
           if-no-files-found: error
 
   sdk-bindings:
