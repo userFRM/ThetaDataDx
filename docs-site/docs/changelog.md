@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Projected historical frames keep the trading `date`.** A response whose wire sends one `Timestamp` header split into a time-of-day field and `date` (every EOD and trade/quote/greeks history endpoint) no longer drops `date` from the Arrow / Polars frame, so rows spanning multiple days are distinguishable instead of collapsing to a near-constant time-of-day.
+- **Projected snapshot frames keep the per-row `symbol`.** A multi-symbol snapshot response no longer labels every row with the first row's symbol; the broadcast symbol column is emitted only when the response's `symbol` is provably constant across all rows.
+
 ## [13.0.0-rc.13] - 2026-07-02
 
 ### Added

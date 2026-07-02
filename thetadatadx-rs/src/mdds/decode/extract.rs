@@ -215,28 +215,42 @@ pub fn extract_price_column(
         .collect()
 }
 
-/// The response's constant `symbol` (root) value, when the wire carried a
-/// `symbol`/`root` header — the option + index historical endpoints do, stock
-/// does not. Returns `None` when the header is absent (so the projected frame
-/// gains no `symbol` column on stock responses), else the value read from the
-/// first data row. `symbol` is constant across a wildcard response (only
-/// `expiration`/`strike`/`right` vary), so one read broadcasts to every row;
-/// an empty string stands in for a header-present-but-rowless response so the
+/// The response's constant `symbol` (root) value to broadcast as the leading
+/// projected column, when the wire carried a `symbol`/`root` header — the
+/// option + index single-underlying historical endpoints do, stock does not.
+///
+/// The value is broadcast to every row, so it is only returned when it is
+/// *provably constant*: the whole `symbol` column is scanned and a value is
+/// returned only when every row is the same `Text` cell. A multi-symbol
+/// snapshot response (a per-row-varying `symbol`) or a non-`Text` cell yields
+/// `None`, so the frame keeps its per-row symbol column (or gains none for
+/// the flat POD ticks that hold no per-row symbol) rather than mislabelling
+/// every row with row 0's value.
+///
+/// Returns `None` when the header is absent (stock responses gain no `symbol`
+/// column). A header-present-but-rowless response returns `Some("")` so the
 /// column set stays keyed on the header, matching the per-column projection.
 pub fn response_symbol(table: &proto::DataTable) -> Option<Box<str>> {
     let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
     let col_idx = find_header(&header_refs, "root")?;
-    let value = table
-        .data_table
-        .first()
-        .and_then(|row| row.values.get(col_idx))
-        .and_then(|dv| dv.data_type.as_ref())
-        .and_then(|dt| match dt {
-            proto::data_value::DataType::Text(s) => Some(s.as_str()),
+    if table.data_table.is_empty() {
+        return Some("".into());
+    }
+    let cell = |row: &proto::DataValueList| -> Option<Box<str>> {
+        match row.values.get(col_idx).and_then(|dv| dv.data_type.as_ref()) {
+            Some(proto::data_value::DataType::Text(s)) => Some(s.as_str().into()),
             _ => None,
-        })
-        .unwrap_or_default();
-    Some(value.into())
+        }
+    };
+    let first = cell(table.data_table.first()?)?;
+    if table.data_table[1..]
+        .iter()
+        .all(|row| cell(row).as_deref() == Some(&*first))
+    {
+        Some(first)
+    } else {
+        None
+    }
 }
 
 /// Sort list-endpoint values ascending for the public `list_*` returns.
@@ -408,6 +422,42 @@ mod tests {
                         data_type: Some(proto::data_value::DataType::Number(2)),
                     },
                 ],
+            }],
+        };
+        assert_eq!(response_symbol(&table), None);
+    }
+
+    /// A multi-symbol snapshot response carries a per-row-varying `symbol`; the
+    /// broadcast is only valid when constant, so a varying column yields `None`
+    /// rather than mislabelling every row with row 0's symbol.
+    #[test]
+    fn response_symbol_varying_column_is_none() {
+        let row = |sym: &str| proto::DataValueList {
+            values: vec![proto::DataValue {
+                data_type: Some(proto::data_value::DataType::Text(sym.into())),
+            }],
+        };
+        let table = proto::DataTable {
+            headers: vec!["symbol".to_string()],
+            data_table: vec![row("AAPL"), row("MSFT")],
+        };
+        assert_eq!(
+            response_symbol(&table),
+            None,
+            "a per-row-varying symbol must not broadcast row 0 to every row",
+        );
+    }
+
+    /// A non-`Text` cell in the symbol column (e.g. a Null row 0) yields `None`
+    /// rather than broadcasting an empty string to every row.
+    #[test]
+    fn response_symbol_non_text_cell_is_none() {
+        let table = proto::DataTable {
+            headers: vec!["symbol".to_string()],
+            data_table: vec![proto::DataValueList {
+                values: vec![proto::DataValue {
+                    data_type: Some(proto::data_value::DataType::Number(0)),
+                }],
             }],
         };
         assert_eq!(response_symbol(&table), None);

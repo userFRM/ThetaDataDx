@@ -250,51 +250,46 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
 }
 
 /// Emit `impl WireColumns for <Tick>` next to the parser. It resolves the
-/// same schema columns through the same alias-aware `find_header` the
-/// parser uses.
+/// same schema columns through the same alias-aware lookup the parser uses,
+/// via the shared `crate::columns::present_columns_from` helper.
 ///
 /// The contract this produces is the response's *physical wire-column set*,
 /// deduplicated by first-claim — NOT the set of struct fields the parser
-/// filled. The two differ: one physical header can feed more than one
-/// struct field (an alias resolves several schema names to the same wire
-/// spelling), and the parser fills every such field from that one column.
-/// Presence, by contrast, counts each physical header once — claimed by the
-/// first schema column (in schema order) that resolves to it — so a field
-/// the parser did fill can still be absent from presence. The EOD `date`
-/// field is exactly that: the wire sends `created`, the parser fills both
-/// `created`-backed fields, but only the exact match (`created` ->
-/// `created_ms_of_day`) claims the header; the aliased `date` column stays
-/// out of the projected frame even though its struct field carries a value.
+/// filled. One physical header can feed more than one struct field (an alias
+/// resolves several schema names to the same wire spelling), and the parser
+/// fills every such field from that one column. `present_columns_from` counts
+/// each physical header once (first-claim, exact matches before aliases) but
+/// exempts the two derived fields that are not their own physical column:
+/// `date` (the `YYYYMMDD` split of a `Timestamp` header, present whenever it
+/// resolves) and `QuoteTick.midpoint` (computed from `bid` + `ask`, present
+/// whenever both inputs are). The EOD wire sends `created`: the exact match
+/// (`created` -> `created_ms_of_day`) claims the header, and `date` rides the
+/// same column via the exemption instead of being dropped.
 ///
 /// The set names the public schema *field* (e.g. `condition_flags`,
 /// `expiration`) — the name the Arrow / Polars builders key on — not the
 /// wire spelling the alias table resolves.
 fn generate_present_columns(out: &mut String, type_name: &str, def: &TickTypeDef) {
+    let derive_midpoint = type_name == "QuoteTick";
     writeln!(out, "impl crate::columns::WireColumns for {type_name} {{").unwrap();
     out.push_str("    fn present_columns(headers: &[&str]) -> crate::columns::ColumnPresence {\n");
-    out.push_str("        let mut present: Vec<&'static str> = Vec::new();\n");
-    out.push_str("        let mut claimed: Vec<usize> = Vec::new();\n");
+    out.push_str("        const COLS: &[(&str, &str)] = &[\n");
     for col in &def.columns {
         writeln!(
             out,
-            "        if let Some(i) = find_header(headers, \"{name}\") {{ if !claimed.contains(&i) {{ claimed.push(i); present.push(\"{field}\"); }} }}",
+            "            (\"{name}\", \"{field}\"),",
             name = col.name,
             field = col.field,
         )
         .unwrap();
     }
-    // Contract-identity trio: injected under their exact wire names on
-    // wildcard responses, each resolved by exact position (matches the
-    // parser's `_cid_*_idx` lookups). Exact names never collide with the
-    // aliased schema columns above, so no claim check is needed.
-    if def.contract_id {
-        out.push_str(
-            "        if headers.contains(&\"expiration\") { present.push(\"expiration\"); }\n",
-        );
-        out.push_str("        if headers.contains(&\"strike\") { present.push(\"strike\"); }\n");
-        out.push_str("        if headers.contains(&\"right\") { present.push(\"right\"); }\n");
-    }
-    out.push_str("        crate::columns::ColumnPresence::from_names(present)\n");
+    out.push_str("        ];\n");
+    writeln!(
+        out,
+        "        crate::columns::present_columns_from(headers, COLS, {}, {derive_midpoint})",
+        def.contract_id,
+    )
+    .unwrap();
     out.push_str("    }\n\n");
 
     // all_columns(): the full-schema column set (schema columns + the

@@ -20,7 +20,9 @@
 
 use thetadatadx::frames::{TicksArrowExt, TicksPolarsExt};
 use thetadatadx::wire as proto;
-use thetadatadx::{decode, ColumnPresence, EodTick, TradeQuoteTick, TradeTick, WireColumns};
+use thetadatadx::{
+    decode, ColumnPresence, EodTick, QuoteTick, TradeQuoteTick, TradeTick, WireColumns,
+};
 
 #[path = "common/capture_loader.rs"]
 mod capture_loader;
@@ -297,24 +299,45 @@ fn stock_eod_projects_out_contract_id() {
     let present = presence_of::<EodTick>(&table);
     let ticks: Vec<EodTick> = decode::parse_eod_ticks(&table).expect("parse_eod_ticks");
 
-    let cols = arrow_columns(&ticks.as_slice().to_arrow_projected(&present).unwrap());
+    let batch = ticks.as_slice().to_arrow_projected(&present).unwrap();
+    let cols = arrow_columns(&batch);
     for cid in ["expiration", "strike", "right"] {
         assert!(
             !cols.contains(&cid.to_string()),
             "stock EOD must not carry contract-id column {cid}; got {cols:?}"
         );
     }
-    // The EOD wire sends `created`, not a separate `date` column. The
-    // `("date","created")` alias must NOT resurrect a phantom `date` column
-    // off the same `created` header — one wire column feeds one schema
-    // column (the exact `created` -> `created_ms_of_day` match claims it).
-    assert!(
-        !cols.contains(&"date".to_string()),
-        "stock EOD must not carry a phantom `date` column (alias overlap with `created`); got {cols:?}"
-    );
+    // The EOD wire sends one `created` Timestamp that the schema splits into
+    // `created_ms_of_day` (time) AND `date` (YYYYMMDD). Both must survive the
+    // projection: the ms-of-day field claims the header and `date` rides the
+    // same column, so the trading day is not lost. Without `date` the four
+    // rows are indistinguishable (their `created_ms_of_day` is a ~17:1x ET
+    // near-constant).
     assert!(
         cols.contains(&"created_ms_of_day".to_string()),
         "got {cols:?}"
+    );
+    assert!(
+        cols.contains(&"date".to_string()),
+        "stock EOD must keep the trading `date` split from the `created` Timestamp; got {cols:?}"
+    );
+    // The `date` column carries the distinct trading days, not a constant.
+    use arrow_array::Array as _;
+    let date_idx = batch.schema().index_of("date").unwrap();
+    let dates = batch
+        .column(date_idx)
+        .as_any()
+        .downcast_ref::<arrow_array::Int32Array>()
+        .expect("date column is Int32");
+    let values: Vec<i32> = (0..dates.len()).map(|i| dates.value(i)).collect();
+    assert_eq!(
+        values,
+        vec![20240102, 20240103, 20240104, 20240105],
+        "date column must carry the distinct YYYYMMDD trading days"
+    );
+    assert!(
+        values.windows(2).all(|w| w[0] != w[1]),
+        "dates must differ across rows; got {values:?}"
     );
     // But the EOD data columns the wire sent are all present.
     for kept in [
@@ -423,6 +446,34 @@ fn index_snapshot_market_value_drops_bid_ask() {
             "index market_value must not carry {dropped}; got {index:?}"
         );
     }
+}
+
+/// `QuoteTick.midpoint` is computed at decode from `bid` + `ask` and is never a
+/// wire header, so the projected frame must key its presence on both inputs:
+/// present when bid + ask are, absent otherwise. Regression guard — a decode
+/// path that dropped midpoint left `ticks[0].midpoint` populated while the
+/// frame omitted the column.
+#[test]
+fn quote_projects_midpoint_when_bid_and_ask_present() {
+    let with = projected_columns::<QuoteTick>(&[
+        "ms_of_day",
+        "bid_size",
+        "bid",
+        "ask_size",
+        "ask",
+        "date",
+    ]);
+    assert!(
+        with.contains(&"midpoint".to_string()),
+        "midpoint must ride whenever bid + ask do; got {with:?}"
+    );
+
+    // A subset without bid/ask carries no midpoint.
+    let without = projected_columns::<QuoteTick>(&["ms_of_day", "date"]);
+    assert!(
+        !without.contains(&"midpoint".to_string()),
+        "midpoint must be absent when its inputs are; got {without:?}"
+    );
 }
 
 // ── The full (hand-built) path is unchanged ───────────────────────────────

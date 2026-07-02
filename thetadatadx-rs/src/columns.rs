@@ -106,6 +106,107 @@ impl ColumnPresence {
     }
 }
 
+/// Resolve the present schema-column set for one response from its wire
+/// `headers`, shared by every generated [`WireColumns::present_columns`].
+///
+/// `schema_columns` is the tick's `(wire_name, field)` list in schema order.
+/// Claiming is two-pass so ordering is never a latent invariant: exact
+/// header matches claim first, then aliases claim any remaining header. One
+/// physical header is claimed once (first-claim), so an aliased column never
+/// starves a column that names the header exactly.
+///
+/// Two derived fields are exempt from first-claim because they are not their
+/// own physical column:
+///
+///   * `date` is the `YYYYMMDD` split of a `Timestamp` header — it shares the
+///     physical column with a `*_ms_of_day` field but carries distinct data,
+///     so it is present whenever it resolves. It only claims a header on an
+///     exact standalone `date` column; on the shared-`Timestamp` path the
+///     ms-of-day field owns the claim.
+///   * `midpoint` (`QuoteTick`) is computed at decode from `bid` + `ask` and
+///     is never a wire header, so it is present exactly when both inputs are.
+///
+/// Any wire header no schema column claimed (an upstream rename or a new
+/// column) is logged once so the silent drop is observable.
+#[must_use]
+pub fn present_columns_from(
+    headers: &[&str],
+    schema_columns: &[(&'static str, &'static str)],
+    contract_id: bool,
+    derive_midpoint: bool,
+) -> ColumnPresence {
+    use crate::mdds::decode::headers::find_header;
+
+    let mut claimed = vec![false; headers.len()];
+    let mut present: Vec<&'static str> = Vec::new();
+
+    // Pass 1: exact header matches claim first.
+    for &(wire, field) in schema_columns {
+        if field == "date" {
+            continue;
+        }
+        if let Some(i) = headers.iter().position(|&h| h == wire) {
+            if !claimed[i] {
+                claimed[i] = true;
+                present.push(field);
+            }
+        }
+    }
+    // Pass 2: alias matches claim any header still unclaimed.
+    for &(wire, field) in schema_columns {
+        if field == "date" || headers.contains(&wire) {
+            continue;
+        }
+        if let Some(i) = find_header(headers, wire) {
+            if !claimed[i] {
+                claimed[i] = true;
+                present.push(field);
+            }
+        }
+    }
+    // `date`: present whenever it resolves; claims only an exact standalone
+    // header, never the shared `Timestamp` the ms-of-day field owns.
+    if schema_columns.iter().any(|&(_, f)| f == "date") {
+        if let Some(i) = headers.iter().position(|&h| h == "date") {
+            claimed[i] = true;
+            present.push("date");
+        } else if find_header(headers, "date").is_some() {
+            present.push("date");
+        }
+    }
+    // Contract-identity trio: injected under exact wire names on wildcard
+    // responses; each claims its exact header.
+    if contract_id {
+        for name in ["expiration", "strike", "right"] {
+            if let Some(i) = headers.iter().position(|&h| h == name) {
+                claimed[i] = true;
+                present.push(name);
+            }
+        }
+    }
+    // `midpoint` rides whenever both its inputs do.
+    if derive_midpoint && present.contains(&"bid") && present.contains(&"ask") {
+        present.push("midpoint");
+    }
+    // Observability: a wire header no column claimed is a rename or a new
+    // upstream column silently absent from the frame. Surface it once.
+    let unclaimed: Vec<&str> = headers
+        .iter()
+        .zip(&claimed)
+        .filter_map(|(&h, &c)| (!c).then_some(h))
+        .collect();
+    if !unclaimed.is_empty() {
+        tracing::warn!(
+            target: "thetadatadx::columns",
+            unclaimed = ?unclaimed,
+            headers = ?headers,
+            "response carried wire headers no schema column claimed; they are absent from the projected frame",
+        );
+    }
+
+    ColumnPresence::from_names(present)
+}
+
 /// A tick type that knows which of its schema columns a response's wire
 /// header list actually carried.
 ///
@@ -271,5 +372,64 @@ mod tests {
         let p = ColumnPresence::from_names(["a", "b", "c"]);
         let got: Vec<&str> = p.present_names().collect();
         assert_eq!(got, ["a", "b", "c"]);
+    }
+
+    /// `date` rides the shared `created` Timestamp header: both the ms-of-day
+    /// field and `date` are present even though they resolve to one column.
+    #[test]
+    fn present_date_rides_shared_timestamp() {
+        const COLS: &[(&str, &str)] = &[
+            ("created", "created_ms_of_day"),
+            ("open", "open"),
+            ("date", "date"),
+        ];
+        let p = present_columns_from(&["created", "open"], COLS, false, false);
+        assert!(p.contains("created_ms_of_day"));
+        assert!(p.contains("open"));
+        assert!(
+            p.contains("date"),
+            "date must ride the shared Timestamp column"
+        );
+    }
+
+    /// A real standalone `date` header is present and does not leave the
+    /// header unclaimed (it claims its own exact column).
+    #[test]
+    fn present_date_standalone_header() {
+        const COLS: &[(&str, &str)] = &[("ms_of_day", "ms_of_day"), ("date", "date")];
+        let p = present_columns_from(&["timestamp", "date"], COLS, false, false);
+        assert!(p.contains("ms_of_day"));
+        assert!(p.contains("date"));
+    }
+
+    /// `midpoint` is present exactly when both `bid` and `ask` are.
+    #[test]
+    fn present_midpoint_keys_on_bid_and_ask() {
+        const COLS: &[(&str, &str)] = &[
+            ("ms_of_day", "ms_of_day"),
+            ("bid", "bid"),
+            ("ask", "ask"),
+            ("date", "date"),
+        ];
+        let with = present_columns_from(&["ms_of_day", "bid", "ask", "date"], COLS, false, true);
+        assert!(with.contains("midpoint"));
+
+        let without = present_columns_from(&["ms_of_day", "date"], COLS, false, true);
+        assert!(!without.contains("midpoint"));
+    }
+
+    /// Two-pass claiming: a column that names a header exactly claims it even
+    /// when an alias-matching column is listed first, so ordering is not a
+    /// latent invariant (`root` aliases to `symbol`; the exact `symbol` column
+    /// must own the `symbol` header).
+    #[test]
+    fn present_exact_match_beats_earlier_alias() {
+        const COLS: &[(&str, &str)] = &[("root", "root"), ("symbol", "symbol")];
+        let p = present_columns_from(&["symbol"], COLS, false, false);
+        assert!(
+            p.contains("symbol"),
+            "exact `symbol` column claims the header"
+        );
+        assert!(!p.contains("root"), "the aliased `root` must not steal it");
     }
 }
