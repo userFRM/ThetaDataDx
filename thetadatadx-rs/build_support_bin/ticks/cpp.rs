@@ -81,6 +81,11 @@ pub(super) fn render_cpp_tick_arrow_ipc(schema: &Schema) -> String {
     );
     out.push_str("class ColumnPresence {\n");
     out.push_str("public:\n");
+    // Default-constructs to the empty {nullptr, 0} state so a caller can write
+    // `ColumnPresence cols; client.<endpoint>(..., &cols);` — move-assigning
+    // into it frees a valid empty carrier (the free is a no-op on {nullptr, 0}),
+    // not uninitialized storage.
+    out.push_str("    ColumnPresence() noexcept : raw_{nullptr, 0} {}\n");
     out.push_str(
         "    explicit ColumnPresence(ThetaDataDxColumnPresence raw) noexcept : raw_(raw) {}\n",
     );

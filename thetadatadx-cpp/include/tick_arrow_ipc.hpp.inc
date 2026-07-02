@@ -6,6 +6,7 @@
 /// free function and pass it to the matching `<tick>_to_arrow_ipc_projected`.
 class ColumnPresence {
 public:
+    ColumnPresence() noexcept : raw_{nullptr, 0} {}
     explicit ColumnPresence(ThetaDataDxColumnPresence raw) noexcept : raw_(raw) {}
     ColumnPresence(const ColumnPresence&) = delete;
     ColumnPresence& operator=(const ColumnPresence&) = delete;
