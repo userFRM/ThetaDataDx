@@ -59,11 +59,17 @@ struct Inner {
     /// Used by [`SessionToken::refresh`] to deduplicate concurrent
     /// refreshes — see the module doc.
     version: u64,
-    /// Monotonic counter incremented once per completed refresh attempt,
-    /// success OR failure. Lets [`SessionToken::refresh`] coalesce a burst
-    /// of concurrent callers onto a single Nexus round-trip even when that
-    /// round-trip fails (where `version` does not move) — see `refresh`.
+    /// Monotonic counter incremented once per refresh invocation that
+    /// entered `authenticate_at`, success OR failure. Lets
+    /// [`SessionToken::refresh`] coalesce a burst of concurrent callers onto a
+    /// single `authenticate_at` call even when it fails (where `version` does
+    /// not move) — see `refresh`.
     attempts: u64,
+    /// Classification + message of the most recent failed refresh, recorded so
+    /// a caller that coalesces behind it surfaces the same `AuthErrorKind`
+    /// (e.g. `InvalidCredentials`) instead of a generic error and misbranching
+    /// its retry decision. Cleared on the next successful refresh.
+    last_failure: Option<(crate::error::AuthErrorKind, String)>,
     /// Nexus URL the token was originally issued from. Reused on
     /// refresh so a staging config stays on its staging endpoint.
     nexus_url: String,
@@ -77,13 +83,22 @@ struct Inner {
 }
 
 /// Error surfaced to callers that coalesced onto a concurrent refresh which
-/// already failed for the same token generation. They issued no Nexus
-/// round-trip of their own; the caller surfaces this rather than stampeding a
-/// Nexus that just rejected the identical credentials.
-fn coalesced_refresh_error() -> Error {
-    Error::Auth {
-        kind: crate::error::AuthErrorKind::ServerError,
-        message: "session refresh already failed for this token generation".into(),
+/// already failed for the same token generation. They issued no
+/// `authenticate_at` call of their own; they surface the failing refresh's own
+/// classification (so a caller branching on `InvalidCredentials` vs `Timeout`
+/// still sees the real cause) rather than stampeding a Nexus that just rejected
+/// the identical credentials. Falls back to a generic error only if no failure
+/// was recorded.
+fn coalesced_refresh_error(last: Option<&(crate::error::AuthErrorKind, String)>) -> Error {
+    match last {
+        Some((kind, message)) => Error::Auth {
+            kind: *kind,
+            message: message.clone(),
+        },
+        None => Error::Auth {
+            kind: crate::error::AuthErrorKind::ServerError,
+            message: "session refresh already failed for this token generation".into(),
+        },
     }
 }
 
@@ -129,6 +144,7 @@ impl SessionToken {
                 uuid,
                 version: 0,
                 attempts: 0,
+                last_failure: None,
                 nexus_url,
                 environment,
                 creds,
@@ -200,12 +216,14 @@ impl SessionToken {
             // A concurrent refresh for this same token generation already ran
             // and failed while we waited on the lock (version unchanged, but
             // the attempt counter advanced). Coalesce onto that outcome rather
-            // than issuing a second Nexus round-trip, so a burst of N callers
-            // that all observe the same `Unauthenticated` makes at most one
-            // auth attempt. A failed credential or a down Nexus will not fix
+            // than issuing a second `authenticate_at` call, so a burst of N
+            // callers that all observe the same `Unauthenticated` enters
+            // `authenticate_at` at most once. Surface the failing refresh's own
+            // classification so a caller branching on the kind still sees the
+            // real cause. A failed credential or a down Nexus will not fix
             // itself on an immediate re-attempt.
             if guard.attempts != entry_attempts {
-                return Err(coalesced_refresh_error());
+                return Err(coalesced_refresh_error(guard.last_failure.as_ref()));
             }
             (
                 guard.nexus_url.clone(),
@@ -216,14 +234,25 @@ impl SessionToken {
 
         let result = authenticate_at(&nexus_url, &creds, environment).await;
 
-        // Record that an attempt completed for this generation (success OR
+        // Record that this generation entered `authenticate_at` (success OR
         // failure) before releasing the refresh lock, so callers queued behind
         // us coalesce onto this outcome instead of re-hitting Nexus.
         let mut guard = self.state.write().await;
         guard.attempts = guard.attempts.wrapping_add(1);
-        let resp = result?;
+        let resp = match result {
+            Ok(resp) => resp,
+            Err(e) => {
+                // Record the classification so a coalescing caller surfaces the
+                // same `AuthErrorKind` rather than a generic error.
+                if let Error::Auth { kind, message } = &e {
+                    guard.last_failure = Some((*kind, message.clone()));
+                }
+                return Err(e);
+            }
+        };
 
-        // Swap the UUID + bump the version on success.
+        // Swap the UUID + bump the version on success; clear the stale failure.
+        guard.last_failure = None;
         guard.uuid = resp.session_id;
         guard.version = guard.version.wrapping_add(1);
         metrics::counter!("thetadatadx.auth.refresh").increment(1);
@@ -258,9 +287,10 @@ impl SessionToken {
         guard.version = guard.version.wrapping_add(1);
     }
 
-    /// Test-only: number of completed refresh attempts (Nexus round-trips
-    /// issued from `refresh`, success or failure). Lets the single-flight
-    /// test assert a concurrent burst produced exactly one attempt.
+    /// Test-only: number of refresh invocations that entered `authenticate_at`
+    /// (success or failure), not counting `authenticate_at`'s own internal
+    /// retries. Lets the single-flight test assert a concurrent burst entered
+    /// `authenticate_at` exactly once.
     #[cfg(test)]
     pub(crate) async fn attempts_for_test(&self) -> u64 {
         self.state.read().await.attempts
@@ -460,19 +490,33 @@ mod tests {
         // important invariant: neither task panicked, neither
         // deadlocked, both returned typed errors. Version stayed at
         // 0 because no auth ever succeeded.
-        assert!(matches!(r1, Err(Error::Auth { .. }) | Err(Error::Http(_))));
-        assert!(matches!(r2, Err(Error::Auth { .. }) | Err(Error::Http(_))));
+        // Both surface the failing refresh's real classification: the winner's
+        // unreachable-URL failure is a connect error (NetworkError), and the
+        // coalescing loser copies that kind rather than a hardcoded ServerError,
+        // so a caller branching on `AuthErrorKind` still sees the true cause.
+        for r in [&r1, &r2] {
+            assert!(
+                matches!(
+                    r,
+                    Err(Error::Auth {
+                        kind: crate::error::AuthErrorKind::NetworkError,
+                        ..
+                    })
+                ),
+                "expected NetworkError from the failed/coalesced refresh: {r:?}"
+            );
+        }
         assert_eq!(t.snapshot().await.version, 0);
-        // Single-flight on failure: only ONE of the two callers issued a Nexus
-        // round-trip. The winner ran `authenticate_at` (and failed); the loser
-        // acquired the refresh lock, saw the attempt counter had advanced while
-        // the version had not, and coalesced onto that failure instead of
-        // hammering Nexus with a second attempt. Before this fix both callers
+        // Single-flight on failure: only ONE of the two callers entered
+        // `authenticate_at`. The winner ran it (and failed); the loser acquired
+        // the refresh lock, saw the attempt counter had advanced while the
+        // version had not, and coalesced onto that failure instead of entering
+        // `authenticate_at` a second time. Before this fix both callers
         // re-authenticated in series, so `attempts` would be 2.
         assert_eq!(
             t.attempts_for_test().await,
             1,
-            "a concurrent failed-refresh burst must issue exactly one Nexus attempt"
+            "a concurrent failed-refresh burst must enter authenticate_at exactly once"
         );
         // Wall-clock sanity: the test must complete without hanging.
         // 30s is generous — both tasks should fail-fast on connect
