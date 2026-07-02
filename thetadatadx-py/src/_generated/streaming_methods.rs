@@ -53,15 +53,16 @@ impl StreamView {
         {
             // Reserve the registration slot before releasing the GIL for the
             // blocking handshake, then DROP the guard. `close()` parks on this
-            // same `Mutex<Option<Py<PyAny>>>` WITH the GIL held; a guard held
-            // across the `py.detach` connect below (whose dispatcher re-acquires
-            // the GIL) would let a concurrent `close()` take the GIL and block on
-            // the mutex while this thread blocks on the GIL -- a whole-interpreter
-            // deadlock. Take the lock in this inner scope, reject a
-            // double-registration, store the handle eagerly, and release before
-            // connecting. The stop-generation guard plus this double-start
-            // rejection make the wide critical section unnecessary; a handshake
-            // failure clears the slot again below.
+            // same `Mutex<Option<Arc<Py<PyAny>>>>` WITH the GIL held; a guard
+            // held across the `py.detach` connect below (whose dispatcher
+            // re-acquires the GIL) would let a concurrent `close()` take the GIL
+            // and block on the mutex while this thread blocks on the GIL -- a
+            // whole-interpreter deadlock. Take the lock in this inner scope,
+            // reject a double-registration, store the handle eagerly, and release
+            // before connecting. The stop-generation guard plus this
+            // double-start rejection make the wide critical section unnecessary;
+            // the `CallbackReservation` armed below clears the slot again on a
+            // handshake failure.
             let mut cb_guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
             // Reject double-registration with a clear PyRuntimeError. The
             // underlying `Client::start_streaming` would also error,
@@ -72,8 +73,15 @@ impl StreamView {
                     "streaming already started -- call stop_streaming() before start_streaming() again",
                 ));
             }
-            *cb_guard = Some(callback_arc.clone_ref(py));
+            *cb_guard = Some(Arc::clone(&callback_arc));
         }
+        // Own the reservation until the connect succeeds. On any non-success exit
+        // -- the `?` on a handshake failure below, or a panic before the connect
+        // completes -- the guard clears the slot, but ONLY if it still holds THIS
+        // reservation (`Arc::ptr_eq`). The lock is dropped across the detached
+        // connect, so a concurrent stop + restart may have replaced the slot with
+        // a newer callback that must keep its registration. Disarmed on success.
+        let mut reservation = CallbackReservation::armed(&self.callback, &callback_arc);
         let dispatch_cb = Arc::clone(&callback_arc);
         // Capture a WEAK handle to the Rust client so the dispatcher closure
         // can call `record_panic()` when the Python callback raises an
@@ -163,14 +171,10 @@ impl StreamView {
                 None,
             )
         })
-        .map_err(|err| {
-            // The handshake failed -- release the slot reserved above so a later
-            // `start_streaming` retry sees a clean registration instead of a
-            // stuck "streaming already started". Mirrors the TypeScript binding's
-            // handshake-failure clear.
-            *self.callback.lock().unwrap_or_else(|e| e.into_inner()) = None;
-            to_py_err(err)
-        })?;
+        .map_err(to_py_err)?;
+        // Connect succeeded: hand the reservation off to the live session so the
+        // guard does not clear it on return.
+        reservation.disarm();
         Ok(())
     }
 
@@ -317,13 +321,12 @@ impl StreamView {
         })
         .map_err(to_py_err)?;
 
-        // Replace the stored callable with a freshly owned handle so
-        // the next reconnect / shutdown sees the same state shape.
-        // The dispatcher closure already captured a clone of
-        // `callback_arc` (via `dispatch_cb`); the ref-count is >=2
-        // here so `try_unwrap` would always fail.
+        // Replace the stored callable with the reconnected handle so the next
+        // reconnect / shutdown sees the same state shape. The dispatcher closure
+        // already captured a clone of `callback_arc` (via `dispatch_cb`), so this
+        // Arc clone shares the same callable.
         let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
-        *guard = Some(Python::attach(|py| callback_arc.clone_ref(py)));
+        *guard = Some(Arc::clone(&callback_arc));
         Ok(())
     }
 

@@ -714,7 +714,13 @@ struct Client {
     /// and every `StreamView` handle observe and mutate one registration,
     /// keeping `start_streaming` / `stop_streaming` / `reconnect`
     /// idempotent regardless of which surface the caller reaches through.
-    callback: Arc<Mutex<Option<Py<PyAny>>>>,
+    ///
+    /// The callable is held behind an inner `Arc` so a freshly reserved slot
+    /// carries a unique identity (`Arc::ptr_eq`): `start_streaming` releases the
+    /// lock before its blocking connect, so a concurrent stop + restart can
+    /// replace the reservation mid-connect; the failed start must clear ONLY its
+    /// own slot, never the newer one.
+    callback: Arc<Mutex<Option<Arc<Py<PyAny>>>>>,
 }
 
 impl Client {
@@ -783,7 +789,54 @@ struct HistoricalView {
 #[pyclass(frozen)]
 struct StreamView {
     client: std::sync::Arc<thetadatadx::Client>,
-    callback: Arc<Mutex<Option<Py<PyAny>>>>,
+    callback: Arc<Mutex<Option<Arc<Py<PyAny>>>>>,
+}
+
+/// Clears a freshly reserved `start_streaming` callback slot on any non-success
+/// exit -- the `?` error return AND a panic between reserving the slot and
+/// completing the connect.
+///
+/// `start_streaming` must drop the callback lock before its blocking `py.detach`
+/// connect (holding it across the GIL-releasing connect deadlocks against a
+/// `close()` that parks on the same mutex with the GIL held). Dropping the guard
+/// opens a window where a concurrent stop + restart replaces the reservation, so
+/// clearing unconditionally would wipe the newer callback and strand a live
+/// session with no registration. `Arc::ptr_eq` gives each start a unique
+/// identity, so this clears ONLY when the slot still holds this reservation.
+/// Disarmed by [`Self::disarm`] once the connect succeeds.
+struct CallbackReservation<'a> {
+    slot: &'a Mutex<Option<Arc<Py<PyAny>>>>,
+    reserved: &'a Arc<Py<PyAny>>,
+    armed: bool,
+}
+
+impl<'a> CallbackReservation<'a> {
+    fn armed(slot: &'a Mutex<Option<Arc<Py<PyAny>>>>, reserved: &'a Arc<Py<PyAny>>) -> Self {
+        Self {
+            slot,
+            reserved,
+            armed: true,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for CallbackReservation<'_> {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        let mut slot = self.slot.lock().unwrap_or_else(|e| e.into_inner());
+        if slot
+            .as_ref()
+            .is_some_and(|cb| Arc::ptr_eq(cb, self.reserved))
+        {
+            *slot = None;
+        }
+    }
 }
 
 #[pymethods]

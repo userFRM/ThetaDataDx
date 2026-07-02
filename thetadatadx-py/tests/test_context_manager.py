@@ -343,21 +343,52 @@ def test_start_streaming_releases_callback_lock_before_connect() -> None:
     end = gen.index("fn ", start + 1)
     body = gen[start:end]
 
-    store_at = body.index("*cb_guard = Some(callback_arc.clone_ref(py));")
+    store_at = body.index("*cb_guard = Some(Arc::clone(&callback_arc));")
     detach_at = body.index("py.detach(")
     assert store_at < detach_at, (
-        "the callback slot must be reserved (and its guard dropped) BEFORE "
+        "the callback slot must be reserved (and its lock guard dropped) BEFORE "
         "py.detach releases the GIL for the blocking connect"
     )
-    # The guard must not survive into the detached region: no store back through
-    # cb_guard after the connect (the old post-detach store is gone).
-    assert "*cb_guard =" not in body[detach_at:], (
-        "no callback-lock store may run after py.detach -- the guard is dropped "
+    # The lock guard must not survive into the detached region.
+    assert "cb_guard" not in body[detach_at:], (
+        "no callback-lock guard may live across py.detach -- it is dropped "
         "before connecting"
     )
-    # A handshake failure clears the reserved slot so a retry sees clean state.
-    assert "= None;" in body[detach_at:], (
-        "a handshake failure must clear the reserved callback slot"
+
+
+def test_start_streaming_failure_clear_is_ownership_checked() -> None:
+    """Offline source pin (ABA): the reserve-then-connect fix must NOT clear the
+    callback slot unconditionally on a handshake failure. Since the lock is
+    dropped before the connect, a concurrent stop + restart can replace the
+    reservation mid-connect; an unconditional clear would wipe the newer callback
+    and strand a live session with no registration. The clear runs through a
+    `CallbackReservation` that clears only its OWN slot (`Arc::ptr_eq`) and
+    covers both the error return and a panic before the connect completes.
+    """
+    gen = (_py_src_root() / "_generated" / "streaming_methods.rs").read_text()
+    start = gen.index("fn start_streaming(")
+    body = gen[start : gen.index("fn ", start + 1)]
+    detach_at = body.index("py.detach(")
+    # No unconditional slot clear anywhere in start_streaming (the old
+    # `*self.callback.lock()... = None` / `*cb_guard = None` clears are gone).
+    assert "= None" not in body, (
+        "start_streaming must not clear the callback slot unconditionally -- the "
+        "ownership-checked CallbackReservation owns the failure clear"
+    )
+    # The reservation is armed before the connect and disarmed on success.
+    assert body.index("CallbackReservation::armed(") < detach_at, (
+        "the reservation guard must be armed before py.detach"
+    )
+    assert "reservation.disarm();" in body[detach_at:], (
+        "the reservation must be disarmed on the success path"
+    )
+    # The guard's clear is identity-checked so it never wipes a newer reservation.
+    lib = (_py_src_root() / "lib.rs").read_text()
+    guard = lib[lib.index("impl Drop for CallbackReservation") :]
+    guard = guard[: guard.index("\n}")]
+    assert "Arc::ptr_eq(cb, self.reserved)" in guard, (
+        "the reservation must clear only when the slot still holds ITS own arc "
+        "(Arc::ptr_eq), never a newer start_streaming's reservation"
     )
 
 
