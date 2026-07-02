@@ -144,6 +144,15 @@ fn stock_eod_projects_out_contract_id() {
             "stock EOD must not carry contract-id column {cid}; got {cols:?}"
         );
     }
+    // The EOD wire sends `created`, not a separate `date` column. The
+    // `("date","created")` alias must NOT resurrect a phantom `date` column
+    // off the same `created` header — one wire column feeds one schema
+    // column (the exact `created` -> `created_ms_of_day` match claims it).
+    assert!(
+        !cols.contains(&"date".to_string()),
+        "stock EOD must not carry a phantom `date` column (alias overlap with `created`); got {cols:?}"
+    );
+    assert!(cols.contains(&"created_ms_of_day".to_string()), "got {cols:?}");
     // But the EOD data columns the wire sent are all present.
     for kept in ["open", "high", "low", "close", "volume", "count", "bid", "ask"] {
         assert!(cols.contains(&kept.to_string()), "missing {kept} in {cols:?}");

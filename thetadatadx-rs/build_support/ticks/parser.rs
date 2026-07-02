@@ -259,6 +259,17 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
 /// The set names the public schema *field* (e.g. `condition_flags`,
 /// `expiration`) — the name the Arrow / Polars builders key on — not the
 /// wire spelling the alias table resolves.
+///
+/// One physical wire column feeds exactly one schema column: a resolved
+/// header index is claimed by the first schema column (in schema order) to
+/// resolve to it, so an alias never lets one header satisfy two columns.
+/// This matters where the alias table maps several schema names onto the
+/// same wire spelling — e.g. the EOD wire sends `created` (not `date`), and
+/// the `("date","created")` alias would otherwise mark a `date` column
+/// present off the same `created` header. Schema order puts the exact match
+/// (`created` -> `created_ms_of_day`) before the aliased one (`date`), so
+/// the exact match claims the header and the phantom `date` column stays
+/// out of the projected frame.
 fn generate_present_columns(out: &mut String, type_name: &str, def: &TickTypeDef) {
     writeln!(
         out,
@@ -269,18 +280,20 @@ fn generate_present_columns(out: &mut String, type_name: &str, def: &TickTypeDef
         "    fn present_columns(headers: &[&str]) -> crate::columns::ColumnPresence {\n",
     );
     out.push_str("        let mut present: Vec<&'static str> = Vec::new();\n");
+    out.push_str("        let mut claimed: Vec<usize> = Vec::new();\n");
     for col in &def.columns {
         writeln!(
             out,
-            "        if find_header(headers, \"{name}\").is_some() {{ present.push(\"{field}\"); }}",
+            "        if let Some(i) = find_header(headers, \"{name}\") {{ if !claimed.contains(&i) {{ claimed.push(i); present.push(\"{field}\"); }} }}",
             name = col.name,
             field = col.field,
         )
         .unwrap();
     }
     // Contract-identity trio: injected under their exact wire names on
-    // wildcard responses, each resolved independently (matches the
-    // parser's `_cid_*_idx` position lookups).
+    // wildcard responses, each resolved by exact position (matches the
+    // parser's `_cid_*_idx` lookups). Exact names never collide with the
+    // aliased schema columns above, so no claim check is needed.
     if def.contract_id {
         out.push_str(
             "        if headers.contains(&\"expiration\") { present.push(\"expiration\"); }\n",
