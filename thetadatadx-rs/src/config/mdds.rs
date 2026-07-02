@@ -48,10 +48,11 @@ pub struct HistoricalConfig {
     /// Always `true` in production (standard gRPC-over-TLS on port 443).
     pub tls: bool,
 
-    /// Max inbound gRPC message size in bytes.
+    /// Max inbound gRPC message size, in bytes.
     ///
-    /// Caps the gRPC inbound message size at `1 MiB * message_size`,
-    /// default 4MB, max 10MB.
+    /// Caps the size of a single inbound gRPC message. Default
+    /// `4 * 1024 * 1024` (4 MiB); validation bounds it to `[1 B, 64 MiB]`,
+    /// the same ceiling the `[grpc] max_message_size_mb` TOML spelling enforces.
     pub max_message_size: usize,
 
     /// gRPC keepalive interval in seconds (`keepAliveTime(30, SECONDS)`).
