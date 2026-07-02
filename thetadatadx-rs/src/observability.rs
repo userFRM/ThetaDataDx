@@ -78,7 +78,7 @@ fn install_exporter_impl(port: u16) -> Result<(), crate::error::Error> {
             // rather than masking a genuine misconfiguration as a benign
             // re-install.
             Err(crate::error::Error::config_invalid(
-                "metrics_port",
+                "metrics.port",
                 format!("failed to start Prometheus exporter on port {port}: {err}"),
             ))
         }
