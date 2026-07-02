@@ -49,10 +49,13 @@ use super::super::sdk_helpers::{
     to_camel_case, to_pascal_case, ts_class_name, ts_class_vec_converter, write_timeout_call,
 };
 
-/// napi classes that carry the historical endpoint surface. Both wrap an
-/// `Arc<thetadatadx::Client>` field named `client`, so the
-/// generated method bodies (which all reference `self.client`) compile
-/// unchanged against either receiver.
+/// napi classes that carry the historical endpoint surface. Both expose a
+/// `client_handle(&self) -> napi::Result<Arc<thetadatadx::Client>>` accessor,
+/// so the generated method bodies (which resolve the handle via
+/// `self.client_handle()?`) compile unchanged against either receiver.
+/// `HistoricalView` co-owns its `Arc` (always `Ok`, surviving a parent
+/// `Client::close`); `HistoricalClient` holds the handle behind an `Option` and
+/// rejects with "client is closed" once its own `close()` has released it.
 ///
 /// `Client` is the unified handle (historical + FPSS
 /// streaming); `HistoricalClient` is the standalone historical-only handle
@@ -97,9 +100,10 @@ pub(super) fn render_typescript_historical_methods(endpoints: &[GeneratedEndpoin
 
 /// Emit a single `#[napi] impl <ClassName> { ... }` block carrying every
 /// historical endpoint method (and its server-stream companion). The
-/// method bodies reference `self.client`, so the block compiles against any
-/// napi class that exposes an `Arc<thetadatadx::Client>` field
-/// named `client`. Parameterising over the class name lets the generator
+/// method bodies resolve the client via `self.client_handle()?`, so the block
+/// compiles against any napi class that exposes a
+/// `client_handle(&self) -> napi::Result<Arc<thetadatadx::Client>>` accessor.
+/// Parameterising over the class name lets the generator
 /// project the identical surface onto the unified `Client` and
 /// the standalone `HistoricalClient` without duplicating the per-endpoint
 /// rendering.
@@ -250,7 +254,7 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     // `'static` borrow source: the request builder borrows the client,
     // and that borrow must outlive the V8 stack frame the Promise
     // detaches from.
-    out.push_str("        let client = self.client.clone();\n");
+    out.push_str("        let client = self.client_handle()?;\n");
 
     let has_symbols = method_params
         .iter()
@@ -482,7 +486,7 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
     out.push_str("            Some(ms) => Some(validate_timeout_ms(ms)?),\n");
     out.push_str("            None => None,\n");
     out.push_str("        };\n");
-    out.push_str("        let client = self.client.clone();\n");
+    out.push_str("        let client = self.client_handle()?;\n");
 
     let has_symbols = method_params
         .iter()

@@ -1489,7 +1489,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         spawn_endpoint_task(async move {
             let call = client.historical().stock_list_symbols();
             if let Some(ms) = timeout_ms {
@@ -1519,7 +1519,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         spawn_endpoint_task(async move {
             let call = client.historical().stock_list_dates(&request_type, &symbol);
             if let Some(ms) = timeout_ms {
@@ -1554,7 +1554,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
@@ -1595,7 +1595,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
@@ -1636,7 +1636,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
@@ -1677,7 +1677,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
@@ -1715,7 +1715,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -1744,7 +1744,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let callback = std::sync::Arc::new(callback);
@@ -1786,7 +1786,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -1837,7 +1837,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -1900,7 +1900,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -1947,7 +1947,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -2009,7 +2009,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -2060,7 +2060,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -2124,7 +2124,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -2175,7 +2175,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -2243,7 +2243,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
@@ -2278,7 +2278,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
@@ -2328,7 +2328,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
@@ -2363,7 +2363,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
@@ -2400,7 +2400,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         spawn_endpoint_task(async move {
             let call = client.historical().option_list_symbols();
             if let Some(ms) = timeout_ms {
@@ -2436,7 +2436,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         spawn_endpoint_task(async move {
             let call = client.historical().option_list_dates(&request_type, &symbol, expiration.as_str());
@@ -2467,7 +2467,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         spawn_endpoint_task(async move {
             let call = client.historical().option_list_expirations(&symbol);
             if let Some(ms) = timeout_ms {
@@ -2498,7 +2498,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         spawn_endpoint_task(async move {
             let call = client.historical().option_list_strikes(&symbol, expiration.as_str());
@@ -2533,7 +2533,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let symbol = options.symbol;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
@@ -2568,7 +2568,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let symbol = options.symbol;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
@@ -2613,7 +2613,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -2666,7 +2666,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -2715,7 +2715,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -2769,7 +2769,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -2821,7 +2821,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -2879,7 +2879,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -2959,7 +2959,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -3039,7 +3039,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -3119,7 +3119,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -3199,7 +3199,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -3280,7 +3280,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -3327,7 +3327,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -3388,7 +3388,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3449,7 +3449,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3525,7 +3525,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3586,7 +3586,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3662,7 +3662,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3727,7 +3727,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3808,7 +3808,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3873,7 +3873,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -3950,7 +3950,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4003,7 +4003,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4072,7 +4072,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -4139,7 +4139,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -4223,7 +4223,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4300,7 +4300,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4394,7 +4394,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4471,7 +4471,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4566,7 +4566,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4643,7 +4643,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4737,7 +4737,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4814,7 +4814,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4909,7 +4909,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -4986,7 +4986,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5080,7 +5080,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5157,7 +5157,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5252,7 +5252,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5329,7 +5329,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5423,7 +5423,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5500,7 +5500,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5594,7 +5594,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5671,7 +5671,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5764,7 +5764,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5841,7 +5841,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -5933,7 +5933,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -5982,7 +5982,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -6042,7 +6042,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -6091,7 +6091,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -6141,7 +6141,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         spawn_endpoint_task(async move {
             let call = client.historical().index_list_symbols();
             if let Some(ms) = timeout_ms {
@@ -6170,7 +6170,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         spawn_endpoint_task(async move {
             let call = client.historical().index_list_dates(&symbol);
             if let Some(ms) = timeout_ms {
@@ -6200,7 +6200,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
@@ -6233,7 +6233,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
@@ -6266,7 +6266,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
@@ -6300,7 +6300,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -6329,7 +6329,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let callback = std::sync::Arc::new(callback);
@@ -6371,7 +6371,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let interval = options.interval;
@@ -6412,7 +6412,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let interval = options.interval;
@@ -6466,7 +6466,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -6513,7 +6513,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -6569,7 +6569,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
@@ -6600,7 +6600,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
@@ -6635,7 +6635,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().calendar_open_today();
             if let Some(ms) = timeout_ms {
@@ -6664,7 +6664,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().calendar_on_date(date.as_str());
@@ -6694,7 +6694,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().calendar_year(&year);
             if let Some(ms) = timeout_ms {
@@ -6726,7 +6726,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -6755,7 +6755,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let callback = std::sync::Arc::new(callback);
@@ -6794,7 +6794,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let interval = options.interval;
@@ -6839,7 +6839,7 @@ impl HistoricalView {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let interval = options.interval;
@@ -6890,7 +6890,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         spawn_endpoint_task(async move {
             let call = client.historical().stock_list_symbols();
             if let Some(ms) = timeout_ms {
@@ -6920,7 +6920,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         spawn_endpoint_task(async move {
             let call = client.historical().stock_list_dates(&request_type, &symbol);
             if let Some(ms) = timeout_ms {
@@ -6955,7 +6955,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
@@ -6996,7 +6996,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
@@ -7037,7 +7037,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
@@ -7078,7 +7078,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let venue = options.venue;
         let min_time = normalize_optional_time(options.min_time);
@@ -7116,7 +7116,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -7145,7 +7145,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let callback = std::sync::Arc::new(callback);
@@ -7187,7 +7187,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -7238,7 +7238,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -7301,7 +7301,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -7348,7 +7348,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -7410,7 +7410,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -7461,7 +7461,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -7525,7 +7525,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -7576,7 +7576,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
@@ -7644,7 +7644,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
@@ -7679,7 +7679,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
@@ -7729,7 +7729,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
@@ -7764,7 +7764,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
@@ -7801,7 +7801,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         spawn_endpoint_task(async move {
             let call = client.historical().option_list_symbols();
             if let Some(ms) = timeout_ms {
@@ -7837,7 +7837,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         spawn_endpoint_task(async move {
             let call = client.historical().option_list_dates(&request_type, &symbol, expiration.as_str());
@@ -7868,7 +7868,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         spawn_endpoint_task(async move {
             let call = client.historical().option_list_expirations(&symbol);
             if let Some(ms) = timeout_ms {
@@ -7899,7 +7899,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         spawn_endpoint_task(async move {
             let call = client.historical().option_list_strikes(&symbol, expiration.as_str());
@@ -7934,7 +7934,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let symbol = options.symbol;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
@@ -7969,7 +7969,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let symbol = options.symbol;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
@@ -8014,7 +8014,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -8067,7 +8067,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -8116,7 +8116,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -8170,7 +8170,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -8222,7 +8222,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -8280,7 +8280,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -8360,7 +8360,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -8440,7 +8440,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -8520,7 +8520,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -8600,7 +8600,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let strike = options.strike;
         let right = options.right;
@@ -8681,7 +8681,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -8728,7 +8728,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -8789,7 +8789,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -8850,7 +8850,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -8926,7 +8926,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -8987,7 +8987,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9063,7 +9063,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9128,7 +9128,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9209,7 +9209,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9274,7 +9274,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9351,7 +9351,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9404,7 +9404,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9473,7 +9473,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -9540,7 +9540,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -9624,7 +9624,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9701,7 +9701,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9795,7 +9795,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9872,7 +9872,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -9967,7 +9967,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10044,7 +10044,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10138,7 +10138,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10215,7 +10215,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10310,7 +10310,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10387,7 +10387,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10481,7 +10481,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10558,7 +10558,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10653,7 +10653,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10730,7 +10730,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10824,7 +10824,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10901,7 +10901,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -10995,7 +10995,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -11072,7 +11072,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -11165,7 +11165,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -11242,7 +11242,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let date = normalize_date(date);
         let strike = options.strike;
@@ -11334,7 +11334,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -11383,7 +11383,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -11443,7 +11443,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -11492,7 +11492,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let expiration = normalize_date(expiration);
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
@@ -11542,7 +11542,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         spawn_endpoint_task(async move {
             let call = client.historical().index_list_symbols();
             if let Some(ms) = timeout_ms {
@@ -11571,7 +11571,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         spawn_endpoint_task(async move {
             let call = client.historical().index_list_dates(&symbol);
             if let Some(ms) = timeout_ms {
@@ -11601,7 +11601,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
@@ -11634,7 +11634,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
@@ -11667,7 +11667,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let symbols = normalize_symbols(symbols);
         let min_time = normalize_optional_time(options.min_time);
         let ticks = spawn_endpoint_task(async move {
@@ -11701,7 +11701,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -11730,7 +11730,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let callback = std::sync::Arc::new(callback);
@@ -11772,7 +11772,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let interval = options.interval;
@@ -11813,7 +11813,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let interval = options.interval;
@@ -11867,7 +11867,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -11914,7 +11914,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let interval = options.interval;
         let start_time = normalize_optional_time(options.start_time);
@@ -11970,7 +11970,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
@@ -12001,7 +12001,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
@@ -12036,7 +12036,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().calendar_open_today();
             if let Some(ms) = timeout_ms {
@@ -12065,7 +12065,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let date = normalize_date(date);
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().calendar_on_date(date.as_str());
@@ -12095,7 +12095,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let ticks = spawn_endpoint_task(async move {
             let mut request = client.historical().calendar_year(&year);
             if let Some(ms) = timeout_ms {
@@ -12127,7 +12127,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let ticks = spawn_endpoint_task(async move {
@@ -12156,7 +12156,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let callback = std::sync::Arc::new(callback);
@@ -12195,7 +12195,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let interval = options.interval;
@@ -12240,7 +12240,7 @@ impl HistoricalClient {
             Some(ms) => Some(validate_timeout_ms(ms)?),
             None => None,
         };
-        let client = self.client.clone();
+        let client = self.client_handle()?;
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let interval = options.interval;
