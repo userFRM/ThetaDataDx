@@ -531,6 +531,417 @@ pub unsafe extern "C" fn thetadatadx_arrow_bytes_free(bytes: ThetaDataDxArrowByt
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+//  Column presence — the decode's wire-column set, C-reachable
+// ═══════════════════════════════════════════════════════════════════════
+//
+// The buffered `.await` path in the core computes each response's
+// `ColumnPresence` (`WireColumns::present_columns` over `table.headers`) so
+// its DataFrame terminal projects to the wire's exact columns — the
+// `<TickName>List.to_arrow()` behaviour Python exposes. The C ABI's
+// `thetadatadx_<tick>_ticks_to_arrow_ipc` terminal serialises a bare row span
+// (all columns present), so a C++ caller wanting the same projected Arrow a
+// decode produced needs the presence set too. These two additions carry it:
+//
+//  * `thetadatadx_<tick>_present_columns(headers, len)` runs the SAME
+//    `WireColumns::present_columns` the buffered path uses — the decode-fed
+//    producer, given a response's wire header names.
+//  * `thetadatadx_<tick>_ticks_to_arrow_ipc_projected(rows, len, presence)`
+//    serialises the rows through `TicksArrowExt::to_arrow_projected`, so the
+//    IPC stream omits exactly the columns the wire omitted.
+//
+// The all-present `thetadatadx_<tick>_ticks_to_arrow_ipc` terminal is
+// unchanged — a hand-built row vector a caller assembled itself never touched
+// a wire, so it stays a full-schema frame.
+
+/// Heap-owned set of present schema-column names (an
+/// [`thetadatadx::columns::ColumnPresence`] crossing the C boundary). Built by
+/// `thetadatadx_<tick>_present_columns` and consumed by
+/// `thetadatadx_<tick>_ticks_to_arrow_ipc_projected`. Caller MUST free with
+/// `thetadatadx_column_presence_free`. Layout mirrors `ThetaDataDxStringArray`
+/// (an owned array of NUL-terminated C strings).
+#[repr(C)]
+pub struct ThetaDataDxColumnPresence {
+    /// Array of pointers to NUL-terminated schema-column names; null when
+    /// empty (a response whose wire carried no column).
+    pub names: *const *const c_char,
+    /// Number of names.
+    pub len: usize,
+}
+
+// Layout drift-guard: pin the LP64 `#[repr(C)]` size + alignment, the same
+// values the C++ `abi_struct_layout_asserts.hpp.inc` pins.
+const _: () = {
+    assert!(core::mem::size_of::<ThetaDataDxColumnPresence>() == 16);
+    assert!(core::mem::align_of::<ThetaDataDxColumnPresence>() == 8);
+};
+
+impl ThetaDataDxColumnPresence {
+    const EMPTY: Self = Self {
+        names: ptr::null(),
+        len: 0,
+    };
+
+    /// Leak a [`thetadatadx::columns::ColumnPresence`] as an owned C-string
+    /// array. The names are `'static` schema field names, so `CString::new`
+    /// cannot see an interior NUL; the map is still fallible only to reuse the
+    /// validated-then-`into_raw` discipline of [`ThetaDataDxStringArray::from_vec`].
+    fn from_presence(present: &thetadatadx::columns::ColumnPresence) -> Self {
+        let owned: Vec<CString> = present
+            .present_names()
+            .map(|n| CString::new(n).expect("schema column names contain no interior NUL"))
+            .collect();
+        if owned.is_empty() {
+            return Self::EMPTY;
+        }
+        let cstrings = owned
+            .into_iter()
+            .map(|c| c.into_raw().cast_const())
+            .collect::<Vec<*const c_char>>();
+        let boxed = cstrings.into_boxed_slice();
+        let len = boxed.len();
+        let names = Box::into_raw(boxed) as *const *const c_char;
+        Self { names, len }
+    }
+
+    /// Reconstruct the borrowed [`thetadatadx::columns::ColumnPresence`] from
+    /// the C carrier so the projected serialiser can consume it. Returns
+    /// `None` (with the error set) if any name pointer is null or not UTF-8.
+    ///
+    /// # Safety
+    /// `names` must point to `len` valid NUL-terminated C strings, as produced
+    /// by [`Self::from_presence`] or supplied by the caller.
+    unsafe fn to_presence(&self) -> Option<thetadatadx::columns::ColumnPresence> {
+        if self.names.is_null() {
+            if self.len == 0 {
+                return Some(thetadatadx::columns::ColumnPresence::default());
+            }
+            crate::error::set_error("column presence names pointer is null with non-zero len");
+            return None;
+        }
+        // SAFETY: caller's contract guarantees `names` points to `len`
+        // initialised C-string pointers for the call duration.
+        let slice = unsafe { std::slice::from_raw_parts(self.names, self.len) };
+        let mut names: Vec<&str> = Vec::with_capacity(self.len);
+        for &p in slice {
+            // SAFETY: each element is a NUL-terminated C string per the
+            // carrier contract; `cstr_to_str` validates non-null + UTF-8.
+            match unsafe { crate::error::cstr_to_str(p) } {
+                Ok(Some(s)) => names.push(s),
+                Ok(None) => {
+                    crate::error::set_error("column presence carried a null name pointer");
+                    return None;
+                }
+                Err(e) => {
+                    crate::error::set_error(&format!("column presence name is not UTF-8: {e}"));
+                    return None;
+                }
+            }
+        }
+        Some(thetadatadx::columns::ColumnPresence::from_names(names))
+    }
+}
+
+/// Free a [`ThetaDataDxColumnPresence`] returned by any
+/// `thetadatadx_<tick>_present_columns` terminal, including its names.
+#[no_mangle]
+pub unsafe extern "C" fn thetadatadx_column_presence_free(presence: ThetaDataDxColumnPresence) {
+    ffi_boundary!((), {
+        if !presence.names.is_null() && presence.len > 0 {
+            // SAFETY: `names` + `len` describe the slice `from_presence` leaked.
+            let slice = unsafe { std::slice::from_raw_parts(presence.names, presence.len) };
+            for &s in slice {
+                if !s.is_null() {
+                    // SAFETY: produced by `CString::into_raw` in `from_presence`.
+                    drop(unsafe { CString::from_raw(s.cast_mut()) });
+                }
+            }
+            // SAFETY: `names` was returned by `Box::into_raw` on a
+            // `Box<[*const c_char]>` of length `len`; ownership returns for
+            // drop. Null + zero-len gated; per-element strings freed above.
+            let _ = unsafe {
+                Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+                    presence.names.cast_mut(),
+                    presence.len,
+                ))
+            };
+        }
+    })
+}
+
+/// Compute the wire-column presence set for a `$tick` response from its wire
+/// header names, via the same `WireColumns::present_columns` the buffered
+/// `.await` decode path uses. `headers` is the response's `DataTable.headers`
+/// (the wire spellings); the returned presence names the public schema fields.
+macro_rules! tick_present_columns {
+    ($fn_name:ident, $tick:ty) => {
+        /// Build the wire-column presence set from a response's header names.
+        /// `headers` may be null only when `len` is 0. Caller MUST free the
+        /// result with `thetadatadx_column_presence_free`.
+        ///
+        /// # Safety
+        /// `headers` must point to `len` NUL-terminated C strings valid for
+        /// the call — a C++ caller passes the response's header names.
+        #[no_mangle]
+        pub unsafe extern "C" fn $fn_name(
+            headers: *const *const c_char,
+            len: usize,
+        ) -> ThetaDataDxColumnPresence {
+            ffi_boundary!(ThetaDataDxColumnPresence::EMPTY, {
+                // SAFETY: `(null, 0)` is the empty-slice convention;
+                // otherwise `headers` is the caller's `len`-element C-string
+                // array, valid for the call.
+                let header_strings = match unsafe { parse_symbol_array(headers, len) } {
+                    Some(v) => v,
+                    None => return ThetaDataDxColumnPresence::EMPTY,
+                };
+                let header_refs: Vec<&str> = header_strings.iter().map(String::as_str).collect();
+                let presence =
+                    <$tick as thetadatadx::columns::WireColumns>::present_columns(&header_refs);
+                ThetaDataDxColumnPresence::from_presence(&presence)
+            })
+        }
+    };
+}
+
+/// Serialise a `&[$tick]` to Arrow IPC bytes carrying ONLY the columns named
+/// in `presence`, through `TicksArrowExt::to_arrow_projected` + the shared IPC
+/// `StreamWriter` path. The decode-fed sibling of `tick_array_to_arrow_ipc!`:
+/// same bytes format, but projected to the wire's exact column set instead of
+/// the full schema. `presence` comes from the matching
+/// `thetadatadx_<tick>_present_columns`. Returns `(data=null, len=0)` on error
+/// with `thetadatadx_last_error()` set.
+macro_rules! tick_array_to_arrow_ipc_projected {
+    ($fn_name:ident, $tick:ty) => {
+        /// Serialise a tick row span as a projected Arrow IPC stream. `rows`
+        /// may be null only when `len` is 0. Caller MUST free the result with
+        /// `thetadatadx_arrow_bytes_free`.
+        ///
+        /// # Safety
+        /// `rows` must point to `len` initialised `$tick` values valid for the
+        /// call; `presence` must be a valid [`ThetaDataDxColumnPresence`] (its
+        /// name pointers valid for the call), typically from
+        /// `thetadatadx_<tick>_present_columns`.
+        #[no_mangle]
+        pub unsafe extern "C" fn $fn_name(
+            rows: *const $tick,
+            len: usize,
+            presence: ThetaDataDxColumnPresence,
+        ) -> ThetaDataDxArrowBytes {
+            ffi_boundary!(ThetaDataDxArrowBytes::EMPTY, {
+                if rows.is_null() && len != 0 {
+                    crate::error::set_error("rows pointer is null with non-zero len");
+                    return ThetaDataDxArrowBytes::EMPTY;
+                }
+                // SAFETY: `presence` is the caller's carrier; `to_presence`
+                // validates each name pointer before use.
+                let Some(columns) = (unsafe { presence.to_presence() }) else {
+                    return ThetaDataDxArrowBytes::EMPTY;
+                };
+                let slice: &[$tick] = if len == 0 {
+                    &[]
+                } else {
+                    // SAFETY: caller's contract guarantees `rows` points to
+                    // `len` initialised values for the call; the `len == 0`
+                    // arm above never reaches here.
+                    unsafe { std::slice::from_raw_parts(rows, len) }
+                };
+                let batch =
+                    match thetadatadx::frames::TicksArrowExt::to_arrow_projected(slice, &columns) {
+                        Ok(b) => b,
+                        Err(e) => {
+                            crate::error::set_error(&format!("arrow conversion failed: {e}"));
+                            return ThetaDataDxArrowBytes::EMPTY;
+                        }
+                    };
+                match crate::streaming_batches_ipc::batch_to_ipc(&batch, 0) {
+                    Ok(buf) => ThetaDataDxArrowBytes::from_vec(buf),
+                    Err(e) => {
+                        crate::error::set_error(&e);
+                        ThetaDataDxArrowBytes::EMPTY
+                    }
+                }
+            })
+        }
+    };
+}
+
+// Presence producer + projected serialiser, one per tick type — the same set
+// the all-present `tick_array_to_arrow_ipc!` block above covers. A tick added
+// to `tick_schema.toml` gets a row in all three families (plus its
+// `parity.toml` `[[ffi_symbol]]` entries and the C header decls).
+tick_present_columns!(thetadatadx_eod_ticks_present_columns, thetadatadx::EodTick);
+tick_present_columns!(
+    thetadatadx_ohlc_ticks_present_columns,
+    thetadatadx::OhlcTick
+);
+tick_present_columns!(
+    thetadatadx_trade_ticks_present_columns,
+    thetadatadx::TradeTick
+);
+tick_present_columns!(
+    thetadatadx_quote_ticks_present_columns,
+    thetadatadx::QuoteTick
+);
+tick_present_columns!(
+    thetadatadx_greeks_all_ticks_present_columns,
+    thetadatadx::GreeksAllTick
+);
+tick_present_columns!(
+    thetadatadx_greeks_eod_ticks_present_columns,
+    thetadatadx::GreeksEodTick
+);
+tick_present_columns!(
+    thetadatadx_greeks_first_order_ticks_present_columns,
+    thetadatadx::GreeksFirstOrderTick
+);
+tick_present_columns!(
+    thetadatadx_greeks_second_order_ticks_present_columns,
+    thetadatadx::GreeksSecondOrderTick
+);
+tick_present_columns!(
+    thetadatadx_greeks_third_order_ticks_present_columns,
+    thetadatadx::GreeksThirdOrderTick
+);
+tick_present_columns!(
+    thetadatadx_trade_greeks_all_ticks_present_columns,
+    thetadatadx::TradeGreeksAllTick
+);
+tick_present_columns!(
+    thetadatadx_trade_greeks_first_order_ticks_present_columns,
+    thetadatadx::TradeGreeksFirstOrderTick
+);
+tick_present_columns!(
+    thetadatadx_trade_greeks_second_order_ticks_present_columns,
+    thetadatadx::TradeGreeksSecondOrderTick
+);
+tick_present_columns!(
+    thetadatadx_trade_greeks_third_order_ticks_present_columns,
+    thetadatadx::TradeGreeksThirdOrderTick
+);
+tick_present_columns!(
+    thetadatadx_trade_greeks_implied_volatility_ticks_present_columns,
+    thetadatadx::TradeGreeksImpliedVolatilityTick
+);
+tick_present_columns!(thetadatadx_iv_ticks_present_columns, thetadatadx::IvTick);
+tick_present_columns!(
+    thetadatadx_price_ticks_present_columns,
+    thetadatadx::PriceTick
+);
+tick_present_columns!(
+    thetadatadx_index_price_at_time_ticks_present_columns,
+    thetadatadx::IndexPriceAtTimeTick
+);
+tick_present_columns!(
+    thetadatadx_open_interest_ticks_present_columns,
+    thetadatadx::OpenInterestTick
+);
+tick_present_columns!(
+    thetadatadx_market_value_ticks_present_columns,
+    thetadatadx::MarketValueTick
+);
+tick_present_columns!(
+    thetadatadx_calendar_days_present_columns,
+    thetadatadx::CalendarDay
+);
+tick_present_columns!(
+    thetadatadx_interest_rate_ticks_present_columns,
+    thetadatadx::InterestRateTick
+);
+tick_present_columns!(
+    thetadatadx_trade_quote_ticks_present_columns,
+    thetadatadx::TradeQuoteTick
+);
+
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_eod_ticks_to_arrow_ipc_projected,
+    thetadatadx::EodTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_ohlc_ticks_to_arrow_ipc_projected,
+    thetadatadx::OhlcTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_trade_ticks_to_arrow_ipc_projected,
+    thetadatadx::TradeTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_quote_ticks_to_arrow_ipc_projected,
+    thetadatadx::QuoteTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_greeks_all_ticks_to_arrow_ipc_projected,
+    thetadatadx::GreeksAllTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_greeks_eod_ticks_to_arrow_ipc_projected,
+    thetadatadx::GreeksEodTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_greeks_first_order_ticks_to_arrow_ipc_projected,
+    thetadatadx::GreeksFirstOrderTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_greeks_second_order_ticks_to_arrow_ipc_projected,
+    thetadatadx::GreeksSecondOrderTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_greeks_third_order_ticks_to_arrow_ipc_projected,
+    thetadatadx::GreeksThirdOrderTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_trade_greeks_all_ticks_to_arrow_ipc_projected,
+    thetadatadx::TradeGreeksAllTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_trade_greeks_first_order_ticks_to_arrow_ipc_projected,
+    thetadatadx::TradeGreeksFirstOrderTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_trade_greeks_second_order_ticks_to_arrow_ipc_projected,
+    thetadatadx::TradeGreeksSecondOrderTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_trade_greeks_third_order_ticks_to_arrow_ipc_projected,
+    thetadatadx::TradeGreeksThirdOrderTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_trade_greeks_implied_volatility_ticks_to_arrow_ipc_projected,
+    thetadatadx::TradeGreeksImpliedVolatilityTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_iv_ticks_to_arrow_ipc_projected,
+    thetadatadx::IvTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_price_ticks_to_arrow_ipc_projected,
+    thetadatadx::PriceTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_index_price_at_time_ticks_to_arrow_ipc_projected,
+    thetadatadx::IndexPriceAtTimeTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_open_interest_ticks_to_arrow_ipc_projected,
+    thetadatadx::OpenInterestTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_market_value_ticks_to_arrow_ipc_projected,
+    thetadatadx::MarketValueTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_calendar_days_to_arrow_ipc_projected,
+    thetadatadx::CalendarDay
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_interest_rate_ticks_to_arrow_ipc_projected,
+    thetadatadx::InterestRateTick
+);
+tick_array_to_arrow_ipc_projected!(
+    thetadatadx_trade_quote_ticks_to_arrow_ipc_projected,
+    thetadatadx::TradeQuoteTick
+);
+
+// ═══════════════════════════════════════════════════════════════════════
 //  OptionContract FFI type (String field requires special handling)
 // ═══════════════════════════════════════════════════════════════════════
 

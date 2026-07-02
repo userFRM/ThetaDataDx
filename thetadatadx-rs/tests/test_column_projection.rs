@@ -65,7 +65,12 @@ fn stock_trade_quote_projects_out_flags_and_contract_id() {
     let batch = ticks.as_slice().to_arrow_projected(&present).unwrap();
     let cols = arrow_columns(&batch);
 
-    for flag in ["condition_flags", "price_flags", "volume_type", "records_back"] {
+    for flag in [
+        "condition_flags",
+        "price_flags",
+        "volume_type",
+        "records_back",
+    ] {
         assert!(
             !cols.contains(&flag.to_string()),
             "stock trade_quote must not carry gRPC-absent flag column {flag}; got {cols:?}"
@@ -79,11 +84,18 @@ fn stock_trade_quote_projects_out_flags_and_contract_id() {
     }
     // The columns the wire DID send are present.
     for kept in ["ms_of_day", "quote_ms_of_day", "bid", "ask", "price"] {
-        assert!(cols.contains(&kept.to_string()), "missing {kept} in {cols:?}");
+        assert!(
+            cols.contains(&kept.to_string()),
+            "missing {kept} in {cols:?}"
+        );
     }
     // Polars frame agrees.
     let df = ticks.as_slice().to_polars_projected(&present).unwrap();
-    assert_eq!(polars_columns(&df), cols, "arrow/polars column sets diverge");
+    assert_eq!(
+        polars_columns(&df),
+        cols,
+        "arrow/polars column sets diverge"
+    );
     assert_eq!(df.height(), ticks.len());
 }
 
@@ -105,7 +117,12 @@ fn option_trade_keeps_contract_id_drops_flags() {
             "option trade must keep contract-id column {cid}; got {cols:?}"
         );
     }
-    for flag in ["condition_flags", "price_flags", "volume_type", "records_back"] {
+    for flag in [
+        "condition_flags",
+        "price_flags",
+        "volume_type",
+        "records_back",
+    ] {
         assert!(
             !cols.contains(&flag.to_string()),
             "no gRPC trade response carries flag column {flag}; got {cols:?}"
@@ -152,10 +169,18 @@ fn stock_eod_projects_out_contract_id() {
         !cols.contains(&"date".to_string()),
         "stock EOD must not carry a phantom `date` column (alias overlap with `created`); got {cols:?}"
     );
-    assert!(cols.contains(&"created_ms_of_day".to_string()), "got {cols:?}");
+    assert!(
+        cols.contains(&"created_ms_of_day".to_string()),
+        "got {cols:?}"
+    );
     // But the EOD data columns the wire sent are all present.
-    for kept in ["open", "high", "low", "close", "volume", "count", "bid", "ask"] {
-        assert!(cols.contains(&kept.to_string()), "missing {kept} in {cols:?}");
+    for kept in [
+        "open", "high", "low", "close", "volume", "count", "bid", "ask",
+    ] {
+        assert!(
+            cols.contains(&kept.to_string()),
+            "missing {kept} in {cols:?}"
+        );
     }
 }
 
@@ -193,12 +218,20 @@ where
 #[test]
 fn stock_snapshot_trade_projects_six_column_subset() {
     let cols = projected_columns::<TradeTick>(&[
-        "timestamp", "symbol", "sequence", "size", "condition", "price",
+        "timestamp",
+        "symbol",
+        "sequence",
+        "size",
+        "condition",
+        "price",
     ]);
 
     // Present: the columns the wire sent (timestamp aliases to ms_of_day).
     for kept in ["ms_of_day", "sequence", "size", "condition", "price"] {
-        assert!(cols.contains(&kept.to_string()), "missing {kept} in {cols:?}");
+        assert!(
+            cols.contains(&kept.to_string()),
+            "missing {kept} in {cols:?}"
+        );
     }
     // Absent: everything the snapshot omits.
     for dropped in [
@@ -286,6 +319,9 @@ fn full_to_arrow_still_emits_every_column() {
         "strike",
         "right",
     ] {
-        assert!(cols.contains(&every.to_string()), "missing {every} in {cols:?}");
+        assert!(
+            cols.contains(&every.to_string()),
+            "missing {every} in {cols:?}"
+        );
     }
 }

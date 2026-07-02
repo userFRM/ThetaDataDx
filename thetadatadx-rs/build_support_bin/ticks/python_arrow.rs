@@ -442,17 +442,43 @@ fn render_python_slice_reader_projected(type_name: &str, def: &TickTypeDef) -> S
     )
     .unwrap();
     out.push_str("    let n = ticks.len();\n");
-    out.push_str("    let mut fields: Vec<Field> = Vec::new();\n");
-    out.push_str("    let mut columns: Vec<ArrayRef> = Vec::new();\n");
-    for c in projected_columns(type_name, def) {
-        writeln!(out, "    if present.contains(\"{}\") {{", c.name).unwrap();
+    let cols = projected_columns(type_name, def);
+    // SINGLE pass: presence resolved once (`has_*`), absent columns keep a
+    // zero-capacity buffer never pushed to, so one `for t in ticks` loop
+    // fills only the present columns rather than re-scanning the slice per
+    // column. Mirrors the Rust `to_arrow_projected` single-pass shape.
+    for c in &cols {
         writeln!(
             out,
-            "        let mut col: Vec<{ty}> = Vec::with_capacity(n);",
+            "    let has_{name} = present.contains(\"{name}\");",
+            name = c.name
+        )
+        .unwrap();
+    }
+    for c in &cols {
+        writeln!(
+            out,
+            "    let mut col_{name}: Vec<{ty}> = Vec::with_capacity(if has_{name} {{ n }} else {{ 0 }});",
+            name = c.name,
             ty = c.buf_ty
         )
         .unwrap();
-        writeln!(out, "        for t in ticks {{ col.push({push}); }}", push = c.push).unwrap();
+    }
+    out.push_str("    for t in ticks {\n");
+    for c in &cols {
+        writeln!(
+            out,
+            "        if has_{name} {{ col_{name}.push({push}); }}",
+            name = c.name,
+            push = c.push
+        )
+        .unwrap();
+    }
+    out.push_str("    }\n");
+    out.push_str("    let mut fields: Vec<Field> = Vec::new();\n");
+    out.push_str("    let mut columns: Vec<ArrayRef> = Vec::new();\n");
+    for c in &cols {
+        writeln!(out, "    if has_{name} {{", name = c.name).unwrap();
         writeln!(
             out,
             "        fields.push(Field::new(\"{name}\", {dt}, {null}));",
@@ -463,8 +489,9 @@ fn render_python_slice_reader_projected(type_name: &str, def: &TickTypeDef) -> S
         .unwrap();
         writeln!(
             out,
-            "        columns.push(Arc::new({ctor}::from(col)) as ArrayRef);",
-            ctor = c.ctor
+            "        columns.push(Arc::new({ctor}::from(col_{name})) as ArrayRef);",
+            ctor = c.ctor,
+            name = c.name
         )
         .unwrap();
         out.push_str("    }\n");

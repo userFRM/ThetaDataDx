@@ -252,33 +252,27 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
 
 /// Emit `impl WireColumns for <Tick>` next to the parser. It resolves the
 /// same schema columns through the same alias-aware `find_header` the
-/// parser uses, so the presence set and the decoded rows agree by
-/// construction: a column present here is exactly a column the parser
-/// filled from the wire (rather than left at its seed).
+/// parser uses.
+///
+/// The contract this produces is the response's *physical wire-column set*,
+/// deduplicated by first-claim — NOT the set of struct fields the parser
+/// filled. The two differ: one physical header can feed more than one
+/// struct field (an alias resolves several schema names to the same wire
+/// spelling), and the parser fills every such field from that one column.
+/// Presence, by contrast, counts each physical header once — claimed by the
+/// first schema column (in schema order) that resolves to it — so a field
+/// the parser did fill can still be absent from presence. The EOD `date`
+/// field is exactly that: the wire sends `created`, the parser fills both
+/// `created`-backed fields, but only the exact match (`created` ->
+/// `created_ms_of_day`) claims the header; the aliased `date` column stays
+/// out of the projected frame even though its struct field carries a value.
 ///
 /// The set names the public schema *field* (e.g. `condition_flags`,
 /// `expiration`) — the name the Arrow / Polars builders key on — not the
 /// wire spelling the alias table resolves.
-///
-/// One physical wire column feeds exactly one schema column: a resolved
-/// header index is claimed by the first schema column (in schema order) to
-/// resolve to it, so an alias never lets one header satisfy two columns.
-/// This matters where the alias table maps several schema names onto the
-/// same wire spelling — e.g. the EOD wire sends `created` (not `date`), and
-/// the `("date","created")` alias would otherwise mark a `date` column
-/// present off the same `created` header. Schema order puts the exact match
-/// (`created` -> `created_ms_of_day`) before the aliased one (`date`), so
-/// the exact match claims the header and the phantom `date` column stays
-/// out of the projected frame.
 fn generate_present_columns(out: &mut String, type_name: &str, def: &TickTypeDef) {
-    writeln!(
-        out,
-        "impl crate::columns::WireColumns for {type_name} {{"
-    )
-    .unwrap();
-    out.push_str(
-        "    fn present_columns(headers: &[&str]) -> crate::columns::ColumnPresence {\n",
-    );
+    writeln!(out, "impl crate::columns::WireColumns for {type_name} {{").unwrap();
+    out.push_str("    fn present_columns(headers: &[&str]) -> crate::columns::ColumnPresence {\n");
     out.push_str("        let mut present: Vec<&'static str> = Vec::new();\n");
     out.push_str("        let mut claimed: Vec<usize> = Vec::new();\n");
     for col in &def.columns {

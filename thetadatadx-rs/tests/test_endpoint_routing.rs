@@ -313,7 +313,10 @@ async fn stock_trade_quote_await_projects_columns_end_to_end() {
         );
     }
     for kept in ["ms_of_day", "quote_ms_of_day", "bid", "ask", "price"] {
-        assert!(cols.contains(&kept.to_string()), "missing {kept} in {cols:?}");
+        assert!(
+            cols.contains(&kept.to_string()),
+            "missing {kept} in {cols:?}"
+        );
     }
 
     // The full-schema slice builder still emits every column — the

@@ -1029,14 +1029,22 @@ fn render_python_tick_list_struct(schema: &Schema, type_name: &str, def: &TickTy
     out.push_str("    /// same Rust buffers in place. Carries only the columns the\n");
     out.push_str("    /// response's wire sent.\n");
     out.push_str("    fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {\n");
-    writeln!(out, "        {slice_arrow}_projected(py, &self.inner, &self.columns)").unwrap();
+    writeln!(
+        out,
+        "        {slice_arrow}_projected(py, &self.inner, &self.columns)"
+    )
+    .unwrap();
     out.push_str("    }\n\n");
 
     // to_pandas — delegates to to_arrow.
     out.push_str("    /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.\n");
     out.push_str("    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.\n");
     out.push_str("    fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {\n");
-    writeln!(out, "        let table = {slice_arrow}_projected(py, &self.inner, &self.columns)?;").unwrap();
+    writeln!(
+        out,
+        "        let table = {slice_arrow}_projected(py, &self.inner, &self.columns)?;"
+    )
+    .unwrap();
     out.push_str("        pyarrow_table_to_pandas(py, table)\n");
     out.push_str("    }\n\n");
 
@@ -1044,7 +1052,11 @@ fn render_python_tick_list_struct(schema: &Schema, type_name: &str, def: &TickTy
     out.push_str("    /// Return a `polars.DataFrame` via `polars.from_arrow`.\n");
     out.push_str("    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.\n");
     out.push_str("    fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {\n");
-    writeln!(out, "        let table = {slice_arrow}_projected(py, &self.inner, &self.columns)?;").unwrap();
+    writeln!(
+        out,
+        "        let table = {slice_arrow}_projected(py, &self.inner, &self.columns)?;"
+    )
+    .unwrap();
     out.push_str("        pyarrow_table_to_polars(py, table)\n");
     out.push_str("    }\n");
 
@@ -1113,7 +1125,11 @@ fn render_python_tick_class_list_fn(
     )
     .unwrap();
     out.push_str("    let columns = ticks.columns().clone();\n");
-    writeln!(out, "    Py::new(py, {list_class}::new(ticks.into_vec(), columns))").unwrap();
+    writeln!(
+        out,
+        "    Py::new(py, {list_class}::new(ticks.into_vec(), columns))"
+    )
+    .unwrap();
     out.push_str("}\n");
     out
 }

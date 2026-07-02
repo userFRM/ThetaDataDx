@@ -199,7 +199,13 @@ fn render_arrow_impl(type_name: &str, def: &TickTypeDef) -> String {
     }
     out.push_str("        for t in self {\n");
     for c in &cols {
-        writeln!(out, "            col_{name}.push({push});", name = c.name, push = c.push).unwrap();
+        writeln!(
+            out,
+            "            col_{name}.push({push});",
+            name = c.name,
+            push = c.push
+        )
+        .unwrap();
     }
     out.push_str("        }\n");
     out.push_str("        let schema = Arc::new(ArrowSchema::new(vec![\n");
@@ -228,9 +234,12 @@ fn render_arrow_impl(type_name: &str, def: &TickTypeDef) -> String {
     out.push_str("        RecordBatch::try_new(schema, columns)\n");
     out.push_str("    }\n\n");
 
-    // Projected: each column gated on presence; absent columns never
-    // buffered. Fields and arrays stay index-aligned because both push
-    // inside the same `if`.
+    // Projected: SINGLE pass over the slice. Which columns are present is
+    // resolved once up front (`has_*` flags); absent columns keep a
+    // zero-capacity buffer that is never pushed to, so the one `for t in
+    // self` loop fills exactly the present columns — no re-scan per column.
+    // Fields / arrays assemble in schema order, each gated on its flag, so
+    // schema and columns stay index-aligned.
     writeln!(
         out,
         "    /// Builds an Arrow `RecordBatch` from a slice of `{type_name}`, one column per public field present on the wire."
@@ -240,17 +249,39 @@ fn render_arrow_impl(type_name: &str, def: &TickTypeDef) -> String {
         "    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {\n",
     );
     out.push_str("        let n = self.len();\n");
-    out.push_str("        let mut fields: Vec<Field> = Vec::new();\n");
-    out.push_str("        let mut columns: Vec<ArrayRef> = Vec::new();\n");
     for c in &cols {
-        writeln!(out, "        if present.contains(\"{name}\") {{", name = c.name).unwrap();
         writeln!(
             out,
-            "            let mut col: Vec<{ty}> = Vec::with_capacity(n);",
+            "        let has_{name} = present.contains(\"{name}\");",
+            name = c.name
+        )
+        .unwrap();
+    }
+    // Present columns reserve `n`; absent columns allocate nothing.
+    for c in &cols {
+        writeln!(
+            out,
+            "        let mut col_{name}: Vec<{ty}> = Vec::with_capacity(if has_{name} {{ n }} else {{ 0 }});",
+            name = c.name,
             ty = c.buf_ty
         )
         .unwrap();
-        writeln!(out, "            for t in self {{ col.push({push}); }}", push = c.push).unwrap();
+    }
+    out.push_str("        for t in self {\n");
+    for c in &cols {
+        writeln!(
+            out,
+            "            if has_{name} {{ col_{name}.push({push}); }}",
+            name = c.name,
+            push = c.push
+        )
+        .unwrap();
+    }
+    out.push_str("        }\n");
+    out.push_str("        let mut fields: Vec<Field> = Vec::new();\n");
+    out.push_str("        let mut columns: Vec<ArrayRef> = Vec::new();\n");
+    for c in &cols {
+        writeln!(out, "        if has_{name} {{", name = c.name).unwrap();
         writeln!(
             out,
             "            fields.push(Field::new(\"{name}\", {dt}, {null}));",
@@ -261,8 +292,9 @@ fn render_arrow_impl(type_name: &str, def: &TickTypeDef) -> String {
         .unwrap();
         writeln!(
             out,
-            "            columns.push(Arc::new({ctor}::from(col)) as ArrayRef);",
-            ctor = c.ctor
+            "            columns.push(Arc::new({ctor}::from(col_{name})) as ArrayRef);",
+            ctor = c.ctor,
+            name = c.name
         )
         .unwrap();
         out.push_str("        }\n");
@@ -311,7 +343,13 @@ fn render_polars_impl(type_name: &str, def: &TickTypeDef) -> String {
     }
     out.push_str("        for t in self {\n");
     for c in &cols {
-        writeln!(out, "            col_{name}.push({push});", name = c.name, push = c.push).unwrap();
+        writeln!(
+            out,
+            "            col_{name}.push({push});",
+            name = c.name,
+            push = c.push
+        )
+        .unwrap();
     }
     out.push_str("        }\n");
     out.push_str("        DataFrame::new(n, vec![\n");
@@ -336,19 +374,43 @@ fn render_polars_impl(type_name: &str, def: &TickTypeDef) -> String {
         "    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {\n",
     );
     out.push_str("        let n = self.len();\n");
-    out.push_str("        let mut series: Vec<polars::prelude::Column> = Vec::new();\n");
+    // SINGLE pass: presence resolved once (`has_*`), absent columns keep a
+    // zero-capacity buffer never pushed to, so one `for t in self` loop
+    // fills only the present columns rather than re-scanning per column.
     for c in &cols {
-        writeln!(out, "        if present.contains(\"{name}\") {{", name = c.name).unwrap();
         writeln!(
             out,
-            "            let mut col: Vec<{ty}> = Vec::with_capacity(n);",
+            "        let has_{name} = present.contains(\"{name}\");",
+            name = c.name
+        )
+        .unwrap();
+    }
+    for c in &cols {
+        writeln!(
+            out,
+            "        let mut col_{name}: Vec<{ty}> = Vec::with_capacity(if has_{name} {{ n }} else {{ 0 }});",
+            name = c.name,
             ty = c.buf_ty
         )
         .unwrap();
-        writeln!(out, "            for t in self {{ col.push({push}); }}", push = c.push).unwrap();
+    }
+    out.push_str("        for t in self {\n");
+    for c in &cols {
         writeln!(
             out,
-            "            series.push(Series::new(PlSmallStr::from_static(\"{name}\"), col).into());",
+            "            if has_{name} {{ col_{name}.push({push}); }}",
+            name = c.name,
+            push = c.push
+        )
+        .unwrap();
+    }
+    out.push_str("        }\n");
+    out.push_str("        let mut series: Vec<polars::prelude::Column> = Vec::new();\n");
+    for c in &cols {
+        writeln!(out, "        if has_{name} {{", name = c.name).unwrap();
+        writeln!(
+            out,
+            "            series.push(Series::new(PlSmallStr::from_static(\"{name}\"), col_{name}).into());",
             name = c.name
         )
         .unwrap();

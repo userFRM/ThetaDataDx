@@ -4290,3 +4290,148 @@ name = "interest_rate_ticks_to_arrow_ipc"
 
 [[ffi_symbol]]
 name = "trade_quote_ticks_to_arrow_ipc"
+
+# Column presence + projected Arrow IPC terminals (decode-fed history export).
+# The `thetadatadx_<collection>_present_columns` producer runs the response's
+# `WireColumns::present_columns` (the buffered `.await` decode's own projection)
+# and the `thetadatadx_<collection>_to_arrow_ipc_projected` serialiser emits only
+# those columns — the C++ equivalent of Python's `<TickName>List.to_arrow()` on a
+# decode result. Both families are macro-emitted in `thetadatadx-ffi/src/types.rs`
+# alongside the all-present `*_to_arrow_ipc` family, share the
+# `ThetaDataDxColumnPresence` carrier (freed by `thetadatadx_column_presence_free`),
+# and are bound by name in the generated C++ `tick_arrow_ipc.hpp.inc`. Name-only
+# rows pin each so a rename/removal trips before it breaks arrow-cpp consumers.
+[[ffi_symbol]]
+name = "column_presence_free"
+
+[[ffi_symbol]]
+name = "eod_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "ohlc_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "trade_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "quote_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "greeks_all_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "greeks_eod_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "greeks_first_order_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "greeks_second_order_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "greeks_third_order_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "trade_greeks_all_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "trade_greeks_first_order_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "trade_greeks_second_order_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "trade_greeks_third_order_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "trade_greeks_implied_volatility_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "iv_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "price_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "index_price_at_time_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "open_interest_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "market_value_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "calendar_days_present_columns"
+
+[[ffi_symbol]]
+name = "interest_rate_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "trade_quote_ticks_present_columns"
+
+[[ffi_symbol]]
+name = "eod_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "ohlc_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "trade_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "quote_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "greeks_all_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "greeks_eod_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "greeks_first_order_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "greeks_second_order_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "greeks_third_order_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "trade_greeks_all_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "trade_greeks_first_order_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "trade_greeks_second_order_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "trade_greeks_third_order_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "trade_greeks_implied_volatility_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "iv_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "price_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "index_price_at_time_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "open_interest_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "market_value_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "calendar_days_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "interest_rate_ticks_to_arrow_ipc_projected"
+
+[[ffi_symbol]]
+name = "trade_quote_ticks_to_arrow_ipc_projected"
