@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [13.0.0-rc.13] - 2026-07-02
+
+### Fixed
+
+- **Windows server archive attaches to the release.** The Windows `thetadatadx-server` archive was built, but the upload step received a path the artifact action could not resolve on Windows, so the GitHub Release carried no Windows binary. The archive is now referenced by its native workspace path and attaches correctly.
+
 ## [13.0.0-rc.12] - 2026-07-01
 
 ### Fixed
