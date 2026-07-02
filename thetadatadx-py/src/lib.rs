@@ -1068,17 +1068,24 @@ impl Client {
         // BEFORE stopping so we do not wait on a barrier that will never arm on
         // a historical-only client (whose `prev_drained` slot stays empty).
         let was_streaming = client.stream().is_streaming();
+        // A `close()` called from inside a per-event callback runs ON the
+        // dispatcher thread; the drain flag it would wait on flips only after the
+        // callback returns, so `await_drain` would burn its full timeout and warn
+        // about the caller's own frame. Snapshot the self-call BEFORE `close()`
+        // retires the dispatcher and skip the wait on that path, mirroring the
+        // core teardown self-join guard.
+        let self_dispatch = client.stream().current_thread_is_dispatcher();
         let drained = py.detach(|| {
             client.close();
-            if was_streaming {
+            if was_streaming && !self_dispatch {
                 client
                     .stream()
                     .await_drain(std::time::Duration::from_millis(
                         streaming_session::EXIT_DRAIN_TIMEOUT_MS,
                     ))
             } else {
-                // Nothing was streaming; the drain barrier is vacuously
-                // satisfied.
+                // Nothing was streaming, or this close is the dispatcher's own
+                // reentrant call; the drain barrier is vacuously satisfied.
                 true
             }
         });

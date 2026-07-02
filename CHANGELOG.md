@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Windows server archive attaches to the release.** The Windows `thetadatadx-server` archive was built, but the upload step received a path the artifact action could not resolve on Windows, so the GitHub Release carried no Windows binary. The archive is now referenced by its native workspace path and attaches correctly.
+- **Python `close()` can no longer deadlock against an in-flight streaming start.** `start_streaming` now releases its callback lock before the blocking connect, so a concurrent `close()` / `__exit__` / `__aexit__` on the client cannot wedge the interpreter.
+- **Python `session.subscribe(...)` after `close()` raises the uniform closed error.** The context-managed session's attribute proxy now surfaces the "client is closed" error on a closed unified client instead of masking it as an `AttributeError`.
+- **Python `close()` called from inside a streaming callback returns promptly.** Closing from the dispatcher thread now skips the drain wait it could never observe, instead of burning the full drain timeout and emitting a spurious warning.
 
 ## [13.0.0-rc.12] - 2026-07-01
 

@@ -44,26 +44,36 @@ impl StreamView {
     /// `PyErr::write_unraisable` (visible in `sys.stderr` and
     /// the unraisable hook); each one bumps `panic_count()`.
     pub(crate) fn start_streaming(&self, py: Python<'_>, callback: Py<PyAny>) -> PyResult<()> {
-        // Hold the user callable in a `Mutex<Option<Py<PyAny>>>` so
-        // `stop_streaming` can drop it without leaking a Python
-        // reference, and so a subsequent `start_streaming` /
-        // `reconnect` cycle replaces the previous registration cleanly.
-        let mut cb_guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
-        // Reject double-registration with a clear PyRuntimeError. The
-        // underlying `Client::start_streaming` would also error,
-        // but matching the PyO3 binding's own state first gives a
-        // language-idiomatic message.
-        if cb_guard.is_some() {
-            return Err(PyRuntimeError::new_err(
-                "streaming already started -- call stop_streaming() before start_streaming() again",
-            ));
-        }
         // Bind the callable behind a cheap `Arc` so the FPSS callback
         // closure (`Fn(&StreamEvent) + Send + 'static`) can clone the
         // handle into each per-event invocation. `Py<PyAny>` itself is
         // `Send + Sync` once the GIL is released, so the Arc is purely
         // a reference-count lifetime aid.
         let callback_arc: Arc<Py<PyAny>> = Arc::new(callback);
+        {
+            // Reserve the registration slot before releasing the GIL for the
+            // blocking handshake, then DROP the guard. `close()` parks on this
+            // same `Mutex<Option<Py<PyAny>>>` WITH the GIL held; a guard held
+            // across the `py.detach` connect below (whose dispatcher re-acquires
+            // the GIL) would let a concurrent `close()` take the GIL and block on
+            // the mutex while this thread blocks on the GIL -- a whole-interpreter
+            // deadlock. Take the lock in this inner scope, reject a
+            // double-registration, store the handle eagerly, and release before
+            // connecting. The stop-generation guard plus this double-start
+            // rejection make the wide critical section unnecessary; a handshake
+            // failure clears the slot again below.
+            let mut cb_guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            // Reject double-registration with a clear PyRuntimeError. The
+            // underlying `Client::start_streaming` would also error,
+            // but matching the PyO3 binding's own state first gives a
+            // language-idiomatic message.
+            if cb_guard.is_some() {
+                return Err(PyRuntimeError::new_err(
+                    "streaming already started -- call stop_streaming() before start_streaming() again",
+                ));
+            }
+            *cb_guard = Some(callback_arc.clone_ref(py));
+        }
         let dispatch_cb = Arc::clone(&callback_arc);
         // Capture a WEAK handle to the Rust client so the dispatcher closure
         // can call `record_panic()` when the Python callback raises an
@@ -153,14 +163,14 @@ impl StreamView {
                 None,
             )
         })
-        .map_err(to_py_err)?;
-
-        // The dispatcher closure already captured a clone of
-        // `callback_arc` (via `dispatch_cb`), so the Arc ref-count is
-        // guaranteed >=2 by the time we reach this line — `try_unwrap`
-        // would always fail. Lift a fresh owned handle under the GIL
-        // for storage on `cb_guard`.
-        *cb_guard = Some(Python::attach(|py| callback_arc.clone_ref(py)));
+        .map_err(|err| {
+            // The handshake failed -- release the slot reserved above so a later
+            // `start_streaming` retry sees a clean registration instead of a
+            // stuck "streaming already started". Mirrors the TypeScript binding's
+            // handshake-failure clear.
+            *self.callback.lock().unwrap_or_else(|e| e.into_inner()) = None;
+            to_py_err(err)
+        })?;
         Ok(())
     }
 

@@ -210,7 +210,14 @@ impl StreamingSession {
         // on `Client` (`session_uuid`, `subscription_info`). The standalone
         // `StreamingClient` arm keeps its flat surface and has no `stream`
         // accessor, so the fallback path handles it unchanged.
-        if let Ok(stream) = bound.getattr("stream") {
+        // Only the unified client exposes a `stream` `StreamView`. On that arm a
+        // failed `stream` lookup is the "client is closed" RuntimeError -- surface
+        // it with `?` instead of masking it as an `AttributeError` from the
+        // fallthrough, so `session.subscribe(...)` after `close()` raises the
+        // uniform closed error. The standalone `StreamingClient` has no `stream`
+        // accessor, so its flat surface is resolved directly below.
+        if let StreamableHandle::Unified(_) = self.client {
+            let stream = bound.getattr("stream")?;
             if let Ok(attr) = stream.getattr(name) {
                 return Ok(attr.unbind());
             }

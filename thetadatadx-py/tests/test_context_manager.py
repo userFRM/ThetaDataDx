@@ -317,6 +317,84 @@ def test_close_releases_and_makes_client_unusable() -> None:
     )
 
 
+def _py_src_root():
+    from pathlib import Path
+
+    here = Path(__file__).resolve().parent
+    for candidate in [here, *here.parents]:
+        target = candidate / "src"
+        if target.is_dir() and (target / "lib.rs").is_file():
+            return target
+    raise AssertionError("could not locate thetadatadx-py/src")
+
+
+def test_start_streaming_releases_callback_lock_before_connect() -> None:
+    """Offline source pin: `start_streaming` must NOT hold the shared callback
+    `Mutex` across the `py.detach` FPSS connect. `close()` parks on that same
+    mutex WITH the GIL held, so a guard held across the detached (GIL-released)
+    connect deadlocks the whole interpreter -- `close()` blocks on the mutex,
+    the connecting thread blocks re-acquiring the GIL. The fix reserves the slot
+    in an inner scope, stores the handle, drops the guard, then connects, and
+    clears the slot on a handshake failure. Pinned against the generated source
+    so a revert to the wide critical section fails without live credentials.
+    """
+    gen = (_py_src_root() / "_generated" / "streaming_methods.rs").read_text()
+    start = gen.index("fn start_streaming(")
+    end = gen.index("fn ", start + 1)
+    body = gen[start:end]
+
+    store_at = body.index("*cb_guard = Some(callback_arc.clone_ref(py));")
+    detach_at = body.index("py.detach(")
+    assert store_at < detach_at, (
+        "the callback slot must be reserved (and its guard dropped) BEFORE "
+        "py.detach releases the GIL for the blocking connect"
+    )
+    # The guard must not survive into the detached region: no store back through
+    # cb_guard after the connect (the old post-detach store is gone).
+    assert "*cb_guard =" not in body[detach_at:], (
+        "no callback-lock store may run after py.detach -- the guard is dropped "
+        "before connecting"
+    )
+    # A handshake failure clears the reserved slot so a retry sees clean state.
+    assert "= None;" in body[detach_at:], (
+        "a handshake failure must clear the reserved callback slot"
+    )
+
+
+def test_closed_session_getattr_propagates_closed_error() -> None:
+    """Offline source pin: `StreamingSession.__getattr__` must propagate the
+    unified client's `stream` closed error with `?` rather than swallowing it
+    with `if let Ok(stream)`. Otherwise `session.subscribe(...)` after `close()`
+    falls through and raises `AttributeError` instead of the uniform
+    "client is closed" `RuntimeError`.
+    """
+    src = (_py_src_root() / "streaming_session.rs").read_text()
+    start = src.index("fn __getattr__(")
+    end = src.index("\n    }", start)
+    body = src[start:end]
+    assert 'bound.getattr("stream")?' in body, (
+        "the Unified arm must propagate the stream getter error with `?` so a "
+        "closed client raises the uniform closed error"
+    )
+    assert 'if let Ok(stream) = bound.getattr("stream")' not in body, (
+        "the swallowing `if let Ok(stream) = bound.getattr(\"stream\")` masks "
+        "the closed error and must be gone"
+    )
+
+
+def test_closed_unified_session_subscribe_raises_closed_error(client) -> None:
+    """After `close()`, calling a proxied method through the session raises the
+    uniform "client is closed" error, not `AttributeError`. Live-gated because
+    the constructor needs a real handshake.
+    """
+    from thetadatadx import Contract
+
+    session = client.streaming(_noop_callback)
+    client.close()
+    with pytest.raises(RuntimeError, match="closed"):
+        session.subscribe(Contract.stock("AAPL").quote())
+
+
 def test_close_makes_client_unusable(client) -> None:
     """After `close()` every surface accessor raises a clear closed error, so a
     subsequent historical or streaming call cannot reach the network. Live-gated
