@@ -262,7 +262,6 @@ toml = "1.1.2"
 # The `cfg(unix)` target-conditional dev-dependencies table MUST live
 # AFTER the cross-platform `[dev-dependencies]` block.
 [target.'cfg(unix)'.dev-dependencies]
-pprof = { version = "0.15", features = ["flamegraph"] }
 # `getrusage(RUSAGE_SELF)` snapshots in `grpc_transport_comparison` —
 # CPU-seconds per measured phase without spawning `perf` or requiring
 # elevated kernel settings.
