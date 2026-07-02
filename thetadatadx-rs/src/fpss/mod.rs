@@ -1775,7 +1775,16 @@ impl StreamingClient {
     /// shutdown (`Ok(None)`); the fault guard sets `io_faulted` on unwind so
     /// the failure surfaces here instead.
     fn shutdown_outcome(&self) -> Result<Option<StreamEvent>, StreamError> {
-        if self.io_faulted.load(Ordering::Acquire) {
+        // We only reach here after the drain read the ring's shutdown sequence
+        // (a RELAXED load in the disruptor poll). This Acquire fence pairs with
+        // the Release fence the fault guard runs after setting `io_faulted`
+        // (see `io_loop::IoLoopFaultGuard`): fence-to-fence through the relaxed
+        // shutdown store/load establishes that a reader which saw ring shutdown
+        // also sees `io_faulted`. A plain Acquire load would synchronise only
+        // with a Release store to `io_faulted` itself, leaving a weak-memory
+        // window where shutdown is visible but `io_faulted` still reads false.
+        std::sync::atomic::fence(Ordering::Acquire);
+        if self.io_faulted.load(Ordering::Relaxed) {
             Err(StreamError::DispatcherFailed(
                 "fpss io thread terminated abnormally".to_string(),
             ))
