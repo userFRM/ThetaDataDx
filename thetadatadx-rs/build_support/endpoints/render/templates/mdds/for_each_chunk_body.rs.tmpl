@@ -23,6 +23,7 @@
                                 if let Ok(mut h) = handler_mutex.lock() {
                                     (*h)(&ticks);
                                 }
+                                delivered.store(true, std::sync::atomic::Ordering::Relaxed);
                             }
                             Err(e) => decode_error = Some(Error::from(e)),
                         }
