@@ -237,6 +237,23 @@ impl HistoricalClient {
         &self.config
     }
 
+    /// Deterministically tear the historical client down.
+    ///
+    /// The historical client owns only the `Arc`-backed gRPC channel pool —
+    /// a set of idle HTTP/2 connections with no worker thread and no streaming
+    /// state machine — so there is nothing to signal or join here: the pool's
+    /// connections are released when the last client handle is dropped (RAII).
+    /// This method exists so the historical surface matches the unified
+    /// [`crate::Client::close`] across every binding (`close()` /
+    /// context-manager exit / destructor); the deterministic point of release
+    /// is the binding dropping its owning handle on `close`. Idempotent.
+    pub fn close(&self) {
+        // No streaming dispatcher and no owned worker thread: the channel pool
+        // releases on handle drop. Kept as an explicit no-op so the base/
+        // historical lifecycle surface is uniform across bindings rather than
+        // silently absent on the historical-only path.
+    }
+
     /// Return the session UUID. Reads through the shared session token
     /// so the value reflects any mid-session refresh.
     pub async fn session_uuid(&self) -> String {

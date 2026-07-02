@@ -882,6 +882,16 @@ public:
      *          credentials file or a connection / authentication failure. */
     static HistoricalClient from_file(const std::string& path, const Config& config = Config::production());
 
+    /** Deterministically close the historical client.
+     *
+     *  Releases the gRPC channel pool by dropping the underlying handle. The
+     *  historical-only surface never opens streaming, so there is no consumer
+     *  to drain; this is the explicit form of the RAII teardown the destructor
+     *  performs, provided so the historical surface matches the unified
+     *  `Client` lifecycle. Idempotent: a second call is a no-op and the
+     *  destructor after `close` frees nothing. */
+    void close() { handle_.reset(); }
+
     #include "historical.hpp.inc"
 
 private:
@@ -2216,6 +2226,56 @@ public:
     /// Raw handle for advanced consumers that want to call the C ABI
     /// directly. Ownership remains with this object.
     const ThetaDataDxClient* get() const noexcept { return handle_.get(); }
+
+    /** Deterministically close the client.
+     *
+     *  Stops streaming if it is live, waits for the streaming consumer thread
+     *  to finish firing the registered callback, then releases the handle (the
+     *  gRPC channel pool and any streaming session) and the callback state.
+     *  This is the explicit form of the RAII teardown the destructor performs;
+     *  calling it lets a caller release the client before it leaves scope.
+     *
+     *  Idempotent: a second call is a no-op, and the destructor after `close`
+     *  frees nothing (the handle is already released). Safe on a client that
+     *  only ran historical queries — the drain barrier is vacuous there.
+     *
+     *  On drain timeout the retired handle and callback state are handed to a
+     *  reclaimer that releases them only once the consumer is confirmed
+     *  quiesced (a bounded leak rather than a use-after-free), the same
+     *  discipline as move-assignment and `~StreamingClient`. */
+    void close() {
+        if (!handle_) {
+            return;
+        }
+        thetadatadx_client_stop_streaming(handle_.get());
+        int drained = thetadatadx_client_await_drain(handle_.get(), 5000);
+        if (drained == 0) {
+            // Consumer still firing: defer the release to the reclaimer so the
+            // handle backing the drain barrier — and the callback node the
+            // consumer invokes through — stay alive until quiescence. Handle
+            // freed first so its internal drain barrier still sees a live ctx,
+            // then the callback state, preserving the member-ordering invariant.
+            const ThetaDataDxClient* raw = handle_.get();
+            detail::reclaim_after_drain(
+                [raw]() {
+                    return thetadatadx_client_await_drain(
+                               raw,
+                               static_cast<uint64_t>(
+                                   detail::kReclaimPollStep.count())) == 1;
+                },
+                [retired_handle = std::move(handle_),
+                 retired_cb = std::move(callback_)]() mutable {
+                    retired_handle.reset();
+                    retired_cb.reset();
+                });
+        } else {
+            // Quiesced within the barrier: release inline, handle first so its
+            // free-time drain still observes a live callback node, then the
+            // callback state.
+            handle_.reset();
+            callback_.reset();
+        }
+    }
 
 private:
     explicit Client(ThetaDataDxClient* h)

@@ -389,6 +389,48 @@ if (
   };
 }
 
+// TC39 explicit resource management on the base clients. `close()` is the
+// napi-generated deterministic teardown; these computed-symbol members cannot
+// be emitted by napi-rs (it names only identifier methods), so they are patched
+// on here — the same wrapper-side pattern as `streaming()` and the
+// `StreamingSession` disposers. `[Symbol.dispose]` backs `using client = ...`
+// (sync scope exit); `[Symbol.asyncDispose]` backs `await using client = ...`
+// and additionally awaits the streaming drain barrier so a callback closure is
+// safe to release, warning (never throwing) on timeout to match the session.
+for (const Klass of [native.Client, native.HistoricalClient]) {
+  if (!Klass) continue;
+  if (typeof Klass.prototype[Symbol.dispose] !== 'function') {
+    Klass.prototype[Symbol.dispose] = function dispose() {
+      this.close();
+    };
+  }
+  if (typeof Klass.prototype[Symbol.asyncDispose] !== 'function') {
+    Klass.prototype[Symbol.asyncDispose] = async function asyncDispose() {
+      // `stream` exists only on the unified `Client`; the historical-only
+      // client has no streaming surface, so `close()` alone is the teardown.
+      const stream = this.stream;
+      if (stream) {
+        // Await the drain barrier first so the consumer thread has finished
+        // firing the registered callback before the JS closure is released;
+        // warn (never throw) on timeout to match the context-managed session.
+        stream.stopStreaming();
+        const drained = await stream.awaitDrain(EXIT_DRAIN_TIMEOUT_MS);
+        if (!drained) {
+          console.warn(
+            `Client close drain timed out after ${EXIT_DRAIN_TIMEOUT_MS}ms; ` +
+              'the streaming consumer callback may still be firing.',
+          );
+        }
+      }
+      // Always run the deterministic close: it releases the registered
+      // callback back to V8 and is the single teardown the sync disposer also
+      // routes through. Skipping it would leak the callback reference on the
+      // `await using` path. Idempotent after the stop above.
+      this.close();
+    };
+  }
+}
+
 
 // Re-cast typed errors on every native entrypoint — instance method,
 // static factory, or free function. The Rust binding tags every

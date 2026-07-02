@@ -60,6 +60,7 @@ pub use fpss::{
     bounds as streaming_bounds, HostSelectionPolicy, StreamingConfig, StreamingFlushMode,
 };
 pub use mdds::HistoricalConfig;
+pub(crate) use mdds::DEFAULT_REQUEST_TIMEOUT_SECS;
 pub use metrics::MetricsConfig;
 pub use reconnect::{
     bounds as reconnect_bounds, ReconnectAttemptClass, ReconnectAttemptLimits, ReconnectConfig,
@@ -938,6 +939,12 @@ impl DirectConfig {
         self.historical.window_size_kb = self.historical.window_size_kb.clamp(64, 1_024);
         self.historical.connection_window_size_kb =
             self.historical.connection_window_size_kb.clamp(64, 1_024);
+        // NOTE: a `0` historical `request_timeout_secs` is NOT floored here.
+        // The floor lives at the single consumption point
+        // ([`crate::mdds::macros::effective_deadline`]) so the gRPC hang guard
+        // holds even for callers who never run `validate` — the connect paths
+        // and the SDK bindings pass unvalidated config snapshots. Flooring only
+        // here would leave those paths exposed.
         if !flatfiles_bounds::MAX_ATTEMPTS.contains(&self.flatfiles.max_attempts) {
             return Err(Error::config_out_of_range(
                 "flatfiles.max_attempts",

@@ -15,7 +15,7 @@
 
 /* eslint-disable */
 
-import type { Client, StreamView, StreamEvent, ContractRef } from './index';
+import type { Client, HistoricalClient, StreamView, StreamEvent, ContractRef } from './index';
 
 export * from './index';
 
@@ -122,6 +122,38 @@ declare module './index' {
      * normally so any error from the body is not masked.
      */
     streaming(callback: StreamEventCallback): Promise<StreamingSession>;
+
+    /**
+     * TC39 explicit resource management: `using client = connect(...)` calls
+     * this on synchronous scope exit. Runs {@link Client.close} — stops
+     * streaming if live and releases the callback. For a streaming-drain
+     * barrier before release, use `await using` ({@link Client[Symbol.asyncDispose]})
+     * or the context-managed session.
+     */
+    [Symbol.dispose](): void;
+
+    /**
+     * TC39 explicit resource management: `await using client = ...` calls this
+     * on scope exit. Stops streaming and awaits the drain barrier so the
+     * consumer thread has finished firing the registered callback before the
+     * JS closure is released. Drain timeouts emit `console.warn` rather than
+     * throwing, so an error from the `using` body is not masked.
+     */
+    [Symbol.asyncDispose](): Promise<void>;
+  }
+
+  interface HistoricalClient {
+    /**
+     * TC39 explicit resource management: `using client = await
+     * HistoricalClient.connect(...)` calls this on scope exit. Runs
+     * {@link HistoricalClient.close}. The historical-only surface has no
+     * streaming to drain, so the sync and async disposers are equivalent.
+     */
+    [Symbol.dispose](): void;
+
+    /** Async counterpart of {@link HistoricalClient[Symbol.dispose]}; no
+     * streaming drain on the historical-only surface. */
+    [Symbol.asyncDispose](): Promise<void>;
   }
 
   interface StreamView {
