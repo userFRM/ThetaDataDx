@@ -67,7 +67,7 @@ test("reconnect callback registration switches policy", () => {
 
 test("streaming transport defaults and round-trip", () => {
   const cfg = Config.production();
-  assert.equal(cfg.streamingTimeoutMs, 3_000n);
+  assert.equal(cfg.streamingTimeoutMs, 10_000n);
   assert.equal(cfg.streamingConnectTimeoutMs, 2_000n);
   assert.equal(cfg.streamingPingIntervalMs, 250n);
   assert.equal(cfg.streamingRingSize, 131_072n);
@@ -75,9 +75,9 @@ test("streaming transport defaults and round-trip", () => {
   assert.equal(cfg.streamingKeepaliveIdleSecs, 5n);
   assert.equal(cfg.streamingKeepaliveIntervalSecs, 2n);
   assert.equal(cfg.streamingKeepaliveRetries, 2);
-  cfg.setStreamingTimeoutMs(10_000n);
+  cfg.setStreamingTimeoutMs(15_000n);
   cfg.setStreamingKeepaliveIdleSecs(10n);
-  assert.equal(cfg.streamingTimeoutMs, 10_000n);
+  assert.equal(cfg.streamingTimeoutMs, 15_000n);
   assert.equal(cfg.streamingKeepaliveIdleSecs, 10n);
 });
 
