@@ -264,7 +264,7 @@ class Config:
     metrics_port: Optional[int]
     """Prometheus exporter port. ``None`` (the default) leaves the exporter disabled even when the metrics feature is compiled in; an ``int`` binds an HTTP listener on ``0.0.0.0:<port>``. The setter raises ``ValueError`` for values outside ``0..=65535``."""
     streaming_timeout_ms: int
-    """No-frames deadline, in milliseconds, for the streaming connection (default 3_000)."""
+    """No-frames deadline, in milliseconds, for the streaming connection (default 10_000)."""
     streaming_connect_timeout_ms: int
     """Connect timeout, in milliseconds, for opening a streaming connection."""
     streaming_ping_interval_ms: int

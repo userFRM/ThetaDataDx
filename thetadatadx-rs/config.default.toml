@@ -36,9 +36,11 @@ hosts = [
 connect_timeout = 2000
 
 # Read timeout — how long to wait for data before the link is considered
-# dead (ms). The server heartbeats every ~100 ms on a quiet session, so this
-# default is ~30 missed heartbeats: a dead link is declared quickly.
-read_timeout = 3000
+# dead (ms). Matches the terminal's streaming socket read timeout and rides
+# through the brief silence right after a full-market subscribe while the
+# server sets the subscription up. The ~100 ms cadence is the client's ping
+# to the server, not an inbound heartbeat; inbound frames arrive ~250 ms.
+read_timeout = 10000
 
 # Client heartbeat interval (ms). The server's own ~100 ms heartbeat is the
 # primary liveness signal; this client ping proves write-side health at a

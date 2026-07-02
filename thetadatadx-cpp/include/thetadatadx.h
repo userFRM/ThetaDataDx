@@ -1452,7 +1452,7 @@ int32_t thetadatadx_config_set_reconnect_callback(ThetaDataDxConfig* config, The
 
 /**
  * Set the streaming read timeout (ms): the no-frames deadline after which
- * the streaming session is declared dead and reconnects. Default 3_000;
+ * the streaming session is declared dead and reconnects. Default 10_000;
  * validated to [100, 60_000] at connect.
  * @param config Config handle to mutate; no-op when NULL.
  * @param v Read timeout in milliseconds.
@@ -1460,7 +1460,7 @@ int32_t thetadatadx_config_set_reconnect_callback(ThetaDataDxConfig* config, The
 void thetadatadx_config_set_streaming_timeout_ms(ThetaDataDxConfig* config, uint64_t v);
 
 /**
- * Read the current streaming timeout_ms setting (default 3_000).
+ * Read the current streaming timeout_ms setting (default 10_000).
  * @param config Config handle to read.
  * @param out Receives the timeout in milliseconds on success.
  * @return 0 on success, -1 if either pointer is null.

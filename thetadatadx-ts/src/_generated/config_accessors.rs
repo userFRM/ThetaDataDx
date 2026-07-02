@@ -152,7 +152,7 @@ impl Config {
         Ok(napi::bindgen_prelude::BigInt::from(guard.reconnect.replay_pace_ms))
     }
 
-    /// Set the streaming read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000n`; validated to `[100, 60_000]` at connect.
+    /// Set the streaming read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `10_000n`; validated to `[100, 60_000]` at connect.
     #[napi(js_name = "setStreamingTimeoutMs")]
     pub fn set_streaming_timeout_ms(&self, ms: napi::bindgen_prelude::BigInt) -> napi::Result<()> {
         let value = bigint_to_u64("setStreamingTimeoutMs", &ms)?;
@@ -164,7 +164,7 @@ impl Config {
         Ok(())
     }
 
-    /// Current `streaming.timeout_ms` value (default `3_000n`).
+    /// Current `streaming.timeout_ms` value (default `10_000n`).
     #[napi(getter, js_name = "streamingTimeoutMs")]
     pub fn streaming_timeout_ms(&self) -> napi::Result<napi::bindgen_prelude::BigInt> {
         let guard = self

@@ -81,13 +81,13 @@
     }
 
     /// Set the streaming read timeout (ms): the no-frames deadline after
-    /// which the streaming I/O loop reconnects. Default 3_000;
+    /// which the streaming I/O loop reconnects. Default 10_000;
     /// validated to [100, 60_000] at connect.
     void set_streaming_timeout_ms(std::uint64_t v) {
         thetadatadx_config_set_streaming_timeout_ms(handle_.get(), v);
     }
 
-    /// Current streaming timeout_ms (default 3_000).
+    /// Current streaming timeout_ms (default 10_000).
     std::uint64_t get_streaming_timeout_ms() const {
         std::uint64_t out{};
         thetadatadx_config_get_streaming_timeout_ms(handle_.get(), &out);

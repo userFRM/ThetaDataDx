@@ -2189,7 +2189,7 @@ mod resilience_knob_tests {
                 super::thetadatadx_config_get_streaming_timeout_ms(cfg, &mut got),
                 0
             );
-            assert_eq!(got, 3_000);
+            assert_eq!(got, 10_000);
             super::thetadatadx_config_set_streaming_timeout_ms(cfg, 9_000);
             assert_eq!(
                 super::thetadatadx_config_get_streaming_timeout_ms(cfg, &mut got),
