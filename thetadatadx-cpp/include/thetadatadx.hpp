@@ -335,6 +335,13 @@ public:
     using ThetaDataError::ThetaDataError;
 };
 
+// Owns the wire-column presence a decode produced; defined with the Arrow
+// terminals in `tick_arrow_ipc.hpp.inc` (below, after the tick types).
+// Forward-declared here so the historical endpoint methods can take an
+// optional `ColumnPresence*` out-param that surfaces the response's projected
+// column set.
+class ColumnPresence;
+
 // Generated request-options bag. Included after the exception hierarchy
 // so its `with_deadline` setter can throw the complete
 // `InvalidParameterError` type when handed a negative deadline.

@@ -20,6 +20,8 @@
 use crate::Error;
 
 #[cfg(feature = "__internal")]
+use crate::columns::Ticks;
+#[cfg(feature = "__internal")]
 use crate::mdds::registry::ParamType;
 #[cfg(feature = "__internal")]
 use crate::tdbe::types::tick::{
@@ -443,23 +445,23 @@ pub enum EndpointOutput {
     /// `Vec<String>` list result.
     StringList(Vec<String>),
     /// `Vec<EodTick>` result.
-    EodTicks(Vec<EodTick>),
+    EodTicks(Ticks<EodTick>),
     /// `Vec<OhlcTick>` result.
-    OhlcTicks(Vec<OhlcTick>),
+    OhlcTicks(Ticks<OhlcTick>),
     /// `Vec<TradeTick>` result.
-    TradeTicks(Vec<TradeTick>),
+    TradeTicks(Ticks<TradeTick>),
     /// `Vec<QuoteTick>` result.
-    QuoteTicks(Vec<QuoteTick>),
+    QuoteTicks(Ticks<QuoteTick>),
     /// `Vec<TradeQuoteTick>` result.
-    TradeQuoteTicks(Vec<TradeQuoteTick>),
+    TradeQuoteTicks(Ticks<TradeQuoteTick>),
     /// `Vec<OpenInterestTick>` result.
-    OpenInterestTicks(Vec<OpenInterestTick>),
+    OpenInterestTicks(Ticks<OpenInterestTick>),
     /// `Vec<MarketValueTick>` result.
-    MarketValueTicks(Vec<MarketValueTick>),
+    MarketValueTicks(Ticks<MarketValueTick>),
     /// `Vec<GreeksAllTick>` result. Returned by `option_*_greeks_all`
     /// endpoints (interval-sampled full-union Greeks paired with the
     /// bid/ask quote pair).
-    GreeksAllTicks(Vec<GreeksAllTick>),
+    GreeksAllTicks(Ticks<GreeksAllTick>),
     /// `Vec<GreeksEodTick>` result. Returned by
     /// `option_history_greeks_eod` -- end-of-day full-union Greeks
     /// calculation fused with the twelve EOD trade/quote context
@@ -467,56 +469,56 @@ pub enum EndpointOutput {
     /// `bid_size`, `bid_exchange`, `bid_condition`, `ask_size`,
     /// `ask_exchange`, `ask_condition`) the bare `GreeksAllTick`
     /// silently dropped.
-    GreeksEodTicks(Vec<GreeksEodTick>),
+    GreeksEodTicks(Ticks<GreeksEodTick>),
     /// `Vec<GreeksFirstOrderTick>` result. Returned by
     /// `option_*_greeks_first_order` endpoints.
-    GreeksFirstOrderTicks(Vec<GreeksFirstOrderTick>),
+    GreeksFirstOrderTicks(Ticks<GreeksFirstOrderTick>),
     /// `Vec<GreeksSecondOrderTick>` result. Returned by
     /// `option_*_greeks_second_order` endpoints.
-    GreeksSecondOrderTicks(Vec<GreeksSecondOrderTick>),
+    GreeksSecondOrderTicks(Ticks<GreeksSecondOrderTick>),
     /// `Vec<GreeksThirdOrderTick>` result. Returned by
     /// `option_*_greeks_third_order` endpoints.
-    GreeksThirdOrderTicks(Vec<GreeksThirdOrderTick>),
+    GreeksThirdOrderTicks(Ticks<GreeksThirdOrderTick>),
     /// `Vec<TradeGreeksAllTick>` result. Returned by
     /// `option_history_trade_greeks_all` -- per-OPRA-trade Greeks calculation
     /// carrying both the trade-side execution columns and every Greek the
     /// server publishes for the all-union endpoint.
-    TradeGreeksAllTicks(Vec<TradeGreeksAllTick>),
+    TradeGreeksAllTicks(Ticks<TradeGreeksAllTick>),
     /// `Vec<TradeGreeksFirstOrderTick>` result. Returned by
     /// `option_history_trade_greeks_first_order` -- per-OPRA-trade first-order
     /// Greeks calculation with trade execution columns.
-    TradeGreeksFirstOrderTicks(Vec<TradeGreeksFirstOrderTick>),
+    TradeGreeksFirstOrderTicks(Ticks<TradeGreeksFirstOrderTick>),
     /// `Vec<TradeGreeksSecondOrderTick>` result. Returned by
     /// `option_history_trade_greeks_second_order` -- per-OPRA-trade
     /// second-order Greeks calculation with trade execution columns.
-    TradeGreeksSecondOrderTicks(Vec<TradeGreeksSecondOrderTick>),
+    TradeGreeksSecondOrderTicks(Ticks<TradeGreeksSecondOrderTick>),
     /// `Vec<TradeGreeksThirdOrderTick>` result. Returned by
     /// `option_history_trade_greeks_third_order` -- per-OPRA-trade third-order
     /// Greeks calculation with trade execution columns.
-    TradeGreeksThirdOrderTicks(Vec<TradeGreeksThirdOrderTick>),
+    TradeGreeksThirdOrderTicks(Ticks<TradeGreeksThirdOrderTick>),
     /// `Vec<TradeGreeksImpliedVolatilityTick>` result. Returned by
     /// `option_history_trade_greeks_implied_volatility` -- per-OPRA-trade IV
     /// calculation with trade execution columns. Carries only the single
     /// `implied_volatility` + `iv_error` pair (not the bid/mid/ask IV triple
     /// of the interval-sampled `IvTick`).
-    TradeGreeksImpliedVolatilityTicks(Vec<TradeGreeksImpliedVolatilityTick>),
+    TradeGreeksImpliedVolatilityTicks(Ticks<TradeGreeksImpliedVolatilityTick>),
     /// `Vec<IvTick>` result.
-    IvTicks(Vec<IvTick>),
+    IvTicks(Ticks<IvTick>),
     /// `Vec<PriceTick>` result.
-    PriceTicks(Vec<PriceTick>),
+    PriceTicks(Ticks<PriceTick>),
     /// `Vec<IndexPriceAtTimeTick>` result. Returned by
     /// `index_at_time_price` -- trade-shaped row (10 columns:
     /// `timestamp`, `sequence`, `ext_condition1..4`, `condition`,
     /// `size`, `exchange`, `price`) carrying the seven trade-side
     /// execution columns the bare `PriceTick` (3 columns) silently
     /// dropped, including the SIP-exchange attribution field.
-    IndexPriceAtTimeTicks(Vec<IndexPriceAtTimeTick>),
+    IndexPriceAtTimeTicks(Ticks<IndexPriceAtTimeTick>),
     /// `Vec<CalendarDay>` result.
-    CalendarDays(Vec<CalendarDay>),
+    CalendarDays(Ticks<CalendarDay>),
     /// `Vec<InterestRateTick>` result.
-    InterestRateTicks(Vec<InterestRateTick>),
+    InterestRateTicks(Ticks<InterestRateTick>),
     /// `Vec<OptionContract>` result.
-    OptionContracts(Vec<OptionContract>),
+    OptionContracts(Ticks<OptionContract>),
 }
 
 /// Public entry point for transport-neutral endpoint dispatch.
@@ -647,6 +649,17 @@ use crate::mdds::validate::{
     parse_bool, parse_symbols, validate_date, validate_expiration, validate_interval,
     validate_right, validate_strike, validate_symbol, validate_year,
 };
+
+/// Full-schema presence for a header-less collected result. The streaming
+/// buffered dispatch drains per-chunk slices without a response header list,
+/// so it reports every schema column present (the [`crate::columns::WireColumns::all_columns`]
+/// default) rather than a wire-projected set. Called by the generated dispatch.
+#[cfg(feature = "__internal")]
+fn collected_columns<T: crate::columns::WireColumns>(
+    _rows: &[T],
+) -> crate::columns::ColumnPresence {
+    <T as crate::columns::WireColumns>::all_columns()
+}
 
 // Generated endpoint dispatch (invoke_generated_endpoint + match arms).
 // Only compiled when `__internal` is enabled because the match arms reference

@@ -171,6 +171,19 @@ impl<T> Ticks<T> {
     }
 }
 
+/// Wrap hand-built rows (a `Vec` that never crossed the wire) as a `Ticks`
+/// carrying the full-schema presence — every column present — so a frame built
+/// from it matches the all-columns `to_arrow`. Rows a decode produced are
+/// paired with their wire presence via [`Ticks::new`] instead.
+impl<T: WireColumns> From<Vec<T>> for Ticks<T> {
+    fn from(rows: Vec<T>) -> Self {
+        Self {
+            rows,
+            columns: T::all_columns(),
+        }
+    }
+}
+
 impl<T> std::ops::Deref for Ticks<T> {
     type Target = [T];
     fn deref(&self) -> &[T] {

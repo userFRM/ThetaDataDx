@@ -418,7 +418,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             }
             StreamControl::Ping { payload } => {
                 let bytes_owned = payload.clone();
-                let payload_ptr = bytes_owned.as_ptr();
+                let payload_ptr = if bytes_owned.is_empty() { ptr::null() } else { bytes_owned.as_ptr() };
                 let payload_len_val = bytes_owned.len();
                 FfiBufferedEvent {
                     event: ThetaDataDxStreamEvent {
@@ -548,7 +548,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
             }
             StreamControl::UnknownFrame { code, payload } => {
                 let bytes_owned = payload.clone();
-                let payload_ptr = bytes_owned.as_ptr();
+                let payload_ptr = if bytes_owned.is_empty() { ptr::null() } else { bytes_owned.as_ptr() };
                 let payload_len_val = bytes_owned.len();
                 FfiBufferedEvent {
                     event: ThetaDataDxStreamEvent {

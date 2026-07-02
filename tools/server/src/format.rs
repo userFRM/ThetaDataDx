@@ -1571,267 +1571,48 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
     };
     match ep.returns {
         ReturnType::StringList => EndpointOutput::StringList(vec![String::new()]),
-        ReturnType::EodTicks => EndpointOutput::EodTicks(vec![EodTick {
-            created_ms_of_day: 0,
-            last_trade_ms_of_day: 0,
-            open: 0.0,
-            high: 0.0,
-            low: 0.0,
-            close: 0.0,
-            volume: 0,
-            count: 0,
-            bid_size: 0,
-            bid_exchange: 0,
-            bid: 0.0,
-            bid_condition: 0,
-            ask_size: 0,
-            ask_exchange: 0,
-            ask: 0.0,
-            ask_condition: 0,
-            date: 0,
-            expiration: id_expiration,
-            strike: id_strike,
-            right: id_right,
-        }]),
-        ReturnType::OhlcTicks => EndpointOutput::OhlcTicks(vec![OhlcTick {
-            ms_of_day: 0,
-            open: 0.0,
-            high: 0.0,
-            low: 0.0,
-            close: 0.0,
-            volume: 0,
-            count: 0,
-            vwap: 0.0,
-            date: 0,
-            expiration: id_expiration,
-            strike: id_strike,
-            right: id_right,
-        }]),
-        ReturnType::TradeTicks => EndpointOutput::TradeTicks(vec![TradeTick {
-            ms_of_day: 0,
-            sequence: 0,
-            ext_condition1: 0,
-            ext_condition2: 0,
-            ext_condition3: 0,
-            ext_condition4: 0,
-            condition: 0,
-            size: 0,
-            exchange: 0,
-            price: 0.0,
-            condition_flags: 0,
-            price_flags: 0,
-            volume_type: 0,
-            records_back: 0,
-            date: 0,
-            expiration: id_expiration,
-            strike: id_strike,
-            right: id_right,
-        }]),
-        ReturnType::QuoteTicks => EndpointOutput::QuoteTicks(vec![QuoteTick {
-            ms_of_day: 0,
-            bid_size: 0,
-            bid_exchange: 0,
-            bid: 0.0,
-            bid_condition: 0,
-            ask_size: 0,
-            ask_exchange: 0,
-            ask: 0.0,
-            ask_condition: 0,
-            date: 0,
-            expiration: id_expiration,
-            strike: id_strike,
-            right: id_right,
-            midpoint: 0.0,
-        }]),
-        ReturnType::TradeQuoteTicks => EndpointOutput::TradeQuoteTicks(vec![TradeQuoteTick {
-            ms_of_day: 0,
-            sequence: 0,
-            ext_condition1: 0,
-            ext_condition2: 0,
-            ext_condition3: 0,
-            ext_condition4: 0,
-            condition: 0,
-            size: 0,
-            exchange: 0,
-            price: 0.0,
-            condition_flags: 0,
-            price_flags: 0,
-            volume_type: 0,
-            records_back: 0,
-            quote_ms_of_day: 0,
-            bid_size: 0,
-            bid_exchange: 0,
-            bid: 0.0,
-            bid_condition: 0,
-            ask_size: 0,
-            ask_exchange: 0,
-            ask: 0.0,
-            ask_condition: 0,
-            date: 0,
-            expiration: id_expiration,
-            strike: id_strike,
-            right: id_right,
-        }]),
-        ReturnType::OpenInterestTicks => {
-            EndpointOutput::OpenInterestTicks(vec![OpenInterestTick {
-                ms_of_day: 0,
-                open_interest: 0,
-                date: 0,
-                expiration: id_expiration,
-                strike: id_strike,
-                right: id_right,
-            }])
-        }
-        ReturnType::MarketValueTicks => EndpointOutput::MarketValueTicks(vec![MarketValueTick {
-            ms_of_day: 0,
-            market_bid: 0.0,
-            market_ask: 0.0,
-            market_price: 0.0,
-            date: 0,
-            expiration: id_expiration,
-            strike: id_strike,
-            right: id_right,
-        }]),
-        ReturnType::GreeksAllTicks => EndpointOutput::GreeksAllTicks(vec![GreeksAllTick {
-            ms_of_day: 0,
-            bid: 0.0,
-            ask: 0.0,
-            implied_volatility: 0.0,
-            delta: 0.0,
-            gamma: 0.0,
-            theta: 0.0,
-            vega: 0.0,
-            rho: 0.0,
-            iv_error: 0.0,
-            vanna: 0.0,
-            charm: 0.0,
-            vomma: 0.0,
-            veta: 0.0,
-            speed: 0.0,
-            zomma: 0.0,
-            color: 0.0,
-            ultima: 0.0,
-            d1: 0.0,
-            d2: 0.0,
-            dual_delta: 0.0,
-            dual_gamma: 0.0,
-            epsilon: 0.0,
-            lambda: 0.0,
-            vera: 0.0,
-            underlying_ms_of_day: 0,
-            underlying_price: 0.0,
-            date: 0,
-            expiration: id_expiration,
-            strike: id_strike,
-            right: id_right,
-        }]),
-        ReturnType::GreeksEodTicks => EndpointOutput::GreeksEodTicks(vec![GreeksEodTick {
-            ms_of_day: 0,
-            open: 0.0,
-            high: 0.0,
-            low: 0.0,
-            close: 0.0,
-            volume: 0,
-            count: 0,
-            bid_size: 0,
-            bid_exchange: 0,
-            bid: 0.0,
-            bid_condition: 0,
-            ask_size: 0,
-            ask_exchange: 0,
-            ask: 0.0,
-            ask_condition: 0,
-            delta: 0.0,
-            theta: 0.0,
-            vega: 0.0,
-            rho: 0.0,
-            epsilon: 0.0,
-            lambda: 0.0,
-            gamma: 0.0,
-            vanna: 0.0,
-            charm: 0.0,
-            vomma: 0.0,
-            veta: 0.0,
-            vera: 0.0,
-            speed: 0.0,
-            zomma: 0.0,
-            color: 0.0,
-            ultima: 0.0,
-            d1: 0.0,
-            d2: 0.0,
-            dual_delta: 0.0,
-            dual_gamma: 0.0,
-            implied_volatility: 0.0,
-            iv_error: 0.0,
-            underlying_ms_of_day: 0,
-            underlying_price: 0.0,
-            date: 0,
-            expiration: id_expiration,
-            strike: id_strike,
-            right: id_right,
-        }]),
-        ReturnType::GreeksFirstOrderTicks => {
-            EndpointOutput::GreeksFirstOrderTicks(vec![GreeksFirstOrderTick {
-                ms_of_day: 0,
+        ReturnType::EodTicks => {
+            EndpointOutput::EodTicks(thetadatadx::columns::Ticks::from(vec![EodTick {
+                created_ms_of_day: 0,
+                last_trade_ms_of_day: 0,
+                open: 0.0,
+                high: 0.0,
+                low: 0.0,
+                close: 0.0,
+                volume: 0,
+                count: 0,
+                bid_size: 0,
+                bid_exchange: 0,
                 bid: 0.0,
+                bid_condition: 0,
+                ask_size: 0,
+                ask_exchange: 0,
                 ask: 0.0,
-                delta: 0.0,
-                theta: 0.0,
-                vega: 0.0,
-                rho: 0.0,
-                epsilon: 0.0,
-                lambda: 0.0,
-                implied_volatility: 0.0,
-                iv_error: 0.0,
-                underlying_ms_of_day: 0,
-                underlying_price: 0.0,
+                ask_condition: 0,
                 date: 0,
                 expiration: id_expiration,
                 strike: id_strike,
                 right: id_right,
-            }])
+            }]))
         }
-        ReturnType::GreeksSecondOrderTicks => {
-            EndpointOutput::GreeksSecondOrderTicks(vec![GreeksSecondOrderTick {
+        ReturnType::OhlcTicks => {
+            EndpointOutput::OhlcTicks(thetadatadx::columns::Ticks::from(vec![OhlcTick {
                 ms_of_day: 0,
-                bid: 0.0,
-                ask: 0.0,
-                gamma: 0.0,
-                vanna: 0.0,
-                charm: 0.0,
-                vomma: 0.0,
-                veta: 0.0,
-                implied_volatility: 0.0,
-                iv_error: 0.0,
-                underlying_ms_of_day: 0,
-                underlying_price: 0.0,
+                open: 0.0,
+                high: 0.0,
+                low: 0.0,
+                close: 0.0,
+                volume: 0,
+                count: 0,
+                vwap: 0.0,
                 date: 0,
                 expiration: id_expiration,
                 strike: id_strike,
                 right: id_right,
-            }])
+            }]))
         }
-        ReturnType::GreeksThirdOrderTicks => {
-            EndpointOutput::GreeksThirdOrderTicks(vec![GreeksThirdOrderTick {
-                ms_of_day: 0,
-                bid: 0.0,
-                ask: 0.0,
-                speed: 0.0,
-                zomma: 0.0,
-                color: 0.0,
-                ultima: 0.0,
-                implied_volatility: 0.0,
-                iv_error: 0.0,
-                underlying_ms_of_day: 0,
-                underlying_price: 0.0,
-                date: 0,
-                expiration: id_expiration,
-                strike: id_strike,
-                right: id_right,
-            }])
-        }
-        ReturnType::TradeGreeksAllTicks => {
-            EndpointOutput::TradeGreeksAllTicks(vec![TradeGreeksAllTick {
+        ReturnType::TradeTicks => {
+            EndpointOutput::TradeTicks(thetadatadx::columns::Ticks::from(vec![TradeTick {
                 ms_of_day: 0,
                 sequence: 0,
                 ext_condition1: 0,
@@ -1842,6 +1623,145 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                 size: 0,
                 exchange: 0,
                 price: 0.0,
+                condition_flags: 0,
+                price_flags: 0,
+                volume_type: 0,
+                records_back: 0,
+                date: 0,
+                expiration: id_expiration,
+                strike: id_strike,
+                right: id_right,
+            }]))
+        }
+        ReturnType::QuoteTicks => {
+            EndpointOutput::QuoteTicks(thetadatadx::columns::Ticks::from(vec![QuoteTick {
+                ms_of_day: 0,
+                bid_size: 0,
+                bid_exchange: 0,
+                bid: 0.0,
+                bid_condition: 0,
+                ask_size: 0,
+                ask_exchange: 0,
+                ask: 0.0,
+                ask_condition: 0,
+                date: 0,
+                expiration: id_expiration,
+                strike: id_strike,
+                right: id_right,
+                midpoint: 0.0,
+            }]))
+        }
+        ReturnType::TradeQuoteTicks => {
+            EndpointOutput::TradeQuoteTicks(thetadatadx::columns::Ticks::from(vec![
+                TradeQuoteTick {
+                    ms_of_day: 0,
+                    sequence: 0,
+                    ext_condition1: 0,
+                    ext_condition2: 0,
+                    ext_condition3: 0,
+                    ext_condition4: 0,
+                    condition: 0,
+                    size: 0,
+                    exchange: 0,
+                    price: 0.0,
+                    condition_flags: 0,
+                    price_flags: 0,
+                    volume_type: 0,
+                    records_back: 0,
+                    quote_ms_of_day: 0,
+                    bid_size: 0,
+                    bid_exchange: 0,
+                    bid: 0.0,
+                    bid_condition: 0,
+                    ask_size: 0,
+                    ask_exchange: 0,
+                    ask: 0.0,
+                    ask_condition: 0,
+                    date: 0,
+                    expiration: id_expiration,
+                    strike: id_strike,
+                    right: id_right,
+                },
+            ]))
+        }
+        ReturnType::OpenInterestTicks => {
+            EndpointOutput::OpenInterestTicks(thetadatadx::columns::Ticks::from(vec![
+                OpenInterestTick {
+                    ms_of_day: 0,
+                    open_interest: 0,
+                    date: 0,
+                    expiration: id_expiration,
+                    strike: id_strike,
+                    right: id_right,
+                },
+            ]))
+        }
+        ReturnType::MarketValueTicks => {
+            EndpointOutput::MarketValueTicks(thetadatadx::columns::Ticks::from(vec![
+                MarketValueTick {
+                    ms_of_day: 0,
+                    market_bid: 0.0,
+                    market_ask: 0.0,
+                    market_price: 0.0,
+                    date: 0,
+                    expiration: id_expiration,
+                    strike: id_strike,
+                    right: id_right,
+                },
+            ]))
+        }
+        ReturnType::GreeksAllTicks => {
+            EndpointOutput::GreeksAllTicks(thetadatadx::columns::Ticks::from(vec![GreeksAllTick {
+                ms_of_day: 0,
+                bid: 0.0,
+                ask: 0.0,
+                implied_volatility: 0.0,
+                delta: 0.0,
+                gamma: 0.0,
+                theta: 0.0,
+                vega: 0.0,
+                rho: 0.0,
+                iv_error: 0.0,
+                vanna: 0.0,
+                charm: 0.0,
+                vomma: 0.0,
+                veta: 0.0,
+                speed: 0.0,
+                zomma: 0.0,
+                color: 0.0,
+                ultima: 0.0,
+                d1: 0.0,
+                d2: 0.0,
+                dual_delta: 0.0,
+                dual_gamma: 0.0,
+                epsilon: 0.0,
+                lambda: 0.0,
+                vera: 0.0,
+                underlying_ms_of_day: 0,
+                underlying_price: 0.0,
+                date: 0,
+                expiration: id_expiration,
+                strike: id_strike,
+                right: id_right,
+            }]))
+        }
+        ReturnType::GreeksEodTicks => {
+            EndpointOutput::GreeksEodTicks(thetadatadx::columns::Ticks::from(vec![GreeksEodTick {
+                ms_of_day: 0,
+                open: 0.0,
+                high: 0.0,
+                low: 0.0,
+                close: 0.0,
+                volume: 0,
+                count: 0,
+                bid_size: 0,
+                bid_exchange: 0,
+                bid: 0.0,
+                bid_condition: 0,
+                ask_size: 0,
+                ask_exchange: 0,
+                ask: 0.0,
+                ask_condition: 0,
                 delta: 0.0,
                 theta: 0.0,
                 vega: 0.0,
@@ -1870,92 +1790,208 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                 expiration: id_expiration,
                 strike: id_strike,
                 right: id_right,
-            }])
+            }]))
+        }
+        ReturnType::GreeksFirstOrderTicks => {
+            EndpointOutput::GreeksFirstOrderTicks(thetadatadx::columns::Ticks::from(vec![
+                GreeksFirstOrderTick {
+                    ms_of_day: 0,
+                    bid: 0.0,
+                    ask: 0.0,
+                    delta: 0.0,
+                    theta: 0.0,
+                    vega: 0.0,
+                    rho: 0.0,
+                    epsilon: 0.0,
+                    lambda: 0.0,
+                    implied_volatility: 0.0,
+                    iv_error: 0.0,
+                    underlying_ms_of_day: 0,
+                    underlying_price: 0.0,
+                    date: 0,
+                    expiration: id_expiration,
+                    strike: id_strike,
+                    right: id_right,
+                },
+            ]))
+        }
+        ReturnType::GreeksSecondOrderTicks => {
+            EndpointOutput::GreeksSecondOrderTicks(thetadatadx::columns::Ticks::from(vec![
+                GreeksSecondOrderTick {
+                    ms_of_day: 0,
+                    bid: 0.0,
+                    ask: 0.0,
+                    gamma: 0.0,
+                    vanna: 0.0,
+                    charm: 0.0,
+                    vomma: 0.0,
+                    veta: 0.0,
+                    implied_volatility: 0.0,
+                    iv_error: 0.0,
+                    underlying_ms_of_day: 0,
+                    underlying_price: 0.0,
+                    date: 0,
+                    expiration: id_expiration,
+                    strike: id_strike,
+                    right: id_right,
+                },
+            ]))
+        }
+        ReturnType::GreeksThirdOrderTicks => {
+            EndpointOutput::GreeksThirdOrderTicks(thetadatadx::columns::Ticks::from(vec![
+                GreeksThirdOrderTick {
+                    ms_of_day: 0,
+                    bid: 0.0,
+                    ask: 0.0,
+                    speed: 0.0,
+                    zomma: 0.0,
+                    color: 0.0,
+                    ultima: 0.0,
+                    implied_volatility: 0.0,
+                    iv_error: 0.0,
+                    underlying_ms_of_day: 0,
+                    underlying_price: 0.0,
+                    date: 0,
+                    expiration: id_expiration,
+                    strike: id_strike,
+                    right: id_right,
+                },
+            ]))
+        }
+        ReturnType::TradeGreeksAllTicks => {
+            EndpointOutput::TradeGreeksAllTicks(thetadatadx::columns::Ticks::from(vec![
+                TradeGreeksAllTick {
+                    ms_of_day: 0,
+                    sequence: 0,
+                    ext_condition1: 0,
+                    ext_condition2: 0,
+                    ext_condition3: 0,
+                    ext_condition4: 0,
+                    condition: 0,
+                    size: 0,
+                    exchange: 0,
+                    price: 0.0,
+                    delta: 0.0,
+                    theta: 0.0,
+                    vega: 0.0,
+                    rho: 0.0,
+                    epsilon: 0.0,
+                    lambda: 0.0,
+                    gamma: 0.0,
+                    vanna: 0.0,
+                    charm: 0.0,
+                    vomma: 0.0,
+                    veta: 0.0,
+                    vera: 0.0,
+                    speed: 0.0,
+                    zomma: 0.0,
+                    color: 0.0,
+                    ultima: 0.0,
+                    d1: 0.0,
+                    d2: 0.0,
+                    dual_delta: 0.0,
+                    dual_gamma: 0.0,
+                    implied_volatility: 0.0,
+                    iv_error: 0.0,
+                    underlying_ms_of_day: 0,
+                    underlying_price: 0.0,
+                    date: 0,
+                    expiration: id_expiration,
+                    strike: id_strike,
+                    right: id_right,
+                },
+            ]))
         }
         ReturnType::TradeGreeksFirstOrderTicks => {
-            EndpointOutput::TradeGreeksFirstOrderTicks(vec![TradeGreeksFirstOrderTick {
-                ms_of_day: 0,
-                sequence: 0,
-                ext_condition1: 0,
-                ext_condition2: 0,
-                ext_condition3: 0,
-                ext_condition4: 0,
-                condition: 0,
-                size: 0,
-                exchange: 0,
-                price: 0.0,
-                delta: 0.0,
-                theta: 0.0,
-                vega: 0.0,
-                rho: 0.0,
-                epsilon: 0.0,
-                lambda: 0.0,
-                implied_volatility: 0.0,
-                iv_error: 0.0,
-                underlying_ms_of_day: 0,
-                underlying_price: 0.0,
-                date: 0,
-                expiration: id_expiration,
-                strike: id_strike,
-                right: id_right,
-            }])
+            EndpointOutput::TradeGreeksFirstOrderTicks(thetadatadx::columns::Ticks::from(vec![
+                TradeGreeksFirstOrderTick {
+                    ms_of_day: 0,
+                    sequence: 0,
+                    ext_condition1: 0,
+                    ext_condition2: 0,
+                    ext_condition3: 0,
+                    ext_condition4: 0,
+                    condition: 0,
+                    size: 0,
+                    exchange: 0,
+                    price: 0.0,
+                    delta: 0.0,
+                    theta: 0.0,
+                    vega: 0.0,
+                    rho: 0.0,
+                    epsilon: 0.0,
+                    lambda: 0.0,
+                    implied_volatility: 0.0,
+                    iv_error: 0.0,
+                    underlying_ms_of_day: 0,
+                    underlying_price: 0.0,
+                    date: 0,
+                    expiration: id_expiration,
+                    strike: id_strike,
+                    right: id_right,
+                },
+            ]))
         }
         ReturnType::TradeGreeksSecondOrderTicks => {
-            EndpointOutput::TradeGreeksSecondOrderTicks(vec![TradeGreeksSecondOrderTick {
-                ms_of_day: 0,
-                sequence: 0,
-                ext_condition1: 0,
-                ext_condition2: 0,
-                ext_condition3: 0,
-                ext_condition4: 0,
-                condition: 0,
-                size: 0,
-                exchange: 0,
-                price: 0.0,
-                gamma: 0.0,
-                vanna: 0.0,
-                charm: 0.0,
-                vomma: 0.0,
-                veta: 0.0,
-                implied_volatility: 0.0,
-                iv_error: 0.0,
-                underlying_ms_of_day: 0,
-                underlying_price: 0.0,
-                date: 0,
-                expiration: id_expiration,
-                strike: id_strike,
-                right: id_right,
-            }])
+            EndpointOutput::TradeGreeksSecondOrderTicks(thetadatadx::columns::Ticks::from(vec![
+                TradeGreeksSecondOrderTick {
+                    ms_of_day: 0,
+                    sequence: 0,
+                    ext_condition1: 0,
+                    ext_condition2: 0,
+                    ext_condition3: 0,
+                    ext_condition4: 0,
+                    condition: 0,
+                    size: 0,
+                    exchange: 0,
+                    price: 0.0,
+                    gamma: 0.0,
+                    vanna: 0.0,
+                    charm: 0.0,
+                    vomma: 0.0,
+                    veta: 0.0,
+                    implied_volatility: 0.0,
+                    iv_error: 0.0,
+                    underlying_ms_of_day: 0,
+                    underlying_price: 0.0,
+                    date: 0,
+                    expiration: id_expiration,
+                    strike: id_strike,
+                    right: id_right,
+                },
+            ]))
         }
         ReturnType::TradeGreeksThirdOrderTicks => {
-            EndpointOutput::TradeGreeksThirdOrderTicks(vec![TradeGreeksThirdOrderTick {
-                ms_of_day: 0,
-                sequence: 0,
-                ext_condition1: 0,
-                ext_condition2: 0,
-                ext_condition3: 0,
-                ext_condition4: 0,
-                condition: 0,
-                size: 0,
-                exchange: 0,
-                price: 0.0,
-                speed: 0.0,
-                zomma: 0.0,
-                color: 0.0,
-                ultima: 0.0,
-                implied_volatility: 0.0,
-                iv_error: 0.0,
-                underlying_ms_of_day: 0,
-                underlying_price: 0.0,
-                date: 0,
-                expiration: id_expiration,
-                strike: id_strike,
-                right: id_right,
-            }])
+            EndpointOutput::TradeGreeksThirdOrderTicks(thetadatadx::columns::Ticks::from(vec![
+                TradeGreeksThirdOrderTick {
+                    ms_of_day: 0,
+                    sequence: 0,
+                    ext_condition1: 0,
+                    ext_condition2: 0,
+                    ext_condition3: 0,
+                    ext_condition4: 0,
+                    condition: 0,
+                    size: 0,
+                    exchange: 0,
+                    price: 0.0,
+                    speed: 0.0,
+                    zomma: 0.0,
+                    color: 0.0,
+                    ultima: 0.0,
+                    implied_volatility: 0.0,
+                    iv_error: 0.0,
+                    underlying_ms_of_day: 0,
+                    underlying_price: 0.0,
+                    date: 0,
+                    expiration: id_expiration,
+                    strike: id_strike,
+                    right: id_right,
+                },
+            ]))
         }
         ReturnType::TradeGreeksImpliedVolatilityTicks => {
-            EndpointOutput::TradeGreeksImpliedVolatilityTicks(vec![
-                TradeGreeksImpliedVolatilityTick {
+            EndpointOutput::TradeGreeksImpliedVolatilityTicks(thetadatadx::columns::Ticks::from(
+                vec![TradeGreeksImpliedVolatilityTick {
                     ms_of_day: 0,
                     sequence: 0,
                     ext_condition1: 0,
@@ -1974,61 +2010,75 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
                     expiration: id_expiration,
                     strike: id_strike,
                     right: id_right,
-                },
-            ])
+                }],
+            ))
         }
-        ReturnType::IvTicks => EndpointOutput::IvTicks(vec![IvTick {
-            ms_of_day: 0,
-            bid: 0.0,
-            bid_implied_volatility: 0.0,
-            midpoint: 0.0,
-            implied_volatility: 0.0,
-            ask: 0.0,
-            ask_implied_volatility: 0.0,
-            iv_error: 0.0,
-            underlying_ms_of_day: 0,
-            underlying_price: 0.0,
-            date: 0,
-            expiration: id_expiration,
-            strike: id_strike,
-            right: id_right,
-        }]),
-        ReturnType::PriceTicks => EndpointOutput::PriceTicks(vec![PriceTick {
-            ms_of_day: 0,
-            price: 0.0,
-            date: 0,
-        }]),
-        ReturnType::IndexPriceAtTimeTicks => {
-            EndpointOutput::IndexPriceAtTimeTicks(vec![IndexPriceAtTimeTick {
+        ReturnType::IvTicks => {
+            EndpointOutput::IvTicks(thetadatadx::columns::Ticks::from(vec![IvTick {
                 ms_of_day: 0,
-                sequence: 0,
-                ext_condition1: 0,
-                ext_condition2: 0,
-                ext_condition3: 0,
-                ext_condition4: 0,
-                condition: 0,
-                size: 0,
-                exchange: 0,
+                bid: 0.0,
+                bid_implied_volatility: 0.0,
+                midpoint: 0.0,
+                implied_volatility: 0.0,
+                ask: 0.0,
+                ask_implied_volatility: 0.0,
+                iv_error: 0.0,
+                underlying_ms_of_day: 0,
+                underlying_price: 0.0,
+                date: 0,
+                expiration: id_expiration,
+                strike: id_strike,
+                right: id_right,
+            }]))
+        }
+        ReturnType::PriceTicks => {
+            EndpointOutput::PriceTicks(thetadatadx::columns::Ticks::from(vec![PriceTick {
+                ms_of_day: 0,
                 price: 0.0,
                 date: 0,
-            }])
+            }]))
+        }
+        ReturnType::IndexPriceAtTimeTicks => {
+            EndpointOutput::IndexPriceAtTimeTicks(thetadatadx::columns::Ticks::from(vec![
+                IndexPriceAtTimeTick {
+                    ms_of_day: 0,
+                    sequence: 0,
+                    ext_condition1: 0,
+                    ext_condition2: 0,
+                    ext_condition3: 0,
+                    ext_condition4: 0,
+                    condition: 0,
+                    size: 0,
+                    exchange: 0,
+                    price: 0.0,
+                    date: 0,
+                },
+            ]))
         }
         ReturnType::InterestRateTicks => {
-            EndpointOutput::InterestRateTicks(vec![InterestRateTick { date: 0, rate: 0.0 }])
+            EndpointOutput::InterestRateTicks(thetadatadx::columns::Ticks::from(vec![
+                InterestRateTick { date: 0, rate: 0.0 },
+            ]))
         }
-        ReturnType::CalendarDays => EndpointOutput::CalendarDays(vec![CalendarDay {
-            date: calendar_date,
-            is_open: true,
-            open_time: 0,
-            close_time: 0,
-            status: thetadatadx::CalendarStatus::Open,
-        }]),
-        ReturnType::OptionContracts => EndpointOutput::OptionContracts(vec![OptionContract {
-            symbol: String::new(),
-            expiration: 20240101,
-            strike: 100.0,
-            right: 'C',
-        }]),
+        ReturnType::CalendarDays => {
+            EndpointOutput::CalendarDays(thetadatadx::columns::Ticks::from(vec![CalendarDay {
+                date: calendar_date,
+                is_open: true,
+                open_time: 0,
+                close_time: 0,
+                status: thetadatadx::CalendarStatus::Open,
+            }]))
+        }
+        ReturnType::OptionContracts => {
+            EndpointOutput::OptionContracts(thetadatadx::columns::Ticks::from(vec![
+                OptionContract {
+                    symbol: String::new(),
+                    expiration: 20240101,
+                    strike: 100.0,
+                    right: 'C',
+                },
+            ]))
+        }
     }
 }
 
@@ -2364,10 +2414,12 @@ mod tests {
             &response_rows(
                 rate_ep,
                 &ContractParams::default(),
-                &EndpointOutput::InterestRateTicks(vec![InterestRateTick {
-                    date: 20240102,
-                    rate: -0.0125,
-                }]),
+                &EndpointOutput::InterestRateTicks(thetadatadx::columns::Ticks::from(vec![
+                    InterestRateTick {
+                        date: 20240102,
+                        rate: -0.0125,
+                    },
+                ])),
             ),
         )
         .expect("CSV");
@@ -2388,39 +2440,41 @@ mod tests {
             &response_rows(
                 greeks_ep,
                 &contract,
-                &EndpointOutput::GreeksAllTicks(vec![GreeksAllTick {
-                    ms_of_day: 34_200_000,
-                    bid: 0.0,
-                    ask: 0.0,
-                    implied_volatility: 0.0,
-                    delta: -0.5,
-                    gamma: 0.0,
-                    theta: 0.0,
-                    vega: 0.0,
-                    rho: 0.0,
-                    iv_error: 0.0,
-                    vanna: 0.0,
-                    charm: 0.0,
-                    vomma: 0.0,
-                    veta: 0.0,
-                    speed: 0.0,
-                    zomma: 0.0,
-                    color: 0.0,
-                    ultima: 0.0,
-                    d1: 0.0,
-                    d2: 0.0,
-                    dual_delta: 0.0,
-                    dual_gamma: 0.0,
-                    epsilon: 0.0,
-                    lambda: 0.0,
-                    vera: 0.0,
-                    underlying_ms_of_day: 0,
-                    underlying_price: 0.0,
-                    date: 20240102,
-                    expiration: 20260116,
-                    strike: 275.0,
-                    right: 'C',
-                }]),
+                &EndpointOutput::GreeksAllTicks(thetadatadx::columns::Ticks::from(vec![
+                    GreeksAllTick {
+                        ms_of_day: 34_200_000,
+                        bid: 0.0,
+                        ask: 0.0,
+                        implied_volatility: 0.0,
+                        delta: -0.5,
+                        gamma: 0.0,
+                        theta: 0.0,
+                        vega: 0.0,
+                        rho: 0.0,
+                        iv_error: 0.0,
+                        vanna: 0.0,
+                        charm: 0.0,
+                        vomma: 0.0,
+                        veta: 0.0,
+                        speed: 0.0,
+                        zomma: 0.0,
+                        color: 0.0,
+                        ultima: 0.0,
+                        d1: 0.0,
+                        d2: 0.0,
+                        dual_delta: 0.0,
+                        dual_gamma: 0.0,
+                        epsilon: 0.0,
+                        lambda: 0.0,
+                        vera: 0.0,
+                        underlying_ms_of_day: 0,
+                        underlying_price: 0.0,
+                        date: 20240102,
+                        expiration: 20260116,
+                        strike: 275.0,
+                        right: 'C',
+                    },
+                ])),
             ),
         )
         .expect("CSV");
@@ -2753,10 +2807,10 @@ mod tests {
             strike: None,
             right: None,
         };
-        let output = EndpointOutput::QuoteTicks(vec![
+        let output = EndpointOutput::QuoteTicks(thetadatadx::columns::Ticks::from(vec![
             quote_tick(20260116, 275.0, 'C'),
             quote_tick(20260116, 280.0, 'P'),
-        ]);
+        ]));
         let rows = response_rows(ep, &contract, &output);
         let envelope = json_envelope(ep, rows);
 
@@ -2836,7 +2890,10 @@ mod tests {
             right: Some("call"),
         };
         // expiration == 0 -> the serializer omits the contract columns.
-        let output = EndpointOutput::QuoteTicks(vec![quote_tick(0, 0.0, '\0')]);
+        let output =
+            EndpointOutput::QuoteTicks(thetadatadx::columns::Ticks::from(vec![quote_tick(
+                0, 0.0, '\0',
+            )]));
         let rows = response_rows(ep, &contract, &output);
         let envelope = json_envelope(ep, rows);
         let response = envelope
@@ -2877,7 +2934,10 @@ mod tests {
             symbol: Some("AAPL"),
             ..ContractParams::default()
         };
-        let output = EndpointOutput::QuoteTicks(vec![quote_tick(0, 0.0, '\0')]);
+        let output =
+            EndpointOutput::QuoteTicks(thetadatadx::columns::Ticks::from(vec![quote_tick(
+                0, 0.0, '\0',
+            )]));
         let rows = response_rows(ep, &contract, &output);
         let envelope = json_envelope(ep, rows);
         let response = envelope
@@ -2910,7 +2970,10 @@ mod tests {
             symbol: Some("AAPL"),
             ..ContractParams::default()
         };
-        let output = EndpointOutput::QuoteTicks(vec![quote_tick(0, 0.0, '\0')]);
+        let output =
+            EndpointOutput::QuoteTicks(thetadatadx::columns::Ticks::from(vec![quote_tick(
+                0, 0.0, '\0',
+            )]));
         let rows = response_rows(ep, &contract, &output);
         assert!(
             rows[0].get("symbol").is_none(),
@@ -3030,7 +3093,11 @@ mod tests {
             strike: None,
             right: None,
         };
-        let rows = response_rows(ep, &contract, &EndpointOutput::TradeTicks(vec![tick]));
+        let rows = response_rows(
+            ep,
+            &contract,
+            &EndpointOutput::TradeTicks(thetadatadx::columns::Ticks::from(vec![tick])),
+        );
         let csv = json_to_csv(ep, &rows).expect("CSV");
         assert!(csv.ends_with("\r\n"), "v3 CSV is CRLF-framed: {csv:?}");
         let header = csv.split("\r\n").next().expect("header line");
@@ -3172,7 +3239,9 @@ mod tests {
             csv_header_for(
                 "stock_snapshot_ohlc",
                 "AAPL",
-                EndpointOutput::OhlcTicks(vec![ohlc_tick(34_200_000, 0, 0.0, '\0')])
+                EndpointOutput::OhlcTicks(thetadatadx::columns::Ticks::from(vec![ohlc_tick(
+                    34_200_000, 0, 0.0, '\0'
+                )]))
             ),
             "timestamp,symbol,open,high,low,close,volume,count"
         );
@@ -3182,7 +3251,9 @@ mod tests {
             csv_header_for(
                 "stock_snapshot_trade",
                 "AAPL",
-                EndpointOutput::TradeTicks(vec![trade_tick(34_200_000, 0, 0.0, '\0')])
+                EndpointOutput::TradeTicks(thetadatadx::columns::Ticks::from(vec![trade_tick(
+                    34_200_000, 0, 0.0, '\0'
+                )]))
             ),
             "timestamp,symbol,sequence,size,condition,price"
         );
@@ -3191,7 +3262,9 @@ mod tests {
             csv_header_for(
                 "stock_history_ohlc",
                 "AAPL",
-                EndpointOutput::OhlcTicks(vec![ohlc_tick(34_200_000, 0, 0.0, '\0')])
+                EndpointOutput::OhlcTicks(thetadatadx::columns::Ticks::from(vec![ohlc_tick(
+                    34_200_000, 0, 0.0, '\0'
+                )]))
             ),
             "timestamp,open,high,low,close,volume,count,vwap"
         );
@@ -3202,7 +3275,9 @@ mod tests {
             csv_header_for(
                 "option_snapshot_ohlc",
                 "AAPL",
-                EndpointOutput::OhlcTicks(vec![ohlc_tick(34_200_000, 20260116, 275.0, 'C')])
+                EndpointOutput::OhlcTicks(thetadatadx::columns::Ticks::from(vec![ohlc_tick(
+                    34_200_000, 20260116, 275.0, 'C'
+                )]))
             ),
             "timestamp,symbol,expiration,strike,right,open,high,low,close,volume,count"
         );
@@ -3211,7 +3286,9 @@ mod tests {
             csv_header_for(
                 "option_history_ohlc",
                 "AAPL",
-                EndpointOutput::OhlcTicks(vec![ohlc_tick(34_200_000, 20260116, 275.0, 'C')])
+                EndpointOutput::OhlcTicks(thetadatadx::columns::Ticks::from(vec![ohlc_tick(
+                    34_200_000, 20260116, 275.0, 'C'
+                )]))
             ),
             "symbol,expiration,strike,right,timestamp,open,high,low,close,volume,count,vwap"
         );
@@ -3222,7 +3299,9 @@ mod tests {
             csv_header_for(
                 "index_snapshot_ohlc",
                 "SPX",
-                EndpointOutput::OhlcTicks(vec![ohlc_tick(34_200_000, 0, 0.0, '\0')])
+                EndpointOutput::OhlcTicks(thetadatadx::columns::Ticks::from(vec![ohlc_tick(
+                    34_200_000, 0, 0.0, '\0'
+                )]))
             ),
             "timestamp,symbol,open,high,low,close,volume,count"
         );
@@ -3231,7 +3310,9 @@ mod tests {
             csv_header_for(
                 "index_history_ohlc",
                 "SPX",
-                EndpointOutput::OhlcTicks(vec![ohlc_tick(34_200_000, 0, 0.0, '\0')])
+                EndpointOutput::OhlcTicks(thetadatadx::columns::Ticks::from(vec![ohlc_tick(
+                    34_200_000, 0, 0.0, '\0'
+                )]))
             ),
             "timestamp,open,high,low,close,volume,count,vwap"
         );
@@ -3305,7 +3386,9 @@ mod tests {
                 csv_header_for(
                     ep_name,
                     "",
-                    EndpointOutput::CalendarDays(vec![open_day(20240315)])
+                    EndpointOutput::CalendarDays(thetadatadx::columns::Ticks::from(vec![
+                        open_day(20240315)
+                    ]))
                 ),
                 "date,type,open,close",
                 "{ep_name} with a date present leads with `date`, like calendar_year"
@@ -3314,7 +3397,13 @@ mod tests {
             // The normal date-less single-day response drops `date` entirely
             // (present-key intersection), leaving the bare `type,open,close`.
             assert_eq!(
-                csv_header_for(ep_name, "", EndpointOutput::CalendarDays(vec![open_day(0)])),
+                csv_header_for(
+                    ep_name,
+                    "",
+                    EndpointOutput::CalendarDays(thetadatadx::columns::Ticks::from(vec![
+                        open_day(0)
+                    ]))
+                ),
                 "type,open,close",
                 "{ep_name} with no date keeps the bare single-day header"
             );
@@ -3467,7 +3556,9 @@ mod tests {
             csv_header_for(
                 "stock_snapshot_market_value",
                 "AAPL",
-                EndpointOutput::MarketValueTicks(vec![market_value_tick(0, 0.0, '\0')])
+                EndpointOutput::MarketValueTicks(thetadatadx::columns::Ticks::from(vec![
+                    market_value_tick(0, 0.0, '\0')
+                ]))
             ),
             "timestamp,symbol,market_bid,market_ask,market_price"
         );
@@ -3476,7 +3567,9 @@ mod tests {
             csv_header_for(
                 "index_snapshot_market_value",
                 "SPX",
-                EndpointOutput::MarketValueTicks(vec![market_value_tick(0, 0.0, '\0')])
+                EndpointOutput::MarketValueTicks(thetadatadx::columns::Ticks::from(vec![
+                    market_value_tick(0, 0.0, '\0')
+                ]))
             ),
             "timestamp,symbol,market_price"
         );
@@ -3485,7 +3578,9 @@ mod tests {
             csv_header_for(
                 "option_snapshot_market_value",
                 "AAPL",
-                EndpointOutput::MarketValueTicks(vec![market_value_tick(20260116, 275.0, 'C')])
+                EndpointOutput::MarketValueTicks(thetadatadx::columns::Ticks::from(vec![
+                    market_value_tick(20260116, 275.0, 'C')
+                ]))
             ),
             "timestamp,symbol,expiration,strike,right,market_bid,market_ask,market_price"
         );
@@ -3542,12 +3637,14 @@ mod tests {
     #[test]
     fn option_list_contracts_is_flat_not_contract_grouped() {
         let ep = thetadatadx::find("option_list_contracts").expect("endpoint exists");
-        let output = EndpointOutput::OptionContracts(vec![thetadatadx::OptionContract {
-            symbol: "AAPL".into(),
-            expiration: 20230616,
-            strike: 260.0,
-            right: 'C',
-        }]);
+        let output = EndpointOutput::OptionContracts(thetadatadx::columns::Ticks::from(vec![
+            thetadatadx::OptionContract {
+                symbol: "AAPL".into(),
+                expiration: 20230616,
+                strike: 260.0,
+                right: 'C',
+            },
+        ]));
         let rows = response_rows(ep, &ContractParams::default(), &output);
         let envelope = json_envelope(ep, rows);
         let response = envelope
@@ -3707,7 +3804,9 @@ mod tests {
         let rows = response_rows(
             ep,
             &ContractParams::default(),
-            &EndpointOutput::QuoteTicks(vec![quote_tick(0, 0.0, '\0')]),
+            &EndpointOutput::QuoteTicks(thetadatadx::columns::Ticks::from(vec![quote_tick(
+                0, 0.0, '\0',
+            )])),
         );
         let csv = json_to_csv(ep, &rows).expect("CSV");
         let header = csv.split("\r\n").next().expect("header line");
@@ -4069,7 +4168,9 @@ mod tests {
             csv_header_for(
                 "option_snapshot_greeks_all",
                 "AAPL",
-                EndpointOutput::GreeksAllTicks(vec![greeks_all_tick()])
+                EndpointOutput::GreeksAllTicks(thetadatadx::columns::Ticks::from(vec![
+                    greeks_all_tick()
+                ]))
             ),
             GREEKS_ALL,
             "option_snapshot_greeks_all CSV header must match the v3 spec column order"
@@ -4078,7 +4179,9 @@ mod tests {
             csv_header_for(
                 "option_history_greeks_all",
                 "AAPL",
-                EndpointOutput::GreeksAllTicks(vec![greeks_all_tick()])
+                EndpointOutput::GreeksAllTicks(thetadatadx::columns::Ticks::from(vec![
+                    greeks_all_tick()
+                ]))
             ),
             GREEKS_ALL,
             "option_history_greeks_all CSV header must match the v3 spec column order"
@@ -4090,7 +4193,7 @@ mod tests {
             csv_header_for(
                 "option_history_greeks_eod",
                 "AAPL",
-                EndpointOutput::GreeksEodTicks(vec![greeks_eod_tick()])
+                EndpointOutput::GreeksEodTicks(thetadatadx::columns::Ticks::from(vec![greeks_eod_tick()]))
             ),
             "symbol,expiration,strike,right,timestamp,open,high,low,close,volume,count,bid_size,bid_exchange,bid,bid_condition,ask_size,ask_exchange,ask,ask_condition,delta,theta,vega,rho,epsilon,lambda,gamma,vanna,charm,vomma,veta,vera,speed,zomma,color,ultima,d1,d2,dual_delta,dual_gamma,implied_vol,iv_error,underlying_timestamp,underlying_price",
             "option_history_greeks_eod CSV header must match the v3 spec column order"
@@ -4102,7 +4205,9 @@ mod tests {
             csv_header_for(
                 "option_snapshot_greeks_first_order",
                 "AAPL",
-                EndpointOutput::GreeksFirstOrderTicks(vec![greeks_first_order_tick()])
+                EndpointOutput::GreeksFirstOrderTicks(thetadatadx::columns::Ticks::from(vec![
+                    greeks_first_order_tick()
+                ]))
             ),
             GREEKS_FIRST,
             "option_snapshot_greeks_first_order CSV header must match the v3 spec"
@@ -4111,7 +4216,9 @@ mod tests {
             csv_header_for(
                 "option_history_greeks_first_order",
                 "AAPL",
-                EndpointOutput::GreeksFirstOrderTicks(vec![greeks_first_order_tick()])
+                EndpointOutput::GreeksFirstOrderTicks(thetadatadx::columns::Ticks::from(vec![
+                    greeks_first_order_tick()
+                ]))
             ),
             GREEKS_FIRST,
             "option_history_greeks_first_order CSV header must match the v3 spec"
@@ -4123,7 +4230,9 @@ mod tests {
             csv_header_for(
                 "option_snapshot_greeks_second_order",
                 "AAPL",
-                EndpointOutput::GreeksSecondOrderTicks(vec![greeks_second_order_tick()])
+                EndpointOutput::GreeksSecondOrderTicks(thetadatadx::columns::Ticks::from(vec![
+                    greeks_second_order_tick()
+                ]))
             ),
             GREEKS_SECOND,
             "option_snapshot_greeks_second_order CSV header must match the v3 spec"
@@ -4132,7 +4241,9 @@ mod tests {
             csv_header_for(
                 "option_history_greeks_second_order",
                 "AAPL",
-                EndpointOutput::GreeksSecondOrderTicks(vec![greeks_second_order_tick()])
+                EndpointOutput::GreeksSecondOrderTicks(thetadatadx::columns::Ticks::from(vec![
+                    greeks_second_order_tick()
+                ]))
             ),
             GREEKS_SECOND,
             "option_history_greeks_second_order CSV header must match the v3 spec"
@@ -4144,7 +4255,9 @@ mod tests {
             csv_header_for(
                 "option_snapshot_greeks_third_order",
                 "AAPL",
-                EndpointOutput::GreeksThirdOrderTicks(vec![greeks_third_order_tick()])
+                EndpointOutput::GreeksThirdOrderTicks(thetadatadx::columns::Ticks::from(vec![
+                    greeks_third_order_tick()
+                ]))
             ),
             GREEKS_THIRD,
             "option_snapshot_greeks_third_order CSV header must match the v3 spec"
@@ -4153,7 +4266,9 @@ mod tests {
             csv_header_for(
                 "option_history_greeks_third_order",
                 "AAPL",
-                EndpointOutput::GreeksThirdOrderTicks(vec![greeks_third_order_tick()])
+                EndpointOutput::GreeksThirdOrderTicks(thetadatadx::columns::Ticks::from(vec![
+                    greeks_third_order_tick()
+                ]))
             ),
             GREEKS_THIRD,
             "option_history_greeks_third_order CSV header must match the v3 spec"
@@ -4166,7 +4281,7 @@ mod tests {
             csv_header_for(
                 "option_snapshot_greeks_implied_volatility",
                 "AAPL",
-                EndpointOutput::IvTicks(vec![iv_tick()])
+                EndpointOutput::IvTicks(thetadatadx::columns::Ticks::from(vec![iv_tick()]))
             ),
             "symbol,expiration,strike,right,timestamp,bid,ask,implied_vol,iv_error,underlying_timestamp,underlying_price",
             "option_snapshot_greeks_implied_volatility emits the trimmed 11-col v3 snapshot IV schema"
@@ -4175,7 +4290,7 @@ mod tests {
             csv_header_for(
                 "option_history_greeks_implied_volatility",
                 "AAPL",
-                EndpointOutput::IvTicks(vec![iv_tick()])
+                EndpointOutput::IvTicks(thetadatadx::columns::Ticks::from(vec![iv_tick()]))
             ),
             "symbol,expiration,strike,right,timestamp,bid,bid_implied_vol,midpoint,implied_vol,ask,ask_implied_vol,iv_error,underlying_timestamp,underlying_price",
             "option_history_greeks_implied_volatility keeps the full 14-col v3 history IV schema"
@@ -4187,7 +4302,7 @@ mod tests {
             csv_header_for(
                 "option_history_trade_greeks_all",
                 "AAPL",
-                EndpointOutput::TradeGreeksAllTicks(vec![trade_greeks_all_tick()])
+                EndpointOutput::TradeGreeksAllTicks(thetadatadx::columns::Ticks::from(vec![trade_greeks_all_tick()]))
             ),
             "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,delta,theta,vega,rho,epsilon,lambda,gamma,vanna,charm,vomma,veta,vera,speed,zomma,color,ultima,d1,d2,dual_delta,dual_gamma,implied_vol,iv_error,underlying_timestamp,underlying_price",
             "option_history_trade_greeks_all CSV header must match the v3 spec ~:5867"
@@ -4196,7 +4311,7 @@ mod tests {
             csv_header_for(
                 "option_history_trade_greeks_first_order",
                 "AAPL",
-                EndpointOutput::TradeGreeksFirstOrderTicks(vec![trade_greeks_first_order_tick()])
+                EndpointOutput::TradeGreeksFirstOrderTicks(thetadatadx::columns::Ticks::from(vec![trade_greeks_first_order_tick()]))
             ),
             "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,delta,theta,vega,rho,epsilon,lambda,implied_vol,iv_error,underlying_timestamp,underlying_price",
             "option_history_trade_greeks_first_order CSV header must match the v3 spec ~:6325"
@@ -4205,7 +4320,7 @@ mod tests {
             csv_header_for(
                 "option_history_trade_greeks_second_order",
                 "AAPL",
-                EndpointOutput::TradeGreeksSecondOrderTicks(vec![trade_greeks_second_order_tick()])
+                EndpointOutput::TradeGreeksSecondOrderTicks(thetadatadx::columns::Ticks::from(vec![trade_greeks_second_order_tick()]))
             ),
             "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,gamma,vanna,charm,vomma,veta,implied_vol,iv_error,underlying_timestamp,underlying_price",
             "option_history_trade_greeks_second_order CSV header must match the v3 spec ~:6782"
@@ -4214,7 +4329,7 @@ mod tests {
             csv_header_for(
                 "option_history_trade_greeks_third_order",
                 "AAPL",
-                EndpointOutput::TradeGreeksThirdOrderTicks(vec![trade_greeks_third_order_tick()])
+                EndpointOutput::TradeGreeksThirdOrderTicks(thetadatadx::columns::Ticks::from(vec![trade_greeks_third_order_tick()]))
             ),
             "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,speed,zomma,color,ultima,implied_vol,iv_error,underlying_timestamp,underlying_price",
             "option_history_trade_greeks_third_order CSV header must match the v3 spec ~:7233"
@@ -4223,7 +4338,7 @@ mod tests {
             csv_header_for(
                 "option_history_trade_greeks_implied_volatility",
                 "AAPL",
-                EndpointOutput::TradeGreeksImpliedVolatilityTicks(vec![trade_greeks_iv_tick()])
+                EndpointOutput::TradeGreeksImpliedVolatilityTicks(thetadatadx::columns::Ticks::from(vec![trade_greeks_iv_tick()]))
             ),
             "symbol,expiration,strike,right,timestamp,sequence,ext_condition1,ext_condition2,ext_condition3,ext_condition4,condition,size,exchange,price,implied_vol,iv_error,underlying_timestamp,underlying_price",
             "option_history_trade_greeks_implied_volatility CSV header must match the v3 spec ~:7637"

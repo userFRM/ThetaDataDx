@@ -528,7 +528,7 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[8];
+    uint8_t _tail_padding[12];
 } ThetaDataDxMarketValueTick THETADATADX_ALIGN64_END;
 
 /* OHLCVC bar tick (*_history_ohlc): one aggregated bar with
@@ -569,7 +569,7 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[32];
+    uint8_t _tail_padding[36];
 } ThetaDataDxOpenInterestTick THETADATADX_ALIGN64_END;
 
 /* Bare index price tick (index_*_price): a single price stamped with
@@ -579,7 +579,7 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
     /* 4 bytes padding before the double field */
     double price;
     int32_t date;
-    uint8_t _tail_padding[40];
+    uint8_t _tail_padding[44];
 } ThetaDataDxPriceTick THETADATADX_ALIGN64_END;
 
 /* Trade-shaped index price tick (index_at_time_price) -- carries the
@@ -666,7 +666,7 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[48];
+    uint8_t _tail_padding[52];
 } ThetaDataDxTradeQuoteTick THETADATADX_ALIGN64_END;
 
 /* Single trade-print tick (*_history_trade): one OPRA/SIP execution with
@@ -694,7 +694,7 @@ THETADATADX_ALIGN64_BEGIN typedef struct {
      * 'P' (80) for a put, 0 when contract identity is absent
      * (single-contract queries). Cast to char for display. */
     uint32_t right;
-    uint8_t _tail_padding[40];
+    uint8_t _tail_padding[44];
 } ThetaDataDxTradeTick THETADATADX_ALIGN64_END;
 
 /* ═══════════════════════════════════════════════════════════════════════ */

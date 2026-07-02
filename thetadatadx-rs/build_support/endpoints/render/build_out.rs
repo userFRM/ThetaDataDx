@@ -443,9 +443,13 @@ fn generate_endpoint_dispatch_arm(out: &mut String, endpoint: &GeneratedEndpoint
         out.push_str("            builder\n");
         out.push_str("                .stream(|chunk| result.extend_from_slice(chunk))\n");
         out.push_str("                .await?;\n");
+        // The streaming collect path drains per-chunk slices and keeps no
+        // response header list, so it carries the full-schema presence (the
+        // `all_columns` default) rather than a wire-projected set.
+        out.push_str("            let columns = collected_columns(&result);\n");
         writeln!(
             out,
-            "            Ok(EndpointOutput::{}(result))",
+            "            Ok(EndpointOutput::{}(Ticks::new(result, columns)))",
             endpoint.return_type
         )
         .unwrap();
@@ -466,10 +470,10 @@ fn generate_endpoint_dispatch_arm(out: &mut String, endpoint: &GeneratedEndpoint
     emit_optional_setters(out, &builder_params);
 
     emit_builder_deadline(out);
-    // The buffered builder resolves to `Ticks<T>` (rows + wire column set);
-    // the FFI `EndpointOutput` variants carry the bare `Vec<T>` (the C ABI
-    // arrays serialise row data only), so drop the presence here.
-    out.push_str("            let result = builder.await?.into_vec();\n");
+    // The buffered builder resolves to `Ticks<T>` (rows + wire column set),
+    // which the `EndpointOutput` variant carries through so the FFI
+    // `_with_options` out-param can surface the projected column set.
+    out.push_str("            let result = builder.await?;\n");
     writeln!(
         out,
         "            Ok(EndpointOutput::{}(result))",

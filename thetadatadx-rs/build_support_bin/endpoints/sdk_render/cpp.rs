@@ -126,6 +126,11 @@ pub(super) fn render_cpp_historical_decls(endpoints: &[GeneratedEndpoint]) -> St
                 })
                 .collect::<Vec<_>>();
             params.push("const EndpointRequestOptions& options = {}".into());
+            // Tick-returning endpoints expose an optional presence out-param so
+            // a caller can drive the projected Arrow export from the response.
+            if endpoint.return_type != "StringList" {
+                params.push("ColumnPresence* out_columns = nullptr".into());
+            }
             writeln!(
                 out,
                 "    std::vector<{}> {}({}) const;\n",
@@ -142,6 +147,11 @@ pub(super) fn render_cpp_historical_decls(endpoints: &[GeneratedEndpoint]) -> St
         // Every endpoint accepts EndpointRequestOptions now: even
         // endpoints with no other builder params can carry a timeout_ms.
         params.push("const EndpointRequestOptions& options = {}".into());
+        // Tick-returning endpoints expose an optional presence out-param so
+        // a caller can drive the projected Arrow export from the response.
+        if endpoint.return_type != "StringList" {
+            params.push("ColumnPresence* out_columns = nullptr".into());
+        }
         writeln!(
             out,
             "    std::vector<{}> {}({}) const;\n",
@@ -460,6 +470,12 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint, class_name: &str) -> St
     // Every endpoint accepts EndpointRequestOptions so callers can
     // pass at least the cross-cutting deadline.
     signature_parts.push("const EndpointRequestOptions& options".into());
+    // Tick-returning endpoints take an optional presence out-param (`nullptr`
+    // to skip); `StringList` results carry no column set.
+    let has_presence = endpoint.return_type != "StringList";
+    if has_presence {
+        signature_parts.push("ColumnPresence* out_columns".into());
+    }
 
     let mut out = String::new();
     if has_symbols {
@@ -474,6 +490,9 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint, class_name: &str) -> St
             })
             .collect::<Vec<_>>();
         singular_parts.push("const EndpointRequestOptions& options".into());
+        if has_presence {
+            singular_parts.push("ColumnPresence* out_columns".into());
+        }
         writeln!(
             out,
             "std::vector<{}> {}::{}({}) const {{",
@@ -494,7 +513,16 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint, class_name: &str) -> St
             })
             .collect::<Vec<_>>()
             .join(", ");
-        writeln!(out, "    return {}({}, options);", endpoint.name, forwarded).unwrap();
+        if has_presence {
+            writeln!(
+                out,
+                "    return {}({}, options, out_columns);",
+                endpoint.name, forwarded
+            )
+            .unwrap();
+        } else {
+            writeln!(out, "    return {}({}, options);", endpoint.name, forwarded).unwrap();
+        }
         out.push_str("}\n\n");
     }
     writeln!(
@@ -538,6 +566,7 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint, class_name: &str) -> St
     }
 
     if endpoint.return_type == "OptionContracts" {
+        out.push_str("    ThetaDataDxColumnPresence presence_raw{nullptr, 0};\n");
         write!(
             out,
             "    ThetaDataDxOptionContractArray arr = thetadatadx_{}_with_options",
@@ -552,7 +581,10 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint, class_name: &str) -> St
                 write!(out, ", {}.c_str()", sdk_method_arg_name(param)).unwrap();
             }
         }
-        out.push_str(", &ffi_options.raw);\n");
+        out.push_str(", &ffi_options.raw, out_columns ? &presence_raw : nullptr);\n");
+        out.push_str(
+            "    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }\n",
+        );
         // Disambiguate empty-success vs failure-empty (e.g. timeout). See
         // thetadatadx-ffi/src/lib.rs::thetadatadx_clear_error and the matching call before the FFI.
         out.push_str(include_str!(
@@ -561,6 +593,7 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint, class_name: &str) -> St
         return out;
     }
 
+    out.push_str("    ThetaDataDxColumnPresence presence_raw{nullptr, 0};\n");
     write!(
         out,
         "    auto arr = thetadatadx_{}_with_options",
@@ -575,7 +608,10 @@ fn render_cpp_endpoint_def(endpoint: &GeneratedEndpoint, class_name: &str) -> St
             write!(out, ", {}.c_str()", sdk_method_arg_name(param)).unwrap();
         }
     }
-    out.push_str(", &ffi_options.raw);\n");
+    out.push_str(", &ffi_options.raw, out_columns ? &presence_raw : nullptr);\n");
+    out.push_str(
+        "    if (out_columns != nullptr) { *out_columns = ColumnPresence(presence_raw); }\n",
+    );
     writeln!(out, "    {}", cpp_converter_expr(&endpoint.return_type)).unwrap();
     out.push_str("}\n");
     out
@@ -609,7 +645,13 @@ pub(super) fn render_c_endpoint_with_options_decls(endpoints: &[GeneratedEndpoin
                 write!(out, ", const char* {}", param.name).unwrap();
             }
         }
-        out.push_str(", const ThetaDataDxEndpointRequestOptions* options);\n");
+        out.push_str(", const ThetaDataDxEndpointRequestOptions* options");
+        // Tick-returning endpoints append the wire-column presence out-param
+        // (null to skip); `StringList` results carry no column set.
+        if endpoint.return_type != "StringList" {
+            out.push_str(", ThetaDataDxColumnPresence* out_presence");
+        }
+        out.push_str(");\n");
     }
     out
 }

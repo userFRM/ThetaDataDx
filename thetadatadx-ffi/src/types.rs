@@ -406,6 +406,11 @@ macro_rules! tick_array_to_arrow_ipc {
         /// `rows` must point to `len` initialised `$tick` values (e.g. the
         /// `data` / `len` pair of the array a history endpoint returned, or
         /// a C++ `std::vector`'s `data()` / `size()`), valid for the call.
+        /// Where the tick carries a `right` (a `char`) or `status` (an enum)
+        /// field, each row's value must be a valid inhabitant of that type —
+        /// the Arrow builder reads them as their Rust types, so an out-of-range
+        /// bit pattern is undefined behavior. Rows a history endpoint returned
+        /// already satisfy this.
         #[no_mangle]
         pub unsafe extern "C" fn $fn_name(rows: *const $tick, len: usize) -> ThetaDataDxArrowBytes {
             ffi_boundary!(ThetaDataDxArrowBytes::EMPTY, {
@@ -578,7 +583,7 @@ const _: () = {
 };
 
 impl ThetaDataDxColumnPresence {
-    const EMPTY: Self = Self {
+    pub(crate) const EMPTY: Self = Self {
         names: ptr::null(),
         len: 0,
     };
@@ -587,7 +592,7 @@ impl ThetaDataDxColumnPresence {
     /// array. The names are `'static` schema field names, so `CString::new`
     /// cannot see an interior NUL; the map is still fallible only to reuse the
     /// validated-then-`into_raw` discipline of [`ThetaDataDxStringArray::from_vec`].
-    fn from_presence(present: &thetadatadx::columns::ColumnPresence) -> Self {
+    pub(crate) fn from_presence(present: &thetadatadx::columns::ColumnPresence) -> Self {
         let owned: Vec<CString> = present
             .present_names()
             .map(|n| CString::new(n).expect("schema column names contain no interior NUL"))

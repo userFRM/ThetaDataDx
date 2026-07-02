@@ -630,9 +630,12 @@ fn render_control_arm(out: &mut String, event_name: &str, def: &EventDef) {
     }
     if let Some(field) = has_bytes {
         writeln!(out, "                let bytes_owned = {field}.clone();").unwrap();
+        // Empty payload must cross as a null pointer (the header promises
+        // null-when-empty); `Vec::as_ptr` on an empty buffer returns a
+        // non-null dangling pointer. Mirrors the symbol guard below.
         writeln!(
             out,
-            "                let payload_ptr = bytes_owned.as_ptr();"
+            "                let payload_ptr = if bytes_owned.is_empty() {{ ptr::null() }} else {{ bytes_owned.as_ptr() }};"
         )
         .unwrap();
         writeln!(
