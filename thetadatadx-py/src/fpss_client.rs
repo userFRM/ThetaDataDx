@@ -431,12 +431,34 @@ impl StreamingClient {
             .map_err(|e| to_py_err(thetadatadx::Error::from(e)))?;
         let client_arc = Arc::new(client);
 
-        // Publish the client BEFORE spawning the dispatcher so the first
-        // delivered event sees a fully initialised handle. A re-entrant call
-        // from inside the user callback to `subscribe()` / `with_live()` /
-        // `is_streaming()` would otherwise race the late publish and observe
+        // Ownership gate: the callback lock was dropped across the connect, so a
+        // concurrent `stop_streaming` (clears the slot) or a newer
+        // `start_streaming` (replaces it) may have superseded this start. Take
+        // the callback lock and publish ONLY while the slot still holds THIS
+        // reservation (`Arc::ptr_eq`). Publishing unconditionally would resurrect
+        // streaming after a completed stop, or clobber a newer session's inner +
+        // dispatcher + callback. The lock is HELD across the publish AND the
+        // dispatcher install so the whole handoff is atomic against a concurrent
+        // stop (which takes the callback lock first); the dispatcher closure
+        // never takes the callback lock, so holding it here cannot re-enter.
+        let cb_guard = self.lock_callback();
+        if !cb_guard
+            .as_ref()
+            .is_some_and(|cb| Arc::ptr_eq(cb, &callback_arc))
+        {
+            // Superseded. Do not publish. Shut the freshly built client down and
+            // return; the reservation drops as a no-op (the slot is not ours).
+            drop(cb_guard);
+            client_arc.shutdown();
+            return Err(PyRuntimeError::new_err(
+                "streaming start superseded by a concurrent stop/start",
+            ));
+        }
+        // Still ours: publish the client BEFORE spawning the dispatcher so the
+        // first delivered event sees a fully initialised handle. A re-entrant
+        // call from inside the user callback to `subscribe()` / `with_live()` /
+        // `is_streaming()` would otherwise race a late publish and observe
         // `inner = None`, raising `RuntimeError("streaming not started")`.
-        // The callback slot already holds this reservation.
         *self.lock_inner() = Some(Arc::clone(&client_arc));
 
         let dispatcher_client = Arc::clone(&client_arc);
@@ -527,24 +549,19 @@ impl StreamingClient {
                         registers_drain_flag: true,
                     };
                 // Connect + spawn succeeded: hand the reservation off to the
-                // live session so the guard does not clear it on return.
+                // live session so the guard does not clear it on return, then
+                // release the callback lock.
                 reservation.disarm();
+                drop(cb_guard);
             }
             Err(e) => {
-                // The dispatcher thread never started; reclaim and shut down the
-                // client THIS start published, but ONLY if `inner` still holds
-                // it -- a concurrent stop + restart during the GIL-released
-                // connect may have replaced it (`Arc::ptr_eq`). The inner guard
-                // is dropped before the reservation clears the callback slot on
-                // return, keeping the callback-before-inner lock order. The
-                // reservation clears the callback slot on drop, ownership-checked
-                // the same way.
-                {
-                    let mut inner = self.lock_inner();
-                    if inner.as_ref().is_some_and(|c| Arc::ptr_eq(c, &client_arc)) {
-                        *inner = None;
-                    }
-                }
+                // Owner: the callback lock is held from the gate above, so no
+                // concurrent stop could have run and `inner` still holds this
+                // start's client. Clear it and shut the client down. Release the
+                // callback lock BEFORE returning so the reservation can clear the
+                // slot on drop (ownership-checked) without a double-lock.
+                *self.lock_inner() = None;
+                drop(cb_guard);
                 client_arc.shutdown();
                 return Err(PyRuntimeError::new_err(format!(
                     "failed to spawn streaming dispatcher thread: {e}"
