@@ -294,9 +294,9 @@ export declare class Config {
   setReconnectReplayPaceMs(ms: bigint): void
   /** Current `replay_pace_ms` value (default `5n`). */
   get reconnectReplayPaceMs(): bigint
-  /** Set the streaming read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000n`; validated to `[100, 60_000]` at connect. */
+  /** Set the streaming read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `10_000n`; validated to `[100, 60_000]` at connect. */
   setStreamingTimeoutMs(ms: bigint): void
-  /** Current `streaming.timeout_ms` value (default `3_000n`). */
+  /** Current `streaming.timeout_ms` value (default `10_000n`). */
   get streamingTimeoutMs(): bigint
   /** Set the per-server connect timeout (ms) for the streaming connection. Default `2_000n`; validated to `[1_000, 60_000]` at connect. */
   setStreamingConnectTimeoutMs(ms: bigint): void

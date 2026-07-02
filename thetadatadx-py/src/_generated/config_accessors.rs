@@ -104,14 +104,14 @@ impl Config {
 
     /// Set the streaming read timeout (ms): the no-frames deadline after
     /// which the streaming I/O loop declares the session dead and
-    /// reconnects. Default ``3_000``; validated to ``[100, 60_000]``.
+    /// reconnects. Default ``10_000``; validated to ``[100, 60_000]``.
     #[setter]
     fn set_streaming_timeout_ms(&self, ms: u64) {
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard.streaming.timeout_ms = ms;
     }
 
-    /// Current ``streaming.timeout_ms`` value (default ``3_000``).
+    /// Current ``streaming.timeout_ms`` value (default ``10_000``).
     #[getter]
     fn get_streaming_timeout_ms(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());

@@ -97,7 +97,7 @@ def test_reconnect_callback_registration_switches_policy():
 def test_streaming_transport_defaults_and_round_trip():
     mod = _import_module()
     cfg = mod.Config.production()
-    assert cfg.streaming_timeout_ms == 3_000
+    assert cfg.streaming_timeout_ms == 10_000
     assert cfg.streaming_connect_timeout_ms == 2_000
     assert cfg.streaming_ping_interval_ms == 250
     assert cfg.streaming_ring_size == 131_072
@@ -105,7 +105,7 @@ def test_streaming_transport_defaults_and_round_trip():
     assert cfg.streaming_keepalive_idle_secs == 5
     assert cfg.streaming_keepalive_interval_secs == 2
     assert cfg.streaming_keepalive_retries == 2
-    cfg.streaming_timeout_ms = 10_000
+    cfg.streaming_timeout_ms = 15_000
     cfg.streaming_connect_timeout_ms = 5_000
     cfg.streaming_ping_interval_ms = 1_000
     cfg.streaming_ring_size = 8_192
@@ -113,7 +113,7 @@ def test_streaming_transport_defaults_and_round_trip():
     cfg.streaming_keepalive_idle_secs = 10
     cfg.streaming_keepalive_interval_secs = 5
     cfg.streaming_keepalive_retries = 4
-    assert cfg.streaming_timeout_ms == 10_000
+    assert cfg.streaming_timeout_ms == 15_000
     assert cfg.streaming_connect_timeout_ms == 5_000
     assert cfg.streaming_ping_interval_ms == 1_000
     assert cfg.streaming_ring_size == 8_192

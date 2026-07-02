@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [13.0.0-rc.13] - 2026-07-02
 
+### Changed
+
+- The default streaming read timeout is now 10s (was 3s), matching the terminal's streaming socket read timeout so a client rides through the brief silence right after a full-market subscribe instead of tripping the deadline and forcing an unnecessary reconnect. Still configurable via `streaming.timeout_ms`.
+
 ### Fixed
 
 - **Windows server archive attaches to the release.** The Windows `thetadatadx-server` archive was built, but the upload step received a path the artifact action could not resolve on Windows, so the GitHub Release carried no Windows binary. The archive is now referenced by its native workspace path and attaches correctly.

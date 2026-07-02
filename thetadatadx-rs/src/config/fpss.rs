@@ -134,11 +134,16 @@ pub struct StreamingConfig {
     /// Drives the per-connection initial socket read timeout, the framing
     /// layer's mid-frame stall budget, and the I/O loop's overall
     /// "no frames received" deadline that triggers
-    /// [`crate::RemoveReason::TimedOut`]. Default `3_000`
-    /// — the server heartbeats every ~100 ms on a quiet session, so
-    /// three seconds of total silence is ~30 missed heartbeats and a
-    /// dead link is declared quickly instead of after the previous
-    /// 10 s default. Validated to the range `[100, 60_000]` ms.
+    /// [`crate::RemoveReason::TimedOut`]. Default `10_000`, matching the
+    /// terminal's streaming socket read timeout. Right after a
+    /// full-market subscribe the server can fall fully silent (no
+    /// frames, no pings) for a few seconds while it sets the
+    /// subscription up; a 10 s deadline rides through that gap where a
+    /// shorter one trips inside it and forces an unnecessary reconnect.
+    /// The ~100 ms cadence is the client's ping to the server, not an
+    /// inbound heartbeat; inbound frames and pings arrive roughly every
+    /// ~250 ms on an active session. Validated to the range
+    /// `[100, 60_000]` ms.
     pub timeout_ms: u64,
 
     /// Streaming event ring buffer size (slots).
@@ -154,14 +159,14 @@ pub struct StreamingConfig {
 
     /// Streaming heartbeat ping interval in milliseconds.
     ///
-    /// The streaming server expects a heartbeat at this cadence and may
-    /// disconnect if it falls silent. Default `250` — the server's own
-    /// ~100 ms heartbeat is the primary liveness signal in the
-    /// reverse direction; the client ping mainly proves write-side
-    /// health, and a 4 Hz cadence does that without contributing to
-    /// inbound-frame pressure on a recovering upstream. Validated to
-    /// the range `[100, 300_000]` ms — sub-100 ms values are rejected
-    /// so a misconfiguration does not flood the upstream.
+    /// This is the client's outbound ping cadence to the server, and the
+    /// server may disconnect if it falls silent. Default `250` — the ping
+    /// mainly proves write-side health at a 4 Hz cadence without adding
+    /// inbound-frame pressure on a recovering upstream. Reverse-direction
+    /// liveness is the inbound frame and ping stream (~250 ms on an active
+    /// session), which [`Self::timeout_ms`] guards. Validated to the range
+    /// `[100, 300_000]` ms — sub-100 ms values are rejected so a
+    /// misconfiguration does not flood the upstream.
     pub ping_interval_ms: u64,
 
     /// Per-server TCP connect timeout in milliseconds. Default `2000`.
@@ -255,7 +260,7 @@ impl StreamingConfig {
             ],
             host_selection: HostSelectionPolicy::Shuffled,
             host_shuffle_seed: None,
-            timeout_ms: 3_000,
+            timeout_ms: 10_000,
             ring_size: 131_072,
             ping_interval_ms: 250,
             connect_timeout_ms: 2_000,
@@ -301,7 +306,7 @@ mod tests {
     #[test]
     fn production_defaults_resilience_shape() {
         let cfg = StreamingConfig::production_defaults();
-        assert_eq!(cfg.timeout_ms, 3_000);
+        assert_eq!(cfg.timeout_ms, 10_000);
         assert_eq!(cfg.ping_interval_ms, 250);
         assert_eq!(cfg.io_read_slice_ms, 25);
         assert_eq!(cfg.keepalive_idle_secs, 5);

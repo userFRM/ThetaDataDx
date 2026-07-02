@@ -230,7 +230,7 @@ pub unsafe extern "C" fn thetadatadx_config_get_reconnect_replay_pace_ms(
     })
 }
 
-/// Set the streaming read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `3_000`; validated to `[100, 60_000]` at connect.
+/// Set the streaming read timeout (ms): the no-frames deadline after which the streaming I/O loop declares the session dead and reconnects. Default `10_000`; validated to `[100, 60_000]` at connect.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_config_set_streaming_timeout_ms(
     config: *mut ThetaDataDxConfig,
@@ -242,7 +242,7 @@ pub unsafe extern "C" fn thetadatadx_config_set_streaming_timeout_ms(
     })
 }
 
-/// Read the current streaming `timeout_ms` setting (default `3_000`).
+/// Read the current streaming `timeout_ms` setting (default `10_000`).
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.
