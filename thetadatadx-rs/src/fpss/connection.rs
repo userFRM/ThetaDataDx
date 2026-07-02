@@ -9,7 +9,7 @@
 //!   detection) so a peer that vanishes without a FIN/RST is detected
 //!   by the transport long before the platform default of 2+ hours
 //! - Connect timeout: 2 seconds (configurable)
-//! - Read timeout: configurable (default 3 seconds)
+//! - Read timeout: configurable (default 10 seconds)
 //! - Host order: fault-domain-aware per-client shuffle by default (see
 //!   [`order_hosts`]), `FixedOrder` escape hatch preserves declaration
 //!   order
