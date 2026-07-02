@@ -59,6 +59,11 @@ struct Inner {
     /// Used by [`SessionToken::refresh`] to deduplicate concurrent
     /// refreshes — see the module doc.
     version: u64,
+    /// Monotonic counter incremented once per completed refresh attempt,
+    /// success OR failure. Lets [`SessionToken::refresh`] coalesce a burst
+    /// of concurrent callers onto a single Nexus round-trip even when that
+    /// round-trip fails (where `version` does not move) — see `refresh`.
+    attempts: u64,
     /// Nexus URL the token was originally issued from. Reused on
     /// refresh so a staging config stays on its staging endpoint.
     nexus_url: String,
@@ -71,15 +76,38 @@ struct Inner {
     creds: Credentials,
 }
 
+/// Error surfaced to callers that coalesced onto a concurrent refresh which
+/// already failed for the same token generation. They issued no Nexus
+/// round-trip of their own; the caller surfaces this rather than stampeding a
+/// Nexus that just rejected the identical credentials.
+fn coalesced_refresh_error() -> Error {
+    Error::Auth {
+        kind: crate::error::AuthErrorKind::ServerError,
+        message: "session refresh already failed for this token generation".into(),
+    }
+}
+
 /// Snapshot of the token at a point in time. Used to deduplicate
 /// concurrent refreshes — see [`SessionToken::refresh`].
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct SessionSnapshot {
     /// Session UUID observed at snapshot time.
     pub uuid: String,
     /// Token version observed at snapshot time. [`SessionToken::refresh`]
     /// re-authenticates only while the live version still equals this.
     pub version: u64,
+}
+
+impl std::fmt::Debug for SessionSnapshot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Never print the UUID — it is a bearer token, redacted with the same
+        // `***` marker `AuthResponse`'s `session_id` uses. Version is safe
+        // operator diagnostics.
+        f.debug_struct("SessionSnapshot")
+            .field("uuid", &"***")
+            .field("version", &self.version)
+            .finish()
+    }
 }
 
 impl SessionToken {
@@ -100,6 +128,7 @@ impl SessionToken {
             state: Arc::new(RwLock::new(Inner {
                 uuid,
                 version: 0,
+                attempts: 0,
                 nexus_url,
                 environment,
                 creds,
@@ -138,8 +167,11 @@ impl SessionToken {
     /// itself and an infinite refresh loop is worse than a surfaced
     /// error.
     pub async fn refresh(&self, stale: &SessionSnapshot) -> Result<SessionSnapshot, Error> {
-        // Fast path: someone may have already refreshed past `stale`.
-        {
+        // Fast path: someone may have already refreshed past `stale`. Capture
+        // the attempt generation observed on entry so that, after waiting on
+        // the refresh lock, we can tell whether a concurrent attempt for this
+        // same generation already ran and failed while we were queued.
+        let entry_attempts = {
             let guard = self.state.read().await;
             if guard.version != stale.version {
                 return Ok(SessionSnapshot {
@@ -147,7 +179,8 @@ impl SessionToken {
                     version: guard.version,
                 });
             }
-        }
+            guard.attempts
+        };
 
         // Serialize refresh attempts. Inside this critical section the
         // state RwLock is NOT held, so snapshot()/current_uuid() readers
@@ -164,6 +197,16 @@ impl SessionToken {
                     version: guard.version,
                 });
             }
+            // A concurrent refresh for this same token generation already ran
+            // and failed while we waited on the lock (version unchanged, but
+            // the attempt counter advanced). Coalesce onto that outcome rather
+            // than issuing a second Nexus round-trip, so a burst of N callers
+            // that all observe the same `Unauthenticated` makes at most one
+            // auth attempt. A failed credential or a down Nexus will not fix
+            // itself on an immediate re-attempt.
+            if guard.attempts != entry_attempts {
+                return Err(coalesced_refresh_error());
+            }
             (
                 guard.nexus_url.clone(),
                 guard.environment,
@@ -171,10 +214,16 @@ impl SessionToken {
             )
         };
 
-        let resp = authenticate_at(&nexus_url, &creds, environment).await?;
+        let result = authenticate_at(&nexus_url, &creds, environment).await;
 
-        // Briefly take the write lock to swap the UUID + bump the version.
+        // Record that an attempt completed for this generation (success OR
+        // failure) before releasing the refresh lock, so callers queued behind
+        // us coalesce onto this outcome instead of re-hitting Nexus.
         let mut guard = self.state.write().await;
+        guard.attempts = guard.attempts.wrapping_add(1);
+        let resp = result?;
+
+        // Swap the UUID + bump the version on success.
         guard.uuid = resp.session_id;
         guard.version = guard.version.wrapping_add(1);
         metrics::counter!("thetadatadx.auth.refresh").increment(1);
@@ -207,6 +256,14 @@ impl SessionToken {
         let mut guard = self.state.write().await;
         guard.uuid = new_uuid.to_string();
         guard.version = guard.version.wrapping_add(1);
+    }
+
+    /// Test-only: number of completed refresh attempts (Nexus round-trips
+    /// issued from `refresh`, success or failure). Lets the single-flight
+    /// test assert a concurrent burst produced exactly one attempt.
+    #[cfg(test)]
+    pub(crate) async fn attempts_for_test(&self) -> u64 {
+        self.state.read().await.attempts
     }
 }
 
@@ -246,6 +303,21 @@ mod tests {
             HistoricalEnvironment::Prod,
             fake_creds(),
         )
+    }
+
+    #[test]
+    fn snapshot_debug_redacts_uuid() {
+        // The session UUID is a bearer token; the Debug impl must never print
+        // it (panic output / `tracing::error!("{snap:?}")` / crash dumps).
+        let snap = SessionSnapshot {
+            uuid: "11111111-2222-3333-4444-555555555555".to_string(),
+            version: 7,
+        };
+        let dbg = format!("{snap:?}");
+        assert!(!dbg.contains("11111111"), "session uuid leaked: {dbg}");
+        assert!(dbg.contains("***"), "uuid not redacted: {dbg}");
+        // Version is safe diagnostics and must still render.
+        assert!(dbg.contains('7'), "version must still render: {dbg}");
     }
 
     #[tokio::test]
@@ -391,6 +463,17 @@ mod tests {
         assert!(matches!(r1, Err(Error::Auth { .. }) | Err(Error::Http(_))));
         assert!(matches!(r2, Err(Error::Auth { .. }) | Err(Error::Http(_))));
         assert_eq!(t.snapshot().await.version, 0);
+        // Single-flight on failure: only ONE of the two callers issued a Nexus
+        // round-trip. The winner ran `authenticate_at` (and failed); the loser
+        // acquired the refresh lock, saw the attempt counter had advanced while
+        // the version had not, and coalesced onto that failure instead of
+        // hammering Nexus with a second attempt. Before this fix both callers
+        // re-authenticated in series, so `attempts` would be 2.
+        assert_eq!(
+            t.attempts_for_test().await,
+            1,
+            "a concurrent failed-refresh burst must issue exactly one Nexus attempt"
+        );
         // Wall-clock sanity: the test must complete without hanging.
         // 30s is generous — both tasks should fail-fast on connect
         // refused. If we hit this bound something is wrong with the

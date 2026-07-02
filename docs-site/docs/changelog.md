@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Python `close()` can no longer deadlock against an in-flight streaming start.** `start_streaming` now releases its callback lock before the blocking connect, so a concurrent `close()` / `__exit__` / `__aexit__` on the client cannot wedge the interpreter.
 - **Python `session.subscribe(...)` after `close()` raises the uniform closed error.** The context-managed session's attribute proxy now surfaces the "client is closed" error on a closed unified client instead of masking it as an `AttributeError`.
 - **Python `close()` called from inside a streaming callback returns promptly.** Closing from the dispatcher thread now skips the drain wait it could never observe, instead of burning the full drain timeout and emitting a spurious warning.
+- **The credential exchange no longer follows redirects.** The Nexus auth client is set to not follow redirects, so a 3xx from the auth endpoint surfaces as a server error instead of the credential request body being replayed to the redirect target. Nexus never redirects auth.
+- **`SessionSnapshot` no longer prints its session UUID.** The `Debug` output now redacts the UUID with the same `***` marker the auth response uses, so the bearer token cannot land in panic output or `Debug`-formatted logs.
+- **A concurrent burst of failed session refreshes now issues a single Nexus round-trip.** When several requests observe an expired session at once and the re-authentication fails, callers queued behind the first coalesce onto that outcome instead of each re-authenticating in series.
 
 ## [13.0.0-rc.12] - 2026-07-01
 
