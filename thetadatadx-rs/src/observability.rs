@@ -62,16 +62,25 @@ fn install_exporter_impl(port: u16) -> Result<(), crate::error::Error> {
             );
             Ok(())
         }
-        Err(err) => {
-            // `install()` fails if another recorder is already registered.
-            // That's the common case in tests + multi-crate embeddings;
-            // log and continue so SDK consumers don't see a spurious
-            // hard error on re-install.
+        Err(metrics_exporter_prometheus::BuildError::FailedToSetGlobalRecorder(err)) => {
+            // A recorder is already registered in this process — the common
+            // case in tests + multi-crate embeddings. Log and continue so SDK
+            // consumers don't see a spurious hard error on re-install.
             tracing::warn!(
                 error = %err,
                 "Prometheus exporter not installed (another recorder is active)"
             );
             Ok(())
+        }
+        Err(err) => {
+            // A real bind / runtime failure (for example the metrics port is
+            // already in use, or the address could not be bound). Surface it
+            // rather than masking a genuine misconfiguration as a benign
+            // re-install.
+            Err(crate::error::Error::config_invalid(
+                "metrics_port",
+                format!("failed to start Prometheus exporter on port {port}: {err}"),
+            ))
         }
     }
 }

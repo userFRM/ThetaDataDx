@@ -8,7 +8,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc as std_mpsc;
 use std::sync::Arc;
-use std::thread;
 use std::time::Duration;
 
 use crate::tdbe::types::enums::StreamMsgType;
@@ -37,7 +36,9 @@ pub(in crate::fpss) fn ping_loop(
 
     // Fixed-rate heartbeat: first execution at 2000ms, then every 100ms.
     // The task sends THEN waits, so the first ping fires at exactly 2000ms.
-    thread::sleep(Duration::from_millis(2000));
+    // Slice the warm-up against `shutdown` so a Drop during the 2 s grace
+    // wakes within ~100 ms instead of blocking the join for the full grace.
+    super::sleep_until_or_shutdown(Duration::from_millis(2000), &shutdown);
 
     loop {
         if shutdown.load(Ordering::Relaxed) {
@@ -45,7 +46,7 @@ pub(in crate::fpss) fn ping_loop(
         }
         if !authenticated.load(Ordering::Relaxed) {
             // Don't send pings if not authenticated
-            thread::sleep(interval);
+            super::sleep_until_or_shutdown(interval, &shutdown);
             continue;
         }
 
@@ -78,7 +79,9 @@ pub(in crate::fpss) fn ping_loop(
             }
         }
 
-        thread::sleep(interval);
+        // Slice the inter-ping wait against `shutdown` so Drop is observed
+        // within ~100 ms rather than blocking for a full interval.
+        super::sleep_until_or_shutdown(interval, &shutdown);
     }
 
     tracing::debug!("fpss-ping thread exiting");
@@ -89,6 +92,7 @@ mod tests {
     use super::*;
     use crate::tdbe::types::enums::StreamMsgType;
     use std::sync::mpsc as std_mpsc;
+    use std::thread;
     use std::time::Instant;
 
     /// The configurable `ping_interval_ms` knob actually paces the

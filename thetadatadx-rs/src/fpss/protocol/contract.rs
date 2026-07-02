@@ -143,8 +143,9 @@ impl Contract {
     /// # Errors
     ///
     /// Returns [`Error::Config`] on validation failure: unparseable
-    /// expiration, non-strict right value, unparseable strike, or
-    /// strike outside `i32` range after `*1000` scaling.
+    /// expiration, non-strict right value, unparseable strike, a
+    /// non-positive strike, or a strike outside `i32` range after
+    /// `*1000` scaling.
     pub fn option(symbol: &str, leg: OptionLeg<'_>) -> Result<Self, Error> {
         let OptionLeg {
             expiration,
@@ -189,6 +190,15 @@ impl Contract {
             return Err(Error::config_invalid(
                 "contract.strike_thousandths",
                 format!("strike {strike_dollars} out of i32 range after *1000 scaling"),
+            ));
+        }
+        // A real option strike is strictly positive; a zero or negative
+        // strike is never a tradeable contract, so reject it at the builder
+        // boundary rather than emitting a subscribe for an impossible strike.
+        if strike_scaled <= 0.0 {
+            return Err(Error::config_invalid(
+                "contract.strike_thousandths",
+                format!("strike {strike_dollars} must be positive"),
             ));
         }
         // Reason: bounds checked above.
@@ -1103,6 +1113,27 @@ mod tests {
             }
         )
         .is_err());
+    }
+
+    #[test]
+    fn option_rejects_non_positive_strike() {
+        // A zero or negative strike is never a tradeable contract; both
+        // must be rejected rather than emitting a subscribe for an
+        // impossible strike.
+        for strike in ["0", "0.0", "-5", "-0.001"] {
+            assert!(
+                Contract::option(
+                    "SPY",
+                    OptionLeg {
+                        expiration: "20261218",
+                        strike,
+                        right: "C",
+                    },
+                )
+                .is_err(),
+                "strike {strike:?} must be rejected"
+            );
+        }
     }
 
     #[test]

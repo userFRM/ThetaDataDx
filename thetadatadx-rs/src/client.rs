@@ -2353,9 +2353,9 @@ impl StreamSurface<'_> {
     /// and obtain a
     /// [`RecordBatchStream`](crate::streaming::RecordBatchStream) of Apache
     /// Arrow `RecordBatch` values. Subscriptions are managed on this same
-    /// surface ([`Self::subscribe`] / [`Self::subscribe_many`]); subscribe
-    /// first, then open the reader. The batch schema is fixed for the
-    /// subscription and identical across every batch.
+    /// surface ([`Self::subscribe`] / [`Self::subscribe_many`]); building the
+    /// reader starts the session, so build first, then subscribe. The batch
+    /// schema is fixed for the subscription and identical across every batch.
     ///
     /// Like the callback path, FPSS connects when the reader is built, so
     /// this is an alternative to [`Self::start_streaming`], not a concurrent
@@ -2366,8 +2366,8 @@ impl StreamSurface<'_> {
     /// # use thetadatadx::streaming::Contract;
     /// # use futures::StreamExt;
     /// # async fn doc(client: &Client) -> Result<(), thetadatadx::Error> {
-    /// client.stream().subscribe(Contract::stock("AAPL").trade())?;
     /// let mut batches = client.stream().batches().batch_size(8_192).build()?;
+    /// client.stream().subscribe(Contract::stock("AAPL").trade())?;
     /// while let Some(batch) = batches.next().await {
     ///     let batch = batch?;
     ///     println!("{} rows", batch.num_rows());

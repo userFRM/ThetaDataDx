@@ -111,7 +111,7 @@ pub mod internals {
     pub use super::events::FpssEventInternal;
     pub use super::framing::{
         is_transient_read, read_frame_into_with_stall_timeout, write_raw_frame,
-        write_raw_frame_no_flush, MAX_PAYLOAD_LEN,
+        write_raw_frame_no_flush, FrameRead, MAX_PAYLOAD_LEN,
     };
     pub use super::io_loop::{wait_for_login, LoginResult};
     pub use super::protocol::wire::{
@@ -146,10 +146,13 @@ use self::protocol::{build_login_payload, build_subscribe_payload, Contract, Sub
 /// drains this queue every read-timeout cycle, so steady-state occupancy is
 /// near zero.
 ///
-/// The ping thread uses a blocking `send` for natural backpressure; the public
-/// subscribe / unsubscribe methods use a non-blocking `try_send` and surface a
-/// typed [`StreamErrorKind::Disconnected`] backpressure error rather than ever
-/// silently dropping a command.
+/// The ping thread and the public subscribe / unsubscribe methods all enqueue
+/// with a non-blocking `try_send`. Subscribe / unsubscribe surface a typed
+/// [`StreamErrorKind::Disconnected`] backpressure error on a full channel
+/// rather than silently dropping a command; the idempotent ping heartbeat
+/// simply skips a beat when the channel is momentarily full (the I/O thread is
+/// draining a backlog, so the connection is demonstrably alive and the next
+/// beat follows one interval later) instead of blocking the ping thread.
 pub(in crate::fpss) const CMD_CHANNEL_CAPACITY: usize = 16_384;
 
 // ---------------------------------------------------------------------------
@@ -832,6 +835,7 @@ struct SpawnArgs<'a, P> {
     pending_subs: Arc<Mutex<std::collections::HashMap<i32, io_loop::PendingSubEntry>>>,
     dropped: Arc<AtomicU64>,
     panics: Arc<AtomicU64>,
+    io_faulted: Arc<AtomicBool>,
     ring_cursors: Arc<RingCursors>,
     consumer_thread_id: Arc<Mutex<Option<ThreadId>>>,
     next_req_id: Arc<AtomicI64>,
@@ -969,6 +973,13 @@ pub struct StreamingClient {
     /// event-dispatch consumer's `catch_unwind` boundary. Snapshot via
     /// [`StreamingClient::panic_count`].
     panics: Arc<AtomicU64>,
+    /// Set by the I/O thread's fault guard if `io_loop` unwinds. A panic
+    /// there drops the ring producer, which the consumer would otherwise
+    /// read as a clean end-of-stream while `is_authenticated()` stayed
+    /// `true`. The guard flips this (plus `authenticated` false and
+    /// `shutdown` true) so the blocking drain paths surface
+    /// [`StreamError::DispatcherFailed`] instead of `Ok(None)`.
+    io_faulted: Arc<AtomicBool>,
     /// `ThreadId` of the thread that actually owns the drain, recorded by
     /// the drain primitives **after** they acquire the `poller_state` lock.
     ///
@@ -999,6 +1010,32 @@ pub struct StreamingClient {
     /// [`crate::Client::await_drain`] can poll for full
     /// quiescence after stop / reconnect.
     drained: Arc<AtomicBool>,
+}
+
+/// Turns an `io_loop` panic into an observable dispatcher failure.
+///
+/// The I/O thread owns the ring producer; if `io_loop` unwinds, the
+/// producer drops and the consumer reads a clean end-of-stream while
+/// `is_authenticated()` still reports `true` — a panic masquerading as a
+/// graceful shutdown, and the documented [`StreamError::DispatcherFailed`]
+/// is never produced. This guard lives in the spawn closure: on a normal
+/// return it drops as a no-op, and on an unwind it flips the session to a
+/// failed state (faulted, deauthenticated, shut down) so the blocking drain
+/// paths surface `DispatcherFailed` instead of `Ok(None)`.
+struct IoLoopFaultGuard {
+    authenticated: Arc<AtomicBool>,
+    shutdown: Arc<AtomicBool>,
+    faulted: Arc<AtomicBool>,
+}
+
+impl Drop for IoLoopFaultGuard {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            self.faulted.store(true, Ordering::Release);
+            self.authenticated.store(false, Ordering::Release);
+            self.shutdown.store(true, Ordering::Release);
+        }
+    }
 }
 
 impl StreamingClient {
@@ -1127,12 +1164,17 @@ impl StreamingClient {
         // It shares the read timeout's budget: both bound a single
         // unacknowledged transport operation during the connect window.
         let write_timeout = read_timeout;
+        // The initial dial runs synchronously inside the caller's `connect`
+        // before any client (and thus any Drop) exists, so there is no
+        // shutdown flag to observe yet; pass a never-set one. The
+        // reconnect path in the io_loop passes its live shutdown flag.
         let (stream, server_addr) = connection::connect_to_servers(
             &borrowed,
             connect_timeout,
             read_timeout,
             write_timeout,
             keepalive,
+            &AtomicBool::new(false),
         )?;
         Self::connect_with_stream(connection::ConnectWithStreamArgs {
             creds,
@@ -1277,6 +1319,7 @@ impl StreamingClient {
             Arc::new(Mutex::new(std::collections::HashMap::new()));
         let dropped = Arc::new(AtomicU64::new(0));
         let panics = Arc::new(AtomicU64::new(0));
+        let io_faulted = Arc::new(AtomicBool::new(false));
         // Captured by the event-dispatch consumer closure on first dispatch
         // and read by `StreamingClient::drop` to break the self-join cycle
         // (callback -> stop_streaming -> drop StreamingClient -> join io
@@ -1368,6 +1411,7 @@ impl StreamingClient {
             pending_subs,
             dropped,
             panics,
+            io_faulted,
             ring_cursors,
             consumer_thread_id,
             next_req_id,
@@ -1420,6 +1464,7 @@ impl StreamingClient {
             pending_subs,
             dropped,
             panics,
+            io_faulted,
             ring_cursors,
             consumer_thread_id,
             next_req_id,
@@ -1442,10 +1487,22 @@ impl StreamingClient {
         let io_next_req_id = Arc::clone(&next_req_id);
         let io_last_event_at_ns = Arc::clone(&last_event_at_ns);
         let io_connected_addr = Arc::clone(&connected_addr);
+        // Fault guard inputs: a panic in `io_loop` drops the ring producer,
+        // which the consumer would read as a clean end-of-stream. The guard
+        // (below) flips these on unwind so the drain surfaces
+        // `DispatcherFailed` and `is_authenticated()` reports the failure.
+        let guard_authenticated = Arc::clone(&authenticated);
+        let guard_shutdown = Arc::clone(&shutdown);
+        let guard_faulted = Arc::clone(&io_faulted);
 
         let io_handle = thread::Builder::new()
             .name("fpss-io".to_owned())
             .spawn(move || {
+                let _fault_guard = IoLoopFaultGuard {
+                    authenticated: guard_authenticated,
+                    shutdown: guard_shutdown,
+                    faulted: guard_faulted,
+                };
                 io_loop(io_loop::IoLoopArgs {
                     stream,
                     cmd_rx,
@@ -1527,6 +1584,7 @@ impl StreamingClient {
             replay_pace_ms: client_replay_pace_ms,
             dropped,
             panics,
+            io_faulted,
             ring_cursors,
             ring_size,
             wait_strategy,
@@ -1736,8 +1794,23 @@ impl StreamingClient {
             match self.try_next_event_internal()? {
                 TryNext::Event(event) => return Ok(Some(event)),
                 TryNext::Empty => waiter.wait_for(0),
-                TryNext::Shutdown => return Ok(None),
+                TryNext::Shutdown => return self.shutdown_outcome(),
             }
+        }
+    }
+
+    /// End-of-stream disposition for the drain paths: a clean `Ok(None)`
+    /// normally, or [`StreamError::DispatcherFailed`] if the I/O thread
+    /// unwound. Without this a panicked `io_loop` would read as a graceful
+    /// shutdown (`Ok(None)`); the fault guard sets `io_faulted` on unwind so
+    /// the failure surfaces here instead.
+    fn shutdown_outcome(&self) -> Result<Option<StreamEvent>, StreamError> {
+        if self.io_faulted.load(Ordering::Acquire) {
+            Err(StreamError::DispatcherFailed(
+                "fpss io thread terminated abnormally".to_string(),
+            ))
+        } else {
+            Ok(None)
         }
     }
 
@@ -1759,7 +1832,8 @@ impl StreamingClient {
     pub fn try_next_event(&self) -> Result<Option<StreamEvent>, StreamError> {
         match self.try_next_event_internal()? {
             TryNext::Event(event) => Ok(Some(event)),
-            TryNext::Empty | TryNext::Shutdown => Ok(None),
+            TryNext::Empty => Ok(None),
+            TryNext::Shutdown => self.shutdown_outcome(),
         }
     }
 
@@ -2205,19 +2279,20 @@ impl StreamingClient {
                 SubscriptionKind::OpenInterest,
             ),
         };
-        self.send_cmd(IoCommand::WriteFrame { code, payload })?;
-        tracing::debug!(
-            req_id,
-            sec_type = ?sec_type,
-            unsubscribe,
-            "sent full-stream subscription frame"
-        );
-        // Untrack-on-unsubscribe is terminal: remove the tracked entry, then
-        // evict the in-flight correlation for this identity for the same reason
-        // as the per-contract unsubscribe — the removed entry is no longer live,
-        // so a late rejection of its subscribe must not survive to untrack a
-        // future re-subscribe of the same `(kind, sec_type)` by value.
+        // Untrack-on-unsubscribe is terminal: send, then remove the tracked
+        // entry and evict the in-flight correlation for this identity for the
+        // same reason as the per-contract unsubscribe — the removed entry is
+        // no longer live, so a late rejection of its subscribe must not
+        // survive to untrack a future re-subscribe of the same
+        // `(kind, sec_type)` by value.
         if unsubscribe {
+            self.send_cmd(IoCommand::WriteFrame { code, payload })?;
+            tracing::debug!(
+                req_id,
+                sec_type = ?sec_type,
+                unsubscribe,
+                "sent full-stream unsubscribe frame"
+            );
             self.active_full_subs
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -2232,24 +2307,30 @@ impl StreamingClient {
             return Ok(());
         }
 
-        // Track for reconnection.
-        let mut subs = self
-            .active_full_subs
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let newly_tracked = if subs
-            .iter()
-            .any(|(k, s)| *k == kind_for_track && *s == sec_type)
-        {
-            false
-        } else {
-            // Idempotent by `(kind, sec_type)`: a repeated full-stream subscribe
-            // must not accumulate duplicate tracked entries that would replay
-            // the same subscribe frame multiple times on reconnect.
-            subs.push((kind_for_track, sec_type));
-            true
+        // Track for reconnection BEFORE the wire send, same REQ_RESPONSE
+        // ordering hazard as the per-contract path: a rejection processed
+        // before the pending entry exists would leave the rejected
+        // subscription tracked and replayed forever. Register first, roll
+        // both registrations back on a send failure.
+        let newly_tracked = {
+            let mut subs = self
+                .active_full_subs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if subs
+                .iter()
+                .any(|(k, s)| *k == kind_for_track && *s == sec_type)
+            {
+                false
+            } else {
+                // Idempotent by `(kind, sec_type)`: a repeated full-stream
+                // subscribe must not accumulate duplicate tracked entries that
+                // would replay the same subscribe frame multiple times on
+                // reconnect.
+                subs.push((kind_for_track, sec_type));
+                true
+            }
         };
-        drop(subs);
 
         // Record the pending full-stream subscribe by `req_id` so a server
         // rejection drops exactly this entry from the replay set. Only the
@@ -2271,6 +2352,28 @@ impl StreamingClient {
                 },
             );
         }
+
+        if let Err(e) = self.send_cmd(IoCommand::WriteFrame { code, payload }) {
+            // The frame never reached the I/O thread, so no `REQ_RESPONSE`
+            // will reconcile the optimistic registration above; undo it.
+            if newly_tracked {
+                self.pending_subs
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .remove(&req_id);
+                self.active_full_subs
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .retain(|(k, s)| !(*k == kind_for_track && *s == sec_type));
+            }
+            return Err(e);
+        }
+        tracing::debug!(
+            req_id,
+            sec_type = ?sec_type,
+            unsubscribe,
+            "sent full-stream subscription frame"
+        );
         Ok(())
     }
 
@@ -2283,9 +2386,14 @@ impl StreamingClient {
         let payload = build_subscribe_payload(req_id, contract)?;
         let code = kind.subscribe_code();
 
-        self.send_cmd(IoCommand::WriteFrame { code, payload })?;
-
-        // Track for reconnection
+        // Track for reconnection BEFORE the wire send. The server's
+        // `REQ_RESPONSE` is correlated by `req_id` on the I/O thread; if a
+        // rejection is processed before the pending entry and tracked sub
+        // exist, it finds nothing to untrack and the rejected subscription
+        // stays in `active_subs` to be replayed forever on reconnect.
+        // Registering first closes that window; a send failure rolls both
+        // registrations back, since no response will arrive for a frame that
+        // never left.
         let newly_tracked = {
             let mut subs = self
                 .active_subs
@@ -2329,6 +2437,22 @@ impl StreamingClient {
                     recorded_at: std::time::Instant::now(),
                 },
             );
+        }
+
+        if let Err(e) = self.send_cmd(IoCommand::WriteFrame { code, payload }) {
+            // The frame never reached the I/O thread, so no `REQ_RESPONSE`
+            // will reconcile the optimistic registration above; undo it.
+            if newly_tracked {
+                self.pending_subs
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .remove(&req_id);
+                self.active_subs
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .retain(|(k, c)| !(*k == kind && c == contract));
+            }
+            return Err(e);
         }
 
         tracing::debug!(
@@ -2772,6 +2896,7 @@ impl StreamingClient {
             replay_pace_ms: 0,
             dropped,
             panics,
+            io_faulted: Arc::new(AtomicBool::new(false)),
             ring_cursors,
             ring_size,
             wait_strategy: ring::AdaptiveWaitStrategy::low_latency(),
@@ -2836,6 +2961,7 @@ impl StreamingClient {
             replay_pace_ms: 0,
             dropped: Arc::new(AtomicU64::new(0)),
             panics: Arc::new(AtomicU64::new(0)),
+            io_faulted: Arc::new(AtomicBool::new(false)),
             ring_cursors,
             ring_size,
             wait_strategy: ring::AdaptiveWaitStrategy::low_latency(),

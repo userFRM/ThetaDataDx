@@ -54,7 +54,7 @@ use super::decode::decode_frame;
 use super::delta::DeltaState;
 use super::events::{FpssEventInternal, IoCommand, StreamControl};
 use super::framing::{
-    self, read_frame_into_with_stall_timeout, write_raw_frame, write_raw_frame_no_flush,
+    self, read_frame_into_with_stall_timeout, write_raw_frame, write_raw_frame_no_flush, FrameRead,
 };
 use super::protocol::{self, build_login_payload, Contract};
 use super::reconnect_delay;
@@ -528,7 +528,15 @@ where
                 // --- Phase 1: Try to read a frame (short blocking read) ---
                 match read_frame_into_with_stall_timeout(&mut reader, &mut frame_buf, read_timeout)
                 {
-                    Ok(Some((code, payload_len))) => {
+                    Ok(FrameRead::SkippedUnknown) => {
+                        // An unknown-code frame was consumed to stay aligned.
+                        // Loop back so the 'inner top re-checks shutdown and
+                        // the read deadline before the next read, matching the
+                        // terminal's unlimited-skip behaviour without wedging
+                        // a shutting-down thread inside the skip.
+                        continue 'inner;
+                    }
+                    Ok(FrameRead::Frame(code, payload_len)) => {
                         last_frame_at = Instant::now();
                         last_event_at_ns.store(unix_nanos_now(), Ordering::Relaxed);
                         // Anchor the stable-window clock on the FIRST frame
@@ -590,7 +598,7 @@ where
                             }
                         }
                     }
-                    Ok(None) => {
+                    Ok(FrameRead::Eof) => {
                         // Clean EOF
                         tracing::warn!("FPSS connection closed by server");
                         if producer
@@ -994,6 +1002,7 @@ where
                 read_timeout,
                 read_timeout,
                 keepalive,
+                &shutdown,
             )
         };
 
