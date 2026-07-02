@@ -312,7 +312,9 @@ pub async fn serve_one_connection(
                 completed = completed.saturating_add(1);
                 if let Some((notify, target)) = ping_pong_signal.as_ref() {
                     if completed == *target {
-                        notify.notify_waiters();
+                        // `notify_one` stores a permit if the waiter is not yet
+                        // parked, so this one-shot edge cannot be lost to a race.
+                        notify.notify_one();
                     }
                 }
                 tokio::time::sleep(interval).await;
@@ -456,7 +458,10 @@ async fn handle_request(
     // hooks above already inspect the drained body — this fires after
     // both so the test sees a coherent post-drain state.
     if let Some(notify) = behaviour.on_request_drained.as_ref() {
-        notify.notify_waiters();
+        // `notify_one`, not `notify_waiters`: the drain can fire before the test
+        // registers its waiter, and only `notify_one` stores a permit so the edge
+        // survives the race (the test awaits this signal exactly once).
+        notify.notify_one();
     }
     if let Some(d) = behaviour.pre_response_delay {
         tokio::time::sleep(d).await;
