@@ -233,12 +233,46 @@ pub(in crate::fpss) struct IoLoopArgs<P> {
     /// Widened to `AtomicI64`; the wire boundary clamps to a positive
     /// `i32` via [`super::wire_req_id`].
     pub next_req_id: Arc<AtomicI64>,
+    /// Set by [`IoLoopFaultGuard`] if this `io_loop` unwinds, so the drain
+    /// paths surface [`crate::streaming::StreamError::DispatcherFailed`]
+    /// instead of reading the producer-drop as a clean end-of-stream.
+    pub io_faulted: Arc<AtomicBool>,
 }
 
 fn host_index(hosts: &[(String, u16)], addr: &str) -> Option<usize> {
     hosts
         .iter()
         .position(|(host, port)| format!("{host}:{port}") == addr)
+}
+
+/// Turns an `io_loop` panic into an observable dispatcher failure.
+///
+/// The I/O thread owns the ring producer; if `io_loop` unwinds, the producer
+/// drops and the consumer reads a clean end-of-stream while
+/// `is_authenticated()` still reports `true` (a panic masquerading as a
+/// graceful shutdown), and the documented
+/// [`crate::streaming::StreamError::DispatcherFailed`] is never produced.
+///
+/// Armed inside `io_loop` AFTER the producer is bound, so on an unwind it
+/// drops FIRST and flips the session to a failed state (faulted,
+/// deauthenticated, shut down) BEFORE the producer publishes the ring's
+/// shutdown sequence. The blocking drain then observes `io_faulted` and
+/// surfaces `DispatcherFailed` instead of `Ok(None)`. On a normal return it
+/// is a no-op (it only acts while `thread::panicking()`).
+struct IoLoopFaultGuard {
+    authenticated: Arc<AtomicBool>,
+    shutdown: Arc<AtomicBool>,
+    faulted: Arc<AtomicBool>,
+}
+
+impl Drop for IoLoopFaultGuard {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            self.faulted.store(true, Ordering::Release);
+            self.authenticated.store(false, Ordering::Release);
+            self.shutdown.store(true, Ordering::Release);
+        }
+    }
 }
 
 /// Reconcile the tracked-subscription set against a server `REQ_RESPONSE`.
@@ -361,7 +395,20 @@ where
         last_event_at_ns,
         connected_addr,
         next_req_id,
+        io_faulted,
     } = args;
+    // Arm the fault guard AFTER `producer` is bound above, so on an unwind
+    // Rust drops this guard (declared later) BEFORE `producer` (declared in
+    // the destructure): the guard flips `io_faulted` before the producer
+    // publishes the ring's shutdown sequence, so a concurrent drain observes
+    // the fault and returns `DispatcherFailed` rather than racing a clean
+    // end-of-stream. On a normal return the guard is a no-op (it only acts
+    // while `thread::panicking()`).
+    let _fault_guard = IoLoopFaultGuard {
+        authenticated: Arc::clone(&authenticated),
+        shutdown: Arc::clone(&shutdown),
+        faulted: io_faulted,
+    };
     // `ring_size` was validated upstream by `ring::check_ring_size` at
     // the public `StreamingClient::connect` boundary; silent rounding here
     // would rewrite the caller's stated buffer budget after the fact.
@@ -1728,6 +1775,81 @@ mod tests {
 
     fn test_schedule() -> BackoffSchedule {
         BackoffSchedule::new(Duration::from_millis(250), Duration::from_secs(30))
+    }
+
+    /// The fault guard must flip `io_faulted` BEFORE the ring producer
+    /// publishes shutdown on the panic path. `io_loop` binds `producer` in
+    /// the args destructure and arms the guard on a later `let`, so on an
+    /// unwind the guard (declared last) drops first. This models that with a
+    /// producer-shaped sentinel bound first that records, at its own drop,
+    /// whether the fault flag was already set — if the guard were armed
+    /// before the producer this observation would be `false` and a
+    /// concurrent drain would read a clean end-of-stream.
+    #[test]
+    fn fault_guard_flags_before_producer_drops_on_panic() {
+        struct ShutdownSentinel {
+            faulted: Arc<AtomicBool>,
+            observed_faulted_at_drop: Arc<AtomicBool>,
+        }
+        impl Drop for ShutdownSentinel {
+            fn drop(&mut self) {
+                self.observed_faulted_at_drop
+                    .store(self.faulted.load(Ordering::Acquire), Ordering::Release);
+            }
+        }
+
+        let faulted = Arc::new(AtomicBool::new(false));
+        let observed = Arc::new(AtomicBool::new(false));
+        let faulted_c = Arc::clone(&faulted);
+        let observed_c = Arc::clone(&observed);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // Bound first, exactly as `producer` is in the io_loop destructure.
+            let _producer = ShutdownSentinel {
+                faulted: Arc::clone(&faulted_c),
+                observed_faulted_at_drop: Arc::clone(&observed_c),
+            };
+            // Armed after, exactly as the io_loop guard.
+            let _fault_guard = IoLoopFaultGuard {
+                authenticated: Arc::new(AtomicBool::new(true)),
+                shutdown: Arc::new(AtomicBool::new(false)),
+                faulted: Arc::clone(&faulted_c),
+            };
+            panic!("simulated io_loop panic");
+        }));
+        assert!(result.is_err(), "the closure must have panicked");
+        assert!(
+            observed.load(Ordering::Acquire),
+            "the producer drop must observe io_faulted already set, i.e. the guard drops first"
+        );
+        assert!(
+            faulted.load(Ordering::Acquire),
+            "the guard must set io_faulted"
+        );
+    }
+
+    /// On a normal (non-panic) drop the guard leaves every flag untouched, so
+    /// a clean shutdown still reads as `Ok(None)`.
+    #[test]
+    fn fault_guard_is_a_noop_on_normal_drop() {
+        let authenticated = Arc::new(AtomicBool::new(true));
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let faulted = Arc::new(AtomicBool::new(false));
+        {
+            let _guard = IoLoopFaultGuard {
+                authenticated: Arc::clone(&authenticated),
+                shutdown: Arc::clone(&shutdown),
+                faulted: Arc::clone(&faulted),
+            };
+        }
+        assert!(
+            authenticated.load(Ordering::Acquire),
+            "authenticated untouched"
+        );
+        assert!(!shutdown.load(Ordering::Acquire), "shutdown untouched");
+        assert!(
+            !faulted.load(Ordering::Acquire),
+            "not faulted on a clean drop"
+        );
     }
 
     #[test]

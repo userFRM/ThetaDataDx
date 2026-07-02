@@ -1012,32 +1012,6 @@ pub struct StreamingClient {
     drained: Arc<AtomicBool>,
 }
 
-/// Turns an `io_loop` panic into an observable dispatcher failure.
-///
-/// The I/O thread owns the ring producer; if `io_loop` unwinds, the
-/// producer drops and the consumer reads a clean end-of-stream while
-/// `is_authenticated()` still reports `true` — a panic masquerading as a
-/// graceful shutdown, and the documented [`StreamError::DispatcherFailed`]
-/// is never produced. This guard lives in the spawn closure: on a normal
-/// return it drops as a no-op, and on an unwind it flips the session to a
-/// failed state (faulted, deauthenticated, shut down) so the blocking drain
-/// paths surface `DispatcherFailed` instead of `Ok(None)`.
-struct IoLoopFaultGuard {
-    authenticated: Arc<AtomicBool>,
-    shutdown: Arc<AtomicBool>,
-    faulted: Arc<AtomicBool>,
-}
-
-impl Drop for IoLoopFaultGuard {
-    fn drop(&mut self) {
-        if std::thread::panicking() {
-            self.faulted.store(true, Ordering::Release);
-            self.authenticated.store(false, Ordering::Release);
-            self.shutdown.store(true, Ordering::Release);
-        }
-    }
-}
-
 impl StreamingClient {
     /// Start a new [`StreamingClientBuilder`] with the two required arguments
     /// and SDK defaults for the rest. Optional setters chain.
@@ -1487,22 +1461,17 @@ impl StreamingClient {
         let io_next_req_id = Arc::clone(&next_req_id);
         let io_last_event_at_ns = Arc::clone(&last_event_at_ns);
         let io_connected_addr = Arc::clone(&connected_addr);
-        // Fault guard inputs: a panic in `io_loop` drops the ring producer,
-        // which the consumer would read as a clean end-of-stream. The guard
-        // (below) flips these on unwind so the drain surfaces
-        // `DispatcherFailed` and `is_authenticated()` reports the failure.
-        let guard_authenticated = Arc::clone(&authenticated);
-        let guard_shutdown = Arc::clone(&shutdown);
-        let guard_faulted = Arc::clone(&io_faulted);
+        // The fault flag is handed to `io_loop`, which arms its own drop
+        // guard AFTER binding the ring producer so an unwind sets the flag
+        // BEFORE the producer publishes the ring's shutdown sequence. Arming
+        // the guard out here (before `producer` moves into `io_loop`) would
+        // drop it after the producer on the panic path, leaving a window
+        // where the consumer reads shutdown before the flag is set.
+        let io_faulted_loop = Arc::clone(&io_faulted);
 
         let io_handle = thread::Builder::new()
             .name("fpss-io".to_owned())
             .spawn(move || {
-                let _fault_guard = IoLoopFaultGuard {
-                    authenticated: guard_authenticated,
-                    shutdown: guard_shutdown,
-                    faulted: guard_faulted,
-                };
                 io_loop(io_loop::IoLoopArgs {
                     stream,
                     cmd_rx,
@@ -1536,6 +1505,7 @@ impl StreamingClient {
                     last_event_at_ns: io_last_event_at_ns,
                     connected_addr: io_connected_addr,
                     next_req_id: io_next_req_id,
+                    io_faulted: io_faulted_loop,
                 });
             })
             .map_err(|e| Error::Stream {
