@@ -57,11 +57,11 @@ inline std::vector<uint8_t> tick_to_arrow_ipc(const std::vector<Tick>& rows, CFn
 /// Serialise a typed history-row vector as a PROJECTED Arrow IPC stream —
 /// only the columns named in `presence` — by forwarding to its `_projected`
 /// C ABI serialiser. `symbol` is the response's constant root, broadcast as
-/// the leading column (empty -> omitted). Same error / empty-stream contract
-/// as `tick_to_arrow_ipc`.
+/// the leading column; `nullptr` omits it (an empty string stays a valid
+/// value). Same error / empty-stream contract as `tick_to_arrow_ipc`.
 template <typename Tick, typename CFn>
-inline std::vector<uint8_t> tick_to_arrow_ipc_projected(const std::vector<Tick>& rows, const ColumnPresence& presence, const std::string& symbol, CFn c_fn) {
-    ThetaDataDxArrowBytes raw = c_fn(rows.data(), rows.size(), presence.raw(), symbol.empty() ? nullptr : symbol.c_str());
+inline std::vector<uint8_t> tick_to_arrow_ipc_projected(const std::vector<Tick>& rows, const ColumnPresence& presence, const char* symbol, CFn c_fn) {
+    ThetaDataDxArrowBytes raw = c_fn(rows.data(), rows.size(), presence.raw(), symbol);
     if (raw.data == nullptr) {
         throw_last_ffi_error();
     }
@@ -95,9 +95,9 @@ inline ColumnPresence calendar_days_present_columns(const std::vector<std::strin
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> calendar_days_to_arrow_ipc_projected(const std::vector<CalendarDay>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> calendar_days_to_arrow_ipc_projected(const std::vector<CalendarDay>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_calendar_days_to_arrow_ipc_projected);
 }
 
@@ -125,9 +125,9 @@ inline ColumnPresence eod_ticks_present_columns(const std::vector<std::string>& 
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> eod_ticks_to_arrow_ipc_projected(const std::vector<EodTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> eod_ticks_to_arrow_ipc_projected(const std::vector<EodTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_eod_ticks_to_arrow_ipc_projected);
 }
 
@@ -155,9 +155,9 @@ inline ColumnPresence greeks_all_ticks_present_columns(const std::vector<std::st
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> greeks_all_ticks_to_arrow_ipc_projected(const std::vector<GreeksAllTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> greeks_all_ticks_to_arrow_ipc_projected(const std::vector<GreeksAllTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_greeks_all_ticks_to_arrow_ipc_projected);
 }
 
@@ -185,9 +185,9 @@ inline ColumnPresence greeks_eod_ticks_present_columns(const std::vector<std::st
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> greeks_eod_ticks_to_arrow_ipc_projected(const std::vector<GreeksEodTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> greeks_eod_ticks_to_arrow_ipc_projected(const std::vector<GreeksEodTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_greeks_eod_ticks_to_arrow_ipc_projected);
 }
 
@@ -215,9 +215,9 @@ inline ColumnPresence greeks_first_order_ticks_present_columns(const std::vector
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> greeks_first_order_ticks_to_arrow_ipc_projected(const std::vector<GreeksFirstOrderTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> greeks_first_order_ticks_to_arrow_ipc_projected(const std::vector<GreeksFirstOrderTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_greeks_first_order_ticks_to_arrow_ipc_projected);
 }
 
@@ -245,9 +245,9 @@ inline ColumnPresence greeks_second_order_ticks_present_columns(const std::vecto
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> greeks_second_order_ticks_to_arrow_ipc_projected(const std::vector<GreeksSecondOrderTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> greeks_second_order_ticks_to_arrow_ipc_projected(const std::vector<GreeksSecondOrderTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_greeks_second_order_ticks_to_arrow_ipc_projected);
 }
 
@@ -275,9 +275,9 @@ inline ColumnPresence greeks_third_order_ticks_present_columns(const std::vector
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> greeks_third_order_ticks_to_arrow_ipc_projected(const std::vector<GreeksThirdOrderTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> greeks_third_order_ticks_to_arrow_ipc_projected(const std::vector<GreeksThirdOrderTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_greeks_third_order_ticks_to_arrow_ipc_projected);
 }
 
@@ -305,9 +305,9 @@ inline ColumnPresence index_price_at_time_ticks_present_columns(const std::vecto
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> index_price_at_time_ticks_to_arrow_ipc_projected(const std::vector<IndexPriceAtTimeTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> index_price_at_time_ticks_to_arrow_ipc_projected(const std::vector<IndexPriceAtTimeTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_index_price_at_time_ticks_to_arrow_ipc_projected);
 }
 
@@ -335,9 +335,9 @@ inline ColumnPresence interest_rate_ticks_present_columns(const std::vector<std:
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> interest_rate_ticks_to_arrow_ipc_projected(const std::vector<InterestRateTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> interest_rate_ticks_to_arrow_ipc_projected(const std::vector<InterestRateTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_interest_rate_ticks_to_arrow_ipc_projected);
 }
 
@@ -365,9 +365,9 @@ inline ColumnPresence iv_ticks_present_columns(const std::vector<std::string>& h
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> iv_ticks_to_arrow_ipc_projected(const std::vector<IvTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> iv_ticks_to_arrow_ipc_projected(const std::vector<IvTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_iv_ticks_to_arrow_ipc_projected);
 }
 
@@ -395,9 +395,9 @@ inline ColumnPresence market_value_ticks_present_columns(const std::vector<std::
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> market_value_ticks_to_arrow_ipc_projected(const std::vector<MarketValueTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> market_value_ticks_to_arrow_ipc_projected(const std::vector<MarketValueTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_market_value_ticks_to_arrow_ipc_projected);
 }
 
@@ -425,9 +425,9 @@ inline ColumnPresence ohlc_ticks_present_columns(const std::vector<std::string>&
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> ohlc_ticks_to_arrow_ipc_projected(const std::vector<OhlcTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> ohlc_ticks_to_arrow_ipc_projected(const std::vector<OhlcTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_ohlc_ticks_to_arrow_ipc_projected);
 }
 
@@ -455,9 +455,9 @@ inline ColumnPresence open_interest_ticks_present_columns(const std::vector<std:
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> open_interest_ticks_to_arrow_ipc_projected(const std::vector<OpenInterestTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> open_interest_ticks_to_arrow_ipc_projected(const std::vector<OpenInterestTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_open_interest_ticks_to_arrow_ipc_projected);
 }
 
@@ -485,9 +485,9 @@ inline ColumnPresence price_ticks_present_columns(const std::vector<std::string>
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> price_ticks_to_arrow_ipc_projected(const std::vector<PriceTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> price_ticks_to_arrow_ipc_projected(const std::vector<PriceTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_price_ticks_to_arrow_ipc_projected);
 }
 
@@ -515,9 +515,9 @@ inline ColumnPresence quote_ticks_present_columns(const std::vector<std::string>
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> quote_ticks_to_arrow_ipc_projected(const std::vector<QuoteTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> quote_ticks_to_arrow_ipc_projected(const std::vector<QuoteTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_quote_ticks_to_arrow_ipc_projected);
 }
 
@@ -545,9 +545,9 @@ inline ColumnPresence trade_greeks_all_ticks_present_columns(const std::vector<s
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> trade_greeks_all_ticks_to_arrow_ipc_projected(const std::vector<TradeGreeksAllTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> trade_greeks_all_ticks_to_arrow_ipc_projected(const std::vector<TradeGreeksAllTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_trade_greeks_all_ticks_to_arrow_ipc_projected);
 }
 
@@ -575,9 +575,9 @@ inline ColumnPresence trade_greeks_first_order_ticks_present_columns(const std::
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> trade_greeks_first_order_ticks_to_arrow_ipc_projected(const std::vector<TradeGreeksFirstOrderTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> trade_greeks_first_order_ticks_to_arrow_ipc_projected(const std::vector<TradeGreeksFirstOrderTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_trade_greeks_first_order_ticks_to_arrow_ipc_projected);
 }
 
@@ -605,9 +605,9 @@ inline ColumnPresence trade_greeks_implied_volatility_ticks_present_columns(cons
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> trade_greeks_implied_volatility_ticks_to_arrow_ipc_projected(const std::vector<TradeGreeksImpliedVolatilityTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> trade_greeks_implied_volatility_ticks_to_arrow_ipc_projected(const std::vector<TradeGreeksImpliedVolatilityTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_trade_greeks_implied_volatility_ticks_to_arrow_ipc_projected);
 }
 
@@ -635,9 +635,9 @@ inline ColumnPresence trade_greeks_second_order_ticks_present_columns(const std:
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> trade_greeks_second_order_ticks_to_arrow_ipc_projected(const std::vector<TradeGreeksSecondOrderTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> trade_greeks_second_order_ticks_to_arrow_ipc_projected(const std::vector<TradeGreeksSecondOrderTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_trade_greeks_second_order_ticks_to_arrow_ipc_projected);
 }
 
@@ -665,9 +665,9 @@ inline ColumnPresence trade_greeks_third_order_ticks_present_columns(const std::
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> trade_greeks_third_order_ticks_to_arrow_ipc_projected(const std::vector<TradeGreeksThirdOrderTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> trade_greeks_third_order_ticks_to_arrow_ipc_projected(const std::vector<TradeGreeksThirdOrderTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_trade_greeks_third_order_ticks_to_arrow_ipc_projected);
 }
 
@@ -695,9 +695,9 @@ inline ColumnPresence trade_quote_ticks_present_columns(const std::vector<std::s
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> trade_quote_ticks_to_arrow_ipc_projected(const std::vector<TradeQuoteTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> trade_quote_ticks_to_arrow_ipc_projected(const std::vector<TradeQuoteTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_trade_quote_ticks_to_arrow_ipc_projected);
 }
 
@@ -725,9 +725,9 @@ inline ColumnPresence trade_ticks_present_columns(const std::vector<std::string>
 /// `_present_columns`), the terminal-exact output Python's
 /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the
 /// response's constant root, broadcast as the leading column
-/// (option/index carry it, stock does not; empty -> omitted). Throws
+/// (option/index carry it, stock does not; `nullptr` omits it). Throws
 /// `thetadatadx::Error` on failure; the returned vector owns its memory.
-inline std::vector<uint8_t> trade_ticks_to_arrow_ipc_projected(const std::vector<TradeTick>& rows, const ColumnPresence& presence, const std::string& symbol = {}) {
+inline std::vector<uint8_t> trade_ticks_to_arrow_ipc_projected(const std::vector<TradeTick>& rows, const ColumnPresence& presence, const char* symbol = nullptr) {
     return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_trade_ticks_to_arrow_ipc_projected);
 }
 

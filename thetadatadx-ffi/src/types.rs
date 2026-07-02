@@ -745,14 +745,19 @@ macro_rules! tick_array_to_arrow_ipc_projected {
                 let Some(mut columns) = (unsafe { presence.to_presence() }) else {
                     return ThetaDataDxArrowBytes::EMPTY;
                 };
-                // SAFETY: `symbol` is the caller's optional NUL-terminated
-                // string; `cstr_to_str` validates non-null + UTF-8.
-                match unsafe { crate::error::cstr_to_str(symbol) } {
-                    Ok(Some(s)) => columns = columns.with_symbol(s),
-                    Ok(None) => {}
-                    Err(e) => {
-                        crate::error::set_error(&format!("symbol is not UTF-8: {e}"));
-                        return ThetaDataDxArrowBytes::EMPTY;
+                // Ignore the broadcast `symbol` when the tick already owns a
+                // per-row `symbol` column (OptionContract) so the projected
+                // schema never carries a duplicate `symbol`.
+                if !columns.contains("symbol") {
+                    // SAFETY: `symbol` is the caller's optional NUL-terminated
+                    // string; `cstr_to_str` validates non-null + UTF-8.
+                    match unsafe { crate::error::cstr_to_str(symbol) } {
+                        Ok(Some(s)) => columns = columns.with_symbol(s),
+                        Ok(None) => {}
+                        Err(e) => {
+                            crate::error::set_error(&format!("symbol is not UTF-8: {e}"));
+                            return ThetaDataDxArrowBytes::EMPTY;
+                        }
                     }
                 }
                 let slice: &[$tick] = if len == 0 {

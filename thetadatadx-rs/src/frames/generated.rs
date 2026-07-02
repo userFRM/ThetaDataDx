@@ -4782,10 +4782,6 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OptionContract]
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
-            fields.push(Field::new("symbol", DataType::Utf8, false));
-            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
-        }
         if has_symbol {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(col_symbol)) as ArrayRef);
@@ -4848,9 +4844,6 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::OptionContract
             if has_right { col_right.push(if t.right == '\0' { String::new() } else { t.right.to_string() }); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
-            series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
-        }
         if has_symbol {
             series.push(Series::new(PlSmallStr::from_static("symbol"), col_symbol).into());
         }

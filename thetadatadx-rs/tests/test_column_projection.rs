@@ -241,6 +241,34 @@ fn option_trade_quote_broadcasts_symbol() {
     }
 }
 
+/// `OptionContract` (the `option_list_contracts` tick) already owns a per-row
+/// `symbol` column. Even when the decode attaches a broadcast root, its
+/// projected frame must carry EXACTLY ONE `symbol` column — its per-row one —
+/// not a duplicate broadcast field.
+#[test]
+fn option_contract_projects_exactly_one_symbol_column() {
+    use thetadatadx::OptionContract;
+    // The shape the decode seam builds: the tick's own schema columns present,
+    // plus a broadcast root attached (as it would be off the `symbol` header).
+    let present =
+        ColumnPresence::from_names(["symbol", "expiration", "strike", "right"]).with_symbol("SPY");
+    let empty: Vec<OptionContract> = Vec::new();
+
+    let cols = arrow_columns(&empty.as_slice().to_arrow_projected(&present).unwrap());
+    assert_eq!(
+        cols.iter().filter(|c| c.as_str() == "symbol").count(),
+        1,
+        "OptionContract must carry exactly one (per-row) symbol column; got {cols:?}"
+    );
+    // Polars agrees.
+    let dcols = polars_columns(&empty.as_slice().to_polars_projected(&present).unwrap());
+    assert_eq!(
+        dcols.iter().filter(|c| c.as_str() == "symbol").count(),
+        1,
+        "polars OptionContract must carry exactly one symbol column; got {dcols:?}"
+    );
+}
+
 /// A stock response carries no `symbol` header — the projected frame gains no
 /// `symbol` column.
 #[test]
