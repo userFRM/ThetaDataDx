@@ -466,6 +466,13 @@ pub async fn authenticate_at(
 
     let client = reqwest::Client::builder()
         .use_preconfigured_tls(auth_tls_config()?)
+        // Do not follow redirects on the credential exchange. The POST body
+        // carries the password / apiKey; reqwest strips sensitive *headers*
+        // (Authorization, Cookie) on a cross-host redirect but replays the
+        // request body on a 307/308, so a 3xx to another host would send the
+        // credential body off to the redirect target. Nexus never redirects
+        // auth, so refuse to follow and surface any 3xx as a server error.
+        .redirect(reqwest::redirect::Policy::none())
         .timeout(Duration::from_secs(10))
         .connect_timeout(Duration::from_secs(5))
         .build()
