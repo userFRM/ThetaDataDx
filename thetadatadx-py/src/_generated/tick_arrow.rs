@@ -493,7 +493,10 @@ pub(crate) mod slice_arrow {
     use super::tick;
     use arrow::array::{ArrayRef, BooleanArray, Float64Array, Int32Array, Int64Array, StringArray};
     use arrow::record_batch::RecordBatch;
+    use arrow::datatypes::{DataType, Field, Schema};
+    use std::sync::Arc;
 
+    #[allow(dead_code)]
     fn read_arrow_batch_from_calendar_day_slice(ticks: &[tick::CalendarDay]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("CalendarDay").expect("generated schema must be present for CalendarDay");
         let n = ticks.len();
@@ -519,6 +522,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::CalendarDay]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -528,6 +532,51 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_calendar_day_slice_projected(ticks: &[tick::CalendarDay], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("is_open") {
+            let mut col: Vec<bool> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.is_open); }
+            fields.push(Field::new("is_open", DataType::Boolean, false));
+            columns.push(Arc::new(BooleanArray::from(col)) as ArrayRef);
+        }
+        if present.contains("open_time") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.open_time); }
+            fields.push(Field::new("open_time", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("close_time") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.close_time); }
+            fields.push(Field::new("close_time", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("status") {
+            let mut col: Vec<String> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.status.as_str().to_string()); }
+            fields.push(Field::new("status", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::CalendarDay]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn calendar_day_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::CalendarDay], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_calendar_day_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_eod_tick_slice(ticks: &[tick::EodTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("EodTick").expect("generated schema must be present for EodTick");
         let n = ticks.len();
@@ -598,6 +647,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::EodTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -607,6 +657,141 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_eod_tick_slice_projected(ticks: &[tick::EodTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("created_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.created_ms_of_day); }
+            fields.push(Field::new("created_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("last_trade_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.last_trade_ms_of_day); }
+            fields.push(Field::new("last_trade_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("open") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.open); }
+            fields.push(Field::new("open", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("high") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.high); }
+            fields.push(Field::new("high", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("low") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.low); }
+            fields.push(Field::new("low", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("close") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.close); }
+            fields.push(Field::new("close", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("volume") {
+            let mut col: Vec<i64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.volume); }
+            fields.push(Field::new("volume", DataType::Int64, false));
+            columns.push(Arc::new(Int64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("count") {
+            let mut col: Vec<i64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.count); }
+            fields.push(Field::new("count", DataType::Int64, false));
+            columns.push(Arc::new(Int64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid_size); }
+            fields.push(Field::new("bid_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid_exchange); }
+            fields.push(Field::new("bid_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid); }
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid_condition); }
+            fields.push(Field::new("bid_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask_size); }
+            fields.push(Field::new("ask_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask_exchange); }
+            fields.push(Field::new("ask_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask); }
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask_condition); }
+            fields.push(Field::new("ask_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in ticks { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::EodTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn eod_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::EodTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_eod_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_greeks_all_tick_slice(ticks: &[tick::GreeksAllTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("GreeksAllTick").expect("generated schema must be present for GreeksAllTick");
         let n = ticks.len();
@@ -710,6 +895,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::GreeksAllTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -719,6 +905,207 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_greeks_all_tick_slice_projected(ticks: &[tick::GreeksAllTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid); }
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask); }
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.delta); }
+            fields.push(Field::new("delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.gamma); }
+            fields.push(Field::new("gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("theta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.theta); }
+            fields.push(Field::new("theta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vega") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.vega); }
+            fields.push(Field::new("vega", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("rho") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.rho); }
+            fields.push(Field::new("rho", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vanna") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.vanna); }
+            fields.push(Field::new("vanna", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("charm") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.charm); }
+            fields.push(Field::new("charm", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.vomma); }
+            fields.push(Field::new("vomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("veta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.veta); }
+            fields.push(Field::new("veta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("speed") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.speed); }
+            fields.push(Field::new("speed", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("zomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.zomma); }
+            fields.push(Field::new("zomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("color") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.color); }
+            fields.push(Field::new("color", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ultima") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ultima); }
+            fields.push(Field::new("ultima", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("d1") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.d1); }
+            fields.push(Field::new("d1", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("d2") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.d2); }
+            fields.push(Field::new("d2", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("dual_delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.dual_delta); }
+            fields.push(Field::new("dual_delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("dual_gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.dual_gamma); }
+            fields.push(Field::new("dual_gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("epsilon") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.epsilon); }
+            fields.push(Field::new("epsilon", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("lambda") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.lambda); }
+            fields.push(Field::new("lambda", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vera") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.vera); }
+            fields.push(Field::new("vera", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in ticks { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::GreeksAllTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn greeks_all_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::GreeksAllTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_greeks_all_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_greeks_eod_tick_slice(ticks: &[tick::GreeksEodTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("GreeksEodTick").expect("generated schema must be present for GreeksEodTick");
         let n = ticks.len();
@@ -858,6 +1245,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::GreeksEodTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -867,6 +1255,279 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_greeks_eod_tick_slice_projected(ticks: &[tick::GreeksEodTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("open") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.open); }
+            fields.push(Field::new("open", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("high") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.high); }
+            fields.push(Field::new("high", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("low") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.low); }
+            fields.push(Field::new("low", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("close") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.close); }
+            fields.push(Field::new("close", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("volume") {
+            let mut col: Vec<i64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.volume); }
+            fields.push(Field::new("volume", DataType::Int64, false));
+            columns.push(Arc::new(Int64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("count") {
+            let mut col: Vec<i64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.count); }
+            fields.push(Field::new("count", DataType::Int64, false));
+            columns.push(Arc::new(Int64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid_size); }
+            fields.push(Field::new("bid_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid_exchange); }
+            fields.push(Field::new("bid_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid); }
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid_condition); }
+            fields.push(Field::new("bid_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask_size); }
+            fields.push(Field::new("ask_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask_exchange); }
+            fields.push(Field::new("ask_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask); }
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask_condition); }
+            fields.push(Field::new("ask_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.delta); }
+            fields.push(Field::new("delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("theta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.theta); }
+            fields.push(Field::new("theta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vega") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.vega); }
+            fields.push(Field::new("vega", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("rho") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.rho); }
+            fields.push(Field::new("rho", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("epsilon") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.epsilon); }
+            fields.push(Field::new("epsilon", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("lambda") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.lambda); }
+            fields.push(Field::new("lambda", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.gamma); }
+            fields.push(Field::new("gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vanna") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.vanna); }
+            fields.push(Field::new("vanna", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("charm") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.charm); }
+            fields.push(Field::new("charm", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.vomma); }
+            fields.push(Field::new("vomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("veta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.veta); }
+            fields.push(Field::new("veta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vera") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.vera); }
+            fields.push(Field::new("vera", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("speed") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.speed); }
+            fields.push(Field::new("speed", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("zomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.zomma); }
+            fields.push(Field::new("zomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("color") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.color); }
+            fields.push(Field::new("color", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ultima") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ultima); }
+            fields.push(Field::new("ultima", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("d1") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.d1); }
+            fields.push(Field::new("d1", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("d2") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.d2); }
+            fields.push(Field::new("d2", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("dual_delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.dual_delta); }
+            fields.push(Field::new("dual_delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("dual_gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.dual_gamma); }
+            fields.push(Field::new("dual_gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in ticks { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::GreeksEodTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn greeks_eod_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::GreeksEodTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_greeks_eod_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_greeks_first_order_tick_slice(ticks: &[tick::GreeksFirstOrderTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("GreeksFirstOrderTick").expect("generated schema must be present for GreeksFirstOrderTick");
         let n = ticks.len();
@@ -928,6 +1589,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::GreeksFirstOrderTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -937,6 +1599,123 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_greeks_first_order_tick_slice_projected(ticks: &[tick::GreeksFirstOrderTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid); }
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask); }
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.delta); }
+            fields.push(Field::new("delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("theta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.theta); }
+            fields.push(Field::new("theta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vega") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.vega); }
+            fields.push(Field::new("vega", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("rho") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.rho); }
+            fields.push(Field::new("rho", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("epsilon") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.epsilon); }
+            fields.push(Field::new("epsilon", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("lambda") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.lambda); }
+            fields.push(Field::new("lambda", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in ticks { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::GreeksFirstOrderTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn greeks_first_order_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::GreeksFirstOrderTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_greeks_first_order_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_greeks_second_order_tick_slice(ticks: &[tick::GreeksSecondOrderTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("GreeksSecondOrderTick").expect("generated schema must be present for GreeksSecondOrderTick");
         let n = ticks.len();
@@ -995,6 +1774,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::GreeksSecondOrderTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -1004,6 +1784,117 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_greeks_second_order_tick_slice_projected(ticks: &[tick::GreeksSecondOrderTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid); }
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask); }
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.gamma); }
+            fields.push(Field::new("gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vanna") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.vanna); }
+            fields.push(Field::new("vanna", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("charm") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.charm); }
+            fields.push(Field::new("charm", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.vomma); }
+            fields.push(Field::new("vomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("veta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.veta); }
+            fields.push(Field::new("veta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in ticks { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::GreeksSecondOrderTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn greeks_second_order_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::GreeksSecondOrderTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_greeks_second_order_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_greeks_third_order_tick_slice(ticks: &[tick::GreeksThirdOrderTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("GreeksThirdOrderTick").expect("generated schema must be present for GreeksThirdOrderTick");
         let n = ticks.len();
@@ -1059,6 +1950,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::GreeksThirdOrderTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -1068,6 +1960,111 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_greeks_third_order_tick_slice_projected(ticks: &[tick::GreeksThirdOrderTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid); }
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask); }
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("speed") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.speed); }
+            fields.push(Field::new("speed", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("zomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.zomma); }
+            fields.push(Field::new("zomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("color") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.color); }
+            fields.push(Field::new("color", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ultima") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ultima); }
+            fields.push(Field::new("ultima", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in ticks { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::GreeksThirdOrderTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn greeks_third_order_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::GreeksThirdOrderTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_greeks_third_order_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_index_price_at_time_tick_slice(ticks: &[tick::IndexPriceAtTimeTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("IndexPriceAtTimeTick").expect("generated schema must be present for IndexPriceAtTimeTick");
         let n = ticks.len();
@@ -1111,6 +2108,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::IndexPriceAtTimeTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -1120,6 +2118,87 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_index_price_at_time_tick_slice_projected(ticks: &[tick::IndexPriceAtTimeTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.sequence); }
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition1); }
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition2); }
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition3); }
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition4); }
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.condition); }
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.size); }
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.exchange); }
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.price); }
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::IndexPriceAtTimeTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn index_price_at_time_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::IndexPriceAtTimeTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_index_price_at_time_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_interest_rate_tick_slice(ticks: &[tick::InterestRateTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("InterestRateTick").expect("generated schema must be present for InterestRateTick");
         let n = ticks.len();
@@ -1136,6 +2215,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::InterestRateTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -1145,6 +2225,33 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_interest_rate_tick_slice_projected(ticks: &[tick::InterestRateTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("rate") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.rate); }
+            fields.push(Field::new("rate", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::InterestRateTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn interest_rate_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::InterestRateTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_interest_rate_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_iv_tick_slice(ticks: &[tick::IvTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("IvTick").expect("generated schema must be present for IvTick");
         let n = ticks.len();
@@ -1197,6 +2304,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::IvTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -1206,6 +2314,105 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_iv_tick_slice_projected(ticks: &[tick::IvTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid); }
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid_implied_volatility); }
+            fields.push(Field::new("bid_implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("midpoint") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.midpoint); }
+            fields.push(Field::new("midpoint", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask); }
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask_implied_volatility); }
+            fields.push(Field::new("ask_implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in ticks { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::IvTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn iv_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::IvTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_iv_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_market_value_tick_slice(ticks: &[tick::MarketValueTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("MarketValueTick").expect("generated schema must be present for MarketValueTick");
         let n = ticks.len();
@@ -1240,6 +2447,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::MarketValueTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -1249,6 +2457,69 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_market_value_tick_slice_projected(ticks: &[tick::MarketValueTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("market_bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.market_bid); }
+            fields.push(Field::new("market_bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("market_ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.market_ask); }
+            fields.push(Field::new("market_ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("market_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.market_price); }
+            fields.push(Field::new("market_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in ticks { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::MarketValueTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn market_value_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::MarketValueTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_market_value_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_ohlc_tick_slice(ticks: &[tick::OhlcTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("OhlcTick").expect("generated schema must be present for OhlcTick");
         let n = ticks.len();
@@ -1295,6 +2566,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::OhlcTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -1304,6 +2576,93 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_ohlc_tick_slice_projected(ticks: &[tick::OhlcTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("open") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.open); }
+            fields.push(Field::new("open", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("high") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.high); }
+            fields.push(Field::new("high", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("low") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.low); }
+            fields.push(Field::new("low", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("close") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.close); }
+            fields.push(Field::new("close", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("volume") {
+            let mut col: Vec<i64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.volume); }
+            fields.push(Field::new("volume", DataType::Int64, false));
+            columns.push(Arc::new(Int64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("count") {
+            let mut col: Vec<i64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.count); }
+            fields.push(Field::new("count", DataType::Int64, false));
+            columns.push(Arc::new(Int64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vwap") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.vwap); }
+            fields.push(Field::new("vwap", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in ticks { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::OhlcTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn ohlc_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::OhlcTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_ohlc_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_open_interest_tick_slice(ticks: &[tick::OpenInterestTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("OpenInterestTick").expect("generated schema must be present for OpenInterestTick");
         let n = ticks.len();
@@ -1332,6 +2691,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::OpenInterestTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -1341,6 +2701,57 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_open_interest_tick_slice_projected(ticks: &[tick::OpenInterestTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("open_interest") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.open_interest); }
+            fields.push(Field::new("open_interest", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in ticks { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::OpenInterestTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn open_interest_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::OpenInterestTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_open_interest_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_option_contract_slice(ticks: &[tick::OptionContract]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("OptionContract").expect("generated schema must be present for OptionContract");
         let n = ticks.len();
@@ -1363,6 +2774,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::OptionContract]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -1372,6 +2784,45 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_option_contract_slice_projected(ticks: &[tick::OptionContract], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("symbol") {
+            let mut col: Vec<String> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.symbol.clone()); }
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.expiration); }
+            fields.push(Field::new("expiration", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.strike); }
+            fields.push(Field::new("strike", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<String> = Vec::with_capacity(n);
+            for t in ticks { col.push(if t.right == '\0' { String::new() } else { t.right.to_string() }); }
+            fields.push(Field::new("right", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::OptionContract]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn option_contract_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::OptionContract], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_option_contract_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_price_tick_slice(ticks: &[tick::PriceTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("PriceTick").expect("generated schema must be present for PriceTick");
         let n = ticks.len();
@@ -1391,6 +2842,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::PriceTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -1400,6 +2852,39 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_price_tick_slice_projected(ticks: &[tick::PriceTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.price); }
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::PriceTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn price_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::PriceTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_price_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_quote_tick_slice(ticks: &[tick::QuoteTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("QuoteTick").expect("generated schema must be present for QuoteTick");
         let n = ticks.len();
@@ -1452,6 +2937,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::QuoteTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -1461,6 +2947,105 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_quote_tick_slice_projected(ticks: &[tick::QuoteTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid_size); }
+            fields.push(Field::new("bid_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid_exchange); }
+            fields.push(Field::new("bid_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid); }
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid_condition); }
+            fields.push(Field::new("bid_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask_size); }
+            fields.push(Field::new("ask_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask_exchange); }
+            fields.push(Field::new("ask_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask); }
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask_condition); }
+            fields.push(Field::new("ask_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in ticks { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        if present.contains("midpoint") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.midpoint); }
+            fields.push(Field::new("midpoint", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::QuoteTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn quote_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::QuoteTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_quote_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_trade_greeks_all_tick_slice(ticks: &[tick::TradeGreeksAllTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("TradeGreeksAllTick").expect("generated schema must be present for TradeGreeksAllTick");
         let n = ticks.len();
@@ -1585,6 +3170,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::TradeGreeksAllTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -1594,6 +3180,249 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_trade_greeks_all_tick_slice_projected(ticks: &[tick::TradeGreeksAllTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.sequence); }
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition1); }
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition2); }
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition3); }
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition4); }
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.condition); }
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.size); }
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.exchange); }
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.price); }
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.delta); }
+            fields.push(Field::new("delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("theta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.theta); }
+            fields.push(Field::new("theta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vega") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.vega); }
+            fields.push(Field::new("vega", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("rho") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.rho); }
+            fields.push(Field::new("rho", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("epsilon") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.epsilon); }
+            fields.push(Field::new("epsilon", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("lambda") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.lambda); }
+            fields.push(Field::new("lambda", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.gamma); }
+            fields.push(Field::new("gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vanna") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.vanna); }
+            fields.push(Field::new("vanna", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("charm") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.charm); }
+            fields.push(Field::new("charm", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.vomma); }
+            fields.push(Field::new("vomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("veta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.veta); }
+            fields.push(Field::new("veta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vera") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.vera); }
+            fields.push(Field::new("vera", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("speed") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.speed); }
+            fields.push(Field::new("speed", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("zomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.zomma); }
+            fields.push(Field::new("zomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("color") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.color); }
+            fields.push(Field::new("color", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ultima") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ultima); }
+            fields.push(Field::new("ultima", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("d1") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.d1); }
+            fields.push(Field::new("d1", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("d2") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.d2); }
+            fields.push(Field::new("d2", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("dual_delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.dual_delta); }
+            fields.push(Field::new("dual_delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("dual_gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.dual_gamma); }
+            fields.push(Field::new("dual_gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in ticks { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::TradeGreeksAllTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn trade_greeks_all_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::TradeGreeksAllTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_trade_greeks_all_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_trade_greeks_first_order_tick_slice(ticks: &[tick::TradeGreeksFirstOrderTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("TradeGreeksFirstOrderTick").expect("generated schema must be present for TradeGreeksFirstOrderTick");
         let n = ticks.len();
@@ -1676,6 +3505,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::TradeGreeksFirstOrderTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -1685,6 +3515,165 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_trade_greeks_first_order_tick_slice_projected(ticks: &[tick::TradeGreeksFirstOrderTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.sequence); }
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition1); }
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition2); }
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition3); }
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition4); }
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.condition); }
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.size); }
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.exchange); }
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.price); }
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.delta); }
+            fields.push(Field::new("delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("theta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.theta); }
+            fields.push(Field::new("theta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vega") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.vega); }
+            fields.push(Field::new("vega", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("rho") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.rho); }
+            fields.push(Field::new("rho", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("epsilon") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.epsilon); }
+            fields.push(Field::new("epsilon", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("lambda") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.lambda); }
+            fields.push(Field::new("lambda", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in ticks { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::TradeGreeksFirstOrderTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn trade_greeks_first_order_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::TradeGreeksFirstOrderTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_trade_greeks_first_order_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_trade_greeks_implied_volatility_tick_slice(ticks: &[tick::TradeGreeksImpliedVolatilityTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("TradeGreeksImpliedVolatilityTick").expect("generated schema must be present for TradeGreeksImpliedVolatilityTick");
         let n = ticks.len();
@@ -1749,6 +3738,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::TradeGreeksImpliedVolatilityTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -1758,6 +3748,129 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_trade_greeks_implied_volatility_tick_slice_projected(ticks: &[tick::TradeGreeksImpliedVolatilityTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.sequence); }
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition1); }
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition2); }
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition3); }
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition4); }
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.condition); }
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.size); }
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.exchange); }
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.price); }
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in ticks { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::TradeGreeksImpliedVolatilityTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn trade_greeks_implied_volatility_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::TradeGreeksImpliedVolatilityTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_trade_greeks_implied_volatility_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_trade_greeks_second_order_tick_slice(ticks: &[tick::TradeGreeksSecondOrderTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("TradeGreeksSecondOrderTick").expect("generated schema must be present for TradeGreeksSecondOrderTick");
         let n = ticks.len();
@@ -1837,6 +3950,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::TradeGreeksSecondOrderTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -1846,6 +3960,159 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_trade_greeks_second_order_tick_slice_projected(ticks: &[tick::TradeGreeksSecondOrderTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.sequence); }
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition1); }
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition2); }
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition3); }
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition4); }
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.condition); }
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.size); }
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.exchange); }
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.price); }
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.gamma); }
+            fields.push(Field::new("gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vanna") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.vanna); }
+            fields.push(Field::new("vanna", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("charm") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.charm); }
+            fields.push(Field::new("charm", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.vomma); }
+            fields.push(Field::new("vomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("veta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.veta); }
+            fields.push(Field::new("veta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in ticks { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::TradeGreeksSecondOrderTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn trade_greeks_second_order_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::TradeGreeksSecondOrderTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_trade_greeks_second_order_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_trade_greeks_third_order_tick_slice(ticks: &[tick::TradeGreeksThirdOrderTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("TradeGreeksThirdOrderTick").expect("generated schema must be present for TradeGreeksThirdOrderTick");
         let n = ticks.len();
@@ -1922,6 +4189,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::TradeGreeksThirdOrderTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -1931,6 +4199,153 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_trade_greeks_third_order_tick_slice_projected(ticks: &[tick::TradeGreeksThirdOrderTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.sequence); }
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition1); }
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition2); }
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition3); }
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition4); }
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.condition); }
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.size); }
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.exchange); }
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.price); }
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("speed") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.speed); }
+            fields.push(Field::new("speed", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("zomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.zomma); }
+            fields.push(Field::new("zomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("color") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.color); }
+            fields.push(Field::new("color", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ultima") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ultima); }
+            fields.push(Field::new("ultima", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in ticks { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::TradeGreeksThirdOrderTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn trade_greeks_third_order_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::TradeGreeksThirdOrderTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_trade_greeks_third_order_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_trade_quote_tick_slice(ticks: &[tick::TradeQuoteTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("TradeQuoteTick").expect("generated schema must be present for TradeQuoteTick");
         let n = ticks.len();
@@ -2022,6 +4437,7 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::TradeQuoteTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
@@ -2031,6 +4447,183 @@ pub(crate) mod slice_arrow {
         record_batch_to_pyarrow_table(py, batch)
     }
 
+    fn read_arrow_batch_from_trade_quote_tick_slice_projected(ticks: &[tick::TradeQuoteTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.sequence); }
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition1); }
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition2); }
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition3); }
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition4); }
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.condition); }
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.size); }
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.exchange); }
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.price); }
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition_flags") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.condition_flags); }
+            fields.push(Field::new("condition_flags", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price_flags") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.price_flags); }
+            fields.push(Field::new("price_flags", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("volume_type") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.volume_type); }
+            fields.push(Field::new("volume_type", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("records_back") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.records_back); }
+            fields.push(Field::new("records_back", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("quote_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.quote_ms_of_day); }
+            fields.push(Field::new("quote_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid_size); }
+            fields.push(Field::new("bid_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid_exchange); }
+            fields.push(Field::new("bid_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid); }
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.bid_condition); }
+            fields.push(Field::new("bid_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask_size); }
+            fields.push(Field::new("ask_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask_exchange); }
+            fields.push(Field::new("ask_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask); }
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ask_condition); }
+            fields.push(Field::new("ask_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in ticks { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::TradeQuoteTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn trade_quote_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::TradeQuoteTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_trade_quote_tick_slice_projected(ticks, present)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    #[allow(dead_code)]
     fn read_arrow_batch_from_trade_tick_slice(ticks: &[tick::TradeTick]) -> PyResult<RecordBatch> {
         let schema = arrow_schema_for_qualname("TradeTick").expect("generated schema must be present for TradeTick");
         let n = ticks.len();
@@ -2095,12 +4688,135 @@ pub(crate) mod slice_arrow {
         RecordBatch::try_new(schema, columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
+    #[allow(dead_code)]
     /// Convert a decoder-owned `&[tick::TradeTick]` slice into a
     /// `pyarrow.Table` without materialising typed pyclass instances.
     /// Primary fast path for historical endpoints — avoids the
     /// double-buffering RSS spike of the pyclass-list converter.
     pub(crate) fn trade_tick_slice_to_arrow_table(py: Python<'_>, ticks: &[tick::TradeTick]) -> PyResult<Py<PyAny>> {
         let batch = read_arrow_batch_from_trade_tick_slice(ticks)?;
+        record_batch_to_pyarrow_table(py, batch)
+    }
+
+    fn read_arrow_batch_from_trade_tick_slice_projected(ticks: &[tick::TradeTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {
+        let n = ticks.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.sequence); }
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition1); }
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition2); }
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition3); }
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.ext_condition4); }
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.condition); }
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.size); }
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.exchange); }
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.price); }
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition_flags") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.condition_flags); }
+            fields.push(Field::new("condition_flags", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price_flags") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.price_flags); }
+            fields.push(Field::new("price_flags", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("volume_type") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.volume_type); }
+            fields.push(Field::new("volume_type", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("records_back") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.records_back); }
+            fields.push(Field::new("records_back", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in ticks { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in ticks { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+    }
+
+    /// Convert a decoder-owned `&[tick::TradeTick]` slice into a
+    /// `pyarrow.Table` carrying only the columns present on the wire.
+    pub(crate) fn trade_tick_slice_to_arrow_table_projected(py: Python<'_>, ticks: &[tick::TradeTick], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {
+        let batch = read_arrow_batch_from_trade_tick_slice_projected(ticks, present)?;
         record_batch_to_pyarrow_table(py, batch)
     }
 

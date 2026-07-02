@@ -93,6 +93,13 @@ pub trait WireColumns {
     /// The schema columns present on a response whose wire header list is
     /// `headers`, as a [`ColumnPresence`] naming the public schema fields.
     fn present_columns(headers: &[&str]) -> ColumnPresence;
+
+    /// Every column the tick type's full-schema frame carries, in schema
+    /// order — the "all present" set for hand-built rows a caller assembled
+    /// itself (which never touched a wire) and for the streaming collect
+    /// path (which drains per-chunk slices and keeps no header list). A
+    /// frame built from this set matches [`crate::frames::TicksArrowExt::to_arrow`].
+    fn all_columns() -> ColumnPresence;
 }
 
 /// A decoded historical response: the tick rows plus the set of columns the

@@ -54,11 +54,13 @@ pub(super) fn render_python_tick_arrow(schema: &Schema) -> String {
     // inside the `record_batch_to_pyarrow_table` helper itself, so no
     // module-level arrow import is emitted at this seam.
 
-    // Schema map + slice-to-Arrow converters. The pyclass-list dispatcher
-    // and the `ArrowFromPyclassList` trait that used to live here have
-    // been removed along with every free-function DataFrame surface — the
-    // chained `<TickName>List` terminals are the sole path from decoded
-    // ticks to DataFrame output.
+    // Schema map (empty-list schema source + full-reader SSOT) + the
+    // RecordBatch->pyarrow helper + per-tick slice converters. Each
+    // `<Tick>List` terminal calls its `_projected` converter with the
+    // response's `ColumnPresence`, so there is one path from decoded ticks
+    // to DataFrame output and it always emits the wire's exact columns; the
+    // full readers stay as the SSOT for `arrow_schema_for_qualname` and the
+    // streaming bench's full-schema fast path.
     out.push_str(&render_python_arrow_schema_map(schema));
     out.push('\n');
     out.push_str(&render_record_batch_to_pyarrow_helper());
@@ -104,7 +106,11 @@ fn render_python_slice_to_arrow_converters(schema: &Schema) -> String {
     out.push_str(
         "    use arrow::array::{ArrayRef, BooleanArray, Float64Array, Int32Array, Int64Array, StringArray};\n",
     );
-    out.push_str("    use arrow::record_batch::RecordBatch;\n\n");
+    out.push_str("    use arrow::record_batch::RecordBatch;\n");
+    // `Field` / `Schema` / `DataType` build the projected subset schema
+    // (the full readers fetch a fixed schema from `arrow_schema_for_qualname`).
+    out.push_str("    use arrow::datatypes::{DataType, Field, Schema};\n");
+    out.push_str("    use std::sync::Arc;\n\n");
     // The fluent-builder Arrow terminals in `historical_methods.rs`
     // dispatch on endpoint return type (via
     // `build_support/endpoints/helpers.rs::python_slice_arrow_converter`)
@@ -115,8 +121,13 @@ fn render_python_slice_to_arrow_converters(schema: &Schema) -> String {
 
     for type_name in sorted_type_names(schema) {
         let def = &schema.types[type_name];
-        // Indent every line of the generated body two spaces so the
-        // module braces stay visually clean in the emitted file.
+        // Full reader + public helper. Superseded by the projected pair for
+        // the `<Tick>List` terminals (which always project), so most are
+        // now called only by the streaming bench (`trade_tick`) — scope a
+        // dead-code allow to the generated fns, the same treatment the
+        // generated `decode_generated` module already carries. Indent two
+        // spaces so the module braces stay visually clean.
+        out.push_str("    #[allow(dead_code)]\n");
         let body = render_python_slice_reader(type_name, def);
         for line in body.lines() {
             out.push_str("    ");
@@ -124,7 +135,25 @@ fn render_python_slice_to_arrow_converters(schema: &Schema) -> String {
             out.push('\n');
         }
         out.push('\n');
+        out.push_str("    #[allow(dead_code)]\n");
         let helper = render_python_slice_public_helper(type_name);
+        for line in helper.lines() {
+            out.push_str("    ");
+            out.push_str(line);
+            out.push('\n');
+        }
+        out.push('\n');
+        // Projected reader + public helper: build only the columns the
+        // response's wire carried (terminal-exact), keyed on a
+        // `ColumnPresence`.
+        let body = render_python_slice_reader_projected(type_name, def);
+        for line in body.lines() {
+            out.push_str("    ");
+            out.push_str(line);
+            out.push('\n');
+        }
+        out.push('\n');
+        let helper = render_python_slice_public_helper_projected(type_name);
         for line in helper.lines() {
             out.push_str("    ");
             out.push_str(line);
@@ -329,6 +358,146 @@ fn render_python_slice_public_helper(type_name: &str) -> String {
     )
     .unwrap();
     writeln!(out, "    let batch = {reader}(ticks)?;").unwrap();
+    out.push_str("    record_batch_to_pyarrow_table(py, batch)\n");
+    out.push_str("}\n");
+    out
+}
+
+/// One projectable Arrow column: schema field name, buffer element type,
+/// Arrow `DataType` expr, array constructor, push expression, nullability.
+/// The contract-id trio and the `QuoteTick.midpoint` tail are modelled as
+/// synthetic columns so the projected reader shares one loop — the same
+/// column set (and order) the Rust `to_arrow_projected` builder emits.
+struct ProjCol {
+    name: String,
+    buf_ty: &'static str,
+    data_type: &'static str,
+    ctor: &'static str,
+    push: String,
+    nullable: bool,
+}
+
+fn projected_columns(type_name: &str, def: &TickTypeDef) -> Vec<ProjCol> {
+    let mut cols: Vec<ProjCol> = def
+        .columns
+        .iter()
+        .map(|c| ProjCol {
+            name: c.field.clone(),
+            buf_ty: tick_struct_field_type(c.r#type.as_str()),
+            data_type: arrow_data_type_expr(c.r#type.as_str()),
+            ctor: arrow_array_ctor(c.r#type.as_str()),
+            push: column_push_expr(c.r#type.as_str(), &c.field),
+            nullable: false,
+        })
+        .collect();
+    if def.contract_id {
+        cols.push(ProjCol {
+            name: "expiration".into(),
+            buf_ty: "Option<i32>",
+            data_type: "DataType::Int32",
+            ctor: "Int32Array",
+            push: "t.has_contract_id().then_some(t.expiration)".into(),
+            nullable: true,
+        });
+        cols.push(ProjCol {
+            name: "strike".into(),
+            buf_ty: "Option<f64>",
+            data_type: "DataType::Float64",
+            ctor: "Float64Array",
+            push: "t.has_contract_id().then_some(t.strike)".into(),
+            nullable: true,
+        });
+        cols.push(ProjCol {
+            name: "right".into(),
+            buf_ty: "Option<String>",
+            data_type: "DataType::Utf8",
+            ctor: "StringArray",
+            push: "if t.right == '\\0' { None } else { Some(t.right.to_string()) }".into(),
+            nullable: true,
+        });
+    }
+    if type_name == "QuoteTick" {
+        cols.push(ProjCol {
+            name: "midpoint".into(),
+            buf_ty: "f64",
+            data_type: "DataType::Float64",
+            ctor: "Float64Array",
+            push: "t.midpoint".into(),
+            nullable: false,
+        });
+    }
+    cols
+}
+
+/// Emit `read_arrow_batch_from_<tick>_slice_projected` — builds an Arrow
+/// `RecordBatch` carrying only the columns named in `present`. Mirror of
+/// the Rust `TicksArrowExt::to_arrow_projected` so the Python `.to_arrow()`
+/// on a decode-fed `<Tick>List` and the Rust `Ticks::to_arrow` agree.
+fn render_python_slice_reader_projected(type_name: &str, def: &TickTypeDef) -> String {
+    let mut out = String::new();
+    let fn_name = format!("{}_projected", python_slice_reader_fn_name(type_name));
+    writeln!(
+        out,
+        "fn {fn_name}(ticks: &[tick::{type_name}], present: &thetadatadx::columns::ColumnPresence) -> PyResult<RecordBatch> {{"
+    )
+    .unwrap();
+    out.push_str("    let n = ticks.len();\n");
+    out.push_str("    let mut fields: Vec<Field> = Vec::new();\n");
+    out.push_str("    let mut columns: Vec<ArrayRef> = Vec::new();\n");
+    for c in projected_columns(type_name, def) {
+        writeln!(out, "    if present.contains(\"{}\") {{", c.name).unwrap();
+        writeln!(
+            out,
+            "        let mut col: Vec<{ty}> = Vec::with_capacity(n);",
+            ty = c.buf_ty
+        )
+        .unwrap();
+        writeln!(out, "        for t in ticks {{ col.push({push}); }}", push = c.push).unwrap();
+        writeln!(
+            out,
+            "        fields.push(Field::new(\"{name}\", {dt}, {null}));",
+            name = c.name,
+            dt = c.data_type,
+            null = c.nullable
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "        columns.push(Arc::new({ctor}::from(col)) as ArrayRef);",
+            ctor = c.ctor
+        )
+        .unwrap();
+        out.push_str("    }\n");
+    }
+    out.push_str(
+        "    RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))\n",
+    );
+    out.push_str("}\n");
+    out
+}
+
+/// Emit the public `<tick>_slice_to_arrow_table_projected(py, &[tick::T],
+/// &ColumnPresence)` helper the `<Tick>List` terminals call.
+fn render_python_slice_public_helper_projected(type_name: &str) -> String {
+    let mut out = String::new();
+    let helper = format!("{}_projected", python_slice_helper_fn_name(type_name));
+    let reader = format!("{}_projected", python_slice_reader_fn_name(type_name));
+    writeln!(
+        out,
+        "/// Convert a decoder-owned `&[tick::{type_name}]` slice into a"
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "/// `pyarrow.Table` carrying only the columns present on the wire."
+    )
+    .unwrap();
+    writeln!(
+        out,
+        "pub(crate) fn {helper}(py: Python<'_>, ticks: &[tick::{type_name}], present: &thetadatadx::columns::ColumnPresence) -> PyResult<Py<PyAny>> {{"
+    )
+    .unwrap();
+    writeln!(out, "    let batch = {reader}(ticks, present)?;").unwrap();
     out.push_str("    record_batch_to_pyarrow_table(py, batch)\n");
     out.push_str("}\n");
     out

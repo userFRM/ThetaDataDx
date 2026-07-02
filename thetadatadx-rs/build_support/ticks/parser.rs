@@ -302,6 +302,25 @@ fn generate_present_columns(out: &mut String, type_name: &str, def: &TickTypeDef
         out.push_str("        if headers.contains(&\"right\") { present.push(\"right\"); }\n");
     }
     out.push_str("        crate::columns::ColumnPresence::from_names(present)\n");
+    out.push_str("    }\n\n");
+
+    // all_columns(): the full-schema column set (schema columns + the
+    // contract-id trio + the QuoteTick `midpoint` derived tail), matching
+    // the column order the full `to_arrow` / `to_polars` builders emit.
+    out.push_str("    fn all_columns() -> crate::columns::ColumnPresence {\n");
+    out.push_str("        crate::columns::ColumnPresence::from_names([\n");
+    for col in &def.columns {
+        writeln!(out, "            \"{}\",", col.field).unwrap();
+    }
+    if def.contract_id {
+        out.push_str("            \"expiration\",\n");
+        out.push_str("            \"strike\",\n");
+        out.push_str("            \"right\",\n");
+    }
+    if type_name == "QuoteTick" {
+        out.push_str("            \"midpoint\",\n");
+    }
+    out.push_str("        ])\n");
     out.push_str("    }\n");
     out.push_str("}\n\n");
 }

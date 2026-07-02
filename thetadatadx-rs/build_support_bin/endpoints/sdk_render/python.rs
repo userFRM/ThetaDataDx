@@ -43,8 +43,8 @@ use super::super::model::{GeneratedEndpoint, GeneratedParam};
 use super::super::sdk_helpers::{
     builder_params, is_snapshot_endpoint, is_time_arg, method_params, python_method_arg_decl,
     python_optional_type, python_pyclass_list_class, python_pyclass_list_converter,
-    python_string_arg_type, python_vec_to_pylist_converter, render_rust_doc_block,
-    sdk_method_arg_name, write_timeout_call,
+    python_pyclass_row_class, python_string_arg_type, python_vec_to_pylist_converter,
+    render_rust_doc_block, sdk_method_arg_name, write_timeout_call,
 };
 
 /// Emit `thetadatadx-py/src/_generated/decode_bench.rs` — the offline decode hook.
@@ -131,6 +131,7 @@ pub(super) fn render_python_decode_bench(endpoints: &[GeneratedEndpoint]) -> Str
                 )
             });
         let pyclass_fn = python_pyclass_list_converter(&endpoint.return_type);
+        let row_class = python_pyclass_row_class(&endpoint.return_type);
         writeln!(out, "        \"{name}\" => {{", name = endpoint.name).unwrap();
         writeln!(
             out,
@@ -139,7 +140,24 @@ pub(super) fn render_python_decode_bench(endpoints: &[GeneratedEndpoint]) -> Str
         .unwrap();
         writeln!(
             out,
-            "            let ticks = {parser}(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;"
+            "            let rows = {parser}(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;"
+        )
+        .unwrap();
+        // Pair the decoded rows with the recorded response's wire columns so
+        // the bench list projects exactly as the live endpoint would.
+        writeln!(
+            out,
+            "            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();"
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "            let columns = <tick::{row_class} as thetadatadx::WireColumns>::present_columns(&header_refs);"
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "            let ticks = thetadatadx::Ticks::new(rows, columns);"
         )
         .unwrap();
         // `*_to_pyclass_list` now returns `Py<<TickName>List>`; the public
@@ -378,6 +396,14 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("        }\n");
     if is_streaming_kind {
         out.push_str(include_str!("templates/python/streaming_dispatch.py.tmpl"));
+        // The streaming collect drains per-chunk slices and keeps no header
+        // list, so the wrapped `Ticks` carries the full-schema column set.
+        writeln!(
+            out,
+            "        let ticks = thetadatadx::Ticks::new(ticks, <tick::{} as thetadatadx::WireColumns>::all_columns());",
+            python_pyclass_row_class(&endpoint.return_type)
+        )
+        .unwrap();
         writeln!(
             out,
             "        {}(py, ticks)",
@@ -584,12 +610,19 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
         // Async streaming endpoints collect the full stream into a Vec<T>
         // inside the future body; `spawn_awaitable` then runs `convert`
         // with the GIL held. The inner `?` on `request.stream(...).await`
-        // propagates `thetadatadx::Error` unchanged into the helper.
+        // propagates `thetadatadx::Error` unchanged into the helper. The
+        // collect keeps no header list, so the wrapped `Ticks` carries the
+        // full-schema column set.
         out.push_str("            let mut collected = Vec::new();\n");
         out.push_str(
             "            request.stream(|chunk| collected.extend_from_slice(chunk)).await?;\n",
         );
-        out.push_str("            Ok(collected)\n");
+        writeln!(
+            out,
+            "            Ok::<_, thetadatadx::Error>(thetadatadx::Ticks::new(collected, <tick::{} as thetadatadx::WireColumns>::all_columns()))",
+            python_pyclass_row_class(&endpoint.return_type)
+        )
+        .unwrap();
     } else {
         out.push_str("            request.await\n");
     }
@@ -955,6 +988,14 @@ fn write_sync_stream_terminal(
     out.push_str("                }\n");
     out.push_str("                Python::attach(|py| {\n");
     out.push_str("                    let owned: Vec<_> = chunk.to_vec();\n");
+    // Per-chunk handler gets a plain pylist of rows; the chunk carries no
+    // header list, so wrap with the full-schema column set.
+    writeln!(
+        out,
+        "                    let owned = thetadatadx::Ticks::new(owned, <tick::{} as thetadatadx::WireColumns>::all_columns());",
+        python_pyclass_row_class(&endpoint.return_type)
+    )
+    .unwrap();
     writeln!(
         out,
         "                    let py_list = match {}(py, owned) {{",
@@ -1027,6 +1068,14 @@ fn write_async_stream_terminal(
     out.push_str("                }\n");
     out.push_str("                Python::attach(|py| {\n");
     out.push_str("                    let owned: Vec<_> = chunk.to_vec();\n");
+    // Per-chunk handler gets a plain pylist of rows; the chunk carries no
+    // header list, so wrap with the full-schema column set.
+    writeln!(
+        out,
+        "                    let owned = thetadatadx::Ticks::new(owned, <tick::{} as thetadatadx::WireColumns>::all_columns());",
+        python_pyclass_row_class(&endpoint.return_type)
+    )
+    .unwrap();
     writeln!(
         out,
         "                    let py_list = match {}(py, owned) {{",
@@ -1445,7 +1494,14 @@ fn write_sync_parsed_dispatch(
             "{indent}    request.stream(|chunk| collected.extend_from_slice(chunk)).await.map_err(to_py_err)?;"
         )
         .unwrap();
-        writeln!(out, "{indent}    Ok::<_, PyErr>(collected)").unwrap();
+        // The streaming collect keeps no header list; wrap with the
+        // full-schema column set so the `<Tick>List` terminals still work.
+        writeln!(
+            out,
+            "{indent}    Ok::<_, PyErr>(thetadatadx::Ticks::new(collected, <tick::{} as thetadatadx::WireColumns>::all_columns()))",
+            python_pyclass_row_class(&endpoint.return_type)
+        )
+        .unwrap();
         writeln!(out, "{indent}}})?;").unwrap();
     } else {
         writeln!(out, "{indent}    request.await").unwrap();
@@ -1560,18 +1616,24 @@ fn write_async_parsed_dispatch(
     writeln!(out, "{indent}    }}").unwrap();
     if is_streaming_kind {
         // Streaming builders: collect the full stream in the future and let
-        // `spawn_awaitable` wrap the error + convert under the GIL.
+        // `spawn_awaitable` wrap the error + convert under the GIL. The
+        // collect keeps no header list; wrap with the full-schema column set.
         writeln!(out, "{indent}    let mut collected = Vec::new();").unwrap();
         writeln!(
             out,
             "{indent}    request.stream(|chunk| collected.extend_from_slice(chunk)).await?;"
         )
         .unwrap();
-        writeln!(out, "{indent}    Ok(collected)").unwrap();
+        writeln!(
+            out,
+            "{indent}    Ok::<_, thetadatadx::Error>(thetadatadx::Ticks::new(collected, <tick::{} as thetadatadx::WireColumns>::all_columns()))",
+            python_pyclass_row_class(&endpoint.return_type)
+        )
+        .unwrap();
     } else {
         writeln!(out, "{indent}    request.await").unwrap();
     }
-    // Single terminal path — wrap the decoder-owned Vec in the typed
+    // Single terminal path — wrap the decoder-owned Ticks<T> in the typed
     // `<TickName>List` and coerce to `Py<PyAny>` for the helper signature.
     // The caller chains `.to_polars()` / etc. off the awaited value.
     writeln!(

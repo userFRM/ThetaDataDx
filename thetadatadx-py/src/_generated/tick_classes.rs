@@ -1685,11 +1685,12 @@ impl TradeTick {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct CalendarDayList {
     inner: Vec<tick::CalendarDay>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl CalendarDayList {
-    pub(crate) fn new(inner: Vec<tick::CalendarDay>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::CalendarDay>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -1709,7 +1710,8 @@ impl CalendarDayList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::CalendarDay as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -1740,7 +1742,7 @@ impl CalendarDayList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, CalendarDayList::new(rows))?.into_any());
+            return Ok(Py::new(py, CalendarDayList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -1788,22 +1790,23 @@ impl CalendarDayList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::calendar_day_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::calendar_day_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::calendar_day_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::calendar_day_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::calendar_day_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -1858,11 +1861,12 @@ impl CalendarDayListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct EodTickList {
     inner: Vec<tick::EodTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl EodTickList {
-    pub(crate) fn new(inner: Vec<tick::EodTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::EodTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -1897,7 +1901,8 @@ impl EodTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::EodTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -1928,7 +1933,7 @@ impl EodTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, EodTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, EodTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -2006,22 +2011,23 @@ impl EodTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::eod_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::eod_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::eod_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::eod_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::eod_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -2091,11 +2097,12 @@ impl EodTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct GreeksAllTickList {
     inner: Vec<tick::GreeksAllTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl GreeksAllTickList {
-    pub(crate) fn new(inner: Vec<tick::GreeksAllTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::GreeksAllTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -2141,7 +2148,8 @@ impl GreeksAllTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::GreeksAllTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -2172,7 +2180,7 @@ impl GreeksAllTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, GreeksAllTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, GreeksAllTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -2272,22 +2280,23 @@ impl GreeksAllTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::greeks_all_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::greeks_all_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::greeks_all_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::greeks_all_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::greeks_all_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::greeks_all_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -2368,11 +2377,12 @@ impl GreeksAllTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct GreeksEodTickList {
     inner: Vec<tick::GreeksEodTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl GreeksEodTickList {
-    pub(crate) fn new(inner: Vec<tick::GreeksEodTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::GreeksEodTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -2430,7 +2440,8 @@ impl GreeksEodTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::GreeksEodTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -2461,7 +2472,7 @@ impl GreeksEodTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, GreeksEodTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, GreeksEodTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -2585,22 +2596,23 @@ impl GreeksEodTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::greeks_eod_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::greeks_eod_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::greeks_eod_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::greeks_eod_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::greeks_eod_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::greeks_eod_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -2693,11 +2705,12 @@ impl GreeksEodTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct GreeksFirstOrderTickList {
     inner: Vec<tick::GreeksFirstOrderTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl GreeksFirstOrderTickList {
-    pub(crate) fn new(inner: Vec<tick::GreeksFirstOrderTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::GreeksFirstOrderTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -2729,7 +2742,8 @@ impl GreeksFirstOrderTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::GreeksFirstOrderTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -2760,7 +2774,7 @@ impl GreeksFirstOrderTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, GreeksFirstOrderTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, GreeksFirstOrderTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -2832,22 +2846,23 @@ impl GreeksFirstOrderTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::greeks_first_order_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::greeks_first_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::greeks_first_order_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::greeks_first_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::greeks_first_order_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::greeks_first_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -2914,11 +2929,12 @@ impl GreeksFirstOrderTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct GreeksSecondOrderTickList {
     inner: Vec<tick::GreeksSecondOrderTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl GreeksSecondOrderTickList {
-    pub(crate) fn new(inner: Vec<tick::GreeksSecondOrderTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::GreeksSecondOrderTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -2949,7 +2965,8 @@ impl GreeksSecondOrderTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::GreeksSecondOrderTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -2980,7 +2997,7 @@ impl GreeksSecondOrderTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, GreeksSecondOrderTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, GreeksSecondOrderTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -3050,22 +3067,23 @@ impl GreeksSecondOrderTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::greeks_second_order_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::greeks_second_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::greeks_second_order_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::greeks_second_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::greeks_second_order_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::greeks_second_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -3131,11 +3149,12 @@ impl GreeksSecondOrderTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct GreeksThirdOrderTickList {
     inner: Vec<tick::GreeksThirdOrderTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl GreeksThirdOrderTickList {
-    pub(crate) fn new(inner: Vec<tick::GreeksThirdOrderTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::GreeksThirdOrderTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -3165,7 +3184,8 @@ impl GreeksThirdOrderTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::GreeksThirdOrderTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -3196,7 +3216,7 @@ impl GreeksThirdOrderTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, GreeksThirdOrderTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, GreeksThirdOrderTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -3264,22 +3284,23 @@ impl GreeksThirdOrderTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::greeks_third_order_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::greeks_third_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::greeks_third_order_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::greeks_third_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::greeks_third_order_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::greeks_third_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -3344,11 +3365,12 @@ impl GreeksThirdOrderTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct IndexPriceAtTimeTickList {
     inner: Vec<tick::IndexPriceAtTimeTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl IndexPriceAtTimeTickList {
-    pub(crate) fn new(inner: Vec<tick::IndexPriceAtTimeTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::IndexPriceAtTimeTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -3374,7 +3396,8 @@ impl IndexPriceAtTimeTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::IndexPriceAtTimeTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -3405,7 +3428,7 @@ impl IndexPriceAtTimeTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, IndexPriceAtTimeTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, IndexPriceAtTimeTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -3465,22 +3488,23 @@ impl IndexPriceAtTimeTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::index_price_at_time_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::index_price_at_time_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::index_price_at_time_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::index_price_at_time_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::index_price_at_time_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::index_price_at_time_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -3541,11 +3565,12 @@ impl IndexPriceAtTimeTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct InterestRateTickList {
     inner: Vec<tick::InterestRateTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl InterestRateTickList {
-    pub(crate) fn new(inner: Vec<tick::InterestRateTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::InterestRateTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -3562,7 +3587,8 @@ impl InterestRateTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::InterestRateTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -3593,7 +3619,7 @@ impl InterestRateTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, InterestRateTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, InterestRateTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -3635,22 +3661,23 @@ impl InterestRateTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::interest_rate_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::interest_rate_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::interest_rate_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::interest_rate_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::interest_rate_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::interest_rate_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -3702,11 +3729,12 @@ impl InterestRateTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct IvTickList {
     inner: Vec<tick::IvTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl IvTickList {
-    pub(crate) fn new(inner: Vec<tick::IvTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::IvTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -3735,7 +3763,8 @@ impl IvTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::IvTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -3766,7 +3795,7 @@ impl IvTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, IvTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, IvTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -3832,22 +3861,23 @@ impl IvTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::iv_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::iv_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::iv_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::iv_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::iv_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -3911,11 +3941,12 @@ impl IvTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct MarketValueTickList {
     inner: Vec<tick::MarketValueTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl MarketValueTickList {
-    pub(crate) fn new(inner: Vec<tick::MarketValueTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::MarketValueTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -3938,7 +3969,8 @@ impl MarketValueTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::MarketValueTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -3969,7 +4001,7 @@ impl MarketValueTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, MarketValueTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, MarketValueTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -4023,22 +4055,23 @@ impl MarketValueTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::market_value_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::market_value_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::market_value_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::market_value_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::market_value_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -4096,11 +4129,12 @@ impl MarketValueTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct OhlcTickList {
     inner: Vec<tick::OhlcTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl OhlcTickList {
-    pub(crate) fn new(inner: Vec<tick::OhlcTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::OhlcTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -4127,7 +4161,8 @@ impl OhlcTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::OhlcTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -4158,7 +4193,7 @@ impl OhlcTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, OhlcTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, OhlcTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -4220,22 +4255,23 @@ impl OhlcTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::ohlc_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::ohlc_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::ohlc_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::ohlc_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::ohlc_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -4297,11 +4333,12 @@ impl OhlcTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct OpenInterestTickList {
     inner: Vec<tick::OpenInterestTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl OpenInterestTickList {
-    pub(crate) fn new(inner: Vec<tick::OpenInterestTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::OpenInterestTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -4322,7 +4359,8 @@ impl OpenInterestTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::OpenInterestTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -4353,7 +4391,7 @@ impl OpenInterestTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, OpenInterestTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, OpenInterestTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -4403,22 +4441,23 @@ impl OpenInterestTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::open_interest_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::open_interest_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::open_interest_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::open_interest_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::open_interest_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::open_interest_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -4474,11 +4513,12 @@ impl OpenInterestTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct OptionContractList {
     inner: Vec<tick::OptionContract>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl OptionContractList {
-    pub(crate) fn new(inner: Vec<tick::OptionContract>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::OptionContract>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -4497,7 +4537,8 @@ impl OptionContractList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::OptionContract as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -4528,7 +4569,7 @@ impl OptionContractList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, OptionContractList::new(rows))?.into_any());
+            return Ok(Py::new(py, OptionContractList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -4574,22 +4615,23 @@ impl OptionContractList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::option_contract_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::option_contract_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::option_contract_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::option_contract_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::option_contract_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::option_contract_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -4643,11 +4685,12 @@ impl OptionContractListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct PriceTickList {
     inner: Vec<tick::PriceTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl PriceTickList {
-    pub(crate) fn new(inner: Vec<tick::PriceTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::PriceTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -4665,7 +4708,8 @@ impl PriceTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::PriceTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -4696,7 +4740,7 @@ impl PriceTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, PriceTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, PriceTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -4740,22 +4784,23 @@ impl PriceTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::price_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::price_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::price_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::price_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::price_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::price_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -4808,11 +4853,12 @@ impl PriceTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct QuoteTickList {
     inner: Vec<tick::QuoteTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl QuoteTickList {
-    pub(crate) fn new(inner: Vec<tick::QuoteTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::QuoteTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -4841,7 +4887,8 @@ impl QuoteTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::QuoteTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -4872,7 +4919,7 @@ impl QuoteTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, QuoteTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, QuoteTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -4938,22 +4985,23 @@ impl QuoteTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::quote_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::quote_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::quote_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::quote_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::quote_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -5017,11 +5065,12 @@ impl QuoteTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct TradeGreeksAllTickList {
     inner: Vec<tick::TradeGreeksAllTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl TradeGreeksAllTickList {
-    pub(crate) fn new(inner: Vec<tick::TradeGreeksAllTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::TradeGreeksAllTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -5074,7 +5123,8 @@ impl TradeGreeksAllTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::TradeGreeksAllTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -5105,7 +5155,7 @@ impl TradeGreeksAllTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, TradeGreeksAllTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, TradeGreeksAllTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -5219,22 +5269,23 @@ impl TradeGreeksAllTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::trade_greeks_all_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::trade_greeks_all_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::trade_greeks_all_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::trade_greeks_all_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::trade_greeks_all_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::trade_greeks_all_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -5322,11 +5373,12 @@ impl TradeGreeksAllTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct TradeGreeksFirstOrderTickList {
     inner: Vec<tick::TradeGreeksFirstOrderTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl TradeGreeksFirstOrderTickList {
-    pub(crate) fn new(inner: Vec<tick::TradeGreeksFirstOrderTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::TradeGreeksFirstOrderTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -5365,7 +5417,8 @@ impl TradeGreeksFirstOrderTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::TradeGreeksFirstOrderTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -5396,7 +5449,7 @@ impl TradeGreeksFirstOrderTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, TradeGreeksFirstOrderTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, TradeGreeksFirstOrderTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -5482,22 +5535,23 @@ impl TradeGreeksFirstOrderTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::trade_greeks_first_order_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::trade_greeks_first_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::trade_greeks_first_order_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::trade_greeks_first_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::trade_greeks_first_order_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::trade_greeks_first_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -5571,11 +5625,12 @@ impl TradeGreeksFirstOrderTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct TradeGreeksImpliedVolatilityTickList {
     inner: Vec<tick::TradeGreeksImpliedVolatilityTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl TradeGreeksImpliedVolatilityTickList {
-    pub(crate) fn new(inner: Vec<tick::TradeGreeksImpliedVolatilityTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::TradeGreeksImpliedVolatilityTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -5608,7 +5663,8 @@ impl TradeGreeksImpliedVolatilityTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::TradeGreeksImpliedVolatilityTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -5639,7 +5695,7 @@ impl TradeGreeksImpliedVolatilityTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, TradeGreeksImpliedVolatilityTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, TradeGreeksImpliedVolatilityTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -5713,22 +5769,23 @@ impl TradeGreeksImpliedVolatilityTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::trade_greeks_implied_volatility_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::trade_greeks_implied_volatility_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::trade_greeks_implied_volatility_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::trade_greeks_implied_volatility_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::trade_greeks_implied_volatility_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::trade_greeks_implied_volatility_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -5796,11 +5853,12 @@ impl TradeGreeksImpliedVolatilityTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct TradeGreeksSecondOrderTickList {
     inner: Vec<tick::TradeGreeksSecondOrderTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl TradeGreeksSecondOrderTickList {
-    pub(crate) fn new(inner: Vec<tick::TradeGreeksSecondOrderTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::TradeGreeksSecondOrderTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -5838,7 +5896,8 @@ impl TradeGreeksSecondOrderTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::TradeGreeksSecondOrderTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -5869,7 +5928,7 @@ impl TradeGreeksSecondOrderTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, TradeGreeksSecondOrderTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, TradeGreeksSecondOrderTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -5953,22 +6012,23 @@ impl TradeGreeksSecondOrderTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::trade_greeks_second_order_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::trade_greeks_second_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::trade_greeks_second_order_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::trade_greeks_second_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::trade_greeks_second_order_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::trade_greeks_second_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -6041,11 +6101,12 @@ impl TradeGreeksSecondOrderTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct TradeGreeksThirdOrderTickList {
     inner: Vec<tick::TradeGreeksThirdOrderTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl TradeGreeksThirdOrderTickList {
-    pub(crate) fn new(inner: Vec<tick::TradeGreeksThirdOrderTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::TradeGreeksThirdOrderTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -6082,7 +6143,8 @@ impl TradeGreeksThirdOrderTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::TradeGreeksThirdOrderTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -6113,7 +6175,7 @@ impl TradeGreeksThirdOrderTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, TradeGreeksThirdOrderTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, TradeGreeksThirdOrderTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -6195,22 +6257,23 @@ impl TradeGreeksThirdOrderTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::trade_greeks_third_order_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::trade_greeks_third_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::trade_greeks_third_order_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::trade_greeks_third_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::trade_greeks_third_order_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::trade_greeks_third_order_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -6282,11 +6345,12 @@ impl TradeGreeksThirdOrderTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct TradeQuoteTickList {
     inner: Vec<tick::TradeQuoteTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl TradeQuoteTickList {
-    pub(crate) fn new(inner: Vec<tick::TradeQuoteTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::TradeQuoteTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -6328,7 +6392,8 @@ impl TradeQuoteTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::TradeQuoteTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -6359,7 +6424,7 @@ impl TradeQuoteTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, TradeQuoteTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, TradeQuoteTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -6451,22 +6516,23 @@ impl TradeQuoteTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::trade_quote_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::trade_quote_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::trade_quote_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::trade_quote_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -6543,11 +6609,12 @@ impl TradeQuoteTickListIter {
 #[pyclass(module = "thetadatadx", frozen, skip_from_py_object)]
 pub(crate) struct TradeTickList {
     inner: Vec<tick::TradeTick>,
+    columns: thetadatadx::columns::ColumnPresence,
 }
 
 impl TradeTickList {
-    pub(crate) fn new(inner: Vec<tick::TradeTick>) -> Self {
-        Self { inner }
+    pub(crate) fn new(inner: Vec<tick::TradeTick>, columns: thetadatadx::columns::ColumnPresence) -> Self {
+        Self { inner, columns }
     }
 }
 
@@ -6580,7 +6647,8 @@ impl TradeTickList {
             }
             );
         }
-        Ok(Self { inner })
+        let columns = <tick::TradeTick as thetadatadx::columns::WireColumns>::all_columns();
+        Ok(Self { inner, columns })
     }
 
     fn __len__(&self) -> usize {
@@ -6611,7 +6679,7 @@ impl TradeTickList {
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, TradeTickList::new(rows))?.into_any());
+            return Ok(Py::new(py, TradeTickList::new(rows, self.columns.clone()))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -6685,22 +6753,23 @@ impl TradeTickList {
     /// Return a `pyarrow.Table` backed by the decoder-owned slice.
     /// Zero-copy at the pyarrow boundary courtesy of the Arrow C
     /// Data Interface; downstream pandas / polars / DuckDB alias the
-    /// same Rust buffers in place.
+    /// same Rust buffers in place. Carries only the columns the
+    /// response's wire sent.
     fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        slice_arrow::trade_tick_slice_to_arrow_table(py, &self.inner)
+        slice_arrow::trade_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)
     }
 
     /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.
     /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.
     fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::trade_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_pandas(py, table)
     }
 
     /// Return a `polars.DataFrame` via `polars.from_arrow`.
     /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.
     fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let table = slice_arrow::trade_tick_slice_to_arrow_table(py, &self.inner)?;
+        let table = slice_arrow::trade_tick_slice_to_arrow_table_projected(py, &self.inner, &self.columns)?;
         pyarrow_table_to_polars(py, table)
     }
 }
@@ -6759,103 +6828,126 @@ impl TradeTickListIter {
     }
 }
 
-pub(crate) fn calendar_days_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::CalendarDay>) -> PyResult<Py<CalendarDayList>> {
-    Py::new(py, CalendarDayList::new(ticks))
+pub(crate) fn calendar_days_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::CalendarDay>) -> PyResult<Py<CalendarDayList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, CalendarDayList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn eod_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::EodTick>) -> PyResult<Py<EodTickList>> {
-    Py::new(py, EodTickList::new(ticks))
+pub(crate) fn eod_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::EodTick>) -> PyResult<Py<EodTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, EodTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn greeks_all_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::GreeksAllTick>) -> PyResult<Py<GreeksAllTickList>> {
-    Py::new(py, GreeksAllTickList::new(ticks))
+pub(crate) fn greeks_all_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::GreeksAllTick>) -> PyResult<Py<GreeksAllTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, GreeksAllTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn greeks_eod_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::GreeksEodTick>) -> PyResult<Py<GreeksEodTickList>> {
-    Py::new(py, GreeksEodTickList::new(ticks))
+pub(crate) fn greeks_eod_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::GreeksEodTick>) -> PyResult<Py<GreeksEodTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, GreeksEodTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn greeks_first_order_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::GreeksFirstOrderTick>) -> PyResult<Py<GreeksFirstOrderTickList>> {
-    Py::new(py, GreeksFirstOrderTickList::new(ticks))
+pub(crate) fn greeks_first_order_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::GreeksFirstOrderTick>) -> PyResult<Py<GreeksFirstOrderTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, GreeksFirstOrderTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn greeks_second_order_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::GreeksSecondOrderTick>) -> PyResult<Py<GreeksSecondOrderTickList>> {
-    Py::new(py, GreeksSecondOrderTickList::new(ticks))
+pub(crate) fn greeks_second_order_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::GreeksSecondOrderTick>) -> PyResult<Py<GreeksSecondOrderTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, GreeksSecondOrderTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn greeks_third_order_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::GreeksThirdOrderTick>) -> PyResult<Py<GreeksThirdOrderTickList>> {
-    Py::new(py, GreeksThirdOrderTickList::new(ticks))
+pub(crate) fn greeks_third_order_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::GreeksThirdOrderTick>) -> PyResult<Py<GreeksThirdOrderTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, GreeksThirdOrderTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn index_price_at_time_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::IndexPriceAtTimeTick>) -> PyResult<Py<IndexPriceAtTimeTickList>> {
-    Py::new(py, IndexPriceAtTimeTickList::new(ticks))
+pub(crate) fn index_price_at_time_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::IndexPriceAtTimeTick>) -> PyResult<Py<IndexPriceAtTimeTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, IndexPriceAtTimeTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn interest_rate_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::InterestRateTick>) -> PyResult<Py<InterestRateTickList>> {
-    Py::new(py, InterestRateTickList::new(ticks))
+pub(crate) fn interest_rate_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::InterestRateTick>) -> PyResult<Py<InterestRateTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, InterestRateTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn iv_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::IvTick>) -> PyResult<Py<IvTickList>> {
-    Py::new(py, IvTickList::new(ticks))
+pub(crate) fn iv_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::IvTick>) -> PyResult<Py<IvTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, IvTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn market_value_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::MarketValueTick>) -> PyResult<Py<MarketValueTickList>> {
-    Py::new(py, MarketValueTickList::new(ticks))
+pub(crate) fn market_value_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::MarketValueTick>) -> PyResult<Py<MarketValueTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, MarketValueTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn ohlc_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::OhlcTick>) -> PyResult<Py<OhlcTickList>> {
-    Py::new(py, OhlcTickList::new(ticks))
+pub(crate) fn ohlc_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::OhlcTick>) -> PyResult<Py<OhlcTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, OhlcTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn open_interest_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::OpenInterestTick>) -> PyResult<Py<OpenInterestTickList>> {
-    Py::new(py, OpenInterestTickList::new(ticks))
+pub(crate) fn open_interest_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::OpenInterestTick>) -> PyResult<Py<OpenInterestTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, OpenInterestTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn option_contracts_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::OptionContract>) -> PyResult<Py<OptionContractList>> {
-    Py::new(py, OptionContractList::new(ticks))
+pub(crate) fn option_contracts_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::OptionContract>) -> PyResult<Py<OptionContractList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, OptionContractList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn price_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::PriceTick>) -> PyResult<Py<PriceTickList>> {
-    Py::new(py, PriceTickList::new(ticks))
+pub(crate) fn price_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::PriceTick>) -> PyResult<Py<PriceTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, PriceTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn quote_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::QuoteTick>) -> PyResult<Py<QuoteTickList>> {
-    Py::new(py, QuoteTickList::new(ticks))
+pub(crate) fn quote_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::QuoteTick>) -> PyResult<Py<QuoteTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, QuoteTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn trade_greeks_all_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::TradeGreeksAllTick>) -> PyResult<Py<TradeGreeksAllTickList>> {
-    Py::new(py, TradeGreeksAllTickList::new(ticks))
+pub(crate) fn trade_greeks_all_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::TradeGreeksAllTick>) -> PyResult<Py<TradeGreeksAllTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, TradeGreeksAllTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn trade_greeks_first_order_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::TradeGreeksFirstOrderTick>) -> PyResult<Py<TradeGreeksFirstOrderTickList>> {
-    Py::new(py, TradeGreeksFirstOrderTickList::new(ticks))
+pub(crate) fn trade_greeks_first_order_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::TradeGreeksFirstOrderTick>) -> PyResult<Py<TradeGreeksFirstOrderTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, TradeGreeksFirstOrderTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn trade_greeks_implied_volatility_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::TradeGreeksImpliedVolatilityTick>) -> PyResult<Py<TradeGreeksImpliedVolatilityTickList>> {
-    Py::new(py, TradeGreeksImpliedVolatilityTickList::new(ticks))
+pub(crate) fn trade_greeks_implied_volatility_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::TradeGreeksImpliedVolatilityTick>) -> PyResult<Py<TradeGreeksImpliedVolatilityTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, TradeGreeksImpliedVolatilityTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn trade_greeks_second_order_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::TradeGreeksSecondOrderTick>) -> PyResult<Py<TradeGreeksSecondOrderTickList>> {
-    Py::new(py, TradeGreeksSecondOrderTickList::new(ticks))
+pub(crate) fn trade_greeks_second_order_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::TradeGreeksSecondOrderTick>) -> PyResult<Py<TradeGreeksSecondOrderTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, TradeGreeksSecondOrderTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn trade_greeks_third_order_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::TradeGreeksThirdOrderTick>) -> PyResult<Py<TradeGreeksThirdOrderTickList>> {
-    Py::new(py, TradeGreeksThirdOrderTickList::new(ticks))
+pub(crate) fn trade_greeks_third_order_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::TradeGreeksThirdOrderTick>) -> PyResult<Py<TradeGreeksThirdOrderTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, TradeGreeksThirdOrderTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn trade_quote_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::TradeQuoteTick>) -> PyResult<Py<TradeQuoteTickList>> {
-    Py::new(py, TradeQuoteTickList::new(ticks))
+pub(crate) fn trade_quote_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::TradeQuoteTick>) -> PyResult<Py<TradeQuoteTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, TradeQuoteTickList::new(ticks.into_vec(), columns))
 }
 
-pub(crate) fn trade_ticks_to_pyclass_list(py: Python<'_>, ticks: Vec<tick::TradeTick>) -> PyResult<Py<TradeTickList>> {
-    Py::new(py, TradeTickList::new(ticks))
+pub(crate) fn trade_ticks_to_pyclass_list(py: Python<'_>, ticks: thetadatadx::Ticks<tick::TradeTick>) -> PyResult<Py<TradeTickList>> {
+    let columns = ticks.columns().clone();
+    Py::new(py, TradeTickList::new(ticks.into_vec(), columns))
 }
 
 /// Snapshot-endpoint fast-path converter. Materialises a plain
 /// `PyList` of `CalendarDay` pyclass instances without allocating a
 /// `CalendarDayList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn calendar_days_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::CalendarDay>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn calendar_days_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::CalendarDay>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             CalendarDay {
@@ -6875,7 +6967,7 @@ pub(crate) fn calendar_days_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::Calen
 /// `PyList` of `EodTick` pyclass instances without allocating a
 /// `EodTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn eod_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::EodTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn eod_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::EodTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             EodTick {
@@ -6910,7 +7002,7 @@ pub(crate) fn eod_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::EodTick>)
 /// `PyList` of `GreeksAllTick` pyclass instances without allocating a
 /// `GreeksAllTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn greeks_all_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::GreeksAllTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn greeks_all_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::GreeksAllTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             GreeksAllTick {
@@ -6956,7 +7048,7 @@ pub(crate) fn greeks_all_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::Gr
 /// `PyList` of `GreeksEodTick` pyclass instances without allocating a
 /// `GreeksEodTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn greeks_eod_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::GreeksEodTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn greeks_eod_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::GreeksEodTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             GreeksEodTick {
@@ -7014,7 +7106,7 @@ pub(crate) fn greeks_eod_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::Gr
 /// `PyList` of `GreeksFirstOrderTick` pyclass instances without allocating a
 /// `GreeksFirstOrderTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn greeks_first_order_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::GreeksFirstOrderTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn greeks_first_order_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::GreeksFirstOrderTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             GreeksFirstOrderTick {
@@ -7046,7 +7138,7 @@ pub(crate) fn greeks_first_order_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<
 /// `PyList` of `GreeksSecondOrderTick` pyclass instances without allocating a
 /// `GreeksSecondOrderTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn greeks_second_order_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::GreeksSecondOrderTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn greeks_second_order_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::GreeksSecondOrderTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             GreeksSecondOrderTick {
@@ -7077,7 +7169,7 @@ pub(crate) fn greeks_second_order_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec
 /// `PyList` of `GreeksThirdOrderTick` pyclass instances without allocating a
 /// `GreeksThirdOrderTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn greeks_third_order_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::GreeksThirdOrderTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn greeks_third_order_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::GreeksThirdOrderTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             GreeksThirdOrderTick {
@@ -7107,7 +7199,7 @@ pub(crate) fn greeks_third_order_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<
 /// `PyList` of `IndexPriceAtTimeTick` pyclass instances without allocating a
 /// `IndexPriceAtTimeTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn index_price_at_time_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::IndexPriceAtTimeTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn index_price_at_time_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::IndexPriceAtTimeTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             IndexPriceAtTimeTick {
@@ -7133,7 +7225,7 @@ pub(crate) fn index_price_at_time_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec
 /// `PyList` of `InterestRateTick` pyclass instances without allocating a
 /// `InterestRateTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn interest_rate_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::InterestRateTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn interest_rate_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::InterestRateTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             InterestRateTick {
@@ -7150,7 +7242,7 @@ pub(crate) fn interest_rate_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick:
 /// `PyList` of `IvTick` pyclass instances without allocating a
 /// `IvTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn iv_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::IvTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn iv_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::IvTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             IvTick {
@@ -7179,7 +7271,7 @@ pub(crate) fn iv_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::IvTick>) -
 /// `PyList` of `MarketValueTick` pyclass instances without allocating a
 /// `MarketValueTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn market_value_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::MarketValueTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn market_value_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::MarketValueTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             MarketValueTick {
@@ -7202,7 +7294,7 @@ pub(crate) fn market_value_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::
 /// `PyList` of `OhlcTick` pyclass instances without allocating a
 /// `OhlcTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn ohlc_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::OhlcTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn ohlc_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::OhlcTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             OhlcTick {
@@ -7229,7 +7321,7 @@ pub(crate) fn ohlc_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::OhlcTick
 /// `PyList` of `OpenInterestTick` pyclass instances without allocating a
 /// `OpenInterestTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn open_interest_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::OpenInterestTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn open_interest_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::OpenInterestTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             OpenInterestTick {
@@ -7250,7 +7342,7 @@ pub(crate) fn open_interest_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick:
 /// `PyList` of `OptionContract` pyclass instances without allocating a
 /// `OptionContractList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn option_contracts_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::OptionContract>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn option_contracts_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::OptionContract>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             OptionContract {
@@ -7269,7 +7361,7 @@ pub(crate) fn option_contracts_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::Op
 /// `PyList` of `PriceTick` pyclass instances without allocating a
 /// `PriceTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn price_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::PriceTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn price_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::PriceTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             PriceTick {
@@ -7287,7 +7379,7 @@ pub(crate) fn price_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::PriceTi
 /// `PyList` of `QuoteTick` pyclass instances without allocating a
 /// `QuoteTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn quote_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::QuoteTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn quote_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::QuoteTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             QuoteTick {
@@ -7316,7 +7408,7 @@ pub(crate) fn quote_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::QuoteTi
 /// `PyList` of `TradeGreeksAllTick` pyclass instances without allocating a
 /// `TradeGreeksAllTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn trade_greeks_all_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::TradeGreeksAllTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn trade_greeks_all_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::TradeGreeksAllTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             TradeGreeksAllTick {
@@ -7369,7 +7461,7 @@ pub(crate) fn trade_greeks_all_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<ti
 /// `PyList` of `TradeGreeksFirstOrderTick` pyclass instances without allocating a
 /// `TradeGreeksFirstOrderTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn trade_greeks_first_order_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::TradeGreeksFirstOrderTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn trade_greeks_first_order_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::TradeGreeksFirstOrderTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             TradeGreeksFirstOrderTick {
@@ -7408,7 +7500,7 @@ pub(crate) fn trade_greeks_first_order_ticks_vec_to_pylist(py: Python<'_>, ticks
 /// `PyList` of `TradeGreeksImpliedVolatilityTick` pyclass instances without allocating a
 /// `TradeGreeksImpliedVolatilityTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn trade_greeks_implied_volatility_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::TradeGreeksImpliedVolatilityTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn trade_greeks_implied_volatility_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::TradeGreeksImpliedVolatilityTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             TradeGreeksImpliedVolatilityTick {
@@ -7441,7 +7533,7 @@ pub(crate) fn trade_greeks_implied_volatility_ticks_vec_to_pylist(py: Python<'_>
 /// `PyList` of `TradeGreeksSecondOrderTick` pyclass instances without allocating a
 /// `TradeGreeksSecondOrderTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn trade_greeks_second_order_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::TradeGreeksSecondOrderTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn trade_greeks_second_order_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::TradeGreeksSecondOrderTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             TradeGreeksSecondOrderTick {
@@ -7479,7 +7571,7 @@ pub(crate) fn trade_greeks_second_order_ticks_vec_to_pylist(py: Python<'_>, tick
 /// `PyList` of `TradeGreeksThirdOrderTick` pyclass instances without allocating a
 /// `TradeGreeksThirdOrderTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn trade_greeks_third_order_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::TradeGreeksThirdOrderTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn trade_greeks_third_order_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::TradeGreeksThirdOrderTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             TradeGreeksThirdOrderTick {
@@ -7516,7 +7608,7 @@ pub(crate) fn trade_greeks_third_order_ticks_vec_to_pylist(py: Python<'_>, ticks
 /// `PyList` of `TradeQuoteTick` pyclass instances without allocating a
 /// `TradeQuoteTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn trade_quote_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::TradeQuoteTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn trade_quote_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::TradeQuoteTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             TradeQuoteTick {
@@ -7558,7 +7650,7 @@ pub(crate) fn trade_quote_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::T
 /// `PyList` of `TradeTick` pyclass instances without allocating a
 /// `TradeTickList` wrapper. Used by snapshot / calendar endpoints
 /// where callers never chain `.to_polars()` on the result.
-pub(crate) fn trade_ticks_vec_to_pylist(py: Python<'_>, ticks: Vec<tick::TradeTick>) -> PyResult<Py<pyo3::types::PyList>> {
+pub(crate) fn trade_ticks_vec_to_pylist(py: Python<'_>, ticks: thetadatadx::Ticks<tick::TradeTick>) -> PyResult<Py<pyo3::types::PyList>> {
     let list = pyo3::types::PyList::empty(py);
     for t in &ticks {
         let obj =             TradeTick {
