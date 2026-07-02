@@ -151,6 +151,10 @@ fn synthetic_blob_decodes_to_pinned_csv() {
     let raw = dir.join("synthetic.bin");
     let csv = dir.join("synthetic.csv");
     std::fs::write(&raw, &blob).unwrap();
+    // Seed a prior good file at the final path: a successful decode must
+    // publish over it (Windows `rename` does not replace an existing dest, so
+    // this pins the replace-capable publish on every target).
+    std::fs::write(&csv, b"stale prior contents\n").unwrap();
 
     thetadatadx::flatfiles::decoded_decode_to_file_for_test(
         &raw,

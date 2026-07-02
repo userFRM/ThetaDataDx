@@ -243,7 +243,11 @@ pub(crate) fn decode_to_file(
     }
     sink.finish()?;
     // `finish` consumed the sink and flushed its writer, so the temp file is
-    // complete and closed; publish it onto the final name atomically.
+    // complete and closed; publish it onto the final name. Windows `rename`
+    // (unlike Unix) fails when the destination exists, so remove a prior file
+    // first there; the Unix path stays an atomic replace.
+    #[cfg(windows)]
+    let _ = std::fs::remove_file(output_path);
     std::fs::rename(&tmp_path, output_path)?;
     tmp_guard.disarm();
     Ok(())

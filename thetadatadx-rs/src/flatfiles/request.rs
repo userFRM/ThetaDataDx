@@ -356,8 +356,12 @@ async fn run_one_attempt(
     }
     out.flush().await?;
     drop(out);
-    // Atomically publish the completed download onto the final name, then
-    // release the guard so it does not reap the file we just renamed.
+    // Publish the completed download onto the final name, then release the
+    // guard so it does not reap the file we just renamed. Windows `rename`
+    // (unlike Unix) fails when the destination exists, so remove a prior file
+    // first there; the Unix path stays an atomic replace.
+    #[cfg(windows)]
+    let _ = tokio::fs::remove_file(output_path).await;
     tokio::fs::rename(&tmp_path, output_path).await?;
     tmp_guard.disarm();
     tracing::info!(
