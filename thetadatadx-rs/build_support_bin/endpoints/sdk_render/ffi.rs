@@ -212,29 +212,36 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     .unwrap();
     out.push_str("        }) {\n");
     if has_presence {
-        // The variant now carries `Ticks<T>` (rows + wire column set): write the
-        // presence to the out-param, then hand the bare rows to `from_vec`.
+        // The variant now carries `Ticks<T>` (rows + wire column set). Clone the
+        // presence, run the fallible `from_vec` first, and write the heap-owned
+        // out-param ONLY on success: on a conversion error the function returns
+        // the empty sentinel, so `out_presence` must stay the `EMPTY` seeded
+        // above (writing it here would leak a `ColumnPresence` the caller never
+        // frees on the error path).
         writeln!(
             out,
             "            Ok(thetadatadx::EndpointOutput::{}(values)) => {{",
             output_variant
         )
         .unwrap();
-        out.push_str("                if !out_presence.is_null() {\n");
-        out.push_str(
-            "                    // SAFETY: caller-supplied writable slot (checked non-null).\n",
-        );
-        out.push_str(
-            "                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };\n",
-        );
-        out.push_str("                }\n");
+        out.push_str("                let columns = values.columns().clone();\n");
         writeln!(
             out,
             "                match {}::from_vec(values.into_vec()) {{",
             from_vec_type
         )
         .unwrap();
-        out.push_str("                    Ok(arr) => arr,\n");
+        out.push_str("                    Ok(arr) => {\n");
+        out.push_str("                        if !out_presence.is_null() {\n");
+        out.push_str(
+            "                            // SAFETY: caller-supplied writable slot (checked non-null).\n",
+        );
+        out.push_str(
+            "                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };\n",
+        );
+        out.push_str("                        }\n");
+        out.push_str("                        arr\n");
+        out.push_str("                    }\n");
         out.push_str("                    Err(e) => {\n");
         out.push_str(
             "                        set_error(&format!(\"interior NUL in server string: {e}\"));\n",

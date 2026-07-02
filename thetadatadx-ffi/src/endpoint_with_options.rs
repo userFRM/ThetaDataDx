@@ -131,12 +131,15 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_ohlc_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_ohlc", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -190,12 +193,15 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_trade_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_trade", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxTradeTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -249,12 +255,15 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_quote_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_quote", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxQuoteTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -308,12 +317,15 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_market_value_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_market_value", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxMarketValueTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -381,12 +393,15 @@ pub unsafe extern "C" fn thetadatadx_stock_history_eod_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_eod", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::EodTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxEodTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -447,12 +462,15 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_ohlc", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -513,12 +531,15 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxTradeTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -579,12 +600,15 @@ pub unsafe extern "C" fn thetadatadx_stock_history_quote_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_quote", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxQuoteTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -645,12 +669,15 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade_quote", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxTradeQuoteTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -725,12 +752,15 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_trade", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxTradeTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -805,12 +835,15 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_quote", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxQuoteTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -1077,12 +1110,15 @@ pub unsafe extern "C" fn thetadatadx_option_list_contracts_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_contracts", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::OptionContracts(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxOptionContractArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -1143,12 +1179,15 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_ohlc_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_ohlc", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -1209,12 +1248,15 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_trade_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_trade", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxTradeTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -1275,12 +1317,15 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_quote_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_quote", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxQuoteTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -1341,12 +1386,15 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_open_interest_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_open_interest", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxOpenInterestTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -1407,12 +1455,15 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_market_value_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_market_value", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxMarketValueTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -1473,12 +1524,15 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_implied_volatility_w
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_implied_volatility", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::IvTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxIvTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -1539,12 +1593,15 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_all_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_all", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxGreeksAllTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -1605,12 +1662,15 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_first_order_with_opt
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_first_order", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxGreeksFirstOrderTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -1671,12 +1731,15 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_second_order_with_op
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_second_order", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxGreeksSecondOrderTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -1737,12 +1800,15 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_third_order_with_opt
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_third_order", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxGreeksThirdOrderTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -1817,12 +1883,15 @@ pub unsafe extern "C" fn thetadatadx_option_history_eod_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_eod", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::EodTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxEodTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -1890,12 +1959,15 @@ pub unsafe extern "C" fn thetadatadx_option_history_ohlc_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_ohlc", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -1963,12 +2035,15 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxTradeTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -2036,12 +2111,15 @@ pub unsafe extern "C" fn thetadatadx_option_history_quote_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_quote", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxQuoteTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -2109,12 +2187,15 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_quote", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxTradeQuoteTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -2182,12 +2263,15 @@ pub unsafe extern "C" fn thetadatadx_option_history_open_interest_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_open_interest", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxOpenInterestTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -2262,12 +2346,15 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_eod", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::GreeksEodTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxGreeksEodTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -2335,12 +2422,15 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_all", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxGreeksAllTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -2408,12 +2498,15 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_with_option
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_all", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::TradeGreeksAllTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxTradeGreeksAllTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -2481,12 +2574,15 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_with_opti
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_first_order", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxGreeksFirstOrderTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -2554,12 +2650,15 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_wit
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_first_order", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::TradeGreeksFirstOrderTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxTradeGreeksFirstOrderTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -2627,12 +2726,15 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_with_opt
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_second_order", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxGreeksSecondOrderTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -2700,12 +2802,15 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_wi
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_second_order", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::TradeGreeksSecondOrderTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxTradeGreeksSecondOrderTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -2773,12 +2878,15 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_with_opti
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_third_order", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxGreeksThirdOrderTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -2846,12 +2954,15 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_wit
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_third_order", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::TradeGreeksThirdOrderTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxTradeGreeksThirdOrderTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -2919,12 +3030,15 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_wi
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_implied_volatility", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::IvTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxIvTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -2992,12 +3106,15 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatil
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_implied_volatility", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::TradeGreeksImpliedVolatilityTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxTradeGreeksImpliedVolatilityTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -3079,12 +3196,15 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_trade_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_trade", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxTradeTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -3166,12 +3286,15 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_quote_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_quote", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxQuoteTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -3314,12 +3437,15 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_ohlc_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_ohlc", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -3373,12 +3499,15 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_price_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_price", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxPriceTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -3432,12 +3561,15 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_market_value_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_market_value", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxMarketValueTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -3505,12 +3637,15 @@ pub unsafe extern "C" fn thetadatadx_index_history_eod_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_eod", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::EodTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxEodTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -3578,12 +3713,15 @@ pub unsafe extern "C" fn thetadatadx_index_history_ohlc_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_ohlc", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -3644,12 +3782,15 @@ pub unsafe extern "C" fn thetadatadx_index_history_price_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_price", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxPriceTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -3724,12 +3865,15 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_at_time_price", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::IndexPriceAtTimeTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxIndexPriceAtTimeTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -3776,12 +3920,15 @@ pub unsafe extern "C" fn thetadatadx_calendar_open_today_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_open_today", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxCalendarDayArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -3835,12 +3982,15 @@ pub unsafe extern "C" fn thetadatadx_calendar_on_date_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_on_date", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxCalendarDayArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -3894,12 +4044,15 @@ pub unsafe extern "C" fn thetadatadx_calendar_year_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_year", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxCalendarDayArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -3967,12 +4120,15 @@ pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "interest_rate_history_eod", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::InterestRateTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxInterestRateTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
@@ -4040,12 +4196,15 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_range_with_options(
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_ohlc_range", &args).await
         }) {
             Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
-                if !out_presence.is_null() {
-                    // SAFETY: caller-supplied writable slot (checked non-null).
-                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
-                }
+                let columns = values.columns().clone();
                 match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
-                    Ok(arr) => arr,
+                    Ok(arr) => {
+                        if !out_presence.is_null() {
+                            // SAFETY: caller-supplied writable slot (checked non-null).
+                            unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(&columns) };
+                        }
+                        arr
+                    }
                     Err(e) => {
                         set_error(&format!("interior NUL in server string: {e}"));
                         empty
