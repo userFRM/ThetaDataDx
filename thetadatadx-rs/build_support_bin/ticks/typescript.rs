@@ -43,6 +43,35 @@ fn bigint_to_i64(name: &str, v: &BigInt) -> napi::Result<i64> {
 }
 ";
 
+/// Emitted once: serialise an Arrow `RecordBatch` to an Arrow IPC stream
+/// buffer through a `StreamWriter`. Shared by the full `<tick>ToArrowIpc` and
+/// the decode-fed projected `<tick>ToArrowIpcProjected` terminals so the IPC
+/// framing lives in one place.
+const ARROW_BATCH_TO_IPC_HELPER: &str = "\
+/// Serialise an Arrow `RecordBatch` to an Arrow IPC stream buffer (the
+/// `apache-arrow` wire form) through a `StreamWriter`. Shared by the full and
+/// projected `<tick>ToArrowIpc` terminals.
+fn arrow_batch_to_ipc_buffer(
+    batch: &arrow_array::RecordBatch,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!(\"arrow ipc writer init failed: {e}\")))?;
+        writer
+            .write(batch)
+            .map_err(|e| napi::Error::from_reason(format!(\"arrow ipc write failed: {e}\")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!(\"arrow ipc finish failed: {e}\")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+";
+
 /// Renders `thetadatadx-ts/src/_generated/tick_classes.rs` — the `#[napi(object)]` struct, `Vec` factory, and Arrow-IPC terminal per tick type for the TypeScript binding.
 pub(super) fn render_ts_tick_classes(schema: &Schema) -> String {
     let mut out = String::new();
@@ -86,9 +115,18 @@ pub(super) fn render_ts_tick_classes(schema: &Schema) -> String {
         out.push_str(BIGINT_TO_I64_HELPER);
         out.push('\n');
     }
-    // Arrow-IPC terminals: one `#[napi] <tick>ToArrowIpc(rows) -> Buffer`
-    // per columnar tick type, so a TypeScript history result reaches a
-    // dataframe the same way Python does via `<TickName>List.to_arrow()`.
+    // Arrow-IPC terminals per columnar tick type: the full-schema
+    // `<tick>ToArrowIpc(rows)` for a hand-built row vector, plus the decode-fed
+    // projected pair `<tick>PresentColumns(headers)` + `<tick>ToArrowIpcProjected(rows, presentColumns, symbol?)`
+    // that mirror the C ABI `thetadatadx_<tick>_present_columns` /
+    // `_to_arrow_ipc_projected` and Python's projected `<TickName>List.to_arrow()`.
+    if sorted_type_names(schema)
+        .iter()
+        .any(|t| **t != *"OptionContract")
+    {
+        out.push_str(ARROW_BATCH_TO_IPC_HELPER);
+        out.push('\n');
+    }
     for type_name in sorted_type_names(schema) {
         let def = &schema.types[type_name];
         if let Some(rendered) = render_ts_tick_arrow_ipc(type_name, def) {
@@ -99,33 +137,158 @@ pub(super) fn render_ts_tick_classes(schema: &Schema) -> String {
     out
 }
 
-/// Emit a `#[napi] <tick>ToArrowIpc(rows: Tick[]) -> Buffer` free
-/// function: reconstruct the columnar `tick::T` rows from the JS objects
-/// and serialise them to an Arrow IPC stream through the same
-/// `TicksArrowExt::to_arrow` + `StreamWriter` path the FlatFiles terminal
-/// uses. Returns `None` for non-columnar types (`OptionContract` carries a
-/// heap string and ships no Arrow terminal, matching the C++ / FFI
-/// surface).
+/// Emit the Arrow-IPC terminals for one columnar tick type: the private
+/// `<tick>_reconstruct_rows` helper (JS objects -> `Vec<tick::T>`), the
+/// full-schema `<tick>ToArrowIpc(rows)`, the `<tick>PresentColumns(headers)`
+/// wire-column producer, and the decode-fed `<tick>ToArrowIpcProjected(rows,
+/// presentColumns, symbol?)`. The projected pair mirrors the C ABI
+/// `thetadatadx_<tick>_present_columns` / `_to_arrow_ipc_projected` and
+/// Python's projected `<TickName>List.to_arrow()`. Returns `None` for
+/// non-columnar types (`OptionContract` carries a heap string and ships no
+/// Arrow terminal, matching the C++ / FFI surface).
 fn render_ts_tick_arrow_ipc(type_name: &str, def: &TickTypeDef) -> Option<String> {
     if type_name == "OptionContract" {
         return None;
     }
-    let fn_name = format!("{}_to_arrow_ipc", type_name.to_snake_case());
-    let js_name = format!("{}ToArrowIpc", type_name.to_lower_camel_case());
+    let snake = type_name.to_snake_case();
     let mut out = String::new();
+    out.push_str(&render_ts_arrow_reconstruct_rows(type_name, def));
+    out.push('\n');
+
+    // Full-schema terminal: a hand-built row vector never touched a wire, so
+    // every column is present.
+    let js_name = format!("{}ToArrowIpc", type_name.to_lower_camel_case());
     writeln!(
         out,
-        "/// Serialise a `{type_name}` history result to an Arrow IPC stream"
+        "/// Serialise a hand-built `{type_name}` row vector to a full-schema Arrow"
     )
     .unwrap();
-    out.push_str("/// (the `apache-arrow` wire form). Mirrors the FlatFiles\n");
-    out.push_str("/// `FlatFileRowList.toArrowIpc()` exit and the Python\n");
-    out.push_str("/// `<TickName>List.to_arrow()` terminal so every binding can reach a\n");
-    out.push_str("/// dataframe from an in-band history result.\n");
+    out.push_str("/// IPC stream (the `apache-arrow` wire form) carrying every column the\n");
+    out.push_str("/// tick type defines. For rows decoded from a history response, use\n");
+    writeln!(
+        out,
+        "/// `{}PresentColumns` + `{}ToArrowIpcProjected` for a terminal-exact",
+        type_name.to_lower_camel_case(),
+        type_name.to_lower_camel_case()
+    )
+    .unwrap();
+    out.push_str("/// frame carrying only the wire's columns, mirroring Python's\n");
+    out.push_str("/// projected `<TickName>List.to_arrow()`.\n");
     writeln!(out, "#[napi(js_name = \"{js_name}\")]").unwrap();
     writeln!(
         out,
-        "pub fn {fn_name}(rows: Vec<{type_name}>) -> napi::Result<napi::bindgen_prelude::Buffer> {{"
+        "pub fn {snake}_to_arrow_ipc(rows: Vec<{type_name}>) -> napi::Result<napi::bindgen_prelude::Buffer> {{"
+    )
+    .unwrap();
+    writeln!(out, "    let owned = {snake}_reconstruct_rows(rows)?;").unwrap();
+    out.push_str(
+        "    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())\n",
+    );
+    out.push_str("        .map_err(|e| napi::Error::from_reason(format!(\"arrow conversion failed: {e}\")))?;\n");
+    out.push_str("    arrow_batch_to_ipc_buffer(&batch)\n");
+    out.push_str("}\n\n");
+
+    // Wire-column producer: resolve a response's header names to the schema
+    // columns it carried, through the same `WireColumns::present_columns` the
+    // buffered decode path uses.
+    let present_js = format!("{}PresentColumns", type_name.to_lower_camel_case());
+    writeln!(
+        out,
+        "/// Resolve a `{type_name}` history response's wire header names to the schema"
+    )
+    .unwrap();
+    out.push_str("/// columns it carried, in schema order. Feed the result to\n");
+    writeln!(
+        out,
+        "/// `{}ToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the",
+        type_name.to_lower_camel_case()
+    )
+    .unwrap();
+    out.push_str("/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's\n");
+    out.push_str("/// `<TickName>List.columns`.\n");
+    writeln!(out, "#[napi(js_name = \"{present_js}\")]").unwrap();
+    writeln!(
+        out,
+        "pub fn {snake}_present_columns(headers: Vec<String>) -> Vec<String> {{"
+    )
+    .unwrap();
+    out.push_str("    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();\n");
+    writeln!(
+        out,
+        "    <tick::{type_name} as thetadatadx::columns::WireColumns>::present_columns(&refs)"
+    )
+    .unwrap();
+    out.push_str("        .present_names()\n");
+    out.push_str("        .map(String::from)\n");
+    out.push_str("        .collect()\n");
+    out.push_str("}\n\n");
+
+    // Decode-fed projected terminal: only the wire's columns (+ optional
+    // broadcast symbol), through `TicksArrowExt::to_arrow_projected`.
+    let projected_js = format!("{}ToArrowIpcProjected", type_name.to_lower_camel_case());
+    writeln!(
+        out,
+        "/// Serialise a `{type_name}` history result to a projected Arrow IPC stream"
+    )
+    .unwrap();
+    out.push_str("/// carrying ONLY the columns named in `presentColumns` (build it with\n");
+    writeln!(
+        out,
+        "/// `{}PresentColumns` from the response headers), optionally broadcasting",
+        type_name.to_lower_camel_case()
+    )
+    .unwrap();
+    out.push_str("/// `symbol` as the leading column. The decode-fed sibling of\n");
+    writeln!(
+        out,
+        "/// `{}ToArrowIpc`: same wire format, projected to the wire's exact column",
+        type_name.to_lower_camel_case()
+    )
+    .unwrap();
+    out.push_str("/// set, matching Python's projected `<TickName>List.to_arrow()` and the C\n");
+    out.push_str("/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.\n");
+    writeln!(out, "#[napi(js_name = \"{projected_js}\")]").unwrap();
+    writeln!(out, "pub fn {snake}_to_arrow_ipc_projected(").unwrap();
+    writeln!(out, "    rows: Vec<{type_name}>,").unwrap();
+    out.push_str("    present_columns: Vec<String>,\n");
+    out.push_str("    symbol: Option<String>,\n");
+    out.push_str(") -> napi::Result<napi::bindgen_prelude::Buffer> {\n");
+    writeln!(out, "    let owned = {snake}_reconstruct_rows(rows)?;").unwrap();
+    out.push_str(
+        "    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);\n",
+    );
+    // Ignore the broadcast symbol when the tick already owns a per-row `symbol`
+    // column so the projected schema never carries a duplicate, matching the C
+    // ABI serialiser.
+    out.push_str("    if !columns.contains(\"symbol\") {\n");
+    out.push_str("        if let Some(sym) = symbol {\n");
+    out.push_str("            columns = columns.with_symbol(sym);\n");
+    out.push_str("        }\n");
+    out.push_str("    }\n");
+    out.push_str("    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)\n");
+    out.push_str("        .map_err(|e| napi::Error::from_reason(format!(\"arrow conversion failed: {e}\")))?;\n");
+    out.push_str("    arrow_batch_to_ipc_buffer(&batch)\n");
+    out.push_str("}\n");
+    Some(out)
+}
+
+/// Emit the private `<tick>_reconstruct_rows(rows: Vec<Tick>) ->
+/// napi::Result<Vec<tick::T>>` helper: rebuild the columnar `tick::T` rows from
+/// the JS objects. Shared by the full and projected Arrow-IPC terminals so the
+/// reverse projection lives in one place.
+fn render_ts_arrow_reconstruct_rows(type_name: &str, def: &TickTypeDef) -> String {
+    let snake = type_name.to_snake_case();
+    let mut out = String::new();
+    writeln!(
+        out,
+        "/// Rebuild a `Vec<tick::{type_name}>` from the JS `{type_name}` objects — the"
+    )
+    .unwrap();
+    out.push_str("/// reverse of the forward factory, shared by the full and projected\n");
+    out.push_str("/// Arrow-IPC terminals.\n");
+    writeln!(
+        out,
+        "fn {snake}_reconstruct_rows(rows: Vec<{type_name}>) -> napi::Result<Vec<tick::{type_name}>> {{"
     )
     .unwrap();
     // A reconstruct can fail on a too-wide `i64` `BigInt` (`bigint_to_i64`)
@@ -182,27 +345,9 @@ fn render_ts_tick_arrow_ipc(type_name: &str, def: &TickTypeDef) -> Option<String
         out.push_str("        })\n");
         out.push_str("        .collect();\n");
     }
-    out.push_str(
-        "    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())\n",
-    );
-    out.push_str("        .map_err(|e| napi::Error::from_reason(format!(\"arrow conversion failed: {e}\")))?;\n");
-    out.push_str("    let mut buf: Vec<u8> = Vec::new();\n");
-    out.push_str("    {\n");
-    out.push_str("        let mut writer = arrow_ipc::writer::StreamWriter::try_new(\n");
-    out.push_str("            std::io::Cursor::new(&mut buf),\n");
-    out.push_str("            &batch.schema(),\n");
-    out.push_str("        )\n");
-    out.push_str("        .map_err(|e| napi::Error::from_reason(format!(\"arrow ipc writer init failed: {e}\")))?;\n");
-    out.push_str("        writer\n");
-    out.push_str("            .write(&batch)\n");
-    out.push_str("            .map_err(|e| napi::Error::from_reason(format!(\"arrow ipc write failed: {e}\")))?;\n");
-    out.push_str("        writer\n");
-    out.push_str("            .finish()\n");
-    out.push_str("            .map_err(|e| napi::Error::from_reason(format!(\"arrow ipc finish failed: {e}\")))?;\n");
-    out.push_str("    }\n");
-    out.push_str("    Ok(napi::bindgen_prelude::Buffer::from(buf))\n");
+    out.push_str("    Ok(owned)\n");
     out.push_str("}\n");
-    Some(out)
+    out
 }
 
 /// Reconstruct one columnar field of `tick::T` from the JS object binding

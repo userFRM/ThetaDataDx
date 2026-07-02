@@ -1373,13 +1373,33 @@ fn bigint_to_i64(name: &str, v: &BigInt) -> napi::Result<i64> {
     }
 }
 
-/// Serialise a `CalendarDay` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "calendarDayToArrowIpc")]
-pub fn calendar_day_to_arrow_ipc(rows: Vec<CalendarDay>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise an Arrow `RecordBatch` to an Arrow IPC stream buffer (the
+/// `apache-arrow` wire form) through a `StreamWriter`. Shared by the full and
+/// projected `<tick>ToArrowIpc` terminals.
+fn arrow_batch_to_ipc_buffer(
+    batch: &arrow_array::RecordBatch,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
+            std::io::Cursor::new(&mut buf),
+            &batch.schema(),
+        )
+        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
+        writer
+            .write(batch)
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
+        writer
+            .finish()
+            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    }
+    Ok(napi::bindgen_prelude::Buffer::from(buf))
+}
+
+/// Rebuild a `Vec<tick::CalendarDay>` from the JS `CalendarDay` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn calendar_day_reconstruct_rows(rows: Vec<CalendarDay>) -> napi::Result<Vec<tick::CalendarDay>> {
     let owned: Vec<tick::CalendarDay> = rows
         .into_iter()
         .map(|r| -> napi::Result<tick::CalendarDay> {
@@ -1392,32 +1412,66 @@ pub fn calendar_day_to_arrow_ipc(rows: Vec<CalendarDay>) -> napi::Result<napi::b
             })
         })
         .collect::<napi::Result<Vec<tick::CalendarDay>>>()?;
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `EodTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "eodTickToArrowIpc")]
-pub fn eod_tick_to_arrow_ipc(rows: Vec<EodTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `CalendarDay` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `calendarDayPresentColumns` + `calendarDayToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "calendarDayToArrowIpc")]
+pub fn calendar_day_to_arrow_ipc(rows: Vec<CalendarDay>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = calendar_day_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `CalendarDay` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `calendarDayToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "calendarDayPresentColumns")]
+pub fn calendar_day_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::CalendarDay as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `CalendarDay` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `calendarDayPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `calendarDayToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "calendarDayToArrowIpcProjected")]
+pub fn calendar_day_to_arrow_ipc_projected(
+    rows: Vec<CalendarDay>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = calendar_day_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::EodTick>` from the JS `EodTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn eod_tick_reconstruct_rows(rows: Vec<EodTick>) -> napi::Result<Vec<tick::EodTick>> {
     let owned: Vec<tick::EodTick> = rows
         .into_iter()
         .map(|r| -> napi::Result<tick::EodTick> {
@@ -1445,32 +1499,66 @@ pub fn eod_tick_to_arrow_ipc(rows: Vec<EodTick>) -> napi::Result<napi::bindgen_p
             })
         })
         .collect::<napi::Result<Vec<tick::EodTick>>>()?;
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `GreeksAllTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "greeksAllTickToArrowIpc")]
-pub fn greeks_all_tick_to_arrow_ipc(rows: Vec<GreeksAllTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `EodTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `eodTickPresentColumns` + `eodTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "eodTickToArrowIpc")]
+pub fn eod_tick_to_arrow_ipc(rows: Vec<EodTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = eod_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `EodTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `eodTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "eodTickPresentColumns")]
+pub fn eod_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::EodTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `EodTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `eodTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `eodTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "eodTickToArrowIpcProjected")]
+pub fn eod_tick_to_arrow_ipc_projected(
+    rows: Vec<EodTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = eod_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::GreeksAllTick>` from the JS `GreeksAllTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn greeks_all_tick_reconstruct_rows(rows: Vec<GreeksAllTick>) -> napi::Result<Vec<tick::GreeksAllTick>> {
     let owned: Vec<tick::GreeksAllTick> = rows
         .into_iter()
         .map(|r| -> napi::Result<tick::GreeksAllTick> {
@@ -1509,32 +1597,66 @@ pub fn greeks_all_tick_to_arrow_ipc(rows: Vec<GreeksAllTick>) -> napi::Result<na
             })
         })
         .collect::<napi::Result<Vec<tick::GreeksAllTick>>>()?;
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `GreeksEodTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "greeksEodTickToArrowIpc")]
-pub fn greeks_eod_tick_to_arrow_ipc(rows: Vec<GreeksEodTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `GreeksAllTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `greeksAllTickPresentColumns` + `greeksAllTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "greeksAllTickToArrowIpc")]
+pub fn greeks_all_tick_to_arrow_ipc(rows: Vec<GreeksAllTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = greeks_all_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `GreeksAllTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "greeksAllTickPresentColumns")]
+pub fn greeks_all_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::GreeksAllTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `GreeksAllTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `greeksAllTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `greeksAllTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "greeksAllTickToArrowIpcProjected")]
+pub fn greeks_all_tick_to_arrow_ipc_projected(
+    rows: Vec<GreeksAllTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = greeks_all_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::GreeksEodTick>` from the JS `GreeksEodTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn greeks_eod_tick_reconstruct_rows(rows: Vec<GreeksEodTick>) -> napi::Result<Vec<tick::GreeksEodTick>> {
     let owned: Vec<tick::GreeksEodTick> = rows
         .into_iter()
         .map(|r| -> napi::Result<tick::GreeksEodTick> {
@@ -1585,32 +1707,66 @@ pub fn greeks_eod_tick_to_arrow_ipc(rows: Vec<GreeksEodTick>) -> napi::Result<na
             })
         })
         .collect::<napi::Result<Vec<tick::GreeksEodTick>>>()?;
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `GreeksFirstOrderTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "greeksFirstOrderTickToArrowIpc")]
-pub fn greeks_first_order_tick_to_arrow_ipc(rows: Vec<GreeksFirstOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `GreeksEodTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `greeksEodTickPresentColumns` + `greeksEodTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "greeksEodTickToArrowIpc")]
+pub fn greeks_eod_tick_to_arrow_ipc(rows: Vec<GreeksEodTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = greeks_eod_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `GreeksEodTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `greeksEodTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "greeksEodTickPresentColumns")]
+pub fn greeks_eod_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::GreeksEodTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `GreeksEodTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `greeksEodTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `greeksEodTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "greeksEodTickToArrowIpcProjected")]
+pub fn greeks_eod_tick_to_arrow_ipc_projected(
+    rows: Vec<GreeksEodTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = greeks_eod_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::GreeksFirstOrderTick>` from the JS `GreeksFirstOrderTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn greeks_first_order_tick_reconstruct_rows(rows: Vec<GreeksFirstOrderTick>) -> napi::Result<Vec<tick::GreeksFirstOrderTick>> {
     let owned: Vec<tick::GreeksFirstOrderTick> = rows
         .into_iter()
         .map(|r| -> napi::Result<tick::GreeksFirstOrderTick> {
@@ -1635,32 +1791,66 @@ pub fn greeks_first_order_tick_to_arrow_ipc(rows: Vec<GreeksFirstOrderTick>) -> 
             })
         })
         .collect::<napi::Result<Vec<tick::GreeksFirstOrderTick>>>()?;
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `GreeksSecondOrderTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "greeksSecondOrderTickToArrowIpc")]
-pub fn greeks_second_order_tick_to_arrow_ipc(rows: Vec<GreeksSecondOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `GreeksFirstOrderTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `greeksFirstOrderTickPresentColumns` + `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "greeksFirstOrderTickToArrowIpc")]
+pub fn greeks_first_order_tick_to_arrow_ipc(rows: Vec<GreeksFirstOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = greeks_first_order_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `GreeksFirstOrderTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "greeksFirstOrderTickPresentColumns")]
+pub fn greeks_first_order_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::GreeksFirstOrderTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `GreeksFirstOrderTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `greeksFirstOrderTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `greeksFirstOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "greeksFirstOrderTickToArrowIpcProjected")]
+pub fn greeks_first_order_tick_to_arrow_ipc_projected(
+    rows: Vec<GreeksFirstOrderTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = greeks_first_order_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::GreeksSecondOrderTick>` from the JS `GreeksSecondOrderTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn greeks_second_order_tick_reconstruct_rows(rows: Vec<GreeksSecondOrderTick>) -> napi::Result<Vec<tick::GreeksSecondOrderTick>> {
     let owned: Vec<tick::GreeksSecondOrderTick> = rows
         .into_iter()
         .map(|r| -> napi::Result<tick::GreeksSecondOrderTick> {
@@ -1684,32 +1874,66 @@ pub fn greeks_second_order_tick_to_arrow_ipc(rows: Vec<GreeksSecondOrderTick>) -
             })
         })
         .collect::<napi::Result<Vec<tick::GreeksSecondOrderTick>>>()?;
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `GreeksThirdOrderTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "greeksThirdOrderTickToArrowIpc")]
-pub fn greeks_third_order_tick_to_arrow_ipc(rows: Vec<GreeksThirdOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `GreeksSecondOrderTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `greeksSecondOrderTickPresentColumns` + `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "greeksSecondOrderTickToArrowIpc")]
+pub fn greeks_second_order_tick_to_arrow_ipc(rows: Vec<GreeksSecondOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = greeks_second_order_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `GreeksSecondOrderTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "greeksSecondOrderTickPresentColumns")]
+pub fn greeks_second_order_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::GreeksSecondOrderTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `GreeksSecondOrderTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `greeksSecondOrderTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `greeksSecondOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "greeksSecondOrderTickToArrowIpcProjected")]
+pub fn greeks_second_order_tick_to_arrow_ipc_projected(
+    rows: Vec<GreeksSecondOrderTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = greeks_second_order_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::GreeksThirdOrderTick>` from the JS `GreeksThirdOrderTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn greeks_third_order_tick_reconstruct_rows(rows: Vec<GreeksThirdOrderTick>) -> napi::Result<Vec<tick::GreeksThirdOrderTick>> {
     let owned: Vec<tick::GreeksThirdOrderTick> = rows
         .into_iter()
         .map(|r| -> napi::Result<tick::GreeksThirdOrderTick> {
@@ -1732,32 +1956,66 @@ pub fn greeks_third_order_tick_to_arrow_ipc(rows: Vec<GreeksThirdOrderTick>) -> 
             })
         })
         .collect::<napi::Result<Vec<tick::GreeksThirdOrderTick>>>()?;
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `IndexPriceAtTimeTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "indexPriceAtTimeTickToArrowIpc")]
-pub fn index_price_at_time_tick_to_arrow_ipc(rows: Vec<IndexPriceAtTimeTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `GreeksThirdOrderTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `greeksThirdOrderTickPresentColumns` + `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "greeksThirdOrderTickToArrowIpc")]
+pub fn greeks_third_order_tick_to_arrow_ipc(rows: Vec<GreeksThirdOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = greeks_third_order_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `GreeksThirdOrderTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "greeksThirdOrderTickPresentColumns")]
+pub fn greeks_third_order_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::GreeksThirdOrderTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `GreeksThirdOrderTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `greeksThirdOrderTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `greeksThirdOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "greeksThirdOrderTickToArrowIpcProjected")]
+pub fn greeks_third_order_tick_to_arrow_ipc_projected(
+    rows: Vec<GreeksThirdOrderTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = greeks_third_order_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::IndexPriceAtTimeTick>` from the JS `IndexPriceAtTimeTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn index_price_at_time_tick_reconstruct_rows(rows: Vec<IndexPriceAtTimeTick>) -> napi::Result<Vec<tick::IndexPriceAtTimeTick>> {
     let owned: Vec<tick::IndexPriceAtTimeTick> = rows
         .into_iter()
         .map(|r| {
@@ -1776,32 +2034,66 @@ pub fn index_price_at_time_tick_to_arrow_ipc(rows: Vec<IndexPriceAtTimeTick>) ->
             }
         })
         .collect();
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `InterestRateTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "interestRateTickToArrowIpc")]
-pub fn interest_rate_tick_to_arrow_ipc(rows: Vec<InterestRateTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `IndexPriceAtTimeTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `indexPriceAtTimeTickPresentColumns` + `indexPriceAtTimeTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "indexPriceAtTimeTickToArrowIpc")]
+pub fn index_price_at_time_tick_to_arrow_ipc(rows: Vec<IndexPriceAtTimeTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = index_price_at_time_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `IndexPriceAtTimeTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `indexPriceAtTimeTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "indexPriceAtTimeTickPresentColumns")]
+pub fn index_price_at_time_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::IndexPriceAtTimeTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `IndexPriceAtTimeTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `indexPriceAtTimeTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `indexPriceAtTimeTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "indexPriceAtTimeTickToArrowIpcProjected")]
+pub fn index_price_at_time_tick_to_arrow_ipc_projected(
+    rows: Vec<IndexPriceAtTimeTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = index_price_at_time_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::InterestRateTick>` from the JS `InterestRateTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn interest_rate_tick_reconstruct_rows(rows: Vec<InterestRateTick>) -> napi::Result<Vec<tick::InterestRateTick>> {
     let owned: Vec<tick::InterestRateTick> = rows
         .into_iter()
         .map(|r| {
@@ -1811,32 +2103,66 @@ pub fn interest_rate_tick_to_arrow_ipc(rows: Vec<InterestRateTick>) -> napi::Res
             }
         })
         .collect();
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `IvTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "ivTickToArrowIpc")]
-pub fn iv_tick_to_arrow_ipc(rows: Vec<IvTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `InterestRateTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `interestRateTickPresentColumns` + `interestRateTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "interestRateTickToArrowIpc")]
+pub fn interest_rate_tick_to_arrow_ipc(rows: Vec<InterestRateTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = interest_rate_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `InterestRateTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `interestRateTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "interestRateTickPresentColumns")]
+pub fn interest_rate_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::InterestRateTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `InterestRateTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `interestRateTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `interestRateTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "interestRateTickToArrowIpcProjected")]
+pub fn interest_rate_tick_to_arrow_ipc_projected(
+    rows: Vec<InterestRateTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = interest_rate_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::IvTick>` from the JS `IvTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn iv_tick_reconstruct_rows(rows: Vec<IvTick>) -> napi::Result<Vec<tick::IvTick>> {
     let owned: Vec<tick::IvTick> = rows
         .into_iter()
         .map(|r| -> napi::Result<tick::IvTick> {
@@ -1858,32 +2184,66 @@ pub fn iv_tick_to_arrow_ipc(rows: Vec<IvTick>) -> napi::Result<napi::bindgen_pre
             })
         })
         .collect::<napi::Result<Vec<tick::IvTick>>>()?;
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `MarketValueTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "marketValueTickToArrowIpc")]
-pub fn market_value_tick_to_arrow_ipc(rows: Vec<MarketValueTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `IvTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `ivTickPresentColumns` + `ivTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "ivTickToArrowIpc")]
+pub fn iv_tick_to_arrow_ipc(rows: Vec<IvTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = iv_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `IvTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `ivTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "ivTickPresentColumns")]
+pub fn iv_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::IvTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `IvTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `ivTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `ivTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "ivTickToArrowIpcProjected")]
+pub fn iv_tick_to_arrow_ipc_projected(
+    rows: Vec<IvTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = iv_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::MarketValueTick>` from the JS `MarketValueTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn market_value_tick_reconstruct_rows(rows: Vec<MarketValueTick>) -> napi::Result<Vec<tick::MarketValueTick>> {
     let owned: Vec<tick::MarketValueTick> = rows
         .into_iter()
         .map(|r| -> napi::Result<tick::MarketValueTick> {
@@ -1899,32 +2259,66 @@ pub fn market_value_tick_to_arrow_ipc(rows: Vec<MarketValueTick>) -> napi::Resul
             })
         })
         .collect::<napi::Result<Vec<tick::MarketValueTick>>>()?;
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `OhlcTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "ohlcTickToArrowIpc")]
-pub fn ohlc_tick_to_arrow_ipc(rows: Vec<OhlcTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `MarketValueTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `marketValueTickPresentColumns` + `marketValueTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "marketValueTickToArrowIpc")]
+pub fn market_value_tick_to_arrow_ipc(rows: Vec<MarketValueTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = market_value_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `MarketValueTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "marketValueTickPresentColumns")]
+pub fn market_value_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::MarketValueTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `MarketValueTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `marketValueTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `marketValueTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "marketValueTickToArrowIpcProjected")]
+pub fn market_value_tick_to_arrow_ipc_projected(
+    rows: Vec<MarketValueTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = market_value_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::OhlcTick>` from the JS `OhlcTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn ohlc_tick_reconstruct_rows(rows: Vec<OhlcTick>) -> napi::Result<Vec<tick::OhlcTick>> {
     let owned: Vec<tick::OhlcTick> = rows
         .into_iter()
         .map(|r| -> napi::Result<tick::OhlcTick> {
@@ -1944,32 +2338,66 @@ pub fn ohlc_tick_to_arrow_ipc(rows: Vec<OhlcTick>) -> napi::Result<napi::bindgen
             })
         })
         .collect::<napi::Result<Vec<tick::OhlcTick>>>()?;
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `OpenInterestTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "openInterestTickToArrowIpc")]
-pub fn open_interest_tick_to_arrow_ipc(rows: Vec<OpenInterestTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `OhlcTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `ohlcTickPresentColumns` + `ohlcTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "ohlcTickToArrowIpc")]
+pub fn ohlc_tick_to_arrow_ipc(rows: Vec<OhlcTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = ohlc_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `OhlcTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "ohlcTickPresentColumns")]
+pub fn ohlc_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::OhlcTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `OhlcTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `ohlcTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `ohlcTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "ohlcTickToArrowIpcProjected")]
+pub fn ohlc_tick_to_arrow_ipc_projected(
+    rows: Vec<OhlcTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = ohlc_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::OpenInterestTick>` from the JS `OpenInterestTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn open_interest_tick_reconstruct_rows(rows: Vec<OpenInterestTick>) -> napi::Result<Vec<tick::OpenInterestTick>> {
     let owned: Vec<tick::OpenInterestTick> = rows
         .into_iter()
         .map(|r| -> napi::Result<tick::OpenInterestTick> {
@@ -1983,32 +2411,66 @@ pub fn open_interest_tick_to_arrow_ipc(rows: Vec<OpenInterestTick>) -> napi::Res
             })
         })
         .collect::<napi::Result<Vec<tick::OpenInterestTick>>>()?;
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `PriceTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "priceTickToArrowIpc")]
-pub fn price_tick_to_arrow_ipc(rows: Vec<PriceTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `OpenInterestTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `openInterestTickPresentColumns` + `openInterestTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "openInterestTickToArrowIpc")]
+pub fn open_interest_tick_to_arrow_ipc(rows: Vec<OpenInterestTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = open_interest_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `OpenInterestTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "openInterestTickPresentColumns")]
+pub fn open_interest_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::OpenInterestTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `OpenInterestTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `openInterestTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `openInterestTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "openInterestTickToArrowIpcProjected")]
+pub fn open_interest_tick_to_arrow_ipc_projected(
+    rows: Vec<OpenInterestTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = open_interest_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::PriceTick>` from the JS `PriceTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn price_tick_reconstruct_rows(rows: Vec<PriceTick>) -> napi::Result<Vec<tick::PriceTick>> {
     let owned: Vec<tick::PriceTick> = rows
         .into_iter()
         .map(|r| {
@@ -2019,32 +2481,66 @@ pub fn price_tick_to_arrow_ipc(rows: Vec<PriceTick>) -> napi::Result<napi::bindg
             }
         })
         .collect();
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `QuoteTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "quoteTickToArrowIpc")]
-pub fn quote_tick_to_arrow_ipc(rows: Vec<QuoteTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `PriceTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `priceTickPresentColumns` + `priceTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "priceTickToArrowIpc")]
+pub fn price_tick_to_arrow_ipc(rows: Vec<PriceTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = price_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `PriceTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `priceTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "priceTickPresentColumns")]
+pub fn price_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::PriceTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `PriceTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `priceTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `priceTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "priceTickToArrowIpcProjected")]
+pub fn price_tick_to_arrow_ipc_projected(
+    rows: Vec<PriceTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = price_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::QuoteTick>` from the JS `QuoteTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn quote_tick_reconstruct_rows(rows: Vec<QuoteTick>) -> napi::Result<Vec<tick::QuoteTick>> {
     let owned: Vec<tick::QuoteTick> = rows
         .into_iter()
         .map(|r| -> napi::Result<tick::QuoteTick> {
@@ -2066,32 +2562,66 @@ pub fn quote_tick_to_arrow_ipc(rows: Vec<QuoteTick>) -> napi::Result<napi::bindg
             })
         })
         .collect::<napi::Result<Vec<tick::QuoteTick>>>()?;
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `TradeGreeksAllTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "tradeGreeksAllTickToArrowIpc")]
-pub fn trade_greeks_all_tick_to_arrow_ipc(rows: Vec<TradeGreeksAllTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `QuoteTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `quoteTickPresentColumns` + `quoteTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "quoteTickToArrowIpc")]
+pub fn quote_tick_to_arrow_ipc(rows: Vec<QuoteTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = quote_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `QuoteTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `quoteTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "quoteTickPresentColumns")]
+pub fn quote_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::QuoteTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `QuoteTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `quoteTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `quoteTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "quoteTickToArrowIpcProjected")]
+pub fn quote_tick_to_arrow_ipc_projected(
+    rows: Vec<QuoteTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = quote_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::TradeGreeksAllTick>` from the JS `TradeGreeksAllTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn trade_greeks_all_tick_reconstruct_rows(rows: Vec<TradeGreeksAllTick>) -> napi::Result<Vec<tick::TradeGreeksAllTick>> {
     let owned: Vec<tick::TradeGreeksAllTick> = rows
         .into_iter()
         .map(|r| -> napi::Result<tick::TradeGreeksAllTick> {
@@ -2137,32 +2667,66 @@ pub fn trade_greeks_all_tick_to_arrow_ipc(rows: Vec<TradeGreeksAllTick>) -> napi
             })
         })
         .collect::<napi::Result<Vec<tick::TradeGreeksAllTick>>>()?;
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `TradeGreeksFirstOrderTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "tradeGreeksFirstOrderTickToArrowIpc")]
-pub fn trade_greeks_first_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksFirstOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `TradeGreeksAllTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `tradeGreeksAllTickPresentColumns` + `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "tradeGreeksAllTickToArrowIpc")]
+pub fn trade_greeks_all_tick_to_arrow_ipc(rows: Vec<TradeGreeksAllTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = trade_greeks_all_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `TradeGreeksAllTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "tradeGreeksAllTickPresentColumns")]
+pub fn trade_greeks_all_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::TradeGreeksAllTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `TradeGreeksAllTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `tradeGreeksAllTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `tradeGreeksAllTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "tradeGreeksAllTickToArrowIpcProjected")]
+pub fn trade_greeks_all_tick_to_arrow_ipc_projected(
+    rows: Vec<TradeGreeksAllTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = trade_greeks_all_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::TradeGreeksFirstOrderTick>` from the JS `TradeGreeksFirstOrderTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn trade_greeks_first_order_tick_reconstruct_rows(rows: Vec<TradeGreeksFirstOrderTick>) -> napi::Result<Vec<tick::TradeGreeksFirstOrderTick>> {
     let owned: Vec<tick::TradeGreeksFirstOrderTick> = rows
         .into_iter()
         .map(|r| -> napi::Result<tick::TradeGreeksFirstOrderTick> {
@@ -2194,32 +2758,66 @@ pub fn trade_greeks_first_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksFirstOrde
             })
         })
         .collect::<napi::Result<Vec<tick::TradeGreeksFirstOrderTick>>>()?;
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `TradeGreeksImpliedVolatilityTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "tradeGreeksImpliedVolatilityTickToArrowIpc")]
-pub fn trade_greeks_implied_volatility_tick_to_arrow_ipc(rows: Vec<TradeGreeksImpliedVolatilityTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `TradeGreeksFirstOrderTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `tradeGreeksFirstOrderTickPresentColumns` + `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "tradeGreeksFirstOrderTickToArrowIpc")]
+pub fn trade_greeks_first_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksFirstOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = trade_greeks_first_order_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `TradeGreeksFirstOrderTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "tradeGreeksFirstOrderTickPresentColumns")]
+pub fn trade_greeks_first_order_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::TradeGreeksFirstOrderTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `TradeGreeksFirstOrderTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `tradeGreeksFirstOrderTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `tradeGreeksFirstOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "tradeGreeksFirstOrderTickToArrowIpcProjected")]
+pub fn trade_greeks_first_order_tick_to_arrow_ipc_projected(
+    rows: Vec<TradeGreeksFirstOrderTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = trade_greeks_first_order_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::TradeGreeksImpliedVolatilityTick>` from the JS `TradeGreeksImpliedVolatilityTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn trade_greeks_implied_volatility_tick_reconstruct_rows(rows: Vec<TradeGreeksImpliedVolatilityTick>) -> napi::Result<Vec<tick::TradeGreeksImpliedVolatilityTick>> {
     let owned: Vec<tick::TradeGreeksImpliedVolatilityTick> = rows
         .into_iter()
         .map(|r| -> napi::Result<tick::TradeGreeksImpliedVolatilityTick> {
@@ -2245,32 +2843,66 @@ pub fn trade_greeks_implied_volatility_tick_to_arrow_ipc(rows: Vec<TradeGreeksIm
             })
         })
         .collect::<napi::Result<Vec<tick::TradeGreeksImpliedVolatilityTick>>>()?;
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `TradeGreeksSecondOrderTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "tradeGreeksSecondOrderTickToArrowIpc")]
-pub fn trade_greeks_second_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksSecondOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `TradeGreeksImpliedVolatilityTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `tradeGreeksImpliedVolatilityTickPresentColumns` + `tradeGreeksImpliedVolatilityTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "tradeGreeksImpliedVolatilityTickToArrowIpc")]
+pub fn trade_greeks_implied_volatility_tick_to_arrow_ipc(rows: Vec<TradeGreeksImpliedVolatilityTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = trade_greeks_implied_volatility_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `TradeGreeksImpliedVolatilityTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `tradeGreeksImpliedVolatilityTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "tradeGreeksImpliedVolatilityTickPresentColumns")]
+pub fn trade_greeks_implied_volatility_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::TradeGreeksImpliedVolatilityTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `TradeGreeksImpliedVolatilityTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `tradeGreeksImpliedVolatilityTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `tradeGreeksImpliedVolatilityTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "tradeGreeksImpliedVolatilityTickToArrowIpcProjected")]
+pub fn trade_greeks_implied_volatility_tick_to_arrow_ipc_projected(
+    rows: Vec<TradeGreeksImpliedVolatilityTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = trade_greeks_implied_volatility_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::TradeGreeksSecondOrderTick>` from the JS `TradeGreeksSecondOrderTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn trade_greeks_second_order_tick_reconstruct_rows(rows: Vec<TradeGreeksSecondOrderTick>) -> napi::Result<Vec<tick::TradeGreeksSecondOrderTick>> {
     let owned: Vec<tick::TradeGreeksSecondOrderTick> = rows
         .into_iter()
         .map(|r| -> napi::Result<tick::TradeGreeksSecondOrderTick> {
@@ -2301,32 +2933,66 @@ pub fn trade_greeks_second_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksSecondOr
             })
         })
         .collect::<napi::Result<Vec<tick::TradeGreeksSecondOrderTick>>>()?;
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `TradeGreeksThirdOrderTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "tradeGreeksThirdOrderTickToArrowIpc")]
-pub fn trade_greeks_third_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksThirdOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `TradeGreeksSecondOrderTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `tradeGreeksSecondOrderTickPresentColumns` + `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "tradeGreeksSecondOrderTickToArrowIpc")]
+pub fn trade_greeks_second_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksSecondOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = trade_greeks_second_order_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `TradeGreeksSecondOrderTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "tradeGreeksSecondOrderTickPresentColumns")]
+pub fn trade_greeks_second_order_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::TradeGreeksSecondOrderTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `TradeGreeksSecondOrderTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `tradeGreeksSecondOrderTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `tradeGreeksSecondOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "tradeGreeksSecondOrderTickToArrowIpcProjected")]
+pub fn trade_greeks_second_order_tick_to_arrow_ipc_projected(
+    rows: Vec<TradeGreeksSecondOrderTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = trade_greeks_second_order_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::TradeGreeksThirdOrderTick>` from the JS `TradeGreeksThirdOrderTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn trade_greeks_third_order_tick_reconstruct_rows(rows: Vec<TradeGreeksThirdOrderTick>) -> napi::Result<Vec<tick::TradeGreeksThirdOrderTick>> {
     let owned: Vec<tick::TradeGreeksThirdOrderTick> = rows
         .into_iter()
         .map(|r| -> napi::Result<tick::TradeGreeksThirdOrderTick> {
@@ -2356,32 +3022,66 @@ pub fn trade_greeks_third_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksThirdOrde
             })
         })
         .collect::<napi::Result<Vec<tick::TradeGreeksThirdOrderTick>>>()?;
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `TradeQuoteTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "tradeQuoteTickToArrowIpc")]
-pub fn trade_quote_tick_to_arrow_ipc(rows: Vec<TradeQuoteTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `TradeGreeksThirdOrderTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `tradeGreeksThirdOrderTickPresentColumns` + `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "tradeGreeksThirdOrderTickToArrowIpc")]
+pub fn trade_greeks_third_order_tick_to_arrow_ipc(rows: Vec<TradeGreeksThirdOrderTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = trade_greeks_third_order_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `TradeGreeksThirdOrderTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "tradeGreeksThirdOrderTickPresentColumns")]
+pub fn trade_greeks_third_order_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::TradeGreeksThirdOrderTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `TradeGreeksThirdOrderTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `tradeGreeksThirdOrderTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `tradeGreeksThirdOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "tradeGreeksThirdOrderTickToArrowIpcProjected")]
+pub fn trade_greeks_third_order_tick_to_arrow_ipc_projected(
+    rows: Vec<TradeGreeksThirdOrderTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = trade_greeks_third_order_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::TradeQuoteTick>` from the JS `TradeQuoteTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn trade_quote_tick_reconstruct_rows(rows: Vec<TradeQuoteTick>) -> napi::Result<Vec<tick::TradeQuoteTick>> {
     let owned: Vec<tick::TradeQuoteTick> = rows
         .into_iter()
         .map(|r| -> napi::Result<tick::TradeQuoteTick> {
@@ -2416,32 +3116,66 @@ pub fn trade_quote_tick_to_arrow_ipc(rows: Vec<TradeQuoteTick>) -> napi::Result<
             })
         })
         .collect::<napi::Result<Vec<tick::TradeQuoteTick>>>()?;
-    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
-        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
-    }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    Ok(owned)
 }
 
-/// Serialise a `TradeTick` history result to an Arrow IPC stream
-/// (the `apache-arrow` wire form). Mirrors the FlatFiles
-/// `FlatFileRowList.toArrowIpc()` exit and the Python
-/// `<TickName>List.to_arrow()` terminal so every binding can reach a
-/// dataframe from an in-band history result.
-#[napi(js_name = "tradeTickToArrowIpc")]
-pub fn trade_tick_to_arrow_ipc(rows: Vec<TradeTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+/// Serialise a hand-built `TradeQuoteTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `tradeQuoteTickPresentColumns` + `tradeQuoteTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "tradeQuoteTickToArrowIpc")]
+pub fn trade_quote_tick_to_arrow_ipc(rows: Vec<TradeQuoteTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = trade_quote_tick_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `TradeQuoteTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "tradeQuoteTickPresentColumns")]
+pub fn trade_quote_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::TradeQuoteTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `TradeQuoteTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `tradeQuoteTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `tradeQuoteTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "tradeQuoteTickToArrowIpcProjected")]
+pub fn trade_quote_tick_to_arrow_ipc_projected(
+    rows: Vec<TradeQuoteTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = trade_quote_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Rebuild a `Vec<tick::TradeTick>` from the JS `TradeTick` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn trade_tick_reconstruct_rows(rows: Vec<TradeTick>) -> napi::Result<Vec<tick::TradeTick>> {
     let owned: Vec<tick::TradeTick> = rows
         .into_iter()
         .map(|r| -> napi::Result<tick::TradeTick> {
@@ -2467,22 +3201,59 @@ pub fn trade_tick_to_arrow_ipc(rows: Vec<TradeTick>) -> napi::Result<napi::bindg
             })
         })
         .collect::<napi::Result<Vec<tick::TradeTick>>>()?;
+    Ok(owned)
+}
+
+/// Serialise a hand-built `TradeTick` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `tradeTickPresentColumns` + `tradeTickToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "tradeTickToArrowIpc")]
+pub fn trade_tick_to_arrow_ipc(rows: Vec<TradeTick>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = trade_tick_reconstruct_rows(rows)?;
     let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
         .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer = arrow_ipc::writer::StreamWriter::try_new(
-            std::io::Cursor::new(&mut buf),
-            &batch.schema(),
-        )
-        .map_err(|e| napi::Error::from_reason(format!("arrow ipc writer init failed: {e}")))?;
-        writer
-            .write(&batch)
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc write failed: {e}")))?;
-        writer
-            .finish()
-            .map_err(|e| napi::Error::from_reason(format!("arrow ipc finish failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `TradeTick` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `tradeTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "tradeTickPresentColumns")]
+pub fn trade_tick_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::TradeTick as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `TradeTick` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `tradeTickPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column. The decode-fed sibling of
+/// `tradeTickToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "tradeTickToArrowIpcProjected")]
+pub fn trade_tick_to_arrow_ipc_projected(
+    rows: Vec<TradeTick>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = trade_tick_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
     }
-    Ok(napi::bindgen_prelude::Buffer::from(buf))
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
 }
 

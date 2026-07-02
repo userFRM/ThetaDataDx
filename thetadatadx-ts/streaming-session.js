@@ -297,6 +297,24 @@ class RecordBatchStream {
   }
 }
 
+/**
+ * The `client.stream` view, or `null` when the client is closed. A closed
+ * client throws on the `stream` getter ("client is closed"); every caller here
+ * treats that single `null` sentinel as "no streaming surface" so operating on
+ * a closed client stays a no-op rather than throwing, matching the base
+ * client's asyncDispose guard.
+ *
+ * @param {InstanceType<typeof native.Client>} client
+ * @returns {any}
+ */
+function streamOrNull(client) {
+  try {
+    return client.stream;
+  } catch {
+    return null;
+  }
+}
+
 class StreamingSession {
   /**
    * Construct a session bound to a `Client` instance. Returns a
@@ -324,7 +342,7 @@ class StreamingSession {
         // `session.activeSubscriptions()` keep working, then fall back to
         // the methods that stay on `Client` (e.g. `sessionUuid`,
         // `subscriptionInfo`, `activeFullSubscriptions`).
-        const stream = client.stream;
+        const stream = streamOrNull(client);
         if (stream && prop in stream) {
           const value = stream[prop];
           return typeof value === 'function' ? value.bind(stream) : value;
@@ -337,7 +355,7 @@ class StreamingSession {
       has(target, prop) {
         if (WRAPPER_OWN.has(prop) || prop === Symbol.asyncDispose) return true;
         const client = target._client;
-        const stream = client.stream;
+        const stream = streamOrNull(client);
         return (stream && prop in stream) || prop in client;
       },
     });
@@ -358,8 +376,12 @@ class StreamingSession {
    * @returns {Promise<void>}
    */
   async [Symbol.asyncDispose]() {
-    this._client.stream.stopStreaming();
-    const drained = await this._client.stream.awaitDrain(EXIT_DRAIN_TIMEOUT_MS);
+    // Disposing a closed client is a no-op: the `stream` getter throws once
+    // `close()` has run, and there is nothing left to drain.
+    const stream = streamOrNull(this._client);
+    if (!stream) return;
+    stream.stopStreaming();
+    const drained = await stream.awaitDrain(EXIT_DRAIN_TIMEOUT_MS);
     if (!drained) {
       console.warn(
         `Client streaming drain timed out after ${EXIT_DRAIN_TIMEOUT_MS}ms; ` +

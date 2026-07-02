@@ -2808,20 +2808,37 @@ class = "TradeTick"
 name = "timestamp_ms"
 typescript = "Option<BigInt>"
 
-# ─── Arrow-IPC terminal on history results ────────────────────────────
+# ─── Arrow-IPC terminals on history results ───────────────────────────
 #
-# The columnar Arrow exit on an in-band history result is present on every
-# binding: Python via the `<TickName>List.to_arrow()` terminal, TypeScript
-# via the generated `<tick>ToArrowIpc(rows)` napi free functions, and C++
-# via the generated `thetadatadx::<collection>_to_arrow_ipc(std::vector<Tick>)`
-# free functions over the `thetadatadx_<collection>_to_arrow_ipc` C ABI. All three
-# binding surfaces are generated from `tick_schema.toml` and funnel through
-# the one `TicksArrowExt::to_arrow` + Arrow IPC `StreamWriter` path, so they
-# stay in lockstep by construction; the `generate_sdk_surfaces --check`
-# drift gate and the `check_c_abi_completeness` header/symbol parity gate
-# guard a regression. They are free functions, not methods on a tracked
-# class, so they are not expressible as `[[method]]` / `[[value_field]]`
-# rows — this note records the contract the drift gates enforce.
+# Every binding exposes the columnar Arrow exit in the two forms the core
+# `TicksArrowExt` pair defines:
+#
+#   * Full schema (every column the tick type defines) — `TicksArrowExt::to_arrow`,
+#     the hand-built-rows path a caller assembled itself, which never touched a
+#     wire so every column is present: Python `<TickName>List.to_arrow()` on a
+#     hand-built list, TypeScript `<tick>ToArrowIpc(rows)`, C++
+#     `thetadatadx::<collection>_to_arrow_ipc(std::vector<Tick>)` over
+#     `thetadatadx_<collection>_to_arrow_ipc`.
+#
+#   * Decode-fed projected (only the columns the response's wire carried, plus
+#     the optional broadcast `symbol`) — `TicksArrowExt::to_arrow_projected`,
+#     the terminal-exact path: Python's `<TickName>List.to_arrow()` on a decoded
+#     list auto-projects from the `ColumnPresence` the list carries; TypeScript
+#     and C++ return bare rows, so the caller resolves the response headers to
+#     the present columns with `<tick>PresentColumns(headers)` /
+#     `thetadatadx_<tick>_present_columns` and hands them plus the optional
+#     `symbol` to `<tick>ToArrowIpcProjected(rows, presentColumns, symbol?)` /
+#     `thetadatadx_<tick>_to_arrow_ipc_projected`. The projected `RecordBatch` is
+#     identical; the only difference is where the presence is carried (on the
+#     Python result vs. an explicit argument on TS/C++).
+#
+# All surfaces are generated from `tick_schema.toml` and funnel through the one
+# `TicksArrowExt::to_arrow` / `to_arrow_projected` + Arrow IPC `StreamWriter`
+# path; the `generate_sdk_surfaces --check` drift gate and the
+# `check_c_abi_completeness` header/symbol parity gate guard a regression. They
+# are free functions, not methods on a tracked class, so they are not
+# expressible as `[[method]]` / `[[value_field]]` rows — this note records the
+# contract the drift gates enforce.
 
 
 # ─── Historical server-stream surface ([[historical_streaming]]) ──────

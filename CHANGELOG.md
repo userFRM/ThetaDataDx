@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Python `AsyncClient.close()` and `async with` teardown no longer block the event loop.** The stop-and-drain runs on a worker thread and is awaited, so a callback that round-trips through the loop can finish instead of forcing the teardown into its drain timeout. `AsyncClient.close()` is now awaitable: use `await client.close()` (#1086).
 - **Python Arrow DataFrame conversion releases the GIL while building each batch**, so sibling Python threads keep running during a large `.to_arrow()` / `.to_pandas()` / `.to_polars()` on a returned tick list. The pyarrow handoff now uses the stable Arrow PyCapsule interface, falling back to the older path on pyarrow below 14 (#1090).
 
+### Added
+
+- **TypeScript projected Arrow-IPC exit for decoded history rows.** Alongside the full-schema `<tick>ToArrowIpc`, every columnar tick type gains `<tick>PresentColumns(headers)` and `<tick>ToArrowIpcProjected(rows, presentColumns, symbol?)`, so a caller can serialize only the columns the response carried, matching the projected frame Python's `<TickName>List.to_arrow()` and the C++ terminal produce (#1089).
+
 ### Fixed
 
 - **Config validation rejects unusable historical settings up front.** `DirectConfig::validate` now band-checks `historical.connect_timeout_secs` (1..=300, where a `0` timed out every connect), range-checks `historical.max_message_size` (1 byte..=64 MiB, the same ceiling the `[grpc] max_message_size_mb` spelling already enforced, so the two spellings agree), and rejects a `0` `historical.port`. A retry policy with more than one attempt now requires a non-zero `initial_delay` / `initial_backoff`, so an enabled retry ladder cannot fire as an unthrottled burst. A `[streaming] hosts` entry with an empty host or a `0` port is rejected at load, and a non-http(s) `THETADATA_NEXUS_URL` is skipped with a warning instead of silently re-pointing auth at an unreachable endpoint.
@@ -35,6 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Python `close()` after `stop_streaming()` now drains the consumer.** The drain no longer hinges on a streaming-live check that flips false the instant the stream stops, so `close()` waits for the last callback to finish firing instead of returning while it is still running (#1086).
 - **Python `close()` during a concurrent streaming start no longer stalls the interpreter.** The teardown reads dispatcher state with the GIL released, so it never holds a binding lock across a blocking connect (#1086).
 - **Python `is_streaming()` no longer self-deadlocks a re-entrant log handler.** The failure reason is copied out and both binding locks are released before the debug log is emitted (#1086).
+- **TypeScript standalone `StreamingClient` no longer leaks a live session under concurrent start/stop.** A `startStreaming` superseded by a concurrent `stopStreaming` plus a newer `startStreaming` no longer publishes its connection over the live one; the superseded start shuts its own connection down and returns an error, and every failure path clears the callback slot only when the start still owns it (#1080).
+- **TypeScript `client.stream.startStreaming` no longer wipes a newer session's callback on a superseded handshake failure.** The callback slot is cleared on failure only when this start still owns it, so a concurrent stop plus restart keeps its registration and `reconnect()` still finds the callback (#1080).
+- **Disposing or forwarding through a closed TypeScript client is a no-op again.** The context-managed streaming session's `asyncDispose` and attribute proxy no longer throw when the underlying client is already closed, matching the base client's disposer.
 
 ## [13.0.0-rc.12] - 2026-07-01
 

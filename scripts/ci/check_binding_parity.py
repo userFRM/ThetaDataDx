@@ -3294,23 +3294,33 @@ def _is_ts_internal_free_fn(name: str) -> bool:
     """True for a TypeScript napi free function that is serialization /
     coercion plumbing or an offline bench hook, not a user-facing utility.
 
-    The JS shim emits a `<tick>_tick_to_arrow_ipc` free function per tick
-    type for the zero-copy Arrow boundary, plus small numeric-coercion
-    helpers (`bigint_to_i32`). The offline streaming-saturation bench hooks
-    (`__bench_flood_events` / `__bench_flood_events_batched` /
-    `__bench_flood_events_arrow_ipc`, exported as `__benchFloodEvents` /
-    `__benchFloodEventsBatched` / `__benchFloodEventsArrowIpc`) push synthetic
-    events through the real tsfn path for benchmarking. None of these are part
-    of the standalone utility roster the `[[utility]]` rows track, so they are
-    excluded from the TypeScript utility surface — the same carve-out the
-    Python bench hooks get via `PY_NON_UTILITY_PYFUNCTIONS`.
+    The JS shim emits a `<tick>_to_arrow_ipc` free function per tick type for
+    the zero-copy Arrow boundary, plus the decode-fed projected pair
+    (`<tick>_present_columns` + `<tick>_to_arrow_ipc_projected`) that resolves a
+    response's wire columns and serialises only those. All three are the same
+    per-tick Arrow serialisation family and are not cross-binding utility
+    lookups: the managed spelling is singular (`<tick>`) while the C ABI / C++
+    projected symbols are plural (`<collection>`), and Python exposes the
+    projected shape as a `<Tick>List.to_arrow()` method rather than a free
+    function, so a single `[[utility]]` row cannot align them. There are also
+    small numeric-coercion helpers (`bigint_to_i32`) and the offline
+    streaming-saturation bench hooks (`__bench_flood_events` /
+    `__bench_flood_events_batched` / `__bench_flood_events_arrow_ipc`, exported
+    as `__benchFloodEvents` / `__benchFloodEventsBatched` /
+    `__benchFloodEventsArrowIpc`) that push synthetic events through the real
+    tsfn path for benchmarking. None of these are part of the standalone utility
+    roster the `[[utility]]` rows track, so they are excluded from the
+    TypeScript utility surface — the same carve-out the Python bench hooks get
+    via `PY_NON_UTILITY_PYFUNCTIONS`.
 
-    Note `*_to_arrow_ipc` already matches the `<tick>_tick_to_arrow_ipc`
-    family; `__bench_flood_events_arrow_ipc` is listed explicitly for clarity
-    even though the suffix rule would also catch it.
+    Note `*_to_arrow_ipc` also matches the projected serialiser's stem, but the
+    `*_to_arrow_ipc_projected` suffix is listed explicitly since it does not end
+    in `_to_arrow_ipc`; `__bench_flood_events_arrow_ipc` is likewise explicit.
     """
     return (
         name.endswith("_to_arrow_ipc")
+        or name.endswith("_to_arrow_ipc_projected")
+        or name.endswith("_present_columns")
         or name == "bigint_to_i32"
         or name == "__bench_flood_events"
         or name == "__bench_flood_events_batched"
