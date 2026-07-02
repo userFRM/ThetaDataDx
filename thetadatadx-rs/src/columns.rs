@@ -95,6 +95,109 @@ pub trait WireColumns {
     fn present_columns(headers: &[&str]) -> ColumnPresence;
 }
 
+/// A decoded historical response: the tick rows plus the set of columns the
+/// response's wire actually carried.
+///
+/// The buffered (`.await`) return of every historical endpoint. It derefs to
+/// `[T]`, so it reads like the `Vec<T>` it replaced — `.len()`, `.iter()`,
+/// indexing, `for row in &ticks`, `ticks.first()` all work — while carrying
+/// the [`ColumnPresence`] the DataFrame terminals need. Use
+/// [`to_arrow`](Self::to_arrow) / [`to_polars`](Self::to_polars) for a
+/// terminal-exact frame (only the wire's columns), or [`into_vec`](Self::into_vec)
+/// to drop the presence and take the rows.
+#[derive(Debug, Clone)]
+pub struct Ticks<T> {
+    rows: Vec<T>,
+    columns: ColumnPresence,
+}
+
+impl<T> Ticks<T> {
+    /// Pair decoded `rows` with the `columns` its response carried.
+    #[must_use]
+    pub fn new(rows: Vec<T>, columns: ColumnPresence) -> Self {
+        Self { rows, columns }
+    }
+
+    /// The columns the response's wire carried.
+    #[must_use]
+    pub fn columns(&self) -> &ColumnPresence {
+        &self.columns
+    }
+
+    /// The tick rows, dropping the column-presence set.
+    #[must_use]
+    pub fn into_vec(self) -> Vec<T> {
+        self.rows
+    }
+
+    /// The tick rows as a slice.
+    #[must_use]
+    pub fn as_slice(&self) -> &[T] {
+        &self.rows
+    }
+}
+
+impl<T> std::ops::Deref for Ticks<T> {
+    type Target = [T];
+    fn deref(&self) -> &[T] {
+        &self.rows
+    }
+}
+
+impl<T> IntoIterator for Ticks<T> {
+    type Item = T;
+    type IntoIter = std::vec::IntoIter<T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.rows.into_iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a Ticks<T> {
+    type Item = &'a T;
+    type IntoIter = std::slice::Iter<'a, T>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.rows.iter()
+    }
+}
+
+#[cfg(feature = "arrow")]
+#[cfg_attr(docsrs, doc(cfg(feature = "arrow")))]
+impl<T> Ticks<T>
+where
+    [T]: crate::frames::TicksArrowExt,
+{
+    /// Materialise the rows as an Arrow `RecordBatch` carrying only the
+    /// columns the response's wire sent — terminal-exact.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`arrow_schema::ArrowError`] when the column arrays cannot
+    /// be assembled into a `RecordBatch`.
+    pub fn to_arrow(
+        &self,
+    ) -> ::core::result::Result<arrow_array::RecordBatch, arrow_schema::ArrowError> {
+        crate::frames::TicksArrowExt::to_arrow_projected(self.as_slice(), &self.columns)
+    }
+}
+
+#[cfg(feature = "polars")]
+#[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
+impl<T> Ticks<T>
+where
+    [T]: crate::frames::TicksPolarsExt,
+{
+    /// Materialise the rows as a polars `DataFrame` carrying only the columns
+    /// the response's wire sent — terminal-exact.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`polars::prelude::PolarsError`] when polars rejects the
+    /// assembled columns.
+    pub fn to_polars(&self) -> polars::prelude::PolarsResult<polars::prelude::DataFrame> {
+        crate::frames::TicksPolarsExt::to_polars_projected(self.as_slice(), &self.columns)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

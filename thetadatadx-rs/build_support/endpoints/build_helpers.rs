@@ -273,8 +273,10 @@ pub(super) fn direct_stream_tick_type(return_type: &str) -> &'static str {
     direct_name(return_type)
 }
 
-/// Returns the buffered return type for an endpoint, wrapping the per-tick
-/// type for the wire collection in a `Vec` (e.g. `Vec<TradeTick>`).
+/// Returns the buffered return type for an endpoint: the per-tick type for
+/// the wire collection wrapped in [`thetadatadx::Ticks`] (e.g.
+/// `Ticks<TradeTick>`), which carries the decoded rows plus the response's
+/// wire column set for terminal-exact DataFrame projection.
 pub(super) fn direct_return_type(return_type: &str) -> String {
-    format!("Vec<{}>", direct_name(return_type))
+    format!("Ticks<{}>", direct_name(return_type))
 }
