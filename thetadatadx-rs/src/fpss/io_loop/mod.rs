@@ -37,7 +37,9 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use disruptor::{build_single_producer, EventPoller, SingleProducerBarrier};
+use disruptor::{
+    build_single_producer, EventPoller, RingBufferFull, Sequence, SingleProducerBarrier,
+};
 
 use crate::tdbe::types::enums::{RemoveReason, StreamMsgType, StreamResponseType};
 
@@ -54,7 +56,7 @@ use super::decode::decode_frame;
 use super::delta::DeltaState;
 use super::events::{FpssEventInternal, IoCommand, StreamControl};
 use super::framing::{
-    self, read_frame_into_with_stall_timeout, write_raw_frame, write_raw_frame_no_flush,
+    self, read_frame_into_with_stall_timeout, write_raw_frame, write_raw_frame_no_flush, FrameRead,
 };
 use super::protocol::{self, build_login_payload, Contract};
 use super::reconnect_delay;
@@ -233,12 +235,87 @@ pub(in crate::fpss) struct IoLoopArgs<P> {
     /// Widened to `AtomicI64`; the wire boundary clamps to a positive
     /// `i32` via [`super::wire_req_id`].
     pub next_req_id: Arc<AtomicI64>,
+    /// Set by [`IoLoopFaultGuard`] if this `io_loop` unwinds, so the drain
+    /// paths surface [`crate::streaming::StreamError::DispatcherFailed`]
+    /// instead of reading the producer-drop as a clean end-of-stream.
+    pub io_faulted: Arc<AtomicBool>,
 }
 
 fn host_index(hosts: &[(String, u16)], addr: &str) -> Option<usize> {
     hosts
         .iter()
         .position(|(host, port)| format!("{host}:{port}") == addr)
+}
+
+/// Turns an `io_loop` panic into an observable dispatcher failure.
+///
+/// The I/O thread owns the ring producer; if `io_loop` unwinds, the producer
+/// drops and the consumer reads a clean end-of-stream while
+/// `is_authenticated()` still reports `true` (a panic masquerading as a
+/// graceful shutdown), and the documented
+/// [`crate::streaming::StreamError::DispatcherFailed`] is never produced.
+///
+/// Armed inside `io_loop` AFTER the producer is bound, so on an unwind it
+/// drops FIRST and flips the session to a failed state (faulted,
+/// deauthenticated, shut down) BEFORE the producer publishes the ring's
+/// shutdown sequence. The blocking drain then observes `io_faulted` and
+/// surfaces `DispatcherFailed` instead of `Ok(None)`. On a normal return it
+/// is a no-op (it only acts while `thread::panicking()`).
+struct IoLoopFaultGuard {
+    authenticated: Arc<AtomicBool>,
+    shutdown: Arc<AtomicBool>,
+    faulted: Arc<AtomicBool>,
+}
+
+impl Drop for IoLoopFaultGuard {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            self.faulted.store(true, Ordering::Release);
+            self.authenticated.store(false, Ordering::Release);
+            self.shutdown.store(true, Ordering::Release);
+            // Fence-to-fence synchronisation with the drain. This guard drops
+            // just before the ring producer, which publishes the shutdown
+            // sequence with a RELAXED store. A drain that reads that shutdown
+            // (a RELAXED load) then runs an Acquire fence before loading
+            // `faulted`. This Release fence, sequenced before the producer's
+            // relaxed shutdown store, pairs with that load+Acquire-fence so a
+            // reader that observes ring shutdown is guaranteed to also observe
+            // `faulted == true`. Without it, an Acquire load of `faulted`
+            // alone synchronises only with a Release store to `faulted`, so on
+            // a weak-memory target (aarch64) a reader could see shutdown yet
+            // still read the initial `faulted == false` and report clean EOF.
+            std::sync::atomic::fence(Ordering::Release);
+        }
+    }
+}
+
+/// Binds the ring producer together with its fault guard so their relative
+/// drop order is fixed by struct field order, not by the order of two `let`
+/// bindings in `io_loop` that a later edit could silently swap.
+///
+/// Fields drop in declaration order, so `_guard` (first) drops before
+/// `producer` (second): on an unwind the guard flips `io_faulted` before the
+/// producer publishes the ring's shutdown sequence, which is exactly the edge
+/// the drain relies on. Exposes an inherent `try_publish` that delegates to the
+/// inner producer, so `io_loop`'s call sites are unchanged. It deliberately
+/// does NOT surface the blocking `publish` path (io_loop never uses it), which
+/// also keeps the `io_loop_uses_only_try_publish` grep contract honest.
+struct GuardedProducer<P> {
+    // Only ever dropped, never read: the underscore keeps `dead_code` quiet
+    // while its declaration position (before `producer`) is what fixes the
+    // drop order this type exists to guarantee.
+    _guard: IoLoopFaultGuard,
+    producer: P,
+}
+
+impl<P: RingProducer> GuardedProducer<P> {
+    #[inline]
+    fn try_publish<F>(&mut self, update: F) -> Result<Sequence, RingBufferFull>
+    where
+        F: FnOnce(&mut RingEvent),
+    {
+        self.producer.try_publish(update)
+    }
 }
 
 /// Reconcile the tracked-subscription set against a server `REQ_RESPONSE`.
@@ -331,7 +408,7 @@ where
     let IoLoopArgs {
         stream,
         cmd_rx,
-        mut producer,
+        producer,
         ring_size,
         shutdown,
         authenticated,
@@ -361,7 +438,23 @@ where
         last_event_at_ns,
         connected_addr,
         next_req_id,
+        io_faulted,
     } = args;
+    // Wrap the producer with its fault guard so the guard drops FIRST on an
+    // unwind (struct fields drop in declaration order): it flips `io_faulted`
+    // before the producer publishes the ring's shutdown sequence, so a
+    // concurrent drain observes the fault and returns `DispatcherFailed`
+    // rather than racing a clean end-of-stream. Delegation keeps every
+    // `producer.try_publish(..)` call site below unchanged. On a normal return
+    // the guard is a no-op (it only acts while `thread::panicking()`).
+    let mut producer = GuardedProducer {
+        _guard: IoLoopFaultGuard {
+            authenticated: Arc::clone(&authenticated),
+            shutdown: Arc::clone(&shutdown),
+            faulted: io_faulted,
+        },
+        producer,
+    };
     // `ring_size` was validated upstream by `ring::check_ring_size` at
     // the public `StreamingClient::connect` boundary; silent rounding here
     // would rewrite the caller's stated buffer budget after the fact.
@@ -528,7 +621,15 @@ where
                 // --- Phase 1: Try to read a frame (short blocking read) ---
                 match read_frame_into_with_stall_timeout(&mut reader, &mut frame_buf, read_timeout)
                 {
-                    Ok(Some((code, payload_len))) => {
+                    Ok(FrameRead::SkippedUnknown) => {
+                        // An unknown-code frame was consumed to stay aligned.
+                        // Loop back so the 'inner top re-checks shutdown and
+                        // the read deadline before the next read, matching the
+                        // terminal's unlimited-skip behaviour without wedging
+                        // a shutting-down thread inside the skip.
+                        continue 'inner;
+                    }
+                    Ok(FrameRead::Frame(code, payload_len)) => {
                         last_frame_at = Instant::now();
                         last_event_at_ns.store(unix_nanos_now(), Ordering::Relaxed);
                         // Anchor the stable-window clock on the FIRST frame
@@ -590,7 +691,7 @@ where
                             }
                         }
                     }
-                    Ok(None) => {
+                    Ok(FrameRead::Eof) => {
                         // Clean EOF
                         tracing::warn!("FPSS connection closed by server");
                         if producer
@@ -994,6 +1095,7 @@ where
                 read_timeout,
                 read_timeout,
                 keepalive,
+                &shutdown,
             )
         };
 
@@ -1719,6 +1821,95 @@ mod tests {
 
     fn test_schedule() -> BackoffSchedule {
         BackoffSchedule::new(Duration::from_millis(250), Duration::from_secs(30))
+    }
+
+    /// Pins `io_loop`'s actual producer-vs-guard drop order. `io_loop` holds
+    /// its producer inside a `GuardedProducer`, whose `guard` field is declared
+    /// before its `producer` field; struct fields drop in declaration order, so
+    /// on an unwind the guard drops first and sets `io_faulted` before the
+    /// producer publishes ring shutdown. Drive the REAL `GuardedProducer` with a
+    /// `RingProducer` sentinel that, at its own drop, records whether the fault
+    /// flag was already set. Reordering the struct fields (producer before
+    /// guard) would drop the producer first and make this observation `false`,
+    /// failing the test.
+    #[test]
+    fn guarded_producer_flags_fault_before_producer_drops_on_panic() {
+        struct SentinelProducer {
+            faulted: Arc<AtomicBool>,
+            observed_faulted_at_drop: Arc<AtomicBool>,
+        }
+        impl RingProducer for SentinelProducer {
+            fn try_publish<F>(&mut self, _update: F) -> Result<Sequence, RingBufferFull>
+            where
+                F: FnOnce(&mut RingEvent),
+            {
+                Ok(0)
+            }
+            fn publish<F>(&mut self, _update: F)
+            where
+                F: FnOnce(&mut RingEvent),
+            {
+            }
+        }
+        impl Drop for SentinelProducer {
+            fn drop(&mut self) {
+                self.observed_faulted_at_drop
+                    .store(self.faulted.load(Ordering::Acquire), Ordering::Release);
+            }
+        }
+
+        let faulted = Arc::new(AtomicBool::new(false));
+        let observed = Arc::new(AtomicBool::new(false));
+        let faulted_c = Arc::clone(&faulted);
+        let observed_c = Arc::clone(&observed);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guarded = GuardedProducer {
+                _guard: IoLoopFaultGuard {
+                    authenticated: Arc::new(AtomicBool::new(true)),
+                    shutdown: Arc::new(AtomicBool::new(false)),
+                    faulted: Arc::clone(&faulted_c),
+                },
+                producer: SentinelProducer {
+                    faulted: Arc::clone(&faulted_c),
+                    observed_faulted_at_drop: Arc::clone(&observed_c),
+                },
+            };
+            panic!("simulated io_loop panic");
+        }));
+        assert!(result.is_err(), "the closure must have panicked");
+        assert!(
+            observed.load(Ordering::Acquire),
+            "the producer must, at its drop, observe io_faulted already set (guard field drops first)"
+        );
+        assert!(
+            faulted.load(Ordering::Acquire),
+            "the guard must set io_faulted"
+        );
+    }
+
+    /// On a normal (non-panic) drop the guard leaves every flag untouched, so
+    /// a clean shutdown still reads as `Ok(None)`.
+    #[test]
+    fn fault_guard_is_a_noop_on_normal_drop() {
+        let authenticated = Arc::new(AtomicBool::new(true));
+        let shutdown = Arc::new(AtomicBool::new(false));
+        let faulted = Arc::new(AtomicBool::new(false));
+        {
+            let _guard = IoLoopFaultGuard {
+                authenticated: Arc::clone(&authenticated),
+                shutdown: Arc::clone(&shutdown),
+                faulted: Arc::clone(&faulted),
+            };
+        }
+        assert!(
+            authenticated.load(Ordering::Acquire),
+            "authenticated untouched"
+        );
+        assert!(!shutdown.load(Ordering::Acquire), "shutdown untouched");
+        assert!(
+            !faulted.load(Ordering::Acquire),
+            "not faulted on a clean drop"
+        );
     }
 
     #[test]

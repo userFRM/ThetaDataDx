@@ -210,7 +210,9 @@ pub(crate) fn order_hosts(
 /// Establish a TLS connection to the first reachable FPSS server.
 ///
 /// Tries each server in order. Returns the stream and connected server
-/// address on success, or the last error if all fail.
+/// address on success, or the last error if all fail. Checks `shutdown`
+/// between host attempts so a Drop raised mid-reconnect aborts the dial
+/// loop instead of blocking through every remaining host's dial + login.
 ///
 /// # Connection sequence
 ///
@@ -230,11 +232,21 @@ pub fn connect_to_servers(
     read_timeout: Duration,
     write_timeout: Duration,
     keepalive: TcpKeepaliveSpec,
+    shutdown: &std::sync::atomic::AtomicBool,
 ) -> Result<(FpssStream, String), crate::error::Error> {
     ensure_rustls_crypto_provider();
     let mut last_err = None;
 
     for &(host, port) in servers {
+        // A Drop raised mid-reconnect must not be blocked for the full
+        // dial + login of every remaining host. Check between attempts so a
+        // shutting-down thread stops trying rather than dialling on.
+        if shutdown.load(std::sync::atomic::Ordering::Relaxed) {
+            return Err(crate::error::Error::Stream {
+                kind: crate::error::StreamErrorKind::Disconnected,
+                message: "connection aborted: client shutting down".to_string(),
+            });
+        }
         let addr = format!("{host}:{port}");
         tracing::debug!(server = %addr, "attempting FPSS connection");
 
@@ -471,6 +483,7 @@ mod tests {
             read_timeout,
             write_timeout,
             test_keepalive(),
+            &std::sync::atomic::AtomicBool::new(false),
         );
         let elapsed = start.elapsed();
         assert!(res.is_err(), "unroutable host must fail to connect");

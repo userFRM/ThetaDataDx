@@ -213,6 +213,22 @@ pub(crate) fn is_binary_payload(payload: &[u8]) -> bool {
     payload.iter().any(|&b| b < 0x09 || (b > 0x0D && b < 0x20))
 }
 
+/// Outcome of one framed read from the FPSS wire.
+pub enum FrameRead {
+    /// A complete frame with a recognized code; the payload occupies
+    /// `buf[..len]`.
+    Frame(StreamMsgType, usize),
+    /// Clean EOF before any byte of a frame (the peer closed the stream).
+    Eof,
+    /// A frame carrying an unrecognized code was consumed to keep the
+    /// stream byte-aligned. There is no ceiling on how many may be skipped
+    /// (the FIT decoder tolerates codes it does not recognize, matching the
+    /// terminal), but the read returns here between skips so the caller can
+    /// re-check its shutdown flag and liveness deadline before reading
+    /// again, instead of spinning inside an unbounded internal skip loop.
+    SkippedUnknown,
+}
+
 /// Read a single FPSS frame into a caller-owned buffer, avoiding per-frame
 /// heap allocation on the hot path.
 ///
@@ -236,22 +252,36 @@ pub(crate) fn is_binary_payload(payload: &[u8]) -> bool {
 ///
 /// # Unknown message codes
 ///
-/// Frames with unrecognized codes are silently skipped (payload consumed
-/// to keep the stream aligned), with no ceiling on how many may be
-/// skipped — the FIT decoder tolerates codes it does not recognize.
+/// Frames with unrecognized codes are skipped (payload consumed to keep the
+/// stream aligned), with no ceiling on how many may be skipped — the FIT
+/// decoder tolerates codes it does not recognize. This wrapper loops over
+/// those skips internally and returns the next known frame (or clean EOF),
+/// preserving the historical `Option`-shaped contract the frame-pipeline
+/// tests depend on.
 /// # Errors
 ///
 /// Returns an error on network, authentication, or parsing failure.
 ///
 /// Production reads go through [`read_frame_into_with_stall_timeout`] directly
-/// (the I/O loop owns the deadline); this default-timeout wrapper exists for
-/// the frame-pipeline integration tests, so it is gated to those builds.
+/// (the I/O loop owns the deadline and re-checks shutdown between skips); this
+/// default-timeout wrapper exists for the frame-pipeline integration tests, so
+/// it is gated to those builds.
 #[cfg(any(test, feature = "__test-helpers"))]
 pub fn read_frame_into<R: Read>(
     reader: &mut R,
     buf: &mut Vec<u8>,
 ) -> Result<Option<(StreamMsgType, usize)>, crate::error::Error> {
-    read_frame_into_with_stall_timeout(reader, buf, Duration::from_millis(READ_TIMEOUT_MS))
+    loop {
+        match read_frame_into_with_stall_timeout(
+            reader,
+            buf,
+            Duration::from_millis(READ_TIMEOUT_MS),
+        )? {
+            FrameRead::Frame(code, len) => return Ok(Some((code, len))),
+            FrameRead::Eof => return Ok(None),
+            FrameRead::SkippedUnknown => {}
+        }
+    }
 }
 
 /// Takes the per-stall read timeout from the caller instead of the
@@ -266,39 +296,39 @@ pub fn read_frame_into_with_stall_timeout<R: Read>(
     reader: &mut R,
     buf: &mut Vec<u8>,
     stall_timeout: Duration,
-) -> Result<Option<(StreamMsgType, usize)>, crate::error::Error> {
-    loop {
-        // Header phase: read both header bytes, bounded by the per-stall
-        // no-progress timeout.
-        let Some(header) = read_header_with_timeout(reader, stall_timeout)? else {
-            // Clean EOF before any byte of this frame.
-            return Ok(None);
-        };
+) -> Result<FrameRead, crate::error::Error> {
+    // Header phase: read both header bytes, bounded by the per-stall
+    // no-progress timeout.
+    let Some(header) = read_header_with_timeout(reader, stall_timeout)? else {
+        // Clean EOF before any byte of this frame.
+        return Ok(FrameRead::Eof);
+    };
 
-        let payload_len = header[0] as usize;
-        let code_byte = header[1];
+    let payload_len = header[0] as usize;
+    let code_byte = header[1];
 
-        // Always consume the payload to keep the stream aligned. The
-        // `buf.clear()` + `buf.resize()` allocates at most once per frame.
-        buf.clear();
-        buf.resize(payload_len, 0);
-        if payload_len > 0 {
-            read_exact_payload_with_timeout(reader, &mut buf[..payload_len], stall_timeout)?;
-        }
-
-        if let Some(code) = StreamMsgType::from_code(code_byte) {
-            return Ok(Some((code, payload_len)));
-        }
-        // Unrecognized code: the payload was consumed above to keep the
-        // stream aligned; skip and continue with no ceiling on how many may
-        // be skipped. The FIT decoder tolerates codes it does not recognize,
-        // matching the terminal.
-        tracing::debug!(
-            code = code_byte,
-            payload_len,
-            "skipping unknown FPSS message code"
-        );
+    // Always consume the payload to keep the stream aligned. The
+    // `buf.clear()` + `buf.resize()` allocates at most once per frame.
+    buf.clear();
+    buf.resize(payload_len, 0);
+    if payload_len > 0 {
+        read_exact_payload_with_timeout(reader, &mut buf[..payload_len], stall_timeout)?;
     }
+
+    if let Some(code) = StreamMsgType::from_code(code_byte) {
+        return Ok(FrameRead::Frame(code, payload_len));
+    }
+    // Unrecognized code: the payload was consumed above to keep the stream
+    // aligned. Hand control back to the caller (unlimited skipping still
+    // matches the terminal — the FIT decoder tolerates codes it does not
+    // recognize) so a shutting-down I/O loop re-checks shutdown + liveness
+    // between skips instead of spinning here; the caller reads again.
+    tracing::debug!(
+        code = code_byte,
+        payload_len,
+        "skipping unknown FPSS message code"
+    );
+    Ok(FrameRead::SkippedUnknown)
 }
 
 /// Write a frame from raw parts without constructing a `Frame` struct.

@@ -15,7 +15,7 @@ use crate::error::Error;
 
 use super::super::connection;
 use super::super::events::StreamControl;
-use super::super::framing::read_frame_into_with_stall_timeout;
+use super::super::framing::{read_frame_into_with_stall_timeout, FrameRead};
 use super::super::protocol::parse_disconnect_reason;
 
 /// Outcome of a single login handshake.
@@ -73,15 +73,15 @@ where
     let mut frame_buf: Vec<u8> = Vec::new();
     loop {
         let (code, payload_len) =
-            match read_frame_into_with_stall_timeout(stream, &mut frame_buf, stall_timeout) {
-                Ok(Some(frame)) => frame,
-                Ok(None) => {
+            match read_frame_into_with_stall_timeout(stream, &mut frame_buf, stall_timeout)? {
+                FrameRead::Frame(code, len) => (code, len),
+                FrameRead::SkippedUnknown => continue,
+                FrameRead::Eof => {
                     return Err(Error::Stream {
                         kind: crate::error::StreamErrorKind::Disconnected,
                         message: "connection closed during login handshake".to_string(),
                     })
                 }
-                Err(e) => return Err(e),
             };
         let payload = &frame_buf[..payload_len];
 

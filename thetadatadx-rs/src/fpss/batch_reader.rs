@@ -32,10 +32,18 @@
 //! [`Backpressure`] selects what happens when the reader falls behind and
 //! the queue fills:
 //!
-//! * [`Backpressure::Block`] (the default, lossless): the dispatcher blocks
-//!   on a full queue. Because the dispatcher is the ring drainer, blocking
-//!   it stops draining the ring; a full ring then applies backpressure to
-//!   the wire. No event is dropped.
+//! * [`Backpressure::Block`] (the default): the dispatcher blocks on a
+//!   full queue rather than dropping batches queue-side. This bounds loss
+//!   at the reader queue; it does NOT make the pipeline lossless end to
+//!   end. Upstream, the I/O thread publishes into the FPSS event ring with
+//!   a non-blocking `try_publish` and drops on ring-full by design (in the
+//!   `super::ring` module): blocking the I/O thread would stall PING heartbeats
+//!   and drop the vendor session on the wire, so it never blocks. A reader
+//!   that stalls long enough to back the dispatcher up until the ring
+//!   fills therefore loses events at the ring, counted on
+//!   [`RecordBatchStream::ring_dropped`] (never on
+//!   [`RecordBatchStream::dropped`], which counts only queue-side
+//!   `DropOldest` drops).
 //! * [`Backpressure::DropOldest`]: the queue is a bounded ring of at most
 //!   `capacity` batches; pushing onto a full queue drops the oldest batch
 //!   and increments the observable [`RecordBatchStream::dropped`] counter.
@@ -108,8 +116,12 @@ pub const MAX_QUEUE_DEPTH: usize = 4_096;
 /// fills.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Backpressure {
-    /// Lossless: block the dispatcher on a full queue, which stops the ring
-    /// drain and applies backpressure to the wire. The default.
+    /// Block the dispatcher on a full queue instead of dropping batches
+    /// queue-side. The default. Bounds loss at the reader queue but is not
+    /// lossless end to end: a sustained reader stall eventually fills the
+    /// upstream FPSS event ring, which drops by design (see the module
+    /// "Backpressure" docs) and counts on
+    /// [`RecordBatchStream::ring_dropped`].
     #[default]
     Block,
     /// Bounded buffer: keep at most `capacity` finished batches; on overflow
@@ -149,9 +161,11 @@ fn clamp_batch_size(rows: usize) -> usize {
 /// Builder for a [`RecordBatchStream`].
 ///
 /// Returned by `client.stream().batches()`. Subscriptions are managed on the
-/// same streaming surface as the callback path (`client.stream().subscribe`),
-/// so a caller subscribes first and then opens the reader, exactly as they
-/// would register a callback.
+/// same streaming surface as the callback path (`client.stream().subscribe`).
+/// Building the reader is what starts the session, so a caller builds the
+/// reader first and then subscribes — exactly as the callback path starts
+/// streaming and then subscribes; a subscribe before the session exists
+/// errors with "streaming not started".
 #[must_use = "call `.build()` to open the RecordBatch stream"]
 pub struct BatchReaderBuilder<'a> {
     client: &'a Client,
@@ -581,11 +595,29 @@ impl RecordBatchStream {
         Arc::clone(&self.shared.schema)
     }
 
-    /// Number of batches dropped so far under [`Backpressure::DropOldest`].
-    /// Always `0` under [`Backpressure::Block`] (which never drops).
+    /// Number of batches dropped queue-side so far under
+    /// [`Backpressure::DropOldest`]. Always `0` under [`Backpressure::Block`]
+    /// (which never drops queue-side). This does NOT include events dropped
+    /// upstream at the FPSS event ring when a sustained reader stall backs
+    /// the pipeline up; see [`Self::ring_dropped`] for that count.
     #[must_use]
     pub fn dropped(&self) -> u64 {
         self.shared.dropped.load(Ordering::Relaxed)
+    }
+
+    /// Cumulative count of events dropped upstream at the FPSS event ring
+    /// because a stalled reader let the ring fill.
+    ///
+    /// The I/O thread publishes into the ring with a non-blocking
+    /// try-publish and drops on ring-full by design (blocking it would
+    /// stall PING heartbeats and drop the vendor session), so under
+    /// [`Backpressure::Block`] — where the dispatcher never drops queue-side
+    /// and [`Self::dropped`] stays `0` — this is the only loss signal a
+    /// reader has: a reader that stalls long enough to fill the ring loses
+    /// events counted here.
+    #[must_use]
+    pub fn ring_dropped(&self) -> u64 {
+        self.client.dropped_count()
     }
 
     /// Stop the reader: tear down the FPSS session and let the dispatcher
