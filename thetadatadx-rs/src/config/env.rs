@@ -293,7 +293,11 @@ mod tests {
     /// Drive `apply_overrides` with a fixed key->value map, the same body both
     /// the process-env and `.env` paths run.
     fn apply(pairs: &[(&str, &str)]) -> Result<DirectConfig, Error> {
-        let mut cfg = DirectConfig::production();
+        // Seed from the hardcoded defaults, not `production()`: these tests
+        // exercise the override layer in isolation, so reading the real process
+        // environment here would make them non-hermetic (a stray `THETADATA_*`
+        // in the runner could flip the baseline or panic on an invalid selector).
+        let mut cfg = DirectConfig::production_defaults();
         let owned: Vec<(String, String)> = pairs
             .iter()
             .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
@@ -367,7 +371,7 @@ mod tests {
 
     #[test]
     fn a_malformed_nexus_url_is_skipped_not_applied() {
-        let baseline = DirectConfig::production().auth.nexus_url.clone();
+        let baseline = DirectConfig::production_defaults().auth.nexus_url.clone();
         let cfg =
             apply(&[(ENV_NEXUS_URL, "not-a-url")]).expect("malformed URL is skipped, not fatal");
         assert_eq!(
@@ -387,7 +391,7 @@ mod tests {
         let pairs = crate::auth::dotenv::parse(
             "THETADATA_HISTORICAL_HOST=\"  historical.example.test  \"\n",
         );
-        let mut cfg = DirectConfig::production();
+        let mut cfg = DirectConfig::production_defaults();
         apply_dotenv_overrides(&mut cfg, &pairs).expect("valid host override");
         assert_eq!(cfg.historical.host, "historical.example.test");
     }

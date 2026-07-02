@@ -987,8 +987,8 @@ impl DirectConfig {
         // rejects every response and an absurd value commits the channel to a
         // buffer far beyond any legitimate chunk. Range-checked against the
         // same ceiling the `[grpc] max_message_size_mb` spelling enforces (the
-        // shared `HistoricalConfig::MAX_MESSAGE_SIZE_MB`, in bytes), so the two
-        // spellings cannot drift.
+        // shared `HistoricalConfig::MAX_MESSAGE_SIZE_MB`, in megabytes, scaled to
+        // bytes here), so the two spellings cannot drift.
         let max_message_size_bytes = HistoricalConfig::MAX_MESSAGE_SIZE_MB * 1024 * 1024;
         if !(1..=max_message_size_bytes).contains(&self.historical.max_message_size) {
             return Err(Error::config_out_of_range(
@@ -1248,7 +1248,7 @@ mod config_file {
                         format!("empty host in '{entry}'"),
                     ));
                 }
-                let port: u16 = port_str.parse().map_err(|e| {
+                let port: u16 = port_str.trim().parse().map_err(|e| {
                     Error::config_invalid(
                         "streaming.hosts",
                         format!("invalid port in '{entry}': {e}"),
