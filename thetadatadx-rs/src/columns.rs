@@ -172,6 +172,10 @@ pub fn present_columns_from(
         if field == "date" {
             if let Some(i) = find_header(headers, wire) {
                 owner[ci] = Some(i);
+                // Keep `claimed` consistent: `date` feeds a present column, so
+                // its header is claimed (idempotent when a `*_ms_of_day` sibling
+                // already claimed the shared `Timestamp`).
+                claimed[i] = true;
             }
         }
     }
