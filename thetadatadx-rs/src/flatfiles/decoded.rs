@@ -246,6 +246,7 @@ pub(crate) fn decode_to_file(
     // complete and closed; publish it onto the final name. Windows `rename`
     // (unlike Unix) fails when the destination exists, so remove a prior file
     // first there; the Unix path stays an atomic replace.
+    // ponytail: Windows publish is remove-then-rename, not atomic; ReplaceFileW-via-windows-crate if a concurrent-writer race is ever observed
     #[cfg(windows)]
     let _ = std::fs::remove_file(output_path);
     std::fs::rename(&tmp_path, output_path)?;

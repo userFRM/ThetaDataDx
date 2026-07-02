@@ -44,19 +44,21 @@ pub(crate) fn decode_block(
     while !reader.is_exhausted() {
         alloc.iter_mut().for_each(|v| *v = 0);
         let n = reader.read_changes(&mut alloc[..]);
+        if !reader.row_complete {
+            // The block ran out before a terminating END nibble — a truncated
+            // data row (partial integer flushed, trailing slots untrustworthy)
+            // or a truncated DATE marker (returns n==0). An END-terminated row
+            // always sets `row_complete`, so a false value here is always
+            // truncation. The FPSS delta path rejects this same shape; match
+            // it rather than accept the truncated block.
+            return Err(Error::decode_codec(
+                "flatfiles: FIT block truncated mid-row",
+            ));
+        }
         if reader.is_date {
             // DATE marker row — no user-visible data. Vendor's writer
             // skips DATE rows before they reach `toCSV2`, so we do too.
             continue;
-        }
-        if !reader.row_complete && n > 0 {
-            // The block ran out before the terminating END nibble, so the
-            // reader flushed a partial integer and the trailing slots are
-            // untrustworthy. The FPSS delta path rejects this same shape;
-            // match it here rather than emit a garbage final row.
-            return Err(Error::decode_codec(
-                "flatfiles: FIT block truncated mid-row",
-            ));
         }
         if n == 0 {
             // Either an exhausted-buffer artefact or a zero-field row;
@@ -141,6 +143,20 @@ mod tests {
         // mid-row. The FPSS delta path rejects this shape; decode_block must
         // too, rather than push a garbage final row.
         let buf = vec![pack(1, 2), pack(FIELD_SEP, 3), pack(4, 0)];
+        let mut out = Vec::new();
+        let err = decode_block(&buf, 2, &mut out).unwrap_err();
+        assert!(
+            err.to_string().contains("truncated"),
+            "expected a truncation decode error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn truncated_date_marker_missing_end_is_rejected() {
+        // A DATE marker byte (0xCE) with no terminating END nibble: the reader
+        // returns n==0 and row_complete==false. That is still a truncated
+        // block and must be rejected, not silently skipped as a DATE row.
+        let buf = vec![0xCE, pack(1, 2)]; // marker + digits, no END
         let mut out = Vec::new();
         let err = decode_block(&buf, 2, &mut out).unwrap_err();
         assert!(
