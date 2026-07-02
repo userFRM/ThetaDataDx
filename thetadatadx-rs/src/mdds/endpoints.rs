@@ -16,6 +16,7 @@
 use std::future::IntoFuture;
 use std::pin::Pin;
 
+use crate::columns::Ticks;
 use crate::decode;
 use crate::error::Error;
 use crate::proto;

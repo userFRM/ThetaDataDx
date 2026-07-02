@@ -864,15 +864,18 @@ fn render_python_tick_list_struct(schema: &Schema, type_name: &str, def: &TickTy
     out.push_str("#[pyclass(module = \"thetadatadx\", frozen, skip_from_py_object)]\n");
     writeln!(out, "pub(crate) struct {list_class} {{").unwrap();
     writeln!(out, "    inner: Vec<{source_ty}>,").unwrap();
+    // Which columns the response's wire carried, so the DataFrame terminals
+    // project to the terminal's exact column set.
+    out.push_str("    columns: thetadatadx::columns::ColumnPresence,\n");
     out.push_str("}\n\n");
 
     writeln!(out, "impl {list_class} {{").unwrap();
     writeln!(
         out,
-        "    pub(crate) fn new(inner: Vec<{source_ty}>) -> Self {{"
+        "    pub(crate) fn new(inner: Vec<{source_ty}>, columns: thetadatadx::columns::ColumnPresence) -> Self {{"
     )
     .unwrap();
-    out.push_str("        Self { inner }\n");
+    out.push_str("        Self { inner, columns }\n");
     out.push_str("    }\n");
     out.push_str("}\n\n");
 
@@ -900,7 +903,14 @@ fn render_python_tick_list_struct(schema: &Schema, type_name: &str, def: &TickTy
     pyclass_to_tick_expr(&mut out, type_name, def, "t", "            ");
     out.push_str("            );\n");
     out.push_str("        }\n");
-    out.push_str("        Ok(Self { inner })\n");
+    // Hand-built from Python-constructed rows: never touched a wire, so
+    // every schema column is present (full-schema frame).
+    writeln!(
+        out,
+        "        let columns = <{source_ty} as thetadatadx::columns::WireColumns>::all_columns();"
+    )
+    .unwrap();
+    out.push_str("        Ok(Self { inner, columns })\n");
     out.push_str("    }\n\n");
 
     // __len__
@@ -960,7 +970,7 @@ fn render_python_tick_list_struct(schema: &Schema, type_name: &str, def: &TickTy
     out.push_str("            }\n");
     writeln!(
         out,
-        "            return Ok(Py::new(py, {list_class}::new(rows))?.into_any());"
+        "            return Ok(Py::new(py, {list_class}::new(rows, self.columns.clone()))?.into_any());"
     )
     .unwrap();
     out.push_str("        }\n");
@@ -1012,19 +1022,29 @@ fn render_python_tick_list_struct(schema: &Schema, type_name: &str, def: &TickTy
     out.push_str("    }\n\n");
 
     // to_arrow — slice-based fast path, zero-copy into pyarrow.Table.
+    // Projects to the response's wire columns (terminal-exact).
     out.push_str("    /// Return a `pyarrow.Table` backed by the decoder-owned slice.\n");
     out.push_str("    /// Zero-copy at the pyarrow boundary courtesy of the Arrow C\n");
     out.push_str("    /// Data Interface; downstream pandas / polars / DuckDB alias the\n");
-    out.push_str("    /// same Rust buffers in place.\n");
+    out.push_str("    /// same Rust buffers in place. Carries only the columns the\n");
+    out.push_str("    /// response's wire sent.\n");
     out.push_str("    fn to_arrow(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {\n");
-    writeln!(out, "        {slice_arrow}(py, &self.inner)").unwrap();
+    writeln!(
+        out,
+        "        {slice_arrow}_projected(py, &self.inner, &self.columns)"
+    )
+    .unwrap();
     out.push_str("    }\n\n");
 
     // to_pandas — delegates to to_arrow.
     out.push_str("    /// Return a `pandas.DataFrame` via `pyarrow.Table.to_pandas()`.\n");
     out.push_str("    /// Requires pandas + pyarrow: `pip install thetadatadx[pandas]`.\n");
     out.push_str("    fn to_pandas(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {\n");
-    writeln!(out, "        let table = {slice_arrow}(py, &self.inner)?;").unwrap();
+    writeln!(
+        out,
+        "        let table = {slice_arrow}_projected(py, &self.inner, &self.columns)?;"
+    )
+    .unwrap();
     out.push_str("        pyarrow_table_to_pandas(py, table)\n");
     out.push_str("    }\n\n");
 
@@ -1032,7 +1052,11 @@ fn render_python_tick_list_struct(schema: &Schema, type_name: &str, def: &TickTy
     out.push_str("    /// Return a `polars.DataFrame` via `polars.from_arrow`.\n");
     out.push_str("    /// Requires polars + pyarrow: `pip install thetadatadx[polars]`.\n");
     out.push_str("    fn to_polars(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {\n");
-    writeln!(out, "        let table = {slice_arrow}(py, &self.inner)?;").unwrap();
+    writeln!(
+        out,
+        "        let table = {slice_arrow}_projected(py, &self.inner, &self.columns)?;"
+    )
+    .unwrap();
     out.push_str("        pyarrow_table_to_polars(py, table)\n");
     out.push_str("    }\n");
 
@@ -1097,10 +1121,15 @@ fn render_python_tick_class_list_fn(
 
     writeln!(
         out,
-        "pub(crate) fn {fn_name}(py: Python<'_>, ticks: Vec<tick::{type_name}>) -> PyResult<Py<{list_class}>> {{"
+        "pub(crate) fn {fn_name}(py: Python<'_>, ticks: thetadatadx::Ticks<tick::{type_name}>) -> PyResult<Py<{list_class}>> {{"
     )
     .unwrap();
-    writeln!(out, "    Py::new(py, {list_class}::new(ticks))").unwrap();
+    out.push_str("    let columns = ticks.columns().clone();\n");
+    writeln!(
+        out,
+        "    Py::new(py, {list_class}::new(ticks.into_vec(), columns))"
+    )
+    .unwrap();
     out.push_str("}\n");
     out
 }
@@ -1159,10 +1188,12 @@ fn render_python_tick_class_vec_to_pylist_fn(
     .unwrap();
     writeln!(
         out,
-        "pub(crate) fn {fn_name}(py: Python<'_>, ticks: Vec<tick::{type_name}>) -> PyResult<Py<pyo3::types::PyList>> {{"
+        "pub(crate) fn {fn_name}(py: Python<'_>, ticks: thetadatadx::Ticks<tick::{type_name}>) -> PyResult<Py<pyo3::types::PyList>> {{"
     )
     .unwrap();
     out.push_str("    let list = pyo3::types::PyList::empty(py);\n");
+    // Snapshot fast-path returns a plain pylist of rows; the wire column
+    // set is not surfaced here (callers never chain `.to_arrow()`).
     out.push_str("    for t in &ticks {\n");
     out.push_str("        let obj = ");
     pyclass_from_tick_expr(&mut out, type_name, def, "t", "            ");

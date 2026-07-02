@@ -975,6 +975,15 @@ macro_rules! parsed_endpoint {
                         // Strict decode: type mismatch in any cell propagates
                         // as Error::Decode via `From<DecodeError>`.
                         let parsed = $parser(&table).map_err(Error::from)?;
+                        // Capture which columns this response's wire carried,
+                        // resolved through the same alias-aware lookup the
+                        // parser used, so the buffered `Ticks` projects to the
+                        // terminal's exact column set at its DataFrame terminal.
+                        let present_headers: Vec<&str> =
+                            table.headers.iter().map(String::as_str).collect();
+                        let columns = <$item as $crate::columns::WireColumns>::present_columns(
+                            &present_headers,
+                        );
                         // Surface the wrong-API-for-this-workload
                         // signal exactly once per request, after the buffered
                         // `Vec` materialized — before this point the row count
@@ -995,7 +1004,7 @@ macro_rules! parsed_endpoint {
                             std::mem::size_of::<$item>(),
                             threshold,
                         );
-                        Ok(parsed)
+                        Ok($crate::columns::Ticks::new(parsed, columns))
                     };
                     let deadline = $crate::mdds::macros::effective_deadline(
                         deadline,

@@ -466,7 +466,10 @@ fn generate_endpoint_dispatch_arm(out: &mut String, endpoint: &GeneratedEndpoint
     emit_optional_setters(out, &builder_params);
 
     emit_builder_deadline(out);
-    out.push_str("            let result = builder.await?;\n");
+    // The buffered builder resolves to `Ticks<T>` (rows + wire column set);
+    // the FFI `EndpointOutput` variants carry the bare `Vec<T>` (the C ABI
+    // arrays serialise row data only), so drop the presence here.
+    out.push_str("            let result = builder.await?.into_vec();\n");
     writeln!(
         out,
         "            Ok(EndpointOutput::{}(result))",

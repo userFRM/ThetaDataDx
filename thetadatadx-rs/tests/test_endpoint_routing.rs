@@ -87,7 +87,7 @@ async fn option_history_greeks_eod_routes_to_greeks_eod_parser() {
     // Compile-time type binding: this `let` would not type-check if
     // the dispatch returned `Vec<GreeksAllTick>` (the silent
     // mis-routing target) or any other tick shape.
-    let ticks: Vec<GreeksEodTick> = client
+    let ticks: thetadatadx::Ticks<GreeksEodTick> = client
         .option_history_greeks_eod("SPY", "20240621", "20240614", "20240614")
         .await
         .expect("option_history_greeks_eod via mock");
@@ -129,7 +129,7 @@ async fn index_at_time_price_routes_to_index_price_at_time_parser() {
     let response = load_response("index_at_time_price");
     let (_mock, client) = client_for_response(response).await;
 
-    let ticks: Vec<IndexPriceAtTimeTick> = client
+    let ticks: thetadatadx::Ticks<IndexPriceAtTimeTick> = client
         .index_at_time_price("SPX", "20240614", "20240614", "16:00:00")
         .await
         .expect("index_at_time_price via mock");
@@ -161,7 +161,7 @@ async fn option_history_trade_greeks_all_routes_to_trade_greeks_all_parser() {
     let response = load_response("option_history_trade_greeks_all");
     let (_mock, client) = client_for_response(response).await;
 
-    let ticks: Vec<TradeGreeksAllTick> = client
+    let ticks: thetadatadx::Ticks<TradeGreeksAllTick> = client
         .option_history_trade_greeks_all("SPY", "20240621", "20240614")
         .await
         .expect("option_history_trade_greeks_all via mock");
@@ -183,7 +183,7 @@ async fn option_history_trade_greeks_first_order_routes_to_first_order_parser() 
     let response = load_response("option_history_trade_greeks_first_order");
     let (_mock, client) = client_for_response(response).await;
 
-    let ticks: Vec<TradeGreeksFirstOrderTick> = client
+    let ticks: thetadatadx::Ticks<TradeGreeksFirstOrderTick> = client
         .option_history_trade_greeks_first_order("SPY", "20240621", "20240614")
         .await
         .expect("option_history_trade_greeks_first_order via mock");
@@ -205,7 +205,7 @@ async fn option_history_trade_greeks_second_order_routes_to_second_order_parser(
     let response = load_response("option_history_trade_greeks_second_order");
     let (_mock, client) = client_for_response(response).await;
 
-    let ticks: Vec<TradeGreeksSecondOrderTick> = client
+    let ticks: thetadatadx::Ticks<TradeGreeksSecondOrderTick> = client
         .option_history_trade_greeks_second_order("SPY", "20240621", "20240614")
         .await
         .expect("option_history_trade_greeks_second_order via mock");
@@ -227,7 +227,7 @@ async fn option_history_trade_greeks_third_order_routes_to_third_order_parser() 
     let response = load_response("option_history_trade_greeks_third_order");
     let (_mock, client) = client_for_response(response).await;
 
-    let ticks: Vec<TradeGreeksThirdOrderTick> = client
+    let ticks: thetadatadx::Ticks<TradeGreeksThirdOrderTick> = client
         .option_history_trade_greeks_third_order("SPY", "20240621", "20240614")
         .await
         .expect("option_history_trade_greeks_third_order via mock");
@@ -249,7 +249,7 @@ async fn option_history_trade_greeks_implied_volatility_routes_to_iv_parser() {
     let response = load_response("option_history_trade_greeks_implied_volatility");
     let (_mock, client) = client_for_response(response).await;
 
-    let ticks: Vec<TradeGreeksImpliedVolatilityTick> = client
+    let ticks: thetadatadx::Ticks<TradeGreeksImpliedVolatilityTick> = client
         .option_history_trade_greeks_implied_volatility("SPY", "20240621", "20240614")
         .await
         .expect("option_history_trade_greeks_implied_volatility via mock");
@@ -267,6 +267,73 @@ async fn option_history_trade_greeks_implied_volatility_routes_to_iv_parser() {
 }
 
 // ────────────────────────────────────────────────────────────────────
+// End-to-end column projection through the buffered `Ticks<T>` return
+//
+// The whole point of the projection: a real gRPC response, decoded through
+// the direct-client `.await` path, yields a `Ticks<T>` whose `.to_arrow()`
+// emits exactly the wire's columns. This exercises the full chain (mock
+// transport -> decode -> WireColumns::present_columns at the macro seam ->
+// Ticks -> to_arrow_projected), not the builder in isolation.
+// ────────────────────────────────────────────────────────────────────
+
+#[cfg(feature = "arrow")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn stock_trade_quote_await_projects_columns_end_to_end() {
+    use thetadatadx::frames::TicksArrowExt;
+
+    let response = load_response("stock_history_trade_quote");
+    let (_mock, client) = client_for_response(response).await;
+
+    let ticks: thetadatadx::Ticks<thetadatadx::TradeQuoteTick> = client
+        .stock_history_trade_quote("AAPL", "20240102")
+        .await
+        .expect("stock_history_trade_quote via mock");
+    assert!(!ticks.is_empty(), "mock served a non-empty fixture");
+
+    // Terminal-exact: the buffered `Ticks::to_arrow` projects to the wire.
+    let batch = ticks.to_arrow().expect("projected arrow");
+    let cols: Vec<String> = batch
+        .schema()
+        .fields()
+        .iter()
+        .map(|f| f.name().clone())
+        .collect();
+    for absent in [
+        "condition_flags",
+        "price_flags",
+        "volume_type",
+        "records_back",
+        "expiration",
+        "strike",
+        "right",
+    ] {
+        assert!(
+            !cols.contains(&absent.to_string()),
+            "stock trade_quote gRPC path must not emit {absent}; got {cols:?}"
+        );
+    }
+    for kept in ["ms_of_day", "quote_ms_of_day", "bid", "ask", "price"] {
+        assert!(
+            cols.contains(&kept.to_string()),
+            "missing {kept} in {cols:?}"
+        );
+    }
+
+    // The full-schema slice builder still emits every column — the
+    // hand-built default is unchanged by the projection.
+    let full = ticks.as_slice().to_arrow().expect("full arrow");
+    let full_cols: Vec<String> = full
+        .schema()
+        .fields()
+        .iter()
+        .map(|f| f.name().clone())
+        .collect();
+    assert!(
+        full_cols.contains(&"condition_flags".to_string()),
+        "full slice builder must keep every column; got {full_cols:?}"
+    );
+}
+
 // List endpoints honor the per-request deadline
 //
 // List RPCs (`*_list_*`) must apply the same deadline contract as the

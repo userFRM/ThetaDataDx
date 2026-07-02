@@ -846,6 +846,81 @@ ThetaDataDxArrowBytes thetadatadx_trade_quote_ticks_to_arrow_ipc(const ThetaData
  *               buffer is a no-op. Call exactly once. */
 void thetadatadx_arrow_bytes_free(ThetaDataDxArrowBytes bytes);
 
+/* ── Column presence + projected Arrow IPC terminal for decode-fed history ── */
+
+/* Heap-owned set of present schema-column names (the decode's ColumnPresence
+ * crossing the C boundary). Built by a thetadatadx_*_present_columns terminal and
+ * consumed by the matching thetadatadx_*_to_arrow_ipc_projected terminal. Caller
+ * MUST free with thetadatadx_column_presence_free. Layout-identical to
+ * ThetaDataDxStringArray (an owned array of NUL-terminated C strings). */
+typedef struct ThetaDataDxColumnPresence {
+    const char* const* names;
+    size_t len;
+} ThetaDataDxColumnPresence;
+
+/** Free a ThetaDataDxColumnPresence returned by any thetadatadx_*_present_columns
+ *  terminal, including its names.
+ *  @param presence Carrier from a thetadatadx_*_present_columns call; a
+ *                  (names=NULL, len=0) carrier is a no-op. Call exactly once. */
+void thetadatadx_column_presence_free(ThetaDataDxColumnPresence presence);
+
+/* Build the wire-column presence set for a response from its header names
+ * (the DataTable headers), via the same decode logic the buffered .await path
+ * uses. headers may be NULL only when len is 0. The returned carrier MUST be
+ * freed with thetadatadx_column_presence_free. */
+ThetaDataDxColumnPresence thetadatadx_eod_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_ohlc_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_trade_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_quote_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_greeks_all_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_greeks_eod_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_greeks_first_order_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_greeks_second_order_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_greeks_third_order_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_trade_greeks_all_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_trade_greeks_first_order_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_trade_greeks_second_order_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_trade_greeks_third_order_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_trade_greeks_implied_volatility_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_iv_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_price_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_index_price_at_time_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_open_interest_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_market_value_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_calendar_days_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_interest_rate_ticks_present_columns(const char* const* headers, size_t len);
+ThetaDataDxColumnPresence thetadatadx_trade_quote_ticks_present_columns(const char* const* headers, size_t len);
+
+/* Serialise a span of history tick rows as a PROJECTED Arrow IPC stream —
+ * only the columns presence names (from the matching _present_columns), the
+ * terminal-exact columnar exit Python's <TickName>List.to_arrow() gives on a
+ * decode result. rows may be NULL only when len is 0. The presence carrier is
+ * borrowed (still owned by the caller). Returns an Arrow IPC byte buffer the
+ * caller MUST free with thetadatadx_arrow_bytes_free, or (data=NULL, len=0) on
+ * error with thetadatadx_last_error() set. */
+ThetaDataDxArrowBytes thetadatadx_eod_ticks_to_arrow_ipc_projected(const ThetaDataDxEodTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_ohlc_ticks_to_arrow_ipc_projected(const ThetaDataDxOhlcTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_trade_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_quote_ticks_to_arrow_ipc_projected(const ThetaDataDxQuoteTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_greeks_all_ticks_to_arrow_ipc_projected(const ThetaDataDxGreeksAllTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_greeks_eod_ticks_to_arrow_ipc_projected(const ThetaDataDxGreeksEodTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_greeks_first_order_ticks_to_arrow_ipc_projected(const ThetaDataDxGreeksFirstOrderTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_greeks_second_order_ticks_to_arrow_ipc_projected(const ThetaDataDxGreeksSecondOrderTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_greeks_third_order_ticks_to_arrow_ipc_projected(const ThetaDataDxGreeksThirdOrderTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_trade_greeks_all_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeGreeksAllTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_trade_greeks_first_order_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeGreeksFirstOrderTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_trade_greeks_second_order_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeGreeksSecondOrderTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_trade_greeks_third_order_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeGreeksThirdOrderTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_trade_greeks_implied_volatility_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeGreeksImpliedVolatilityTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_iv_ticks_to_arrow_ipc_projected(const ThetaDataDxIvTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_price_ticks_to_arrow_ipc_projected(const ThetaDataDxPriceTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_index_price_at_time_ticks_to_arrow_ipc_projected(const ThetaDataDxIndexPriceAtTimeTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_open_interest_ticks_to_arrow_ipc_projected(const ThetaDataDxOpenInterestTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_market_value_ticks_to_arrow_ipc_projected(const ThetaDataDxMarketValueTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_calendar_days_to_arrow_ipc_projected(const ThetaDataDxCalendarDay* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_interest_rate_ticks_to_arrow_ipc_projected(const ThetaDataDxInterestRateTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_trade_quote_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeQuoteTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+
 /* ── Streaming Arrow RecordBatch reader (pull-based) ── */
 
 /** Opaque handle to a live pull-based Arrow RecordBatch reader. Created by

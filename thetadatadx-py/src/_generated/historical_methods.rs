@@ -612,6 +612,7 @@ impl StockHistoryEodBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match eod_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -658,6 +659,7 @@ impl StockHistoryEodBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match eod_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -894,6 +896,7 @@ impl StockHistoryOhlcBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -963,6 +966,7 @@ impl StockHistoryOhlcBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -1178,6 +1182,7 @@ impl StockHistoryTradeBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -1243,6 +1248,7 @@ impl StockHistoryTradeBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -1480,6 +1486,7 @@ impl StockHistoryQuoteBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match quote_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -1549,6 +1556,7 @@ impl StockHistoryQuoteBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match quote_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -1784,6 +1792,7 @@ impl StockHistoryTradeQuoteBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeQuoteTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_quote_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -1853,6 +1862,7 @@ impl StockHistoryTradeQuoteBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeQuoteTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_quote_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -2015,6 +2025,7 @@ impl StockAtTimeTradeBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -2066,6 +2077,7 @@ impl StockAtTimeTradeBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -2228,6 +2240,7 @@ impl StockAtTimeQuoteBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match quote_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -2279,6 +2292,7 @@ impl StockAtTimeQuoteBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match quote_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -2720,6 +2734,7 @@ impl OptionListContractsBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::OptionContract as thetadatadx::WireColumns>::all_columns());
                     let py_list = match option_contracts_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -2773,6 +2788,7 @@ impl OptionListContractsBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::OptionContract as thetadatadx::WireColumns>::all_columns());
                     let py_list = match option_contracts_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -4911,6 +4927,7 @@ impl OptionHistoryEodBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match eod_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -4974,6 +4991,7 @@ impl OptionHistoryEodBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match eod_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -5259,6 +5277,7 @@ impl OptionHistoryOhlcBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -5337,6 +5356,7 @@ impl OptionHistoryOhlcBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -5622,6 +5642,7 @@ impl OptionHistoryTradeBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -5700,6 +5721,7 @@ impl OptionHistoryTradeBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -6004,6 +6026,7 @@ impl OptionHistoryQuoteBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match quote_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -6086,6 +6109,7 @@ impl OptionHistoryQuoteBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match quote_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -6391,6 +6415,7 @@ impl OptionHistoryTradeQuoteBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeQuoteTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_quote_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -6473,6 +6498,7 @@ impl OptionHistoryTradeQuoteBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeQuoteTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_quote_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -6717,6 +6743,7 @@ impl OptionHistoryOpenInterestBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::OpenInterestTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match open_interest_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -6787,6 +6814,7 @@ impl OptionHistoryOpenInterestBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::OpenInterestTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match open_interest_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -7101,6 +7129,7 @@ impl OptionHistoryGreeksEodBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksEodTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match greeks_eod_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -7184,6 +7213,7 @@ impl OptionHistoryGreeksEodBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksEodTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match greeks_eod_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -7548,6 +7578,7 @@ impl OptionHistoryGreeksAllBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksAllTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match greeks_all_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -7642,6 +7673,7 @@ impl OptionHistoryGreeksAllBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksAllTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match greeks_all_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -8005,6 +8037,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksAllTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_greeks_all_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -8099,6 +8132,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksAllTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_greeks_all_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -8463,6 +8497,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksFirstOrderTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match greeks_first_order_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -8557,6 +8592,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksFirstOrderTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match greeks_first_order_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -8920,6 +8956,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksFirstOrderTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_greeks_first_order_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -9014,6 +9051,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksFirstOrderTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_greeks_first_order_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -9378,6 +9416,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksSecondOrderTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match greeks_second_order_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -9472,6 +9511,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksSecondOrderTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match greeks_second_order_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -9835,6 +9875,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksSecondOrderTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_greeks_second_order_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -9929,6 +9970,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksSecondOrderTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_greeks_second_order_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -10293,6 +10335,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksThirdOrderTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match greeks_third_order_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -10387,6 +10430,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksThirdOrderTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match greeks_third_order_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -10750,6 +10794,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksThirdOrderTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_greeks_third_order_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -10844,6 +10889,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksThirdOrderTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_greeks_third_order_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -11207,6 +11253,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::IvTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match iv_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -11301,6 +11348,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::IvTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match iv_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -11663,6 +11711,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksImpliedVolatilityTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_greeks_implied_volatility_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -11757,6 +11806,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksImpliedVolatilityTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_greeks_implied_volatility_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -11984,6 +12034,7 @@ impl OptionAtTimeTradeBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -12048,6 +12099,7 @@ impl OptionAtTimeTradeBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match trade_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -12273,6 +12325,7 @@ impl OptionAtTimeQuoteBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match quote_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -12337,6 +12390,7 @@ impl OptionAtTimeQuoteBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match quote_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -12810,6 +12864,7 @@ impl IndexHistoryEodBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match eod_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -12856,6 +12911,7 @@ impl IndexHistoryEodBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match eod_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -13044,6 +13100,7 @@ impl IndexHistoryOhlcBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -13102,6 +13159,7 @@ impl IndexHistoryOhlcBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -13319,6 +13377,7 @@ impl IndexHistoryPriceBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::PriceTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match price_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -13384,6 +13443,7 @@ impl IndexHistoryPriceBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::PriceTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match price_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -13519,6 +13579,7 @@ impl IndexAtTimePriceBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::IndexPriceAtTimeTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match index_price_at_time_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -13566,6 +13627,7 @@ impl IndexAtTimePriceBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::IndexPriceAtTimeTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match index_price_at_time_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -13867,6 +13929,7 @@ impl InterestRateHistoryEodBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::InterestRateTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match interest_rate_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -13913,6 +13976,7 @@ impl InterestRateHistoryEodBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::InterestRateTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match interest_rate_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -14117,6 +14181,7 @@ impl StockHistoryOhlcRangeBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {
@@ -14179,6 +14244,7 @@ impl StockHistoryOhlcRangeBuilder {
                 }
                 Python::attach(|py| {
                     let owned: Vec<_> = chunk.to_vec();
+                    let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
                     let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
                         Ok(list) => list,
                         Err(e) => {

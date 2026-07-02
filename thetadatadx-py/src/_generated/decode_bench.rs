@@ -66,267 +66,426 @@ pub(crate) fn decode_response_bytes(py: Python<'_>, endpoint: &str, chunks: Vec<
     match endpoint {
         "calendar_on_date" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_calendar_days_v3(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_calendar_days_v3(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::CalendarDay as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(calendar_days_to_pyclass_list(py, ticks)?.into_any())
         }
         "calendar_open_today" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_calendar_days_v3(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_calendar_days_v3(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::CalendarDay as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(calendar_days_to_pyclass_list(py, ticks)?.into_any())
         }
         "calendar_year" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_calendar_days_v3(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_calendar_days_v3(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::CalendarDay as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(calendar_days_to_pyclass_list(py, ticks)?.into_any())
         }
         "index_at_time_price" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_index_price_at_time_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_index_price_at_time_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::IndexPriceAtTimeTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(index_price_at_time_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "index_history_eod" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_eod_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_eod_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::EodTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(eod_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "index_history_ohlc" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::OhlcTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(ohlc_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "index_history_price" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_price_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_price_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::PriceTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(price_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "index_snapshot_market_value" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_market_value_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_market_value_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::MarketValueTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(market_value_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "index_snapshot_ohlc" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::OhlcTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(ohlc_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "index_snapshot_price" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_price_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_price_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::PriceTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(price_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "interest_rate_history_eod" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_interest_rate_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_interest_rate_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::InterestRateTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(interest_rate_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_at_time_quote" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::QuoteTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(quote_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_at_time_trade" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_trade_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_trade_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::TradeTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(trade_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_eod" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_eod_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_eod_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::EodTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(eod_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_greeks_all" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_greeks_all_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_greeks_all_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::GreeksAllTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(greeks_all_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_greeks_eod" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_greeks_eod_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_greeks_eod_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::GreeksEodTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(greeks_eod_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_greeks_first_order" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_greeks_first_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_greeks_first_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::GreeksFirstOrderTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(greeks_first_order_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_greeks_implied_volatility" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_iv_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_iv_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::IvTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(iv_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_greeks_second_order" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_greeks_second_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_greeks_second_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::GreeksSecondOrderTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(greeks_second_order_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_greeks_third_order" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_greeks_third_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_greeks_third_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::GreeksThirdOrderTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(greeks_third_order_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_ohlc" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::OhlcTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(ohlc_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_open_interest" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_open_interest_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_open_interest_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::OpenInterestTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(open_interest_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_quote" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::QuoteTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(quote_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_trade" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_trade_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_trade_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::TradeTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(trade_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_trade_greeks_all" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_trade_greeks_all_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_trade_greeks_all_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::TradeGreeksAllTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(trade_greeks_all_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_trade_greeks_first_order" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_trade_greeks_first_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_trade_greeks_first_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::TradeGreeksFirstOrderTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(trade_greeks_first_order_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_trade_greeks_implied_volatility" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_trade_greeks_implied_volatility_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_trade_greeks_implied_volatility_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::TradeGreeksImpliedVolatilityTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(trade_greeks_implied_volatility_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_trade_greeks_second_order" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_trade_greeks_second_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_trade_greeks_second_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::TradeGreeksSecondOrderTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(trade_greeks_second_order_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_trade_greeks_third_order" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_trade_greeks_third_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_trade_greeks_third_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::TradeGreeksThirdOrderTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(trade_greeks_third_order_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_history_trade_quote" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_trade_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_trade_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::TradeQuoteTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(trade_quote_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_list_contracts" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_option_contracts_v3(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_option_contracts_v3(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::OptionContract as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(option_contracts_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_greeks_all" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_greeks_all_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_greeks_all_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::GreeksAllTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(greeks_all_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_greeks_first_order" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_greeks_first_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_greeks_first_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::GreeksFirstOrderTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(greeks_first_order_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_greeks_implied_volatility" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_iv_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_iv_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::IvTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(iv_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_greeks_second_order" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_greeks_second_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_greeks_second_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::GreeksSecondOrderTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(greeks_second_order_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_greeks_third_order" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_greeks_third_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_greeks_third_order_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::GreeksThirdOrderTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(greeks_third_order_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_market_value" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_market_value_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_market_value_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::MarketValueTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(market_value_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_ohlc" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::OhlcTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(ohlc_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_open_interest" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_open_interest_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_open_interest_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::OpenInterestTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(open_interest_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_quote" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::QuoteTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(quote_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "option_snapshot_trade" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_trade_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_trade_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::TradeTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(trade_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_at_time_quote" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::QuoteTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(quote_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_at_time_trade" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_trade_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_trade_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::TradeTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(trade_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_history_eod" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_eod_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_eod_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::EodTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(eod_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_history_ohlc" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::OhlcTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(ohlc_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_history_ohlc_range" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::OhlcTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(ohlc_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_history_quote" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::QuoteTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(quote_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_history_trade" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_trade_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_trade_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::TradeTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(trade_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_history_trade_quote" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_trade_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_trade_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::TradeQuoteTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(trade_quote_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_snapshot_market_value" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_market_value_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_market_value_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::MarketValueTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(market_value_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_snapshot_ohlc" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_ohlc_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::OhlcTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(ohlc_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_snapshot_quote" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_quote_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::QuoteTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(quote_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         "stock_snapshot_trade" => {
             let table = decode_chunks_into_table(&refs)?;
-            let ticks = thetadatadx::decode::parse_trade_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let rows = thetadatadx::decode::parse_trade_ticks(&table).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
+            let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+            let columns = <tick::TradeTick as thetadatadx::WireColumns>::present_columns(&header_refs);
+            let ticks = thetadatadx::Ticks::new(rows, columns);
             Ok(trade_ticks_to_pyclass_list(py, ticks)?.into_any())
         }
         other => Err(PyValueError::new_err(format!(

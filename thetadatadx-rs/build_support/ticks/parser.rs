@@ -46,6 +46,7 @@ pub(super) fn generate() -> Result<(), Box<dyn std::error::Error>> {
     for type_name in &type_names {
         let def = &schema.types[*type_name];
         generate_parser(&mut parsers, type_name, def);
+        generate_present_columns(&mut parsers, type_name, def);
     }
 
     let parsers_dest = Path::new(&out_dir).join("decode_generated.rs");
@@ -246,5 +247,74 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     out.push_str("        row_base += rows.len();\n");
     out.push_str("    }\n");
     out.push_str("    Ok(ticks)\n");
+    out.push_str("}\n\n");
+}
+
+/// Emit `impl WireColumns for <Tick>` next to the parser. It resolves the
+/// same schema columns through the same alias-aware `find_header` the
+/// parser uses.
+///
+/// The contract this produces is the response's *physical wire-column set*,
+/// deduplicated by first-claim — NOT the set of struct fields the parser
+/// filled. The two differ: one physical header can feed more than one
+/// struct field (an alias resolves several schema names to the same wire
+/// spelling), and the parser fills every such field from that one column.
+/// Presence, by contrast, counts each physical header once — claimed by the
+/// first schema column (in schema order) that resolves to it — so a field
+/// the parser did fill can still be absent from presence. The EOD `date`
+/// field is exactly that: the wire sends `created`, the parser fills both
+/// `created`-backed fields, but only the exact match (`created` ->
+/// `created_ms_of_day`) claims the header; the aliased `date` column stays
+/// out of the projected frame even though its struct field carries a value.
+///
+/// The set names the public schema *field* (e.g. `condition_flags`,
+/// `expiration`) — the name the Arrow / Polars builders key on — not the
+/// wire spelling the alias table resolves.
+fn generate_present_columns(out: &mut String, type_name: &str, def: &TickTypeDef) {
+    writeln!(out, "impl crate::columns::WireColumns for {type_name} {{").unwrap();
+    out.push_str("    fn present_columns(headers: &[&str]) -> crate::columns::ColumnPresence {\n");
+    out.push_str("        let mut present: Vec<&'static str> = Vec::new();\n");
+    out.push_str("        let mut claimed: Vec<usize> = Vec::new();\n");
+    for col in &def.columns {
+        writeln!(
+            out,
+            "        if let Some(i) = find_header(headers, \"{name}\") {{ if !claimed.contains(&i) {{ claimed.push(i); present.push(\"{field}\"); }} }}",
+            name = col.name,
+            field = col.field,
+        )
+        .unwrap();
+    }
+    // Contract-identity trio: injected under their exact wire names on
+    // wildcard responses, each resolved by exact position (matches the
+    // parser's `_cid_*_idx` lookups). Exact names never collide with the
+    // aliased schema columns above, so no claim check is needed.
+    if def.contract_id {
+        out.push_str(
+            "        if headers.contains(&\"expiration\") { present.push(\"expiration\"); }\n",
+        );
+        out.push_str("        if headers.contains(&\"strike\") { present.push(\"strike\"); }\n");
+        out.push_str("        if headers.contains(&\"right\") { present.push(\"right\"); }\n");
+    }
+    out.push_str("        crate::columns::ColumnPresence::from_names(present)\n");
+    out.push_str("    }\n\n");
+
+    // all_columns(): the full-schema column set (schema columns + the
+    // contract-id trio + the QuoteTick `midpoint` derived tail), matching
+    // the column order the full `to_arrow` / `to_polars` builders emit.
+    out.push_str("    fn all_columns() -> crate::columns::ColumnPresence {\n");
+    out.push_str("        crate::columns::ColumnPresence::from_names([\n");
+    for col in &def.columns {
+        writeln!(out, "            \"{}\",", col.field).unwrap();
+    }
+    if def.contract_id {
+        out.push_str("            \"expiration\",\n");
+        out.push_str("            \"strike\",\n");
+        out.push_str("            \"right\",\n");
+    }
+    if type_name == "QuoteTick" {
+        out.push_str("            \"midpoint\",\n");
+    }
+    out.push_str("        ])\n");
+    out.push_str("    }\n");
     out.push_str("}\n\n");
 }

@@ -8,7 +8,7 @@
 #[cfg(feature = "arrow")]
 use arrow_array::{ArrayRef, BooleanArray, Float64Array, Int32Array, Int64Array, StringArray};
 #[cfg(feature = "arrow")]
-use arrow_array::RecordBatch;
+use arrow_array::{RecordBatch, RecordBatchOptions};
 #[cfg(feature = "arrow")]
 use arrow_schema::{DataType, Field, Schema as ArrowSchema};
 #[cfg(feature = "arrow")]
@@ -51,6 +51,51 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::CalendarDay] {
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `CalendarDay`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_date = present.contains("date");
+        let has_is_open = present.contains("is_open");
+        let has_open_time = present.contains("open_time");
+        let has_close_time = present.contains("close_time");
+        let has_status = present.contains("status");
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_is_open: Vec<bool> = Vec::with_capacity(if has_is_open { n } else { 0 });
+        let mut col_open_time: Vec<i32> = Vec::with_capacity(if has_open_time { n } else { 0 });
+        let mut col_close_time: Vec<i32> = Vec::with_capacity(if has_close_time { n } else { 0 });
+        let mut col_status: Vec<String> = Vec::with_capacity(if has_status { n } else { 0 });
+        for t in self {
+            if has_date { col_date.push(t.date); }
+            if has_is_open { col_is_open.push(t.is_open); }
+            if has_open_time { col_open_time.push(t.open_time); }
+            if has_close_time { col_close_time.push(t.close_time); }
+            if has_status { col_status.push(t.status.as_str().to_string()); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_is_open {
+            fields.push(Field::new("is_open", DataType::Boolean, false));
+            columns.push(Arc::new(BooleanArray::from(col_is_open)) as ArrayRef);
+        }
+        if has_open_time {
+            fields.push(Field::new("open_time", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_open_time)) as ArrayRef);
+        }
+        if has_close_time {
+            fields.push(Field::new("close_time", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_close_time)) as ArrayRef);
+        }
+        if has_status {
+            fields.push(Field::new("status", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(col_status)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -78,6 +123,45 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::CalendarDay] {
             Series::new(PlSmallStr::from_static("close_time"), col_close_time).into(),
             Series::new(PlSmallStr::from_static("status"), col_status).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `CalendarDay`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_date = present.contains("date");
+        let has_is_open = present.contains("is_open");
+        let has_open_time = present.contains("open_time");
+        let has_close_time = present.contains("close_time");
+        let has_status = present.contains("status");
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_is_open: Vec<bool> = Vec::with_capacity(if has_is_open { n } else { 0 });
+        let mut col_open_time: Vec<i32> = Vec::with_capacity(if has_open_time { n } else { 0 });
+        let mut col_close_time: Vec<i32> = Vec::with_capacity(if has_close_time { n } else { 0 });
+        let mut col_status: Vec<String> = Vec::with_capacity(if has_status { n } else { 0 });
+        for t in self {
+            if has_date { col_date.push(t.date); }
+            if has_is_open { col_is_open.push(t.is_open); }
+            if has_open_time { col_open_time.push(t.open_time); }
+            if has_close_time { col_close_time.push(t.close_time); }
+            if has_status { col_status.push(t.status.as_str().to_string()); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_is_open {
+            series.push(Series::new(PlSmallStr::from_static("is_open"), col_is_open).into());
+        }
+        if has_open_time {
+            series.push(Series::new(PlSmallStr::from_static("open_time"), col_open_time).into());
+        }
+        if has_close_time {
+            series.push(Series::new(PlSmallStr::from_static("close_time"), col_close_time).into());
+        }
+        if has_status {
+            series.push(Series::new(PlSmallStr::from_static("status"), col_status).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -175,6 +259,156 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::EodTick] {
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `EodTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_created_ms_of_day = present.contains("created_ms_of_day");
+        let has_last_trade_ms_of_day = present.contains("last_trade_ms_of_day");
+        let has_open = present.contains("open");
+        let has_high = present.contains("high");
+        let has_low = present.contains("low");
+        let has_close = present.contains("close");
+        let has_volume = present.contains("volume");
+        let has_count = present.contains("count");
+        let has_bid_size = present.contains("bid_size");
+        let has_bid_exchange = present.contains("bid_exchange");
+        let has_bid = present.contains("bid");
+        let has_bid_condition = present.contains("bid_condition");
+        let has_ask_size = present.contains("ask_size");
+        let has_ask_exchange = present.contains("ask_exchange");
+        let has_ask = present.contains("ask");
+        let has_ask_condition = present.contains("ask_condition");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_created_ms_of_day: Vec<i32> = Vec::with_capacity(if has_created_ms_of_day { n } else { 0 });
+        let mut col_last_trade_ms_of_day: Vec<i32> = Vec::with_capacity(if has_last_trade_ms_of_day { n } else { 0 });
+        let mut col_open: Vec<f64> = Vec::with_capacity(if has_open { n } else { 0 });
+        let mut col_high: Vec<f64> = Vec::with_capacity(if has_high { n } else { 0 });
+        let mut col_low: Vec<f64> = Vec::with_capacity(if has_low { n } else { 0 });
+        let mut col_close: Vec<f64> = Vec::with_capacity(if has_close { n } else { 0 });
+        let mut col_volume: Vec<i64> = Vec::with_capacity(if has_volume { n } else { 0 });
+        let mut col_count: Vec<i64> = Vec::with_capacity(if has_count { n } else { 0 });
+        let mut col_bid_size: Vec<i32> = Vec::with_capacity(if has_bid_size { n } else { 0 });
+        let mut col_bid_exchange: Vec<i32> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
+        let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
+        let mut col_bid_condition: Vec<i32> = Vec::with_capacity(if has_bid_condition { n } else { 0 });
+        let mut col_ask_size: Vec<i32> = Vec::with_capacity(if has_ask_size { n } else { 0 });
+        let mut col_ask_exchange: Vec<i32> = Vec::with_capacity(if has_ask_exchange { n } else { 0 });
+        let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
+        let mut col_ask_condition: Vec<i32> = Vec::with_capacity(if has_ask_condition { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_created_ms_of_day { col_created_ms_of_day.push(t.created_ms_of_day); }
+            if has_last_trade_ms_of_day { col_last_trade_ms_of_day.push(t.last_trade_ms_of_day); }
+            if has_open { col_open.push(t.open); }
+            if has_high { col_high.push(t.high); }
+            if has_low { col_low.push(t.low); }
+            if has_close { col_close.push(t.close); }
+            if has_volume { col_volume.push(t.volume); }
+            if has_count { col_count.push(t.count); }
+            if has_bid_size { col_bid_size.push(t.bid_size); }
+            if has_bid_exchange { col_bid_exchange.push(t.bid_exchange); }
+            if has_bid { col_bid.push(t.bid); }
+            if has_bid_condition { col_bid_condition.push(t.bid_condition); }
+            if has_ask_size { col_ask_size.push(t.ask_size); }
+            if has_ask_exchange { col_ask_exchange.push(t.ask_exchange); }
+            if has_ask { col_ask.push(t.ask); }
+            if has_ask_condition { col_ask_condition.push(t.ask_condition); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_created_ms_of_day {
+            fields.push(Field::new("created_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_created_ms_of_day)) as ArrayRef);
+        }
+        if has_last_trade_ms_of_day {
+            fields.push(Field::new("last_trade_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_last_trade_ms_of_day)) as ArrayRef);
+        }
+        if has_open {
+            fields.push(Field::new("open", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_open)) as ArrayRef);
+        }
+        if has_high {
+            fields.push(Field::new("high", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_high)) as ArrayRef);
+        }
+        if has_low {
+            fields.push(Field::new("low", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_low)) as ArrayRef);
+        }
+        if has_close {
+            fields.push(Field::new("close", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_close)) as ArrayRef);
+        }
+        if has_volume {
+            fields.push(Field::new("volume", DataType::Int64, false));
+            columns.push(Arc::new(Int64Array::from(col_volume)) as ArrayRef);
+        }
+        if has_count {
+            fields.push(Field::new("count", DataType::Int64, false));
+            columns.push(Arc::new(Int64Array::from(col_count)) as ArrayRef);
+        }
+        if has_bid_size {
+            fields.push(Field::new("bid_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_bid_size)) as ArrayRef);
+        }
+        if has_bid_exchange {
+            fields.push(Field::new("bid_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_bid_exchange)) as ArrayRef);
+        }
+        if has_bid {
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_bid)) as ArrayRef);
+        }
+        if has_bid_condition {
+            fields.push(Field::new("bid_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_bid_condition)) as ArrayRef);
+        }
+        if has_ask_size {
+            fields.push(Field::new("ask_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ask_size)) as ArrayRef);
+        }
+        if has_ask_exchange {
+            fields.push(Field::new("ask_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ask_exchange)) as ArrayRef);
+        }
+        if has_ask {
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_ask)) as ArrayRef);
+        }
+        if has_ask_condition {
+            fields.push(Field::new("ask_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ask_condition)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -247,6 +481,135 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::EodTick] {
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `EodTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_created_ms_of_day = present.contains("created_ms_of_day");
+        let has_last_trade_ms_of_day = present.contains("last_trade_ms_of_day");
+        let has_open = present.contains("open");
+        let has_high = present.contains("high");
+        let has_low = present.contains("low");
+        let has_close = present.contains("close");
+        let has_volume = present.contains("volume");
+        let has_count = present.contains("count");
+        let has_bid_size = present.contains("bid_size");
+        let has_bid_exchange = present.contains("bid_exchange");
+        let has_bid = present.contains("bid");
+        let has_bid_condition = present.contains("bid_condition");
+        let has_ask_size = present.contains("ask_size");
+        let has_ask_exchange = present.contains("ask_exchange");
+        let has_ask = present.contains("ask");
+        let has_ask_condition = present.contains("ask_condition");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_created_ms_of_day: Vec<i32> = Vec::with_capacity(if has_created_ms_of_day { n } else { 0 });
+        let mut col_last_trade_ms_of_day: Vec<i32> = Vec::with_capacity(if has_last_trade_ms_of_day { n } else { 0 });
+        let mut col_open: Vec<f64> = Vec::with_capacity(if has_open { n } else { 0 });
+        let mut col_high: Vec<f64> = Vec::with_capacity(if has_high { n } else { 0 });
+        let mut col_low: Vec<f64> = Vec::with_capacity(if has_low { n } else { 0 });
+        let mut col_close: Vec<f64> = Vec::with_capacity(if has_close { n } else { 0 });
+        let mut col_volume: Vec<i64> = Vec::with_capacity(if has_volume { n } else { 0 });
+        let mut col_count: Vec<i64> = Vec::with_capacity(if has_count { n } else { 0 });
+        let mut col_bid_size: Vec<i32> = Vec::with_capacity(if has_bid_size { n } else { 0 });
+        let mut col_bid_exchange: Vec<i32> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
+        let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
+        let mut col_bid_condition: Vec<i32> = Vec::with_capacity(if has_bid_condition { n } else { 0 });
+        let mut col_ask_size: Vec<i32> = Vec::with_capacity(if has_ask_size { n } else { 0 });
+        let mut col_ask_exchange: Vec<i32> = Vec::with_capacity(if has_ask_exchange { n } else { 0 });
+        let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
+        let mut col_ask_condition: Vec<i32> = Vec::with_capacity(if has_ask_condition { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_created_ms_of_day { col_created_ms_of_day.push(t.created_ms_of_day); }
+            if has_last_trade_ms_of_day { col_last_trade_ms_of_day.push(t.last_trade_ms_of_day); }
+            if has_open { col_open.push(t.open); }
+            if has_high { col_high.push(t.high); }
+            if has_low { col_low.push(t.low); }
+            if has_close { col_close.push(t.close); }
+            if has_volume { col_volume.push(t.volume); }
+            if has_count { col_count.push(t.count); }
+            if has_bid_size { col_bid_size.push(t.bid_size); }
+            if has_bid_exchange { col_bid_exchange.push(t.bid_exchange); }
+            if has_bid { col_bid.push(t.bid); }
+            if has_bid_condition { col_bid_condition.push(t.bid_condition); }
+            if has_ask_size { col_ask_size.push(t.ask_size); }
+            if has_ask_exchange { col_ask_exchange.push(t.ask_exchange); }
+            if has_ask { col_ask.push(t.ask); }
+            if has_ask_condition { col_ask_condition.push(t.ask_condition); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_created_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("created_ms_of_day"), col_created_ms_of_day).into());
+        }
+        if has_last_trade_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("last_trade_ms_of_day"), col_last_trade_ms_of_day).into());
+        }
+        if has_open {
+            series.push(Series::new(PlSmallStr::from_static("open"), col_open).into());
+        }
+        if has_high {
+            series.push(Series::new(PlSmallStr::from_static("high"), col_high).into());
+        }
+        if has_low {
+            series.push(Series::new(PlSmallStr::from_static("low"), col_low).into());
+        }
+        if has_close {
+            series.push(Series::new(PlSmallStr::from_static("close"), col_close).into());
+        }
+        if has_volume {
+            series.push(Series::new(PlSmallStr::from_static("volume"), col_volume).into());
+        }
+        if has_count {
+            series.push(Series::new(PlSmallStr::from_static("count"), col_count).into());
+        }
+        if has_bid_size {
+            series.push(Series::new(PlSmallStr::from_static("bid_size"), col_bid_size).into());
+        }
+        if has_bid_exchange {
+            series.push(Series::new(PlSmallStr::from_static("bid_exchange"), col_bid_exchange).into());
+        }
+        if has_bid {
+            series.push(Series::new(PlSmallStr::from_static("bid"), col_bid).into());
+        }
+        if has_bid_condition {
+            series.push(Series::new(PlSmallStr::from_static("bid_condition"), col_bid_condition).into());
+        }
+        if has_ask_size {
+            series.push(Series::new(PlSmallStr::from_static("ask_size"), col_ask_size).into());
+        }
+        if has_ask_exchange {
+            series.push(Series::new(PlSmallStr::from_static("ask_exchange"), col_ask_exchange).into());
+        }
+        if has_ask {
+            series.push(Series::new(PlSmallStr::from_static("ask"), col_ask).into());
+        }
+        if has_ask_condition {
+            series.push(Series::new(PlSmallStr::from_static("ask_condition"), col_ask_condition).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_expiration {
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
+        }
+        if has_strike {
+            series.push(Series::new(PlSmallStr::from_static("strike"), col_strike).into());
+        }
+        if has_right {
+            series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -388,6 +751,233 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksAllTick] 
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `GreeksAllTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_bid = present.contains("bid");
+        let has_ask = present.contains("ask");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_delta = present.contains("delta");
+        let has_gamma = present.contains("gamma");
+        let has_theta = present.contains("theta");
+        let has_vega = present.contains("vega");
+        let has_rho = present.contains("rho");
+        let has_iv_error = present.contains("iv_error");
+        let has_vanna = present.contains("vanna");
+        let has_charm = present.contains("charm");
+        let has_vomma = present.contains("vomma");
+        let has_veta = present.contains("veta");
+        let has_speed = present.contains("speed");
+        let has_zomma = present.contains("zomma");
+        let has_color = present.contains("color");
+        let has_ultima = present.contains("ultima");
+        let has_d1 = present.contains("d1");
+        let has_d2 = present.contains("d2");
+        let has_dual_delta = present.contains("dual_delta");
+        let has_dual_gamma = present.contains("dual_gamma");
+        let has_epsilon = present.contains("epsilon");
+        let has_lambda = present.contains("lambda");
+        let has_vera = present.contains("vera");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
+        let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_delta: Vec<f64> = Vec::with_capacity(if has_delta { n } else { 0 });
+        let mut col_gamma: Vec<f64> = Vec::with_capacity(if has_gamma { n } else { 0 });
+        let mut col_theta: Vec<f64> = Vec::with_capacity(if has_theta { n } else { 0 });
+        let mut col_vega: Vec<f64> = Vec::with_capacity(if has_vega { n } else { 0 });
+        let mut col_rho: Vec<f64> = Vec::with_capacity(if has_rho { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_vanna: Vec<f64> = Vec::with_capacity(if has_vanna { n } else { 0 });
+        let mut col_charm: Vec<f64> = Vec::with_capacity(if has_charm { n } else { 0 });
+        let mut col_vomma: Vec<f64> = Vec::with_capacity(if has_vomma { n } else { 0 });
+        let mut col_veta: Vec<f64> = Vec::with_capacity(if has_veta { n } else { 0 });
+        let mut col_speed: Vec<f64> = Vec::with_capacity(if has_speed { n } else { 0 });
+        let mut col_zomma: Vec<f64> = Vec::with_capacity(if has_zomma { n } else { 0 });
+        let mut col_color: Vec<f64> = Vec::with_capacity(if has_color { n } else { 0 });
+        let mut col_ultima: Vec<f64> = Vec::with_capacity(if has_ultima { n } else { 0 });
+        let mut col_d1: Vec<f64> = Vec::with_capacity(if has_d1 { n } else { 0 });
+        let mut col_d2: Vec<f64> = Vec::with_capacity(if has_d2 { n } else { 0 });
+        let mut col_dual_delta: Vec<f64> = Vec::with_capacity(if has_dual_delta { n } else { 0 });
+        let mut col_dual_gamma: Vec<f64> = Vec::with_capacity(if has_dual_gamma { n } else { 0 });
+        let mut col_epsilon: Vec<f64> = Vec::with_capacity(if has_epsilon { n } else { 0 });
+        let mut col_lambda: Vec<f64> = Vec::with_capacity(if has_lambda { n } else { 0 });
+        let mut col_vera: Vec<f64> = Vec::with_capacity(if has_vera { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_bid { col_bid.push(t.bid); }
+            if has_ask { col_ask.push(t.ask); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_delta { col_delta.push(t.delta); }
+            if has_gamma { col_gamma.push(t.gamma); }
+            if has_theta { col_theta.push(t.theta); }
+            if has_vega { col_vega.push(t.vega); }
+            if has_rho { col_rho.push(t.rho); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_vanna { col_vanna.push(t.vanna); }
+            if has_charm { col_charm.push(t.charm); }
+            if has_vomma { col_vomma.push(t.vomma); }
+            if has_veta { col_veta.push(t.veta); }
+            if has_speed { col_speed.push(t.speed); }
+            if has_zomma { col_zomma.push(t.zomma); }
+            if has_color { col_color.push(t.color); }
+            if has_ultima { col_ultima.push(t.ultima); }
+            if has_d1 { col_d1.push(t.d1); }
+            if has_d2 { col_d2.push(t.d2); }
+            if has_dual_delta { col_dual_delta.push(t.dual_delta); }
+            if has_dual_gamma { col_dual_gamma.push(t.dual_gamma); }
+            if has_epsilon { col_epsilon.push(t.epsilon); }
+            if has_lambda { col_lambda.push(t.lambda); }
+            if has_vera { col_vera.push(t.vera); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_ms_of_day {
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
+        }
+        if has_bid {
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_bid)) as ArrayRef);
+        }
+        if has_ask {
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_ask)) as ArrayRef);
+        }
+        if has_implied_volatility {
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef);
+        }
+        if has_delta {
+            fields.push(Field::new("delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_delta)) as ArrayRef);
+        }
+        if has_gamma {
+            fields.push(Field::new("gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_gamma)) as ArrayRef);
+        }
+        if has_theta {
+            fields.push(Field::new("theta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_theta)) as ArrayRef);
+        }
+        if has_vega {
+            fields.push(Field::new("vega", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_vega)) as ArrayRef);
+        }
+        if has_rho {
+            fields.push(Field::new("rho", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_rho)) as ArrayRef);
+        }
+        if has_iv_error {
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_iv_error)) as ArrayRef);
+        }
+        if has_vanna {
+            fields.push(Field::new("vanna", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_vanna)) as ArrayRef);
+        }
+        if has_charm {
+            fields.push(Field::new("charm", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_charm)) as ArrayRef);
+        }
+        if has_vomma {
+            fields.push(Field::new("vomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_vomma)) as ArrayRef);
+        }
+        if has_veta {
+            fields.push(Field::new("veta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_veta)) as ArrayRef);
+        }
+        if has_speed {
+            fields.push(Field::new("speed", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_speed)) as ArrayRef);
+        }
+        if has_zomma {
+            fields.push(Field::new("zomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_zomma)) as ArrayRef);
+        }
+        if has_color {
+            fields.push(Field::new("color", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_color)) as ArrayRef);
+        }
+        if has_ultima {
+            fields.push(Field::new("ultima", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_ultima)) as ArrayRef);
+        }
+        if has_d1 {
+            fields.push(Field::new("d1", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_d1)) as ArrayRef);
+        }
+        if has_d2 {
+            fields.push(Field::new("d2", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_d2)) as ArrayRef);
+        }
+        if has_dual_delta {
+            fields.push(Field::new("dual_delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_dual_delta)) as ArrayRef);
+        }
+        if has_dual_gamma {
+            fields.push(Field::new("dual_gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_dual_gamma)) as ArrayRef);
+        }
+        if has_epsilon {
+            fields.push(Field::new("epsilon", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_epsilon)) as ArrayRef);
+        }
+        if has_lambda {
+            fields.push(Field::new("lambda", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_lambda)) as ArrayRef);
+        }
+        if has_vera {
+            fields.push(Field::new("vera", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_vera)) as ArrayRef);
+        }
+        if has_underlying_ms_of_day {
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef);
+        }
+        if has_underlying_price {
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -493,6 +1083,201 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksAllTick]
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `GreeksAllTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_bid = present.contains("bid");
+        let has_ask = present.contains("ask");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_delta = present.contains("delta");
+        let has_gamma = present.contains("gamma");
+        let has_theta = present.contains("theta");
+        let has_vega = present.contains("vega");
+        let has_rho = present.contains("rho");
+        let has_iv_error = present.contains("iv_error");
+        let has_vanna = present.contains("vanna");
+        let has_charm = present.contains("charm");
+        let has_vomma = present.contains("vomma");
+        let has_veta = present.contains("veta");
+        let has_speed = present.contains("speed");
+        let has_zomma = present.contains("zomma");
+        let has_color = present.contains("color");
+        let has_ultima = present.contains("ultima");
+        let has_d1 = present.contains("d1");
+        let has_d2 = present.contains("d2");
+        let has_dual_delta = present.contains("dual_delta");
+        let has_dual_gamma = present.contains("dual_gamma");
+        let has_epsilon = present.contains("epsilon");
+        let has_lambda = present.contains("lambda");
+        let has_vera = present.contains("vera");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
+        let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_delta: Vec<f64> = Vec::with_capacity(if has_delta { n } else { 0 });
+        let mut col_gamma: Vec<f64> = Vec::with_capacity(if has_gamma { n } else { 0 });
+        let mut col_theta: Vec<f64> = Vec::with_capacity(if has_theta { n } else { 0 });
+        let mut col_vega: Vec<f64> = Vec::with_capacity(if has_vega { n } else { 0 });
+        let mut col_rho: Vec<f64> = Vec::with_capacity(if has_rho { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_vanna: Vec<f64> = Vec::with_capacity(if has_vanna { n } else { 0 });
+        let mut col_charm: Vec<f64> = Vec::with_capacity(if has_charm { n } else { 0 });
+        let mut col_vomma: Vec<f64> = Vec::with_capacity(if has_vomma { n } else { 0 });
+        let mut col_veta: Vec<f64> = Vec::with_capacity(if has_veta { n } else { 0 });
+        let mut col_speed: Vec<f64> = Vec::with_capacity(if has_speed { n } else { 0 });
+        let mut col_zomma: Vec<f64> = Vec::with_capacity(if has_zomma { n } else { 0 });
+        let mut col_color: Vec<f64> = Vec::with_capacity(if has_color { n } else { 0 });
+        let mut col_ultima: Vec<f64> = Vec::with_capacity(if has_ultima { n } else { 0 });
+        let mut col_d1: Vec<f64> = Vec::with_capacity(if has_d1 { n } else { 0 });
+        let mut col_d2: Vec<f64> = Vec::with_capacity(if has_d2 { n } else { 0 });
+        let mut col_dual_delta: Vec<f64> = Vec::with_capacity(if has_dual_delta { n } else { 0 });
+        let mut col_dual_gamma: Vec<f64> = Vec::with_capacity(if has_dual_gamma { n } else { 0 });
+        let mut col_epsilon: Vec<f64> = Vec::with_capacity(if has_epsilon { n } else { 0 });
+        let mut col_lambda: Vec<f64> = Vec::with_capacity(if has_lambda { n } else { 0 });
+        let mut col_vera: Vec<f64> = Vec::with_capacity(if has_vera { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_bid { col_bid.push(t.bid); }
+            if has_ask { col_ask.push(t.ask); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_delta { col_delta.push(t.delta); }
+            if has_gamma { col_gamma.push(t.gamma); }
+            if has_theta { col_theta.push(t.theta); }
+            if has_vega { col_vega.push(t.vega); }
+            if has_rho { col_rho.push(t.rho); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_vanna { col_vanna.push(t.vanna); }
+            if has_charm { col_charm.push(t.charm); }
+            if has_vomma { col_vomma.push(t.vomma); }
+            if has_veta { col_veta.push(t.veta); }
+            if has_speed { col_speed.push(t.speed); }
+            if has_zomma { col_zomma.push(t.zomma); }
+            if has_color { col_color.push(t.color); }
+            if has_ultima { col_ultima.push(t.ultima); }
+            if has_d1 { col_d1.push(t.d1); }
+            if has_d2 { col_d2.push(t.d2); }
+            if has_dual_delta { col_dual_delta.push(t.dual_delta); }
+            if has_dual_gamma { col_dual_gamma.push(t.dual_gamma); }
+            if has_epsilon { col_epsilon.push(t.epsilon); }
+            if has_lambda { col_lambda.push(t.lambda); }
+            if has_vera { col_vera.push(t.vera); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into());
+        }
+        if has_bid {
+            series.push(Series::new(PlSmallStr::from_static("bid"), col_bid).into());
+        }
+        if has_ask {
+            series.push(Series::new(PlSmallStr::from_static("ask"), col_ask).into());
+        }
+        if has_implied_volatility {
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col_implied_volatility).into());
+        }
+        if has_delta {
+            series.push(Series::new(PlSmallStr::from_static("delta"), col_delta).into());
+        }
+        if has_gamma {
+            series.push(Series::new(PlSmallStr::from_static("gamma"), col_gamma).into());
+        }
+        if has_theta {
+            series.push(Series::new(PlSmallStr::from_static("theta"), col_theta).into());
+        }
+        if has_vega {
+            series.push(Series::new(PlSmallStr::from_static("vega"), col_vega).into());
+        }
+        if has_rho {
+            series.push(Series::new(PlSmallStr::from_static("rho"), col_rho).into());
+        }
+        if has_iv_error {
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col_iv_error).into());
+        }
+        if has_vanna {
+            series.push(Series::new(PlSmallStr::from_static("vanna"), col_vanna).into());
+        }
+        if has_charm {
+            series.push(Series::new(PlSmallStr::from_static("charm"), col_charm).into());
+        }
+        if has_vomma {
+            series.push(Series::new(PlSmallStr::from_static("vomma"), col_vomma).into());
+        }
+        if has_veta {
+            series.push(Series::new(PlSmallStr::from_static("veta"), col_veta).into());
+        }
+        if has_speed {
+            series.push(Series::new(PlSmallStr::from_static("speed"), col_speed).into());
+        }
+        if has_zomma {
+            series.push(Series::new(PlSmallStr::from_static("zomma"), col_zomma).into());
+        }
+        if has_color {
+            series.push(Series::new(PlSmallStr::from_static("color"), col_color).into());
+        }
+        if has_ultima {
+            series.push(Series::new(PlSmallStr::from_static("ultima"), col_ultima).into());
+        }
+        if has_d1 {
+            series.push(Series::new(PlSmallStr::from_static("d1"), col_d1).into());
+        }
+        if has_d2 {
+            series.push(Series::new(PlSmallStr::from_static("d2"), col_d2).into());
+        }
+        if has_dual_delta {
+            series.push(Series::new(PlSmallStr::from_static("dual_delta"), col_dual_delta).into());
+        }
+        if has_dual_gamma {
+            series.push(Series::new(PlSmallStr::from_static("dual_gamma"), col_dual_gamma).into());
+        }
+        if has_epsilon {
+            series.push(Series::new(PlSmallStr::from_static("epsilon"), col_epsilon).into());
+        }
+        if has_lambda {
+            series.push(Series::new(PlSmallStr::from_static("lambda"), col_lambda).into());
+        }
+        if has_vera {
+            series.push(Series::new(PlSmallStr::from_static("vera"), col_vera).into());
+        }
+        if has_underlying_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into());
+        }
+        if has_underlying_price {
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_expiration {
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
+        }
+        if has_strike {
+            series.push(Series::new(PlSmallStr::from_static("strike"), col_strike).into());
+        }
+        if has_right {
+            series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -682,6 +1467,317 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksEodTick] 
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `GreeksEodTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_open = present.contains("open");
+        let has_high = present.contains("high");
+        let has_low = present.contains("low");
+        let has_close = present.contains("close");
+        let has_volume = present.contains("volume");
+        let has_count = present.contains("count");
+        let has_bid_size = present.contains("bid_size");
+        let has_bid_exchange = present.contains("bid_exchange");
+        let has_bid = present.contains("bid");
+        let has_bid_condition = present.contains("bid_condition");
+        let has_ask_size = present.contains("ask_size");
+        let has_ask_exchange = present.contains("ask_exchange");
+        let has_ask = present.contains("ask");
+        let has_ask_condition = present.contains("ask_condition");
+        let has_delta = present.contains("delta");
+        let has_theta = present.contains("theta");
+        let has_vega = present.contains("vega");
+        let has_rho = present.contains("rho");
+        let has_epsilon = present.contains("epsilon");
+        let has_lambda = present.contains("lambda");
+        let has_gamma = present.contains("gamma");
+        let has_vanna = present.contains("vanna");
+        let has_charm = present.contains("charm");
+        let has_vomma = present.contains("vomma");
+        let has_veta = present.contains("veta");
+        let has_vera = present.contains("vera");
+        let has_speed = present.contains("speed");
+        let has_zomma = present.contains("zomma");
+        let has_color = present.contains("color");
+        let has_ultima = present.contains("ultima");
+        let has_d1 = present.contains("d1");
+        let has_d2 = present.contains("d2");
+        let has_dual_delta = present.contains("dual_delta");
+        let has_dual_gamma = present.contains("dual_gamma");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_open: Vec<f64> = Vec::with_capacity(if has_open { n } else { 0 });
+        let mut col_high: Vec<f64> = Vec::with_capacity(if has_high { n } else { 0 });
+        let mut col_low: Vec<f64> = Vec::with_capacity(if has_low { n } else { 0 });
+        let mut col_close: Vec<f64> = Vec::with_capacity(if has_close { n } else { 0 });
+        let mut col_volume: Vec<i64> = Vec::with_capacity(if has_volume { n } else { 0 });
+        let mut col_count: Vec<i64> = Vec::with_capacity(if has_count { n } else { 0 });
+        let mut col_bid_size: Vec<i32> = Vec::with_capacity(if has_bid_size { n } else { 0 });
+        let mut col_bid_exchange: Vec<i32> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
+        let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
+        let mut col_bid_condition: Vec<i32> = Vec::with_capacity(if has_bid_condition { n } else { 0 });
+        let mut col_ask_size: Vec<i32> = Vec::with_capacity(if has_ask_size { n } else { 0 });
+        let mut col_ask_exchange: Vec<i32> = Vec::with_capacity(if has_ask_exchange { n } else { 0 });
+        let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
+        let mut col_ask_condition: Vec<i32> = Vec::with_capacity(if has_ask_condition { n } else { 0 });
+        let mut col_delta: Vec<f64> = Vec::with_capacity(if has_delta { n } else { 0 });
+        let mut col_theta: Vec<f64> = Vec::with_capacity(if has_theta { n } else { 0 });
+        let mut col_vega: Vec<f64> = Vec::with_capacity(if has_vega { n } else { 0 });
+        let mut col_rho: Vec<f64> = Vec::with_capacity(if has_rho { n } else { 0 });
+        let mut col_epsilon: Vec<f64> = Vec::with_capacity(if has_epsilon { n } else { 0 });
+        let mut col_lambda: Vec<f64> = Vec::with_capacity(if has_lambda { n } else { 0 });
+        let mut col_gamma: Vec<f64> = Vec::with_capacity(if has_gamma { n } else { 0 });
+        let mut col_vanna: Vec<f64> = Vec::with_capacity(if has_vanna { n } else { 0 });
+        let mut col_charm: Vec<f64> = Vec::with_capacity(if has_charm { n } else { 0 });
+        let mut col_vomma: Vec<f64> = Vec::with_capacity(if has_vomma { n } else { 0 });
+        let mut col_veta: Vec<f64> = Vec::with_capacity(if has_veta { n } else { 0 });
+        let mut col_vera: Vec<f64> = Vec::with_capacity(if has_vera { n } else { 0 });
+        let mut col_speed: Vec<f64> = Vec::with_capacity(if has_speed { n } else { 0 });
+        let mut col_zomma: Vec<f64> = Vec::with_capacity(if has_zomma { n } else { 0 });
+        let mut col_color: Vec<f64> = Vec::with_capacity(if has_color { n } else { 0 });
+        let mut col_ultima: Vec<f64> = Vec::with_capacity(if has_ultima { n } else { 0 });
+        let mut col_d1: Vec<f64> = Vec::with_capacity(if has_d1 { n } else { 0 });
+        let mut col_d2: Vec<f64> = Vec::with_capacity(if has_d2 { n } else { 0 });
+        let mut col_dual_delta: Vec<f64> = Vec::with_capacity(if has_dual_delta { n } else { 0 });
+        let mut col_dual_gamma: Vec<f64> = Vec::with_capacity(if has_dual_gamma { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_open { col_open.push(t.open); }
+            if has_high { col_high.push(t.high); }
+            if has_low { col_low.push(t.low); }
+            if has_close { col_close.push(t.close); }
+            if has_volume { col_volume.push(t.volume); }
+            if has_count { col_count.push(t.count); }
+            if has_bid_size { col_bid_size.push(t.bid_size); }
+            if has_bid_exchange { col_bid_exchange.push(t.bid_exchange); }
+            if has_bid { col_bid.push(t.bid); }
+            if has_bid_condition { col_bid_condition.push(t.bid_condition); }
+            if has_ask_size { col_ask_size.push(t.ask_size); }
+            if has_ask_exchange { col_ask_exchange.push(t.ask_exchange); }
+            if has_ask { col_ask.push(t.ask); }
+            if has_ask_condition { col_ask_condition.push(t.ask_condition); }
+            if has_delta { col_delta.push(t.delta); }
+            if has_theta { col_theta.push(t.theta); }
+            if has_vega { col_vega.push(t.vega); }
+            if has_rho { col_rho.push(t.rho); }
+            if has_epsilon { col_epsilon.push(t.epsilon); }
+            if has_lambda { col_lambda.push(t.lambda); }
+            if has_gamma { col_gamma.push(t.gamma); }
+            if has_vanna { col_vanna.push(t.vanna); }
+            if has_charm { col_charm.push(t.charm); }
+            if has_vomma { col_vomma.push(t.vomma); }
+            if has_veta { col_veta.push(t.veta); }
+            if has_vera { col_vera.push(t.vera); }
+            if has_speed { col_speed.push(t.speed); }
+            if has_zomma { col_zomma.push(t.zomma); }
+            if has_color { col_color.push(t.color); }
+            if has_ultima { col_ultima.push(t.ultima); }
+            if has_d1 { col_d1.push(t.d1); }
+            if has_d2 { col_d2.push(t.d2); }
+            if has_dual_delta { col_dual_delta.push(t.dual_delta); }
+            if has_dual_gamma { col_dual_gamma.push(t.dual_gamma); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_ms_of_day {
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
+        }
+        if has_open {
+            fields.push(Field::new("open", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_open)) as ArrayRef);
+        }
+        if has_high {
+            fields.push(Field::new("high", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_high)) as ArrayRef);
+        }
+        if has_low {
+            fields.push(Field::new("low", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_low)) as ArrayRef);
+        }
+        if has_close {
+            fields.push(Field::new("close", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_close)) as ArrayRef);
+        }
+        if has_volume {
+            fields.push(Field::new("volume", DataType::Int64, false));
+            columns.push(Arc::new(Int64Array::from(col_volume)) as ArrayRef);
+        }
+        if has_count {
+            fields.push(Field::new("count", DataType::Int64, false));
+            columns.push(Arc::new(Int64Array::from(col_count)) as ArrayRef);
+        }
+        if has_bid_size {
+            fields.push(Field::new("bid_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_bid_size)) as ArrayRef);
+        }
+        if has_bid_exchange {
+            fields.push(Field::new("bid_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_bid_exchange)) as ArrayRef);
+        }
+        if has_bid {
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_bid)) as ArrayRef);
+        }
+        if has_bid_condition {
+            fields.push(Field::new("bid_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_bid_condition)) as ArrayRef);
+        }
+        if has_ask_size {
+            fields.push(Field::new("ask_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ask_size)) as ArrayRef);
+        }
+        if has_ask_exchange {
+            fields.push(Field::new("ask_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ask_exchange)) as ArrayRef);
+        }
+        if has_ask {
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_ask)) as ArrayRef);
+        }
+        if has_ask_condition {
+            fields.push(Field::new("ask_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ask_condition)) as ArrayRef);
+        }
+        if has_delta {
+            fields.push(Field::new("delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_delta)) as ArrayRef);
+        }
+        if has_theta {
+            fields.push(Field::new("theta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_theta)) as ArrayRef);
+        }
+        if has_vega {
+            fields.push(Field::new("vega", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_vega)) as ArrayRef);
+        }
+        if has_rho {
+            fields.push(Field::new("rho", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_rho)) as ArrayRef);
+        }
+        if has_epsilon {
+            fields.push(Field::new("epsilon", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_epsilon)) as ArrayRef);
+        }
+        if has_lambda {
+            fields.push(Field::new("lambda", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_lambda)) as ArrayRef);
+        }
+        if has_gamma {
+            fields.push(Field::new("gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_gamma)) as ArrayRef);
+        }
+        if has_vanna {
+            fields.push(Field::new("vanna", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_vanna)) as ArrayRef);
+        }
+        if has_charm {
+            fields.push(Field::new("charm", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_charm)) as ArrayRef);
+        }
+        if has_vomma {
+            fields.push(Field::new("vomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_vomma)) as ArrayRef);
+        }
+        if has_veta {
+            fields.push(Field::new("veta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_veta)) as ArrayRef);
+        }
+        if has_vera {
+            fields.push(Field::new("vera", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_vera)) as ArrayRef);
+        }
+        if has_speed {
+            fields.push(Field::new("speed", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_speed)) as ArrayRef);
+        }
+        if has_zomma {
+            fields.push(Field::new("zomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_zomma)) as ArrayRef);
+        }
+        if has_color {
+            fields.push(Field::new("color", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_color)) as ArrayRef);
+        }
+        if has_ultima {
+            fields.push(Field::new("ultima", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_ultima)) as ArrayRef);
+        }
+        if has_d1 {
+            fields.push(Field::new("d1", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_d1)) as ArrayRef);
+        }
+        if has_d2 {
+            fields.push(Field::new("d2", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_d2)) as ArrayRef);
+        }
+        if has_dual_delta {
+            fields.push(Field::new("dual_delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_dual_delta)) as ArrayRef);
+        }
+        if has_dual_gamma {
+            fields.push(Field::new("dual_gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_dual_gamma)) as ArrayRef);
+        }
+        if has_implied_volatility {
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef);
+        }
+        if has_iv_error {
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_iv_error)) as ArrayRef);
+        }
+        if has_underlying_ms_of_day {
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef);
+        }
+        if has_underlying_price {
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -824,6 +1920,273 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksEodTick]
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
     }
+
+    /// Builds a Polars `DataFrame` from a slice of `GreeksEodTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_open = present.contains("open");
+        let has_high = present.contains("high");
+        let has_low = present.contains("low");
+        let has_close = present.contains("close");
+        let has_volume = present.contains("volume");
+        let has_count = present.contains("count");
+        let has_bid_size = present.contains("bid_size");
+        let has_bid_exchange = present.contains("bid_exchange");
+        let has_bid = present.contains("bid");
+        let has_bid_condition = present.contains("bid_condition");
+        let has_ask_size = present.contains("ask_size");
+        let has_ask_exchange = present.contains("ask_exchange");
+        let has_ask = present.contains("ask");
+        let has_ask_condition = present.contains("ask_condition");
+        let has_delta = present.contains("delta");
+        let has_theta = present.contains("theta");
+        let has_vega = present.contains("vega");
+        let has_rho = present.contains("rho");
+        let has_epsilon = present.contains("epsilon");
+        let has_lambda = present.contains("lambda");
+        let has_gamma = present.contains("gamma");
+        let has_vanna = present.contains("vanna");
+        let has_charm = present.contains("charm");
+        let has_vomma = present.contains("vomma");
+        let has_veta = present.contains("veta");
+        let has_vera = present.contains("vera");
+        let has_speed = present.contains("speed");
+        let has_zomma = present.contains("zomma");
+        let has_color = present.contains("color");
+        let has_ultima = present.contains("ultima");
+        let has_d1 = present.contains("d1");
+        let has_d2 = present.contains("d2");
+        let has_dual_delta = present.contains("dual_delta");
+        let has_dual_gamma = present.contains("dual_gamma");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_open: Vec<f64> = Vec::with_capacity(if has_open { n } else { 0 });
+        let mut col_high: Vec<f64> = Vec::with_capacity(if has_high { n } else { 0 });
+        let mut col_low: Vec<f64> = Vec::with_capacity(if has_low { n } else { 0 });
+        let mut col_close: Vec<f64> = Vec::with_capacity(if has_close { n } else { 0 });
+        let mut col_volume: Vec<i64> = Vec::with_capacity(if has_volume { n } else { 0 });
+        let mut col_count: Vec<i64> = Vec::with_capacity(if has_count { n } else { 0 });
+        let mut col_bid_size: Vec<i32> = Vec::with_capacity(if has_bid_size { n } else { 0 });
+        let mut col_bid_exchange: Vec<i32> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
+        let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
+        let mut col_bid_condition: Vec<i32> = Vec::with_capacity(if has_bid_condition { n } else { 0 });
+        let mut col_ask_size: Vec<i32> = Vec::with_capacity(if has_ask_size { n } else { 0 });
+        let mut col_ask_exchange: Vec<i32> = Vec::with_capacity(if has_ask_exchange { n } else { 0 });
+        let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
+        let mut col_ask_condition: Vec<i32> = Vec::with_capacity(if has_ask_condition { n } else { 0 });
+        let mut col_delta: Vec<f64> = Vec::with_capacity(if has_delta { n } else { 0 });
+        let mut col_theta: Vec<f64> = Vec::with_capacity(if has_theta { n } else { 0 });
+        let mut col_vega: Vec<f64> = Vec::with_capacity(if has_vega { n } else { 0 });
+        let mut col_rho: Vec<f64> = Vec::with_capacity(if has_rho { n } else { 0 });
+        let mut col_epsilon: Vec<f64> = Vec::with_capacity(if has_epsilon { n } else { 0 });
+        let mut col_lambda: Vec<f64> = Vec::with_capacity(if has_lambda { n } else { 0 });
+        let mut col_gamma: Vec<f64> = Vec::with_capacity(if has_gamma { n } else { 0 });
+        let mut col_vanna: Vec<f64> = Vec::with_capacity(if has_vanna { n } else { 0 });
+        let mut col_charm: Vec<f64> = Vec::with_capacity(if has_charm { n } else { 0 });
+        let mut col_vomma: Vec<f64> = Vec::with_capacity(if has_vomma { n } else { 0 });
+        let mut col_veta: Vec<f64> = Vec::with_capacity(if has_veta { n } else { 0 });
+        let mut col_vera: Vec<f64> = Vec::with_capacity(if has_vera { n } else { 0 });
+        let mut col_speed: Vec<f64> = Vec::with_capacity(if has_speed { n } else { 0 });
+        let mut col_zomma: Vec<f64> = Vec::with_capacity(if has_zomma { n } else { 0 });
+        let mut col_color: Vec<f64> = Vec::with_capacity(if has_color { n } else { 0 });
+        let mut col_ultima: Vec<f64> = Vec::with_capacity(if has_ultima { n } else { 0 });
+        let mut col_d1: Vec<f64> = Vec::with_capacity(if has_d1 { n } else { 0 });
+        let mut col_d2: Vec<f64> = Vec::with_capacity(if has_d2 { n } else { 0 });
+        let mut col_dual_delta: Vec<f64> = Vec::with_capacity(if has_dual_delta { n } else { 0 });
+        let mut col_dual_gamma: Vec<f64> = Vec::with_capacity(if has_dual_gamma { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_open { col_open.push(t.open); }
+            if has_high { col_high.push(t.high); }
+            if has_low { col_low.push(t.low); }
+            if has_close { col_close.push(t.close); }
+            if has_volume { col_volume.push(t.volume); }
+            if has_count { col_count.push(t.count); }
+            if has_bid_size { col_bid_size.push(t.bid_size); }
+            if has_bid_exchange { col_bid_exchange.push(t.bid_exchange); }
+            if has_bid { col_bid.push(t.bid); }
+            if has_bid_condition { col_bid_condition.push(t.bid_condition); }
+            if has_ask_size { col_ask_size.push(t.ask_size); }
+            if has_ask_exchange { col_ask_exchange.push(t.ask_exchange); }
+            if has_ask { col_ask.push(t.ask); }
+            if has_ask_condition { col_ask_condition.push(t.ask_condition); }
+            if has_delta { col_delta.push(t.delta); }
+            if has_theta { col_theta.push(t.theta); }
+            if has_vega { col_vega.push(t.vega); }
+            if has_rho { col_rho.push(t.rho); }
+            if has_epsilon { col_epsilon.push(t.epsilon); }
+            if has_lambda { col_lambda.push(t.lambda); }
+            if has_gamma { col_gamma.push(t.gamma); }
+            if has_vanna { col_vanna.push(t.vanna); }
+            if has_charm { col_charm.push(t.charm); }
+            if has_vomma { col_vomma.push(t.vomma); }
+            if has_veta { col_veta.push(t.veta); }
+            if has_vera { col_vera.push(t.vera); }
+            if has_speed { col_speed.push(t.speed); }
+            if has_zomma { col_zomma.push(t.zomma); }
+            if has_color { col_color.push(t.color); }
+            if has_ultima { col_ultima.push(t.ultima); }
+            if has_d1 { col_d1.push(t.d1); }
+            if has_d2 { col_d2.push(t.d2); }
+            if has_dual_delta { col_dual_delta.push(t.dual_delta); }
+            if has_dual_gamma { col_dual_gamma.push(t.dual_gamma); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into());
+        }
+        if has_open {
+            series.push(Series::new(PlSmallStr::from_static("open"), col_open).into());
+        }
+        if has_high {
+            series.push(Series::new(PlSmallStr::from_static("high"), col_high).into());
+        }
+        if has_low {
+            series.push(Series::new(PlSmallStr::from_static("low"), col_low).into());
+        }
+        if has_close {
+            series.push(Series::new(PlSmallStr::from_static("close"), col_close).into());
+        }
+        if has_volume {
+            series.push(Series::new(PlSmallStr::from_static("volume"), col_volume).into());
+        }
+        if has_count {
+            series.push(Series::new(PlSmallStr::from_static("count"), col_count).into());
+        }
+        if has_bid_size {
+            series.push(Series::new(PlSmallStr::from_static("bid_size"), col_bid_size).into());
+        }
+        if has_bid_exchange {
+            series.push(Series::new(PlSmallStr::from_static("bid_exchange"), col_bid_exchange).into());
+        }
+        if has_bid {
+            series.push(Series::new(PlSmallStr::from_static("bid"), col_bid).into());
+        }
+        if has_bid_condition {
+            series.push(Series::new(PlSmallStr::from_static("bid_condition"), col_bid_condition).into());
+        }
+        if has_ask_size {
+            series.push(Series::new(PlSmallStr::from_static("ask_size"), col_ask_size).into());
+        }
+        if has_ask_exchange {
+            series.push(Series::new(PlSmallStr::from_static("ask_exchange"), col_ask_exchange).into());
+        }
+        if has_ask {
+            series.push(Series::new(PlSmallStr::from_static("ask"), col_ask).into());
+        }
+        if has_ask_condition {
+            series.push(Series::new(PlSmallStr::from_static("ask_condition"), col_ask_condition).into());
+        }
+        if has_delta {
+            series.push(Series::new(PlSmallStr::from_static("delta"), col_delta).into());
+        }
+        if has_theta {
+            series.push(Series::new(PlSmallStr::from_static("theta"), col_theta).into());
+        }
+        if has_vega {
+            series.push(Series::new(PlSmallStr::from_static("vega"), col_vega).into());
+        }
+        if has_rho {
+            series.push(Series::new(PlSmallStr::from_static("rho"), col_rho).into());
+        }
+        if has_epsilon {
+            series.push(Series::new(PlSmallStr::from_static("epsilon"), col_epsilon).into());
+        }
+        if has_lambda {
+            series.push(Series::new(PlSmallStr::from_static("lambda"), col_lambda).into());
+        }
+        if has_gamma {
+            series.push(Series::new(PlSmallStr::from_static("gamma"), col_gamma).into());
+        }
+        if has_vanna {
+            series.push(Series::new(PlSmallStr::from_static("vanna"), col_vanna).into());
+        }
+        if has_charm {
+            series.push(Series::new(PlSmallStr::from_static("charm"), col_charm).into());
+        }
+        if has_vomma {
+            series.push(Series::new(PlSmallStr::from_static("vomma"), col_vomma).into());
+        }
+        if has_veta {
+            series.push(Series::new(PlSmallStr::from_static("veta"), col_veta).into());
+        }
+        if has_vera {
+            series.push(Series::new(PlSmallStr::from_static("vera"), col_vera).into());
+        }
+        if has_speed {
+            series.push(Series::new(PlSmallStr::from_static("speed"), col_speed).into());
+        }
+        if has_zomma {
+            series.push(Series::new(PlSmallStr::from_static("zomma"), col_zomma).into());
+        }
+        if has_color {
+            series.push(Series::new(PlSmallStr::from_static("color"), col_color).into());
+        }
+        if has_ultima {
+            series.push(Series::new(PlSmallStr::from_static("ultima"), col_ultima).into());
+        }
+        if has_d1 {
+            series.push(Series::new(PlSmallStr::from_static("d1"), col_d1).into());
+        }
+        if has_d2 {
+            series.push(Series::new(PlSmallStr::from_static("d2"), col_d2).into());
+        }
+        if has_dual_delta {
+            series.push(Series::new(PlSmallStr::from_static("dual_delta"), col_dual_delta).into());
+        }
+        if has_dual_gamma {
+            series.push(Series::new(PlSmallStr::from_static("dual_gamma"), col_dual_gamma).into());
+        }
+        if has_implied_volatility {
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col_implied_volatility).into());
+        }
+        if has_iv_error {
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col_iv_error).into());
+        }
+        if has_underlying_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into());
+        }
+        if has_underlying_price {
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_expiration {
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
+        }
+        if has_strike {
+            series.push(Series::new(PlSmallStr::from_static("strike"), col_strike).into());
+        }
+        if has_right {
+            series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
+        }
+        DataFrame::new(n, series)
+    }
 }
 
 #[cfg(feature = "arrow")]
@@ -908,6 +2271,135 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksFirstOrde
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `GreeksFirstOrderTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_bid = present.contains("bid");
+        let has_ask = present.contains("ask");
+        let has_delta = present.contains("delta");
+        let has_theta = present.contains("theta");
+        let has_vega = present.contains("vega");
+        let has_rho = present.contains("rho");
+        let has_epsilon = present.contains("epsilon");
+        let has_lambda = present.contains("lambda");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
+        let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
+        let mut col_delta: Vec<f64> = Vec::with_capacity(if has_delta { n } else { 0 });
+        let mut col_theta: Vec<f64> = Vec::with_capacity(if has_theta { n } else { 0 });
+        let mut col_vega: Vec<f64> = Vec::with_capacity(if has_vega { n } else { 0 });
+        let mut col_rho: Vec<f64> = Vec::with_capacity(if has_rho { n } else { 0 });
+        let mut col_epsilon: Vec<f64> = Vec::with_capacity(if has_epsilon { n } else { 0 });
+        let mut col_lambda: Vec<f64> = Vec::with_capacity(if has_lambda { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_bid { col_bid.push(t.bid); }
+            if has_ask { col_ask.push(t.ask); }
+            if has_delta { col_delta.push(t.delta); }
+            if has_theta { col_theta.push(t.theta); }
+            if has_vega { col_vega.push(t.vega); }
+            if has_rho { col_rho.push(t.rho); }
+            if has_epsilon { col_epsilon.push(t.epsilon); }
+            if has_lambda { col_lambda.push(t.lambda); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_ms_of_day {
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
+        }
+        if has_bid {
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_bid)) as ArrayRef);
+        }
+        if has_ask {
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_ask)) as ArrayRef);
+        }
+        if has_delta {
+            fields.push(Field::new("delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_delta)) as ArrayRef);
+        }
+        if has_theta {
+            fields.push(Field::new("theta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_theta)) as ArrayRef);
+        }
+        if has_vega {
+            fields.push(Field::new("vega", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_vega)) as ArrayRef);
+        }
+        if has_rho {
+            fields.push(Field::new("rho", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_rho)) as ArrayRef);
+        }
+        if has_epsilon {
+            fields.push(Field::new("epsilon", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_epsilon)) as ArrayRef);
+        }
+        if has_lambda {
+            fields.push(Field::new("lambda", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_lambda)) as ArrayRef);
+        }
+        if has_implied_volatility {
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef);
+        }
+        if has_iv_error {
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_iv_error)) as ArrayRef);
+        }
+        if has_underlying_ms_of_day {
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef);
+        }
+        if has_underlying_price {
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -971,6 +2463,117 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksFirstOrd
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `GreeksFirstOrderTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_bid = present.contains("bid");
+        let has_ask = present.contains("ask");
+        let has_delta = present.contains("delta");
+        let has_theta = present.contains("theta");
+        let has_vega = present.contains("vega");
+        let has_rho = present.contains("rho");
+        let has_epsilon = present.contains("epsilon");
+        let has_lambda = present.contains("lambda");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
+        let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
+        let mut col_delta: Vec<f64> = Vec::with_capacity(if has_delta { n } else { 0 });
+        let mut col_theta: Vec<f64> = Vec::with_capacity(if has_theta { n } else { 0 });
+        let mut col_vega: Vec<f64> = Vec::with_capacity(if has_vega { n } else { 0 });
+        let mut col_rho: Vec<f64> = Vec::with_capacity(if has_rho { n } else { 0 });
+        let mut col_epsilon: Vec<f64> = Vec::with_capacity(if has_epsilon { n } else { 0 });
+        let mut col_lambda: Vec<f64> = Vec::with_capacity(if has_lambda { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_bid { col_bid.push(t.bid); }
+            if has_ask { col_ask.push(t.ask); }
+            if has_delta { col_delta.push(t.delta); }
+            if has_theta { col_theta.push(t.theta); }
+            if has_vega { col_vega.push(t.vega); }
+            if has_rho { col_rho.push(t.rho); }
+            if has_epsilon { col_epsilon.push(t.epsilon); }
+            if has_lambda { col_lambda.push(t.lambda); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into());
+        }
+        if has_bid {
+            series.push(Series::new(PlSmallStr::from_static("bid"), col_bid).into());
+        }
+        if has_ask {
+            series.push(Series::new(PlSmallStr::from_static("ask"), col_ask).into());
+        }
+        if has_delta {
+            series.push(Series::new(PlSmallStr::from_static("delta"), col_delta).into());
+        }
+        if has_theta {
+            series.push(Series::new(PlSmallStr::from_static("theta"), col_theta).into());
+        }
+        if has_vega {
+            series.push(Series::new(PlSmallStr::from_static("vega"), col_vega).into());
+        }
+        if has_rho {
+            series.push(Series::new(PlSmallStr::from_static("rho"), col_rho).into());
+        }
+        if has_epsilon {
+            series.push(Series::new(PlSmallStr::from_static("epsilon"), col_epsilon).into());
+        }
+        if has_lambda {
+            series.push(Series::new(PlSmallStr::from_static("lambda"), col_lambda).into());
+        }
+        if has_implied_volatility {
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col_implied_volatility).into());
+        }
+        if has_iv_error {
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col_iv_error).into());
+        }
+        if has_underlying_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into());
+        }
+        if has_underlying_price {
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_expiration {
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
+        }
+        if has_strike {
+            series.push(Series::new(PlSmallStr::from_static("strike"), col_strike).into());
+        }
+        if has_right {
+            series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -1052,6 +2655,128 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksSecondOrd
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `GreeksSecondOrderTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_bid = present.contains("bid");
+        let has_ask = present.contains("ask");
+        let has_gamma = present.contains("gamma");
+        let has_vanna = present.contains("vanna");
+        let has_charm = present.contains("charm");
+        let has_vomma = present.contains("vomma");
+        let has_veta = present.contains("veta");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
+        let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
+        let mut col_gamma: Vec<f64> = Vec::with_capacity(if has_gamma { n } else { 0 });
+        let mut col_vanna: Vec<f64> = Vec::with_capacity(if has_vanna { n } else { 0 });
+        let mut col_charm: Vec<f64> = Vec::with_capacity(if has_charm { n } else { 0 });
+        let mut col_vomma: Vec<f64> = Vec::with_capacity(if has_vomma { n } else { 0 });
+        let mut col_veta: Vec<f64> = Vec::with_capacity(if has_veta { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_bid { col_bid.push(t.bid); }
+            if has_ask { col_ask.push(t.ask); }
+            if has_gamma { col_gamma.push(t.gamma); }
+            if has_vanna { col_vanna.push(t.vanna); }
+            if has_charm { col_charm.push(t.charm); }
+            if has_vomma { col_vomma.push(t.vomma); }
+            if has_veta { col_veta.push(t.veta); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_ms_of_day {
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
+        }
+        if has_bid {
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_bid)) as ArrayRef);
+        }
+        if has_ask {
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_ask)) as ArrayRef);
+        }
+        if has_gamma {
+            fields.push(Field::new("gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_gamma)) as ArrayRef);
+        }
+        if has_vanna {
+            fields.push(Field::new("vanna", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_vanna)) as ArrayRef);
+        }
+        if has_charm {
+            fields.push(Field::new("charm", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_charm)) as ArrayRef);
+        }
+        if has_vomma {
+            fields.push(Field::new("vomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_vomma)) as ArrayRef);
+        }
+        if has_veta {
+            fields.push(Field::new("veta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_veta)) as ArrayRef);
+        }
+        if has_implied_volatility {
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef);
+        }
+        if has_iv_error {
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_iv_error)) as ArrayRef);
+        }
+        if has_underlying_ms_of_day {
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef);
+        }
+        if has_underlying_price {
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1112,6 +2837,111 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksSecondOr
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `GreeksSecondOrderTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_bid = present.contains("bid");
+        let has_ask = present.contains("ask");
+        let has_gamma = present.contains("gamma");
+        let has_vanna = present.contains("vanna");
+        let has_charm = present.contains("charm");
+        let has_vomma = present.contains("vomma");
+        let has_veta = present.contains("veta");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
+        let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
+        let mut col_gamma: Vec<f64> = Vec::with_capacity(if has_gamma { n } else { 0 });
+        let mut col_vanna: Vec<f64> = Vec::with_capacity(if has_vanna { n } else { 0 });
+        let mut col_charm: Vec<f64> = Vec::with_capacity(if has_charm { n } else { 0 });
+        let mut col_vomma: Vec<f64> = Vec::with_capacity(if has_vomma { n } else { 0 });
+        let mut col_veta: Vec<f64> = Vec::with_capacity(if has_veta { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_bid { col_bid.push(t.bid); }
+            if has_ask { col_ask.push(t.ask); }
+            if has_gamma { col_gamma.push(t.gamma); }
+            if has_vanna { col_vanna.push(t.vanna); }
+            if has_charm { col_charm.push(t.charm); }
+            if has_vomma { col_vomma.push(t.vomma); }
+            if has_veta { col_veta.push(t.veta); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into());
+        }
+        if has_bid {
+            series.push(Series::new(PlSmallStr::from_static("bid"), col_bid).into());
+        }
+        if has_ask {
+            series.push(Series::new(PlSmallStr::from_static("ask"), col_ask).into());
+        }
+        if has_gamma {
+            series.push(Series::new(PlSmallStr::from_static("gamma"), col_gamma).into());
+        }
+        if has_vanna {
+            series.push(Series::new(PlSmallStr::from_static("vanna"), col_vanna).into());
+        }
+        if has_charm {
+            series.push(Series::new(PlSmallStr::from_static("charm"), col_charm).into());
+        }
+        if has_vomma {
+            series.push(Series::new(PlSmallStr::from_static("vomma"), col_vomma).into());
+        }
+        if has_veta {
+            series.push(Series::new(PlSmallStr::from_static("veta"), col_veta).into());
+        }
+        if has_implied_volatility {
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col_implied_volatility).into());
+        }
+        if has_iv_error {
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col_iv_error).into());
+        }
+        if has_underlying_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into());
+        }
+        if has_underlying_price {
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_expiration {
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
+        }
+        if has_strike {
+            series.push(Series::new(PlSmallStr::from_static("strike"), col_strike).into());
+        }
+        if has_right {
+            series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -1189,6 +3019,121 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksThirdOrde
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `GreeksThirdOrderTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_bid = present.contains("bid");
+        let has_ask = present.contains("ask");
+        let has_speed = present.contains("speed");
+        let has_zomma = present.contains("zomma");
+        let has_color = present.contains("color");
+        let has_ultima = present.contains("ultima");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
+        let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
+        let mut col_speed: Vec<f64> = Vec::with_capacity(if has_speed { n } else { 0 });
+        let mut col_zomma: Vec<f64> = Vec::with_capacity(if has_zomma { n } else { 0 });
+        let mut col_color: Vec<f64> = Vec::with_capacity(if has_color { n } else { 0 });
+        let mut col_ultima: Vec<f64> = Vec::with_capacity(if has_ultima { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_bid { col_bid.push(t.bid); }
+            if has_ask { col_ask.push(t.ask); }
+            if has_speed { col_speed.push(t.speed); }
+            if has_zomma { col_zomma.push(t.zomma); }
+            if has_color { col_color.push(t.color); }
+            if has_ultima { col_ultima.push(t.ultima); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_ms_of_day {
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
+        }
+        if has_bid {
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_bid)) as ArrayRef);
+        }
+        if has_ask {
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_ask)) as ArrayRef);
+        }
+        if has_speed {
+            fields.push(Field::new("speed", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_speed)) as ArrayRef);
+        }
+        if has_zomma {
+            fields.push(Field::new("zomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_zomma)) as ArrayRef);
+        }
+        if has_color {
+            fields.push(Field::new("color", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_color)) as ArrayRef);
+        }
+        if has_ultima {
+            fields.push(Field::new("ultima", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_ultima)) as ArrayRef);
+        }
+        if has_implied_volatility {
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef);
+        }
+        if has_iv_error {
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_iv_error)) as ArrayRef);
+        }
+        if has_underlying_ms_of_day {
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef);
+        }
+        if has_underlying_price {
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1246,6 +3191,105 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksThirdOrd
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `GreeksThirdOrderTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_bid = present.contains("bid");
+        let has_ask = present.contains("ask");
+        let has_speed = present.contains("speed");
+        let has_zomma = present.contains("zomma");
+        let has_color = present.contains("color");
+        let has_ultima = present.contains("ultima");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
+        let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
+        let mut col_speed: Vec<f64> = Vec::with_capacity(if has_speed { n } else { 0 });
+        let mut col_zomma: Vec<f64> = Vec::with_capacity(if has_zomma { n } else { 0 });
+        let mut col_color: Vec<f64> = Vec::with_capacity(if has_color { n } else { 0 });
+        let mut col_ultima: Vec<f64> = Vec::with_capacity(if has_ultima { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_bid { col_bid.push(t.bid); }
+            if has_ask { col_ask.push(t.ask); }
+            if has_speed { col_speed.push(t.speed); }
+            if has_zomma { col_zomma.push(t.zomma); }
+            if has_color { col_color.push(t.color); }
+            if has_ultima { col_ultima.push(t.ultima); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into());
+        }
+        if has_bid {
+            series.push(Series::new(PlSmallStr::from_static("bid"), col_bid).into());
+        }
+        if has_ask {
+            series.push(Series::new(PlSmallStr::from_static("ask"), col_ask).into());
+        }
+        if has_speed {
+            series.push(Series::new(PlSmallStr::from_static("speed"), col_speed).into());
+        }
+        if has_zomma {
+            series.push(Series::new(PlSmallStr::from_static("zomma"), col_zomma).into());
+        }
+        if has_color {
+            series.push(Series::new(PlSmallStr::from_static("color"), col_color).into());
+        }
+        if has_ultima {
+            series.push(Series::new(PlSmallStr::from_static("ultima"), col_ultima).into());
+        }
+        if has_implied_volatility {
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col_implied_volatility).into());
+        }
+        if has_iv_error {
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col_iv_error).into());
+        }
+        if has_underlying_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into());
+        }
+        if has_underlying_price {
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_expiration {
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
+        }
+        if has_strike {
+            series.push(Series::new(PlSmallStr::from_static("strike"), col_strike).into());
+        }
+        if has_right {
+            series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -1307,6 +3351,93 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IndexPriceAtTim
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `IndexPriceAtTimeTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_sequence = present.contains("sequence");
+        let has_ext_condition1 = present.contains("ext_condition1");
+        let has_ext_condition2 = present.contains("ext_condition2");
+        let has_ext_condition3 = present.contains("ext_condition3");
+        let has_ext_condition4 = present.contains("ext_condition4");
+        let has_condition = present.contains("condition");
+        let has_size = present.contains("size");
+        let has_exchange = present.contains("exchange");
+        let has_price = present.contains("price");
+        let has_date = present.contains("date");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_sequence { col_sequence.push(t.sequence); }
+            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
+            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
+            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
+            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
+            if has_condition { col_condition.push(t.condition); }
+            if has_size { col_size.push(t.size); }
+            if has_exchange { col_exchange.push(t.exchange); }
+            if has_price { col_price.push(t.price); }
+            if has_date { col_date.push(t.date); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_ms_of_day {
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
+        }
+        if has_sequence {
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_sequence)) as ArrayRef);
+        }
+        if has_ext_condition1 {
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef);
+        }
+        if has_ext_condition2 {
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef);
+        }
+        if has_ext_condition3 {
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef);
+        }
+        if has_ext_condition4 {
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef);
+        }
+        if has_condition {
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_condition)) as ArrayRef);
+        }
+        if has_size {
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_size)) as ArrayRef);
+        }
+        if has_exchange {
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_exchange)) as ArrayRef);
+        }
+        if has_price {
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_price)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1353,6 +3484,81 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::IndexPriceAtTi
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
         ])
     }
+
+    /// Builds a Polars `DataFrame` from a slice of `IndexPriceAtTimeTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_sequence = present.contains("sequence");
+        let has_ext_condition1 = present.contains("ext_condition1");
+        let has_ext_condition2 = present.contains("ext_condition2");
+        let has_ext_condition3 = present.contains("ext_condition3");
+        let has_ext_condition4 = present.contains("ext_condition4");
+        let has_condition = present.contains("condition");
+        let has_size = present.contains("size");
+        let has_exchange = present.contains("exchange");
+        let has_price = present.contains("price");
+        let has_date = present.contains("date");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_sequence { col_sequence.push(t.sequence); }
+            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
+            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
+            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
+            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
+            if has_condition { col_condition.push(t.condition); }
+            if has_size { col_size.push(t.size); }
+            if has_exchange { col_exchange.push(t.exchange); }
+            if has_price { col_price.push(t.price); }
+            if has_date { col_date.push(t.date); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into());
+        }
+        if has_sequence {
+            series.push(Series::new(PlSmallStr::from_static("sequence"), col_sequence).into());
+        }
+        if has_ext_condition1 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition1"), col_ext_condition1).into());
+        }
+        if has_ext_condition2 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition2"), col_ext_condition2).into());
+        }
+        if has_ext_condition3 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition3"), col_ext_condition3).into());
+        }
+        if has_ext_condition4 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition4"), col_ext_condition4).into());
+        }
+        if has_condition {
+            series.push(Series::new(PlSmallStr::from_static("condition"), col_condition).into());
+        }
+        if has_size {
+            series.push(Series::new(PlSmallStr::from_static("size"), col_size).into());
+        }
+        if has_exchange {
+            series.push(Series::new(PlSmallStr::from_static("exchange"), col_exchange).into());
+        }
+        if has_price {
+            series.push(Series::new(PlSmallStr::from_static("price"), col_price).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        DataFrame::new(n, series)
+    }
 }
 
 #[cfg(feature = "arrow")]
@@ -1377,6 +3583,30 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::InterestRateTic
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `InterestRateTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_date = present.contains("date");
+        let has_rate = present.contains("rate");
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_rate: Vec<f64> = Vec::with_capacity(if has_rate { n } else { 0 });
+        for t in self {
+            if has_date { col_date.push(t.date); }
+            if has_rate { col_rate.push(t.rate); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_rate {
+            fields.push(Field::new("rate", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_rate)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1395,6 +3625,27 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::InterestRateTi
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
             Series::new(PlSmallStr::from_static("rate"), col_rate).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `InterestRateTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_date = present.contains("date");
+        let has_rate = present.contains("rate");
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_rate: Vec<f64> = Vec::with_capacity(if has_rate { n } else { 0 });
+        for t in self {
+            if has_date { col_date.push(t.date); }
+            if has_rate { col_rate.push(t.rate); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_rate {
+            series.push(Series::new(PlSmallStr::from_static("rate"), col_rate).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -1468,6 +3719,114 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IvTick] {
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `IvTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_bid = present.contains("bid");
+        let has_bid_implied_volatility = present.contains("bid_implied_volatility");
+        let has_midpoint = present.contains("midpoint");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_ask = present.contains("ask");
+        let has_ask_implied_volatility = present.contains("ask_implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
+        let mut col_bid_implied_volatility: Vec<f64> = Vec::with_capacity(if has_bid_implied_volatility { n } else { 0 });
+        let mut col_midpoint: Vec<f64> = Vec::with_capacity(if has_midpoint { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
+        let mut col_ask_implied_volatility: Vec<f64> = Vec::with_capacity(if has_ask_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_bid { col_bid.push(t.bid); }
+            if has_bid_implied_volatility { col_bid_implied_volatility.push(t.bid_implied_volatility); }
+            if has_midpoint { col_midpoint.push(t.midpoint); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_ask { col_ask.push(t.ask); }
+            if has_ask_implied_volatility { col_ask_implied_volatility.push(t.ask_implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_ms_of_day {
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
+        }
+        if has_bid {
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_bid)) as ArrayRef);
+        }
+        if has_bid_implied_volatility {
+            fields.push(Field::new("bid_implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_bid_implied_volatility)) as ArrayRef);
+        }
+        if has_midpoint {
+            fields.push(Field::new("midpoint", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_midpoint)) as ArrayRef);
+        }
+        if has_implied_volatility {
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef);
+        }
+        if has_ask {
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_ask)) as ArrayRef);
+        }
+        if has_ask_implied_volatility {
+            fields.push(Field::new("ask_implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_ask_implied_volatility)) as ArrayRef);
+        }
+        if has_iv_error {
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_iv_error)) as ArrayRef);
+        }
+        if has_underlying_ms_of_day {
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef);
+        }
+        if has_underlying_price {
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1523,6 +3882,99 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::IvTick] {
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
     }
+
+    /// Builds a Polars `DataFrame` from a slice of `IvTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_bid = present.contains("bid");
+        let has_bid_implied_volatility = present.contains("bid_implied_volatility");
+        let has_midpoint = present.contains("midpoint");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_ask = present.contains("ask");
+        let has_ask_implied_volatility = present.contains("ask_implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
+        let mut col_bid_implied_volatility: Vec<f64> = Vec::with_capacity(if has_bid_implied_volatility { n } else { 0 });
+        let mut col_midpoint: Vec<f64> = Vec::with_capacity(if has_midpoint { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
+        let mut col_ask_implied_volatility: Vec<f64> = Vec::with_capacity(if has_ask_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_bid { col_bid.push(t.bid); }
+            if has_bid_implied_volatility { col_bid_implied_volatility.push(t.bid_implied_volatility); }
+            if has_midpoint { col_midpoint.push(t.midpoint); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_ask { col_ask.push(t.ask); }
+            if has_ask_implied_volatility { col_ask_implied_volatility.push(t.ask_implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into());
+        }
+        if has_bid {
+            series.push(Series::new(PlSmallStr::from_static("bid"), col_bid).into());
+        }
+        if has_bid_implied_volatility {
+            series.push(Series::new(PlSmallStr::from_static("bid_implied_volatility"), col_bid_implied_volatility).into());
+        }
+        if has_midpoint {
+            series.push(Series::new(PlSmallStr::from_static("midpoint"), col_midpoint).into());
+        }
+        if has_implied_volatility {
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col_implied_volatility).into());
+        }
+        if has_ask {
+            series.push(Series::new(PlSmallStr::from_static("ask"), col_ask).into());
+        }
+        if has_ask_implied_volatility {
+            series.push(Series::new(PlSmallStr::from_static("ask_implied_volatility"), col_ask_implied_volatility).into());
+        }
+        if has_iv_error {
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col_iv_error).into());
+        }
+        if has_underlying_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into());
+        }
+        if has_underlying_price {
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_expiration {
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
+        }
+        if has_strike {
+            series.push(Series::new(PlSmallStr::from_static("strike"), col_strike).into());
+        }
+        if has_right {
+            series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
+        }
+        DataFrame::new(n, series)
+    }
 }
 
 #[cfg(feature = "arrow")]
@@ -1571,6 +4023,72 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::MarketValueTick
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `MarketValueTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_market_bid = present.contains("market_bid");
+        let has_market_ask = present.contains("market_ask");
+        let has_market_price = present.contains("market_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_market_bid: Vec<f64> = Vec::with_capacity(if has_market_bid { n } else { 0 });
+        let mut col_market_ask: Vec<f64> = Vec::with_capacity(if has_market_ask { n } else { 0 });
+        let mut col_market_price: Vec<f64> = Vec::with_capacity(if has_market_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_market_bid { col_market_bid.push(t.market_bid); }
+            if has_market_ask { col_market_ask.push(t.market_ask); }
+            if has_market_price { col_market_price.push(t.market_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_ms_of_day {
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
+        }
+        if has_market_bid {
+            fields.push(Field::new("market_bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_market_bid)) as ArrayRef);
+        }
+        if has_market_ask {
+            fields.push(Field::new("market_ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_market_ask)) as ArrayRef);
+        }
+        if has_market_price {
+            fields.push(Field::new("market_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_market_price)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1607,6 +4125,63 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::MarketValueTic
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `MarketValueTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_market_bid = present.contains("market_bid");
+        let has_market_ask = present.contains("market_ask");
+        let has_market_price = present.contains("market_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_market_bid: Vec<f64> = Vec::with_capacity(if has_market_bid { n } else { 0 });
+        let mut col_market_ask: Vec<f64> = Vec::with_capacity(if has_market_ask { n } else { 0 });
+        let mut col_market_price: Vec<f64> = Vec::with_capacity(if has_market_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_market_bid { col_market_bid.push(t.market_bid); }
+            if has_market_ask { col_market_ask.push(t.market_ask); }
+            if has_market_price { col_market_price.push(t.market_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into());
+        }
+        if has_market_bid {
+            series.push(Series::new(PlSmallStr::from_static("market_bid"), col_market_bid).into());
+        }
+        if has_market_ask {
+            series.push(Series::new(PlSmallStr::from_static("market_ask"), col_market_ask).into());
+        }
+        if has_market_price {
+            series.push(Series::new(PlSmallStr::from_static("market_price"), col_market_price).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_expiration {
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
+        }
+        if has_strike {
+            series.push(Series::new(PlSmallStr::from_static("strike"), col_strike).into());
+        }
+        if has_right {
+            series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -1672,6 +4247,100 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OhlcTick] {
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `OhlcTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_open = present.contains("open");
+        let has_high = present.contains("high");
+        let has_low = present.contains("low");
+        let has_close = present.contains("close");
+        let has_volume = present.contains("volume");
+        let has_count = present.contains("count");
+        let has_vwap = present.contains("vwap");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_open: Vec<f64> = Vec::with_capacity(if has_open { n } else { 0 });
+        let mut col_high: Vec<f64> = Vec::with_capacity(if has_high { n } else { 0 });
+        let mut col_low: Vec<f64> = Vec::with_capacity(if has_low { n } else { 0 });
+        let mut col_close: Vec<f64> = Vec::with_capacity(if has_close { n } else { 0 });
+        let mut col_volume: Vec<i64> = Vec::with_capacity(if has_volume { n } else { 0 });
+        let mut col_count: Vec<i64> = Vec::with_capacity(if has_count { n } else { 0 });
+        let mut col_vwap: Vec<f64> = Vec::with_capacity(if has_vwap { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_open { col_open.push(t.open); }
+            if has_high { col_high.push(t.high); }
+            if has_low { col_low.push(t.low); }
+            if has_close { col_close.push(t.close); }
+            if has_volume { col_volume.push(t.volume); }
+            if has_count { col_count.push(t.count); }
+            if has_vwap { col_vwap.push(t.vwap); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_ms_of_day {
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
+        }
+        if has_open {
+            fields.push(Field::new("open", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_open)) as ArrayRef);
+        }
+        if has_high {
+            fields.push(Field::new("high", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_high)) as ArrayRef);
+        }
+        if has_low {
+            fields.push(Field::new("low", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_low)) as ArrayRef);
+        }
+        if has_close {
+            fields.push(Field::new("close", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_close)) as ArrayRef);
+        }
+        if has_volume {
+            fields.push(Field::new("volume", DataType::Int64, false));
+            columns.push(Arc::new(Int64Array::from(col_volume)) as ArrayRef);
+        }
+        if has_count {
+            fields.push(Field::new("count", DataType::Int64, false));
+            columns.push(Arc::new(Int64Array::from(col_count)) as ArrayRef);
+        }
+        if has_vwap {
+            fields.push(Field::new("vwap", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_vwap)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1721,6 +4390,87 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::OhlcTick] {
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
     }
+
+    /// Builds a Polars `DataFrame` from a slice of `OhlcTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_open = present.contains("open");
+        let has_high = present.contains("high");
+        let has_low = present.contains("low");
+        let has_close = present.contains("close");
+        let has_volume = present.contains("volume");
+        let has_count = present.contains("count");
+        let has_vwap = present.contains("vwap");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_open: Vec<f64> = Vec::with_capacity(if has_open { n } else { 0 });
+        let mut col_high: Vec<f64> = Vec::with_capacity(if has_high { n } else { 0 });
+        let mut col_low: Vec<f64> = Vec::with_capacity(if has_low { n } else { 0 });
+        let mut col_close: Vec<f64> = Vec::with_capacity(if has_close { n } else { 0 });
+        let mut col_volume: Vec<i64> = Vec::with_capacity(if has_volume { n } else { 0 });
+        let mut col_count: Vec<i64> = Vec::with_capacity(if has_count { n } else { 0 });
+        let mut col_vwap: Vec<f64> = Vec::with_capacity(if has_vwap { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_open { col_open.push(t.open); }
+            if has_high { col_high.push(t.high); }
+            if has_low { col_low.push(t.low); }
+            if has_close { col_close.push(t.close); }
+            if has_volume { col_volume.push(t.volume); }
+            if has_count { col_count.push(t.count); }
+            if has_vwap { col_vwap.push(t.vwap); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into());
+        }
+        if has_open {
+            series.push(Series::new(PlSmallStr::from_static("open"), col_open).into());
+        }
+        if has_high {
+            series.push(Series::new(PlSmallStr::from_static("high"), col_high).into());
+        }
+        if has_low {
+            series.push(Series::new(PlSmallStr::from_static("low"), col_low).into());
+        }
+        if has_close {
+            series.push(Series::new(PlSmallStr::from_static("close"), col_close).into());
+        }
+        if has_volume {
+            series.push(Series::new(PlSmallStr::from_static("volume"), col_volume).into());
+        }
+        if has_count {
+            series.push(Series::new(PlSmallStr::from_static("count"), col_count).into());
+        }
+        if has_vwap {
+            series.push(Series::new(PlSmallStr::from_static("vwap"), col_vwap).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_expiration {
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
+        }
+        if has_strike {
+            series.push(Series::new(PlSmallStr::from_static("strike"), col_strike).into());
+        }
+        if has_right {
+            series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
+        }
+        DataFrame::new(n, series)
+    }
 }
 
 #[cfg(feature = "arrow")]
@@ -1761,6 +4511,58 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OpenInterestTic
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `OpenInterestTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_open_interest = present.contains("open_interest");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_open_interest: Vec<i32> = Vec::with_capacity(if has_open_interest { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_open_interest { col_open_interest.push(t.open_interest); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_ms_of_day {
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
+        }
+        if has_open_interest {
+            fields.push(Field::new("open_interest", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_open_interest)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1791,6 +4593,51 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::OpenInterestTi
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `OpenInterestTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_open_interest = present.contains("open_interest");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_open_interest: Vec<i32> = Vec::with_capacity(if has_open_interest { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_open_interest { col_open_interest.push(t.open_interest); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into());
+        }
+        if has_open_interest {
+            series.push(Series::new(PlSmallStr::from_static("open_interest"), col_open_interest).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_expiration {
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
+        }
+        if has_strike {
+            series.push(Series::new(PlSmallStr::from_static("strike"), col_strike).into());
+        }
+        if has_right {
+            series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -1824,6 +4671,44 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OptionContract]
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `OptionContract`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_symbol = present.contains("symbol");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_symbol: Vec<String> = Vec::with_capacity(if has_symbol { n } else { 0 });
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<f64> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<String> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_symbol { col_symbol.push(t.symbol.clone()); }
+            if has_expiration { col_expiration.push(t.expiration); }
+            if has_strike { col_strike.push(t.strike); }
+            if has_right { col_right.push(if t.right == '\0' { String::new() } else { t.right.to_string() }); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_symbol {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(col_symbol)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1848,6 +4733,39 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::OptionContract
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `OptionContract`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_symbol = present.contains("symbol");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_symbol: Vec<String> = Vec::with_capacity(if has_symbol { n } else { 0 });
+        let mut col_expiration: Vec<i32> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<f64> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<String> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_symbol { col_symbol.push(t.symbol.clone()); }
+            if has_expiration { col_expiration.push(t.expiration); }
+            if has_strike { col_strike.push(t.strike); }
+            if has_right { col_right.push(if t.right == '\0' { String::new() } else { t.right.to_string() }); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_symbol {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), col_symbol).into());
+        }
+        if has_expiration {
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
+        }
+        if has_strike {
+            series.push(Series::new(PlSmallStr::from_static("strike"), col_strike).into());
+        }
+        if has_right {
+            series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -1877,6 +4795,37 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::PriceTick] {
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `PriceTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_price = present.contains("price");
+        let has_date = present.contains("date");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_price { col_price.push(t.price); }
+            if has_date { col_date.push(t.date); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_ms_of_day {
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
+        }
+        if has_price {
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_price)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1899,6 +4848,33 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::PriceTick] {
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
         ])
     }
+
+    /// Builds a Polars `DataFrame` from a slice of `PriceTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_price = present.contains("price");
+        let has_date = present.contains("date");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_price { col_price.push(t.price); }
+            if has_date { col_date.push(t.date); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into());
+        }
+        if has_price {
+            series.push(Series::new(PlSmallStr::from_static("price"), col_price).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        DataFrame::new(n, series)
+    }
 }
 
 #[cfg(feature = "arrow")]
@@ -1917,10 +4893,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
         let mut col_ask: Vec<f64> = Vec::with_capacity(n);
         let mut col_ask_condition: Vec<i32> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
+        let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_bid_size.push(t.bid_size);
@@ -1932,10 +4908,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
             col_ask.push(t.ask);
             col_ask_condition.push(t.ask_condition);
             col_date.push(t.date);
-            col_midpoint.push(t.midpoint);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
+            col_midpoint.push(t.midpoint);
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -1948,10 +4924,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
             Field::new("ask", DataType::Float64, false),
             Field::new("ask_condition", DataType::Int32, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("midpoint", DataType::Float64, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
+            Field::new("midpoint", DataType::Float64, false),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -1964,12 +4940,120 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
             Arc::new(Float64Array::from(col_ask)) as ArrayRef,
             Arc::new(Int32Array::from(col_ask_condition)) as ArrayRef,
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
-            Arc::new(Float64Array::from(col_midpoint)) as ArrayRef,
             Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
             Arc::new(Float64Array::from(col_strike)) as ArrayRef,
             Arc::new(StringArray::from(col_right)) as ArrayRef,
+            Arc::new(Float64Array::from(col_midpoint)) as ArrayRef,
         ];
         RecordBatch::try_new(schema, columns)
+    }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `QuoteTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_bid_size = present.contains("bid_size");
+        let has_bid_exchange = present.contains("bid_exchange");
+        let has_bid = present.contains("bid");
+        let has_bid_condition = present.contains("bid_condition");
+        let has_ask_size = present.contains("ask_size");
+        let has_ask_exchange = present.contains("ask_exchange");
+        let has_ask = present.contains("ask");
+        let has_ask_condition = present.contains("ask_condition");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let has_midpoint = present.contains("midpoint");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_bid_size: Vec<i32> = Vec::with_capacity(if has_bid_size { n } else { 0 });
+        let mut col_bid_exchange: Vec<i32> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
+        let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
+        let mut col_bid_condition: Vec<i32> = Vec::with_capacity(if has_bid_condition { n } else { 0 });
+        let mut col_ask_size: Vec<i32> = Vec::with_capacity(if has_ask_size { n } else { 0 });
+        let mut col_ask_exchange: Vec<i32> = Vec::with_capacity(if has_ask_exchange { n } else { 0 });
+        let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
+        let mut col_ask_condition: Vec<i32> = Vec::with_capacity(if has_ask_condition { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        let mut col_midpoint: Vec<f64> = Vec::with_capacity(if has_midpoint { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_bid_size { col_bid_size.push(t.bid_size); }
+            if has_bid_exchange { col_bid_exchange.push(t.bid_exchange); }
+            if has_bid { col_bid.push(t.bid); }
+            if has_bid_condition { col_bid_condition.push(t.bid_condition); }
+            if has_ask_size { col_ask_size.push(t.ask_size); }
+            if has_ask_exchange { col_ask_exchange.push(t.ask_exchange); }
+            if has_ask { col_ask.push(t.ask); }
+            if has_ask_condition { col_ask_condition.push(t.ask_condition); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            if has_midpoint { col_midpoint.push(t.midpoint); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_ms_of_day {
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
+        }
+        if has_bid_size {
+            fields.push(Field::new("bid_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_bid_size)) as ArrayRef);
+        }
+        if has_bid_exchange {
+            fields.push(Field::new("bid_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_bid_exchange)) as ArrayRef);
+        }
+        if has_bid {
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_bid)) as ArrayRef);
+        }
+        if has_bid_condition {
+            fields.push(Field::new("bid_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_bid_condition)) as ArrayRef);
+        }
+        if has_ask_size {
+            fields.push(Field::new("ask_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ask_size)) as ArrayRef);
+        }
+        if has_ask_exchange {
+            fields.push(Field::new("ask_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ask_exchange)) as ArrayRef);
+        }
+        if has_ask {
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_ask)) as ArrayRef);
+        }
+        if has_ask_condition {
+            fields.push(Field::new("ask_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ask_condition)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        if has_midpoint {
+            fields.push(Field::new("midpoint", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_midpoint)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -1989,10 +5073,10 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::QuoteTick] {
         let mut col_ask: Vec<f64> = Vec::with_capacity(n);
         let mut col_ask_condition: Vec<i32> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
+        let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_bid_size.push(t.bid_size);
@@ -2004,10 +5088,10 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::QuoteTick] {
             col_ask.push(t.ask);
             col_ask_condition.push(t.ask_condition);
             col_date.push(t.date);
-            col_midpoint.push(t.midpoint);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
+            col_midpoint.push(t.midpoint);
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
@@ -2020,11 +5104,104 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::QuoteTick] {
             Series::new(PlSmallStr::from_static("ask"), col_ask).into(),
             Series::new(PlSmallStr::from_static("ask_condition"), col_ask_condition).into(),
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
-            Series::new(PlSmallStr::from_static("midpoint"), col_midpoint).into(),
             Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
+            Series::new(PlSmallStr::from_static("midpoint"), col_midpoint).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `QuoteTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_bid_size = present.contains("bid_size");
+        let has_bid_exchange = present.contains("bid_exchange");
+        let has_bid = present.contains("bid");
+        let has_bid_condition = present.contains("bid_condition");
+        let has_ask_size = present.contains("ask_size");
+        let has_ask_exchange = present.contains("ask_exchange");
+        let has_ask = present.contains("ask");
+        let has_ask_condition = present.contains("ask_condition");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let has_midpoint = present.contains("midpoint");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_bid_size: Vec<i32> = Vec::with_capacity(if has_bid_size { n } else { 0 });
+        let mut col_bid_exchange: Vec<i32> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
+        let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
+        let mut col_bid_condition: Vec<i32> = Vec::with_capacity(if has_bid_condition { n } else { 0 });
+        let mut col_ask_size: Vec<i32> = Vec::with_capacity(if has_ask_size { n } else { 0 });
+        let mut col_ask_exchange: Vec<i32> = Vec::with_capacity(if has_ask_exchange { n } else { 0 });
+        let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
+        let mut col_ask_condition: Vec<i32> = Vec::with_capacity(if has_ask_condition { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        let mut col_midpoint: Vec<f64> = Vec::with_capacity(if has_midpoint { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_bid_size { col_bid_size.push(t.bid_size); }
+            if has_bid_exchange { col_bid_exchange.push(t.bid_exchange); }
+            if has_bid { col_bid.push(t.bid); }
+            if has_bid_condition { col_bid_condition.push(t.bid_condition); }
+            if has_ask_size { col_ask_size.push(t.ask_size); }
+            if has_ask_exchange { col_ask_exchange.push(t.ask_exchange); }
+            if has_ask { col_ask.push(t.ask); }
+            if has_ask_condition { col_ask_condition.push(t.ask_condition); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            if has_midpoint { col_midpoint.push(t.midpoint); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into());
+        }
+        if has_bid_size {
+            series.push(Series::new(PlSmallStr::from_static("bid_size"), col_bid_size).into());
+        }
+        if has_bid_exchange {
+            series.push(Series::new(PlSmallStr::from_static("bid_exchange"), col_bid_exchange).into());
+        }
+        if has_bid {
+            series.push(Series::new(PlSmallStr::from_static("bid"), col_bid).into());
+        }
+        if has_bid_condition {
+            series.push(Series::new(PlSmallStr::from_static("bid_condition"), col_bid_condition).into());
+        }
+        if has_ask_size {
+            series.push(Series::new(PlSmallStr::from_static("ask_size"), col_ask_size).into());
+        }
+        if has_ask_exchange {
+            series.push(Series::new(PlSmallStr::from_static("ask_exchange"), col_ask_exchange).into());
+        }
+        if has_ask {
+            series.push(Series::new(PlSmallStr::from_static("ask"), col_ask).into());
+        }
+        if has_ask_condition {
+            series.push(Series::new(PlSmallStr::from_static("ask_condition"), col_ask_condition).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_expiration {
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
+        }
+        if has_strike {
+            series.push(Series::new(PlSmallStr::from_static("strike"), col_strike).into());
+        }
+        if has_right {
+            series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
+        }
+        if has_midpoint {
+            series.push(Series::new(PlSmallStr::from_static("midpoint"), col_midpoint).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -2194,6 +5371,282 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksAllT
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeGreeksAllTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_sequence = present.contains("sequence");
+        let has_ext_condition1 = present.contains("ext_condition1");
+        let has_ext_condition2 = present.contains("ext_condition2");
+        let has_ext_condition3 = present.contains("ext_condition3");
+        let has_ext_condition4 = present.contains("ext_condition4");
+        let has_condition = present.contains("condition");
+        let has_size = present.contains("size");
+        let has_exchange = present.contains("exchange");
+        let has_price = present.contains("price");
+        let has_delta = present.contains("delta");
+        let has_theta = present.contains("theta");
+        let has_vega = present.contains("vega");
+        let has_rho = present.contains("rho");
+        let has_epsilon = present.contains("epsilon");
+        let has_lambda = present.contains("lambda");
+        let has_gamma = present.contains("gamma");
+        let has_vanna = present.contains("vanna");
+        let has_charm = present.contains("charm");
+        let has_vomma = present.contains("vomma");
+        let has_veta = present.contains("veta");
+        let has_vera = present.contains("vera");
+        let has_speed = present.contains("speed");
+        let has_zomma = present.contains("zomma");
+        let has_color = present.contains("color");
+        let has_ultima = present.contains("ultima");
+        let has_d1 = present.contains("d1");
+        let has_d2 = present.contains("d2");
+        let has_dual_delta = present.contains("dual_delta");
+        let has_dual_gamma = present.contains("dual_gamma");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
+        let mut col_delta: Vec<f64> = Vec::with_capacity(if has_delta { n } else { 0 });
+        let mut col_theta: Vec<f64> = Vec::with_capacity(if has_theta { n } else { 0 });
+        let mut col_vega: Vec<f64> = Vec::with_capacity(if has_vega { n } else { 0 });
+        let mut col_rho: Vec<f64> = Vec::with_capacity(if has_rho { n } else { 0 });
+        let mut col_epsilon: Vec<f64> = Vec::with_capacity(if has_epsilon { n } else { 0 });
+        let mut col_lambda: Vec<f64> = Vec::with_capacity(if has_lambda { n } else { 0 });
+        let mut col_gamma: Vec<f64> = Vec::with_capacity(if has_gamma { n } else { 0 });
+        let mut col_vanna: Vec<f64> = Vec::with_capacity(if has_vanna { n } else { 0 });
+        let mut col_charm: Vec<f64> = Vec::with_capacity(if has_charm { n } else { 0 });
+        let mut col_vomma: Vec<f64> = Vec::with_capacity(if has_vomma { n } else { 0 });
+        let mut col_veta: Vec<f64> = Vec::with_capacity(if has_veta { n } else { 0 });
+        let mut col_vera: Vec<f64> = Vec::with_capacity(if has_vera { n } else { 0 });
+        let mut col_speed: Vec<f64> = Vec::with_capacity(if has_speed { n } else { 0 });
+        let mut col_zomma: Vec<f64> = Vec::with_capacity(if has_zomma { n } else { 0 });
+        let mut col_color: Vec<f64> = Vec::with_capacity(if has_color { n } else { 0 });
+        let mut col_ultima: Vec<f64> = Vec::with_capacity(if has_ultima { n } else { 0 });
+        let mut col_d1: Vec<f64> = Vec::with_capacity(if has_d1 { n } else { 0 });
+        let mut col_d2: Vec<f64> = Vec::with_capacity(if has_d2 { n } else { 0 });
+        let mut col_dual_delta: Vec<f64> = Vec::with_capacity(if has_dual_delta { n } else { 0 });
+        let mut col_dual_gamma: Vec<f64> = Vec::with_capacity(if has_dual_gamma { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_sequence { col_sequence.push(t.sequence); }
+            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
+            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
+            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
+            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
+            if has_condition { col_condition.push(t.condition); }
+            if has_size { col_size.push(t.size); }
+            if has_exchange { col_exchange.push(t.exchange); }
+            if has_price { col_price.push(t.price); }
+            if has_delta { col_delta.push(t.delta); }
+            if has_theta { col_theta.push(t.theta); }
+            if has_vega { col_vega.push(t.vega); }
+            if has_rho { col_rho.push(t.rho); }
+            if has_epsilon { col_epsilon.push(t.epsilon); }
+            if has_lambda { col_lambda.push(t.lambda); }
+            if has_gamma { col_gamma.push(t.gamma); }
+            if has_vanna { col_vanna.push(t.vanna); }
+            if has_charm { col_charm.push(t.charm); }
+            if has_vomma { col_vomma.push(t.vomma); }
+            if has_veta { col_veta.push(t.veta); }
+            if has_vera { col_vera.push(t.vera); }
+            if has_speed { col_speed.push(t.speed); }
+            if has_zomma { col_zomma.push(t.zomma); }
+            if has_color { col_color.push(t.color); }
+            if has_ultima { col_ultima.push(t.ultima); }
+            if has_d1 { col_d1.push(t.d1); }
+            if has_d2 { col_d2.push(t.d2); }
+            if has_dual_delta { col_dual_delta.push(t.dual_delta); }
+            if has_dual_gamma { col_dual_gamma.push(t.dual_gamma); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_ms_of_day {
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
+        }
+        if has_sequence {
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_sequence)) as ArrayRef);
+        }
+        if has_ext_condition1 {
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef);
+        }
+        if has_ext_condition2 {
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef);
+        }
+        if has_ext_condition3 {
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef);
+        }
+        if has_ext_condition4 {
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef);
+        }
+        if has_condition {
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_condition)) as ArrayRef);
+        }
+        if has_size {
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_size)) as ArrayRef);
+        }
+        if has_exchange {
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_exchange)) as ArrayRef);
+        }
+        if has_price {
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_price)) as ArrayRef);
+        }
+        if has_delta {
+            fields.push(Field::new("delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_delta)) as ArrayRef);
+        }
+        if has_theta {
+            fields.push(Field::new("theta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_theta)) as ArrayRef);
+        }
+        if has_vega {
+            fields.push(Field::new("vega", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_vega)) as ArrayRef);
+        }
+        if has_rho {
+            fields.push(Field::new("rho", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_rho)) as ArrayRef);
+        }
+        if has_epsilon {
+            fields.push(Field::new("epsilon", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_epsilon)) as ArrayRef);
+        }
+        if has_lambda {
+            fields.push(Field::new("lambda", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_lambda)) as ArrayRef);
+        }
+        if has_gamma {
+            fields.push(Field::new("gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_gamma)) as ArrayRef);
+        }
+        if has_vanna {
+            fields.push(Field::new("vanna", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_vanna)) as ArrayRef);
+        }
+        if has_charm {
+            fields.push(Field::new("charm", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_charm)) as ArrayRef);
+        }
+        if has_vomma {
+            fields.push(Field::new("vomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_vomma)) as ArrayRef);
+        }
+        if has_veta {
+            fields.push(Field::new("veta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_veta)) as ArrayRef);
+        }
+        if has_vera {
+            fields.push(Field::new("vera", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_vera)) as ArrayRef);
+        }
+        if has_speed {
+            fields.push(Field::new("speed", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_speed)) as ArrayRef);
+        }
+        if has_zomma {
+            fields.push(Field::new("zomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_zomma)) as ArrayRef);
+        }
+        if has_color {
+            fields.push(Field::new("color", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_color)) as ArrayRef);
+        }
+        if has_ultima {
+            fields.push(Field::new("ultima", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_ultima)) as ArrayRef);
+        }
+        if has_d1 {
+            fields.push(Field::new("d1", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_d1)) as ArrayRef);
+        }
+        if has_d2 {
+            fields.push(Field::new("d2", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_d2)) as ArrayRef);
+        }
+        if has_dual_delta {
+            fields.push(Field::new("dual_delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_dual_delta)) as ArrayRef);
+        }
+        if has_dual_gamma {
+            fields.push(Field::new("dual_gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_dual_gamma)) as ArrayRef);
+        }
+        if has_implied_volatility {
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef);
+        }
+        if has_iv_error {
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_iv_error)) as ArrayRef);
+        }
+        if has_underlying_ms_of_day {
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef);
+        }
+        if has_underlying_price {
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -2321,6 +5774,243 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksAll
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
     }
+
+    /// Builds a Polars `DataFrame` from a slice of `TradeGreeksAllTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_sequence = present.contains("sequence");
+        let has_ext_condition1 = present.contains("ext_condition1");
+        let has_ext_condition2 = present.contains("ext_condition2");
+        let has_ext_condition3 = present.contains("ext_condition3");
+        let has_ext_condition4 = present.contains("ext_condition4");
+        let has_condition = present.contains("condition");
+        let has_size = present.contains("size");
+        let has_exchange = present.contains("exchange");
+        let has_price = present.contains("price");
+        let has_delta = present.contains("delta");
+        let has_theta = present.contains("theta");
+        let has_vega = present.contains("vega");
+        let has_rho = present.contains("rho");
+        let has_epsilon = present.contains("epsilon");
+        let has_lambda = present.contains("lambda");
+        let has_gamma = present.contains("gamma");
+        let has_vanna = present.contains("vanna");
+        let has_charm = present.contains("charm");
+        let has_vomma = present.contains("vomma");
+        let has_veta = present.contains("veta");
+        let has_vera = present.contains("vera");
+        let has_speed = present.contains("speed");
+        let has_zomma = present.contains("zomma");
+        let has_color = present.contains("color");
+        let has_ultima = present.contains("ultima");
+        let has_d1 = present.contains("d1");
+        let has_d2 = present.contains("d2");
+        let has_dual_delta = present.contains("dual_delta");
+        let has_dual_gamma = present.contains("dual_gamma");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
+        let mut col_delta: Vec<f64> = Vec::with_capacity(if has_delta { n } else { 0 });
+        let mut col_theta: Vec<f64> = Vec::with_capacity(if has_theta { n } else { 0 });
+        let mut col_vega: Vec<f64> = Vec::with_capacity(if has_vega { n } else { 0 });
+        let mut col_rho: Vec<f64> = Vec::with_capacity(if has_rho { n } else { 0 });
+        let mut col_epsilon: Vec<f64> = Vec::with_capacity(if has_epsilon { n } else { 0 });
+        let mut col_lambda: Vec<f64> = Vec::with_capacity(if has_lambda { n } else { 0 });
+        let mut col_gamma: Vec<f64> = Vec::with_capacity(if has_gamma { n } else { 0 });
+        let mut col_vanna: Vec<f64> = Vec::with_capacity(if has_vanna { n } else { 0 });
+        let mut col_charm: Vec<f64> = Vec::with_capacity(if has_charm { n } else { 0 });
+        let mut col_vomma: Vec<f64> = Vec::with_capacity(if has_vomma { n } else { 0 });
+        let mut col_veta: Vec<f64> = Vec::with_capacity(if has_veta { n } else { 0 });
+        let mut col_vera: Vec<f64> = Vec::with_capacity(if has_vera { n } else { 0 });
+        let mut col_speed: Vec<f64> = Vec::with_capacity(if has_speed { n } else { 0 });
+        let mut col_zomma: Vec<f64> = Vec::with_capacity(if has_zomma { n } else { 0 });
+        let mut col_color: Vec<f64> = Vec::with_capacity(if has_color { n } else { 0 });
+        let mut col_ultima: Vec<f64> = Vec::with_capacity(if has_ultima { n } else { 0 });
+        let mut col_d1: Vec<f64> = Vec::with_capacity(if has_d1 { n } else { 0 });
+        let mut col_d2: Vec<f64> = Vec::with_capacity(if has_d2 { n } else { 0 });
+        let mut col_dual_delta: Vec<f64> = Vec::with_capacity(if has_dual_delta { n } else { 0 });
+        let mut col_dual_gamma: Vec<f64> = Vec::with_capacity(if has_dual_gamma { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_sequence { col_sequence.push(t.sequence); }
+            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
+            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
+            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
+            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
+            if has_condition { col_condition.push(t.condition); }
+            if has_size { col_size.push(t.size); }
+            if has_exchange { col_exchange.push(t.exchange); }
+            if has_price { col_price.push(t.price); }
+            if has_delta { col_delta.push(t.delta); }
+            if has_theta { col_theta.push(t.theta); }
+            if has_vega { col_vega.push(t.vega); }
+            if has_rho { col_rho.push(t.rho); }
+            if has_epsilon { col_epsilon.push(t.epsilon); }
+            if has_lambda { col_lambda.push(t.lambda); }
+            if has_gamma { col_gamma.push(t.gamma); }
+            if has_vanna { col_vanna.push(t.vanna); }
+            if has_charm { col_charm.push(t.charm); }
+            if has_vomma { col_vomma.push(t.vomma); }
+            if has_veta { col_veta.push(t.veta); }
+            if has_vera { col_vera.push(t.vera); }
+            if has_speed { col_speed.push(t.speed); }
+            if has_zomma { col_zomma.push(t.zomma); }
+            if has_color { col_color.push(t.color); }
+            if has_ultima { col_ultima.push(t.ultima); }
+            if has_d1 { col_d1.push(t.d1); }
+            if has_d2 { col_d2.push(t.d2); }
+            if has_dual_delta { col_dual_delta.push(t.dual_delta); }
+            if has_dual_gamma { col_dual_gamma.push(t.dual_gamma); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into());
+        }
+        if has_sequence {
+            series.push(Series::new(PlSmallStr::from_static("sequence"), col_sequence).into());
+        }
+        if has_ext_condition1 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition1"), col_ext_condition1).into());
+        }
+        if has_ext_condition2 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition2"), col_ext_condition2).into());
+        }
+        if has_ext_condition3 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition3"), col_ext_condition3).into());
+        }
+        if has_ext_condition4 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition4"), col_ext_condition4).into());
+        }
+        if has_condition {
+            series.push(Series::new(PlSmallStr::from_static("condition"), col_condition).into());
+        }
+        if has_size {
+            series.push(Series::new(PlSmallStr::from_static("size"), col_size).into());
+        }
+        if has_exchange {
+            series.push(Series::new(PlSmallStr::from_static("exchange"), col_exchange).into());
+        }
+        if has_price {
+            series.push(Series::new(PlSmallStr::from_static("price"), col_price).into());
+        }
+        if has_delta {
+            series.push(Series::new(PlSmallStr::from_static("delta"), col_delta).into());
+        }
+        if has_theta {
+            series.push(Series::new(PlSmallStr::from_static("theta"), col_theta).into());
+        }
+        if has_vega {
+            series.push(Series::new(PlSmallStr::from_static("vega"), col_vega).into());
+        }
+        if has_rho {
+            series.push(Series::new(PlSmallStr::from_static("rho"), col_rho).into());
+        }
+        if has_epsilon {
+            series.push(Series::new(PlSmallStr::from_static("epsilon"), col_epsilon).into());
+        }
+        if has_lambda {
+            series.push(Series::new(PlSmallStr::from_static("lambda"), col_lambda).into());
+        }
+        if has_gamma {
+            series.push(Series::new(PlSmallStr::from_static("gamma"), col_gamma).into());
+        }
+        if has_vanna {
+            series.push(Series::new(PlSmallStr::from_static("vanna"), col_vanna).into());
+        }
+        if has_charm {
+            series.push(Series::new(PlSmallStr::from_static("charm"), col_charm).into());
+        }
+        if has_vomma {
+            series.push(Series::new(PlSmallStr::from_static("vomma"), col_vomma).into());
+        }
+        if has_veta {
+            series.push(Series::new(PlSmallStr::from_static("veta"), col_veta).into());
+        }
+        if has_vera {
+            series.push(Series::new(PlSmallStr::from_static("vera"), col_vera).into());
+        }
+        if has_speed {
+            series.push(Series::new(PlSmallStr::from_static("speed"), col_speed).into());
+        }
+        if has_zomma {
+            series.push(Series::new(PlSmallStr::from_static("zomma"), col_zomma).into());
+        }
+        if has_color {
+            series.push(Series::new(PlSmallStr::from_static("color"), col_color).into());
+        }
+        if has_ultima {
+            series.push(Series::new(PlSmallStr::from_static("ultima"), col_ultima).into());
+        }
+        if has_d1 {
+            series.push(Series::new(PlSmallStr::from_static("d1"), col_d1).into());
+        }
+        if has_d2 {
+            series.push(Series::new(PlSmallStr::from_static("d2"), col_d2).into());
+        }
+        if has_dual_delta {
+            series.push(Series::new(PlSmallStr::from_static("dual_delta"), col_dual_delta).into());
+        }
+        if has_dual_gamma {
+            series.push(Series::new(PlSmallStr::from_static("dual_gamma"), col_dual_gamma).into());
+        }
+        if has_implied_volatility {
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col_implied_volatility).into());
+        }
+        if has_iv_error {
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col_iv_error).into());
+        }
+        if has_underlying_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into());
+        }
+        if has_underlying_price {
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_expiration {
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
+        }
+        if has_strike {
+            series.push(Series::new(PlSmallStr::from_static("strike"), col_strike).into());
+        }
+        if has_right {
+            series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
+        }
+        DataFrame::new(n, series)
+    }
 }
 
 #[cfg(feature = "arrow")]
@@ -2433,6 +6123,184 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksFirs
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeGreeksFirstOrderTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_sequence = present.contains("sequence");
+        let has_ext_condition1 = present.contains("ext_condition1");
+        let has_ext_condition2 = present.contains("ext_condition2");
+        let has_ext_condition3 = present.contains("ext_condition3");
+        let has_ext_condition4 = present.contains("ext_condition4");
+        let has_condition = present.contains("condition");
+        let has_size = present.contains("size");
+        let has_exchange = present.contains("exchange");
+        let has_price = present.contains("price");
+        let has_delta = present.contains("delta");
+        let has_theta = present.contains("theta");
+        let has_vega = present.contains("vega");
+        let has_rho = present.contains("rho");
+        let has_epsilon = present.contains("epsilon");
+        let has_lambda = present.contains("lambda");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
+        let mut col_delta: Vec<f64> = Vec::with_capacity(if has_delta { n } else { 0 });
+        let mut col_theta: Vec<f64> = Vec::with_capacity(if has_theta { n } else { 0 });
+        let mut col_vega: Vec<f64> = Vec::with_capacity(if has_vega { n } else { 0 });
+        let mut col_rho: Vec<f64> = Vec::with_capacity(if has_rho { n } else { 0 });
+        let mut col_epsilon: Vec<f64> = Vec::with_capacity(if has_epsilon { n } else { 0 });
+        let mut col_lambda: Vec<f64> = Vec::with_capacity(if has_lambda { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_sequence { col_sequence.push(t.sequence); }
+            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
+            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
+            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
+            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
+            if has_condition { col_condition.push(t.condition); }
+            if has_size { col_size.push(t.size); }
+            if has_exchange { col_exchange.push(t.exchange); }
+            if has_price { col_price.push(t.price); }
+            if has_delta { col_delta.push(t.delta); }
+            if has_theta { col_theta.push(t.theta); }
+            if has_vega { col_vega.push(t.vega); }
+            if has_rho { col_rho.push(t.rho); }
+            if has_epsilon { col_epsilon.push(t.epsilon); }
+            if has_lambda { col_lambda.push(t.lambda); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_ms_of_day {
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
+        }
+        if has_sequence {
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_sequence)) as ArrayRef);
+        }
+        if has_ext_condition1 {
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef);
+        }
+        if has_ext_condition2 {
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef);
+        }
+        if has_ext_condition3 {
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef);
+        }
+        if has_ext_condition4 {
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef);
+        }
+        if has_condition {
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_condition)) as ArrayRef);
+        }
+        if has_size {
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_size)) as ArrayRef);
+        }
+        if has_exchange {
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_exchange)) as ArrayRef);
+        }
+        if has_price {
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_price)) as ArrayRef);
+        }
+        if has_delta {
+            fields.push(Field::new("delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_delta)) as ArrayRef);
+        }
+        if has_theta {
+            fields.push(Field::new("theta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_theta)) as ArrayRef);
+        }
+        if has_vega {
+            fields.push(Field::new("vega", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_vega)) as ArrayRef);
+        }
+        if has_rho {
+            fields.push(Field::new("rho", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_rho)) as ArrayRef);
+        }
+        if has_epsilon {
+            fields.push(Field::new("epsilon", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_epsilon)) as ArrayRef);
+        }
+        if has_lambda {
+            fields.push(Field::new("lambda", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_lambda)) as ArrayRef);
+        }
+        if has_implied_volatility {
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef);
+        }
+        if has_iv_error {
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_iv_error)) as ArrayRef);
+        }
+        if has_underlying_ms_of_day {
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef);
+        }
+        if has_underlying_price {
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -2517,6 +6385,159 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksFir
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `TradeGreeksFirstOrderTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_sequence = present.contains("sequence");
+        let has_ext_condition1 = present.contains("ext_condition1");
+        let has_ext_condition2 = present.contains("ext_condition2");
+        let has_ext_condition3 = present.contains("ext_condition3");
+        let has_ext_condition4 = present.contains("ext_condition4");
+        let has_condition = present.contains("condition");
+        let has_size = present.contains("size");
+        let has_exchange = present.contains("exchange");
+        let has_price = present.contains("price");
+        let has_delta = present.contains("delta");
+        let has_theta = present.contains("theta");
+        let has_vega = present.contains("vega");
+        let has_rho = present.contains("rho");
+        let has_epsilon = present.contains("epsilon");
+        let has_lambda = present.contains("lambda");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
+        let mut col_delta: Vec<f64> = Vec::with_capacity(if has_delta { n } else { 0 });
+        let mut col_theta: Vec<f64> = Vec::with_capacity(if has_theta { n } else { 0 });
+        let mut col_vega: Vec<f64> = Vec::with_capacity(if has_vega { n } else { 0 });
+        let mut col_rho: Vec<f64> = Vec::with_capacity(if has_rho { n } else { 0 });
+        let mut col_epsilon: Vec<f64> = Vec::with_capacity(if has_epsilon { n } else { 0 });
+        let mut col_lambda: Vec<f64> = Vec::with_capacity(if has_lambda { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_sequence { col_sequence.push(t.sequence); }
+            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
+            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
+            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
+            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
+            if has_condition { col_condition.push(t.condition); }
+            if has_size { col_size.push(t.size); }
+            if has_exchange { col_exchange.push(t.exchange); }
+            if has_price { col_price.push(t.price); }
+            if has_delta { col_delta.push(t.delta); }
+            if has_theta { col_theta.push(t.theta); }
+            if has_vega { col_vega.push(t.vega); }
+            if has_rho { col_rho.push(t.rho); }
+            if has_epsilon { col_epsilon.push(t.epsilon); }
+            if has_lambda { col_lambda.push(t.lambda); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into());
+        }
+        if has_sequence {
+            series.push(Series::new(PlSmallStr::from_static("sequence"), col_sequence).into());
+        }
+        if has_ext_condition1 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition1"), col_ext_condition1).into());
+        }
+        if has_ext_condition2 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition2"), col_ext_condition2).into());
+        }
+        if has_ext_condition3 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition3"), col_ext_condition3).into());
+        }
+        if has_ext_condition4 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition4"), col_ext_condition4).into());
+        }
+        if has_condition {
+            series.push(Series::new(PlSmallStr::from_static("condition"), col_condition).into());
+        }
+        if has_size {
+            series.push(Series::new(PlSmallStr::from_static("size"), col_size).into());
+        }
+        if has_exchange {
+            series.push(Series::new(PlSmallStr::from_static("exchange"), col_exchange).into());
+        }
+        if has_price {
+            series.push(Series::new(PlSmallStr::from_static("price"), col_price).into());
+        }
+        if has_delta {
+            series.push(Series::new(PlSmallStr::from_static("delta"), col_delta).into());
+        }
+        if has_theta {
+            series.push(Series::new(PlSmallStr::from_static("theta"), col_theta).into());
+        }
+        if has_vega {
+            series.push(Series::new(PlSmallStr::from_static("vega"), col_vega).into());
+        }
+        if has_rho {
+            series.push(Series::new(PlSmallStr::from_static("rho"), col_rho).into());
+        }
+        if has_epsilon {
+            series.push(Series::new(PlSmallStr::from_static("epsilon"), col_epsilon).into());
+        }
+        if has_lambda {
+            series.push(Series::new(PlSmallStr::from_static("lambda"), col_lambda).into());
+        }
+        if has_implied_volatility {
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col_implied_volatility).into());
+        }
+        if has_iv_error {
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col_iv_error).into());
+        }
+        if has_underlying_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into());
+        }
+        if has_underlying_price {
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_expiration {
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
+        }
+        if has_strike {
+            series.push(Series::new(PlSmallStr::from_static("strike"), col_strike).into());
+        }
+        if has_right {
+            series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -2606,6 +6627,142 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksImpl
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeGreeksImpliedVolatilityTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_sequence = present.contains("sequence");
+        let has_ext_condition1 = present.contains("ext_condition1");
+        let has_ext_condition2 = present.contains("ext_condition2");
+        let has_ext_condition3 = present.contains("ext_condition3");
+        let has_ext_condition4 = present.contains("ext_condition4");
+        let has_condition = present.contains("condition");
+        let has_size = present.contains("size");
+        let has_exchange = present.contains("exchange");
+        let has_price = present.contains("price");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_sequence { col_sequence.push(t.sequence); }
+            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
+            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
+            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
+            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
+            if has_condition { col_condition.push(t.condition); }
+            if has_size { col_size.push(t.size); }
+            if has_exchange { col_exchange.push(t.exchange); }
+            if has_price { col_price.push(t.price); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_ms_of_day {
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
+        }
+        if has_sequence {
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_sequence)) as ArrayRef);
+        }
+        if has_ext_condition1 {
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef);
+        }
+        if has_ext_condition2 {
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef);
+        }
+        if has_ext_condition3 {
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef);
+        }
+        if has_ext_condition4 {
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef);
+        }
+        if has_condition {
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_condition)) as ArrayRef);
+        }
+        if has_size {
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_size)) as ArrayRef);
+        }
+        if has_exchange {
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_exchange)) as ArrayRef);
+        }
+        if has_price {
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_price)) as ArrayRef);
+        }
+        if has_implied_volatility {
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef);
+        }
+        if has_iv_error {
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_iv_error)) as ArrayRef);
+        }
+        if has_underlying_ms_of_day {
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef);
+        }
+        if has_underlying_price {
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -2672,6 +6829,123 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksImp
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `TradeGreeksImpliedVolatilityTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_sequence = present.contains("sequence");
+        let has_ext_condition1 = present.contains("ext_condition1");
+        let has_ext_condition2 = present.contains("ext_condition2");
+        let has_ext_condition3 = present.contains("ext_condition3");
+        let has_ext_condition4 = present.contains("ext_condition4");
+        let has_condition = present.contains("condition");
+        let has_size = present.contains("size");
+        let has_exchange = present.contains("exchange");
+        let has_price = present.contains("price");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_sequence { col_sequence.push(t.sequence); }
+            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
+            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
+            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
+            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
+            if has_condition { col_condition.push(t.condition); }
+            if has_size { col_size.push(t.size); }
+            if has_exchange { col_exchange.push(t.exchange); }
+            if has_price { col_price.push(t.price); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into());
+        }
+        if has_sequence {
+            series.push(Series::new(PlSmallStr::from_static("sequence"), col_sequence).into());
+        }
+        if has_ext_condition1 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition1"), col_ext_condition1).into());
+        }
+        if has_ext_condition2 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition2"), col_ext_condition2).into());
+        }
+        if has_ext_condition3 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition3"), col_ext_condition3).into());
+        }
+        if has_ext_condition4 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition4"), col_ext_condition4).into());
+        }
+        if has_condition {
+            series.push(Series::new(PlSmallStr::from_static("condition"), col_condition).into());
+        }
+        if has_size {
+            series.push(Series::new(PlSmallStr::from_static("size"), col_size).into());
+        }
+        if has_exchange {
+            series.push(Series::new(PlSmallStr::from_static("exchange"), col_exchange).into());
+        }
+        if has_price {
+            series.push(Series::new(PlSmallStr::from_static("price"), col_price).into());
+        }
+        if has_implied_volatility {
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col_implied_volatility).into());
+        }
+        if has_iv_error {
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col_iv_error).into());
+        }
+        if has_underlying_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into());
+        }
+        if has_underlying_price {
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_expiration {
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
+        }
+        if has_strike {
+            series.push(Series::new(PlSmallStr::from_static("strike"), col_strike).into());
+        }
+        if has_right {
+            series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -2781,6 +7055,177 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksSeco
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeGreeksSecondOrderTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_sequence = present.contains("sequence");
+        let has_ext_condition1 = present.contains("ext_condition1");
+        let has_ext_condition2 = present.contains("ext_condition2");
+        let has_ext_condition3 = present.contains("ext_condition3");
+        let has_ext_condition4 = present.contains("ext_condition4");
+        let has_condition = present.contains("condition");
+        let has_size = present.contains("size");
+        let has_exchange = present.contains("exchange");
+        let has_price = present.contains("price");
+        let has_gamma = present.contains("gamma");
+        let has_vanna = present.contains("vanna");
+        let has_charm = present.contains("charm");
+        let has_vomma = present.contains("vomma");
+        let has_veta = present.contains("veta");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
+        let mut col_gamma: Vec<f64> = Vec::with_capacity(if has_gamma { n } else { 0 });
+        let mut col_vanna: Vec<f64> = Vec::with_capacity(if has_vanna { n } else { 0 });
+        let mut col_charm: Vec<f64> = Vec::with_capacity(if has_charm { n } else { 0 });
+        let mut col_vomma: Vec<f64> = Vec::with_capacity(if has_vomma { n } else { 0 });
+        let mut col_veta: Vec<f64> = Vec::with_capacity(if has_veta { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_sequence { col_sequence.push(t.sequence); }
+            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
+            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
+            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
+            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
+            if has_condition { col_condition.push(t.condition); }
+            if has_size { col_size.push(t.size); }
+            if has_exchange { col_exchange.push(t.exchange); }
+            if has_price { col_price.push(t.price); }
+            if has_gamma { col_gamma.push(t.gamma); }
+            if has_vanna { col_vanna.push(t.vanna); }
+            if has_charm { col_charm.push(t.charm); }
+            if has_vomma { col_vomma.push(t.vomma); }
+            if has_veta { col_veta.push(t.veta); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_ms_of_day {
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
+        }
+        if has_sequence {
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_sequence)) as ArrayRef);
+        }
+        if has_ext_condition1 {
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef);
+        }
+        if has_ext_condition2 {
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef);
+        }
+        if has_ext_condition3 {
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef);
+        }
+        if has_ext_condition4 {
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef);
+        }
+        if has_condition {
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_condition)) as ArrayRef);
+        }
+        if has_size {
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_size)) as ArrayRef);
+        }
+        if has_exchange {
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_exchange)) as ArrayRef);
+        }
+        if has_price {
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_price)) as ArrayRef);
+        }
+        if has_gamma {
+            fields.push(Field::new("gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_gamma)) as ArrayRef);
+        }
+        if has_vanna {
+            fields.push(Field::new("vanna", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_vanna)) as ArrayRef);
+        }
+        if has_charm {
+            fields.push(Field::new("charm", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_charm)) as ArrayRef);
+        }
+        if has_vomma {
+            fields.push(Field::new("vomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_vomma)) as ArrayRef);
+        }
+        if has_veta {
+            fields.push(Field::new("veta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_veta)) as ArrayRef);
+        }
+        if has_implied_volatility {
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef);
+        }
+        if has_iv_error {
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_iv_error)) as ArrayRef);
+        }
+        if has_underlying_ms_of_day {
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef);
+        }
+        if has_underlying_price {
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -2862,6 +7307,153 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksSec
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `TradeGreeksSecondOrderTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_sequence = present.contains("sequence");
+        let has_ext_condition1 = present.contains("ext_condition1");
+        let has_ext_condition2 = present.contains("ext_condition2");
+        let has_ext_condition3 = present.contains("ext_condition3");
+        let has_ext_condition4 = present.contains("ext_condition4");
+        let has_condition = present.contains("condition");
+        let has_size = present.contains("size");
+        let has_exchange = present.contains("exchange");
+        let has_price = present.contains("price");
+        let has_gamma = present.contains("gamma");
+        let has_vanna = present.contains("vanna");
+        let has_charm = present.contains("charm");
+        let has_vomma = present.contains("vomma");
+        let has_veta = present.contains("veta");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
+        let mut col_gamma: Vec<f64> = Vec::with_capacity(if has_gamma { n } else { 0 });
+        let mut col_vanna: Vec<f64> = Vec::with_capacity(if has_vanna { n } else { 0 });
+        let mut col_charm: Vec<f64> = Vec::with_capacity(if has_charm { n } else { 0 });
+        let mut col_vomma: Vec<f64> = Vec::with_capacity(if has_vomma { n } else { 0 });
+        let mut col_veta: Vec<f64> = Vec::with_capacity(if has_veta { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_sequence { col_sequence.push(t.sequence); }
+            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
+            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
+            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
+            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
+            if has_condition { col_condition.push(t.condition); }
+            if has_size { col_size.push(t.size); }
+            if has_exchange { col_exchange.push(t.exchange); }
+            if has_price { col_price.push(t.price); }
+            if has_gamma { col_gamma.push(t.gamma); }
+            if has_vanna { col_vanna.push(t.vanna); }
+            if has_charm { col_charm.push(t.charm); }
+            if has_vomma { col_vomma.push(t.vomma); }
+            if has_veta { col_veta.push(t.veta); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into());
+        }
+        if has_sequence {
+            series.push(Series::new(PlSmallStr::from_static("sequence"), col_sequence).into());
+        }
+        if has_ext_condition1 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition1"), col_ext_condition1).into());
+        }
+        if has_ext_condition2 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition2"), col_ext_condition2).into());
+        }
+        if has_ext_condition3 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition3"), col_ext_condition3).into());
+        }
+        if has_ext_condition4 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition4"), col_ext_condition4).into());
+        }
+        if has_condition {
+            series.push(Series::new(PlSmallStr::from_static("condition"), col_condition).into());
+        }
+        if has_size {
+            series.push(Series::new(PlSmallStr::from_static("size"), col_size).into());
+        }
+        if has_exchange {
+            series.push(Series::new(PlSmallStr::from_static("exchange"), col_exchange).into());
+        }
+        if has_price {
+            series.push(Series::new(PlSmallStr::from_static("price"), col_price).into());
+        }
+        if has_gamma {
+            series.push(Series::new(PlSmallStr::from_static("gamma"), col_gamma).into());
+        }
+        if has_vanna {
+            series.push(Series::new(PlSmallStr::from_static("vanna"), col_vanna).into());
+        }
+        if has_charm {
+            series.push(Series::new(PlSmallStr::from_static("charm"), col_charm).into());
+        }
+        if has_vomma {
+            series.push(Series::new(PlSmallStr::from_static("vomma"), col_vomma).into());
+        }
+        if has_veta {
+            series.push(Series::new(PlSmallStr::from_static("veta"), col_veta).into());
+        }
+        if has_implied_volatility {
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col_implied_volatility).into());
+        }
+        if has_iv_error {
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col_iv_error).into());
+        }
+        if has_underlying_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into());
+        }
+        if has_underlying_price {
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_expiration {
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
+        }
+        if has_strike {
+            series.push(Series::new(PlSmallStr::from_static("strike"), col_strike).into());
+        }
+        if has_right {
+            series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -2967,6 +7559,170 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksThir
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeGreeksThirdOrderTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_sequence = present.contains("sequence");
+        let has_ext_condition1 = present.contains("ext_condition1");
+        let has_ext_condition2 = present.contains("ext_condition2");
+        let has_ext_condition3 = present.contains("ext_condition3");
+        let has_ext_condition4 = present.contains("ext_condition4");
+        let has_condition = present.contains("condition");
+        let has_size = present.contains("size");
+        let has_exchange = present.contains("exchange");
+        let has_price = present.contains("price");
+        let has_speed = present.contains("speed");
+        let has_zomma = present.contains("zomma");
+        let has_color = present.contains("color");
+        let has_ultima = present.contains("ultima");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
+        let mut col_speed: Vec<f64> = Vec::with_capacity(if has_speed { n } else { 0 });
+        let mut col_zomma: Vec<f64> = Vec::with_capacity(if has_zomma { n } else { 0 });
+        let mut col_color: Vec<f64> = Vec::with_capacity(if has_color { n } else { 0 });
+        let mut col_ultima: Vec<f64> = Vec::with_capacity(if has_ultima { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_sequence { col_sequence.push(t.sequence); }
+            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
+            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
+            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
+            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
+            if has_condition { col_condition.push(t.condition); }
+            if has_size { col_size.push(t.size); }
+            if has_exchange { col_exchange.push(t.exchange); }
+            if has_price { col_price.push(t.price); }
+            if has_speed { col_speed.push(t.speed); }
+            if has_zomma { col_zomma.push(t.zomma); }
+            if has_color { col_color.push(t.color); }
+            if has_ultima { col_ultima.push(t.ultima); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_ms_of_day {
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
+        }
+        if has_sequence {
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_sequence)) as ArrayRef);
+        }
+        if has_ext_condition1 {
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef);
+        }
+        if has_ext_condition2 {
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef);
+        }
+        if has_ext_condition3 {
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef);
+        }
+        if has_ext_condition4 {
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef);
+        }
+        if has_condition {
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_condition)) as ArrayRef);
+        }
+        if has_size {
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_size)) as ArrayRef);
+        }
+        if has_exchange {
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_exchange)) as ArrayRef);
+        }
+        if has_price {
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_price)) as ArrayRef);
+        }
+        if has_speed {
+            fields.push(Field::new("speed", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_speed)) as ArrayRef);
+        }
+        if has_zomma {
+            fields.push(Field::new("zomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_zomma)) as ArrayRef);
+        }
+        if has_color {
+            fields.push(Field::new("color", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_color)) as ArrayRef);
+        }
+        if has_ultima {
+            fields.push(Field::new("ultima", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_ultima)) as ArrayRef);
+        }
+        if has_implied_volatility {
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_implied_volatility)) as ArrayRef);
+        }
+        if has_iv_error {
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_iv_error)) as ArrayRef);
+        }
+        if has_underlying_ms_of_day {
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_underlying_ms_of_day)) as ArrayRef);
+        }
+        if has_underlying_price {
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_underlying_price)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -3045,6 +7801,147 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksThi
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `TradeGreeksThirdOrderTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_sequence = present.contains("sequence");
+        let has_ext_condition1 = present.contains("ext_condition1");
+        let has_ext_condition2 = present.contains("ext_condition2");
+        let has_ext_condition3 = present.contains("ext_condition3");
+        let has_ext_condition4 = present.contains("ext_condition4");
+        let has_condition = present.contains("condition");
+        let has_size = present.contains("size");
+        let has_exchange = present.contains("exchange");
+        let has_price = present.contains("price");
+        let has_speed = present.contains("speed");
+        let has_zomma = present.contains("zomma");
+        let has_color = present.contains("color");
+        let has_ultima = present.contains("ultima");
+        let has_implied_volatility = present.contains("implied_volatility");
+        let has_iv_error = present.contains("iv_error");
+        let has_underlying_ms_of_day = present.contains("underlying_ms_of_day");
+        let has_underlying_price = present.contains("underlying_price");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
+        let mut col_speed: Vec<f64> = Vec::with_capacity(if has_speed { n } else { 0 });
+        let mut col_zomma: Vec<f64> = Vec::with_capacity(if has_zomma { n } else { 0 });
+        let mut col_color: Vec<f64> = Vec::with_capacity(if has_color { n } else { 0 });
+        let mut col_ultima: Vec<f64> = Vec::with_capacity(if has_ultima { n } else { 0 });
+        let mut col_implied_volatility: Vec<f64> = Vec::with_capacity(if has_implied_volatility { n } else { 0 });
+        let mut col_iv_error: Vec<f64> = Vec::with_capacity(if has_iv_error { n } else { 0 });
+        let mut col_underlying_ms_of_day: Vec<i32> = Vec::with_capacity(if has_underlying_ms_of_day { n } else { 0 });
+        let mut col_underlying_price: Vec<f64> = Vec::with_capacity(if has_underlying_price { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_sequence { col_sequence.push(t.sequence); }
+            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
+            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
+            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
+            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
+            if has_condition { col_condition.push(t.condition); }
+            if has_size { col_size.push(t.size); }
+            if has_exchange { col_exchange.push(t.exchange); }
+            if has_price { col_price.push(t.price); }
+            if has_speed { col_speed.push(t.speed); }
+            if has_zomma { col_zomma.push(t.zomma); }
+            if has_color { col_color.push(t.color); }
+            if has_ultima { col_ultima.push(t.ultima); }
+            if has_implied_volatility { col_implied_volatility.push(t.implied_volatility); }
+            if has_iv_error { col_iv_error.push(t.iv_error); }
+            if has_underlying_ms_of_day { col_underlying_ms_of_day.push(t.underlying_ms_of_day); }
+            if has_underlying_price { col_underlying_price.push(t.underlying_price); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into());
+        }
+        if has_sequence {
+            series.push(Series::new(PlSmallStr::from_static("sequence"), col_sequence).into());
+        }
+        if has_ext_condition1 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition1"), col_ext_condition1).into());
+        }
+        if has_ext_condition2 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition2"), col_ext_condition2).into());
+        }
+        if has_ext_condition3 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition3"), col_ext_condition3).into());
+        }
+        if has_ext_condition4 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition4"), col_ext_condition4).into());
+        }
+        if has_condition {
+            series.push(Series::new(PlSmallStr::from_static("condition"), col_condition).into());
+        }
+        if has_size {
+            series.push(Series::new(PlSmallStr::from_static("size"), col_size).into());
+        }
+        if has_exchange {
+            series.push(Series::new(PlSmallStr::from_static("exchange"), col_exchange).into());
+        }
+        if has_price {
+            series.push(Series::new(PlSmallStr::from_static("price"), col_price).into());
+        }
+        if has_speed {
+            series.push(Series::new(PlSmallStr::from_static("speed"), col_speed).into());
+        }
+        if has_zomma {
+            series.push(Series::new(PlSmallStr::from_static("zomma"), col_zomma).into());
+        }
+        if has_color {
+            series.push(Series::new(PlSmallStr::from_static("color"), col_color).into());
+        }
+        if has_ultima {
+            series.push(Series::new(PlSmallStr::from_static("ultima"), col_ultima).into());
+        }
+        if has_implied_volatility {
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col_implied_volatility).into());
+        }
+        if has_iv_error {
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col_iv_error).into());
+        }
+        if has_underlying_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col_underlying_ms_of_day).into());
+        }
+        if has_underlying_price {
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col_underlying_price).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_expiration {
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
+        }
+        if has_strike {
+            series.push(Series::new(PlSmallStr::from_static("strike"), col_strike).into());
+        }
+        if has_right {
+            series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -3170,6 +8067,205 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeQuoteTick]
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeQuoteTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_sequence = present.contains("sequence");
+        let has_ext_condition1 = present.contains("ext_condition1");
+        let has_ext_condition2 = present.contains("ext_condition2");
+        let has_ext_condition3 = present.contains("ext_condition3");
+        let has_ext_condition4 = present.contains("ext_condition4");
+        let has_condition = present.contains("condition");
+        let has_size = present.contains("size");
+        let has_exchange = present.contains("exchange");
+        let has_price = present.contains("price");
+        let has_condition_flags = present.contains("condition_flags");
+        let has_price_flags = present.contains("price_flags");
+        let has_volume_type = present.contains("volume_type");
+        let has_records_back = present.contains("records_back");
+        let has_quote_ms_of_day = present.contains("quote_ms_of_day");
+        let has_bid_size = present.contains("bid_size");
+        let has_bid_exchange = present.contains("bid_exchange");
+        let has_bid = present.contains("bid");
+        let has_bid_condition = present.contains("bid_condition");
+        let has_ask_size = present.contains("ask_size");
+        let has_ask_exchange = present.contains("ask_exchange");
+        let has_ask = present.contains("ask");
+        let has_ask_condition = present.contains("ask_condition");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
+        let mut col_condition_flags: Vec<i32> = Vec::with_capacity(if has_condition_flags { n } else { 0 });
+        let mut col_price_flags: Vec<i32> = Vec::with_capacity(if has_price_flags { n } else { 0 });
+        let mut col_volume_type: Vec<i32> = Vec::with_capacity(if has_volume_type { n } else { 0 });
+        let mut col_records_back: Vec<i32> = Vec::with_capacity(if has_records_back { n } else { 0 });
+        let mut col_quote_ms_of_day: Vec<i32> = Vec::with_capacity(if has_quote_ms_of_day { n } else { 0 });
+        let mut col_bid_size: Vec<i32> = Vec::with_capacity(if has_bid_size { n } else { 0 });
+        let mut col_bid_exchange: Vec<i32> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
+        let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
+        let mut col_bid_condition: Vec<i32> = Vec::with_capacity(if has_bid_condition { n } else { 0 });
+        let mut col_ask_size: Vec<i32> = Vec::with_capacity(if has_ask_size { n } else { 0 });
+        let mut col_ask_exchange: Vec<i32> = Vec::with_capacity(if has_ask_exchange { n } else { 0 });
+        let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
+        let mut col_ask_condition: Vec<i32> = Vec::with_capacity(if has_ask_condition { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_sequence { col_sequence.push(t.sequence); }
+            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
+            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
+            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
+            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
+            if has_condition { col_condition.push(t.condition); }
+            if has_size { col_size.push(t.size); }
+            if has_exchange { col_exchange.push(t.exchange); }
+            if has_price { col_price.push(t.price); }
+            if has_condition_flags { col_condition_flags.push(t.condition_flags); }
+            if has_price_flags { col_price_flags.push(t.price_flags); }
+            if has_volume_type { col_volume_type.push(t.volume_type); }
+            if has_records_back { col_records_back.push(t.records_back); }
+            if has_quote_ms_of_day { col_quote_ms_of_day.push(t.quote_ms_of_day); }
+            if has_bid_size { col_bid_size.push(t.bid_size); }
+            if has_bid_exchange { col_bid_exchange.push(t.bid_exchange); }
+            if has_bid { col_bid.push(t.bid); }
+            if has_bid_condition { col_bid_condition.push(t.bid_condition); }
+            if has_ask_size { col_ask_size.push(t.ask_size); }
+            if has_ask_exchange { col_ask_exchange.push(t.ask_exchange); }
+            if has_ask { col_ask.push(t.ask); }
+            if has_ask_condition { col_ask_condition.push(t.ask_condition); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_ms_of_day {
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
+        }
+        if has_sequence {
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_sequence)) as ArrayRef);
+        }
+        if has_ext_condition1 {
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef);
+        }
+        if has_ext_condition2 {
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef);
+        }
+        if has_ext_condition3 {
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef);
+        }
+        if has_ext_condition4 {
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef);
+        }
+        if has_condition {
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_condition)) as ArrayRef);
+        }
+        if has_size {
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_size)) as ArrayRef);
+        }
+        if has_exchange {
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_exchange)) as ArrayRef);
+        }
+        if has_price {
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_price)) as ArrayRef);
+        }
+        if has_condition_flags {
+            fields.push(Field::new("condition_flags", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_condition_flags)) as ArrayRef);
+        }
+        if has_price_flags {
+            fields.push(Field::new("price_flags", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_price_flags)) as ArrayRef);
+        }
+        if has_volume_type {
+            fields.push(Field::new("volume_type", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_volume_type)) as ArrayRef);
+        }
+        if has_records_back {
+            fields.push(Field::new("records_back", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_records_back)) as ArrayRef);
+        }
+        if has_quote_ms_of_day {
+            fields.push(Field::new("quote_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_quote_ms_of_day)) as ArrayRef);
+        }
+        if has_bid_size {
+            fields.push(Field::new("bid_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_bid_size)) as ArrayRef);
+        }
+        if has_bid_exchange {
+            fields.push(Field::new("bid_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_bid_exchange)) as ArrayRef);
+        }
+        if has_bid {
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_bid)) as ArrayRef);
+        }
+        if has_bid_condition {
+            fields.push(Field::new("bid_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_bid_condition)) as ArrayRef);
+        }
+        if has_ask_size {
+            fields.push(Field::new("ask_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ask_size)) as ArrayRef);
+        }
+        if has_ask_exchange {
+            fields.push(Field::new("ask_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ask_exchange)) as ArrayRef);
+        }
+        if has_ask {
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_ask)) as ArrayRef);
+        }
+        if has_ask_condition {
+            fields.push(Field::new("ask_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ask_condition)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -3264,6 +8360,177 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeQuoteTick
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
     }
+
+    /// Builds a Polars `DataFrame` from a slice of `TradeQuoteTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_sequence = present.contains("sequence");
+        let has_ext_condition1 = present.contains("ext_condition1");
+        let has_ext_condition2 = present.contains("ext_condition2");
+        let has_ext_condition3 = present.contains("ext_condition3");
+        let has_ext_condition4 = present.contains("ext_condition4");
+        let has_condition = present.contains("condition");
+        let has_size = present.contains("size");
+        let has_exchange = present.contains("exchange");
+        let has_price = present.contains("price");
+        let has_condition_flags = present.contains("condition_flags");
+        let has_price_flags = present.contains("price_flags");
+        let has_volume_type = present.contains("volume_type");
+        let has_records_back = present.contains("records_back");
+        let has_quote_ms_of_day = present.contains("quote_ms_of_day");
+        let has_bid_size = present.contains("bid_size");
+        let has_bid_exchange = present.contains("bid_exchange");
+        let has_bid = present.contains("bid");
+        let has_bid_condition = present.contains("bid_condition");
+        let has_ask_size = present.contains("ask_size");
+        let has_ask_exchange = present.contains("ask_exchange");
+        let has_ask = present.contains("ask");
+        let has_ask_condition = present.contains("ask_condition");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
+        let mut col_condition_flags: Vec<i32> = Vec::with_capacity(if has_condition_flags { n } else { 0 });
+        let mut col_price_flags: Vec<i32> = Vec::with_capacity(if has_price_flags { n } else { 0 });
+        let mut col_volume_type: Vec<i32> = Vec::with_capacity(if has_volume_type { n } else { 0 });
+        let mut col_records_back: Vec<i32> = Vec::with_capacity(if has_records_back { n } else { 0 });
+        let mut col_quote_ms_of_day: Vec<i32> = Vec::with_capacity(if has_quote_ms_of_day { n } else { 0 });
+        let mut col_bid_size: Vec<i32> = Vec::with_capacity(if has_bid_size { n } else { 0 });
+        let mut col_bid_exchange: Vec<i32> = Vec::with_capacity(if has_bid_exchange { n } else { 0 });
+        let mut col_bid: Vec<f64> = Vec::with_capacity(if has_bid { n } else { 0 });
+        let mut col_bid_condition: Vec<i32> = Vec::with_capacity(if has_bid_condition { n } else { 0 });
+        let mut col_ask_size: Vec<i32> = Vec::with_capacity(if has_ask_size { n } else { 0 });
+        let mut col_ask_exchange: Vec<i32> = Vec::with_capacity(if has_ask_exchange { n } else { 0 });
+        let mut col_ask: Vec<f64> = Vec::with_capacity(if has_ask { n } else { 0 });
+        let mut col_ask_condition: Vec<i32> = Vec::with_capacity(if has_ask_condition { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_sequence { col_sequence.push(t.sequence); }
+            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
+            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
+            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
+            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
+            if has_condition { col_condition.push(t.condition); }
+            if has_size { col_size.push(t.size); }
+            if has_exchange { col_exchange.push(t.exchange); }
+            if has_price { col_price.push(t.price); }
+            if has_condition_flags { col_condition_flags.push(t.condition_flags); }
+            if has_price_flags { col_price_flags.push(t.price_flags); }
+            if has_volume_type { col_volume_type.push(t.volume_type); }
+            if has_records_back { col_records_back.push(t.records_back); }
+            if has_quote_ms_of_day { col_quote_ms_of_day.push(t.quote_ms_of_day); }
+            if has_bid_size { col_bid_size.push(t.bid_size); }
+            if has_bid_exchange { col_bid_exchange.push(t.bid_exchange); }
+            if has_bid { col_bid.push(t.bid); }
+            if has_bid_condition { col_bid_condition.push(t.bid_condition); }
+            if has_ask_size { col_ask_size.push(t.ask_size); }
+            if has_ask_exchange { col_ask_exchange.push(t.ask_exchange); }
+            if has_ask { col_ask.push(t.ask); }
+            if has_ask_condition { col_ask_condition.push(t.ask_condition); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into());
+        }
+        if has_sequence {
+            series.push(Series::new(PlSmallStr::from_static("sequence"), col_sequence).into());
+        }
+        if has_ext_condition1 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition1"), col_ext_condition1).into());
+        }
+        if has_ext_condition2 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition2"), col_ext_condition2).into());
+        }
+        if has_ext_condition3 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition3"), col_ext_condition3).into());
+        }
+        if has_ext_condition4 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition4"), col_ext_condition4).into());
+        }
+        if has_condition {
+            series.push(Series::new(PlSmallStr::from_static("condition"), col_condition).into());
+        }
+        if has_size {
+            series.push(Series::new(PlSmallStr::from_static("size"), col_size).into());
+        }
+        if has_exchange {
+            series.push(Series::new(PlSmallStr::from_static("exchange"), col_exchange).into());
+        }
+        if has_price {
+            series.push(Series::new(PlSmallStr::from_static("price"), col_price).into());
+        }
+        if has_condition_flags {
+            series.push(Series::new(PlSmallStr::from_static("condition_flags"), col_condition_flags).into());
+        }
+        if has_price_flags {
+            series.push(Series::new(PlSmallStr::from_static("price_flags"), col_price_flags).into());
+        }
+        if has_volume_type {
+            series.push(Series::new(PlSmallStr::from_static("volume_type"), col_volume_type).into());
+        }
+        if has_records_back {
+            series.push(Series::new(PlSmallStr::from_static("records_back"), col_records_back).into());
+        }
+        if has_quote_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("quote_ms_of_day"), col_quote_ms_of_day).into());
+        }
+        if has_bid_size {
+            series.push(Series::new(PlSmallStr::from_static("bid_size"), col_bid_size).into());
+        }
+        if has_bid_exchange {
+            series.push(Series::new(PlSmallStr::from_static("bid_exchange"), col_bid_exchange).into());
+        }
+        if has_bid {
+            series.push(Series::new(PlSmallStr::from_static("bid"), col_bid).into());
+        }
+        if has_bid_condition {
+            series.push(Series::new(PlSmallStr::from_static("bid_condition"), col_bid_condition).into());
+        }
+        if has_ask_size {
+            series.push(Series::new(PlSmallStr::from_static("ask_size"), col_ask_size).into());
+        }
+        if has_ask_exchange {
+            series.push(Series::new(PlSmallStr::from_static("ask_exchange"), col_ask_exchange).into());
+        }
+        if has_ask {
+            series.push(Series::new(PlSmallStr::from_static("ask"), col_ask).into());
+        }
+        if has_ask_condition {
+            series.push(Series::new(PlSmallStr::from_static("ask_condition"), col_ask_condition).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_expiration {
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
+        }
+        if has_strike {
+            series.push(Series::new(PlSmallStr::from_static("strike"), col_strike).into());
+        }
+        if has_right {
+            series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
+        }
+        DataFrame::new(n, series)
+    }
 }
 
 #[cfg(feature = "arrow")]
@@ -3352,6 +8619,142 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeTick] {
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_sequence = present.contains("sequence");
+        let has_ext_condition1 = present.contains("ext_condition1");
+        let has_ext_condition2 = present.contains("ext_condition2");
+        let has_ext_condition3 = present.contains("ext_condition3");
+        let has_ext_condition4 = present.contains("ext_condition4");
+        let has_condition = present.contains("condition");
+        let has_size = present.contains("size");
+        let has_exchange = present.contains("exchange");
+        let has_price = present.contains("price");
+        let has_condition_flags = present.contains("condition_flags");
+        let has_price_flags = present.contains("price_flags");
+        let has_volume_type = present.contains("volume_type");
+        let has_records_back = present.contains("records_back");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
+        let mut col_condition_flags: Vec<i32> = Vec::with_capacity(if has_condition_flags { n } else { 0 });
+        let mut col_price_flags: Vec<i32> = Vec::with_capacity(if has_price_flags { n } else { 0 });
+        let mut col_volume_type: Vec<i32> = Vec::with_capacity(if has_volume_type { n } else { 0 });
+        let mut col_records_back: Vec<i32> = Vec::with_capacity(if has_records_back { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_sequence { col_sequence.push(t.sequence); }
+            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
+            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
+            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
+            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
+            if has_condition { col_condition.push(t.condition); }
+            if has_size { col_size.push(t.size); }
+            if has_exchange { col_exchange.push(t.exchange); }
+            if has_price { col_price.push(t.price); }
+            if has_condition_flags { col_condition_flags.push(t.condition_flags); }
+            if has_price_flags { col_price_flags.push(t.price_flags); }
+            if has_volume_type { col_volume_type.push(t.volume_type); }
+            if has_records_back { col_records_back.push(t.records_back); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if has_ms_of_day {
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
+        }
+        if has_sequence {
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_sequence)) as ArrayRef);
+        }
+        if has_ext_condition1 {
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition1)) as ArrayRef);
+        }
+        if has_ext_condition2 {
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition2)) as ArrayRef);
+        }
+        if has_ext_condition3 {
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition3)) as ArrayRef);
+        }
+        if has_ext_condition4 {
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_ext_condition4)) as ArrayRef);
+        }
+        if has_condition {
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_condition)) as ArrayRef);
+        }
+        if has_size {
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_size)) as ArrayRef);
+        }
+        if has_exchange {
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_exchange)) as ArrayRef);
+        }
+        if has_price {
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col_price)) as ArrayRef);
+        }
+        if has_condition_flags {
+            fields.push(Field::new("condition_flags", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_condition_flags)) as ArrayRef);
+        }
+        if has_price_flags {
+            fields.push(Field::new("price_flags", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_price_flags)) as ArrayRef);
+        }
+        if has_volume_type {
+            fields.push(Field::new("volume_type", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_volume_type)) as ArrayRef);
+        }
+        if has_records_back {
+            fields.push(Field::new("records_back", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_records_back)) as ArrayRef);
+        }
+        if has_date {
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
+        }
+        if has_expiration {
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col_expiration)) as ArrayRef);
+        }
+        if has_strike {
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col_strike)) as ArrayRef);
+        }
+        if has_right {
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
+        }
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -3418,6 +8821,123 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeTick] {
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `TradeTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let has_ms_of_day = present.contains("ms_of_day");
+        let has_sequence = present.contains("sequence");
+        let has_ext_condition1 = present.contains("ext_condition1");
+        let has_ext_condition2 = present.contains("ext_condition2");
+        let has_ext_condition3 = present.contains("ext_condition3");
+        let has_ext_condition4 = present.contains("ext_condition4");
+        let has_condition = present.contains("condition");
+        let has_size = present.contains("size");
+        let has_exchange = present.contains("exchange");
+        let has_price = present.contains("price");
+        let has_condition_flags = present.contains("condition_flags");
+        let has_price_flags = present.contains("price_flags");
+        let has_volume_type = present.contains("volume_type");
+        let has_records_back = present.contains("records_back");
+        let has_date = present.contains("date");
+        let has_expiration = present.contains("expiration");
+        let has_strike = present.contains("strike");
+        let has_right = present.contains("right");
+        let mut col_ms_of_day: Vec<i32> = Vec::with_capacity(if has_ms_of_day { n } else { 0 });
+        let mut col_sequence: Vec<i32> = Vec::with_capacity(if has_sequence { n } else { 0 });
+        let mut col_ext_condition1: Vec<i32> = Vec::with_capacity(if has_ext_condition1 { n } else { 0 });
+        let mut col_ext_condition2: Vec<i32> = Vec::with_capacity(if has_ext_condition2 { n } else { 0 });
+        let mut col_ext_condition3: Vec<i32> = Vec::with_capacity(if has_ext_condition3 { n } else { 0 });
+        let mut col_ext_condition4: Vec<i32> = Vec::with_capacity(if has_ext_condition4 { n } else { 0 });
+        let mut col_condition: Vec<i32> = Vec::with_capacity(if has_condition { n } else { 0 });
+        let mut col_size: Vec<i32> = Vec::with_capacity(if has_size { n } else { 0 });
+        let mut col_exchange: Vec<i32> = Vec::with_capacity(if has_exchange { n } else { 0 });
+        let mut col_price: Vec<f64> = Vec::with_capacity(if has_price { n } else { 0 });
+        let mut col_condition_flags: Vec<i32> = Vec::with_capacity(if has_condition_flags { n } else { 0 });
+        let mut col_price_flags: Vec<i32> = Vec::with_capacity(if has_price_flags { n } else { 0 });
+        let mut col_volume_type: Vec<i32> = Vec::with_capacity(if has_volume_type { n } else { 0 });
+        let mut col_records_back: Vec<i32> = Vec::with_capacity(if has_records_back { n } else { 0 });
+        let mut col_date: Vec<i32> = Vec::with_capacity(if has_date { n } else { 0 });
+        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(if has_expiration { n } else { 0 });
+        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(if has_strike { n } else { 0 });
+        let mut col_right: Vec<Option<String>> = Vec::with_capacity(if has_right { n } else { 0 });
+        for t in self {
+            if has_ms_of_day { col_ms_of_day.push(t.ms_of_day); }
+            if has_sequence { col_sequence.push(t.sequence); }
+            if has_ext_condition1 { col_ext_condition1.push(t.ext_condition1); }
+            if has_ext_condition2 { col_ext_condition2.push(t.ext_condition2); }
+            if has_ext_condition3 { col_ext_condition3.push(t.ext_condition3); }
+            if has_ext_condition4 { col_ext_condition4.push(t.ext_condition4); }
+            if has_condition { col_condition.push(t.condition); }
+            if has_size { col_size.push(t.size); }
+            if has_exchange { col_exchange.push(t.exchange); }
+            if has_price { col_price.push(t.price); }
+            if has_condition_flags { col_condition_flags.push(t.condition_flags); }
+            if has_price_flags { col_price_flags.push(t.price_flags); }
+            if has_volume_type { col_volume_type.push(t.volume_type); }
+            if has_records_back { col_records_back.push(t.records_back); }
+            if has_date { col_date.push(t.date); }
+            if has_expiration { col_expiration.push(t.has_contract_id().then_some(t.expiration)); }
+            if has_strike { col_strike.push(t.has_contract_id().then_some(t.strike)); }
+            if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+        }
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if has_ms_of_day {
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into());
+        }
+        if has_sequence {
+            series.push(Series::new(PlSmallStr::from_static("sequence"), col_sequence).into());
+        }
+        if has_ext_condition1 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition1"), col_ext_condition1).into());
+        }
+        if has_ext_condition2 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition2"), col_ext_condition2).into());
+        }
+        if has_ext_condition3 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition3"), col_ext_condition3).into());
+        }
+        if has_ext_condition4 {
+            series.push(Series::new(PlSmallStr::from_static("ext_condition4"), col_ext_condition4).into());
+        }
+        if has_condition {
+            series.push(Series::new(PlSmallStr::from_static("condition"), col_condition).into());
+        }
+        if has_size {
+            series.push(Series::new(PlSmallStr::from_static("size"), col_size).into());
+        }
+        if has_exchange {
+            series.push(Series::new(PlSmallStr::from_static("exchange"), col_exchange).into());
+        }
+        if has_price {
+            series.push(Series::new(PlSmallStr::from_static("price"), col_price).into());
+        }
+        if has_condition_flags {
+            series.push(Series::new(PlSmallStr::from_static("condition_flags"), col_condition_flags).into());
+        }
+        if has_price_flags {
+            series.push(Series::new(PlSmallStr::from_static("price_flags"), col_price_flags).into());
+        }
+        if has_volume_type {
+            series.push(Series::new(PlSmallStr::from_static("volume_type"), col_volume_type).into());
+        }
+        if has_records_back {
+            series.push(Series::new(PlSmallStr::from_static("records_back"), col_records_back).into());
+        }
+        if has_date {
+            series.push(Series::new(PlSmallStr::from_static("date"), col_date).into());
+        }
+        if has_expiration {
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col_expiration).into());
+        }
+        if has_strike {
+            series.push(Series::new(PlSmallStr::from_static("strike"), col_strike).into());
+        }
+        if has_right {
+            series.push(Series::new(PlSmallStr::from_static("right"), col_right).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 

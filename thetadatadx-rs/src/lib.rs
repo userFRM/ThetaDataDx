@@ -103,6 +103,7 @@ pub mod auth;
 pub mod backoff;
 pub(crate) mod client;
 pub(crate) mod client_builder;
+pub mod columns;
 pub mod config;
 pub mod error;
 pub mod flatfiles;
@@ -422,6 +423,12 @@ pub mod flatfiles_api {
 pub use flatfiles_api::*;
 
 // ─── Tick types ───────────────────────────────────────────────────────────────
+
+/// Per-response wire column set carried alongside decoded rows so the
+/// DataFrame builders project to the terminal's exact columns, the buffered
+/// [`Ticks`] return that carries it, and the trait a tick type implements to
+/// compute the set from a wire header list.
+pub use crate::columns::{ColumnPresence, Ticks, WireColumns};
 
 pub use crate::tdbe::types::tick::{
     CalendarDay, EodTick, GreeksAllTick, GreeksEodTick, GreeksFirstOrderTick,
