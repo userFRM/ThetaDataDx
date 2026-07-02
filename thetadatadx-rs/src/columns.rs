@@ -36,6 +36,14 @@ pub struct ColumnPresence {
     /// Present schema-column names in schema order. Small (≤ ~24 entries),
     /// so a linear scan in [`Self::contains`] beats a hashed set.
     names: Vec<Box<str>>,
+    /// The response's `symbol` (root) header value, when the wire carried
+    /// one. Option + index historical endpoints send a `symbol` column
+    /// constant across the response (the queried underlying); stock
+    /// endpoints do not. It is not a tick-struct field (the flat POD ticks
+    /// hold no per-row `String`), so it rides here once and the projected
+    /// builders broadcast it as the first Arrow/Polars column. `None` for
+    /// stock responses and every hand-built / streaming frame.
+    symbol: Option<Box<str>>,
 }
 
 impl ColumnPresence {
@@ -52,7 +60,25 @@ impl ColumnPresence {
     {
         Self {
             names: names.into_iter().map(Into::into).collect(),
+            symbol: None,
         }
+    }
+
+    /// Attach the response's constant `symbol` (root) value, so the projected
+    /// builders emit it as the leading broadcast column. The decode seam calls
+    /// this once per response after reading the wire `symbol`/`root` header;
+    /// binding decode seams reconstruct it the same way.
+    #[must_use]
+    pub fn with_symbol<S: Into<Box<str>>>(mut self, symbol: S) -> Self {
+        self.symbol = Some(symbol.into());
+        self
+    }
+
+    /// The response's constant `symbol` (root), when the wire carried one.
+    /// `None` for stock responses and hand-built / streaming frames.
+    #[must_use]
+    pub fn symbol(&self) -> Option<&str> {
+        self.symbol.as_deref()
     }
 
     /// `true` when the response carried the column `name` (a schema field

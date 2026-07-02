@@ -280,6 +280,15 @@ fn render_arrow_impl(type_name: &str, def: &TickTypeDef) -> String {
     out.push_str("        }\n");
     out.push_str("        let mut fields: Vec<Field> = Vec::new();\n");
     out.push_str("        let mut columns: Vec<ArrayRef> = Vec::new();\n");
+    // Leading `symbol` (root) column, broadcast from the response constant —
+    // option/index endpoints carry it, stock does not. First in schema order
+    // to match the wire header layout.
+    out.push_str("        if let Some(sym) = present.symbol() {\n");
+    out.push_str("            fields.push(Field::new(\"symbol\", DataType::Utf8, false));\n");
+    out.push_str(
+        "            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);\n",
+    );
+    out.push_str("        }\n");
     for c in &cols {
         writeln!(out, "        if has_{name} {{", name = c.name).unwrap();
         writeln!(
@@ -412,6 +421,13 @@ fn render_polars_impl(type_name: &str, def: &TickTypeDef) -> String {
     }
     out.push_str("        }\n");
     out.push_str("        let mut series: Vec<polars::prelude::Column> = Vec::new();\n");
+    // Leading `symbol` (root) column, broadcast from the response constant —
+    // first in schema order to match the Arrow builder and the wire.
+    out.push_str("        if let Some(sym) = present.symbol() {\n");
+    out.push_str(
+        "            series.push(Series::new(PlSmallStr::from_static(\"symbol\"), vec![sym.to_string(); n]).into());\n",
+    );
+    out.push_str("        }\n");
     for c in &cols {
         writeln!(out, "        if has_{name} {{", name = c.name).unwrap();
         writeln!(

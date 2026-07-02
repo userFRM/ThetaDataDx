@@ -142,14 +142,16 @@ pub(super) fn render_cpp_tick_arrow_ipc(schema: &Schema) -> String {
     out.push_str(
         "/// Serialise a typed history-row vector as a PROJECTED Arrow IPC stream —\n\
          /// only the columns named in `presence` — by forwarding to its `_projected`\n\
-         /// C ABI serialiser. Same error / empty-stream contract as `tick_to_arrow_ipc`.\n",
+         /// C ABI serialiser. `symbol` is the response's constant root, broadcast as\n\
+         /// the leading column (empty -> omitted). Same error / empty-stream contract\n\
+         /// as `tick_to_arrow_ipc`.\n",
     );
     out.push_str("template <typename Tick, typename CFn>\n");
     out.push_str(
-        "inline std::vector<uint8_t> tick_to_arrow_ipc_projected(const std::vector<Tick>& rows, const ColumnPresence& presence, CFn c_fn) {\n",
+        "inline std::vector<uint8_t> tick_to_arrow_ipc_projected(const std::vector<Tick>& rows, const ColumnPresence& presence, const std::string& symbol, CFn c_fn) {\n",
     );
     out.push_str(
-        "    ThetaDataDxArrowBytes raw = c_fn(rows.data(), rows.size(), presence.raw());\n",
+        "    ThetaDataDxArrowBytes raw = c_fn(rows.data(), rows.size(), presence.raw(), symbol.empty() ? nullptr : symbol.c_str());\n",
     );
     out.push_str("    if (raw.data == nullptr) {\n");
     out.push_str("        throw_last_ffi_error();\n");
@@ -229,17 +231,19 @@ pub(super) fn render_cpp_tick_arrow_ipc(schema: &Schema) -> String {
         out.push_str(
             "/// only the columns `presence` names (from the matching\n\
              /// `_present_columns`), the terminal-exact output Python's\n\
-             /// `<TickName>List.to_arrow()` gives on a decode result. Throws\n\
+             /// `<TickName>List.to_arrow()` gives on a decode result. `symbol` is the\n\
+             /// response's constant root, broadcast as the leading column\n\
+             /// (option/index carry it, stock does not; empty -> omitted). Throws\n\
              /// `thetadatadx::Error` on failure; the returned vector owns its memory.\n",
         );
         writeln!(
             out,
-            "inline std::vector<uint8_t> {snake}_to_arrow_ipc_projected(const std::vector<{type_name}>& rows, const ColumnPresence& presence) {{"
+            "inline std::vector<uint8_t> {snake}_to_arrow_ipc_projected(const std::vector<{type_name}>& rows, const ColumnPresence& presence, const std::string& symbol = {{}}) {{"
         )
         .unwrap();
         writeln!(
             out,
-            "    return detail::tick_to_arrow_ipc_projected(rows, presence, thetadatadx_{snake}_to_arrow_ipc_projected);"
+            "    return detail::tick_to_arrow_ipc_projected(rows, presence, symbol, thetadatadx_{snake}_to_arrow_ipc_projected);"
         )
         .unwrap();
         out.push_str("}\n\n");

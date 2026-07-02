@@ -144,6 +144,121 @@ fn option_trade_quote_keeps_contract_id() {
     }
 }
 
+// ── The response's constant `symbol` (root) rides as the leading column ───
+//
+// Option + index endpoints send a `symbol` header constant across the
+// response; the flat POD tick structs can't hold a per-row `String`, so the
+// decode carries it once on the `ColumnPresence` and the projected builders
+// broadcast it as the first column. Stock endpoints send no `symbol` header.
+// These tests drive the same presence the decode seam builds — the wire
+// header set plus the response's root read through the public
+// `extract_text_column` (the alias-aware `root` <- `symbol` lookup).
+
+/// The presence the decode seam builds for `table`: the wire's column set plus
+/// the response's constant `symbol` (root) when the wire carried one.
+fn presence_with_symbol<T: WireColumns>(table: &proto::DataTable) -> ColumnPresence {
+    let present = presence_of::<T>(table);
+    match decode::extract_text_column(table, "root")
+        .into_iter()
+        .flatten()
+        .next()
+    {
+        Some(symbol) => present.with_symbol(symbol),
+        None => present,
+    }
+}
+
+/// The values of the `symbol` column in a projected batch, or `None` when the
+/// batch carries no `symbol` column.
+fn symbol_column(batch: &arrow_array::RecordBatch) -> Option<Vec<String>> {
+    let idx = batch.schema().index_of("symbol").ok()?;
+    use arrow_array::Array as _;
+    let arr = batch
+        .column(idx)
+        .as_any()
+        .downcast_ref::<arrow_array::StringArray>()
+        .expect("symbol column is Utf8");
+    Some((0..arr.len()).map(|i| arr.value(i).to_string()).collect())
+}
+
+/// An `option_history_trade` response carries a constant `symbol` (root); the
+/// projected frame prepends a `symbol` Utf8 column valued on every row, first
+/// in schema order to match the wire header layout.
+#[test]
+fn option_trade_broadcasts_symbol_as_leading_column() {
+    let table = load_data_table("option_history_trade");
+    let present = presence_with_symbol::<TradeTick>(&table);
+    let ticks: Vec<TradeTick> = decode::parse_trade_ticks(&table).expect("parse_trade_ticks");
+
+    let batch = ticks.as_slice().to_arrow_projected(&present).unwrap();
+    let cols = arrow_columns(&batch);
+    assert_eq!(
+        cols.first().map(String::as_str),
+        Some("symbol"),
+        "symbol must be the leading column; got {cols:?}"
+    );
+    let values = symbol_column(&batch).expect("symbol column present");
+    assert_eq!(values.len(), ticks.len(), "symbol broadcast to every row");
+    assert!(
+        values.iter().all(|v| v == "SPY"),
+        "symbol value must be the queried root on every row; got {values:?}"
+    );
+
+    // Polars agrees on the column set (symbol first).
+    let df = ticks.as_slice().to_polars_projected(&present).unwrap();
+    assert_eq!(
+        polars_columns(&df),
+        cols,
+        "arrow/polars column sets diverge"
+    );
+    assert_eq!(df.height(), ticks.len());
+}
+
+/// A wildcard option `trade_quote` response also broadcasts `symbol` first,
+/// alongside the contract-identity trio that varies per contract.
+#[test]
+fn option_trade_quote_broadcasts_symbol() {
+    let table = load_data_table("option_history_trade_quote");
+    let present = presence_with_symbol::<TradeQuoteTick>(&table);
+    let ticks: Vec<TradeQuoteTick> =
+        decode::parse_trade_quote_ticks(&table).expect("parse_trade_quote_ticks");
+
+    let batch = ticks.as_slice().to_arrow_projected(&present).unwrap();
+    let cols = arrow_columns(&batch);
+    assert_eq!(
+        cols.first().map(String::as_str),
+        Some("symbol"),
+        "got {cols:?}"
+    );
+    let values = symbol_column(&batch).expect("symbol column present");
+    assert!(
+        !values.is_empty() && values.iter().all(|v| v == &values[0]),
+        "symbol constant across a wildcard response; got {values:?}"
+    );
+    // The contract-id trio still rides after the symbol.
+    for cid in ["expiration", "strike", "right"] {
+        assert!(cols.contains(&cid.to_string()), "missing {cid} in {cols:?}");
+    }
+}
+
+/// A stock response carries no `symbol` header — the projected frame gains no
+/// `symbol` column.
+#[test]
+fn stock_trade_quote_has_no_symbol_column() {
+    let table = load_data_table("stock_history_trade_quote");
+    let present = presence_with_symbol::<TradeQuoteTick>(&table);
+    let ticks: Vec<TradeQuoteTick> =
+        decode::parse_trade_quote_ticks(&table).expect("parse_trade_quote_ticks");
+
+    let batch = ticks.as_slice().to_arrow_projected(&present).unwrap();
+    assert!(
+        symbol_column(&batch).is_none(),
+        "stock response must not carry a symbol column; got {:?}",
+        arrow_columns(&batch)
+    );
+    assert!(present.symbol().is_none(), "no symbol on a stock presence");
+}
+
 // ── Symptom 2: equity responses omit the contract-identity trio ───────────
 
 /// A stock EOD response carries no contract-identity trio — the projected

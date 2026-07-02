@@ -478,6 +478,13 @@ fn render_python_slice_reader_projected(type_name: &str, def: &TickTypeDef) -> S
     out.push_str("    }\n");
     out.push_str("    let mut fields: Vec<Field> = Vec::new();\n");
     out.push_str("    let mut columns: Vec<ArrayRef> = Vec::new();\n");
+    // Leading `symbol` (root) column, broadcast from the response constant —
+    // option/index endpoints carry it, stock does not. First in schema order,
+    // mirroring the Rust `to_arrow_projected` builder.
+    out.push_str("    if let Some(sym) = present.symbol() {\n");
+    out.push_str("        fields.push(Field::new(\"symbol\", DataType::Utf8, false));\n");
+    out.push_str("        columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);\n");
+    out.push_str("    }\n");
     for c in &cols {
         writeln!(out, "    if has_{name} {{", name = c.name).unwrap();
         writeln!(
