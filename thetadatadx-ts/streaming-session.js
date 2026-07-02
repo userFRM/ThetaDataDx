@@ -408,7 +408,15 @@ for (const Klass of [native.Client, native.HistoricalClient]) {
     Klass.prototype[Symbol.asyncDispose] = async function asyncDispose() {
       // `stream` exists only on the unified `Client`; the historical-only
       // client has no streaming surface, so `close()` alone is the teardown.
-      const stream = this.stream;
+      // An already-closed client throws on the `stream` getter ("client is
+      // closed"); treat that as nothing-to-drain so disposing a closed client
+      // stays a no-op rather than rejecting.
+      let stream;
+      try {
+        stream = this.stream;
+      } catch {
+        stream = undefined;
+      }
       if (stream) {
         // Await the drain barrier first so the consumer thread has finished
         // firing the registered callback before the JS closure is released;

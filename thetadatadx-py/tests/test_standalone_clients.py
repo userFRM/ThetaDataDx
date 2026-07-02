@@ -188,6 +188,27 @@ def test_mdds_client_blocks_fpss_attrs() -> None:
             getattr(client, name)
 
 
+def test_mdds_client_close_releases_and_is_unusable() -> None:
+    """`HistoricalClient.close()` RELEASES the underlying handle and makes the
+    client unusable: a subsequent historical call raises a clear closed error,
+    and a second close is a no-op. Live-gated because construction needs the
+    gRPC handshake.
+    """
+    mod = _import_module()
+    if not _live_creds_path():
+        pytest.skip("THETADATADX_LIVE_CREDS unset -- skip live HistoricalClient close check")
+
+    creds = mod.Credentials.from_file(_live_creds_path())
+    mdds = mod.HistoricalClient(creds, mod.Config.production())
+    mdds.close()
+    # A historical call after close reaches the closed-guard on the wrapped
+    # unified client (raised before any network round-trip).
+    with pytest.raises(RuntimeError, match="closed"):
+        mdds.stock_history_eod("AAPL", "20240101", "20240301")
+    # Idempotent.
+    mdds.close()
+
+
 def test_mdds_client_block_list_offline() -> None:
     """Offline coverage of the full ``BLOCKED_FPSS_METHODS`` inventory.
 

@@ -57,7 +57,9 @@ impl StreamableHandle {
     /// `StreamView` surface, so the `Unified` arm dispatches through it.
     pub(crate) fn start_streaming(&self, py: Python<'_>, callback: Py<PyAny>) -> PyResult<()> {
         match self {
-            Self::Unified(handle) => handle.borrow(py).stream().start_streaming(py, callback),
+            // `stream()` raises if the client has been closed, so entering a
+            // session on a closed client surfaces the closed error here.
+            Self::Unified(handle) => handle.borrow(py).stream()?.start_streaming(py, callback),
             Self::Fpss(handle) => handle.borrow(py).start_streaming(py, callback),
         }
     }
@@ -65,7 +67,13 @@ impl StreamableHandle {
     /// Invoke `stop_streaming()` through the typed enum.
     pub(crate) fn stop_streaming(&self, py: Python<'_>) {
         match self {
-            Self::Unified(handle) => handle.borrow(py).stream().stop_streaming(py),
+            // A closed client has no streaming session to stop — treat the
+            // teardown as a vacuous no-op rather than raising on `__exit__`.
+            Self::Unified(handle) => {
+                if let Ok(stream) = handle.borrow(py).stream() {
+                    stream.stop_streaming(py);
+                }
+            }
             Self::Fpss(handle) => handle.borrow(py).stop_streaming(py),
         }
     }
@@ -76,7 +84,11 @@ impl StreamableHandle {
     /// wait.
     pub(crate) fn await_drain(&self, py: Python<'_>, timeout_ms: u64) -> bool {
         match self {
-            Self::Unified(handle) => handle.borrow(py).stream().await_drain(py, timeout_ms),
+            // A closed client has no consumer to drain — vacuously satisfied.
+            Self::Unified(handle) => handle
+                .borrow(py)
+                .stream()
+                .map_or(true, |stream| stream.await_drain(py, timeout_ms)),
             Self::Fpss(handle) => handle.borrow(py).await_drain(py, timeout_ms),
         }
     }
@@ -250,7 +262,7 @@ impl crate::Client {
     /// Backs the `session_uuid` entry on `AsyncClient`'s
     /// `__getattr__` allowlist so that proxy resolves to a working call.
     fn session_uuid(&self, py: Python<'_>) -> pyo3::PyResult<String> {
-        let inner = self.client.clone();
+        let inner = self.client_arc()?;
         crate::run_blocking(py, async move { Ok(inner.session_uuid().await) })
     }
 
@@ -268,7 +280,15 @@ impl crate::Client {
     /// Mirrors the upstream
     /// [`thetadatadx::Client::subscription_info`] shape.
     fn subscription_info(&self) -> Vec<(String, String)> {
-        let info = self.client.subscription_info();
+        // A closed client holds no live auth payload; report `Unknown` per
+        // asset class rather than raising from a plain diagnostic getter.
+        let Ok(client) = self.client_arc() else {
+            return ["stock", "options", "indices", "interest_rate"]
+                .into_iter()
+                .map(|asset| (asset.to_string(), "Unknown".to_string()))
+                .collect();
+        };
+        let info = client.subscription_info();
         vec![
             ("stock".to_string(), info.stock),
             ("options".to_string(), info.options),

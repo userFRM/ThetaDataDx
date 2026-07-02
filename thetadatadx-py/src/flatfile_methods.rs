@@ -325,10 +325,10 @@ impl crate::Client {
     /// `flat_files = client.flat_files` in user code is identical to
     /// calling `client.flat_files.option_eod(...)` inline.
     #[getter]
-    fn flat_files(&self) -> FlatFilesNamespace {
-        FlatFilesNamespace {
-            client: Arc::clone(&self.client),
-        }
+    fn flat_files(&self) -> PyResult<FlatFilesNamespace> {
+        Ok(FlatFilesNamespace {
+            client: self.client_arc()?,
+        })
     }
 
     /// Pull a flat-file blob and write the requested format directly to
@@ -353,7 +353,7 @@ impl crate::Client {
         let sec = parse_flatfile_sec_type(sec_type)?;
         let req = parse_flatfile_req_type(req_type)?;
         let fmt = parse_flatfile_format(format)?;
-        let client = Arc::clone(&self.client);
+        let client = self.client_arc()?;
         let date_owned = date.to_string();
         let path_owned = std::path::PathBuf::from(path);
         let final_path = run_blocking(py, async move {
@@ -383,7 +383,7 @@ impl crate::Client {
         let sec = parse_flatfile_sec_type(sec_type)?;
         let req = parse_flatfile_req_type(req_type)?;
         let fmt = parse_flatfile_format(format)?;
-        let client = Arc::clone(&self.client);
+        let client = self.client_arc()?;
         let date_owned = date.to_string();
         let path_owned = std::path::PathBuf::from(path);
         spawn_awaitable(

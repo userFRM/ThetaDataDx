@@ -678,29 +678,29 @@ fn resolve_direct_config(
 struct Client {
     /// The underlying Rust unified client (Deref to HistoricalClient for historical).
     ///
-    /// Wrapped in `Arc<>` so the per-endpoint fluent builder pyclasses
-    /// emitted by the generator (`<Endpoint>Builder`) can clone a cheap
-    /// handle into the awaitable returned by `*_async()` terminals. The
-    /// inner `thetadatadx::Client` is not `Clone` — its
-    /// streaming mutex and subscription-tier state forbid it — so the
-    /// builder cannot hold the value directly without Arc ref-counting.
+    /// Held as `Option` behind a `Mutex` so `close()` can DETERMINISTICALLY
+    /// RELEASE the handle: closing takes the `Arc<Client>` out of the slot and
+    /// drops it, so the historical gRPC channel pool is freed once the last
+    /// co-owning surface (a `HistoricalView` / `StreamView` / builder /
+    /// flat-files namespace vended before close) is also gone — matching the
+    /// C++ wrapper, where `close()` resets the handle. A closed slot (`None`)
+    /// makes every access via [`Client::client_arc`] raise "client is closed",
+    /// so the client is UNUSABLE after close and a second close is a no-op.
     ///
-    /// Shutdown contract: when the pyclass auto-drops while the GIL is
-    /// held, the final `Arc::drop` may trigger the core
-    /// `Client::Drop` chain, which joins the streaming dispatcher
-    /// thread that itself re-acquires the GIL via `Python::attach`.
-    /// Holding the GIL across that join would deadlock. Callers MUST
-    /// invoke `stop_streaming()` (the generated method uses `py.detach`
-    /// around the teardown so the dispatcher exits cleanly) before
-    /// letting the pyclass fall out of scope. The `with client.streaming(cb)`
-    /// context manager pairs `start_streaming(cb)` with
+    /// The inner `thetadatadx::Client` is not `Clone` — its streaming mutex and
+    /// subscription-tier state forbid it — so surfaces co-own a cheap
+    /// `Arc<Client>` clone (survivng past a parent close, exactly as the C++
+    /// `Historical` / `Stream` views co-own the `shared_ptr`).
+    ///
+    /// Deadlock-safe drop: the core `Client::Drop` runs the DETACHED streaming
+    /// quiesce (never a GIL-reacquiring join), so dropping the taken `Arc` on
+    /// the calling thread — even with the GIL held — cannot deadlock.
+    /// `close()` still stops streaming and drains synchronously (GIL released)
+    /// before the drop. The `with client.streaming(cb)` context manager
+    /// pairs `start_streaming(cb)` with
     /// `stop_streaming() + await_drain(5000)` on exit to enforce this
-    /// ordering automatically. The fully-shared `Arc<>` (cloned into
-    /// every fluent builder pyclass) cannot enforce the contract at the
-    /// `Drop` site without restructuring every accessor, so the
-    /// invariant is enforced by documentation plus the explicit
-    /// `stop_streaming(py)` path.
-    client: std::sync::Arc<thetadatadx::Client>,
+    /// ordering automatically.
+    client: std::sync::Mutex<Option<std::sync::Arc<thetadatadx::Client>>>,
     /// User-registered Python callable that receives every streaming
     /// event after `start_streaming(callback)` succeeds. The dispatcher's
     /// drain thread acquires the GIL via `Python::attach` to invoke
@@ -735,9 +735,27 @@ impl Client {
             thetadatadx::Client::connect(&creds, direct_config).await
         })?;
         Ok(Self {
-            client: std::sync::Arc::new(client),
+            client: std::sync::Mutex::new(Some(std::sync::Arc::new(client))),
             callback: Arc::new(Mutex::new(None)),
         })
+    }
+
+    /// The live core client handle, or a "client is closed" error.
+    ///
+    /// Every surface the client vends (`historical` / `stream` / `flat_files`)
+    /// resolves the handle through here, so once `close()` has taken it the
+    /// client is uniformly unusable. Returns a cheap `Arc` clone the caller
+    /// co-owns.
+    pub(crate) fn client_arc(&self) -> PyResult<Arc<thetadatadx::Client>> {
+        self.client
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+            .ok_or_else(|| {
+                PyRuntimeError::new_err(
+                    "client is closed; construct a new client to make further calls",
+                )
+            })
     }
 }
 
@@ -915,7 +933,15 @@ impl Client {
     // one place to audit.
 
     fn __repr__(&self) -> String {
-        let streaming = if self.client.stream().is_streaming() {
+        let Some(client) = self
+            .client
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+        else {
+            return "Client(closed)".to_string();
+        };
+        let streaming = if client.stream().is_streaming() {
             "streaming=connected"
         } else {
             "streaming=none"
@@ -930,10 +956,10 @@ impl Client {
     /// storing `hist = client.historical` is identical to calling
     /// `client.historical.<endpoint>(...)` inline.
     #[getter]
-    fn historical(&self) -> HistoricalView {
-        HistoricalView {
-            client: Arc::clone(&self.client),
-        }
+    fn historical(&self) -> PyResult<HistoricalView> {
+        Ok(HistoricalView {
+            client: self.client_arc()?,
+        })
     }
 
     /// Real-time-streaming sub-namespace: `client.stream.subscribe(...)`,
@@ -943,11 +969,11 @@ impl Client {
     /// parent's callback slot, so the streaming lifecycle observed through
     /// the view is the same one the unified client manages.
     #[getter]
-    fn stream(&self) -> StreamView {
-        StreamView {
-            client: Arc::clone(&self.client),
+    fn stream(&self) -> PyResult<StreamView> {
+        Ok(StreamView {
+            client: self.client_arc()?,
             callback: Arc::clone(&self.callback),
-        }
+        })
     }
 
     /// Deterministically close the client.
@@ -1020,19 +1046,32 @@ impl Client {
     /// Mirrors the `StreamingSession` context-manager exit and the C ABI
     /// `thetadatadx_client_free` contract: stop streaming, wait on the
     /// post-stop drain barrier so the consumer thread has finished firing the
-    /// callback (making the callback closure safe to release), then drop the
-    /// stored callback handle. The GIL is released across both the stop and the
-    /// drain so the dispatcher's `Python::attach` can make progress; nothing
-    /// here blocks the interpreter.
+    /// callback (making the callback closure safe to release), then RELEASE the
+    /// core client handle and drop the stored callback. The GIL is released
+    /// across both the stop and the drain so the dispatcher's `Python::attach`
+    /// can make progress; nothing here blocks the interpreter.
+    ///
+    /// Idempotent: the handle is taken out of its slot up front, so a second
+    /// close finds `None` and returns immediately. Dropping the taken `Arc`
+    /// releases the historical gRPC channel pool once no vended surface still
+    /// co-owns it, and runs the core `Client::Drop` (the DETACHED streaming
+    /// quiesce, never a GIL-reacquiring join) — safe to drop here even with the
+    /// GIL held.
     pub(crate) fn close_impl(&self, py: Python<'_>) -> PyResult<()> {
+        // Take the handle out of the slot. Idempotent: a second close finds
+        // `None`. Holding the `Arc` in a local means the release (drop) happens
+        // at the end of this function, AFTER the synchronous stop + drain below.
+        let Some(client) = self.client.lock().unwrap_or_else(|e| e.into_inner()).take() else {
+            return Ok(());
+        };
         // Only a live streaming session has anything to drain. Snapshot that
         // BEFORE stopping so we do not wait on a barrier that will never arm on
         // a historical-only client (whose `prev_drained` slot stays empty).
-        let was_streaming = self.client.stream().is_streaming();
+        let was_streaming = client.stream().is_streaming();
         let drained = py.detach(|| {
-            self.client.close();
+            client.close();
             if was_streaming {
-                self.client
+                client
                     .stream()
                     .await_drain(std::time::Duration::from_millis(
                         streaming_session::EXIT_DRAIN_TIMEOUT_MS,
@@ -1522,7 +1561,7 @@ impl AsyncClient {
             async move { thetadatadx::Client::connect(&inner_creds, direct_config).await },
             |py, client| {
                 let wrapped = Client {
-                    client: std::sync::Arc::new(client),
+                    client: std::sync::Mutex::new(Some(std::sync::Arc::new(client))),
                     callback: Arc::new(Mutex::new(None)),
                 };
                 let inner = Py::new(py, wrapped)?;

@@ -2214,6 +2214,13 @@ CLIENT_REVERSE_ORPHAN_EXEMPT_MEMBERS: frozenset[str] = frozenset(
         # harvests. Not exposed to Python, so it carries no cross-binding
         # contract and is enrolled by the public `close` row instead.
         "closeImpl",
+        # Private closed-guard accessor resolving the live core handle (or a
+        # "client is closed" error) behind every vended surface; a plain
+        # (non-`#[pymethods]`) `impl Client` helper the collector harvests. Not
+        # exposed to Python — the TypeScript twin (`clientHandle`) is likewise a
+        # plain `impl` helper the napi collector never sees — so it carries no
+        # cross-binding contract.
+        "clientArc",
     }
 )
 
