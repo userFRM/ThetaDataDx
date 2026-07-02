@@ -279,21 +279,16 @@ impl crate::Client {
     ///
     /// Mirrors the upstream
     /// [`thetadatadx::Client::subscription_info`] shape.
-    fn subscription_info(&self) -> Vec<(String, String)> {
-        // A closed client holds no live auth payload; report `Unknown` per
-        // asset class rather than raising from a plain diagnostic getter.
-        let Ok(client) = self.client_arc() else {
-            return ["stock", "options", "indices", "interest_rate"]
-                .into_iter()
-                .map(|asset| (asset.to_string(), "Unknown".to_string()))
-                .collect();
-        };
-        let info = client.subscription_info();
-        vec![
+    fn subscription_info(&self) -> PyResult<Vec<(String, String)>> {
+        // A closed client rejects further use, consistent with every other
+        // surface; `client_arc()` raises the "client is closed" error rather
+        // than returning stale/`Unknown` data that would hide the closed state.
+        let info = self.client_arc()?.subscription_info();
+        Ok(vec![
             ("stock".to_string(), info.stock),
             ("options".to_string(), info.options),
             ("indices".to_string(), info.indices),
             ("interest_rate".to_string(), info.interest_rate),
-        ]
+        ])
     }
 }

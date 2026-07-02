@@ -689,7 +689,7 @@ struct Client {
     ///
     /// The inner `thetadatadx::Client` is not `Clone` — its streaming mutex and
     /// subscription-tier state forbid it — so surfaces co-own a cheap
-    /// `Arc<Client>` clone (survivng past a parent close, exactly as the C++
+    /// `Arc<Client>` clone (surviving past a parent close, exactly as the C++
     /// `Historical` / `Stream` views co-own the `shared_ptr`).
     ///
     /// Deadlock-safe drop: the core `Client::Drop` runs the DETACHED streaming
