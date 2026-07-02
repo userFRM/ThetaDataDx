@@ -545,9 +545,11 @@ pub unsafe extern "C" fn thetadatadx_arrow_bytes_free(bytes: ThetaDataDxArrowByt
 //  * `thetadatadx_<tick>_present_columns(headers, len)` runs the SAME
 //    `WireColumns::present_columns` the buffered path uses — the decode-fed
 //    producer, given a response's wire header names.
-//  * `thetadatadx_<tick>_ticks_to_arrow_ipc_projected(rows, len, presence)`
+//  * `thetadatadx_<tick>_ticks_to_arrow_ipc_projected(rows, len, presence, symbol)`
 //    serialises the rows through `TicksArrowExt::to_arrow_projected`, so the
-//    IPC stream omits exactly the columns the wire omitted.
+//    IPC stream omits exactly the columns the wire omitted and broadcasts the
+//    response's constant `symbol` (root) as the leading column when non-null
+//    (option/index carry it, stock does not).
 //
 // The all-present `thetadatadx_<tick>_ticks_to_arrow_ipc` terminal is
 // unchanged — a hand-built row vector a caller assembled itself never touched
@@ -716,6 +718,11 @@ macro_rules! tick_array_to_arrow_ipc_projected {
         /// may be null only when `len` is 0. Caller MUST free the result with
         /// `thetadatadx_arrow_bytes_free`.
         ///
+        /// `symbol` is the response's constant root value, broadcast as the
+        /// leading `symbol` column (option/index responses carry it, stock does
+        /// not); pass null to omit it. `symbol` must be a NUL-terminated C string
+        /// valid for the call when non-null.
+        ///
         /// # Safety
         /// `rows` must point to `len` initialised `$tick` values valid for the
         /// call; `presence` must be a valid [`ThetaDataDxColumnPresence`] (its
@@ -726,6 +733,7 @@ macro_rules! tick_array_to_arrow_ipc_projected {
             rows: *const $tick,
             len: usize,
             presence: ThetaDataDxColumnPresence,
+            symbol: *const c_char,
         ) -> ThetaDataDxArrowBytes {
             ffi_boundary!(ThetaDataDxArrowBytes::EMPTY, {
                 if rows.is_null() && len != 0 {
@@ -734,9 +742,24 @@ macro_rules! tick_array_to_arrow_ipc_projected {
                 }
                 // SAFETY: `presence` is the caller's carrier; `to_presence`
                 // validates each name pointer before use.
-                let Some(columns) = (unsafe { presence.to_presence() }) else {
+                let Some(mut columns) = (unsafe { presence.to_presence() }) else {
                     return ThetaDataDxArrowBytes::EMPTY;
                 };
+                // Ignore the broadcast `symbol` when the tick already owns a
+                // per-row `symbol` column (OptionContract) so the projected
+                // schema never carries a duplicate `symbol`.
+                if !columns.contains("symbol") {
+                    // SAFETY: `symbol` is the caller's optional NUL-terminated
+                    // string; `cstr_to_str` validates non-null + UTF-8.
+                    match unsafe { crate::error::cstr_to_str(symbol) } {
+                        Ok(Some(s)) => columns = columns.with_symbol(s),
+                        Ok(None) => {}
+                        Err(e) => {
+                            crate::error::set_error(&format!("symbol is not UTF-8: {e}"));
+                            return ThetaDataDxArrowBytes::EMPTY;
+                        }
+                    }
+                }
                 let slice: &[$tick] = if len == 0 {
                     &[]
                 } else {

@@ -898,28 +898,28 @@ ThetaDataDxColumnPresence thetadatadx_trade_quote_ticks_present_columns(const ch
  * borrowed (still owned by the caller). Returns an Arrow IPC byte buffer the
  * caller MUST free with thetadatadx_arrow_bytes_free, or (data=NULL, len=0) on
  * error with thetadatadx_last_error() set. */
-ThetaDataDxArrowBytes thetadatadx_eod_ticks_to_arrow_ipc_projected(const ThetaDataDxEodTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_ohlc_ticks_to_arrow_ipc_projected(const ThetaDataDxOhlcTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_trade_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_quote_ticks_to_arrow_ipc_projected(const ThetaDataDxQuoteTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_greeks_all_ticks_to_arrow_ipc_projected(const ThetaDataDxGreeksAllTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_greeks_eod_ticks_to_arrow_ipc_projected(const ThetaDataDxGreeksEodTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_greeks_first_order_ticks_to_arrow_ipc_projected(const ThetaDataDxGreeksFirstOrderTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_greeks_second_order_ticks_to_arrow_ipc_projected(const ThetaDataDxGreeksSecondOrderTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_greeks_third_order_ticks_to_arrow_ipc_projected(const ThetaDataDxGreeksThirdOrderTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_trade_greeks_all_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeGreeksAllTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_trade_greeks_first_order_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeGreeksFirstOrderTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_trade_greeks_second_order_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeGreeksSecondOrderTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_trade_greeks_third_order_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeGreeksThirdOrderTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_trade_greeks_implied_volatility_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeGreeksImpliedVolatilityTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_iv_ticks_to_arrow_ipc_projected(const ThetaDataDxIvTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_price_ticks_to_arrow_ipc_projected(const ThetaDataDxPriceTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_index_price_at_time_ticks_to_arrow_ipc_projected(const ThetaDataDxIndexPriceAtTimeTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_open_interest_ticks_to_arrow_ipc_projected(const ThetaDataDxOpenInterestTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_market_value_ticks_to_arrow_ipc_projected(const ThetaDataDxMarketValueTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_calendar_days_to_arrow_ipc_projected(const ThetaDataDxCalendarDay* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_interest_rate_ticks_to_arrow_ipc_projected(const ThetaDataDxInterestRateTick* rows, size_t len, ThetaDataDxColumnPresence presence);
-ThetaDataDxArrowBytes thetadatadx_trade_quote_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeQuoteTick* rows, size_t len, ThetaDataDxColumnPresence presence);
+ThetaDataDxArrowBytes thetadatadx_eod_ticks_to_arrow_ipc_projected(const ThetaDataDxEodTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_ohlc_ticks_to_arrow_ipc_projected(const ThetaDataDxOhlcTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_trade_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_quote_ticks_to_arrow_ipc_projected(const ThetaDataDxQuoteTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_greeks_all_ticks_to_arrow_ipc_projected(const ThetaDataDxGreeksAllTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_greeks_eod_ticks_to_arrow_ipc_projected(const ThetaDataDxGreeksEodTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_greeks_first_order_ticks_to_arrow_ipc_projected(const ThetaDataDxGreeksFirstOrderTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_greeks_second_order_ticks_to_arrow_ipc_projected(const ThetaDataDxGreeksSecondOrderTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_greeks_third_order_ticks_to_arrow_ipc_projected(const ThetaDataDxGreeksThirdOrderTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_trade_greeks_all_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeGreeksAllTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_trade_greeks_first_order_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeGreeksFirstOrderTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_trade_greeks_second_order_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeGreeksSecondOrderTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_trade_greeks_third_order_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeGreeksThirdOrderTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_trade_greeks_implied_volatility_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeGreeksImpliedVolatilityTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_iv_ticks_to_arrow_ipc_projected(const ThetaDataDxIvTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_price_ticks_to_arrow_ipc_projected(const ThetaDataDxPriceTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_index_price_at_time_ticks_to_arrow_ipc_projected(const ThetaDataDxIndexPriceAtTimeTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_open_interest_ticks_to_arrow_ipc_projected(const ThetaDataDxOpenInterestTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_market_value_ticks_to_arrow_ipc_projected(const ThetaDataDxMarketValueTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_calendar_days_to_arrow_ipc_projected(const ThetaDataDxCalendarDay* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_interest_rate_ticks_to_arrow_ipc_projected(const ThetaDataDxInterestRateTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
+ThetaDataDxArrowBytes thetadatadx_trade_quote_ticks_to_arrow_ipc_projected(const ThetaDataDxTradeQuoteTick* rows, size_t len, ThetaDataDxColumnPresence presence, const char* symbol);
 
 /* ── Streaming Arrow RecordBatch reader (pull-based) ── */
 

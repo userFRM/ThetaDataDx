@@ -554,6 +554,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_date {
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
@@ -731,6 +735,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_created_ms_of_day {
             fields.push(Field::new("created_ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_created_ms_of_day)) as ArrayRef);
@@ -1034,6 +1042,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_ms_of_day {
             fields.push(Field::new("ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
@@ -1453,6 +1465,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_ms_of_day {
             fields.push(Field::new("ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
@@ -1764,6 +1780,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_ms_of_day {
             fields.push(Field::new("ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
@@ -1965,6 +1985,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_ms_of_day {
             fields.push(Field::new("ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
@@ -2156,6 +2180,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_ms_of_day {
             fields.push(Field::new("ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
@@ -2319,6 +2347,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_ms_of_day {
             fields.push(Field::new("ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
@@ -2412,6 +2444,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_date {
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
@@ -2541,6 +2577,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_ms_of_day {
             fields.push(Field::new("ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
@@ -2682,6 +2722,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_ms_of_day {
             fields.push(Field::new("ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
@@ -2823,6 +2867,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_ms_of_day {
             fields.push(Field::new("ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
@@ -2944,6 +2992,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_ms_of_day {
             fields.push(Field::new("ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
@@ -3100,6 +3152,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_ms_of_day {
             fields.push(Field::new("ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
@@ -3233,6 +3289,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_ms_of_day {
             fields.push(Field::new("ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
@@ -3554,6 +3614,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_ms_of_day {
             fields.push(Field::new("ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
@@ -3887,6 +3951,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_ms_of_day {
             fields.push(Field::new("ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
@@ -4128,6 +4196,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_ms_of_day {
             fields.push(Field::new("ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
@@ -4375,6 +4447,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_ms_of_day {
             fields.push(Field::new("ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
@@ -4636,6 +4712,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_ms_of_day {
             fields.push(Field::new("ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
@@ -4923,6 +5003,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_ms_of_day {
             fields.push(Field::new("ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);
@@ -5176,6 +5260,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
+        if let Some(sym) = present.symbol() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
+        }
         if has_ms_of_day {
             fields.push(Field::new("ms_of_day", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef);

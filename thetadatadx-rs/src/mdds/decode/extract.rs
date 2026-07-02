@@ -215,6 +215,30 @@ pub fn extract_price_column(
         .collect()
 }
 
+/// The response's constant `symbol` (root) value, when the wire carried a
+/// `symbol`/`root` header — the option + index historical endpoints do, stock
+/// does not. Returns `None` when the header is absent (so the projected frame
+/// gains no `symbol` column on stock responses), else the value read from the
+/// first data row. `symbol` is constant across a wildcard response (only
+/// `expiration`/`strike`/`right` vary), so one read broadcasts to every row;
+/// an empty string stands in for a header-present-but-rowless response so the
+/// column set stays keyed on the header, matching the per-column projection.
+pub(crate) fn response_symbol(table: &proto::DataTable) -> Option<Box<str>> {
+    let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+    let col_idx = find_header(&header_refs, "root")?;
+    let value = table
+        .data_table
+        .first()
+        .and_then(|row| row.values.get(col_idx))
+        .and_then(|dv| dv.data_type.as_ref())
+        .and_then(|dt| match dt {
+            proto::data_value::DataType::Text(s) => Some(s.as_str()),
+            _ => None,
+        })
+        .unwrap_or_default();
+    Some(value.into())
+}
+
 /// Sort list-endpoint values ascending for the public `list_*` returns.
 ///
 /// Numeric-aware: when every value parses as a finite `f64` (strikes,
@@ -334,6 +358,70 @@ mod tests {
             "numeric list-endpoint cells must coerce to their decimal \
              string, not drop to None"
         );
+    }
+
+    /// `response_symbol` reads the response's constant root from the first
+    /// row, resolving the schema-side `root` against the wire's `symbol`
+    /// header via the shared alias table.
+    #[test]
+    fn response_symbol_reads_root_via_symbol_alias() {
+        let table = proto::DataTable {
+            headers: vec!["symbol".to_string(), "price".to_string()],
+            data_table: vec![
+                proto::DataValueList {
+                    values: vec![
+                        proto::DataValue {
+                            data_type: Some(proto::data_value::DataType::Text("SPY".into())),
+                        },
+                        proto::DataValue {
+                            data_type: Some(proto::data_value::DataType::Number(1)),
+                        },
+                    ],
+                },
+                proto::DataValueList {
+                    values: vec![
+                        proto::DataValue {
+                            data_type: Some(proto::data_value::DataType::Text("SPY".into())),
+                        },
+                        proto::DataValue {
+                            data_type: Some(proto::data_value::DataType::Number(2)),
+                        },
+                    ],
+                },
+            ],
+        };
+        assert_eq!(response_symbol(&table).as_deref(), Some("SPY"));
+    }
+
+    /// A stock response carries no `symbol`/`root` header, so `response_symbol`
+    /// returns `None` — the projected frame then gains no `symbol` column.
+    #[test]
+    fn response_symbol_absent_header_is_none() {
+        let table = proto::DataTable {
+            headers: vec!["ms_of_day".to_string(), "price".to_string()],
+            data_table: vec![proto::DataValueList {
+                values: vec![
+                    proto::DataValue {
+                        data_type: Some(proto::data_value::DataType::Number(1)),
+                    },
+                    proto::DataValue {
+                        data_type: Some(proto::data_value::DataType::Number(2)),
+                    },
+                ],
+            }],
+        };
+        assert_eq!(response_symbol(&table), None);
+    }
+
+    /// Header present but no data rows -> `Some("")`: the column set stays keyed
+    /// on the header (matching per-column projection), broadcast over zero rows.
+    #[test]
+    fn response_symbol_header_present_no_rows_is_empty() {
+        let table = proto::DataTable {
+            headers: vec!["symbol".to_string()],
+            data_table: Vec::new(),
+        };
+        assert_eq!(response_symbol(&table).as_deref(), Some(""));
     }
 
     /// Empty `DataTable` returns empty Vec without alias resolution —

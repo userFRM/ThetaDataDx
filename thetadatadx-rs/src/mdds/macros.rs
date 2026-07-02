@@ -984,6 +984,13 @@ macro_rules! parsed_endpoint {
                         let columns = <$item as $crate::columns::WireColumns>::present_columns(
                             &present_headers,
                         );
+                        // Carry the response's constant `symbol` (root) so the
+                        // projected frame broadcasts it as the leading column —
+                        // option/index endpoints send it, stock does not.
+                        let columns = match $crate::mdds::decode::extract::response_symbol(&table) {
+                            Some(symbol) => columns.with_symbol(symbol),
+                            None => columns,
+                        };
                         // Surface the wrong-API-for-this-workload
                         // signal exactly once per request, after the buffered
                         // `Vec` materialized — before this point the row count

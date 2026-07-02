@@ -159,12 +159,17 @@ fn decode_fed_projected_export_omits_flags_and_contract_id() {
     // SAFETY: `rows` is a live slice; `carrier_copy` aliases the still-owned
     // `presence` names, valid for the call. The terminal only reads it.
     let bytes = unsafe {
-        thetadatadx_trade_ticks_to_arrow_ipc_projected(rows.as_ptr(), rows.len(), carrier_copy)
+        thetadatadx_trade_ticks_to_arrow_ipc_projected(
+            rows.as_ptr(),
+            rows.len(),
+            carrier_copy,
+            std::ptr::null(),
+        )
     };
     let cols = ipc_columns(&bytes);
     // SAFETY: `bytes` came from the terminal; freed exactly once.
     unsafe { thetadatadx_arrow_bytes_free(bytes) };
-    // SAFETY: free the original carrier exactly once (the copy was never freed).
+    // SAFETY: free the no-symbol/no-flags presence carrier once; the projected serializer borrowed (copied) it, so the original is still ours to free.
     unsafe { thetadatadx_column_presence_free(presence) };
 
     // The projected frame is exactly the wire's columns, in schema order.
@@ -199,6 +204,57 @@ fn decode_fed_projected_export_omits_flags_and_contract_id() {
             "projected export leaked the wire-absent column `{absent}`"
         );
     }
+}
+
+#[test]
+fn projected_export_broadcasts_symbol_as_leading_column() {
+    // An option-trade response carries a constant `symbol` (root). Passing it
+    // to the projected terminal must prepend a `symbol` Utf8 column, first in
+    // schema order, valued on every row.
+    let rows = sample_rows();
+    let option_headers: &[&str] = &[
+        "symbol",
+        "expiration",
+        "strike",
+        "right",
+        "ms_of_day",
+        "sequence",
+        "condition",
+        "size",
+        "exchange",
+        "price",
+    ];
+    let presence = presence_from_headers(option_headers);
+    let carrier_copy = ThetaDataDxColumnPresence {
+        names: presence.names,
+        len: presence.len,
+    };
+    let symbol = CString::new("SPY").unwrap();
+    // SAFETY: `rows` is a live slice; `carrier_copy` aliases the still-owned
+    // `presence`; `symbol` is a live C string for the call.
+    let bytes = unsafe {
+        thetadatadx_trade_ticks_to_arrow_ipc_projected(
+            rows.as_ptr(),
+            rows.len(),
+            carrier_copy,
+            symbol.as_ptr(),
+        )
+    };
+    let cols = ipc_columns(&bytes);
+    // SAFETY: `bytes` came from the terminal; freed exactly once.
+    unsafe { thetadatadx_arrow_bytes_free(bytes) };
+    // SAFETY: free the presence carrier that held the broadcast `symbol` once; the serializer copied it, so this frees the original, not the copy.
+    unsafe { thetadatadx_column_presence_free(presence) };
+
+    assert_eq!(
+        cols.first().map(String::as_str),
+        Some("symbol"),
+        "symbol must be the leading projected column; got {cols:?}"
+    );
+    assert!(
+        cols.contains(&"expiration".to_string()),
+        "option projection keeps the contract-id trio; got {cols:?}"
+    );
 }
 
 #[test]
@@ -270,12 +326,17 @@ fn empty_presence_projects_to_zero_columns_with_row_count() {
     // SAFETY: `rows` is a live slice; `carrier_copy` aliases the still-owned
     // empty carrier. The terminal only reads it.
     let bytes = unsafe {
-        thetadatadx_trade_ticks_to_arrow_ipc_projected(rows.as_ptr(), rows.len(), carrier_copy)
+        thetadatadx_trade_ticks_to_arrow_ipc_projected(
+            rows.as_ptr(),
+            rows.len(),
+            carrier_copy,
+            std::ptr::null(),
+        )
     };
     let (cols, num_rows) = ipc_columns_and_rows(&bytes);
     // SAFETY: `bytes` came from the terminal; freed exactly once.
     unsafe { thetadatadx_arrow_bytes_free(bytes) };
-    // SAFETY: free the original carrier exactly once (the copy was never freed).
+    // SAFETY: free the empty-presence carrier once; the serializer copied it, so the original is freed here exactly once.
     unsafe { thetadatadx_column_presence_free(presence) };
 
     assert!(
