@@ -105,9 +105,14 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_ohlc_with_options(
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxOhlcTickArray {
     ffi_boundary!(ThetaDataDxOhlcTickArray::EMPTY, {
         let empty = ThetaDataDxOhlcTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -125,13 +130,19 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_ohlc_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_ohlc", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match ThetaDataDxOhlcTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for stock_snapshot_ohlc: {other:?}"));
                 empty
@@ -153,9 +164,14 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_trade_with_options(
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxTradeTickArray {
     ffi_boundary!(ThetaDataDxTradeTickArray::EMPTY, {
         let empty = ThetaDataDxTradeTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -173,13 +189,19 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_trade_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_trade", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match ThetaDataDxTradeTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxTradeTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for stock_snapshot_trade: {other:?}"));
                 empty
@@ -201,9 +223,14 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_quote_with_options(
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxQuoteTickArray {
     ffi_boundary!(ThetaDataDxQuoteTickArray::EMPTY, {
         let empty = ThetaDataDxQuoteTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -221,13 +248,19 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_quote_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_quote", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match ThetaDataDxQuoteTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxQuoteTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for stock_snapshot_quote: {other:?}"));
                 empty
@@ -249,9 +282,14 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_market_value_with_options(
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxMarketValueTickArray {
     ffi_boundary!(ThetaDataDxMarketValueTickArray::EMPTY, {
         let empty = ThetaDataDxMarketValueTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -269,13 +307,19 @@ pub unsafe extern "C" fn thetadatadx_stock_snapshot_market_value_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_snapshot_market_value", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => match ThetaDataDxMarketValueTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxMarketValueTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for stock_snapshot_market_value: {other:?}"));
                 empty
@@ -301,9 +345,14 @@ pub unsafe extern "C" fn thetadatadx_stock_history_eod_with_options(
     end_date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxEodTickArray {
     ffi_boundary!(ThetaDataDxEodTickArray::EMPTY, {
         let empty = ThetaDataDxEodTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -331,13 +380,19 @@ pub unsafe extern "C" fn thetadatadx_stock_history_eod_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_eod", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::EodTicks(values)) => match ThetaDataDxEodTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::EodTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxEodTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for stock_history_eod: {other:?}"));
                 empty
@@ -361,9 +416,14 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_with_options(
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxOhlcTickArray {
     ffi_boundary!(ThetaDataDxOhlcTickArray::EMPTY, {
         let empty = ThetaDataDxOhlcTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -386,13 +446,19 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_ohlc", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match ThetaDataDxOhlcTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for stock_history_ohlc: {other:?}"));
                 empty
@@ -416,9 +482,14 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_with_options(
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxTradeTickArray {
     ffi_boundary!(ThetaDataDxTradeTickArray::EMPTY, {
         let empty = ThetaDataDxTradeTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -441,13 +512,19 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match ThetaDataDxTradeTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxTradeTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for stock_history_trade: {other:?}"));
                 empty
@@ -471,9 +548,14 @@ pub unsafe extern "C" fn thetadatadx_stock_history_quote_with_options(
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxQuoteTickArray {
     ffi_boundary!(ThetaDataDxQuoteTickArray::EMPTY, {
         let empty = ThetaDataDxQuoteTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -496,13 +578,19 @@ pub unsafe extern "C" fn thetadatadx_stock_history_quote_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_quote", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match ThetaDataDxQuoteTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxQuoteTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for stock_history_quote: {other:?}"));
                 empty
@@ -526,9 +614,14 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_with_options(
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxTradeQuoteTickArray {
     ffi_boundary!(ThetaDataDxTradeQuoteTickArray::EMPTY, {
         let empty = ThetaDataDxTradeQuoteTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -551,13 +644,19 @@ pub unsafe extern "C" fn thetadatadx_stock_history_trade_quote_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_trade_quote", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => match ThetaDataDxTradeQuoteTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxTradeQuoteTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for stock_history_trade_quote: {other:?}"));
                 empty
@@ -585,9 +684,14 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_with_options(
     time_of_day: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxTradeTickArray {
     ffi_boundary!(ThetaDataDxTradeTickArray::EMPTY, {
         let empty = ThetaDataDxTradeTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -620,13 +724,19 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_trade_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_trade", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match ThetaDataDxTradeTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxTradeTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for stock_at_time_trade: {other:?}"));
                 empty
@@ -654,9 +764,14 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_with_options(
     time_of_day: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxQuoteTickArray {
     ffi_boundary!(ThetaDataDxQuoteTickArray::EMPTY, {
         let empty = ThetaDataDxQuoteTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -689,13 +804,19 @@ pub unsafe extern "C" fn thetadatadx_stock_at_time_quote_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_at_time_quote", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match ThetaDataDxQuoteTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxQuoteTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for stock_at_time_quote: {other:?}"));
                 empty
@@ -925,9 +1046,14 @@ pub unsafe extern "C" fn thetadatadx_option_list_contracts_with_options(
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxOptionContractArray {
     ffi_boundary!(ThetaDataDxOptionContractArray::EMPTY, {
         let empty = ThetaDataDxOptionContractArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -950,13 +1076,19 @@ pub unsafe extern "C" fn thetadatadx_option_list_contracts_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_list_contracts", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OptionContracts(values)) => match ThetaDataDxOptionContractArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::OptionContracts(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxOptionContractArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_list_contracts: {other:?}"));
                 empty
@@ -980,9 +1112,14 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_ohlc_with_options(
     expiration: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxOhlcTickArray {
     ffi_boundary!(ThetaDataDxOhlcTickArray::EMPTY, {
         let empty = ThetaDataDxOhlcTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1005,13 +1142,19 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_ohlc_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_ohlc", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match ThetaDataDxOhlcTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_snapshot_ohlc: {other:?}"));
                 empty
@@ -1035,9 +1178,14 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_trade_with_options(
     expiration: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxTradeTickArray {
     ffi_boundary!(ThetaDataDxTradeTickArray::EMPTY, {
         let empty = ThetaDataDxTradeTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1060,13 +1208,19 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_trade_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_trade", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match ThetaDataDxTradeTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxTradeTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_snapshot_trade: {other:?}"));
                 empty
@@ -1090,9 +1244,14 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_quote_with_options(
     expiration: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxQuoteTickArray {
     ffi_boundary!(ThetaDataDxQuoteTickArray::EMPTY, {
         let empty = ThetaDataDxQuoteTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1115,13 +1274,19 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_quote_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_quote", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match ThetaDataDxQuoteTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxQuoteTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_snapshot_quote: {other:?}"));
                 empty
@@ -1145,9 +1310,14 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_open_interest_with_options(
     expiration: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxOpenInterestTickArray {
     ffi_boundary!(ThetaDataDxOpenInterestTickArray::EMPTY, {
         let empty = ThetaDataDxOpenInterestTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1170,13 +1340,19 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_open_interest_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_open_interest", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => match ThetaDataDxOpenInterestTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxOpenInterestTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_snapshot_open_interest: {other:?}"));
                 empty
@@ -1200,9 +1376,14 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_market_value_with_options(
     expiration: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxMarketValueTickArray {
     ffi_boundary!(ThetaDataDxMarketValueTickArray::EMPTY, {
         let empty = ThetaDataDxMarketValueTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1225,13 +1406,19 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_market_value_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_market_value", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => match ThetaDataDxMarketValueTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxMarketValueTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_snapshot_market_value: {other:?}"));
                 empty
@@ -1255,9 +1442,14 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_implied_volatility_w
     expiration: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxIvTickArray {
     ffi_boundary!(ThetaDataDxIvTickArray::EMPTY, {
         let empty = ThetaDataDxIvTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1280,13 +1472,19 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_implied_volatility_w
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_implied_volatility", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::IvTicks(values)) => match ThetaDataDxIvTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::IvTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxIvTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_implied_volatility: {other:?}"));
                 empty
@@ -1310,9 +1508,14 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_all_with_options(
     expiration: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxGreeksAllTickArray {
     ffi_boundary!(ThetaDataDxGreeksAllTickArray::EMPTY, {
         let empty = ThetaDataDxGreeksAllTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1335,13 +1538,19 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_all_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_all", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => match ThetaDataDxGreeksAllTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxGreeksAllTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_all: {other:?}"));
                 empty
@@ -1365,9 +1574,14 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_first_order_with_opt
     expiration: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxGreeksFirstOrderTickArray {
     ffi_boundary!(ThetaDataDxGreeksFirstOrderTickArray::EMPTY, {
         let empty = ThetaDataDxGreeksFirstOrderTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1390,13 +1604,19 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_first_order_with_opt
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_first_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => match ThetaDataDxGreeksFirstOrderTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxGreeksFirstOrderTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_first_order: {other:?}"));
                 empty
@@ -1420,9 +1640,14 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_second_order_with_op
     expiration: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxGreeksSecondOrderTickArray {
     ffi_boundary!(ThetaDataDxGreeksSecondOrderTickArray::EMPTY, {
         let empty = ThetaDataDxGreeksSecondOrderTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1445,13 +1670,19 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_second_order_with_op
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_second_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => match ThetaDataDxGreeksSecondOrderTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxGreeksSecondOrderTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_second_order: {other:?}"));
                 empty
@@ -1475,9 +1706,14 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_third_order_with_opt
     expiration: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxGreeksThirdOrderTickArray {
     ffi_boundary!(ThetaDataDxGreeksThirdOrderTickArray::EMPTY, {
         let empty = ThetaDataDxGreeksThirdOrderTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1500,13 +1736,19 @@ pub unsafe extern "C" fn thetadatadx_option_snapshot_greeks_third_order_with_opt
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_snapshot_greeks_third_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => match ThetaDataDxGreeksThirdOrderTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxGreeksThirdOrderTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_snapshot_greeks_third_order: {other:?}"));
                 empty
@@ -1534,9 +1776,14 @@ pub unsafe extern "C" fn thetadatadx_option_history_eod_with_options(
     end_date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxEodTickArray {
     ffi_boundary!(ThetaDataDxEodTickArray::EMPTY, {
         let empty = ThetaDataDxEodTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1569,13 +1816,19 @@ pub unsafe extern "C" fn thetadatadx_option_history_eod_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_eod", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::EodTicks(values)) => match ThetaDataDxEodTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::EodTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxEodTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_eod: {other:?}"));
                 empty
@@ -1601,9 +1854,14 @@ pub unsafe extern "C" fn thetadatadx_option_history_ohlc_with_options(
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxOhlcTickArray {
     ffi_boundary!(ThetaDataDxOhlcTickArray::EMPTY, {
         let empty = ThetaDataDxOhlcTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1631,13 +1889,19 @@ pub unsafe extern "C" fn thetadatadx_option_history_ohlc_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_ohlc", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match ThetaDataDxOhlcTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_ohlc: {other:?}"));
                 empty
@@ -1663,9 +1927,14 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_with_options(
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxTradeTickArray {
     ffi_boundary!(ThetaDataDxTradeTickArray::EMPTY, {
         let empty = ThetaDataDxTradeTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1693,13 +1962,19 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match ThetaDataDxTradeTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxTradeTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_trade: {other:?}"));
                 empty
@@ -1725,9 +2000,14 @@ pub unsafe extern "C" fn thetadatadx_option_history_quote_with_options(
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxQuoteTickArray {
     ffi_boundary!(ThetaDataDxQuoteTickArray::EMPTY, {
         let empty = ThetaDataDxQuoteTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1755,13 +2035,19 @@ pub unsafe extern "C" fn thetadatadx_option_history_quote_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_quote", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match ThetaDataDxQuoteTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxQuoteTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_quote: {other:?}"));
                 empty
@@ -1787,9 +2073,14 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_with_options(
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxTradeQuoteTickArray {
     ffi_boundary!(ThetaDataDxTradeQuoteTickArray::EMPTY, {
         let empty = ThetaDataDxTradeQuoteTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1817,13 +2108,19 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_quote_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_quote", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => match ThetaDataDxTradeQuoteTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::TradeQuoteTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxTradeQuoteTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_trade_quote: {other:?}"));
                 empty
@@ -1849,9 +2146,14 @@ pub unsafe extern "C" fn thetadatadx_option_history_open_interest_with_options(
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxOpenInterestTickArray {
     ffi_boundary!(ThetaDataDxOpenInterestTickArray::EMPTY, {
         let empty = ThetaDataDxOpenInterestTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1879,13 +2181,19 @@ pub unsafe extern "C" fn thetadatadx_option_history_open_interest_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_open_interest", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => match ThetaDataDxOpenInterestTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::OpenInterestTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxOpenInterestTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_open_interest: {other:?}"));
                 empty
@@ -1913,9 +2221,14 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_with_options(
     end_date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxGreeksEodTickArray {
     ffi_boundary!(ThetaDataDxGreeksEodTickArray::EMPTY, {
         let empty = ThetaDataDxGreeksEodTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -1948,13 +2261,19 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_eod_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_eod", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksEodTicks(values)) => match ThetaDataDxGreeksEodTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::GreeksEodTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxGreeksEodTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_eod: {other:?}"));
                 empty
@@ -1980,9 +2299,14 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_with_options(
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxGreeksAllTickArray {
     ffi_boundary!(ThetaDataDxGreeksAllTickArray::EMPTY, {
         let empty = ThetaDataDxGreeksAllTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2010,13 +2334,19 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_all_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_all", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => match ThetaDataDxGreeksAllTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::GreeksAllTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxGreeksAllTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_all: {other:?}"));
                 empty
@@ -2042,9 +2372,14 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_with_option
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxTradeGreeksAllTickArray {
     ffi_boundary!(ThetaDataDxTradeGreeksAllTickArray::EMPTY, {
         let empty = ThetaDataDxTradeGreeksAllTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2072,13 +2407,19 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_all_with_option
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_all", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeGreeksAllTicks(values)) => match ThetaDataDxTradeGreeksAllTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::TradeGreeksAllTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxTradeGreeksAllTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_all: {other:?}"));
                 empty
@@ -2104,9 +2445,14 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_with_opti
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxGreeksFirstOrderTickArray {
     ffi_boundary!(ThetaDataDxGreeksFirstOrderTickArray::EMPTY, {
         let empty = ThetaDataDxGreeksFirstOrderTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2134,13 +2480,19 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_first_order_with_opti
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_first_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => match ThetaDataDxGreeksFirstOrderTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::GreeksFirstOrderTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxGreeksFirstOrderTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_first_order: {other:?}"));
                 empty
@@ -2166,9 +2518,14 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_wit
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxTradeGreeksFirstOrderTickArray {
     ffi_boundary!(ThetaDataDxTradeGreeksFirstOrderTickArray::EMPTY, {
         let empty = ThetaDataDxTradeGreeksFirstOrderTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2196,13 +2553,19 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_first_order_wit
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_first_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeGreeksFirstOrderTicks(values)) => match ThetaDataDxTradeGreeksFirstOrderTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::TradeGreeksFirstOrderTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxTradeGreeksFirstOrderTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_first_order: {other:?}"));
                 empty
@@ -2228,9 +2591,14 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_with_opt
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxGreeksSecondOrderTickArray {
     ffi_boundary!(ThetaDataDxGreeksSecondOrderTickArray::EMPTY, {
         let empty = ThetaDataDxGreeksSecondOrderTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2258,13 +2626,19 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_second_order_with_opt
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_second_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => match ThetaDataDxGreeksSecondOrderTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::GreeksSecondOrderTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxGreeksSecondOrderTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_second_order: {other:?}"));
                 empty
@@ -2290,9 +2664,14 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_wi
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxTradeGreeksSecondOrderTickArray {
     ffi_boundary!(ThetaDataDxTradeGreeksSecondOrderTickArray::EMPTY, {
         let empty = ThetaDataDxTradeGreeksSecondOrderTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2320,13 +2699,19 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_second_order_wi
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_second_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeGreeksSecondOrderTicks(values)) => match ThetaDataDxTradeGreeksSecondOrderTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::TradeGreeksSecondOrderTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxTradeGreeksSecondOrderTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_second_order: {other:?}"));
                 empty
@@ -2352,9 +2737,14 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_with_opti
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxGreeksThirdOrderTickArray {
     ffi_boundary!(ThetaDataDxGreeksThirdOrderTickArray::EMPTY, {
         let empty = ThetaDataDxGreeksThirdOrderTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2382,13 +2772,19 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_third_order_with_opti
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_third_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => match ThetaDataDxGreeksThirdOrderTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::GreeksThirdOrderTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxGreeksThirdOrderTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_third_order: {other:?}"));
                 empty
@@ -2414,9 +2810,14 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_wit
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxTradeGreeksThirdOrderTickArray {
     ffi_boundary!(ThetaDataDxTradeGreeksThirdOrderTickArray::EMPTY, {
         let empty = ThetaDataDxTradeGreeksThirdOrderTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2444,13 +2845,19 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_third_order_wit
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_third_order", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeGreeksThirdOrderTicks(values)) => match ThetaDataDxTradeGreeksThirdOrderTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::TradeGreeksThirdOrderTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxTradeGreeksThirdOrderTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_third_order: {other:?}"));
                 empty
@@ -2476,9 +2883,14 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_wi
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxIvTickArray {
     ffi_boundary!(ThetaDataDxIvTickArray::EMPTY, {
         let empty = ThetaDataDxIvTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2506,13 +2918,19 @@ pub unsafe extern "C" fn thetadatadx_option_history_greeks_implied_volatility_wi
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_greeks_implied_volatility", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::IvTicks(values)) => match ThetaDataDxIvTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::IvTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxIvTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_greeks_implied_volatility: {other:?}"));
                 empty
@@ -2538,9 +2956,14 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatil
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxTradeGreeksImpliedVolatilityTickArray {
     ffi_boundary!(ThetaDataDxTradeGreeksImpliedVolatilityTickArray::EMPTY, {
         let empty = ThetaDataDxTradeGreeksImpliedVolatilityTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2568,13 +2991,19 @@ pub unsafe extern "C" fn thetadatadx_option_history_trade_greeks_implied_volatil
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_history_trade_greeks_implied_volatility", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeGreeksImpliedVolatilityTicks(values)) => match ThetaDataDxTradeGreeksImpliedVolatilityTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::TradeGreeksImpliedVolatilityTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxTradeGreeksImpliedVolatilityTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_history_trade_greeks_implied_volatility: {other:?}"));
                 empty
@@ -2604,9 +3033,14 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_trade_with_options(
     time_of_day: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxTradeTickArray {
     ffi_boundary!(ThetaDataDxTradeTickArray::EMPTY, {
         let empty = ThetaDataDxTradeTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2644,13 +3078,19 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_trade_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_trade", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => match ThetaDataDxTradeTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::TradeTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxTradeTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_at_time_trade: {other:?}"));
                 empty
@@ -2680,9 +3120,14 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_quote_with_options(
     time_of_day: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxQuoteTickArray {
     ffi_boundary!(ThetaDataDxQuoteTickArray::EMPTY, {
         let empty = ThetaDataDxQuoteTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2720,13 +3165,19 @@ pub unsafe extern "C" fn thetadatadx_option_at_time_quote_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "option_at_time_quote", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => match ThetaDataDxQuoteTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::QuoteTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxQuoteTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for option_at_time_quote: {other:?}"));
                 empty
@@ -2837,9 +3288,14 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_ohlc_with_options(
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxOhlcTickArray {
     ffi_boundary!(ThetaDataDxOhlcTickArray::EMPTY, {
         let empty = ThetaDataDxOhlcTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2857,13 +3313,19 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_ohlc_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_ohlc", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match ThetaDataDxOhlcTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for index_snapshot_ohlc: {other:?}"));
                 empty
@@ -2885,9 +3347,14 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_price_with_options(
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxPriceTickArray {
     ffi_boundary!(ThetaDataDxPriceTickArray::EMPTY, {
         let empty = ThetaDataDxPriceTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2905,13 +3372,19 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_price_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_price", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => match ThetaDataDxPriceTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxPriceTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for index_snapshot_price: {other:?}"));
                 empty
@@ -2933,9 +3406,14 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_market_value_with_options(
     symbols: *const *const c_char,
     symbols_len: usize,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxMarketValueTickArray {
     ffi_boundary!(ThetaDataDxMarketValueTickArray::EMPTY, {
         let empty = ThetaDataDxMarketValueTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -2953,13 +3431,19 @@ pub unsafe extern "C" fn thetadatadx_index_snapshot_market_value_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_snapshot_market_value", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => match ThetaDataDxMarketValueTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::MarketValueTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxMarketValueTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for index_snapshot_market_value: {other:?}"));
                 empty
@@ -2985,9 +3469,14 @@ pub unsafe extern "C" fn thetadatadx_index_history_eod_with_options(
     end_date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxEodTickArray {
     ffi_boundary!(ThetaDataDxEodTickArray::EMPTY, {
         let empty = ThetaDataDxEodTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3015,13 +3504,19 @@ pub unsafe extern "C" fn thetadatadx_index_history_eod_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_eod", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::EodTicks(values)) => match ThetaDataDxEodTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::EodTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxEodTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for index_history_eod: {other:?}"));
                 empty
@@ -3047,9 +3542,14 @@ pub unsafe extern "C" fn thetadatadx_index_history_ohlc_with_options(
     end_date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxOhlcTickArray {
     ffi_boundary!(ThetaDataDxOhlcTickArray::EMPTY, {
         let empty = ThetaDataDxOhlcTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3077,13 +3577,19 @@ pub unsafe extern "C" fn thetadatadx_index_history_ohlc_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_ohlc", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match ThetaDataDxOhlcTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for index_history_ohlc: {other:?}"));
                 empty
@@ -3107,9 +3613,14 @@ pub unsafe extern "C" fn thetadatadx_index_history_price_with_options(
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxPriceTickArray {
     ffi_boundary!(ThetaDataDxPriceTickArray::EMPTY, {
         let empty = ThetaDataDxPriceTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3132,13 +3643,19 @@ pub unsafe extern "C" fn thetadatadx_index_history_price_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_history_price", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => match ThetaDataDxPriceTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::PriceTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxPriceTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for index_history_price: {other:?}"));
                 empty
@@ -3166,9 +3683,14 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_with_options(
     time_of_day: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxIndexPriceAtTimeTickArray {
     ffi_boundary!(ThetaDataDxIndexPriceAtTimeTickArray::EMPTY, {
         let empty = ThetaDataDxIndexPriceAtTimeTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3201,13 +3723,19 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "index_at_time_price", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::IndexPriceAtTimeTicks(values)) => match ThetaDataDxIndexPriceAtTimeTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::IndexPriceAtTimeTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxIndexPriceAtTimeTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for index_at_time_price: {other:?}"));
                 empty
@@ -3227,9 +3755,14 @@ pub unsafe extern "C" fn thetadatadx_index_at_time_price_with_options(
 pub unsafe extern "C" fn thetadatadx_calendar_open_today_with_options(
     client: *const ThetaDataDxHistoricalClient,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxCalendarDayArray {
     ffi_boundary!(ThetaDataDxCalendarDayArray::EMPTY, {
         let empty = ThetaDataDxCalendarDayArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3242,13 +3775,19 @@ pub unsafe extern "C" fn thetadatadx_calendar_open_today_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_open_today", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => match ThetaDataDxCalendarDayArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxCalendarDayArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for calendar_open_today: {other:?}"));
                 empty
@@ -3270,9 +3809,14 @@ pub unsafe extern "C" fn thetadatadx_calendar_on_date_with_options(
     date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxCalendarDayArray {
     ffi_boundary!(ThetaDataDxCalendarDayArray::EMPTY, {
         let empty = ThetaDataDxCalendarDayArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3290,13 +3834,19 @@ pub unsafe extern "C" fn thetadatadx_calendar_on_date_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_on_date", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => match ThetaDataDxCalendarDayArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxCalendarDayArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for calendar_on_date: {other:?}"));
                 empty
@@ -3318,9 +3868,14 @@ pub unsafe extern "C" fn thetadatadx_calendar_year_with_options(
     year: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxCalendarDayArray {
     ffi_boundary!(ThetaDataDxCalendarDayArray::EMPTY, {
         let empty = ThetaDataDxCalendarDayArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3338,13 +3893,19 @@ pub unsafe extern "C" fn thetadatadx_calendar_year_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "calendar_year", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => match ThetaDataDxCalendarDayArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::CalendarDays(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxCalendarDayArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for calendar_year: {other:?}"));
                 empty
@@ -3370,9 +3931,14 @@ pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_with_options(
     end_date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxInterestRateTickArray {
     ffi_boundary!(ThetaDataDxInterestRateTickArray::EMPTY, {
         let empty = ThetaDataDxInterestRateTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3400,13 +3966,19 @@ pub unsafe extern "C" fn thetadatadx_interest_rate_history_eod_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "interest_rate_history_eod", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::InterestRateTicks(values)) => match ThetaDataDxInterestRateTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::InterestRateTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxInterestRateTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for interest_rate_history_eod: {other:?}"));
                 empty
@@ -3432,9 +4004,14 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_range_with_options(
     end_date: *const c_char
 ,
     options: *const ThetaDataDxEndpointRequestOptions,
+    out_presence: *mut ThetaDataDxColumnPresence,
 ) -> ThetaDataDxOhlcTickArray {
     ffi_boundary!(ThetaDataDxOhlcTickArray::EMPTY, {
         let empty = ThetaDataDxOhlcTickArray::EMPTY;
+        if !out_presence.is_null() {
+            // SAFETY: caller-supplied writable slot (checked non-null).
+            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };
+        }
         let client = require_client!(client, empty);
 
         let mut args = thetadatadx::EndpointArgs::new();
@@ -3462,13 +4039,19 @@ pub unsafe extern "C" fn thetadatadx_stock_history_ohlc_range_with_options(
         match runtime().block_on(async {
             thetadatadx::endpoint::invoke_endpoint(&client.inner, "stock_history_ohlc_range", &args).await
         }) {
-            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => match ThetaDataDxOhlcTickArray::from_vec(values) {
-                Ok(arr) => arr,
-                Err(e) => {
-                    set_error(&format!("interior NUL in server string: {e}"));
-                    empty
+            Ok(thetadatadx::EndpointOutput::OhlcTicks(values)) => {
+                if !out_presence.is_null() {
+                    // SAFETY: caller-supplied writable slot (checked non-null).
+                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };
                 }
-            },
+                match ThetaDataDxOhlcTickArray::from_vec(values.into_vec()) {
+                    Ok(arr) => arr,
+                    Err(e) => {
+                        set_error(&format!("interior NUL in server string: {e}"));
+                        empty
+                    }
+                }
+            }
             Ok(other) => {
                 set_error(&format!("internal error: unexpected endpoint output for stock_history_ohlc_range: {other:?}"));
                 empty

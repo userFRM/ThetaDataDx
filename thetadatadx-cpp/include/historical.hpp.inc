@@ -29,9 +29,9 @@
     }
 
     /// Get the latest OHLC snapshot for one or more stocks.
-    std::vector<OhlcTick> stock_snapshot_ohlc(const std::string& symbol, const EndpointRequestOptions& options = {}) const;
+    std::vector<OhlcTick> stock_snapshot_ohlc(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
-    std::vector<OhlcTick> stock_snapshot_ohlc(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
+    std::vector<OhlcTick> stock_snapshot_ohlc(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -56,9 +56,9 @@
     }
 
     /// Get the latest trade snapshot for one or more stocks.
-    std::vector<TradeTick> stock_snapshot_trade(const std::string& symbol, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeTick> stock_snapshot_trade(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
-    std::vector<TradeTick> stock_snapshot_trade(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeTick> stock_snapshot_trade(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -83,9 +83,9 @@
     }
 
     /// Get the latest NBBO quote snapshot for one or more stocks.
-    std::vector<QuoteTick> stock_snapshot_quote(const std::string& symbol, const EndpointRequestOptions& options = {}) const;
+    std::vector<QuoteTick> stock_snapshot_quote(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
-    std::vector<QuoteTick> stock_snapshot_quote(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
+    std::vector<QuoteTick> stock_snapshot_quote(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -110,9 +110,9 @@
     }
 
     /// Get the latest market value snapshot for one or more stocks.
-    std::vector<MarketValueTick> stock_snapshot_market_value(const std::string& symbol, const EndpointRequestOptions& options = {}) const;
+    std::vector<MarketValueTick> stock_snapshot_market_value(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
-    std::vector<MarketValueTick> stock_snapshot_market_value(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
+    std::vector<MarketValueTick> stock_snapshot_market_value(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -137,7 +137,7 @@
     }
 
     /// Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
-    std::vector<EodTick> stock_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
+    std::vector<EodTick> stock_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -151,7 +151,7 @@
     }
 
     /// Fetch intraday OHLC bars for a stock on a single date.
-    std::vector<OhlcTick> stock_history_ohlc(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<OhlcTick> stock_history_ohlc(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -165,7 +165,7 @@
     }
 
     /// Fetch all trades for a stock on a given date.
-    std::vector<TradeTick> stock_history_trade(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeTick> stock_history_trade(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -179,7 +179,7 @@
     }
 
     /// Fetch NBBO quotes for a stock on a given date at a given interval.
-    std::vector<QuoteTick> stock_history_quote(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<QuoteTick> stock_history_quote(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -193,7 +193,7 @@
     }
 
     /// Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
-    std::vector<TradeQuoteTick> stock_history_trade_quote(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeQuoteTick> stock_history_trade_quote(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -207,7 +207,7 @@
     }
 
     /// Fetch the trade at a specific time of day across a date range.
-    std::vector<TradeTick> stock_at_time_trade(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeTick> stock_at_time_trade(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -221,7 +221,7 @@
     }
 
     /// Fetch the quote at a specific time of day across a date range.
-    std::vector<QuoteTick> stock_at_time_quote(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}) const;
+    std::vector<QuoteTick> stock_at_time_quote(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -291,7 +291,7 @@
     }
 
     /// List all option contracts traded or quoted on a given date, optionally filtered to a symbol.
-    std::vector<OptionContract> option_list_contracts(const std::string& request_type, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<OptionContract> option_list_contracts(const std::string& request_type, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -305,7 +305,7 @@
     }
 
     /// Get the latest OHLC snapshot for an option contract.
-    std::vector<OhlcTick> option_snapshot_ohlc(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
+    std::vector<OhlcTick> option_snapshot_ohlc(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -319,7 +319,7 @@
     }
 
     /// Get the latest trade snapshot for an option contract.
-    std::vector<TradeTick> option_snapshot_trade(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeTick> option_snapshot_trade(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -333,7 +333,7 @@
     }
 
     /// Get the latest NBBO quote snapshot for an option contract.
-    std::vector<QuoteTick> option_snapshot_quote(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
+    std::vector<QuoteTick> option_snapshot_quote(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -347,7 +347,7 @@
     }
 
     /// Get the latest open interest snapshot for an option contract.
-    std::vector<OpenInterestTick> option_snapshot_open_interest(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
+    std::vector<OpenInterestTick> option_snapshot_open_interest(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -361,7 +361,7 @@
     }
 
     /// Get the latest market value snapshot for an option contract.
-    std::vector<MarketValueTick> option_snapshot_market_value(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
+    std::vector<MarketValueTick> option_snapshot_market_value(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -375,7 +375,7 @@
     }
 
     /// Get implied volatility snapshot for an option contract (from ThetaData server).
-    std::vector<IvTick> option_snapshot_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
+    std::vector<IvTick> option_snapshot_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -389,7 +389,7 @@
     }
 
     /// Get all Greeks snapshot for an option contract (from ThetaData server).
-    std::vector<GreeksAllTick> option_snapshot_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksAllTick> option_snapshot_greeks_all(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -403,7 +403,7 @@
     }
 
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
-    std::vector<GreeksFirstOrderTick> option_snapshot_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksFirstOrderTick> option_snapshot_greeks_first_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -417,7 +417,7 @@
     }
 
     /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
-    std::vector<GreeksSecondOrderTick> option_snapshot_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksSecondOrderTick> option_snapshot_greeks_second_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -431,7 +431,7 @@
     }
 
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
-    std::vector<GreeksThirdOrderTick> option_snapshot_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksThirdOrderTick> option_snapshot_greeks_third_order(const std::string& symbol, const std::string& expiration, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -445,7 +445,7 @@
     }
 
     /// Fetch end-of-day option data for a contract over a date range.
-    std::vector<EodTick> option_history_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
+    std::vector<EodTick> option_history_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -459,7 +459,7 @@
     }
 
     /// Fetch intraday OHLC bars for an option contract.
-    std::vector<OhlcTick> option_history_ohlc(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<OhlcTick> option_history_ohlc(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -473,7 +473,7 @@
     }
 
     /// Fetch all trades for an option contract on a given date.
-    std::vector<TradeTick> option_history_trade(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeTick> option_history_trade(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -487,7 +487,7 @@
     }
 
     /// Fetch NBBO quotes for an option contract on a given date.
-    std::vector<QuoteTick> option_history_quote(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<QuoteTick> option_history_quote(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -501,7 +501,7 @@
     }
 
     /// Fetch combined trade + quote ticks for an option contract.
-    std::vector<TradeQuoteTick> option_history_trade_quote(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeQuoteTick> option_history_trade_quote(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -515,7 +515,7 @@
     }
 
     /// Fetch open interest history for an option contract.
-    std::vector<OpenInterestTick> option_history_open_interest(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<OpenInterestTick> option_history_open_interest(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -529,7 +529,7 @@
     }
 
     /// Fetch end-of-day Greeks history for an option contract.
-    std::vector<GreeksEodTick> option_history_greeks_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksEodTick> option_history_greeks_eod(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -543,7 +543,7 @@
     }
 
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
-    std::vector<GreeksAllTick> option_history_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksAllTick> option_history_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -557,7 +557,7 @@
     }
 
     /// Fetch all Greeks on each trade for an option contract.
-    std::vector<TradeGreeksAllTick> option_history_trade_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeGreeksAllTick> option_history_trade_greeks_all(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -571,7 +571,7 @@
     }
 
     /// Fetch first-order Greeks history (intraday, sampled by interval).
-    std::vector<GreeksFirstOrderTick> option_history_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksFirstOrderTick> option_history_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -585,7 +585,7 @@
     }
 
     /// Fetch first-order Greeks on each trade for an option contract.
-    std::vector<TradeGreeksFirstOrderTick> option_history_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeGreeksFirstOrderTick> option_history_trade_greeks_first_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -599,7 +599,7 @@
     }
 
     /// Fetch second-order Greeks history (intraday, sampled by interval).
-    std::vector<GreeksSecondOrderTick> option_history_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksSecondOrderTick> option_history_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -613,7 +613,7 @@
     }
 
     /// Fetch second-order Greeks on each trade for an option contract.
-    std::vector<TradeGreeksSecondOrderTick> option_history_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeGreeksSecondOrderTick> option_history_trade_greeks_second_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -627,7 +627,7 @@
     }
 
     /// Fetch third-order Greeks history (intraday, sampled by interval).
-    std::vector<GreeksThirdOrderTick> option_history_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<GreeksThirdOrderTick> option_history_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -641,7 +641,7 @@
     }
 
     /// Fetch third-order Greeks on each trade for an option contract.
-    std::vector<TradeGreeksThirdOrderTick> option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeGreeksThirdOrderTick> option_history_trade_greeks_third_order(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -655,7 +655,7 @@
     }
 
     /// Fetch implied volatility history (intraday, sampled by interval).
-    std::vector<IvTick> option_history_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<IvTick> option_history_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -669,7 +669,7 @@
     }
 
     /// Fetch implied volatility on each trade for an option contract.
-    std::vector<TradeGreeksImpliedVolatilityTick> option_history_trade_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeGreeksImpliedVolatilityTick> option_history_trade_greeks_implied_volatility(const std::string& symbol, const std::string& expiration, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -683,7 +683,7 @@
     }
 
     /// Fetch the trade at a specific time of day across a date range for an option.
-    std::vector<TradeTick> option_at_time_trade(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}) const;
+    std::vector<TradeTick> option_at_time_trade(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -697,7 +697,7 @@
     }
 
     /// Fetch the quote at a specific time of day across a date range for an option.
-    std::vector<QuoteTick> option_at_time_quote(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}) const;
+    std::vector<QuoteTick> option_at_time_quote(const std::string& symbol, const std::string& expiration, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -739,9 +739,9 @@
     }
 
     /// Get the latest OHLC snapshot for one or more indices.
-    std::vector<OhlcTick> index_snapshot_ohlc(const std::string& symbol, const EndpointRequestOptions& options = {}) const;
+    std::vector<OhlcTick> index_snapshot_ohlc(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
-    std::vector<OhlcTick> index_snapshot_ohlc(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
+    std::vector<OhlcTick> index_snapshot_ohlc(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -766,9 +766,9 @@
     }
 
     /// Get the latest price snapshot for one or more indices.
-    std::vector<PriceTick> index_snapshot_price(const std::string& symbol, const EndpointRequestOptions& options = {}) const;
+    std::vector<PriceTick> index_snapshot_price(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
-    std::vector<PriceTick> index_snapshot_price(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
+    std::vector<PriceTick> index_snapshot_price(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -793,9 +793,9 @@
     }
 
     /// Get the latest market value snapshot for one or more indices.
-    std::vector<MarketValueTick> index_snapshot_market_value(const std::string& symbol, const EndpointRequestOptions& options = {}) const;
+    std::vector<MarketValueTick> index_snapshot_market_value(const std::string& symbol, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
-    std::vector<MarketValueTick> index_snapshot_market_value(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}) const;
+    std::vector<MarketValueTick> index_snapshot_market_value(const std::vector<std::string>& symbols, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -820,7 +820,7 @@
     }
 
     /// Fetch end-of-day index data for a date range.
-    std::vector<EodTick> index_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
+    std::vector<EodTick> index_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -834,7 +834,7 @@
     }
 
     /// Fetch intraday OHLC bars for an index.
-    std::vector<OhlcTick> index_history_ohlc(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
+    std::vector<OhlcTick> index_history_ohlc(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -848,7 +848,7 @@
     }
 
     /// Fetch intraday price history for an index.
-    std::vector<PriceTick> index_history_price(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<PriceTick> index_history_price(const std::string& symbol, const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -862,7 +862,7 @@
     }
 
     /// Fetch the index price at a specific time of day across a date range.
-    std::vector<IndexPriceAtTimeTick> index_at_time_price(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}) const;
+    std::vector<IndexPriceAtTimeTick> index_at_time_price(const std::string& symbol, const std::string& start_date, const std::string& end_date, const std::string& time_of_day, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -876,7 +876,7 @@
     }
 
     /// Check whether the market is open today.
-    std::vector<CalendarDay> calendar_open_today(const EndpointRequestOptions& options = {}) const;
+    std::vector<CalendarDay> calendar_open_today(const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -890,7 +890,7 @@
     }
 
     /// Get calendar information for a specific date.
-    std::vector<CalendarDay> calendar_on_date(const std::string& date, const EndpointRequestOptions& options = {}) const;
+    std::vector<CalendarDay> calendar_on_date(const std::string& date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -904,7 +904,7 @@
     }
 
     /// Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day).
-    std::vector<CalendarDay> calendar_year(const std::string& year, const EndpointRequestOptions& options = {}) const;
+    std::vector<CalendarDay> calendar_year(const std::string& year, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -918,7 +918,7 @@
     }
 
     /// Fetch end-of-day interest rate history.
-    std::vector<InterestRateTick> interest_rate_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
+    std::vector<InterestRateTick> interest_rate_history_eod(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object
@@ -932,7 +932,7 @@
     }
 
     /// Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
-    std::vector<OhlcTick> stock_history_ohlc_range(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}) const;
+    std::vector<OhlcTick> stock_history_ohlc_range(const std::string& symbol, const std::string& start_date, const std::string& end_date, const EndpointRequestOptions& options = {}, ColumnPresence* out_columns = nullptr) const;
 
     /// The detached task captures a copy of this object (`self = *this`), so the
     /// returned future co-owns the FFI handle and may safely outlive the object

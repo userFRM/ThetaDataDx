@@ -87,7 +87,12 @@ inline ColumnPresence calendar_days_present_columns(const std::vector<std::strin
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_calendar_days_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_calendar_days_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `CalendarDay` history result as a PROJECTED Arrow IPC stream —
@@ -117,7 +122,12 @@ inline ColumnPresence eod_ticks_present_columns(const std::vector<std::string>& 
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_eod_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_eod_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `EodTick` history result as a PROJECTED Arrow IPC stream —
@@ -147,7 +157,12 @@ inline ColumnPresence greeks_all_ticks_present_columns(const std::vector<std::st
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_greeks_all_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_greeks_all_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `GreeksAllTick` history result as a PROJECTED Arrow IPC stream —
@@ -177,7 +192,12 @@ inline ColumnPresence greeks_eod_ticks_present_columns(const std::vector<std::st
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_greeks_eod_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_greeks_eod_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `GreeksEodTick` history result as a PROJECTED Arrow IPC stream —
@@ -207,7 +227,12 @@ inline ColumnPresence greeks_first_order_ticks_present_columns(const std::vector
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_greeks_first_order_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_greeks_first_order_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `GreeksFirstOrderTick` history result as a PROJECTED Arrow IPC stream —
@@ -237,7 +262,12 @@ inline ColumnPresence greeks_second_order_ticks_present_columns(const std::vecto
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_greeks_second_order_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_greeks_second_order_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `GreeksSecondOrderTick` history result as a PROJECTED Arrow IPC stream —
@@ -267,7 +297,12 @@ inline ColumnPresence greeks_third_order_ticks_present_columns(const std::vector
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_greeks_third_order_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_greeks_third_order_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `GreeksThirdOrderTick` history result as a PROJECTED Arrow IPC stream —
@@ -297,7 +332,12 @@ inline ColumnPresence index_price_at_time_ticks_present_columns(const std::vecto
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_index_price_at_time_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_index_price_at_time_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `IndexPriceAtTimeTick` history result as a PROJECTED Arrow IPC stream —
@@ -327,7 +367,12 @@ inline ColumnPresence interest_rate_ticks_present_columns(const std::vector<std:
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_interest_rate_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_interest_rate_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `InterestRateTick` history result as a PROJECTED Arrow IPC stream —
@@ -357,7 +402,12 @@ inline ColumnPresence iv_ticks_present_columns(const std::vector<std::string>& h
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_iv_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_iv_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `IvTick` history result as a PROJECTED Arrow IPC stream —
@@ -387,7 +437,12 @@ inline ColumnPresence market_value_ticks_present_columns(const std::vector<std::
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_market_value_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_market_value_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `MarketValueTick` history result as a PROJECTED Arrow IPC stream —
@@ -417,7 +472,12 @@ inline ColumnPresence ohlc_ticks_present_columns(const std::vector<std::string>&
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_ohlc_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_ohlc_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `OhlcTick` history result as a PROJECTED Arrow IPC stream —
@@ -447,7 +507,12 @@ inline ColumnPresence open_interest_ticks_present_columns(const std::vector<std:
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_open_interest_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_open_interest_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `OpenInterestTick` history result as a PROJECTED Arrow IPC stream —
@@ -477,7 +542,12 @@ inline ColumnPresence price_ticks_present_columns(const std::vector<std::string>
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_price_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_price_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `PriceTick` history result as a PROJECTED Arrow IPC stream —
@@ -507,7 +577,12 @@ inline ColumnPresence quote_ticks_present_columns(const std::vector<std::string>
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_quote_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_quote_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `QuoteTick` history result as a PROJECTED Arrow IPC stream —
@@ -537,7 +612,12 @@ inline ColumnPresence trade_greeks_all_ticks_present_columns(const std::vector<s
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_trade_greeks_all_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_trade_greeks_all_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `TradeGreeksAllTick` history result as a PROJECTED Arrow IPC stream —
@@ -567,7 +647,12 @@ inline ColumnPresence trade_greeks_first_order_ticks_present_columns(const std::
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_trade_greeks_first_order_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_trade_greeks_first_order_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `TradeGreeksFirstOrderTick` history result as a PROJECTED Arrow IPC stream —
@@ -597,7 +682,12 @@ inline ColumnPresence trade_greeks_implied_volatility_ticks_present_columns(cons
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_trade_greeks_implied_volatility_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_trade_greeks_implied_volatility_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `TradeGreeksImpliedVolatilityTick` history result as a PROJECTED Arrow IPC stream —
@@ -627,7 +717,12 @@ inline ColumnPresence trade_greeks_second_order_ticks_present_columns(const std:
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_trade_greeks_second_order_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_trade_greeks_second_order_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `TradeGreeksSecondOrderTick` history result as a PROJECTED Arrow IPC stream —
@@ -657,7 +752,12 @@ inline ColumnPresence trade_greeks_third_order_ticks_present_columns(const std::
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_trade_greeks_third_order_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_trade_greeks_third_order_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `TradeGreeksThirdOrderTick` history result as a PROJECTED Arrow IPC stream —
@@ -687,7 +787,12 @@ inline ColumnPresence trade_quote_ticks_present_columns(const std::vector<std::s
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_trade_quote_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_trade_quote_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `TradeQuoteTick` history result as a PROJECTED Arrow IPC stream —
@@ -717,7 +822,12 @@ inline ColumnPresence trade_ticks_present_columns(const std::vector<std::string>
     std::vector<const char*> ptrs;
     ptrs.reserve(headers.size());
     for (const auto& h : headers) { ptrs.push_back(h.c_str()); }
-    return ColumnPresence(thetadatadx_trade_ticks_present_columns(ptrs.data(), ptrs.size()));
+    thetadatadx_clear_error();
+    ColumnPresence presence(thetadatadx_trade_ticks_present_columns(ptrs.data(), ptrs.size()));
+    if (thetadatadx_last_error() != nullptr) {
+        detail::throw_last_ffi_error();
+    }
+    return presence;
 }
 
 /// Serialise a `TradeTick` history result as a PROJECTED Arrow IPC stream —

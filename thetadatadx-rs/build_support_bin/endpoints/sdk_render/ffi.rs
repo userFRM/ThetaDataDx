@@ -152,6 +152,14 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
         }
     }
     out.push_str(",\n    options: *const ThetaDataDxEndpointRequestOptions,\n");
+    // Tick-returning endpoints surface the response's wire-column presence
+    // through a trailing out-param so a C/C++ caller can drive the projected
+    // Arrow export from a real endpoint response. `StringList` results carry no
+    // column set, so they keep the original signature.
+    let has_presence = endpoint.return_type != "StringList";
+    if has_presence {
+        out.push_str("    out_presence: *mut ThetaDataDxColumnPresence,\n");
+    }
     writeln!(out, ") -> {} {{", array_type).unwrap();
     // Wrap the entire body in `ffi_boundary!` so a panic inside
     // `runtime().block_on`, `apply_endpoint_request_options`, or any
@@ -164,6 +172,15 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     // `thetadatadx_last_error()`.
     writeln!(out, "    ffi_boundary!({array_type}::EMPTY, {{").unwrap();
     writeln!(out, "        let empty = {array_type}::EMPTY;").unwrap();
+    if has_presence {
+        // Seed the out-param empty before any early return so every exit path
+        // leaves a valid presence; the success arm overwrites it. Freed by the
+        // caller via `thetadatadx_column_presence_free`.
+        out.push_str("        if !out_presence.is_null() {\n");
+        out.push_str("            // SAFETY: caller-supplied writable slot (checked non-null).\n");
+        out.push_str("            unsafe { *out_presence = ThetaDataDxColumnPresence::EMPTY };\n");
+        out.push_str("        }\n");
+    }
     out.push_str("        let client = require_client!(client, empty);\n\n");
     out.push_str("        let mut args = thetadatadx::EndpointArgs::new();\n");
 
@@ -194,20 +211,54 @@ fn render_ffi_with_options_endpoint(endpoint: &GeneratedEndpoint) -> String {
     )
     .unwrap();
     out.push_str("        }) {\n");
-    writeln!(
-        out,
-        "            Ok(thetadatadx::EndpointOutput::{}(values)) => match {}::from_vec(values) {{",
-        output_variant, from_vec_type
-    )
-    .unwrap();
-    out.push_str("                Ok(arr) => arr,\n");
-    out.push_str("                Err(e) => {\n");
-    out.push_str(
-        "                    set_error(&format!(\"interior NUL in server string: {e}\"));\n",
-    );
-    out.push_str("                    empty\n");
-    out.push_str("                }\n");
-    out.push_str("            },\n");
+    if has_presence {
+        // The variant now carries `Ticks<T>` (rows + wire column set): write the
+        // presence to the out-param, then hand the bare rows to `from_vec`.
+        writeln!(
+            out,
+            "            Ok(thetadatadx::EndpointOutput::{}(values)) => {{",
+            output_variant
+        )
+        .unwrap();
+        out.push_str("                if !out_presence.is_null() {\n");
+        out.push_str(
+            "                    // SAFETY: caller-supplied writable slot (checked non-null).\n",
+        );
+        out.push_str(
+            "                    unsafe { *out_presence = ThetaDataDxColumnPresence::from_presence(values.columns()) };\n",
+        );
+        out.push_str("                }\n");
+        writeln!(
+            out,
+            "                match {}::from_vec(values.into_vec()) {{",
+            from_vec_type
+        )
+        .unwrap();
+        out.push_str("                    Ok(arr) => arr,\n");
+        out.push_str("                    Err(e) => {\n");
+        out.push_str(
+            "                        set_error(&format!(\"interior NUL in server string: {e}\"));\n",
+        );
+        out.push_str("                        empty\n");
+        out.push_str("                    }\n");
+        out.push_str("                }\n");
+        out.push_str("            }\n");
+    } else {
+        writeln!(
+            out,
+            "            Ok(thetadatadx::EndpointOutput::{}(values)) => match {}::from_vec(values) {{",
+            output_variant, from_vec_type
+        )
+        .unwrap();
+        out.push_str("                Ok(arr) => arr,\n");
+        out.push_str("                Err(e) => {\n");
+        out.push_str(
+            "                    set_error(&format!(\"interior NUL in server string: {e}\"));\n",
+        );
+        out.push_str("                    empty\n");
+        out.push_str("                }\n");
+        out.push_str("            },\n");
+    }
     out.push_str("            Ok(other) => {\n");
     writeln!(
         out,

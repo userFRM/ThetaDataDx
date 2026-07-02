@@ -216,11 +216,19 @@ pub(super) fn render_cpp_tick_arrow_ipc(schema: &Schema) -> String {
         out.push_str("    std::vector<const char*> ptrs;\n");
         out.push_str("    ptrs.reserve(headers.size());\n");
         out.push_str("    for (const auto& h : headers) { ptrs.push_back(h.c_str()); }\n");
+        // An empty presence is a valid result (a response with no columns),
+        // so the C side reports failure through the errno-style last-error
+        // slot rather than the return value. Clear it, then throw if set.
+        out.push_str("    thetadatadx_clear_error();\n");
         writeln!(
             out,
-            "    return ColumnPresence(thetadatadx_{snake}_present_columns(ptrs.data(), ptrs.size()));"
+            "    ColumnPresence presence(thetadatadx_{snake}_present_columns(ptrs.data(), ptrs.size()));"
         )
         .unwrap();
+        out.push_str("    if (thetadatadx_last_error() != nullptr) {\n");
+        out.push_str("        detail::throw_last_ffi_error();\n");
+        out.push_str("    }\n");
+        out.push_str("    return presence;\n");
         out.push_str("}\n\n");
 
         writeln!(

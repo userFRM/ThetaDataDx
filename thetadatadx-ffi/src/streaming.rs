@@ -717,7 +717,7 @@ pub struct ThetaDataDxSubscriptionRequest {
 
 // Layout drift-guard: pin the LP64 `#[repr(C)]` size + alignment on the
 // Rust side, matching `abi_struct_layout_asserts.hpp.inc`. `scope` (i32)
-// @0, `kind` (i32) @4, then six pointer fields packed 8 bytes apart with no
+// @0, `kind` (i32) @4, then five pointer fields packed 8 bytes apart with no
 // interior padding -> 48 bytes, align 8.
 const _: () = {
     assert!(core::mem::size_of::<ThetaDataDxSubscriptionRequest>() == 48);

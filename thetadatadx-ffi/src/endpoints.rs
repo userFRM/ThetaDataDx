@@ -15,17 +15,17 @@ use crate::error::{set_error, set_error_from};
 use crate::runtime;
 use crate::types::{
     insert_bool_arg, insert_float_arg, insert_int_arg, insert_optional_str_arg,
-    ThetaDataDxCalendarDayArray, ThetaDataDxEodTickArray, ThetaDataDxGreeksAllTickArray,
-    ThetaDataDxGreeksEodTickArray, ThetaDataDxGreeksFirstOrderTickArray,
-    ThetaDataDxGreeksSecondOrderTickArray, ThetaDataDxGreeksThirdOrderTickArray,
-    ThetaDataDxHistoricalClient, ThetaDataDxIndexPriceAtTimeTickArray,
-    ThetaDataDxInterestRateTickArray, ThetaDataDxIvTickArray, ThetaDataDxMarketValueTickArray,
-    ThetaDataDxOhlcTickArray, ThetaDataDxOpenInterestTickArray, ThetaDataDxOptionContractArray,
-    ThetaDataDxPriceTickArray, ThetaDataDxQuoteTickArray, ThetaDataDxStringArray,
-    ThetaDataDxTradeGreeksAllTickArray, ThetaDataDxTradeGreeksFirstOrderTickArray,
-    ThetaDataDxTradeGreeksImpliedVolatilityTickArray, ThetaDataDxTradeGreeksSecondOrderTickArray,
-    ThetaDataDxTradeGreeksThirdOrderTickArray, ThetaDataDxTradeQuoteTickArray,
-    ThetaDataDxTradeTickArray,
+    ThetaDataDxCalendarDayArray, ThetaDataDxColumnPresence, ThetaDataDxEodTickArray,
+    ThetaDataDxGreeksAllTickArray, ThetaDataDxGreeksEodTickArray,
+    ThetaDataDxGreeksFirstOrderTickArray, ThetaDataDxGreeksSecondOrderTickArray,
+    ThetaDataDxGreeksThirdOrderTickArray, ThetaDataDxHistoricalClient,
+    ThetaDataDxIndexPriceAtTimeTickArray, ThetaDataDxInterestRateTickArray, ThetaDataDxIvTickArray,
+    ThetaDataDxMarketValueTickArray, ThetaDataDxOhlcTickArray, ThetaDataDxOpenInterestTickArray,
+    ThetaDataDxOptionContractArray, ThetaDataDxPriceTickArray, ThetaDataDxQuoteTickArray,
+    ThetaDataDxStringArray, ThetaDataDxTradeGreeksAllTickArray,
+    ThetaDataDxTradeGreeksFirstOrderTickArray, ThetaDataDxTradeGreeksImpliedVolatilityTickArray,
+    ThetaDataDxTradeGreeksSecondOrderTickArray, ThetaDataDxTradeGreeksThirdOrderTickArray,
+    ThetaDataDxTradeQuoteTickArray, ThetaDataDxTradeTickArray,
 };
 
 // ── Historical server-stream callback C ABI ──

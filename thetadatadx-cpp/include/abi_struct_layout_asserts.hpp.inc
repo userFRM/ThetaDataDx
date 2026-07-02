@@ -40,6 +40,14 @@ static_assert(offsetof(ThetaDataDxStringArray, len) == 8,
 static_assert(sizeof(ThetaDataDxStringArray) == 16,
               "ThetaDataDxStringArray total size drifted from Rust");
 
+// ── ThetaDataDxColumnPresence (thetadatadx-ffi/src/types.rs) ──
+static_assert(offsetof(ThetaDataDxColumnPresence, names) == 0,
+              "ThetaDataDxColumnPresence::names offset drifted from Rust");
+static_assert(offsetof(ThetaDataDxColumnPresence, len) == 8,
+              "ThetaDataDxColumnPresence::len offset drifted from Rust");
+static_assert(sizeof(ThetaDataDxColumnPresence) == 16,
+              "ThetaDataDxColumnPresence total size drifted from Rust");
+
 // ── ThetaDataDxSubscription (thetadatadx-ffi/src/streaming.rs) ──
 static_assert(offsetof(ThetaDataDxSubscription, kind) == 0,
               "ThetaDataDxSubscription::kind offset drifted from Rust");
