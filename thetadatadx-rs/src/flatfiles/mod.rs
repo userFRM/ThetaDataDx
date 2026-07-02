@@ -38,6 +38,42 @@ pub use decoded::{
     flatfile_request, flatfile_request_decoded, flatfile_request_decoded_with_config,
     flatfile_request_with_config,
 };
+
+/// Removes `path` on drop unless [`disarm`](Self::disarm) has been called.
+///
+/// Reaps a scratch / temp file on every exit path — a `?` early return, an
+/// error, or a dropped (cancelled) future — where a single post-await cleanup
+/// line would be skipped on cancellation. `disarm` hands ownership back to the
+/// caller once the file has been renamed onto its final name or returned on
+/// success. Cleanup is best-effort and ignores a missing file.
+// ponytail: sync unlink in Drop; a single best-effort syscall, no async needed.
+pub(crate) struct ScratchGuard {
+    path: std::path::PathBuf,
+    armed: bool,
+}
+
+impl ScratchGuard {
+    pub(crate) fn new(path: impl Into<std::path::PathBuf>) -> Self {
+        Self {
+            path: path.into(),
+            armed: true,
+        }
+    }
+
+    /// Cancel removal — the file is now the caller's (renamed onto its final
+    /// name or handed back on success).
+    pub(crate) fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for ScratchGuard {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
+}
 pub use decoded_row::{FlatFileRow, FlatFileValue};
 pub use format::FlatFileFormat;
 pub use request::{flatfile_request_raw, flatfile_request_raw_with_config};

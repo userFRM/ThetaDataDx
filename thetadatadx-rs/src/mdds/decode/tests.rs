@@ -1835,8 +1835,12 @@ fn parse_trade_ticks_rejects_numeric_expiration_overflowing_i32() {
 #[test]
 fn parse_eod_ticks_rejects_numeric_date_overflowing_i32() {
     let table = proto::DataTable {
-        headers: vec!["date".into(), "open".into()],
-        data_table: vec![row_of(vec![dv_number(i64::MAX), dv_number(15_000)])],
+        headers: vec!["created".into(), "date".into(), "open".into()],
+        data_table: vec![row_of(vec![
+            dv_number(0),
+            dv_number(i64::MAX),
+            dv_number(15_000),
+        ])],
     };
     assert_eq!(
         parse_eod_ticks(&table).unwrap_err(),
@@ -2219,8 +2223,8 @@ fn parse_calendar_days_v3_accepts_numeric_open_at_session_start() {
 #[test]
 fn parse_eod_ticks_rejects_price_type_above_max() {
     let table = proto::DataTable {
-        headers: vec!["open".into()],
-        data_table: vec![row_of(vec![dv_price(100, 20)])],
+        headers: vec!["created".into(), "open".into()],
+        data_table: vec![row_of(vec![dv_number(0), dv_price(100, 20)])],
     };
     assert_eq!(
         parse_eod_ticks(&table).unwrap_err(),
@@ -2231,8 +2235,8 @@ fn parse_eod_ticks_rejects_price_type_above_max() {
 #[test]
 fn parse_eod_ticks_rejects_price_type_21() {
     let table = proto::DataTable {
-        headers: vec!["high".into()],
-        data_table: vec![row_of(vec![dv_price(250, 21)])],
+        headers: vec!["created".into(), "high".into()],
+        data_table: vec![row_of(vec![dv_number(0), dv_price(250, 21)])],
     };
     assert_eq!(
         parse_eod_ticks(&table).unwrap_err(),
@@ -2243,8 +2247,8 @@ fn parse_eod_ticks_rejects_price_type_21() {
 #[test]
 fn parse_eod_ticks_rejects_negative_price_type() {
     let table = proto::DataTable {
-        headers: vec!["low".into()],
-        data_table: vec![row_of(vec![dv_price(99, -1)])],
+        headers: vec!["created".into(), "low".into()],
+        data_table: vec![row_of(vec![dv_number(0), dv_price(99, -1)])],
     };
     assert_eq!(
         parse_eod_ticks(&table).unwrap_err(),
@@ -2255,8 +2259,8 @@ fn parse_eod_ticks_rejects_negative_price_type() {
 #[test]
 fn parse_eod_ticks_rejects_price_type_i32_max() {
     let table = proto::DataTable {
-        headers: vec!["close".into()],
-        data_table: vec![row_of(vec![dv_price(1, i32::MAX)])],
+        headers: vec!["created".into(), "close".into()],
+        data_table: vec![row_of(vec![dv_number(0), dv_price(1, i32::MAX)])],
     };
     assert_eq!(
         parse_eod_ticks(&table).unwrap_err(),
@@ -2268,6 +2272,8 @@ fn parse_eod_ticks_rejects_price_type_i32_max() {
 fn parse_eod_ticks_smoke_with_in_range_price_type() {
     let table = proto::DataTable {
         headers: vec![
+            "created".into(),
+            "date".into(),
             "open".into(),
             "high".into(),
             "low".into(),
@@ -2276,6 +2282,8 @@ fn parse_eod_ticks_smoke_with_in_range_price_type() {
             "ask".into(),
         ],
         data_table: vec![row_of(vec![
+            dv_number(0),
+            dv_number(20_240_315),
             dv_price(15_000, 10),
             dv_price(15_500, 10),
             dv_price(14_800, 10),
@@ -2293,4 +2301,22 @@ fn parse_eod_ticks_smoke_with_in_range_price_type() {
     assert!((t.close - 15_200.0).abs() < 1e-10);
     assert!((t.bid - 15_100.0).abs() < 1e-10);
     assert!((t.ask - 15_300.0).abs() < 1e-10);
+}
+
+#[test]
+fn parse_eod_ticks_rejects_rows_missing_created_header() {
+    // A rows-present EOD response whose `created` header failed to resolve must
+    // error like every other parser rather than return zero-seeded ticks. An
+    // empty response still returns Ok (see parse_eod_handles_empty_table).
+    let table = proto::DataTable {
+        headers: vec!["open".into()],
+        data_table: vec![row_of(vec![dv_price(15_000, 10)])],
+    };
+    assert!(matches!(
+        parse_eod_ticks(&table).unwrap_err(),
+        DecodeError::MissingRequiredHeader {
+            header: "created",
+            ..
+        }
+    ));
 }

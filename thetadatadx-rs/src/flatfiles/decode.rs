@@ -49,6 +49,15 @@ pub(crate) fn decode_block(
             // skips DATE rows before they reach `toCSV2`, so we do too.
             continue;
         }
+        if !reader.row_complete && n > 0 {
+            // The block ran out before the terminating END nibble, so the
+            // reader flushed a partial integer and the trailing slots are
+            // untrustworthy. The FPSS delta path rejects this same shape;
+            // match it here rather than emit a garbage final row.
+            return Err(Error::decode_codec(
+                "flatfiles: FIT block truncated mid-row",
+            ));
+        }
         if n == 0 {
             // Either an exhausted-buffer artefact or a zero-field row;
             // either way nothing to emit.
@@ -124,6 +133,20 @@ mod tests {
         assert_eq!(out.len(), 2);
         assert_eq!(out[0], vec![100, 50, 200]);
         assert_eq!(out[1], vec![105, 47, 210]);
+    }
+
+    #[test]
+    fn truncated_final_row_is_rejected() {
+        // "12," then "34" with NO terminating END nibble: the block runs out
+        // mid-row. The FPSS delta path rejects this shape; decode_block must
+        // too, rather than push a garbage final row.
+        let buf = vec![pack(1, 2), pack(FIELD_SEP, 3), pack(4, 0)];
+        let mut out = Vec::new();
+        let err = decode_block(&buf, 2, &mut out).unwrap_err();
+        assert!(
+            err.to_string().contains("truncated"),
+            "expected a truncation decode error, got: {err}"
+        );
     }
 
     #[test]

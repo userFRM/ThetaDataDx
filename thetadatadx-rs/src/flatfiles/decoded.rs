@@ -21,6 +21,7 @@ use crate::flatfiles::index::{parse_header, IndexIter};
 use crate::flatfiles::request::flatfile_request_raw_with_config;
 use crate::flatfiles::types::{ReqType, SecType};
 use crate::flatfiles::writer::{CsvSink, JsonlSink, RowSink, RowView};
+use crate::flatfiles::ScratchGuard;
 use crate::util::random_id::random_id_hex;
 
 /// Narrow a wire `u64` byte offset to the platform `usize` used for slicing.
@@ -120,14 +121,15 @@ pub async fn flatfile_request_with_config(
     let final_path = format.ensure_extension(output_path.as_ref());
     let raw_path = final_path.with_extension(format!("{}.raw", format.extension()));
 
-    // Run the pull + decode, then reap the raw scratch blob on every
-    // outcome. The raw artifact is created by the wire layer once auth
-    // succeeds, so any post-handshake failure (StreamTruncated, a
-    // mid-stream DISCONNECTED, a read error) or a decode fault would
-    // otherwise orphan it; an error before `File::create` (connect /
-    // login) leaves no file, and the ignored `NotFound` from removing it
-    // is harmless.
-    let result = pull_and_decode_to_file(
+    // Reap the raw scratch blob on every outcome. The raw artifact is created
+    // by the wire layer once auth succeeds, so any post-handshake failure
+    // (StreamTruncated, a mid-stream DISCONNECTED, a read error) or a decode
+    // fault would otherwise orphan it; an error before `File::create` (connect
+    // / login) leaves no file, and the ignored `NotFound` on removal is
+    // harmless. The guard drops even if this future is cancelled mid-await,
+    // which a post-await cleanup line would miss.
+    let _raw_guard = ScratchGuard::new(&raw_path);
+    pull_and_decode_to_file(
         creds,
         sec,
         req,
@@ -137,9 +139,8 @@ pub async fn flatfile_request_with_config(
         format,
         config,
     )
-    .await;
-    let _ = tokio::fs::remove_file(&raw_path).await;
-    result.map(|()| final_path)
+    .await?;
+    Ok(final_path)
 }
 
 /// Pull the raw blob into `raw_path` and decode it onto `final_path`.
@@ -192,15 +193,26 @@ pub(crate) fn decode_to_file(
     let hdr = parse_header(&blob)?;
     let (index_bytes, data_bytes) = slice_sections(&blob, &hdr)?;
 
+    // Decode into a sibling `.tmp` and rename onto `output_path` only after
+    // `finish()` flushes cleanly. A decode fault mid-walk then leaves the
+    // partial under the temp name, never a valid-looking partial under the
+    // requested final name. The guard reaps the temp on any `?` early return.
+    let tmp_path = {
+        let mut p = output_path.as_os_str().to_owned();
+        p.push(".tmp");
+        PathBuf::from(p)
+    };
+    let mut tmp_guard = ScratchGuard::new(&tmp_path);
+
     let mut sink: Box<dyn RowSink> = match format {
         FlatFileFormat::Csv => Box::new(CsvSink::new(
-            output_path,
+            &tmp_path,
             sec,
             hdr.fmt.clone(),
             hdr.price_type_idx,
         )?),
         FlatFileFormat::Jsonl => Box::new(JsonlSink::new(
-            output_path,
+            &tmp_path,
             sec,
             hdr.fmt.clone(),
             hdr.price_type_idx,
@@ -230,6 +242,10 @@ pub(crate) fn decode_to_file(
         }
     }
     sink.finish()?;
+    // `finish` consumed the sink and flushed its writer, so the temp file is
+    // complete and closed; publish it onto the final name atomically.
+    std::fs::rename(&tmp_path, output_path)?;
+    tmp_guard.disarm();
     Ok(())
 }
 
@@ -276,10 +292,10 @@ pub async fn flatfile_request_decoded_with_config(
     // as the on-disk path. The blob is created by the wire layer once
     // auth succeeds, so a post-handshake pull failure or a decode fault
     // would otherwise orphan it; a pre-`File::create` failure leaves no
-    // file and the ignored `NotFound` is harmless.
-    let result = pull_and_decode_to_memory(creds, sec, req, date, &scratch, config).await;
-    let _ = tokio::fs::remove_file(&scratch).await;
-    result
+    // file and the ignored `NotFound` is harmless. The guard drops even on
+    // a cancelled future, which a post-await cleanup line would miss.
+    let _scratch_guard = ScratchGuard::new(&scratch);
+    pull_and_decode_to_memory(creds, sec, req, date, &scratch, config).await
 }
 
 /// Pull the raw blob into `scratch` and decode it into a typed `Vec`.

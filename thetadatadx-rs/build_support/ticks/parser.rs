@@ -116,42 +116,41 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
 
     // Phase 1: resolve the column layout once.
     //
-    // Required header guards (non-eod only). A missing required header on a
-    // non-empty response is a schema drift: silently returning `Ok(vec![])`
-    // masked real data loss for ~1M-row `TradeQuoteTick` responses (P11).
-    // Now we raise `DecodeError::MissingRequiredHeader` whenever the server
-    // returns rows without the declared header. Empty responses ("no trades
-    // today") still return `Ok(vec![])` because a vendor holiday / symbol
-    // with no activity is legitimate.
-    if !def.eod_style {
-        for req in &def.required {
-            let var = format!("{req}_idx");
-            writeln!(
-                out,
-                "    let {var} = match find_header(&h, \"{req}\") {{\n\
-                 \x20       Some(i) => i,\n\
-                 \x20       None => {{\n\
-                 \x20           if table.data_table.is_empty() {{\n\
-                 \x20               return Ok(vec![]);\n\
-                 \x20           }}\n\
-                 \x20           return Err(DecodeError::MissingRequiredHeader {{\n\
-                 \x20               header: \"{req}\",\n\
-                 \x20               rows: table.data_table.len(),\n\
-                 \x20               available: h.join(\",\"),\n\
-                 \x20           }});\n\
-                 \x20       }}\n\
-                 \x20   }};"
-            )
-            .unwrap();
-        }
-        if !def.required.is_empty() {
-            out.push('\n');
-        }
+    // Required header guards. A missing required header on a non-empty
+    // response is a schema drift: silently returning `Ok(vec![])` masked real
+    // data loss for ~1M-row `TradeQuoteTick` responses (P11). We raise
+    // `DecodeError::MissingRequiredHeader` whenever the server returns rows
+    // without the declared header — eod-style parsers included, so a fully
+    // header-drifted EOD response errors instead of yielding zero-seeded ticks.
+    // Empty responses ("no trades today") still return `Ok(vec![])` because a
+    // vendor holiday / symbol with no activity is legitimate.
+    for req in &def.required {
+        let var = format!("{req}_idx");
+        writeln!(
+            out,
+            "    let {var} = match find_header(&h, \"{req}\") {{\n\
+             \x20       Some(i) => i,\n\
+             \x20       None => {{\n\
+             \x20           if table.data_table.is_empty() {{\n\
+             \x20               return Ok(vec![]);\n\
+             \x20           }}\n\
+             \x20           return Err(DecodeError::MissingRequiredHeader {{\n\
+             \x20               header: \"{req}\",\n\
+             \x20               rows: table.data_table.len(),\n\
+             \x20               available: h.join(\",\"),\n\
+             \x20           }});\n\
+             \x20       }}\n\
+             \x20   }};"
+        )
+        .unwrap();
+    }
+    if !def.required.is_empty() {
+        out.push('\n');
     }
 
     // Optional column lookups (alias-aware).
     for col in &def.columns {
-        if !def.eod_style && def.required.contains(&col.name) {
+        if def.required.contains(&col.name) {
             // Already resolved above as required.
             continue;
         }
@@ -209,7 +208,7 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
         let call = format!(
             "crate::decode::column::extract_column(rows, ticks, row_base, {{idx}}, \"{name}\", {fill}, {decoder}, |t, v| t.{field} = v)?;"
         );
-        if !def.eod_style && def.required.contains(&col.name) {
+        if def.required.contains(&col.name) {
             writeln!(out, "        {}", call.replace("{idx}", &var)).unwrap();
         } else {
             writeln!(out, "        if let Some(idx) = {var} {{").unwrap();
