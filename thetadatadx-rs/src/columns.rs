@@ -113,21 +113,21 @@ impl ColumnPresence {
 /// Claiming is two-pass so ordering is never a latent invariant: exact
 /// header matches claim first, then aliases claim any remaining header. One
 /// physical header is claimed once (first-claim), so an aliased column never
-/// starves a column that names the header exactly.
+/// starves a column that names the header exactly. Present columns are
+/// emitted in schema order regardless of which pass claimed them, honouring
+/// the [`ColumnPresence::present_names`] contract.
 ///
-/// Two derived fields are exempt from first-claim because they are not their
-/// own physical column:
+/// Two derived fields are handled specially because they are not their own
+/// physical column:
 ///
-///   * `date` is the `YYYYMMDD` split of a `Timestamp` header — it shares the
-///     physical column with a `*_ms_of_day` field but carries distinct data,
-///     so it is present whenever it resolves. It only claims a header on an
-///     exact standalone `date` column; on the shared-`Timestamp` path the
-///     ms-of-day field owns the claim.
+///   * `date` is resolved after the time fields. When its header is still
+///     unclaimed it is the primary claimant (the interest-rate `created` ->
+///     `date` column) and claims it; when a `*_ms_of_day` field already
+///     claimed the shared `Timestamp` header, `date` is that column's derived
+///     `YYYYMMDD` sibling and rides it without a second claim. Either way it
+///     is present whenever it resolves.
 ///   * `midpoint` (`QuoteTick`) is computed at decode from `bid` + `ask` and
 ///     is never a wire header, so it is present exactly when both inputs are.
-///
-/// Any wire header no schema column claimed (an upstream rename or a new
-/// column) is logged once so the silent drop is observable.
 #[must_use]
 pub fn present_columns_from(
     headers: &[&str],
@@ -138,48 +138,55 @@ pub fn present_columns_from(
     use crate::mdds::decode::headers::find_header;
 
     let mut claimed = vec![false; headers.len()];
-    let mut present: Vec<&'static str> = Vec::new();
+    // Per-column claimed header index; `Some` marks the column present.
+    let mut owner: Vec<Option<usize>> = vec![None; schema_columns.len()];
 
-    // Pass 1: exact header matches claim first.
-    for &(wire, field) in schema_columns {
+    // Pass 1: exact header matches claim first. `date` is deferred (it may be
+    // a derived sibling of a `*_ms_of_day` field on the same header).
+    for (ci, &(wire, field)) in schema_columns.iter().enumerate() {
         if field == "date" {
             continue;
         }
         if let Some(i) = headers.iter().position(|&h| h == wire) {
             if !claimed[i] {
                 claimed[i] = true;
-                present.push(field);
+                owner[ci] = Some(i);
             }
         }
     }
     // Pass 2: alias matches claim any header still unclaimed.
-    for &(wire, field) in schema_columns {
-        if field == "date" || headers.contains(&wire) {
+    for (ci, &(wire, field)) in schema_columns.iter().enumerate() {
+        if field == "date" || owner[ci].is_some() || headers.contains(&wire) {
             continue;
         }
         if let Some(i) = find_header(headers, wire) {
             if !claimed[i] {
                 claimed[i] = true;
-                present.push(field);
+                owner[ci] = Some(i);
             }
         }
     }
-    // `date`: present whenever it resolves; claims only an exact standalone
-    // header, never the shared `Timestamp` the ms-of-day field owns.
-    if schema_columns.iter().any(|&(_, f)| f == "date") {
-        if let Some(i) = headers.iter().position(|&h| h == "date") {
-            claimed[i] = true;
-            present.push("date");
-        } else if find_header(headers, "date").is_some() {
-            present.push("date");
+    // `date`: primary claimant when its header is free, derived sibling when a
+    // time field already claimed the shared `Timestamp` — present either way.
+    for (ci, &(wire, field)) in schema_columns.iter().enumerate() {
+        if field == "date" {
+            if let Some(i) = find_header(headers, wire) {
+                owner[ci] = Some(i);
+            }
         }
     }
+
+    // Emit present columns in schema order.
+    let mut present: Vec<&'static str> = owner
+        .iter()
+        .zip(schema_columns)
+        .filter_map(|(o, &(_, field))| o.map(|_| field))
+        .collect();
     // Contract-identity trio: injected under exact wire names on wildcard
-    // responses; each claims its exact header.
+    // responses.
     if contract_id {
         for name in ["expiration", "strike", "right"] {
-            if let Some(i) = headers.iter().position(|&h| h == name) {
-                claimed[i] = true;
+            if headers.contains(&name) {
                 present.push(name);
             }
         }
@@ -187,21 +194,6 @@ pub fn present_columns_from(
     // `midpoint` rides whenever both its inputs do.
     if derive_midpoint && present.contains(&"bid") && present.contains(&"ask") {
         present.push("midpoint");
-    }
-    // Observability: a wire header no column claimed is a rename or a new
-    // upstream column silently absent from the frame. Surface it once.
-    let unclaimed: Vec<&str> = headers
-        .iter()
-        .zip(&claimed)
-        .filter_map(|(&h, &c)| (!c).then_some(h))
-        .collect();
-    if !unclaimed.is_empty() {
-        tracing::warn!(
-            target: "thetadatadx::columns",
-            unclaimed = ?unclaimed,
-            headers = ?headers,
-            "response carried wire headers no schema column claimed; they are absent from the projected frame",
-        );
     }
 
     ColumnPresence::from_names(present)
@@ -431,5 +423,35 @@ mod tests {
             "exact `symbol` column claims the header"
         );
         assert!(!p.contains("root"), "the aliased `root` must not steal it");
+    }
+
+    /// The interest-rate shape maps wire `created` -> field `date`: `date` is
+    /// the primary claimant of the `created` header (no sibling ms-of-day
+    /// field), so it claims it directly and both fields are present.
+    #[test]
+    fn present_date_is_primary_claimant_when_no_time_sibling() {
+        const COLS: &[(&str, &str)] = &[("created", "date"), ("rate", "rate")];
+        let p = present_columns_from(&["created", "rate"], COLS, false, false);
+        assert!(
+            p.contains("date"),
+            "date claims the `created` header directly"
+        );
+        assert!(p.contains("rate"));
+    }
+
+    /// Present columns are emitted in schema order regardless of which pass
+    /// claimed them (an alias-resolved time field before a later exact field).
+    #[test]
+    fn present_names_follow_schema_order() {
+        const COLS: &[(&str, &str)] = &[
+            ("ms_of_day", "ms_of_day"),
+            ("date", "date"),
+            ("rate", "rate"),
+        ];
+        // `ms_of_day` resolves via alias (pass 2), `rate`/`date` are exact —
+        // yet the order must stay schema order, not claim order.
+        let p = present_columns_from(&["timestamp", "date", "rate"], COLS, false, false);
+        let got: Vec<&str> = p.present_names().collect();
+        assert_eq!(got, ["ms_of_day", "date", "rate"]);
     }
 }

@@ -236,18 +236,21 @@ pub fn response_symbol(table: &proto::DataTable) -> Option<Box<str>> {
     if table.data_table.is_empty() {
         return Some("".into());
     }
-    let cell = |row: &proto::DataValueList| -> Option<Box<str>> {
+    // Borrow the cell text; box only the single returned value, not per row —
+    // a ~1M-row response would otherwise pay ~1M heap allocations here. A local
+    // fn (not a closure) so the returned `&str` borrows from the `row` argument.
+    fn cell(row: &proto::DataValueList, col_idx: usize) -> Option<&str> {
         match row.values.get(col_idx).and_then(|dv| dv.data_type.as_ref()) {
-            Some(proto::data_value::DataType::Text(s)) => Some(s.as_str().into()),
+            Some(proto::data_value::DataType::Text(s)) => Some(s.as_str()),
             _ => None,
         }
-    };
-    let first = cell(table.data_table.first()?)?;
+    }
+    let first = cell(table.data_table.first()?, col_idx)?;
     if table.data_table[1..]
         .iter()
-        .all(|row| cell(row).as_deref() == Some(&*first))
+        .all(|row| cell(row, col_idx) == Some(first))
     {
-        Some(first)
+        Some(first.into())
     } else {
         None
     }
