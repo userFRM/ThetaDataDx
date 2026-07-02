@@ -229,7 +229,7 @@ align = 64
 contract_id = true
 parser = "parse_eod_ticks"
 eod_style = true
-required = []
+required = ["created"]
 columns = [
     { name = "created",       field = "created_ms_of_day",    type = "eod_num", doc = "EOD report creation time (NOT a trade time), milliseconds since midnight ET." },
     { name = "last_trade",    field = "last_trade_ms_of_day", type = "eod_num", doc = "Time of the day's last trade, milliseconds since midnight ET. 0 when no trades printed that day." },

@@ -23,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The credential exchange no longer follows redirects.** The Nexus auth client is set to not follow redirects, so a 3xx from the auth endpoint surfaces as a server error instead of the credential request body being replayed to the redirect target. Nexus never redirects auth.
 - **`SessionSnapshot` no longer prints its session UUID.** The `Debug` output now redacts the UUID with the same `***` marker the auth response uses, so the bearer token cannot land in panic output or `Debug`-formatted logs.
 - **A concurrent burst of failed session refreshes now issues a single Nexus round-trip.** When several requests observe an expired session at once and the re-authentication fails, callers queued behind the first coalesce onto that outcome instead of each re-authenticating in series.
+- **Flat-files reject a truncated FIT block instead of emitting a garbage final row.** A per-contract block that ends before its terminating marker now raises a typed decode error, matching the streaming delta path, rather than pushing a partially decoded final row (#1084).
+- **End-of-day responses with fully drifted headers now error instead of returning zero-filled rows.** A rows-present EOD response whose headers fail to resolve raises a missing-required-header error like every other parser; an empty response still returns no rows (#1084).
+- **Flat-file downloads no longer destroy a prior good file or leave a partial under the final name.** Both the raw download and the decoded output write to a sibling temp file and rename onto the final path only after the write finishes, and the temp is removed on failure (#1085).
+- **Local disk faults during a flat-file download surface immediately.** A full, read-only, or permission-denied output filesystem is now terminal rather than triggering a full re-download on the retry ladder.
+- **FIT integer fields saturate on overflow.** A digit run longer than an i32 can hold now saturates to the signed bound instead of silently dropping the surplus digits and emitting a plausible wrong value.
+- **Price comparison agrees with display for absent prices.** A price carrying type 0 now compares as zero, consistent with its `0.0` rendering and `to_f64`.
 
 ## [13.0.0-rc.12] - 2026-07-01
 

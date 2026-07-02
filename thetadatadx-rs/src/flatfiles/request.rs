@@ -37,6 +37,7 @@ use crate::flatfiles::framing::{msg, read_frame, Frame};
 use crate::flatfiles::mdds_spki::{ALLOWED_MDDS_HOSTS, MDDS_PORTS};
 use crate::flatfiles::session::{connect_and_login, MddsHost};
 use crate::flatfiles::types::{flat_file_serves, FlatFilesUnavailableReason, ReqType, SecType};
+use crate::flatfiles::ScratchGuard;
 
 /// Process-wide monotonic id generator. The server treats id as opaque; we
 /// use an `AtomicI64` so concurrent `flatfile_request_raw` calls cannot
@@ -118,8 +119,16 @@ fn error_is_transient(err: &Error) -> bool {
         // Local I/O failures (connect refused, mid-stream TLS reset,
         // unexpected EOF before any payload arrived). The next attempt
         // re-runs the host candidate list from the top so a momentary
-        // single-host blip rotates onto the next reachable host.
-        Error::Io(_) => true,
+        // single-host blip rotates onto the next reachable host. Local
+        // disk faults are the exception: a full, read-only, or
+        // permission-denied output filesystem will not heal on retry, so
+        // surface those immediately instead of re-running the whole download.
+        Error::Io(io) => !matches!(
+            io.kind(),
+            std::io::ErrorKind::StorageFull
+                | std::io::ErrorKind::PermissionDenied
+                | std::io::ErrorKind::ReadOnlyFilesystem
+        ),
         // Explicit reason classifier on the typed FLATFILES failure.
         // `StreamTruncated` is transient; `RequestRejected` is terminal;
         // `AuthRejected` depends on the wire reason code.
@@ -282,7 +291,19 @@ async fn run_one_attempt(
     )
     .await?;
 
-    let file = File::create(output_path).await?;
+    // Download into a sibling `.tmp` and rename onto `output_path` only after
+    // the stream finishes and flushes. A prior good file at `output_path` is
+    // never truncated up front, so an all-attempts-fail run leaves it intact,
+    // and a mid-stream failure leaves the partial under the temp name, not the
+    // final one. The guard reaps the temp on every failing exit (a `?` return
+    // or a cancelled future); `disarm` after a successful rename.
+    let tmp_path = {
+        let mut p = output_path.as_os_str().to_owned();
+        p.push(".tmp");
+        PathBuf::from(p)
+    };
+    let mut tmp_guard = ScratchGuard::new(&tmp_path);
+    let file = File::create(&tmp_path).await?;
     // 1 MB buffer — typical chunks are ~8-64 KB, so this batches many
     // chunks per actual write syscall.
     let mut out = BufWriter::with_capacity(1 << 20, file);
@@ -335,6 +356,15 @@ async fn run_one_attempt(
     }
     out.flush().await?;
     drop(out);
+    // Publish the completed download onto the final name, then release the
+    // guard so it does not reap the file we just renamed. Windows `rename`
+    // (unlike Unix) fails when the destination exists, so remove a prior file
+    // first there; the Unix path stays an atomic replace.
+    // ponytail: Windows publish is remove-then-rename, not atomic; ReplaceFileW-via-windows-crate if a concurrent-writer race is ever observed
+    #[cfg(windows)]
+    let _ = tokio::fs::remove_file(output_path).await;
+    tokio::fs::rename(&tmp_path, output_path).await?;
+    tmp_guard.disarm();
     tracing::info!(
         target: "flatfiles",
         "FLAT_FILE_END id={request_id} chunks={chunks} bytes={total} -> {}",

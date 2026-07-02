@@ -151,6 +151,10 @@ fn synthetic_blob_decodes_to_pinned_csv() {
     let raw = dir.join("synthetic.bin");
     let csv = dir.join("synthetic.csv");
     std::fs::write(&raw, &blob).unwrap();
+    // Seed a prior good file at the final path: a successful decode must
+    // publish over it (Windows `rename` does not replace an existing dest, so
+    // this pins the replace-capable publish on every target).
+    std::fs::write(&csv, b"stale prior contents\n").unwrap();
 
     thetadatadx::flatfiles::decoded_decode_to_file_for_test(
         &raw,
@@ -167,5 +171,65 @@ fn synthetic_blob_decodes_to_pinned_csv() {
     );
 
     // Cleanup. Failures above keep the artefacts in place for triage.
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A decode fault mid-walk must leave no partial file under the requested
+/// final name: the sink writes to a `.tmp` sibling and only renames onto the
+/// final path after `finish()`. Drop the row-2 END nibble so the final FIT
+/// block is truncated — `decode_block` rejects it after the sink has already
+/// written its header to the temp — and assert the decode errors *and* the
+/// final path never materialises (nor a prior good file at it is clobbered).
+#[test]
+fn decode_error_leaves_final_path_untouched() {
+    // Start from the valid blob, then truncate one DATA byte while keeping the
+    // header's data length and the INDEX block_end consistent so the failure
+    // lands inside the row loop (after the sink is created), not at header parse.
+    let mut blob = synthetic_option_blob();
+    let count = i32::from_be_bytes(blob[0..4].try_into().unwrap()) as usize;
+    let data_len_pos = 4 + 4 * count + 8; // fmt + index_len i64
+    let index_start = data_len_pos + 8; // + data_len i64
+    let index_len = i64::from_be_bytes(blob[data_len_pos - 8..data_len_pos].try_into().unwrap());
+    let block_end_pos = index_start + index_len as usize - 8;
+
+    blob.pop(); // drop the row-2 END byte
+    let data_len = i64::from_be_bytes(blob[data_len_pos..data_len_pos + 8].try_into().unwrap());
+    blob[data_len_pos..data_len_pos + 8].copy_from_slice(&(data_len - 1).to_be_bytes());
+    let block_end = i64::from_be_bytes(blob[block_end_pos..block_end_pos + 8].try_into().unwrap());
+    blob[block_end_pos..block_end_pos + 8].copy_from_slice(&(block_end - 1).to_be_bytes());
+
+    let dir = std::env::temp_dir().join(format!("thetadatadx-flatfiles-tmprename-{}", {
+        let bytes: [u8; 16] = rand::random();
+        bytes.iter().fold(String::with_capacity(32), |mut s, b| {
+            use std::fmt::Write;
+            let _ = write!(s, "{b:02x}");
+            s
+        })
+    }));
+    std::fs::create_dir_all(&dir).unwrap();
+    let raw = dir.join("truncated.bin");
+    let csv = dir.join("out.csv");
+    std::fs::write(&raw, &blob).unwrap();
+
+    // Seed a prior good file at the final path; the failing decode must not
+    // clobber it with a partial.
+    std::fs::write(&csv, b"prior good contents\n").unwrap();
+
+    let res = thetadatadx::flatfiles::decoded_decode_to_file_for_test(
+        &raw,
+        SecType::Option,
+        &csv,
+        FlatFileFormat::Csv,
+    );
+    assert!(res.is_err(), "a truncated FIT block must fail the decode");
+    assert_eq!(
+        std::fs::read_to_string(&csv).unwrap(),
+        "prior good contents\n",
+        "the prior good file must survive the failed decode untouched"
+    );
+    // No leftover temp sibling under the final name.
+    let tmp = csv.with_extension("csv.tmp");
+    assert!(!tmp.exists(), "the temp sibling must be reaped on error");
+
     let _ = std::fs::remove_dir_all(&dir);
 }

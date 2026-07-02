@@ -234,8 +234,15 @@ impl Price {
     fn compare(&self, other: &Self) -> Ordering {
         let self_type = self.price_type.get();
         let other_type = other.price_type.get();
+        // `price_type == 0` means the price is absent — `to_f64` and `Display`
+        // both render it as `0.0` regardless of the raw mantissa, so the
+        // ordering must agree: treat a type-0 operand's value as 0 before any
+        // same-type or scaled comparison, otherwise two type-0 prices with
+        // different mantissas would sort unequal while both display `0.0`.
+        let self_val = i64::from(if self_type == 0 { 0 } else { self.value });
+        let other_val = i64::from(if other_type == 0 { 0 } else { other.value });
         if self_type == other_type {
-            return self.value.cmp(&other.value);
+            return self_val.cmp(&other_val);
         }
         // Scale to common base using i64 to avoid overflow.
         // For exponents > 18, i64 multiplication can overflow; fall back to f64.
@@ -245,9 +252,9 @@ impl Price {
                 // Fall back to f64 comparison for very large exponent differences.
                 return self.to_f64().total_cmp(&other.to_f64());
             }
-            let scaled = i64::from(self.value).checked_mul(POW10_I64[exp]);
+            let scaled = self_val.checked_mul(POW10_I64[exp]);
             match scaled {
-                Some(s) => s.cmp(&i64::from(other.value)),
+                Some(s) => s.cmp(&other_val),
                 // Overflow: fall back to f64 for correct sign handling.
                 None => self.to_f64().total_cmp(&other.to_f64()),
             }
@@ -256,9 +263,9 @@ impl Price {
             if exp > 18 {
                 return self.to_f64().total_cmp(&other.to_f64());
             }
-            let scaled = i64::from(other.value).checked_mul(POW10_I64[exp]);
+            let scaled = other_val.checked_mul(POW10_I64[exp]);
             match scaled {
-                Some(s) => i64::from(self.value).cmp(&s),
+                Some(s) => self_val.cmp(&s),
                 None => self.to_f64().total_cmp(&other.to_f64()),
             }
         }
@@ -358,6 +365,16 @@ mod tests {
         let c = Price::new(1502500, 6); // 150.25 (same value, different type)
         assert_eq!(a, c);
         assert_ne!(a, Price::new(15000, 8)); // 150.00
+    }
+
+    #[test]
+    fn test_price_type_zero_is_absent_and_equals_zero() {
+        // price_type 0 renders/converts to 0.0 regardless of mantissa, so
+        // equality must agree: any two type-0 prices are equal, and a type-0
+        // price equals a real zero, while staying distinct from a nonzero one.
+        assert_eq!(Price::new(999, 0), Price::new(-5, 0));
+        assert_eq!(Price::new(999, 0), Price::new(0, 8));
+        assert_ne!(Price::new(999, 0), Price::new(1, 8));
     }
 
     /// Every valid `price_type` (`0..=MAX_PRICE_TYPE`, i.e. `0..=19`)
