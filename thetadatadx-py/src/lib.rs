@@ -782,7 +782,7 @@ struct HistoricalView {
 /// `client.stream`.
 ///
 /// Shares the parent client's `Arc<thetadatadx::Client>` and the parent's
-/// `Arc<Mutex<Option<Py<PyAny>>>>` callback slot, so `start_streaming`,
+/// `Arc<Mutex<Option<Arc<Py<PyAny>>>>>` callback slot, so `start_streaming`,
 /// `stop_streaming`, `reconnect`, and the subscription methods observe the
 /// same registration the unified client does. Constructing it is a pair of
 /// `Arc::clone`s — no auth round-trip, no streaming state mutation.
