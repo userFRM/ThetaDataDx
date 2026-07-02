@@ -298,10 +298,11 @@ class RecordBatchStream {
 }
 
 /**
- * The `client.stream` view, or `undefined` when the client is closed. A closed
+ * The `client.stream` view, or `null` when the client is closed. A closed
  * client throws on the `stream` getter ("client is closed"); every caller here
- * treats that as "no streaming surface" so operating on a closed client stays a
- * no-op rather than throwing, matching the base client's asyncDispose guard.
+ * treats that single `null` sentinel as "no streaming surface" so operating on
+ * a closed client stays a no-op rather than throwing, matching the base
+ * client's asyncDispose guard.
  *
  * @param {InstanceType<typeof native.Client>} client
  * @returns {any}
@@ -310,7 +311,7 @@ function streamOrNull(client) {
   try {
     return client.stream;
   } catch {
-    return undefined;
+    return null;
   }
 }
 
