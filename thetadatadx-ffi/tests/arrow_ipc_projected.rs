@@ -169,7 +169,7 @@ fn decode_fed_projected_export_omits_flags_and_contract_id() {
     let cols = ipc_columns(&bytes);
     // SAFETY: `bytes` came from the terminal; freed exactly once.
     unsafe { thetadatadx_arrow_bytes_free(bytes) };
-    // SAFETY: free the original carrier exactly once (the copy was never freed).
+    // SAFETY: free the no-symbol/no-flags presence carrier once; the projected serializer borrowed (copied) it, so the original is still ours to free.
     unsafe { thetadatadx_column_presence_free(presence) };
 
     // The projected frame is exactly the wire's columns, in schema order.
@@ -243,7 +243,7 @@ fn projected_export_broadcasts_symbol_as_leading_column() {
     let cols = ipc_columns(&bytes);
     // SAFETY: `bytes` came from the terminal; freed exactly once.
     unsafe { thetadatadx_arrow_bytes_free(bytes) };
-    // SAFETY: free the original carrier exactly once (the copy was never freed).
+    // SAFETY: free the presence carrier that held the broadcast `symbol` once; the serializer copied it, so this frees the original, not the copy.
     unsafe { thetadatadx_column_presence_free(presence) };
 
     assert_eq!(
@@ -336,7 +336,7 @@ fn empty_presence_projects_to_zero_columns_with_row_count() {
     let (cols, num_rows) = ipc_columns_and_rows(&bytes);
     // SAFETY: `bytes` came from the terminal; freed exactly once.
     unsafe { thetadatadx_arrow_bytes_free(bytes) };
-    // SAFETY: free the original carrier exactly once (the copy was never freed).
+    // SAFETY: free the empty-presence carrier once; the serializer copied it, so the original is freed here exactly once.
     unsafe { thetadatadx_column_presence_free(presence) };
 
     assert!(
