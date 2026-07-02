@@ -43,8 +43,15 @@
 /// fall back to the configured
 /// [`crate::config::HistoricalConfig::request_timeout_secs`] default so a
 /// server holding the stream open without sending chunks cannot hang the
-/// request indefinitely. A configured default of `0` disables the
-/// fallback.
+/// request indefinitely.
+///
+/// A configured default of `0` does NOT disable the fallback: it is floored to
+/// the production default here — the single
+/// point every historical request routes through — so the gRPC hang guard
+/// holds regardless of whether [`crate::config::DirectConfig::validate`] ran
+/// on the config (the connect paths and the SDK bindings pass unvalidated
+/// snapshots). The only way to run a request with no deadline is the explicit
+/// per-call `with_deadline(Duration::ZERO)` opt-out above.
 pub(crate) fn effective_deadline(
     explicit: Option<std::time::Duration>,
     default_secs: u64,
@@ -54,7 +61,17 @@ pub(crate) fn effective_deadline(
         // deadline" rather than a zero-length timeout that fires at once.
         Some(d) if d.is_zero() => None,
         Some(d) => Some(d),
-        None => (default_secs > 0).then(|| std::time::Duration::from_secs(default_secs)),
+        // Unset: fall back to the configured default, flooring a `0` (which
+        // would otherwise disable the guard) to the terminal-safe default so a
+        // silent-but-live server cannot hang a deadline-less request forever.
+        None => {
+            let secs = if default_secs == 0 {
+                crate::config::DEFAULT_REQUEST_TIMEOUT_SECS
+            } else {
+                default_secs
+            };
+            Some(std::time::Duration::from_secs(secs))
+        }
     }
 }
 
@@ -1239,13 +1256,20 @@ mod effective_deadline_tests {
         );
     }
 
-    /// `with_deadline(Duration::ZERO)` normalizes to `None` at the
-    /// builder, opting the request out of any deadline. A configured
-    /// default of `0` must NOT silently re-impose one on that request,
-    /// so a `0` default leaves the explicit opt-out intact.
+    /// A configured default of `0` is FLOORED to the production default
+    /// rather than disabling the guard: a deadline-less request must never be
+    /// left unbounded just because the config carried a `0` (validated or
+    /// not). This is the single consumption-point floor — the only way to run
+    /// a request with no deadline is the explicit `with_deadline(Duration::ZERO)`
+    /// opt-out (covered separately), NOT a `0` in the config.
     #[test]
-    fn zero_default_disables_the_fallback() {
-        assert_eq!(effective_deadline(None, 0), None);
+    fn zero_default_is_floored_to_the_production_default() {
+        assert_eq!(
+            effective_deadline(None, 0),
+            Some(Duration::from_secs(
+                crate::config::DEFAULT_REQUEST_TIMEOUT_SECS
+            )),
+        );
     }
 
     /// The production default seeds a positive per-request deadline, so

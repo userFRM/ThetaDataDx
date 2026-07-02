@@ -245,6 +245,58 @@ impl HistoricalClient {
         // out otherwise).
         "HistoricalClient(historical=connected)".to_string()
     }
+
+    /// Deterministically close the historical client.
+    ///
+    /// The historical-only surface never opens streaming, so there is no
+    /// dispatcher to drain; close forwards to the inner [`crate::Client::close`]
+    /// (a fast no-op teardown) and the gRPC channel pool releases when this
+    /// handle is dropped. Provided so the historical surface matches the
+    /// unified client's lifecycle across every binding. Idempotent. Prefer
+    /// ``with HistoricalClient(...) as c:`` so close runs on block exit.
+    fn close(&self, py: Python<'_>) -> PyResult<()> {
+        self.inner.borrow(py).close_impl(py)
+    }
+
+    /// Sync context-manager entry: returns ``self``.
+    fn __enter__(slf: Py<Self>) -> Py<Self> {
+        slf
+    }
+
+    /// Sync context-manager exit: closes the client. Returns ``False`` so an
+    /// exception raised inside the ``with`` body is not swallowed.
+    #[pyo3(signature = (_exc_type=None, _exc_value=None, _traceback=None))]
+    fn __exit__(
+        &self,
+        py: Python<'_>,
+        _exc_type: Option<Py<PyAny>>,
+        _exc_value: Option<Py<PyAny>>,
+        _traceback: Option<Py<PyAny>>,
+    ) -> PyResult<bool> {
+        self.inner.borrow(py).close_impl(py)?;
+        Ok(false)
+    }
+
+    /// Async context-manager entry: returns ``self``.
+    fn __aenter__<'py>(slf: Py<Self>, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        pyo3_async_runtimes::tokio::future_into_py(py, async move { Ok(slf) })
+            .map(pyo3::Bound::into_any)
+    }
+
+    /// Async context-manager exit: closes the client. Resolves to ``False`` so
+    /// an exception raised in the ``async with`` body is not swallowed.
+    #[pyo3(signature = (_exc_type=None, _exc_value=None, _traceback=None))]
+    fn __aexit__<'py>(
+        &self,
+        py: Python<'py>,
+        _exc_type: Option<Py<PyAny>>,
+        _exc_value: Option<Py<PyAny>>,
+        _traceback: Option<Py<PyAny>>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.inner.borrow(py).close_impl(py)?;
+        pyo3_async_runtimes::tokio::future_into_py(py, async move { Ok(false) })
+            .map(pyo3::Bound::into_any)
+    }
 }
 
 /// Introspection helper exposed as a module-level Python function for

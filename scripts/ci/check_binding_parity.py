@@ -1817,6 +1817,8 @@ def _collect_python_class_methods(py_src: pathlib.Path) -> dict[str, set[str]]:
         "__init__",
         "__enter__",
         "__exit__",
+        "__aenter__",
+        "__aexit__",
     }
     # `impl <Path> {` — `<Path>` may be `Name` or `crate::...::Name`.
     # Capture the last identifier segment before the opening brace.
@@ -2207,6 +2209,11 @@ CLIENT_REVERSE_ORPHAN_EXEMPT_MEMBERS: frozenset[str] = frozenset(
         "fromFile",
         "fromEnv",
         "fromDotenv",
+        # Private shared teardown behind `close` / `__exit__` / `__aexit__`;
+        # a plain (non-`#[pymethods]`) `impl Client` helper the collector still
+        # harvests. Not exposed to Python, so it carries no cross-binding
+        # contract and is enrolled by the public `close` row instead.
+        "closeImpl",
     }
 )
 

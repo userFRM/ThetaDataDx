@@ -5463,6 +5463,32 @@ class Client:
         """
         ...
 
+    def close(self) -> None:
+        """Deterministically close the client.
+
+        Stops streaming if it is live (idempotent), waits for the streaming
+        consumer thread to finish firing the registered callback, and drops
+        the stored callback. Safe to call more than once and safe on a
+        client that only ran historical queries. Prefer the context manager
+        (``with Client(...) as c:``) so this runs on block exit.
+        """
+        ...
+
+    def __enter__(self) -> "Client": ...
+    def __exit__(
+        self,
+        exc_type: Optional[type] = None,
+        exc_value: Optional[BaseException] = None,
+        traceback: Optional[object] = None,
+    ) -> bool: ...
+    async def __aenter__(self) -> "Client": ...
+    async def __aexit__(
+        self,
+        exc_type: Optional[type] = None,
+        exc_value: Optional[BaseException] = None,
+        traceback: Optional[object] = None,
+    ) -> bool: ...
+
     # FLATFILES namespace getter + direct-to-disk helper.
     @property
     def flat_files(self) -> FlatFilesNamespace:
@@ -5613,6 +5639,23 @@ class AsyncClient:
     def __repr__(self) -> str:
         """Return a representation including historical and streaming state."""
         ...
+
+    def close(self) -> None:
+        """Deterministically close the async client.
+
+        Stops streaming if live, drains the consumer, and releases the
+        callback. Prefer ``async with await AsyncClient.connect(...) as c:``
+        so this runs on scope exit.
+        """
+        ...
+
+    async def __aenter__(self) -> "AsyncClient": ...
+    async def __aexit__(
+        self,
+        exc_type: Optional[type] = None,
+        exc_value: Optional[BaseException] = None,
+        traceback: Optional[object] = None,
+    ) -> bool: ...
 
     def __getattr__(self, name: str) -> Any:
         """Resolve an ``*_async`` historical method or a streaming method.
@@ -5872,6 +5915,31 @@ class HistoricalClient:
     def __repr__(self) -> str:
         """Return a representation of the historical client."""
         ...
+
+    def close(self) -> None:
+        """Deterministically close the historical client.
+
+        The historical-only surface never opens streaming, so this releases
+        the gRPC channel pool with no drain. Idempotent. Prefer the context
+        manager (``with HistoricalClient(...) as c:``) so this runs on block
+        exit.
+        """
+        ...
+
+    def __enter__(self) -> "HistoricalClient": ...
+    def __exit__(
+        self,
+        exc_type: Optional[type] = None,
+        exc_value: Optional[BaseException] = None,
+        traceback: Optional[object] = None,
+    ) -> bool: ...
+    async def __aenter__(self) -> "HistoricalClient": ...
+    async def __aexit__(
+        self,
+        exc_type: Optional[type] = None,
+        exc_value: Optional[BaseException] = None,
+        traceback: Optional[object] = None,
+    ) -> bool: ...
 
     def __getattr__(self, name: str) -> Any:
         """Resolve a historical method.

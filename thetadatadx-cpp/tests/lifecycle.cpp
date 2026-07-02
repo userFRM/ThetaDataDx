@@ -171,6 +171,18 @@ TEST_CASE("Config consumer_cpu round-trip", "[lifecycle][offline]") {
     REQUIRE(config.get_consumer_cpu() == THETADATADX_CONSUMER_CPU_UNPINNED);
 }
 
+// Compile-time surface pin (issue #1069): the base clients carry a
+// deterministic `void close()` teardown. Taking the member-function pointers
+// fails to compile if `close` is dropped or its signature drifts, so the
+// cross-binding lifecycle surface is enforced without a live connection.
+TEST_CASE("base clients expose a deterministic close()", "[lifecycle][offline]") {
+    void (thetadatadx::Client::*unified_close)() = &thetadatadx::Client::close;
+    void (thetadatadx::HistoricalClient::*historical_close)() =
+        &thetadatadx::HistoricalClient::close;
+    REQUIRE(unified_close != nullptr);
+    REQUIRE(historical_close != nullptr);
+}
+
 TEST_CASE("HistoricalClient::connect succeeds against the production server", "[lifecycle][live]") {
     const auto creds_path = env_or_empty("THETADATADX_LIVE_CREDS");
     if (creds_path.empty()) {
@@ -179,4 +191,25 @@ TEST_CASE("HistoricalClient::connect succeeds against the production server", "[
     auto creds = thetadatadx::Credentials::from_file(creds_path);
     auto config = thetadatadx::Config::production();
     REQUIRE_NOTHROW(thetadatadx::HistoricalClient::connect(creds, config));
+}
+
+TEST_CASE("close() is idempotent and safe before destruction", "[lifecycle][live]") {
+    const auto creds_path = env_or_empty("THETADATADX_LIVE_CREDS");
+    if (creds_path.empty()) {
+        SKIP("THETADATADX_LIVE_CREDS not set");
+    }
+    auto creds = thetadatadx::Credentials::from_file(creds_path);
+    auto config = thetadatadx::Config::production();
+
+    // Unified client: close explicitly, twice; the second is a no-op, and the
+    // subsequent destructor frees nothing (handle already released).
+    auto client = thetadatadx::Client::connect(creds, config);
+    REQUIRE_NOTHROW(client.close());
+    REQUIRE_NOTHROW(client.close());
+
+    // Historical-only client: same idempotent-close contract, no streaming to
+    // drain.
+    auto historical = thetadatadx::HistoricalClient::connect(creds, config);
+    REQUIRE_NOTHROW(historical.close());
+    REQUIRE_NOTHROW(historical.close());
 }

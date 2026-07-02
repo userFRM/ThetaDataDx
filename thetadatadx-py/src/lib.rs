@@ -949,6 +949,128 @@ impl Client {
             callback: Arc::clone(&self.callback),
         }
     }
+
+    /// Deterministically close the client.
+    ///
+    /// Stops streaming if it is live (idempotent), waits for the streaming
+    /// consumer thread to finish firing the registered callback, and drops the
+    /// stored callback reference. Safe to call more than once and safe on a
+    /// client that only ran historical queries — those cases are a fast no-op.
+    ///
+    /// This is the recommended teardown. It runs on the calling thread with the
+    /// GIL released around the wait, so the dispatcher can re-acquire the GIL
+    /// via ``Python::attach`` to complete an in-flight callback before this
+    /// returns — unlike letting the object fall out of scope, which relies on
+    /// garbage collection timing. Prefer the context manager
+    /// (``with Client(...) as c:``) so close runs on block exit automatically.
+    fn close(&self, py: Python<'_>) -> PyResult<()> {
+        self.close_impl(py)
+    }
+
+    /// Sync context-manager entry: returns ``self`` so
+    /// ``with Client(...) as c:`` binds the client.
+    fn __enter__(slf: Py<Self>) -> Py<Self> {
+        slf
+    }
+
+    /// Sync context-manager exit: closes the client (stop + drain + drop the
+    /// callback). Returns ``False`` so an exception raised inside the ``with``
+    /// body is not swallowed.
+    #[pyo3(signature = (_exc_type=None, _exc_value=None, _traceback=None))]
+    fn __exit__(
+        &self,
+        py: Python<'_>,
+        _exc_type: Option<Py<PyAny>>,
+        _exc_value: Option<Py<PyAny>>,
+        _traceback: Option<Py<PyAny>>,
+    ) -> PyResult<bool> {
+        self.close_impl(py)?;
+        Ok(false)
+    }
+
+    /// Async context-manager entry: returns ``self`` so
+    /// ``async with Client(...) as c:`` binds the client.
+    fn __aenter__<'py>(slf: Py<Self>, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        pyo3_async_runtimes::tokio::future_into_py(py, async move { Ok(slf) })
+            .map(pyo3::Bound::into_any)
+    }
+
+    /// Async context-manager exit: closes the client. The teardown itself
+    /// releases the GIL internally, so it runs inline before the returned
+    /// awaitable resolves; the awaitable exists to satisfy the async
+    /// context-manager protocol. Resolves to ``False`` so an exception in the
+    /// ``async with`` body is not swallowed.
+    #[pyo3(signature = (_exc_type=None, _exc_value=None, _traceback=None))]
+    fn __aexit__<'py>(
+        &self,
+        py: Python<'py>,
+        _exc_type: Option<Py<PyAny>>,
+        _exc_value: Option<Py<PyAny>>,
+        _traceback: Option<Py<PyAny>>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.close_impl(py)?;
+        pyo3_async_runtimes::tokio::future_into_py(py, async move { Ok(false) })
+            .map(pyo3::Bound::into_any)
+    }
+}
+
+impl Client {
+    /// Shared teardown behind `close` / `__exit__` / `__aexit__`.
+    ///
+    /// Mirrors the `StreamingSession` context-manager exit and the C ABI
+    /// `thetadatadx_client_free` contract: stop streaming, wait on the
+    /// post-stop drain barrier so the consumer thread has finished firing the
+    /// callback (making the callback closure safe to release), then drop the
+    /// stored callback handle. The GIL is released across both the stop and the
+    /// drain so the dispatcher's `Python::attach` can make progress; nothing
+    /// here blocks the interpreter.
+    pub(crate) fn close_impl(&self, py: Python<'_>) -> PyResult<()> {
+        // Only a live streaming session has anything to drain. Snapshot that
+        // BEFORE stopping so we do not wait on a barrier that will never arm on
+        // a historical-only client (whose `prev_drained` slot stays empty).
+        let was_streaming = self.client.stream().is_streaming();
+        let drained = py.detach(|| {
+            self.client.close();
+            if was_streaming {
+                self.client
+                    .stream()
+                    .await_drain(std::time::Duration::from_millis(
+                        streaming_session::EXIT_DRAIN_TIMEOUT_MS,
+                    ))
+            } else {
+                // Nothing was streaming; the drain barrier is vacuously
+                // satisfied.
+                true
+            }
+        });
+        // Release the stored callback now the consumer is quiesced, matching
+        // `stop_streaming`'s explicit-handoff semantics: a closed client holds
+        // no captured Python reference past the teardown the caller has seen.
+        {
+            let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            *guard = None;
+        }
+        if !drained {
+            // The streaming pipeline is already stopped; the drain is
+            // best-effort observability. Warn (matching the `StreamingSession`
+            // context-manager exit) rather than raise, so a `with` body's own
+            // exception is never masked by a teardown warning.
+            let warnings = py.import("warnings")?;
+            let msg = format!(
+                "client close drain timed out after {}ms; the streaming consumer \
+                 callback may still be firing.",
+                streaming_session::EXIT_DRAIN_TIMEOUT_MS,
+            );
+            let kwargs = pyo3::types::PyDict::new(py);
+            kwargs.set_item("stacklevel", 2_u32)?;
+            warnings.call_method(
+                "warn",
+                (msg, py.get_type::<pyo3::exceptions::PyRuntimeWarning>()),
+                Some(&kwargs),
+            )?;
+        }
+        Ok(())
+    }
 }
 
 #[pymethods]
@@ -1490,6 +1612,35 @@ impl AsyncClient {
         let bound = self.inner.bind(py);
         let inner_repr: String = bound.call_method0("__repr__")?.extract()?;
         Ok(inner_repr.replace("Client", "AsyncClient"))
+    }
+
+    /// Deterministically close the async client — stops streaming if live,
+    /// drains the consumer, and releases the callback. Forwards to the inner
+    /// [`Client::close`]; the GIL is released around the wait. Prefer
+    /// ``async with await AsyncClient.connect(...) as c:`` so this runs on exit.
+    fn close(&self, py: Python<'_>) -> PyResult<()> {
+        self.inner.borrow(py).close_impl(py)
+    }
+
+    /// Async context-manager entry: returns ``self``.
+    fn __aenter__<'py>(slf: Py<Self>, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        pyo3_async_runtimes::tokio::future_into_py(py, async move { Ok(slf) })
+            .map(pyo3::Bound::into_any)
+    }
+
+    /// Async context-manager exit: closes the client. Resolves to ``False`` so
+    /// an exception raised in the ``async with`` body is not swallowed.
+    #[pyo3(signature = (_exc_type=None, _exc_value=None, _traceback=None))]
+    fn __aexit__<'py>(
+        &self,
+        py: Python<'py>,
+        _exc_type: Option<Py<PyAny>>,
+        _exc_value: Option<Py<PyAny>>,
+        _traceback: Option<Py<PyAny>>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.inner.borrow(py).close_impl(py)?;
+        pyo3_async_runtimes::tokio::future_into_py(py, async move { Ok(false) })
+            .map(pyo3::Bound::into_any)
     }
 }
 

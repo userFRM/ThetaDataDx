@@ -105,9 +105,12 @@ describe('HistoricalClient carries the historical surface', () => {
     // client-level member that lives on the unified `Client` itself, not on
     // its `client.historical` view, so it is mirrored onto `HistoricalClient`
     // directly and pinned against the unified `Client` in its own block
-    // above. Exclude both so this comparison pins the generated data-fetch
-    // surface.
-    const LIFECYCLE = new Set(['connect', 'connectFromFile', 'flatFileToPath']);
+    // above. `close` is a client-lifecycle method (deterministic teardown)
+    // that lives on the standalone `HistoricalClient` but not on the
+    // `client.historical` sub-view — you close the owning `Client`, not its
+    // view — so it is likewise excluded. Exclude all so this comparison pins
+    // the generated data-fetch surface.
+    const LIFECYCLE = new Set(['connect', 'connectFromFile', 'flatFileToPath', 'close']);
     // Every data-fetch method the MDDS-only client exposes must also exist
     // on the unified client's `client.historical` view — the historical
     // surface is generated identically onto both, so the MDDS set is a
