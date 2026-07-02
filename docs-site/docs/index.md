@@ -92,7 +92,7 @@ println!("{} {}", rows[0].bid, rows[0].ask);
 
 ## Install
 
-!!! tip "Install the release candidate"
+!!! warning "Install the release candidate"
 
     The active release line is the **13.0.0 release candidate**. It carries the latest data coverage and fixes, and we recommend installing it. Grab the newest RC:
 

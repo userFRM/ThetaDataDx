@@ -38,7 +38,7 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 
 ## Install
 
-> [!IMPORTANT]
+> [!WARNING]
 > The active release line is the **13.0.0 release candidate**. It carries the latest data coverage and fixes, and we recommend installing it. Grab the newest RC:
 >
 > ```bash
