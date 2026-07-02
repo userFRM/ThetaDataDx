@@ -7,7 +7,7 @@
     /// the same handle succeed. `Duration::ZERO` opts the call out of any
     /// bound, including the configured `request_timeout_secs` default; the
     /// explicit zero is carried through verbatim and resolved by
-    /// [`crate::mdds::macros::effective_deadline`].
+    /// `effective_deadline`.
     #[must_use]
     pub fn with_deadline(mut self, duration: std::time::Duration) -> Self {
         // Carry the value through verbatim — including `ZERO`. A bare
