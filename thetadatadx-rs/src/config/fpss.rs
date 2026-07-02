@@ -159,14 +159,14 @@ pub struct StreamingConfig {
 
     /// Streaming heartbeat ping interval in milliseconds.
     ///
-    /// The streaming server expects a heartbeat at this cadence and may
-    /// disconnect if it falls silent. Default `250` — the server's own
-    /// ~100 ms heartbeat is the primary liveness signal in the
-    /// reverse direction; the client ping mainly proves write-side
-    /// health, and a 4 Hz cadence does that without contributing to
-    /// inbound-frame pressure on a recovering upstream. Validated to
-    /// the range `[100, 300_000]` ms — sub-100 ms values are rejected
-    /// so a misconfiguration does not flood the upstream.
+    /// This is the client's outbound ping cadence to the server, and the
+    /// server may disconnect if it falls silent. Default `250` — the ping
+    /// mainly proves write-side health at a 4 Hz cadence without adding
+    /// inbound-frame pressure on a recovering upstream. Reverse-direction
+    /// liveness is the inbound frame and ping stream (~250 ms on an active
+    /// session), which [`Self::timeout_ms`] guards. Validated to the range
+    /// `[100, 300_000]` ms — sub-100 ms values are rejected so a
+    /// misconfiguration does not flood the upstream.
     pub ping_interval_ms: u64,
 
     /// Per-server TCP connect timeout in milliseconds. Default `2000`.

@@ -42,9 +42,10 @@ connect_timeout = 2000
 # to the server, not an inbound heartbeat; inbound frames arrive ~250 ms.
 read_timeout = 10000
 
-# Client heartbeat interval (ms). The server's own ~100 ms heartbeat is the
-# primary liveness signal; this client ping proves write-side health at a
+# Client outbound ping interval (ms). This ping proves write-side health at a
 # 4 Hz cadence without adding inbound-frame pressure on a recovering upstream.
+# Reverse-direction liveness is the inbound frame and ping stream (~250 ms),
+# which read_timeout guards.
 ping_interval = 250
 
 # Initial reconnect wait after an involuntary disconnect (ms). The auto-
