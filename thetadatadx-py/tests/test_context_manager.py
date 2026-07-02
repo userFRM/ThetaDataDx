@@ -317,6 +317,115 @@ def test_close_releases_and_makes_client_unusable() -> None:
     )
 
 
+def _py_src_root():
+    from pathlib import Path
+
+    here = Path(__file__).resolve().parent
+    for candidate in [here, *here.parents]:
+        target = candidate / "src"
+        if target.is_dir() and (target / "lib.rs").is_file():
+            return target
+    raise AssertionError("could not locate thetadatadx-py/src")
+
+
+def test_start_streaming_releases_callback_lock_before_connect() -> None:
+    """Offline source pin: `start_streaming` must NOT hold the shared callback
+    `Mutex` across the `py.detach` FPSS connect. `close()` parks on that same
+    mutex WITH the GIL held, so a guard held across the detached (GIL-released)
+    connect deadlocks the whole interpreter -- `close()` blocks on the mutex,
+    the connecting thread blocks re-acquiring the GIL. The fix reserves the slot
+    in an inner scope, stores the handle, drops the guard, then connects, and
+    clears the slot on a handshake failure. Pinned against the generated source
+    so a revert to the wide critical section fails without live credentials.
+    """
+    gen = (_py_src_root() / "_generated" / "streaming_methods.rs").read_text()
+    start = gen.index("fn start_streaming(")
+    end = gen.index("fn ", start + 1)
+    body = gen[start:end]
+
+    store_at = body.index("*cb_guard = Some(Arc::clone(&callback_arc));")
+    detach_at = body.index("py.detach(")
+    assert store_at < detach_at, (
+        "the callback slot must be reserved (and its lock guard dropped) BEFORE "
+        "py.detach releases the GIL for the blocking connect"
+    )
+    # The lock guard must not survive into the detached region.
+    assert "cb_guard" not in body[detach_at:], (
+        "no callback-lock guard may live across py.detach -- it is dropped "
+        "before connecting"
+    )
+
+
+def test_start_streaming_failure_clear_is_ownership_checked() -> None:
+    """Offline source pin (ABA): the reserve-then-connect fix must NOT clear the
+    callback slot unconditionally on a handshake failure. Since the lock is
+    dropped before the connect, a concurrent stop + restart can replace the
+    reservation mid-connect; an unconditional clear would wipe the newer callback
+    and strand a live session with no registration. The clear runs through a
+    `CallbackReservation` that clears only its OWN slot (`Arc::ptr_eq`) and
+    covers both the error return and a panic before the connect completes.
+    """
+    gen = (_py_src_root() / "_generated" / "streaming_methods.rs").read_text()
+    start = gen.index("fn start_streaming(")
+    body = gen[start : gen.index("fn ", start + 1)]
+    detach_at = body.index("py.detach(")
+    # No unconditional slot clear anywhere in start_streaming (the old
+    # `*self.callback.lock()... = None` / `*cb_guard = None` clears are gone).
+    assert "= None" not in body, (
+        "start_streaming must not clear the callback slot unconditionally -- the "
+        "ownership-checked CallbackReservation owns the failure clear"
+    )
+    # The reservation is armed before the connect and disarmed on success.
+    assert body.index("CallbackReservation::armed(") < detach_at, (
+        "the reservation guard must be armed before py.detach"
+    )
+    assert "reservation.disarm();" in body[detach_at:], (
+        "the reservation must be disarmed on the success path"
+    )
+    # The guard's clear is identity-checked so it never wipes a newer reservation.
+    lib = (_py_src_root() / "lib.rs").read_text()
+    guard = lib[lib.index("impl Drop for CallbackReservation") :]
+    guard = guard[: guard.index("\n}")]
+    assert "Arc::ptr_eq(cb, self.reserved)" in guard, (
+        "the reservation must clear only when the slot still holds ITS own arc "
+        "(Arc::ptr_eq), never a newer start_streaming's reservation"
+    )
+
+
+def test_closed_session_getattr_propagates_closed_error() -> None:
+    """Offline source pin: `StreamingSession.__getattr__` must propagate the
+    unified client's `stream` closed error with `?` rather than swallowing it
+    with `if let Ok(stream)`. Otherwise `session.subscribe(...)` after `close()`
+    falls through and raises `AttributeError` instead of the uniform
+    "client is closed" `RuntimeError`.
+    """
+    src = (_py_src_root() / "streaming_session.rs").read_text()
+    start = src.index("fn __getattr__(")
+    end = src.index("\n    }", start)
+    body = src[start:end]
+    assert 'bound.getattr("stream")?' in body, (
+        "the Unified arm must propagate the stream getter error with `?` so a "
+        "closed client raises the uniform closed error"
+    )
+    assert 'if let Ok(stream) = bound.getattr("stream")' not in body, (
+        "the swallowing `if let Ok(stream) = bound.getattr(\"stream\")` masks "
+        "the closed error and must be gone"
+    )
+
+
+def test_closed_unified_session_subscribe_raises_closed_error(client) -> None:
+    """After `close()`, calling a proxied method through the session raises the
+    uniform "client is closed" error, not `AttributeError`. Live-gated because
+    the constructor needs a real handshake.
+    """
+    from thetadatadx import Contract
+
+    session = client.streaming(_noop_callback)
+    client.close()
+    with pytest.raises(RuntimeError, match="closed"):
+        session.subscribe(Contract.stock("AAPL").quote())
+
+
 def test_close_makes_client_unusable(client) -> None:
     """After `close()` every surface accessor raises a clear closed error, so a
     subsequent historical or streaming call cannot reach the network. Live-gated

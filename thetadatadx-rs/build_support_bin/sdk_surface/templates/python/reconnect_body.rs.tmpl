@@ -67,12 +67,11 @@
         })
         .map_err(to_py_err)?;
 
-        // Replace the stored callable with a freshly owned handle so
-        // the next reconnect / shutdown sees the same state shape.
-        // The dispatcher closure already captured a clone of
-        // `callback_arc` (via `dispatch_cb`); the ref-count is >=2
-        // here so `try_unwrap` would always fail.
+        // Replace the stored callable with the reconnected handle so the next
+        // reconnect / shutdown sees the same state shape. The dispatcher closure
+        // already captured a clone of `callback_arc` (via `dispatch_cb`), so this
+        // Arc clone shares the same callable.
         let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
-        *guard = Some(Python::attach(|py| callback_arc.clone_ref(py)));
+        *guard = Some(Arc::clone(&callback_arc));
         Ok(())
     }

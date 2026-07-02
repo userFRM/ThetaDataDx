@@ -1367,6 +1367,21 @@ impl Client {
         }
     }
 
+    /// Whether the calling thread is the live dispatcher thread.
+    ///
+    /// A caller running inside a per-event callback is ON this thread, so it can
+    /// never observe its own drain flag flip (the flag is set only after the
+    /// callback returns). Callers guard a blocking [`Self::await_drain`] with
+    /// this, mirroring the teardown self-join guard that detaches rather than
+    /// joining the dispatcher into itself.
+    fn current_thread_is_dispatcher(&self) -> bool {
+        matches!(
+            &*self.streaming.dispatcher.lock().unwrap_or_else(|e| e.into_inner()),
+            DispatcherSession::Running { handle, .. }
+                if handle.thread().id() == std::thread::current().id()
+        )
+    }
+
     // -- Streaming convenience methods --
 
     fn with_streaming<R>(
@@ -2502,6 +2517,20 @@ impl StreamSurface<'_> {
     #[must_use]
     pub fn await_drain(&self, timeout: Duration) -> bool {
         self.0.await_drain(timeout)
+    }
+
+    /// Whether the calling thread is the streaming dispatcher thread.
+    ///
+    /// A caller inside a per-event callback runs ON the dispatcher thread, so it
+    /// can never observe its own drain flag flip (that flag is set only after the
+    /// callback returns). A blocking [`Self::await_drain`] from that thread would
+    /// spin to its full timeout; bindings whose `close` path can be reached from
+    /// inside a callback guard the drain with this, mirroring the teardown
+    /// self-join guard that detaches rather than joining the dispatcher into
+    /// itself.
+    #[must_use]
+    pub fn current_thread_is_dispatcher(&self) -> bool {
+        self.0.current_thread_is_dispatcher()
     }
 
     /// Whether a prior streaming session has registered a drain flag for

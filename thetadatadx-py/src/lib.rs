@@ -714,7 +714,13 @@ struct Client {
     /// and every `StreamView` handle observe and mutate one registration,
     /// keeping `start_streaming` / `stop_streaming` / `reconnect`
     /// idempotent regardless of which surface the caller reaches through.
-    callback: Arc<Mutex<Option<Py<PyAny>>>>,
+    ///
+    /// The callable is held behind an inner `Arc` so a freshly reserved slot
+    /// carries a unique identity (`Arc::ptr_eq`): `start_streaming` releases the
+    /// lock before its blocking connect, so a concurrent stop + restart can
+    /// replace the reservation mid-connect; the failed start must clear ONLY its
+    /// own slot, never the newer one.
+    callback: Arc<Mutex<Option<Arc<Py<PyAny>>>>>,
 }
 
 impl Client {
@@ -776,14 +782,61 @@ struct HistoricalView {
 /// `client.stream`.
 ///
 /// Shares the parent client's `Arc<thetadatadx::Client>` and the parent's
-/// `Arc<Mutex<Option<Py<PyAny>>>>` callback slot, so `start_streaming`,
+/// `Arc<Mutex<Option<Arc<Py<PyAny>>>>>` callback slot, so `start_streaming`,
 /// `stop_streaming`, `reconnect`, and the subscription methods observe the
 /// same registration the unified client does. Constructing it is a pair of
 /// `Arc::clone`s — no auth round-trip, no streaming state mutation.
 #[pyclass(frozen)]
 struct StreamView {
     client: std::sync::Arc<thetadatadx::Client>,
-    callback: Arc<Mutex<Option<Py<PyAny>>>>,
+    callback: Arc<Mutex<Option<Arc<Py<PyAny>>>>>,
+}
+
+/// Clears a freshly reserved `start_streaming` callback slot on any non-success
+/// exit -- the `?` error return AND a panic between reserving the slot and
+/// completing the connect.
+///
+/// `start_streaming` must drop the callback lock before its blocking `py.detach`
+/// connect (holding it across the GIL-releasing connect deadlocks against a
+/// `close()` that parks on the same mutex with the GIL held). Dropping the guard
+/// opens a window where a concurrent stop + restart replaces the reservation, so
+/// clearing unconditionally would wipe the newer callback and strand a live
+/// session with no registration. `Arc::ptr_eq` gives each start a unique
+/// identity, so this clears ONLY when the slot still holds this reservation.
+/// Disarmed by [`Self::disarm`] once the connect succeeds.
+struct CallbackReservation<'a> {
+    slot: &'a Mutex<Option<Arc<Py<PyAny>>>>,
+    reserved: &'a Arc<Py<PyAny>>,
+    armed: bool,
+}
+
+impl<'a> CallbackReservation<'a> {
+    fn armed(slot: &'a Mutex<Option<Arc<Py<PyAny>>>>, reserved: &'a Arc<Py<PyAny>>) -> Self {
+        Self {
+            slot,
+            reserved,
+            armed: true,
+        }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for CallbackReservation<'_> {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        let mut slot = self.slot.lock().unwrap_or_else(|e| e.into_inner());
+        if slot
+            .as_ref()
+            .is_some_and(|cb| Arc::ptr_eq(cb, self.reserved))
+        {
+            *slot = None;
+        }
+    }
 }
 
 #[pymethods]
@@ -1068,17 +1121,24 @@ impl Client {
         // BEFORE stopping so we do not wait on a barrier that will never arm on
         // a historical-only client (whose `prev_drained` slot stays empty).
         let was_streaming = client.stream().is_streaming();
+        // A `close()` called from inside a per-event callback runs ON the
+        // dispatcher thread; the drain flag it would wait on flips only after the
+        // callback returns, so `await_drain` would burn its full timeout and warn
+        // about the caller's own frame. Snapshot the self-call BEFORE `close()`
+        // retires the dispatcher and skip the wait on that path, mirroring the
+        // core teardown self-join guard.
+        let self_dispatch = client.stream().current_thread_is_dispatcher();
         let drained = py.detach(|| {
             client.close();
-            if was_streaming {
+            if was_streaming && !self_dispatch {
                 client
                     .stream()
                     .await_drain(std::time::Duration::from_millis(
                         streaming_session::EXIT_DRAIN_TIMEOUT_MS,
                     ))
             } else {
-                // Nothing was streaming; the drain barrier is vacuously
-                // satisfied.
+                // Nothing was streaming, or this close is the dispatcher's own
+                // reentrant call; the drain barrier is vacuously satisfied.
                 true
             }
         });
