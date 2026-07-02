@@ -238,7 +238,7 @@ impl SessionToken {
         // failure) before releasing the refresh lock, so callers queued behind
         // us coalesce onto this outcome instead of re-hitting Nexus.
         let mut guard = self.state.write().await;
-        guard.attempts = guard.attempts.wrapping_add(1);
+        guard.attempts = guard.attempts.saturating_add(1);
         let resp = match result {
             Ok(resp) => resp,
             Err(e) => {
