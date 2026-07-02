@@ -46,6 +46,7 @@ pub(super) fn generate() -> Result<(), Box<dyn std::error::Error>> {
     for type_name in &type_names {
         let def = &schema.types[*type_name];
         generate_parser(&mut parsers, type_name, def);
+        generate_present_columns(&mut parsers, type_name, def);
     }
 
     let parsers_dest = Path::new(&out_dir).join("decode_generated.rs");
@@ -246,5 +247,48 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
     out.push_str("        row_base += rows.len();\n");
     out.push_str("    }\n");
     out.push_str("    Ok(ticks)\n");
+    out.push_str("}\n\n");
+}
+
+/// Emit `impl WireColumns for <Tick>` next to the parser. It resolves the
+/// same schema columns through the same alias-aware `find_header` the
+/// parser uses, so the presence set and the decoded rows agree by
+/// construction: a column present here is exactly a column the parser
+/// filled from the wire (rather than left at its seed).
+///
+/// The set names the public schema *field* (e.g. `condition_flags`,
+/// `expiration`) — the name the Arrow / Polars builders key on — not the
+/// wire spelling the alias table resolves.
+fn generate_present_columns(out: &mut String, type_name: &str, def: &TickTypeDef) {
+    writeln!(
+        out,
+        "impl crate::columns::WireColumns for {type_name} {{"
+    )
+    .unwrap();
+    out.push_str(
+        "    fn present_columns(headers: &[&str]) -> crate::columns::ColumnPresence {\n",
+    );
+    out.push_str("        let mut present: Vec<&'static str> = Vec::new();\n");
+    for col in &def.columns {
+        writeln!(
+            out,
+            "        if find_header(headers, \"{name}\").is_some() {{ present.push(\"{field}\"); }}",
+            name = col.name,
+            field = col.field,
+        )
+        .unwrap();
+    }
+    // Contract-identity trio: injected under their exact wire names on
+    // wildcard responses, each resolved independently (matches the
+    // parser's `_cid_*_idx` position lookups).
+    if def.contract_id {
+        out.push_str(
+            "        if headers.contains(&\"expiration\") { present.push(\"expiration\"); }\n",
+        );
+        out.push_str("        if headers.contains(&\"strike\") { present.push(\"strike\"); }\n");
+        out.push_str("        if headers.contains(&\"right\") { present.push(\"right\"); }\n");
+    }
+    out.push_str("        crate::columns::ColumnPresence::from_names(present)\n");
+    out.push_str("    }\n");
     out.push_str("}\n\n");
 }

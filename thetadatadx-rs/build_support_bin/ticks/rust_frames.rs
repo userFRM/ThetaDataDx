@@ -3,8 +3,10 @@
 //!
 //! Two extension traits live in the hand-written `thetadatadx-rs/src/frames/mod.rs`:
 //!
-//! * `TicksPolarsExt::to_polars(&self) -> PolarsResult<DataFrame>`
-//! * `TicksArrowExt::to_arrow(&self) -> ArrowResult<RecordBatch>`
+//! * `TicksPolarsExt::to_polars(&self) -> PolarsResult<DataFrame>` and its
+//!   projected sibling `to_polars_projected(&self, &ColumnPresence)`
+//! * `TicksArrowExt::to_arrow(&self) -> ArrowResult<RecordBatch>` and its
+//!   projected sibling `to_arrow_projected(&self, &ColumnPresence)`
 //!
 //! This generator reads `tick_schema.toml` and emits one `impl TicksPolarsExt
 //! for [tick::T]` and one `impl TicksArrowExt for [tick::T]` per tick type.
@@ -12,19 +14,27 @@
 //! = "arrow")]`) so the SDK's default dep graph is unchanged — polars and
 //! arrow stay opt-in.
 //!
+//! # Full vs projected
+//!
+//! The `to_arrow` / `to_polars` methods emit the tick type's full column
+//! set (the hand-built-slice default). The `*_projected` methods take a
+//! `ColumnPresence` and emit only the columns that response's wire carried,
+//! in schema order — terminal-exact output for the gRPC decode path. Absent
+//! columns are never even buffered, so a projected 1M-row trade frame does
+//! not allocate the four flag columns the wire omitted.
+//!
 //! # SSOT with the Python slice_arrow path
 //!
 //! The column-shape decisions (column name, Arrow data type, widening
 //! rules for `eod_num` / `eod_num64`, the `OptionContract.right` i32 →
 //! string projection, the contract-id tail `expiration` / `strike` /
-//! `right` trio, the `QuoteTick.midpoint` virtual column) are identical
-//! to the Python slice_arrow emitter in `python_arrow.rs`. Both
-//! generators read from the same `tick_schema.toml` and apply the same
-//! field-type → Arrow-constructor mapping via `arrow_array_ctor` /
-//! `arrow_data_type_expr` below (mirrored from `python_arrow.rs`).
-//! Keeping both generators on the same schema SSOT is the reason the
-//! Python `.to_polars()` and the Rust `.to_polars()` on equivalent
-//! slices produce byte-identical DataFrame schemas.
+//! `right` trio) are identical to the Python slice_arrow emitter in
+//! `python_arrow.rs`. Both generators read from the same
+//! `tick_schema.toml` and apply the same field-type → Arrow-constructor
+//! mapping via `arrow_array_ctor` / `arrow_data_type_expr` below (mirrored
+//! from `python_arrow.rs`). Keeping both generators on the same schema
+//! SSOT is the reason the Python `.to_polars()` and the Rust `.to_polars()`
+//! on equivalent slices produce byte-identical DataFrame schemas.
 
 use std::fmt::Write as _;
 
@@ -71,6 +81,84 @@ pub(super) fn render_rust_frames(schema: &Schema) -> String {
     out
 }
 
+/// One emittable column: the schema field name, the buffer element type,
+/// the Arrow `DataType` expr, the Arrow array constructor, the per-tick
+/// push expression, and whether the Arrow field is nullable. The
+/// contract-identity trio is modelled as three synthetic columns so the
+/// full and projected emitters share one loop.
+struct EmitColumn {
+    /// Schema field name — the DataFrame column name and the presence key.
+    name: String,
+    /// Buffer element type (`i32`, `f64`, `String`, `Option<i32>`, ...).
+    buf_ty: String,
+    /// Arrow `DataType::…` expression.
+    data_type: &'static str,
+    /// Arrow concrete array constructor (`Int32Array`, ...).
+    ctor: &'static str,
+    /// Push expression reading `t` (a `&Tick`) into the column buffer.
+    push: String,
+    /// Whether the Arrow field is nullable.
+    nullable: bool,
+}
+
+/// The ordered emittable columns for a tick type: its schema columns,
+/// then the contract-identity trio when `contract_id = true`, then the
+/// `QuoteTick.midpoint` derived tail. Mirrors the column order the Python
+/// slice_arrow emitter and the tick struct use, so all surfaces agree.
+///
+/// (`IvTick.midpoint` is a real wire column and appears via the schema
+/// columns, not this synthetic tail.)
+fn emit_columns(type_name: &str, def: &TickTypeDef) -> Vec<EmitColumn> {
+    let mut cols: Vec<EmitColumn> = Vec::new();
+    for column in &def.columns {
+        cols.push(EmitColumn {
+            name: column.field.clone(),
+            buf_ty: tick_struct_field_type(column.r#type.as_str()).to_string(),
+            data_type: arrow_data_type_expr(column.r#type.as_str()),
+            ctor: arrow_array_ctor(column.r#type.as_str()),
+            push: column_push_expr(column.r#type.as_str(), &column.field),
+            nullable: false,
+        });
+    }
+    if def.contract_id {
+        cols.push(EmitColumn {
+            name: "expiration".to_string(),
+            buf_ty: "Option<i32>".to_string(),
+            data_type: "DataType::Int32",
+            ctor: "Int32Array",
+            push: "t.has_contract_id().then_some(t.expiration)".to_string(),
+            nullable: true,
+        });
+        cols.push(EmitColumn {
+            name: "strike".to_string(),
+            buf_ty: "Option<f64>".to_string(),
+            data_type: "DataType::Float64",
+            ctor: "Float64Array",
+            push: "t.has_contract_id().then_some(t.strike)".to_string(),
+            nullable: true,
+        });
+        cols.push(EmitColumn {
+            name: "right".to_string(),
+            buf_ty: "Option<String>".to_string(),
+            data_type: "DataType::Utf8",
+            ctor: "StringArray",
+            push: "if t.right == '\\0' { None } else { Some(t.right.to_string()) }".to_string(),
+            nullable: true,
+        });
+    }
+    if type_name == "QuoteTick" {
+        cols.push(EmitColumn {
+            name: "midpoint".to_string(),
+            buf_ty: "f64".to_string(),
+            data_type: "DataType::Float64",
+            ctor: "Float64Array",
+            push: "t.midpoint".to_string(),
+            nullable: false,
+        });
+    }
+    cols
+}
+
 // ── Arrow impl ──────────────────────────────────────────────────────────
 //
 // Mirror of `python_arrow::render_python_slice_reader`. Same column set,
@@ -79,9 +167,8 @@ pub(super) fn render_rust_frames(schema: &Schema) -> String {
 // contract identity → Arrow null).
 
 fn render_arrow_impl(type_name: &str, def: &TickTypeDef) -> String {
+    let cols = emit_columns(type_name, def);
     let mut out = String::new();
-    let is_quote_tick = type_name == "QuoteTick";
-    let is_contract = def.contract_id;
 
     out.push_str("#[cfg(feature = \"arrow\")]\n");
     out.push_str("#[cfg_attr(docsrs, doc(cfg(feature = \"arrow\")))]\n");
@@ -90,6 +177,8 @@ fn render_arrow_impl(type_name: &str, def: &TickTypeDef) -> String {
         "impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::{type_name}] {{"
     )
     .unwrap();
+
+    // Full: every column, unconditionally.
     writeln!(
         out,
         "    /// Builds an Arrow `RecordBatch` from a slice of `{type_name}`, one column per public field."
@@ -99,101 +188,88 @@ fn render_arrow_impl(type_name: &str, def: &TickTypeDef) -> String {
         "    fn to_arrow(&self) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {\n",
     );
     out.push_str("        let n = self.len();\n");
-
-    // Column vectors.
-    let mut column_decls: Vec<(String, String)> = Vec::new();
-    for column in &def.columns {
-        let rust_ty = tick_struct_field_type(column.r#type.as_str());
+    for c in &cols {
         writeln!(
             out,
-            "        let mut col_{field}: Vec<{rust_ty}> = Vec::with_capacity(n);",
-            field = column.field
+            "        let mut col_{name}: Vec<{ty}> = Vec::with_capacity(n);",
+            name = c.name,
+            ty = c.buf_ty
         )
         .unwrap();
-        column_decls.push((column.field.clone(), column.r#type.clone()));
     }
-    if is_quote_tick {
-        out.push_str("        let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);\n");
-    }
-    if is_contract {
-        // Absent contract identity buffers as Arrow nulls.
-        out.push_str("        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);\n");
-        out.push_str("        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);\n");
-        out.push_str("        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);\n");
-    }
-
-    // Fill loop.
     out.push_str("        for t in self {\n");
-    for (field, column_type) in &column_decls {
-        writeln!(
-            out,
-            "            col_{field}.push({});",
-            column_push_expr(column_type, field)
-        )
-        .unwrap();
-    }
-    if is_quote_tick {
-        out.push_str("            col_midpoint.push(t.midpoint);\n");
-    }
-    if is_contract {
-        out.push_str(
-            "            col_expiration.push(t.has_contract_id().then_some(t.expiration));\n",
-        );
-        out.push_str("            col_strike.push(t.has_contract_id().then_some(t.strike));\n");
-        out.push_str(
-            "            col_right.push(if t.right == '\\0' { None } else { Some(t.right.to_string()) });\n",
-        );
+    for c in &cols {
+        writeln!(out, "            col_{name}.push({push});", name = c.name, push = c.push).unwrap();
     }
     out.push_str("        }\n");
-
-    // Schema.
     out.push_str("        let schema = Arc::new(ArrowSchema::new(vec![\n");
-    for column in &def.columns {
-        let dt = arrow_data_type_expr(column.r#type.as_str());
-        // Arrow / Polars schema names mirror the public struct field name
-        // (matches the Rust / Python / TypeScript surfaces); wire
-        // spellings (`column.name`) stay in the decode layer.
+    for c in &cols {
         writeln!(
             out,
-            "            Field::new(\"{name}\", {dt}, false),",
-            name = column.field
+            "            Field::new(\"{name}\", {dt}, {null}),",
+            name = c.name,
+            dt = c.data_type,
+            null = c.nullable
         )
         .unwrap();
-    }
-    if is_quote_tick {
-        out.push_str("            Field::new(\"midpoint\", DataType::Float64, false),\n");
-    }
-    if is_contract {
-        // Nullable: absent contract identity is an Arrow null.
-        out.push_str("            Field::new(\"expiration\", DataType::Int32, true),\n");
-        out.push_str("            Field::new(\"strike\", DataType::Float64, true),\n");
-        out.push_str("            Field::new(\"right\", DataType::Utf8, true),\n");
     }
     out.push_str("        ]));\n");
-
-    // Columns.
     out.push_str("        let columns: Vec<ArrayRef> = vec![\n");
-    for (field, column_type) in &column_decls {
-        let ctor = arrow_array_ctor(column_type);
+    for c in &cols {
         writeln!(
             out,
-            "            Arc::new({ctor}::from(col_{field})) as ArrayRef,"
+            "            Arc::new({ctor}::from(col_{name})) as ArrayRef,",
+            ctor = c.ctor,
+            name = c.name
         )
         .unwrap();
-    }
-    if is_quote_tick {
-        out.push_str("            Arc::new(Float64Array::from(col_midpoint)) as ArrayRef,\n");
-    }
-    if is_contract {
-        out.push_str("            Arc::new(Int32Array::from(col_expiration)) as ArrayRef,\n");
-        out.push_str("            Arc::new(Float64Array::from(col_strike)) as ArrayRef,\n");
-        out.push_str("            Arc::new(StringArray::from(col_right)) as ArrayRef,\n");
     }
     out.push_str("        ];\n");
     out.push_str("        RecordBatch::try_new(schema, columns)\n");
+    out.push_str("    }\n\n");
+
+    // Projected: each column gated on presence; absent columns never
+    // buffered. Fields and arrays stay index-aligned because both push
+    // inside the same `if`.
+    writeln!(
+        out,
+        "    /// Builds an Arrow `RecordBatch` from a slice of `{type_name}`, one column per public field present on the wire."
+    )
+    .unwrap();
+    out.push_str(
+        "    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {\n",
+    );
+    out.push_str("        let n = self.len();\n");
+    out.push_str("        let mut fields: Vec<Field> = Vec::new();\n");
+    out.push_str("        let mut columns: Vec<ArrayRef> = Vec::new();\n");
+    for c in &cols {
+        writeln!(out, "        if present.contains(\"{name}\") {{", name = c.name).unwrap();
+        writeln!(
+            out,
+            "            let mut col: Vec<{ty}> = Vec::with_capacity(n);",
+            ty = c.buf_ty
+        )
+        .unwrap();
+        writeln!(out, "            for t in self {{ col.push({push}); }}", push = c.push).unwrap();
+        writeln!(
+            out,
+            "            fields.push(Field::new(\"{name}\", {dt}, {null}));",
+            name = c.name,
+            dt = c.data_type,
+            null = c.nullable
+        )
+        .unwrap();
+        writeln!(
+            out,
+            "            columns.push(Arc::new({ctor}::from(col)) as ArrayRef);",
+            ctor = c.ctor
+        )
+        .unwrap();
+        out.push_str("        }\n");
+    }
+    out.push_str("        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)\n");
     out.push_str("    }\n");
     out.push_str("}\n");
-
     out
 }
 
@@ -205,9 +281,8 @@ fn render_arrow_impl(type_name: &str, def: &TickTypeDef) -> String {
 // matches the Arrow path 1:1.
 
 fn render_polars_impl(type_name: &str, def: &TickTypeDef) -> String {
+    let cols = emit_columns(type_name, def);
     let mut out = String::new();
-    let is_quote_tick = type_name == "QuoteTick";
-    let is_contract = def.contract_id;
 
     out.push_str("#[cfg(feature = \"polars\")]\n");
     out.push_str("#[cfg_attr(docsrs, doc(cfg(feature = \"polars\")))]\n");
@@ -216,6 +291,8 @@ fn render_polars_impl(type_name: &str, def: &TickTypeDef) -> String {
         "impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::{type_name}] {{"
     )
     .unwrap();
+
+    // Full.
     writeln!(
         out,
         "    /// Builds a Polars `DataFrame` from a slice of `{type_name}`, one column per public field."
@@ -223,84 +300,62 @@ fn render_polars_impl(type_name: &str, def: &TickTypeDef) -> String {
     .unwrap();
     out.push_str("    fn to_polars(&self) -> PolarsResult<DataFrame> {\n");
     out.push_str("        let n = self.len();\n");
-
-    // Column buffers.
-    let mut column_decls: Vec<(String, String)> = Vec::new();
-    for column in &def.columns {
-        let rust_ty = tick_struct_field_type(column.r#type.as_str());
+    for c in &cols {
         writeln!(
             out,
-            "        let mut col_{field}: Vec<{rust_ty}> = Vec::with_capacity(n);",
-            field = column.field
+            "        let mut col_{name}: Vec<{ty}> = Vec::with_capacity(n);",
+            name = c.name,
+            ty = c.buf_ty
         )
         .unwrap();
-        column_decls.push((column.field.clone(), column.r#type.clone()));
     }
-    if is_quote_tick {
-        out.push_str("        let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);\n");
-    }
-    if is_contract {
-        // Absent contract identity becomes a Polars null.
-        out.push_str("        let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);\n");
-        out.push_str("        let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);\n");
-        out.push_str("        let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);\n");
-    }
-
     out.push_str("        for t in self {\n");
-    for (field, column_type) in &column_decls {
-        writeln!(
-            out,
-            "            col_{field}.push({});",
-            column_push_expr(column_type, field)
-        )
-        .unwrap();
-    }
-    if is_quote_tick {
-        out.push_str("            col_midpoint.push(t.midpoint);\n");
-    }
-    if is_contract {
-        out.push_str(
-            "            col_expiration.push(t.has_contract_id().then_some(t.expiration));\n",
-        );
-        out.push_str("            col_strike.push(t.has_contract_id().then_some(t.strike));\n");
-        out.push_str(
-            "            col_right.push(if t.right == '\\0' { None } else { Some(t.right.to_string()) });\n",
-        );
+    for c in &cols {
+        writeln!(out, "            col_{name}.push({push});", name = c.name, push = c.push).unwrap();
     }
     out.push_str("        }\n");
-
-    // polars 0.53+ takes `DataFrame::new(height, Vec<Column>)`; pass `n`
-    // (set above to `self.len()`) so an empty input still constructs a
-    // zero-row DataFrame with the typed columns intact.
     out.push_str("        DataFrame::new(n, vec![\n");
-    for column in &def.columns {
-        // Polars Series name mirrors the public struct field name —
-        // same justification as the Arrow `Field::new` emitter above.
+    for c in &cols {
         writeln!(
             out,
-            "            Series::new(PlSmallStr::from_static(\"{name}\"), col_{field}).into(),",
-            name = column.field,
-            field = column.field
+            "            Series::new(PlSmallStr::from_static(\"{name}\"), col_{name}).into(),",
+            name = c.name
         )
         .unwrap();
     }
-    if is_quote_tick {
-        out.push_str(
-            "            Series::new(PlSmallStr::from_static(\"midpoint\"), col_midpoint).into(),\n",
-        );
-    }
-    if is_contract {
-        out.push_str("            Series::new(PlSmallStr::from_static(\"expiration\"), col_expiration).into(),\n");
-        out.push_str(
-            "            Series::new(PlSmallStr::from_static(\"strike\"), col_strike).into(),\n",
-        );
-        out.push_str(
-            "            Series::new(PlSmallStr::from_static(\"right\"), col_right).into(),\n",
-        );
-    }
     out.push_str("        ])\n");
+    out.push_str("    }\n\n");
+
+    // Projected.
+    writeln!(
+        out,
+        "    /// Builds a Polars `DataFrame` from a slice of `{type_name}`, one column per public field present on the wire."
+    )
+    .unwrap();
+    out.push_str(
+        "    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {\n",
+    );
+    out.push_str("        let n = self.len();\n");
+    out.push_str("        let mut series: Vec<polars::prelude::Column> = Vec::new();\n");
+    for c in &cols {
+        writeln!(out, "        if present.contains(\"{name}\") {{", name = c.name).unwrap();
+        writeln!(
+            out,
+            "            let mut col: Vec<{ty}> = Vec::with_capacity(n);",
+            ty = c.buf_ty
+        )
+        .unwrap();
+        writeln!(out, "            for t in self {{ col.push({push}); }}", push = c.push).unwrap();
+        writeln!(
+            out,
+            "            series.push(Series::new(PlSmallStr::from_static(\"{name}\"), col).into());",
+            name = c.name
+        )
+        .unwrap();
+        out.push_str("        }\n");
+    }
+    out.push_str("        DataFrame::new(n, series)\n");
     out.push_str("    }\n");
     out.push_str("}\n");
-
     out
 }

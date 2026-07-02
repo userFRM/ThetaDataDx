@@ -51,6 +51,44 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::CalendarDay] {
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `CalendarDay`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("is_open") {
+            let mut col: Vec<bool> = Vec::with_capacity(n);
+            for t in self { col.push(t.is_open); }
+            fields.push(Field::new("is_open", DataType::Boolean, false));
+            columns.push(Arc::new(BooleanArray::from(col)) as ArrayRef);
+        }
+        if present.contains("open_time") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.open_time); }
+            fields.push(Field::new("open_time", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("close_time") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.close_time); }
+            fields.push(Field::new("close_time", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("status") {
+            let mut col: Vec<String> = Vec::with_capacity(n);
+            for t in self { col.push(t.status.as_str().to_string()); }
+            fields.push(Field::new("status", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -78,6 +116,38 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::CalendarDay] {
             Series::new(PlSmallStr::from_static("close_time"), col_close_time).into(),
             Series::new(PlSmallStr::from_static("status"), col_status).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `CalendarDay`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("is_open") {
+            let mut col: Vec<bool> = Vec::with_capacity(n);
+            for t in self { col.push(t.is_open); }
+            series.push(Series::new(PlSmallStr::from_static("is_open"), col).into());
+        }
+        if present.contains("open_time") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.open_time); }
+            series.push(Series::new(PlSmallStr::from_static("open_time"), col).into());
+        }
+        if present.contains("close_time") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.close_time); }
+            series.push(Series::new(PlSmallStr::from_static("close_time"), col).into());
+        }
+        if present.contains("status") {
+            let mut col: Vec<String> = Vec::with_capacity(n);
+            for t in self { col.push(t.status.as_str().to_string()); }
+            series.push(Series::new(PlSmallStr::from_static("status"), col).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -175,6 +245,134 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::EodTick] {
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `EodTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("created_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.created_ms_of_day); }
+            fields.push(Field::new("created_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("last_trade_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.last_trade_ms_of_day); }
+            fields.push(Field::new("last_trade_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("open") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.open); }
+            fields.push(Field::new("open", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("high") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.high); }
+            fields.push(Field::new("high", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("low") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.low); }
+            fields.push(Field::new("low", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("close") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.close); }
+            fields.push(Field::new("close", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("volume") {
+            let mut col: Vec<i64> = Vec::with_capacity(n);
+            for t in self { col.push(t.volume); }
+            fields.push(Field::new("volume", DataType::Int64, false));
+            columns.push(Arc::new(Int64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("count") {
+            let mut col: Vec<i64> = Vec::with_capacity(n);
+            for t in self { col.push(t.count); }
+            fields.push(Field::new("count", DataType::Int64, false));
+            columns.push(Arc::new(Int64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_size); }
+            fields.push(Field::new("bid_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_exchange); }
+            fields.push(Field::new("bid_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid); }
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_condition); }
+            fields.push(Field::new("bid_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_size); }
+            fields.push(Field::new("ask_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_exchange); }
+            fields.push(Field::new("ask_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask); }
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_condition); }
+            fields.push(Field::new("ask_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -247,6 +445,113 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::EodTick] {
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `EodTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("created_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.created_ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("created_ms_of_day"), col).into());
+        }
+        if present.contains("last_trade_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.last_trade_ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("last_trade_ms_of_day"), col).into());
+        }
+        if present.contains("open") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.open); }
+            series.push(Series::new(PlSmallStr::from_static("open"), col).into());
+        }
+        if present.contains("high") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.high); }
+            series.push(Series::new(PlSmallStr::from_static("high"), col).into());
+        }
+        if present.contains("low") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.low); }
+            series.push(Series::new(PlSmallStr::from_static("low"), col).into());
+        }
+        if present.contains("close") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.close); }
+            series.push(Series::new(PlSmallStr::from_static("close"), col).into());
+        }
+        if present.contains("volume") {
+            let mut col: Vec<i64> = Vec::with_capacity(n);
+            for t in self { col.push(t.volume); }
+            series.push(Series::new(PlSmallStr::from_static("volume"), col).into());
+        }
+        if present.contains("count") {
+            let mut col: Vec<i64> = Vec::with_capacity(n);
+            for t in self { col.push(t.count); }
+            series.push(Series::new(PlSmallStr::from_static("count"), col).into());
+        }
+        if present.contains("bid_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_size); }
+            series.push(Series::new(PlSmallStr::from_static("bid_size"), col).into());
+        }
+        if present.contains("bid_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_exchange); }
+            series.push(Series::new(PlSmallStr::from_static("bid_exchange"), col).into());
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid); }
+            series.push(Series::new(PlSmallStr::from_static("bid"), col).into());
+        }
+        if present.contains("bid_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_condition); }
+            series.push(Series::new(PlSmallStr::from_static("bid_condition"), col).into());
+        }
+        if present.contains("ask_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_size); }
+            series.push(Series::new(PlSmallStr::from_static("ask_size"), col).into());
+        }
+        if present.contains("ask_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_exchange); }
+            series.push(Series::new(PlSmallStr::from_static("ask_exchange"), col).into());
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask); }
+            series.push(Series::new(PlSmallStr::from_static("ask"), col).into());
+        }
+        if present.contains("ask_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_condition); }
+            series.push(Series::new(PlSmallStr::from_static("ask_condition"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col).into());
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            series.push(Series::new(PlSmallStr::from_static("strike"), col).into());
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            series.push(Series::new(PlSmallStr::from_static("right"), col).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -388,6 +693,200 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksAllTick] 
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `GreeksAllTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid); }
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask); }
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.delta); }
+            fields.push(Field::new("delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.gamma); }
+            fields.push(Field::new("gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("theta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.theta); }
+            fields.push(Field::new("theta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vega") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vega); }
+            fields.push(Field::new("vega", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("rho") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.rho); }
+            fields.push(Field::new("rho", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vanna") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vanna); }
+            fields.push(Field::new("vanna", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("charm") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.charm); }
+            fields.push(Field::new("charm", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vomma); }
+            fields.push(Field::new("vomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("veta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.veta); }
+            fields.push(Field::new("veta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("speed") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.speed); }
+            fields.push(Field::new("speed", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("zomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.zomma); }
+            fields.push(Field::new("zomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("color") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.color); }
+            fields.push(Field::new("color", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ultima") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ultima); }
+            fields.push(Field::new("ultima", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("d1") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.d1); }
+            fields.push(Field::new("d1", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("d2") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.d2); }
+            fields.push(Field::new("d2", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("dual_delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.dual_delta); }
+            fields.push(Field::new("dual_delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("dual_gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.dual_gamma); }
+            fields.push(Field::new("dual_gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("epsilon") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.epsilon); }
+            fields.push(Field::new("epsilon", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("lambda") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.lambda); }
+            fields.push(Field::new("lambda", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vera") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vera); }
+            fields.push(Field::new("vera", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -493,6 +992,168 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksAllTick]
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `GreeksAllTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col).into());
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid); }
+            series.push(Series::new(PlSmallStr::from_static("bid"), col).into());
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask); }
+            series.push(Series::new(PlSmallStr::from_static("ask"), col).into());
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col).into());
+        }
+        if present.contains("delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.delta); }
+            series.push(Series::new(PlSmallStr::from_static("delta"), col).into());
+        }
+        if present.contains("gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.gamma); }
+            series.push(Series::new(PlSmallStr::from_static("gamma"), col).into());
+        }
+        if present.contains("theta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.theta); }
+            series.push(Series::new(PlSmallStr::from_static("theta"), col).into());
+        }
+        if present.contains("vega") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vega); }
+            series.push(Series::new(PlSmallStr::from_static("vega"), col).into());
+        }
+        if present.contains("rho") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.rho); }
+            series.push(Series::new(PlSmallStr::from_static("rho"), col).into());
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col).into());
+        }
+        if present.contains("vanna") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vanna); }
+            series.push(Series::new(PlSmallStr::from_static("vanna"), col).into());
+        }
+        if present.contains("charm") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.charm); }
+            series.push(Series::new(PlSmallStr::from_static("charm"), col).into());
+        }
+        if present.contains("vomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vomma); }
+            series.push(Series::new(PlSmallStr::from_static("vomma"), col).into());
+        }
+        if present.contains("veta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.veta); }
+            series.push(Series::new(PlSmallStr::from_static("veta"), col).into());
+        }
+        if present.contains("speed") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.speed); }
+            series.push(Series::new(PlSmallStr::from_static("speed"), col).into());
+        }
+        if present.contains("zomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.zomma); }
+            series.push(Series::new(PlSmallStr::from_static("zomma"), col).into());
+        }
+        if present.contains("color") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.color); }
+            series.push(Series::new(PlSmallStr::from_static("color"), col).into());
+        }
+        if present.contains("ultima") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ultima); }
+            series.push(Series::new(PlSmallStr::from_static("ultima"), col).into());
+        }
+        if present.contains("d1") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.d1); }
+            series.push(Series::new(PlSmallStr::from_static("d1"), col).into());
+        }
+        if present.contains("d2") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.d2); }
+            series.push(Series::new(PlSmallStr::from_static("d2"), col).into());
+        }
+        if present.contains("dual_delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.dual_delta); }
+            series.push(Series::new(PlSmallStr::from_static("dual_delta"), col).into());
+        }
+        if present.contains("dual_gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.dual_gamma); }
+            series.push(Series::new(PlSmallStr::from_static("dual_gamma"), col).into());
+        }
+        if present.contains("epsilon") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.epsilon); }
+            series.push(Series::new(PlSmallStr::from_static("epsilon"), col).into());
+        }
+        if present.contains("lambda") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.lambda); }
+            series.push(Series::new(PlSmallStr::from_static("lambda"), col).into());
+        }
+        if present.contains("vera") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vera); }
+            series.push(Series::new(PlSmallStr::from_static("vera"), col).into());
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col).into());
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col).into());
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            series.push(Series::new(PlSmallStr::from_static("strike"), col).into());
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            series.push(Series::new(PlSmallStr::from_static("right"), col).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -682,6 +1343,272 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksEodTick] 
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `GreeksEodTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("open") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.open); }
+            fields.push(Field::new("open", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("high") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.high); }
+            fields.push(Field::new("high", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("low") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.low); }
+            fields.push(Field::new("low", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("close") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.close); }
+            fields.push(Field::new("close", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("volume") {
+            let mut col: Vec<i64> = Vec::with_capacity(n);
+            for t in self { col.push(t.volume); }
+            fields.push(Field::new("volume", DataType::Int64, false));
+            columns.push(Arc::new(Int64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("count") {
+            let mut col: Vec<i64> = Vec::with_capacity(n);
+            for t in self { col.push(t.count); }
+            fields.push(Field::new("count", DataType::Int64, false));
+            columns.push(Arc::new(Int64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_size); }
+            fields.push(Field::new("bid_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_exchange); }
+            fields.push(Field::new("bid_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid); }
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_condition); }
+            fields.push(Field::new("bid_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_size); }
+            fields.push(Field::new("ask_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_exchange); }
+            fields.push(Field::new("ask_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask); }
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_condition); }
+            fields.push(Field::new("ask_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.delta); }
+            fields.push(Field::new("delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("theta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.theta); }
+            fields.push(Field::new("theta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vega") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vega); }
+            fields.push(Field::new("vega", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("rho") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.rho); }
+            fields.push(Field::new("rho", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("epsilon") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.epsilon); }
+            fields.push(Field::new("epsilon", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("lambda") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.lambda); }
+            fields.push(Field::new("lambda", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.gamma); }
+            fields.push(Field::new("gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vanna") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vanna); }
+            fields.push(Field::new("vanna", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("charm") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.charm); }
+            fields.push(Field::new("charm", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vomma); }
+            fields.push(Field::new("vomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("veta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.veta); }
+            fields.push(Field::new("veta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vera") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vera); }
+            fields.push(Field::new("vera", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("speed") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.speed); }
+            fields.push(Field::new("speed", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("zomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.zomma); }
+            fields.push(Field::new("zomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("color") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.color); }
+            fields.push(Field::new("color", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ultima") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ultima); }
+            fields.push(Field::new("ultima", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("d1") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.d1); }
+            fields.push(Field::new("d1", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("d2") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.d2); }
+            fields.push(Field::new("d2", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("dual_delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.dual_delta); }
+            fields.push(Field::new("dual_delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("dual_gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.dual_gamma); }
+            fields.push(Field::new("dual_gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -824,6 +1751,228 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksEodTick]
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
     }
+
+    /// Builds a Polars `DataFrame` from a slice of `GreeksEodTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col).into());
+        }
+        if present.contains("open") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.open); }
+            series.push(Series::new(PlSmallStr::from_static("open"), col).into());
+        }
+        if present.contains("high") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.high); }
+            series.push(Series::new(PlSmallStr::from_static("high"), col).into());
+        }
+        if present.contains("low") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.low); }
+            series.push(Series::new(PlSmallStr::from_static("low"), col).into());
+        }
+        if present.contains("close") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.close); }
+            series.push(Series::new(PlSmallStr::from_static("close"), col).into());
+        }
+        if present.contains("volume") {
+            let mut col: Vec<i64> = Vec::with_capacity(n);
+            for t in self { col.push(t.volume); }
+            series.push(Series::new(PlSmallStr::from_static("volume"), col).into());
+        }
+        if present.contains("count") {
+            let mut col: Vec<i64> = Vec::with_capacity(n);
+            for t in self { col.push(t.count); }
+            series.push(Series::new(PlSmallStr::from_static("count"), col).into());
+        }
+        if present.contains("bid_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_size); }
+            series.push(Series::new(PlSmallStr::from_static("bid_size"), col).into());
+        }
+        if present.contains("bid_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_exchange); }
+            series.push(Series::new(PlSmallStr::from_static("bid_exchange"), col).into());
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid); }
+            series.push(Series::new(PlSmallStr::from_static("bid"), col).into());
+        }
+        if present.contains("bid_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_condition); }
+            series.push(Series::new(PlSmallStr::from_static("bid_condition"), col).into());
+        }
+        if present.contains("ask_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_size); }
+            series.push(Series::new(PlSmallStr::from_static("ask_size"), col).into());
+        }
+        if present.contains("ask_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_exchange); }
+            series.push(Series::new(PlSmallStr::from_static("ask_exchange"), col).into());
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask); }
+            series.push(Series::new(PlSmallStr::from_static("ask"), col).into());
+        }
+        if present.contains("ask_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_condition); }
+            series.push(Series::new(PlSmallStr::from_static("ask_condition"), col).into());
+        }
+        if present.contains("delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.delta); }
+            series.push(Series::new(PlSmallStr::from_static("delta"), col).into());
+        }
+        if present.contains("theta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.theta); }
+            series.push(Series::new(PlSmallStr::from_static("theta"), col).into());
+        }
+        if present.contains("vega") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vega); }
+            series.push(Series::new(PlSmallStr::from_static("vega"), col).into());
+        }
+        if present.contains("rho") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.rho); }
+            series.push(Series::new(PlSmallStr::from_static("rho"), col).into());
+        }
+        if present.contains("epsilon") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.epsilon); }
+            series.push(Series::new(PlSmallStr::from_static("epsilon"), col).into());
+        }
+        if present.contains("lambda") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.lambda); }
+            series.push(Series::new(PlSmallStr::from_static("lambda"), col).into());
+        }
+        if present.contains("gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.gamma); }
+            series.push(Series::new(PlSmallStr::from_static("gamma"), col).into());
+        }
+        if present.contains("vanna") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vanna); }
+            series.push(Series::new(PlSmallStr::from_static("vanna"), col).into());
+        }
+        if present.contains("charm") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.charm); }
+            series.push(Series::new(PlSmallStr::from_static("charm"), col).into());
+        }
+        if present.contains("vomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vomma); }
+            series.push(Series::new(PlSmallStr::from_static("vomma"), col).into());
+        }
+        if present.contains("veta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.veta); }
+            series.push(Series::new(PlSmallStr::from_static("veta"), col).into());
+        }
+        if present.contains("vera") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vera); }
+            series.push(Series::new(PlSmallStr::from_static("vera"), col).into());
+        }
+        if present.contains("speed") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.speed); }
+            series.push(Series::new(PlSmallStr::from_static("speed"), col).into());
+        }
+        if present.contains("zomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.zomma); }
+            series.push(Series::new(PlSmallStr::from_static("zomma"), col).into());
+        }
+        if present.contains("color") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.color); }
+            series.push(Series::new(PlSmallStr::from_static("color"), col).into());
+        }
+        if present.contains("ultima") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ultima); }
+            series.push(Series::new(PlSmallStr::from_static("ultima"), col).into());
+        }
+        if present.contains("d1") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.d1); }
+            series.push(Series::new(PlSmallStr::from_static("d1"), col).into());
+        }
+        if present.contains("d2") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.d2); }
+            series.push(Series::new(PlSmallStr::from_static("d2"), col).into());
+        }
+        if present.contains("dual_delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.dual_delta); }
+            series.push(Series::new(PlSmallStr::from_static("dual_delta"), col).into());
+        }
+        if present.contains("dual_gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.dual_gamma); }
+            series.push(Series::new(PlSmallStr::from_static("dual_gamma"), col).into());
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col).into());
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col).into());
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col).into());
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col).into());
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            series.push(Series::new(PlSmallStr::from_static("strike"), col).into());
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            series.push(Series::new(PlSmallStr::from_static("right"), col).into());
+        }
+        DataFrame::new(n, series)
+    }
 }
 
 #[cfg(feature = "arrow")]
@@ -908,6 +2057,116 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksFirstOrde
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `GreeksFirstOrderTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid); }
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask); }
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.delta); }
+            fields.push(Field::new("delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("theta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.theta); }
+            fields.push(Field::new("theta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vega") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vega); }
+            fields.push(Field::new("vega", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("rho") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.rho); }
+            fields.push(Field::new("rho", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("epsilon") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.epsilon); }
+            fields.push(Field::new("epsilon", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("lambda") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.lambda); }
+            fields.push(Field::new("lambda", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -971,6 +2230,98 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksFirstOrd
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `GreeksFirstOrderTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col).into());
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid); }
+            series.push(Series::new(PlSmallStr::from_static("bid"), col).into());
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask); }
+            series.push(Series::new(PlSmallStr::from_static("ask"), col).into());
+        }
+        if present.contains("delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.delta); }
+            series.push(Series::new(PlSmallStr::from_static("delta"), col).into());
+        }
+        if present.contains("theta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.theta); }
+            series.push(Series::new(PlSmallStr::from_static("theta"), col).into());
+        }
+        if present.contains("vega") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vega); }
+            series.push(Series::new(PlSmallStr::from_static("vega"), col).into());
+        }
+        if present.contains("rho") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.rho); }
+            series.push(Series::new(PlSmallStr::from_static("rho"), col).into());
+        }
+        if present.contains("epsilon") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.epsilon); }
+            series.push(Series::new(PlSmallStr::from_static("epsilon"), col).into());
+        }
+        if present.contains("lambda") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.lambda); }
+            series.push(Series::new(PlSmallStr::from_static("lambda"), col).into());
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col).into());
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col).into());
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col).into());
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col).into());
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            series.push(Series::new(PlSmallStr::from_static("strike"), col).into());
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            series.push(Series::new(PlSmallStr::from_static("right"), col).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -1052,6 +2403,110 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksSecondOrd
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `GreeksSecondOrderTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid); }
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask); }
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.gamma); }
+            fields.push(Field::new("gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vanna") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vanna); }
+            fields.push(Field::new("vanna", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("charm") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.charm); }
+            fields.push(Field::new("charm", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vomma); }
+            fields.push(Field::new("vomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("veta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.veta); }
+            fields.push(Field::new("veta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1112,6 +2567,93 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksSecondOr
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `GreeksSecondOrderTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col).into());
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid); }
+            series.push(Series::new(PlSmallStr::from_static("bid"), col).into());
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask); }
+            series.push(Series::new(PlSmallStr::from_static("ask"), col).into());
+        }
+        if present.contains("gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.gamma); }
+            series.push(Series::new(PlSmallStr::from_static("gamma"), col).into());
+        }
+        if present.contains("vanna") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vanna); }
+            series.push(Series::new(PlSmallStr::from_static("vanna"), col).into());
+        }
+        if present.contains("charm") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.charm); }
+            series.push(Series::new(PlSmallStr::from_static("charm"), col).into());
+        }
+        if present.contains("vomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vomma); }
+            series.push(Series::new(PlSmallStr::from_static("vomma"), col).into());
+        }
+        if present.contains("veta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.veta); }
+            series.push(Series::new(PlSmallStr::from_static("veta"), col).into());
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col).into());
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col).into());
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col).into());
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col).into());
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            series.push(Series::new(PlSmallStr::from_static("strike"), col).into());
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            series.push(Series::new(PlSmallStr::from_static("right"), col).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -1189,6 +2731,104 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksThirdOrde
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `GreeksThirdOrderTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid); }
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask); }
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("speed") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.speed); }
+            fields.push(Field::new("speed", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("zomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.zomma); }
+            fields.push(Field::new("zomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("color") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.color); }
+            fields.push(Field::new("color", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ultima") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ultima); }
+            fields.push(Field::new("ultima", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1246,6 +2886,88 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksThirdOrd
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `GreeksThirdOrderTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col).into());
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid); }
+            series.push(Series::new(PlSmallStr::from_static("bid"), col).into());
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask); }
+            series.push(Series::new(PlSmallStr::from_static("ask"), col).into());
+        }
+        if present.contains("speed") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.speed); }
+            series.push(Series::new(PlSmallStr::from_static("speed"), col).into());
+        }
+        if present.contains("zomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.zomma); }
+            series.push(Series::new(PlSmallStr::from_static("zomma"), col).into());
+        }
+        if present.contains("color") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.color); }
+            series.push(Series::new(PlSmallStr::from_static("color"), col).into());
+        }
+        if present.contains("ultima") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ultima); }
+            series.push(Series::new(PlSmallStr::from_static("ultima"), col).into());
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col).into());
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col).into());
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col).into());
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col).into());
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            series.push(Series::new(PlSmallStr::from_static("strike"), col).into());
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            series.push(Series::new(PlSmallStr::from_static("right"), col).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -1307,6 +3029,80 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IndexPriceAtTim
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `IndexPriceAtTimeTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.sequence); }
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition1); }
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition2); }
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition3); }
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition4); }
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition); }
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.size); }
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.exchange); }
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.price); }
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1353,6 +3149,68 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::IndexPriceAtTi
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
         ])
     }
+
+    /// Builds a Polars `DataFrame` from a slice of `IndexPriceAtTimeTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col).into());
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.sequence); }
+            series.push(Series::new(PlSmallStr::from_static("sequence"), col).into());
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition1); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition1"), col).into());
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition2); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition2"), col).into());
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition3); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition3"), col).into());
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition4); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition4"), col).into());
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition); }
+            series.push(Series::new(PlSmallStr::from_static("condition"), col).into());
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.size); }
+            series.push(Series::new(PlSmallStr::from_static("size"), col).into());
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.exchange); }
+            series.push(Series::new(PlSmallStr::from_static("exchange"), col).into());
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.price); }
+            series.push(Series::new(PlSmallStr::from_static("price"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        DataFrame::new(n, series)
+    }
 }
 
 #[cfg(feature = "arrow")]
@@ -1377,6 +3235,26 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::InterestRateTic
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `InterestRateTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("rate") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.rate); }
+            fields.push(Field::new("rate", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1395,6 +3273,23 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::InterestRateTi
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
             Series::new(PlSmallStr::from_static("rate"), col_rate).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `InterestRateTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("rate") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.rate); }
+            series.push(Series::new(PlSmallStr::from_static("rate"), col).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -1468,6 +3363,98 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IvTick] {
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `IvTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid); }
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_implied_volatility); }
+            fields.push(Field::new("bid_implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("midpoint") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.midpoint); }
+            fields.push(Field::new("midpoint", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask); }
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_implied_volatility); }
+            fields.push(Field::new("ask_implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1523,6 +3510,83 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::IvTick] {
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
     }
+
+    /// Builds a Polars `DataFrame` from a slice of `IvTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col).into());
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid); }
+            series.push(Series::new(PlSmallStr::from_static("bid"), col).into());
+        }
+        if present.contains("bid_implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_implied_volatility); }
+            series.push(Series::new(PlSmallStr::from_static("bid_implied_volatility"), col).into());
+        }
+        if present.contains("midpoint") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.midpoint); }
+            series.push(Series::new(PlSmallStr::from_static("midpoint"), col).into());
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col).into());
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask); }
+            series.push(Series::new(PlSmallStr::from_static("ask"), col).into());
+        }
+        if present.contains("ask_implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_implied_volatility); }
+            series.push(Series::new(PlSmallStr::from_static("ask_implied_volatility"), col).into());
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col).into());
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col).into());
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col).into());
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            series.push(Series::new(PlSmallStr::from_static("strike"), col).into());
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            series.push(Series::new(PlSmallStr::from_static("right"), col).into());
+        }
+        DataFrame::new(n, series)
+    }
 }
 
 #[cfg(feature = "arrow")]
@@ -1571,6 +3635,62 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::MarketValueTick
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `MarketValueTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("market_bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.market_bid); }
+            fields.push(Field::new("market_bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("market_ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.market_ask); }
+            fields.push(Field::new("market_ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("market_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.market_price); }
+            fields.push(Field::new("market_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1607,6 +3727,53 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::MarketValueTic
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `MarketValueTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col).into());
+        }
+        if present.contains("market_bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.market_bid); }
+            series.push(Series::new(PlSmallStr::from_static("market_bid"), col).into());
+        }
+        if present.contains("market_ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.market_ask); }
+            series.push(Series::new(PlSmallStr::from_static("market_ask"), col).into());
+        }
+        if present.contains("market_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.market_price); }
+            series.push(Series::new(PlSmallStr::from_static("market_price"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col).into());
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            series.push(Series::new(PlSmallStr::from_static("strike"), col).into());
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            series.push(Series::new(PlSmallStr::from_static("right"), col).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -1672,6 +3839,86 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OhlcTick] {
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `OhlcTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("open") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.open); }
+            fields.push(Field::new("open", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("high") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.high); }
+            fields.push(Field::new("high", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("low") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.low); }
+            fields.push(Field::new("low", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("close") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.close); }
+            fields.push(Field::new("close", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("volume") {
+            let mut col: Vec<i64> = Vec::with_capacity(n);
+            for t in self { col.push(t.volume); }
+            fields.push(Field::new("volume", DataType::Int64, false));
+            columns.push(Arc::new(Int64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("count") {
+            let mut col: Vec<i64> = Vec::with_capacity(n);
+            for t in self { col.push(t.count); }
+            fields.push(Field::new("count", DataType::Int64, false));
+            columns.push(Arc::new(Int64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vwap") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vwap); }
+            fields.push(Field::new("vwap", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1721,6 +3968,73 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::OhlcTick] {
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
     }
+
+    /// Builds a Polars `DataFrame` from a slice of `OhlcTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col).into());
+        }
+        if present.contains("open") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.open); }
+            series.push(Series::new(PlSmallStr::from_static("open"), col).into());
+        }
+        if present.contains("high") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.high); }
+            series.push(Series::new(PlSmallStr::from_static("high"), col).into());
+        }
+        if present.contains("low") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.low); }
+            series.push(Series::new(PlSmallStr::from_static("low"), col).into());
+        }
+        if present.contains("close") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.close); }
+            series.push(Series::new(PlSmallStr::from_static("close"), col).into());
+        }
+        if present.contains("volume") {
+            let mut col: Vec<i64> = Vec::with_capacity(n);
+            for t in self { col.push(t.volume); }
+            series.push(Series::new(PlSmallStr::from_static("volume"), col).into());
+        }
+        if present.contains("count") {
+            let mut col: Vec<i64> = Vec::with_capacity(n);
+            for t in self { col.push(t.count); }
+            series.push(Series::new(PlSmallStr::from_static("count"), col).into());
+        }
+        if present.contains("vwap") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vwap); }
+            series.push(Series::new(PlSmallStr::from_static("vwap"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col).into());
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            series.push(Series::new(PlSmallStr::from_static("strike"), col).into());
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            series.push(Series::new(PlSmallStr::from_static("right"), col).into());
+        }
+        DataFrame::new(n, series)
+    }
 }
 
 #[cfg(feature = "arrow")]
@@ -1761,6 +4075,50 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OpenInterestTic
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `OpenInterestTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("open_interest") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.open_interest); }
+            fields.push(Field::new("open_interest", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1791,6 +4149,43 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::OpenInterestTi
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `OpenInterestTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col).into());
+        }
+        if present.contains("open_interest") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.open_interest); }
+            series.push(Series::new(PlSmallStr::from_static("open_interest"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col).into());
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            series.push(Series::new(PlSmallStr::from_static("strike"), col).into());
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            series.push(Series::new(PlSmallStr::from_static("right"), col).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -1824,6 +4219,38 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OptionContract]
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `OptionContract`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("symbol") {
+            let mut col: Vec<String> = Vec::with_capacity(n);
+            for t in self { col.push(t.symbol.clone()); }
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.expiration); }
+            fields.push(Field::new("expiration", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.strike); }
+            fields.push(Field::new("strike", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<String> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { String::new() } else { t.right.to_string() }); }
+            fields.push(Field::new("right", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1848,6 +4275,33 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::OptionContract
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `OptionContract`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("symbol") {
+            let mut col: Vec<String> = Vec::with_capacity(n);
+            for t in self { col.push(t.symbol.clone()); }
+            series.push(Series::new(PlSmallStr::from_static("symbol"), col).into());
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.expiration); }
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col).into());
+        }
+        if present.contains("strike") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.strike); }
+            series.push(Series::new(PlSmallStr::from_static("strike"), col).into());
+        }
+        if present.contains("right") {
+            let mut col: Vec<String> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { String::new() } else { t.right.to_string() }); }
+            series.push(Series::new(PlSmallStr::from_static("right"), col).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -1877,6 +4331,32 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::PriceTick] {
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `PriceTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.price); }
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -1899,6 +4379,28 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::PriceTick] {
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
         ])
     }
+
+    /// Builds a Polars `DataFrame` from a slice of `PriceTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col).into());
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.price); }
+            series.push(Series::new(PlSmallStr::from_static("price"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        DataFrame::new(n, series)
+    }
 }
 
 #[cfg(feature = "arrow")]
@@ -1917,10 +4419,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
         let mut col_ask: Vec<f64> = Vec::with_capacity(n);
         let mut col_ask_condition: Vec<i32> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
+        let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_bid_size.push(t.bid_size);
@@ -1932,10 +4434,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
             col_ask.push(t.ask);
             col_ask_condition.push(t.ask_condition);
             col_date.push(t.date);
-            col_midpoint.push(t.midpoint);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
+            col_midpoint.push(t.midpoint);
         }
         let schema = Arc::new(ArrowSchema::new(vec![
             Field::new("ms_of_day", DataType::Int32, false),
@@ -1948,10 +4450,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
             Field::new("ask", DataType::Float64, false),
             Field::new("ask_condition", DataType::Int32, false),
             Field::new("date", DataType::Int32, false),
-            Field::new("midpoint", DataType::Float64, false),
             Field::new("expiration", DataType::Int32, true),
             Field::new("strike", DataType::Float64, true),
             Field::new("right", DataType::Utf8, true),
+            Field::new("midpoint", DataType::Float64, false),
         ]));
         let columns: Vec<ArrayRef> = vec![
             Arc::new(Int32Array::from(col_ms_of_day)) as ArrayRef,
@@ -1964,12 +4466,104 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
             Arc::new(Float64Array::from(col_ask)) as ArrayRef,
             Arc::new(Int32Array::from(col_ask_condition)) as ArrayRef,
             Arc::new(Int32Array::from(col_date)) as ArrayRef,
-            Arc::new(Float64Array::from(col_midpoint)) as ArrayRef,
             Arc::new(Int32Array::from(col_expiration)) as ArrayRef,
             Arc::new(Float64Array::from(col_strike)) as ArrayRef,
             Arc::new(StringArray::from(col_right)) as ArrayRef,
+            Arc::new(Float64Array::from(col_midpoint)) as ArrayRef,
         ];
         RecordBatch::try_new(schema, columns)
+    }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `QuoteTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_size); }
+            fields.push(Field::new("bid_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_exchange); }
+            fields.push(Field::new("bid_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid); }
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_condition); }
+            fields.push(Field::new("bid_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_size); }
+            fields.push(Field::new("ask_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_exchange); }
+            fields.push(Field::new("ask_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask); }
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_condition); }
+            fields.push(Field::new("ask_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        if present.contains("midpoint") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.midpoint); }
+            fields.push(Field::new("midpoint", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
     }
 }
 
@@ -1989,10 +4583,10 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::QuoteTick] {
         let mut col_ask: Vec<f64> = Vec::with_capacity(n);
         let mut col_ask_condition: Vec<i32> = Vec::with_capacity(n);
         let mut col_date: Vec<i32> = Vec::with_capacity(n);
-        let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);
         let mut col_expiration: Vec<Option<i32>> = Vec::with_capacity(n);
         let mut col_strike: Vec<Option<f64>> = Vec::with_capacity(n);
         let mut col_right: Vec<Option<String>> = Vec::with_capacity(n);
+        let mut col_midpoint: Vec<f64> = Vec::with_capacity(n);
         for t in self {
             col_ms_of_day.push(t.ms_of_day);
             col_bid_size.push(t.bid_size);
@@ -2004,10 +4598,10 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::QuoteTick] {
             col_ask.push(t.ask);
             col_ask_condition.push(t.ask_condition);
             col_date.push(t.date);
-            col_midpoint.push(t.midpoint);
             col_expiration.push(t.has_contract_id().then_some(t.expiration));
             col_strike.push(t.has_contract_id().then_some(t.strike));
             col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) });
+            col_midpoint.push(t.midpoint);
         }
         DataFrame::new(n, vec![
             Series::new(PlSmallStr::from_static("ms_of_day"), col_ms_of_day).into(),
@@ -2020,11 +4614,88 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::QuoteTick] {
             Series::new(PlSmallStr::from_static("ask"), col_ask).into(),
             Series::new(PlSmallStr::from_static("ask_condition"), col_ask_condition).into(),
             Series::new(PlSmallStr::from_static("date"), col_date).into(),
-            Series::new(PlSmallStr::from_static("midpoint"), col_midpoint).into(),
             Series::new(PlSmallStr::from_static("expiration"), col_expiration).into(),
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
+            Series::new(PlSmallStr::from_static("midpoint"), col_midpoint).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `QuoteTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col).into());
+        }
+        if present.contains("bid_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_size); }
+            series.push(Series::new(PlSmallStr::from_static("bid_size"), col).into());
+        }
+        if present.contains("bid_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_exchange); }
+            series.push(Series::new(PlSmallStr::from_static("bid_exchange"), col).into());
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid); }
+            series.push(Series::new(PlSmallStr::from_static("bid"), col).into());
+        }
+        if present.contains("bid_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_condition); }
+            series.push(Series::new(PlSmallStr::from_static("bid_condition"), col).into());
+        }
+        if present.contains("ask_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_size); }
+            series.push(Series::new(PlSmallStr::from_static("ask_size"), col).into());
+        }
+        if present.contains("ask_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_exchange); }
+            series.push(Series::new(PlSmallStr::from_static("ask_exchange"), col).into());
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask); }
+            series.push(Series::new(PlSmallStr::from_static("ask"), col).into());
+        }
+        if present.contains("ask_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_condition); }
+            series.push(Series::new(PlSmallStr::from_static("ask_condition"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col).into());
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            series.push(Series::new(PlSmallStr::from_static("strike"), col).into());
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            series.push(Series::new(PlSmallStr::from_static("right"), col).into());
+        }
+        if present.contains("midpoint") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.midpoint); }
+            series.push(Series::new(PlSmallStr::from_static("midpoint"), col).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -2194,6 +4865,242 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksAllT
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeGreeksAllTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.sequence); }
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition1); }
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition2); }
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition3); }
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition4); }
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition); }
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.size); }
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.exchange); }
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.price); }
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.delta); }
+            fields.push(Field::new("delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("theta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.theta); }
+            fields.push(Field::new("theta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vega") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vega); }
+            fields.push(Field::new("vega", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("rho") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.rho); }
+            fields.push(Field::new("rho", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("epsilon") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.epsilon); }
+            fields.push(Field::new("epsilon", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("lambda") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.lambda); }
+            fields.push(Field::new("lambda", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.gamma); }
+            fields.push(Field::new("gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vanna") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vanna); }
+            fields.push(Field::new("vanna", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("charm") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.charm); }
+            fields.push(Field::new("charm", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vomma); }
+            fields.push(Field::new("vomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("veta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.veta); }
+            fields.push(Field::new("veta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vera") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vera); }
+            fields.push(Field::new("vera", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("speed") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.speed); }
+            fields.push(Field::new("speed", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("zomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.zomma); }
+            fields.push(Field::new("zomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("color") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.color); }
+            fields.push(Field::new("color", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ultima") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ultima); }
+            fields.push(Field::new("ultima", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("d1") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.d1); }
+            fields.push(Field::new("d1", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("d2") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.d2); }
+            fields.push(Field::new("d2", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("dual_delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.dual_delta); }
+            fields.push(Field::new("dual_delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("dual_gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.dual_gamma); }
+            fields.push(Field::new("dual_gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -2321,6 +5228,203 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksAll
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
     }
+
+    /// Builds a Polars `DataFrame` from a slice of `TradeGreeksAllTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col).into());
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.sequence); }
+            series.push(Series::new(PlSmallStr::from_static("sequence"), col).into());
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition1); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition1"), col).into());
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition2); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition2"), col).into());
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition3); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition3"), col).into());
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition4); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition4"), col).into());
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition); }
+            series.push(Series::new(PlSmallStr::from_static("condition"), col).into());
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.size); }
+            series.push(Series::new(PlSmallStr::from_static("size"), col).into());
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.exchange); }
+            series.push(Series::new(PlSmallStr::from_static("exchange"), col).into());
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.price); }
+            series.push(Series::new(PlSmallStr::from_static("price"), col).into());
+        }
+        if present.contains("delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.delta); }
+            series.push(Series::new(PlSmallStr::from_static("delta"), col).into());
+        }
+        if present.contains("theta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.theta); }
+            series.push(Series::new(PlSmallStr::from_static("theta"), col).into());
+        }
+        if present.contains("vega") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vega); }
+            series.push(Series::new(PlSmallStr::from_static("vega"), col).into());
+        }
+        if present.contains("rho") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.rho); }
+            series.push(Series::new(PlSmallStr::from_static("rho"), col).into());
+        }
+        if present.contains("epsilon") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.epsilon); }
+            series.push(Series::new(PlSmallStr::from_static("epsilon"), col).into());
+        }
+        if present.contains("lambda") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.lambda); }
+            series.push(Series::new(PlSmallStr::from_static("lambda"), col).into());
+        }
+        if present.contains("gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.gamma); }
+            series.push(Series::new(PlSmallStr::from_static("gamma"), col).into());
+        }
+        if present.contains("vanna") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vanna); }
+            series.push(Series::new(PlSmallStr::from_static("vanna"), col).into());
+        }
+        if present.contains("charm") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.charm); }
+            series.push(Series::new(PlSmallStr::from_static("charm"), col).into());
+        }
+        if present.contains("vomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vomma); }
+            series.push(Series::new(PlSmallStr::from_static("vomma"), col).into());
+        }
+        if present.contains("veta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.veta); }
+            series.push(Series::new(PlSmallStr::from_static("veta"), col).into());
+        }
+        if present.contains("vera") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vera); }
+            series.push(Series::new(PlSmallStr::from_static("vera"), col).into());
+        }
+        if present.contains("speed") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.speed); }
+            series.push(Series::new(PlSmallStr::from_static("speed"), col).into());
+        }
+        if present.contains("zomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.zomma); }
+            series.push(Series::new(PlSmallStr::from_static("zomma"), col).into());
+        }
+        if present.contains("color") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.color); }
+            series.push(Series::new(PlSmallStr::from_static("color"), col).into());
+        }
+        if present.contains("ultima") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ultima); }
+            series.push(Series::new(PlSmallStr::from_static("ultima"), col).into());
+        }
+        if present.contains("d1") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.d1); }
+            series.push(Series::new(PlSmallStr::from_static("d1"), col).into());
+        }
+        if present.contains("d2") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.d2); }
+            series.push(Series::new(PlSmallStr::from_static("d2"), col).into());
+        }
+        if present.contains("dual_delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.dual_delta); }
+            series.push(Series::new(PlSmallStr::from_static("dual_delta"), col).into());
+        }
+        if present.contains("dual_gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.dual_gamma); }
+            series.push(Series::new(PlSmallStr::from_static("dual_gamma"), col).into());
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col).into());
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col).into());
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col).into());
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col).into());
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            series.push(Series::new(PlSmallStr::from_static("strike"), col).into());
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            series.push(Series::new(PlSmallStr::from_static("right"), col).into());
+        }
+        DataFrame::new(n, series)
+    }
 }
 
 #[cfg(feature = "arrow")]
@@ -2433,6 +5537,158 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksFirs
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeGreeksFirstOrderTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.sequence); }
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition1); }
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition2); }
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition3); }
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition4); }
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition); }
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.size); }
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.exchange); }
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.price); }
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.delta); }
+            fields.push(Field::new("delta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("theta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.theta); }
+            fields.push(Field::new("theta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vega") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vega); }
+            fields.push(Field::new("vega", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("rho") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.rho); }
+            fields.push(Field::new("rho", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("epsilon") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.epsilon); }
+            fields.push(Field::new("epsilon", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("lambda") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.lambda); }
+            fields.push(Field::new("lambda", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -2517,6 +5773,133 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksFir
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `TradeGreeksFirstOrderTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col).into());
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.sequence); }
+            series.push(Series::new(PlSmallStr::from_static("sequence"), col).into());
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition1); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition1"), col).into());
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition2); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition2"), col).into());
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition3); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition3"), col).into());
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition4); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition4"), col).into());
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition); }
+            series.push(Series::new(PlSmallStr::from_static("condition"), col).into());
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.size); }
+            series.push(Series::new(PlSmallStr::from_static("size"), col).into());
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.exchange); }
+            series.push(Series::new(PlSmallStr::from_static("exchange"), col).into());
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.price); }
+            series.push(Series::new(PlSmallStr::from_static("price"), col).into());
+        }
+        if present.contains("delta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.delta); }
+            series.push(Series::new(PlSmallStr::from_static("delta"), col).into());
+        }
+        if present.contains("theta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.theta); }
+            series.push(Series::new(PlSmallStr::from_static("theta"), col).into());
+        }
+        if present.contains("vega") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vega); }
+            series.push(Series::new(PlSmallStr::from_static("vega"), col).into());
+        }
+        if present.contains("rho") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.rho); }
+            series.push(Series::new(PlSmallStr::from_static("rho"), col).into());
+        }
+        if present.contains("epsilon") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.epsilon); }
+            series.push(Series::new(PlSmallStr::from_static("epsilon"), col).into());
+        }
+        if present.contains("lambda") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.lambda); }
+            series.push(Series::new(PlSmallStr::from_static("lambda"), col).into());
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col).into());
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col).into());
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col).into());
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col).into());
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            series.push(Series::new(PlSmallStr::from_static("strike"), col).into());
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            series.push(Series::new(PlSmallStr::from_static("right"), col).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -2606,6 +5989,122 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksImpl
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeGreeksImpliedVolatilityTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.sequence); }
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition1); }
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition2); }
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition3); }
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition4); }
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition); }
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.size); }
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.exchange); }
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.price); }
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -2672,6 +6171,103 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksImp
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `TradeGreeksImpliedVolatilityTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col).into());
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.sequence); }
+            series.push(Series::new(PlSmallStr::from_static("sequence"), col).into());
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition1); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition1"), col).into());
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition2); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition2"), col).into());
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition3); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition3"), col).into());
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition4); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition4"), col).into());
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition); }
+            series.push(Series::new(PlSmallStr::from_static("condition"), col).into());
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.size); }
+            series.push(Series::new(PlSmallStr::from_static("size"), col).into());
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.exchange); }
+            series.push(Series::new(PlSmallStr::from_static("exchange"), col).into());
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.price); }
+            series.push(Series::new(PlSmallStr::from_static("price"), col).into());
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col).into());
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col).into());
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col).into());
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col).into());
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            series.push(Series::new(PlSmallStr::from_static("strike"), col).into());
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            series.push(Series::new(PlSmallStr::from_static("right"), col).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -2781,6 +6377,152 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksSeco
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeGreeksSecondOrderTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.sequence); }
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition1); }
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition2); }
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition3); }
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition4); }
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition); }
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.size); }
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.exchange); }
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.price); }
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.gamma); }
+            fields.push(Field::new("gamma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vanna") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vanna); }
+            fields.push(Field::new("vanna", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("charm") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.charm); }
+            fields.push(Field::new("charm", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("vomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vomma); }
+            fields.push(Field::new("vomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("veta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.veta); }
+            fields.push(Field::new("veta", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -2862,6 +6604,128 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksSec
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `TradeGreeksSecondOrderTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col).into());
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.sequence); }
+            series.push(Series::new(PlSmallStr::from_static("sequence"), col).into());
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition1); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition1"), col).into());
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition2); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition2"), col).into());
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition3); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition3"), col).into());
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition4); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition4"), col).into());
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition); }
+            series.push(Series::new(PlSmallStr::from_static("condition"), col).into());
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.size); }
+            series.push(Series::new(PlSmallStr::from_static("size"), col).into());
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.exchange); }
+            series.push(Series::new(PlSmallStr::from_static("exchange"), col).into());
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.price); }
+            series.push(Series::new(PlSmallStr::from_static("price"), col).into());
+        }
+        if present.contains("gamma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.gamma); }
+            series.push(Series::new(PlSmallStr::from_static("gamma"), col).into());
+        }
+        if present.contains("vanna") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vanna); }
+            series.push(Series::new(PlSmallStr::from_static("vanna"), col).into());
+        }
+        if present.contains("charm") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.charm); }
+            series.push(Series::new(PlSmallStr::from_static("charm"), col).into());
+        }
+        if present.contains("vomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.vomma); }
+            series.push(Series::new(PlSmallStr::from_static("vomma"), col).into());
+        }
+        if present.contains("veta") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.veta); }
+            series.push(Series::new(PlSmallStr::from_static("veta"), col).into());
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col).into());
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col).into());
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col).into());
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col).into());
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            series.push(Series::new(PlSmallStr::from_static("strike"), col).into());
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            series.push(Series::new(PlSmallStr::from_static("right"), col).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -2967,6 +6831,146 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksThir
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeGreeksThirdOrderTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.sequence); }
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition1); }
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition2); }
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition3); }
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition4); }
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition); }
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.size); }
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.exchange); }
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.price); }
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("speed") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.speed); }
+            fields.push(Field::new("speed", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("zomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.zomma); }
+            fields.push(Field::new("zomma", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("color") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.color); }
+            fields.push(Field::new("color", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ultima") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ultima); }
+            fields.push(Field::new("ultima", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            fields.push(Field::new("implied_volatility", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            fields.push(Field::new("iv_error", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            fields.push(Field::new("underlying_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            fields.push(Field::new("underlying_price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -3045,6 +7049,123 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksThi
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `TradeGreeksThirdOrderTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col).into());
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.sequence); }
+            series.push(Series::new(PlSmallStr::from_static("sequence"), col).into());
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition1); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition1"), col).into());
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition2); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition2"), col).into());
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition3); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition3"), col).into());
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition4); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition4"), col).into());
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition); }
+            series.push(Series::new(PlSmallStr::from_static("condition"), col).into());
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.size); }
+            series.push(Series::new(PlSmallStr::from_static("size"), col).into());
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.exchange); }
+            series.push(Series::new(PlSmallStr::from_static("exchange"), col).into());
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.price); }
+            series.push(Series::new(PlSmallStr::from_static("price"), col).into());
+        }
+        if present.contains("speed") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.speed); }
+            series.push(Series::new(PlSmallStr::from_static("speed"), col).into());
+        }
+        if present.contains("zomma") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.zomma); }
+            series.push(Series::new(PlSmallStr::from_static("zomma"), col).into());
+        }
+        if present.contains("color") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.color); }
+            series.push(Series::new(PlSmallStr::from_static("color"), col).into());
+        }
+        if present.contains("ultima") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ultima); }
+            series.push(Series::new(PlSmallStr::from_static("ultima"), col).into());
+        }
+        if present.contains("implied_volatility") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.implied_volatility); }
+            series.push(Series::new(PlSmallStr::from_static("implied_volatility"), col).into());
+        }
+        if present.contains("iv_error") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.iv_error); }
+            series.push(Series::new(PlSmallStr::from_static("iv_error"), col).into());
+        }
+        if present.contains("underlying_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_ms_of_day"), col).into());
+        }
+        if present.contains("underlying_price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.underlying_price); }
+            series.push(Series::new(PlSmallStr::from_static("underlying_price"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col).into());
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            series.push(Series::new(PlSmallStr::from_static("strike"), col).into());
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            series.push(Series::new(PlSmallStr::from_static("right"), col).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 
@@ -3170,6 +7291,176 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeQuoteTick]
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeQuoteTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.sequence); }
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition1); }
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition2); }
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition3); }
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition4); }
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition); }
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.size); }
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.exchange); }
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.price); }
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition_flags") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition_flags); }
+            fields.push(Field::new("condition_flags", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price_flags") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.price_flags); }
+            fields.push(Field::new("price_flags", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("volume_type") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.volume_type); }
+            fields.push(Field::new("volume_type", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("records_back") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.records_back); }
+            fields.push(Field::new("records_back", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("quote_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.quote_ms_of_day); }
+            fields.push(Field::new("quote_ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_size); }
+            fields.push(Field::new("bid_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_exchange); }
+            fields.push(Field::new("bid_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid); }
+            fields.push(Field::new("bid", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("bid_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_condition); }
+            fields.push(Field::new("bid_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_size); }
+            fields.push(Field::new("ask_size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_exchange); }
+            fields.push(Field::new("ask_exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask); }
+            fields.push(Field::new("ask", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ask_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_condition); }
+            fields.push(Field::new("ask_condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -3264,6 +7555,148 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeQuoteTick
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
     }
+
+    /// Builds a Polars `DataFrame` from a slice of `TradeQuoteTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col).into());
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.sequence); }
+            series.push(Series::new(PlSmallStr::from_static("sequence"), col).into());
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition1); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition1"), col).into());
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition2); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition2"), col).into());
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition3); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition3"), col).into());
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition4); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition4"), col).into());
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition); }
+            series.push(Series::new(PlSmallStr::from_static("condition"), col).into());
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.size); }
+            series.push(Series::new(PlSmallStr::from_static("size"), col).into());
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.exchange); }
+            series.push(Series::new(PlSmallStr::from_static("exchange"), col).into());
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.price); }
+            series.push(Series::new(PlSmallStr::from_static("price"), col).into());
+        }
+        if present.contains("condition_flags") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition_flags); }
+            series.push(Series::new(PlSmallStr::from_static("condition_flags"), col).into());
+        }
+        if present.contains("price_flags") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.price_flags); }
+            series.push(Series::new(PlSmallStr::from_static("price_flags"), col).into());
+        }
+        if present.contains("volume_type") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.volume_type); }
+            series.push(Series::new(PlSmallStr::from_static("volume_type"), col).into());
+        }
+        if present.contains("records_back") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.records_back); }
+            series.push(Series::new(PlSmallStr::from_static("records_back"), col).into());
+        }
+        if present.contains("quote_ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.quote_ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("quote_ms_of_day"), col).into());
+        }
+        if present.contains("bid_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_size); }
+            series.push(Series::new(PlSmallStr::from_static("bid_size"), col).into());
+        }
+        if present.contains("bid_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_exchange); }
+            series.push(Series::new(PlSmallStr::from_static("bid_exchange"), col).into());
+        }
+        if present.contains("bid") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid); }
+            series.push(Series::new(PlSmallStr::from_static("bid"), col).into());
+        }
+        if present.contains("bid_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.bid_condition); }
+            series.push(Series::new(PlSmallStr::from_static("bid_condition"), col).into());
+        }
+        if present.contains("ask_size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_size); }
+            series.push(Series::new(PlSmallStr::from_static("ask_size"), col).into());
+        }
+        if present.contains("ask_exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_exchange); }
+            series.push(Series::new(PlSmallStr::from_static("ask_exchange"), col).into());
+        }
+        if present.contains("ask") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask); }
+            series.push(Series::new(PlSmallStr::from_static("ask"), col).into());
+        }
+        if present.contains("ask_condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ask_condition); }
+            series.push(Series::new(PlSmallStr::from_static("ask_condition"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col).into());
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            series.push(Series::new(PlSmallStr::from_static("strike"), col).into());
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            series.push(Series::new(PlSmallStr::from_static("right"), col).into());
+        }
+        DataFrame::new(n, series)
+    }
 }
 
 #[cfg(feature = "arrow")]
@@ -3352,6 +7785,122 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeTick] {
         ];
         RecordBatch::try_new(schema, columns)
     }
+
+    /// Builds an Arrow `RecordBatch` from a slice of `TradeTick`, one column per public field present on the wire.
+    fn to_arrow_projected(&self, present: &crate::columns::ColumnPresence) -> ::core::result::Result<RecordBatch, arrow_schema::ArrowError> {
+        let n = self.len();
+        let mut fields: Vec<Field> = Vec::new();
+        let mut columns: Vec<ArrayRef> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            fields.push(Field::new("ms_of_day", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.sequence); }
+            fields.push(Field::new("sequence", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition1); }
+            fields.push(Field::new("ext_condition1", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition2); }
+            fields.push(Field::new("ext_condition2", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition3); }
+            fields.push(Field::new("ext_condition3", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition4); }
+            fields.push(Field::new("ext_condition4", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition); }
+            fields.push(Field::new("condition", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.size); }
+            fields.push(Field::new("size", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.exchange); }
+            fields.push(Field::new("exchange", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.price); }
+            fields.push(Field::new("price", DataType::Float64, false));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("condition_flags") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition_flags); }
+            fields.push(Field::new("condition_flags", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("price_flags") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.price_flags); }
+            fields.push(Field::new("price_flags", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("volume_type") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.volume_type); }
+            fields.push(Field::new("volume_type", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("records_back") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.records_back); }
+            fields.push(Field::new("records_back", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            fields.push(Field::new("date", DataType::Int32, false));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            fields.push(Field::new("expiration", DataType::Int32, true));
+            columns.push(Arc::new(Int32Array::from(col)) as ArrayRef);
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            fields.push(Field::new("strike", DataType::Float64, true));
+            columns.push(Arc::new(Float64Array::from(col)) as ArrayRef);
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            fields.push(Field::new("right", DataType::Utf8, true));
+            columns.push(Arc::new(StringArray::from(col)) as ArrayRef);
+        }
+        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+    }
 }
 
 #[cfg(feature = "polars")]
@@ -3418,6 +7967,103 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeTick] {
             Series::new(PlSmallStr::from_static("strike"), col_strike).into(),
             Series::new(PlSmallStr::from_static("right"), col_right).into(),
         ])
+    }
+
+    /// Builds a Polars `DataFrame` from a slice of `TradeTick`, one column per public field present on the wire.
+    fn to_polars_projected(&self, present: &crate::columns::ColumnPresence) -> PolarsResult<DataFrame> {
+        let n = self.len();
+        let mut series: Vec<polars::prelude::Column> = Vec::new();
+        if present.contains("ms_of_day") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ms_of_day); }
+            series.push(Series::new(PlSmallStr::from_static("ms_of_day"), col).into());
+        }
+        if present.contains("sequence") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.sequence); }
+            series.push(Series::new(PlSmallStr::from_static("sequence"), col).into());
+        }
+        if present.contains("ext_condition1") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition1); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition1"), col).into());
+        }
+        if present.contains("ext_condition2") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition2); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition2"), col).into());
+        }
+        if present.contains("ext_condition3") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition3); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition3"), col).into());
+        }
+        if present.contains("ext_condition4") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.ext_condition4); }
+            series.push(Series::new(PlSmallStr::from_static("ext_condition4"), col).into());
+        }
+        if present.contains("condition") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition); }
+            series.push(Series::new(PlSmallStr::from_static("condition"), col).into());
+        }
+        if present.contains("size") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.size); }
+            series.push(Series::new(PlSmallStr::from_static("size"), col).into());
+        }
+        if present.contains("exchange") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.exchange); }
+            series.push(Series::new(PlSmallStr::from_static("exchange"), col).into());
+        }
+        if present.contains("price") {
+            let mut col: Vec<f64> = Vec::with_capacity(n);
+            for t in self { col.push(t.price); }
+            series.push(Series::new(PlSmallStr::from_static("price"), col).into());
+        }
+        if present.contains("condition_flags") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.condition_flags); }
+            series.push(Series::new(PlSmallStr::from_static("condition_flags"), col).into());
+        }
+        if present.contains("price_flags") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.price_flags); }
+            series.push(Series::new(PlSmallStr::from_static("price_flags"), col).into());
+        }
+        if present.contains("volume_type") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.volume_type); }
+            series.push(Series::new(PlSmallStr::from_static("volume_type"), col).into());
+        }
+        if present.contains("records_back") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.records_back); }
+            series.push(Series::new(PlSmallStr::from_static("records_back"), col).into());
+        }
+        if present.contains("date") {
+            let mut col: Vec<i32> = Vec::with_capacity(n);
+            for t in self { col.push(t.date); }
+            series.push(Series::new(PlSmallStr::from_static("date"), col).into());
+        }
+        if present.contains("expiration") {
+            let mut col: Vec<Option<i32>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.expiration)); }
+            series.push(Series::new(PlSmallStr::from_static("expiration"), col).into());
+        }
+        if present.contains("strike") {
+            let mut col: Vec<Option<f64>> = Vec::with_capacity(n);
+            for t in self { col.push(t.has_contract_id().then_some(t.strike)); }
+            series.push(Series::new(PlSmallStr::from_static("strike"), col).into());
+        }
+        if present.contains("right") {
+            let mut col: Vec<Option<String>> = Vec::with_capacity(n);
+            for t in self { col.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
+            series.push(Series::new(PlSmallStr::from_static("right"), col).into());
+        }
+        DataFrame::new(n, series)
     }
 }
 

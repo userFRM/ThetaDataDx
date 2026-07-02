@@ -31,11 +31,35 @@ pub trait TicksPolarsExt {
     /// and the Python `.to_polars()` terminal on the matching
     /// `<TickName>List` wrapper.
     ///
+    /// Emits the full schema — every column the tick type defines. This is
+    /// the hand-built-slice path: a slice a caller assembled itself never
+    /// touched the wire, so every column is "present". For a slice decoded
+    /// from a gRPC response, project to the wire's exact columns with
+    /// [`Self::to_polars_projected`].
+    ///
     /// # Errors
     ///
     /// Returns a [`polars::prelude::PolarsError`] when polars rejects the
     /// assembled columns (e.g. a length mismatch while building the frame).
     fn to_polars(&self) -> polars::prelude::PolarsResult<polars::prelude::DataFrame>;
+
+    /// Materialise `self` as a polars `DataFrame` carrying only the columns
+    /// present on the decoded response's wire (`present`), in schema order.
+    ///
+    /// Terminal-exact: a `stock_history_trade` response omits the
+    /// contract-identity trio and the four trade-flag columns, so the frame
+    /// omits them too — no always-null / always-zero superset columns.
+    /// `present` comes from
+    /// [`crate::columns::WireColumns::present_columns`] at the decode seam.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`polars::prelude::PolarsError`] when polars rejects the
+    /// assembled columns.
+    fn to_polars_projected(
+        &self,
+        present: &crate::columns::ColumnPresence,
+    ) -> polars::prelude::PolarsResult<polars::prelude::DataFrame>;
 }
 
 /// Convert a slice of tick rows into an [`arrow_array::RecordBatch`].
@@ -50,12 +74,37 @@ pub trait TicksArrowExt {
     /// names, and dtypes match the schema emitted by the Python
     /// slice_arrow path in `thetadatadx-py/src/tick_arrow.rs`.
     ///
+    /// Emits the full schema — every column the tick type defines. This is
+    /// the hand-built-slice path: a slice a caller assembled itself never
+    /// touched the wire, so every column is "present". For a slice decoded
+    /// from a gRPC response, project to the wire's exact columns with
+    /// [`Self::to_arrow_projected`].
+    ///
     /// # Errors
     ///
     /// Returns an [`arrow_schema::ArrowError`] when the column arrays
     /// cannot be assembled into a `RecordBatch` against the schema.
     fn to_arrow(
         &self,
+    ) -> ::core::result::Result<arrow_array::RecordBatch, arrow_schema::ArrowError>;
+
+    /// Materialise `self` as an Arrow `RecordBatch` carrying only the
+    /// columns present on the decoded response's wire (`present`), in
+    /// schema order.
+    ///
+    /// Terminal-exact: an equity/index response omits the contract-identity
+    /// trio, and no gRPC trade response carries the four flag columns, so
+    /// the batch omits them rather than emitting always-null / always-zero
+    /// superset columns. `present` comes from
+    /// [`crate::columns::WireColumns::present_columns`] at the decode seam.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`arrow_schema::ArrowError`] when the column arrays
+    /// cannot be assembled into a `RecordBatch` against the schema.
+    fn to_arrow_projected(
+        &self,
+        present: &crate::columns::ColumnPresence,
     ) -> ::core::result::Result<arrow_array::RecordBatch, arrow_schema::ArrowError>;
 }
 
