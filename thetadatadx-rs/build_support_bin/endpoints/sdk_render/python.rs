@@ -155,6 +155,15 @@ pub(super) fn render_python_decode_bench(endpoints: &[GeneratedEndpoint]) -> Str
             "            let columns = <tick::{row_class} as thetadatadx::WireColumns>::present_columns(&header_refs);"
         )
         .unwrap();
+        // Carry the response's constant `symbol` (root) as the leading column,
+        // matching the live collector (`mdds::macros` `collect_stream` path).
+        // Option/index endpoints send it, stock does not -- `None` leaves the
+        // column set untouched.
+        writeln!(
+            out,
+            "            let columns = match thetadatadx::decode::response_symbol(&table) {{ Some(symbol) => columns.with_symbol(symbol), None => columns }};"
+        )
+        .unwrap();
         writeln!(
             out,
             "            let ticks = thetadatadx::Ticks::new(rows, columns);"

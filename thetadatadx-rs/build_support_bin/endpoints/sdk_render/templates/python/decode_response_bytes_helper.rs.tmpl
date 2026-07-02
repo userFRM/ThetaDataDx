@@ -31,6 +31,15 @@ fn decode_chunks_into_table(
         })?;
         if headers.is_empty() {
             headers = table.headers;
+        } else if !table.headers.is_empty() && table.headers != headers {
+            // Same mid-stream invariant the live `collect_stream` enforces: a
+            // chunk that re-declares headers must match the first chunk's, else
+            // the concatenated rows would be projected against the wrong columns.
+            return Err(pyo3::exceptions::PyRuntimeError::new_err(format!(
+                "decode_response_bytes: chunk {idx} header drift: first [{first}] != chunk [{chunk}]",
+                first = headers.join(","),
+                chunk = table.headers.join(","),
+            )));
         }
         rows.extend(table.data_table);
     }

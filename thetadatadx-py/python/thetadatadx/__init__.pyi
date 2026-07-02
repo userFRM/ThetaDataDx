@@ -5640,12 +5640,14 @@ class AsyncClient:
         """Return a representation including historical and streaming state."""
         ...
 
-    def close(self) -> None:
+    async def close(self) -> None:
         """Deterministically close the async client.
 
         Stops streaming if live, drains the consumer, and releases the
-        callback. Prefer ``async with await AsyncClient.connect(...) as c:``
-        so this runs on scope exit.
+        callback. Awaitable: the blocking stop and drain run on a worker
+        thread, never on the event loop. Prefer
+        ``async with await AsyncClient.connect(...) as c:`` so this runs on
+        scope exit.
         """
         ...
 

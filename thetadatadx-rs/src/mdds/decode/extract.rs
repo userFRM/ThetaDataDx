@@ -223,7 +223,7 @@ pub fn extract_price_column(
 /// `expiration`/`strike`/`right` vary), so one read broadcasts to every row;
 /// an empty string stands in for a header-present-but-rowless response so the
 /// column set stays keyed on the header, matching the per-column projection.
-pub(crate) fn response_symbol(table: &proto::DataTable) -> Option<Box<str>> {
+pub fn response_symbol(table: &proto::DataTable) -> Option<Box<str>> {
     let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
     let col_idx = find_header(&header_refs, "root")?;
     let value = table
