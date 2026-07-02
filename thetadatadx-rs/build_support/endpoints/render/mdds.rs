@@ -302,10 +302,16 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
         writeln!(out, "        validate_date_required(&{arg})?;").unwrap();
     }
     let endpoint_name_literal = format!("{:?}", endpoint.name);
-    // Outer deadline + retry shell. The deadline wraps the entire
-    // retry loop so the caller's budget covers all attempts; an
-    // individual attempt does not get its own copy of the deadline
-    // because callers reason about end-to-end latency, not per-try.
+    // Resolve the effective deadline once, exactly like the
+    // `parsed_endpoint!` stream arm: an unset deadline falls back to the
+    // configured `request_timeout_secs` so a silent-but-live server
+    // cannot hang the request (and starve the request-semaphore) forever;
+    // an explicit `Duration::ZERO` is the opt-out. The deadline then wraps
+    // the whole retry loop so the caller's budget covers every attempt.
+    out.push_str("        let deadline = crate::mdds::macros::effective_deadline(\n");
+    out.push_str("            deadline,\n");
+    out.push_str("            client.config().historical.request_timeout_secs,\n");
+    out.push_str("        );\n");
     writeln!(
         out,
         "        crate::mdds::macros::run_with_optional_deadline(deadline, async move {{"
@@ -327,48 +333,81 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
         "                .map_err(|_| Error::config_internal(\"request semaphore closed\"))?;\n",
     );
     out.push_str("            let policy = client.config().retry;\n");
-    out.push_str("            let budget = policy.max_attempts.max(1);\n");
-    out.push_str("            let mut refreshed_already = false;\n");
-    out.push_str("            let mut last_err: Option<Error> = None;\n");
-    out.push_str("            for attempt in 1..=budget {\n");
-    out.push_str("                let snap = client.session().snapshot().await;\n");
-    out.push_str("                let qi = client.build_query_info(snap.uuid.clone());\n");
-    // Per-attempt request: pin to this attempt's session UUID so a
-    // concurrent refresh doesn't mix new and old UUIDs on the same
-    // call.
+    // Wrap the `FnMut + Send` handler in a `Mutex` so the per-attempt
+    // closure passed to `run_streaming_retry_loop` gets a fresh mutable
+    // borrow on each invocation (the closure may run twice on a
+    // post-refresh restart) and the returned future stays Send.
+    out.push_str("            let handler_mutex = std::sync::Mutex::new(handler);\n");
+    out.push_str("            let handler_mutex = &handler_mutex;\n");
+    out.push_str("            crate::mdds::macros::run_streaming_retry_loop(\n");
+    out.push_str("                client.session(),\n");
+    out.push_str("                &policy,\n");
+    writeln!(out, "                {endpoint_name_literal},").unwrap();
+    out.push_str("                move |snap| {\n");
+    // Clone per-attempt: the FnMut closure may fire twice (post-refresh
+    // restart) and the `async move` block would otherwise move each
+    // captured binding into the first attempt's future, so non-Copy
+    // params clone fresh each iteration. Copy scalars (`Option<i32>` etc.)
+    // are copied into the future automatically and need no rebind.
+    for arg in method_params
+        .iter()
+        .map(|param| direct_method_arg_name(param))
+    {
+        writeln!(out, "                    let {arg} = {arg}.clone();").unwrap();
+    }
+    for param in &optional_params {
+        if matches!(
+            direct_optional_rust_type(param),
+            "Option<i32>" | "Option<f64>" | "Option<bool>"
+        ) {
+            continue;
+        }
+        writeln!(
+            out,
+            "                    let {0} = {0}.clone();",
+            param.name
+        )
+        .unwrap();
+    }
+    out.push_str("                    async move {\n");
+    out.push_str("                        let qi = client.build_query_info(snap.uuid.clone());\n");
     writeln!(
         out,
-        "                let request = proto::{} {{",
+        "                        let request = proto::{} {{",
         endpoint.request_type
     )
     .unwrap();
-    out.push_str("                    query_info: Some(qi),\n");
+    out.push_str("                            query_info: Some(qi),\n");
     if endpoint.fields.is_empty() {
         writeln!(
             out,
-            "                    params: Some(proto::{} {{}}),",
+            "                            params: Some(proto::{} {{}}),",
             endpoint.query_type
         )
         .unwrap();
     } else {
         writeln!(
             out,
-            "                    params: Some(proto::{} {{",
+            "                            params: Some(proto::{} {{",
             endpoint.query_type
         )
         .unwrap();
         for field in &endpoint.fields {
             let expr = mdds_query_field_expr(endpoint, field, false);
             if expr == field.name {
-                writeln!(out, "                        {expr},").unwrap();
+                writeln!(out, "                                {expr},").unwrap();
             } else {
-                writeln!(out, "                        {}: {expr},", field.name).unwrap();
+                writeln!(
+                    out,
+                    "                                {}: {expr},",
+                    field.name
+                )
+                .unwrap();
             }
         }
-        out.push_str("                    }),\n");
+        out.push_str("                            }),\n");
     }
-    out.push_str("                };\n");
-    out.push_str("                let attempt_result: Result<(), Error> = async {\n");
+    out.push_str("                        };\n");
     out.push_str(
         &include_str!("templates/mdds/stub_call_error_arm.rs.tmpl")
             .replace("__GRPC_NAME__", &endpoint.grpc_name)
@@ -378,61 +417,16 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
         &include_str!("templates/mdds/for_each_chunk_body.rs.tmpl")
             .replace("__PARSER_NAME__", &parser_name),
     );
-    out.push_str("                }.await;\n");
-    out.push_str("                match crate::mdds::macros::classify_streaming_attempt(\n");
-    out.push_str("                    client.session(),\n");
-    out.push_str("                    &snap,\n");
-    out.push_str("                    &mut refreshed_already,\n");
-    writeln!(out, "                    {endpoint_name_literal},").unwrap();
-    out.push_str("                    attempt_result,\n");
-    out.push_str("                ).await {\n");
-    out.push_str("                    crate::mdds::macros::StreamingAttemptOutcome::Done => {\n");
+    out.push_str("                    }\n");
+    out.push_str("                },\n");
+    out.push_str("            ).await?;\n");
     writeln!(
         out,
-        "                        metrics::histogram!(\"thetadatadx.grpc.latency_ms\", \"endpoint\" => {endpoint_name_literal})"
+        "            metrics::histogram!(\"thetadatadx.grpc.latency_ms\", \"endpoint\" => {endpoint_name_literal})"
     )
     .unwrap();
-    out.push_str(
-        "                            .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);\n",
-    );
-    out.push_str("                        return Ok::<(), Error>(());\n");
-    out.push_str("                    }\n");
-    out.push_str(
-        "                    crate::mdds::macros::StreamingAttemptOutcome::Terminal(err) => {\n",
-    );
-    out.push_str("                        return Err::<(), Error>(err);\n");
-    out.push_str("                    }\n");
-    out.push_str(
-        "                    crate::mdds::macros::StreamingAttemptOutcome::Refresh(err) => {\n",
-    );
-    // Refresh path: no backoff sleep, restart immediately on the
-    // fresh session UUID picked up at the top of the loop.
-    writeln!(
-        out,
-        "                        tracing::warn!(endpoint = {endpoint_name_literal}, attempt, error = %err, \"session refresh during stream — restarting from chunk zero\");"
-    )
-    .unwrap();
-    out.push_str("                        last_err = Some(err);\n");
-    out.push_str("                    }\n");
-    out.push_str(
-        "                    crate::mdds::macros::StreamingAttemptOutcome::Backoff(err) => {\n",
-    );
-    out.push_str("                        if attempt == budget {\n");
-    out.push_str("                            last_err = Some(err);\n");
-    out.push_str("                            break;\n");
-    out.push_str("                        }\n");
-    writeln!(
-        out,
-        "                        crate::mdds::macros::sleep_for_retry(&policy, attempt, {endpoint_name_literal}, &err).await;"
-    )
-    .unwrap();
-    out.push_str("                        last_err = Some(err);\n");
-    out.push_str("                    }\n");
-    out.push_str("                }\n");
-    out.push_str("            }\n");
-    out.push_str(
-        "            Err::<(), Error>(last_err.unwrap_or_else(|| Error::config_internal(\"streaming retry loop exited without result\")))\n",
-    );
+    out.push_str("                .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);\n");
+    out.push_str("            Ok::<(), Error>(())\n");
     out.push_str("        }).await\n");
     out.push_str(include_str!("templates/mdds/metrics_result_block.rs.tmpl"));
 

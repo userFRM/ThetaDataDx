@@ -15,7 +15,15 @@
                             data_table: rows.to_vec(),
                         };
                         match __PARSER_NAME__(&table) {
-                            Ok(ticks) => handler(&ticks),
+                            Ok(ticks) => {
+                                // Single call chain at a time in practice;
+                                // a poisoned lock only surfaces if
+                                // `for_each_chunk` panicked mid-callback,
+                                // already a hard error path.
+                                if let Ok(mut h) = handler_mutex.lock() {
+                                    (*h)(&ticks);
+                                }
+                            }
                             Err(e) => decode_error = Some(Error::from(e)),
                         }
                     }).await;

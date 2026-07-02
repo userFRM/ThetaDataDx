@@ -430,6 +430,36 @@ async fn list_endpoint_with_deadline_overload_bounds_the_call() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn stream_endpoint_unset_deadline_applies_configured_default() {
+    // The four generated `*_stream` builders must route an unset deadline
+    // through `effective_deadline`, exactly like the parsed builders: with
+    // no explicit `with_deadline`, the configured `request_timeout_secs`
+    // (1s here) must bound the call so a live-but-silent server cannot hang
+    // it forever and starve the request-semaphore. The mock holds the
+    // response 5s.
+    let (_mock, client) = client_for_delayed_mock(
+        mock::make_response_data(&["AAPL"]),
+        Duration::from_secs(5),
+        1,
+    )
+    .await;
+
+    let result = client
+        .stock_history_trade_stream("AAPL", "20240102")
+        .stream(|_ticks| {})
+        .await;
+    match result {
+        Err(Error::Timeout { duration_ms }) => {
+            assert!(
+                duration_ms <= 1_000,
+                "unset-deadline stream applied the wrong default bound; got {duration_ms}ms"
+            );
+        }
+        other => panic!("expected Error::Timeout from the configured default, got {other:?}"),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn list_endpoint_completes_within_deadline() {
     // A prompt response well inside the deadline returns `Ok`, proving the
     // deadline wrapper is transparent on the success path (the in-flight
