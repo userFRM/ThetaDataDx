@@ -245,7 +245,9 @@ impl DirectConfig {
         // set (an unrecognized `THETADATA_HISTORICAL_TYPE` / `THETADATA_STREAMING_TYPE`,
         // including a cross-channel value such as `DEV` on the historical
         // channel, or an override that pushes a knob out of validated bounds).
-        Self::try_production().expect("production defaults with env overrides are within bounds")
+        Self::try_production().unwrap_or_else(|e| {
+            panic!("production defaults with env overrides are within bounds: {e}")
+        })
     }
 
     /// Fallible sibling of [`production`](Self::production): the production
@@ -983,16 +985,17 @@ impl DirectConfig {
         }
         // Inbound gRPC message size is a pre-allocated decode budget: a `0`
         // rejects every response and an absurd value commits the channel to a
-        // buffer far beyond any legitimate chunk. Range-checked to the same
-        // `[1 B, 64 MiB]` ceiling the `[grpc] max_message_size_mb` spelling
-        // enforces, so the two spellings agree.
-        const MAX_MESSAGE_SIZE_BYTES: usize = 64 * 1024 * 1024;
-        if !(1..=MAX_MESSAGE_SIZE_BYTES).contains(&self.historical.max_message_size) {
+        // buffer far beyond any legitimate chunk. Range-checked against the
+        // same ceiling the `[grpc] max_message_size_mb` spelling enforces (the
+        // shared `HistoricalConfig::MAX_MESSAGE_SIZE_MB`, in bytes), so the two
+        // spellings cannot drift.
+        let max_message_size_bytes = HistoricalConfig::MAX_MESSAGE_SIZE_MB * 1024 * 1024;
+        if !(1..=max_message_size_bytes).contains(&self.historical.max_message_size) {
             return Err(Error::config_out_of_range(
                 "historical.max_message_size",
                 i64::try_from(self.historical.max_message_size).unwrap_or(i64::MAX),
                 1,
-                to_i64(MAX_MESSAGE_SIZE_BYTES as u64),
+                to_i64(max_message_size_bytes as u64),
             ));
         }
         // NOTE: a `0` historical `request_timeout_secs` is NOT floored here.
@@ -1088,7 +1091,8 @@ impl DirectConfig {
 #[cfg(feature = "config-file")]
 mod config_file {
     use super::{
-        DirectConfig, ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, StreamingFlushMode,
+        DirectConfig, HistoricalConfig, ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy,
+        StreamingFlushMode,
     };
     use crate::error::Error;
     use serde::Deserialize;
@@ -1203,21 +1207,6 @@ mod config_file {
         /// override to the same number as the default is still honoured as
         /// an explicit choice rather than read as unset.
         max_message_size_mb: Option<usize>,
-    }
-
-    impl GrpcSection {
-        /// Upper ceiling for `[grpc] max_message_size_mb`, in megabytes.
-        ///
-        /// The inbound message size is a pre-allocated decode budget, so an
-        /// out-of-range value is a footgun in both directions: the
-        /// MB→byte conversion (`mb * 1024 * 1024`) overflows `usize` for
-        /// absurd inputs, and even a value that does not overflow commits
-        /// the channel to a buffer far beyond any legitimate response. The
-        /// production default is 4 MB; 64 MB leaves generous headroom for
-        /// the largest bulk historical chunk while keeping the budget
-        /// bounded. Values above this — or a `0` that would disable the
-        /// limit entirely — are rejected by name at load time.
-        const MAX_MESSAGE_SIZE_MB: usize = 64;
     }
 
     impl Default for GrpcSection {
@@ -1364,12 +1353,13 @@ mod config_file {
                 // `checked_mul` so an absurd input is reported as a range
                 // error rather than wrapping `usize` into a tiny cap.
                 Some(mb) => {
-                    if mb == 0 || mb > GrpcSection::MAX_MESSAGE_SIZE_MB {
+                    if mb == 0 || mb > HistoricalConfig::MAX_MESSAGE_SIZE_MB {
                         return Err(Error::config_out_of_range(
                             "grpc.max_message_size_mb",
                             i64::try_from(mb).unwrap_or(i64::MAX),
                             1,
-                            i64::try_from(GrpcSection::MAX_MESSAGE_SIZE_MB).unwrap_or(i64::MAX),
+                            i64::try_from(HistoricalConfig::MAX_MESSAGE_SIZE_MB)
+                                .unwrap_or(i64::MAX),
                         ));
                     }
                     mb.checked_mul(1024 * 1024).ok_or_else(|| {
@@ -1377,7 +1367,8 @@ mod config_file {
                             "grpc.max_message_size_mb",
                             i64::try_from(mb).unwrap_or(i64::MAX),
                             1,
-                            i64::try_from(GrpcSection::MAX_MESSAGE_SIZE_MB).unwrap_or(i64::MAX),
+                            i64::try_from(HistoricalConfig::MAX_MESSAGE_SIZE_MB)
+                                .unwrap_or(i64::MAX),
                         )
                     })?
                 }

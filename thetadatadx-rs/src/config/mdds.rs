@@ -139,6 +139,20 @@ pub struct HistoricalConfig {
 }
 
 impl HistoricalConfig {
+    /// Upper ceiling for [`Self::max_message_size`], in megabytes.
+    ///
+    /// The inbound message size is a pre-allocated decode budget, so an
+    /// out-of-range value is a footgun in both directions: an absurd value
+    /// commits the channel to a buffer far beyond any legitimate response, and
+    /// the MB→byte conversion (`mb * 1024 * 1024`) overflows `usize` for the
+    /// largest inputs. The production default is 4 MB; 64 MB leaves generous
+    /// headroom for the largest bulk historical chunk while keeping the budget
+    /// bounded. This is the single source of truth both the byte-denominated
+    /// [`crate::config::DirectConfig::validate`] check and the
+    /// `[grpc] max_message_size_mb` TOML ceiling read, so the two spellings
+    /// cannot drift.
+    pub(crate) const MAX_MESSAGE_SIZE_MB: usize = 64;
+
     /// Historical hostname.
     ///
     /// Read accessor for the crate-private [`Self::host`] field. The host is
