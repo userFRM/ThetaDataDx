@@ -88,6 +88,31 @@ describe('streaming-session wrapper', () => {
     assert.match(warned[0], /5000ms/, 'warning text should include the 5000ms timeout');
   });
 
+  // A closed client throws on the `stream` getter ("client is closed"); the
+  // session's disposer and proxy traps must treat that as no streaming surface
+  // rather than letting the throw escape (issue #1089 MEDIUM).
+  function closedClient() {
+    return {
+      get stream() { throw new Error('client is closed'); },
+      someOwnMethod() { return 'ok'; },
+    };
+  }
+
+  it('Symbol.asyncDispose is a no-op on a closed client', async () => {
+    const session = new mod.StreamingSession(closedClient());
+    await assert.doesNotReject(() => session[Symbol.asyncDispose]());
+  });
+
+  it('proxy traps do not throw when the client is closed', () => {
+    const session = new mod.StreamingSession(closedClient());
+    // `has` trap: `in` must not throw and still resolves client-own members.
+    assert.equal('someOwnMethod' in session, true);
+    assert.equal('nonexistent' in session, false);
+    // `get` trap: reading a client-own method must not throw and must forward.
+    assert.equal(typeof session.someOwnMethod, 'function');
+    assert.equal(session.someOwnMethod(), 'ok');
+  });
+
   it('Proxy forwards arbitrary method calls to the underlying client', () => {
     // Method that does NOT exist on StreamingSession itself but should
     // proxy through to the client. This is the SSOT property: adding a new

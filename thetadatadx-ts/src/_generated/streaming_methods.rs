@@ -49,6 +49,16 @@ impl StreamView {
             }
             *cb_guard = Some(Arc::clone(&callback_arc));
         }
+        // Own the reservation until the handshake succeeds. On any non-success
+        // exit -- the panic branch or the handshake `Err` below -- the guard
+        // clears the slot, but ONLY if it still holds THIS reservation
+        // (`Arc::ptr_eq`). The lock is released across the awaited connect, so a
+        // concurrent stop + restart may have replaced the slot with a newer
+        // callback that must keep its registration; clearing unconditionally
+        // would strand that live session with no registration. Disarmed on
+        // success.
+        let mut reservation =
+            crate::fpss_client::CallbackReservation::armed(&self.callback, &callback_arc);
         let dispatch_cb = Arc::clone(&callback_arc);
 
         // Teardown wake hook. The dispatcher does NOT park only on the
@@ -110,13 +120,9 @@ impl StreamView {
         let result = match join_result {
             Ok(result) => result,
             Err(e) => {
-                // The connect task itself panicked. Release the slot we
-                // reserved above, mirroring the handshake-failure path, so
-                // the handle returns to a usable state and a later
-                // `startStreaming` retry sees a clean registration instead
-                // of a stuck "streaming already started".
-                let mut cb_guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
-                *cb_guard = None;
+                // The connect task itself panicked. The `reservation` clears
+                // the slot on drop, but only when this start still owns it, so
+                // a concurrent stop + restart's newer registration survives.
                 return Err(napi::Error::from_reason(format!(
                     "start_streaming task panicked: {e}"
                 )));
@@ -124,12 +130,13 @@ impl StreamView {
         };
 
         if let Err(e) = result {
-            // The handshake failed -- release the slot we reserved above so
-            // a later `startStreaming` retry sees a clean registration.
-            let mut cb_guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
-            *cb_guard = None;
+            // The handshake failed -- the `reservation` clears the slot on
+            // drop, but only when this start still owns it.
             return Err(to_napi_err(e));
         }
+        // Connect succeeded: hand the reservation off to the live session so
+        // the guard does not clear it on return.
+        reservation.disarm();
         Ok(())
     }
 

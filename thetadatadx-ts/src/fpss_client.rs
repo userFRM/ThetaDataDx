@@ -403,6 +403,57 @@ impl Drop for StreamingClient {
     }
 }
 
+/// Clears a freshly reserved `startStreaming` callback slot on any non-success
+/// exit -- the `?` error return AND a panic between reserving the slot and
+/// completing the connect.
+///
+/// The generated `StreamView::startStreaming` reserves the slot before its
+/// lock-released blocking connect (holding a `MutexGuard` across the `.await`
+/// is not allowed) and must not clear it unconditionally afterward: a
+/// concurrent `stopStreaming` + restart may have replaced the reservation with
+/// a newer callback that must keep its registration, and clearing
+/// unconditionally would strand a live session with no registration.
+/// `Arc::ptr_eq` gives each start a unique identity, so this clears ONLY when
+/// the slot still holds this reservation. Disarmed by [`Self::disarm`] once the
+/// connect succeeds. Mirrors the Python binding's `CallbackReservation`.
+pub(crate) struct CallbackReservation<'a> {
+    slot: &'a Mutex<Option<Arc<TsfnCallback>>>,
+    reserved: &'a Arc<TsfnCallback>,
+    armed: bool,
+}
+
+impl<'a> CallbackReservation<'a> {
+    pub(crate) fn armed(
+        slot: &'a Mutex<Option<Arc<TsfnCallback>>>,
+        reserved: &'a Arc<TsfnCallback>,
+    ) -> Self {
+        Self {
+            slot,
+            reserved,
+            armed: true,
+        }
+    }
+
+    pub(crate) fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for CallbackReservation<'_> {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        let mut slot = self.slot.lock().unwrap_or_else(|e| e.into_inner());
+        if slot
+            .as_ref()
+            .is_some_and(|cb| Arc::ptr_eq(cb, self.reserved))
+        {
+            *slot = None;
+        }
+    }
+}
+
 impl StreamingClient {
     fn lock_inner(&self) -> MutexGuard<'_, Option<Arc<RustStreamingClient>>> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
@@ -414,6 +465,19 @@ impl StreamingClient {
 
     fn lock_dispatcher(&self) -> MutexGuard<'_, DispatcherSession> {
         self.dispatcher.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Clear the reserved callback slot only when it still holds THIS start's
+    /// callback. `start_with_callback` reserves the slot before the
+    /// lock-released blocking connect, so a concurrent `stopStreaming` +
+    /// newer `startStreaming` may have replaced the reservation across the
+    /// `.await`; `Arc::ptr_eq` identity keeps a superseded start from wiping
+    /// the newer registration on its own failure path.
+    fn clear_callback_if_owner(&self, owner: &Arc<TsfnCallback>) {
+        let mut cb = self.lock_callback();
+        if cb.as_ref().is_some_and(|c| Arc::ptr_eq(c, owner)) {
+            *cb = None;
+        }
     }
 
     /// Run a closure with a borrow of the live streaming client, rejecting with
@@ -468,8 +532,10 @@ impl StreamingClient {
                 // reserved above, mirroring the handshake-failure path
                 // below, so the handle returns to a usable state and a
                 // later startStreaming retry sees a clean registration
-                // instead of a stuck "streaming already started".
-                *self.lock_callback() = None;
+                // instead of a stuck "streaming already started". Clear
+                // ONLY when this start still owns the slot: a concurrent
+                // stop + newer start may already hold it.
+                self.clear_callback_if_owner(&callback);
                 return Err(napi::Error::from_reason(format!(
                     "start_streaming task panicked: {e}"
                 )));
@@ -479,15 +545,18 @@ impl StreamingClient {
             Ok(client) => client,
             Err(e) => {
                 // Release the slot reserved above so a later retry sees a
-                // clean registration.
-                *self.lock_callback() = None;
+                // clean registration. Clear ONLY when this start still owns
+                // the slot -- a concurrent stop + newer start may already
+                // hold it.
+                self.clear_callback_if_owner(&callback);
                 return Err(to_napi_err(thetadatadx::Error::from(e)));
             }
         };
         let client_arc = Arc::new(client);
 
-        // Teardown wake hook, built BEFORE the `drop(callback)` below
-        // from a shared-handle clone of the registered function. It aborts the
+        // Teardown wake hook, built from a shared-handle clone of the
+        // registered function (installing it consumes nothing the
+        // dispatcher needs). It aborts the
         // `ThreadsafeFunction` at teardown so a dispatcher blocked in a full
         // bounded callback queue's `Blocking` `call` returns `Status::Closing`,
         // resumes, observes the client shutdown, and lets the join complete
@@ -496,15 +565,30 @@ impl StreamingClient {
         // to drain the queue.
         let on_teardown: Box<dyn FnOnce() + Send> = abort_hook(&callback);
 
-        // Publish the client BEFORE spawning the dispatcher so the first
-        // delivered event sees a fully initialised handle. The callback
-        // slot was already reserved above, so a re-entrant call from inside
-        // the user callback to `subscribe()` / `isStreaming()` observes a
-        // populated registration. `drop(callback)` releases this scope's
-        // last owning handle; the reserved slot, `dispatch_cb`, and the
-        // hook's shared-handle clone keep the function alive.
+        // Publish the client and dispatcher under the callback lock held
+        // across the whole transition so a concurrent `stopStreaming` + newer
+        // `startStreaming` cannot interleave. There is no shared core lock, so
+        // two starts can both reach here; a superseded start (the slot now
+        // holds a different callback `Arc`) must NOT publish its client over
+        // the live session -- doing so would leak a live TLS session and a
+        // detached dispatcher for the process lifetime. Verify ownership by
+        // `Arc::ptr_eq`; if superseded, shut the freshly built client down and
+        // return an error. Lock ordering: callback BEFORE inner BEFORE
+        // dispatcher, matching `stopStreaming`.
+        //
+        // The client is published BEFORE spawning the dispatcher so the first
+        // delivered event sees a fully initialised handle, and a re-entrant
+        // call from inside the user callback runs on this same Node thread, so
+        // it cannot execute while this critical section is held.
+        let mut cb_guard = self.lock_callback();
+        if !cb_guard.as_ref().is_some_and(|cb| Arc::ptr_eq(cb, &callback)) {
+            drop(cb_guard);
+            client_arc.shutdown();
+            return Err(napi::Error::from_reason(
+                "streaming start superseded by a concurrent startStreaming/stopStreaming",
+            ));
+        }
         *self.lock_inner() = Some(Arc::clone(&client_arc));
-        drop(callback);
 
         let dispatcher_client = Arc::clone(&client_arc);
         // Hand the dispatcher thread its own handle to the session slot so
@@ -576,7 +660,9 @@ impl StreamingClient {
                 // Install the dispatcher with the teardown wake hook built
                 // above, atomically with the `Running` transition under the
                 // dispatcher lock so a teardown racing this start never sees a
-                // `Running` session lacking its hook.
+                // `Running` session lacking its hook. Still under `cb_guard`,
+                // so the ownership verified for the inner publish above holds
+                // for the dispatcher publish too.
                 *self.lock_dispatcher() = DispatcherSession::Running {
                     handle: h,
                     on_teardown: Some(on_teardown),
@@ -585,11 +671,16 @@ impl StreamingClient {
                     // set the callback-session value for consistency.
                     registers_drain_flag: true,
                 };
+                drop(cb_guard);
                 Ok(())
             }
             Err(e) => {
+                // Spawn failed: unwind the inner publish and clear the slot.
+                // This start still owns both (the critical section never
+                // released `cb_guard`), so the clear is unconditional here.
                 let taken = self.lock_inner().take();
-                *self.lock_callback() = None;
+                *cb_guard = None;
+                drop(cb_guard);
                 if let Some(client) = taken {
                     client.shutdown();
                 }

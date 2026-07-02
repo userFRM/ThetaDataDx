@@ -3135,13 +3135,34 @@ export interface CalendarDay {
 }
 
 /**
- * Serialise a `CalendarDay` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `CalendarDay` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `calendarDayToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function calendarDayPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `CalendarDay` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `calendarDayPresentColumns` + `calendarDayToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function calendarDayToArrowIpc(rows: Array<CalendarDay>): Buffer
+
+/**
+ * Serialise a `CalendarDay` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `calendarDayPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `calendarDayToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function calendarDayToArrowIpcProjected(rows: Array<CalendarDay>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /**
  * Optional parameters for the `calendarOnDate` method. Keys are
@@ -3313,13 +3334,34 @@ export interface EodTick {
 }
 
 /**
- * Serialise a `EodTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `EodTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `eodTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function eodTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `EodTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `eodTickPresentColumns` + `eodTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function eodTickToArrowIpc(rows: Array<EodTick>): Buffer
+
+/**
+ * Serialise a `EodTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `eodTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `eodTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function eodTickToArrowIpcProjected(rows: Array<EodTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /** Full union Greeks tick -- every Greek the v3 server publishes on the */
 export interface GreeksAllTick {
@@ -3369,13 +3411,34 @@ export interface GreeksAllTick {
 }
 
 /**
- * Serialise a `GreeksAllTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `GreeksAllTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function greeksAllTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `GreeksAllTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `greeksAllTickPresentColumns` + `greeksAllTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function greeksAllTickToArrowIpc(rows: Array<GreeksAllTick>): Buffer
+
+/**
+ * Serialise a `GreeksAllTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `greeksAllTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `greeksAllTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function greeksAllTickToArrowIpcProjected(rows: Array<GreeksAllTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /** End-of-day union Greeks tick -- every Greek the v3 server publishes on */
 export interface GreeksEodTick {
@@ -3437,13 +3500,34 @@ export interface GreeksEodTick {
 }
 
 /**
- * Serialise a `GreeksEodTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `GreeksEodTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `greeksEodTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function greeksEodTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `GreeksEodTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `greeksEodTickPresentColumns` + `greeksEodTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function greeksEodTickToArrowIpc(rows: Array<GreeksEodTick>): Buffer
+
+/**
+ * Serialise a `GreeksEodTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `greeksEodTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `greeksEodTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function greeksEodTickToArrowIpcProjected(rows: Array<GreeksEodTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /** First-order Greeks tick -- the strict column subset emitted by the */
 export interface GreeksFirstOrderTick {
@@ -3479,13 +3563,34 @@ export interface GreeksFirstOrderTick {
 }
 
 /**
- * Serialise a `GreeksFirstOrderTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `GreeksFirstOrderTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function greeksFirstOrderTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `GreeksFirstOrderTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `greeksFirstOrderTickPresentColumns` + `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function greeksFirstOrderTickToArrowIpc(rows: Array<GreeksFirstOrderTick>): Buffer
+
+/**
+ * Serialise a `GreeksFirstOrderTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `greeksFirstOrderTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `greeksFirstOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function greeksFirstOrderTickToArrowIpcProjected(rows: Array<GreeksFirstOrderTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /** Second-order Greeks tick -- the strict column subset emitted by the */
 export interface GreeksSecondOrderTick {
@@ -3520,13 +3625,34 @@ export interface GreeksSecondOrderTick {
 }
 
 /**
- * Serialise a `GreeksSecondOrderTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `GreeksSecondOrderTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function greeksSecondOrderTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `GreeksSecondOrderTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `greeksSecondOrderTickPresentColumns` + `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function greeksSecondOrderTickToArrowIpc(rows: Array<GreeksSecondOrderTick>): Buffer
+
+/**
+ * Serialise a `GreeksSecondOrderTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `greeksSecondOrderTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `greeksSecondOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function greeksSecondOrderTickToArrowIpcProjected(rows: Array<GreeksSecondOrderTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /** Third-order Greeks tick -- the strict column subset emitted by the */
 export interface GreeksThirdOrderTick {
@@ -3560,13 +3686,34 @@ export interface GreeksThirdOrderTick {
 }
 
 /**
- * Serialise a `GreeksThirdOrderTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `GreeksThirdOrderTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function greeksThirdOrderTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `GreeksThirdOrderTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `greeksThirdOrderTickPresentColumns` + `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function greeksThirdOrderTickToArrowIpc(rows: Array<GreeksThirdOrderTick>): Buffer
+
+/**
+ * Serialise a `GreeksThirdOrderTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `greeksThirdOrderTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `greeksThirdOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function greeksThirdOrderTickToArrowIpcProjected(rows: Array<GreeksThirdOrderTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /**
  * Optional parameters for the `indexAtTimePrice` method. Keys are
@@ -3702,13 +3849,34 @@ export interface IndexPriceAtTimeTick {
 }
 
 /**
- * Serialise a `IndexPriceAtTimeTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `IndexPriceAtTimeTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `indexPriceAtTimeTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function indexPriceAtTimeTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `IndexPriceAtTimeTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `indexPriceAtTimeTickPresentColumns` + `indexPriceAtTimeTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function indexPriceAtTimeTickToArrowIpc(rows: Array<IndexPriceAtTimeTick>): Buffer
+
+/**
+ * Serialise a `IndexPriceAtTimeTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `indexPriceAtTimeTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `indexPriceAtTimeTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function indexPriceAtTimeTickToArrowIpcProjected(rows: Array<IndexPriceAtTimeTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /**
  * Optional parameters for the `indexSnapshotMarketValue` method. Keys are
@@ -3787,13 +3955,34 @@ export interface InterestRateTick {
 }
 
 /**
- * Serialise a `InterestRateTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `InterestRateTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `interestRateTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function interestRateTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `InterestRateTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `interestRateTickPresentColumns` + `interestRateTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function interestRateTickToArrowIpc(rows: Array<InterestRateTick>): Buffer
+
+/**
+ * Serialise a `InterestRateTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `interestRateTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `interestRateTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function interestRateTickToArrowIpcProjected(rows: Array<InterestRateTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /** Wire string enum `Interval`. */
 export declare const enum Interval {
@@ -3845,13 +4034,34 @@ export interface IvTick {
 }
 
 /**
- * Serialise a `IvTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `IvTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `ivTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function ivTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `IvTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `ivTickPresentColumns` + `ivTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function ivTickToArrowIpc(rows: Array<IvTick>): Buffer
+
+/**
+ * Serialise a `IvTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `ivTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `ivTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function ivTickToArrowIpcProjected(rows: Array<IvTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /** Streaming login succeeded. `permissions` is the server's opaque bundle string — diagnostic metadata only; for feature gating use the Nexus REST subscription tiers. */
 export interface LoginSuccess {
@@ -3898,13 +4108,34 @@ export interface MarketValueTick {
 }
 
 /**
- * Serialise a `MarketValueTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `MarketValueTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function marketValueTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `MarketValueTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `marketValueTickPresentColumns` + `marketValueTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function marketValueTickToArrowIpc(rows: Array<MarketValueTick>): Buffer
+
+/**
+ * Serialise a `MarketValueTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `marketValueTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `marketValueTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function marketValueTickToArrowIpcProjected(rows: Array<MarketValueTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /** OHLC tick. Aggregated bar data including SIP-rule VWAP. */
 export interface OhlcTick {
@@ -3929,13 +4160,34 @@ export interface OhlcTick {
 }
 
 /**
- * Serialise a `OhlcTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `OhlcTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function ohlcTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `OhlcTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `ohlcTickPresentColumns` + `ohlcTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function ohlcTickToArrowIpc(rows: Array<OhlcTick>): Buffer
+
+/**
+ * Serialise a `OhlcTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `ohlcTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `ohlcTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function ohlcTickToArrowIpcProjected(rows: Array<OhlcTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /** Streaming OHLCVC bar. */
 export interface Ohlcvc {
@@ -3977,13 +4229,34 @@ export interface OpenInterestTick {
 }
 
 /**
- * Serialise a `OpenInterestTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `OpenInterestTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function openInterestTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `OpenInterestTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `openInterestTickPresentColumns` + `openInterestTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function openInterestTickToArrowIpc(rows: Array<OpenInterestTick>): Buffer
+
+/**
+ * Serialise a `OpenInterestTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `openInterestTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `openInterestTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function openInterestTickToArrowIpcProjected(rows: Array<OpenInterestTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /**
  * Optional parameters for the `optionAtTimeQuote` method. Keys are
@@ -5109,13 +5382,34 @@ export interface PriceTick {
 }
 
 /**
- * Serialise a `PriceTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `PriceTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `priceTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function priceTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `PriceTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `priceTickPresentColumns` + `priceTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function priceTickToArrowIpc(rows: Array<PriceTick>): Buffer
+
+/**
+ * Serialise a `PriceTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `priceTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `priceTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function priceTickToArrowIpcProjected(rows: Array<PriceTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /** Streaming Quote tick. */
 export interface Quote {
@@ -5158,13 +5452,34 @@ export interface QuoteTick {
 }
 
 /**
- * Serialise a `QuoteTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `QuoteTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `quoteTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function quoteTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `QuoteTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `quoteTickPresentColumns` + `quoteTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function quoteTickToArrowIpc(rows: Array<QuoteTick>): Buffer
+
+/**
+ * Serialise a `QuoteTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `quoteTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `quoteTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function quoteTickToArrowIpcProjected(rows: Array<QuoteTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /** Wire string enum `RateType`. */
 export declare const enum RateType {
@@ -5663,13 +5978,34 @@ export interface TradeGreeksAllTick {
 }
 
 /**
- * Serialise a `TradeGreeksAllTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `TradeGreeksAllTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function tradeGreeksAllTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `TradeGreeksAllTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `tradeGreeksAllTickPresentColumns` + `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function tradeGreeksAllTickToArrowIpc(rows: Array<TradeGreeksAllTick>): Buffer
+
+/**
+ * Serialise a `TradeGreeksAllTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `tradeGreeksAllTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `tradeGreeksAllTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function tradeGreeksAllTickToArrowIpcProjected(rows: Array<TradeGreeksAllTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /** Per-trade first-order Greeks tick (delta / theta / vega / rho / epsilon */
 export interface TradeGreeksFirstOrderTick {
@@ -5712,13 +6048,34 @@ export interface TradeGreeksFirstOrderTick {
 }
 
 /**
- * Serialise a `TradeGreeksFirstOrderTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `TradeGreeksFirstOrderTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function tradeGreeksFirstOrderTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `TradeGreeksFirstOrderTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `tradeGreeksFirstOrderTickPresentColumns` + `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function tradeGreeksFirstOrderTickToArrowIpc(rows: Array<TradeGreeksFirstOrderTick>): Buffer
+
+/**
+ * Serialise a `TradeGreeksFirstOrderTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `tradeGreeksFirstOrderTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `tradeGreeksFirstOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function tradeGreeksFirstOrderTickToArrowIpcProjected(rows: Array<TradeGreeksFirstOrderTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /** Per-trade implied-volatility tick (single `implied_volatility` + */
 export interface TradeGreeksImpliedVolatilityTick {
@@ -5755,13 +6112,34 @@ export interface TradeGreeksImpliedVolatilityTick {
 }
 
 /**
- * Serialise a `TradeGreeksImpliedVolatilityTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `TradeGreeksImpliedVolatilityTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `tradeGreeksImpliedVolatilityTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function tradeGreeksImpliedVolatilityTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `TradeGreeksImpliedVolatilityTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `tradeGreeksImpliedVolatilityTickPresentColumns` + `tradeGreeksImpliedVolatilityTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function tradeGreeksImpliedVolatilityTickToArrowIpc(rows: Array<TradeGreeksImpliedVolatilityTick>): Buffer
+
+/**
+ * Serialise a `TradeGreeksImpliedVolatilityTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `tradeGreeksImpliedVolatilityTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `tradeGreeksImpliedVolatilityTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function tradeGreeksImpliedVolatilityTickToArrowIpcProjected(rows: Array<TradeGreeksImpliedVolatilityTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /** Per-trade second-order Greeks tick (gamma / vanna / charm / vomma / */
 export interface TradeGreeksSecondOrderTick {
@@ -5803,13 +6181,34 @@ export interface TradeGreeksSecondOrderTick {
 }
 
 /**
- * Serialise a `TradeGreeksSecondOrderTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `TradeGreeksSecondOrderTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function tradeGreeksSecondOrderTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `TradeGreeksSecondOrderTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `tradeGreeksSecondOrderTickPresentColumns` + `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function tradeGreeksSecondOrderTickToArrowIpc(rows: Array<TradeGreeksSecondOrderTick>): Buffer
+
+/**
+ * Serialise a `TradeGreeksSecondOrderTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `tradeGreeksSecondOrderTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `tradeGreeksSecondOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function tradeGreeksSecondOrderTickToArrowIpcProjected(rows: Array<TradeGreeksSecondOrderTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /** Per-trade third-order Greeks tick (speed / zomma / color / ultima) */
 export interface TradeGreeksThirdOrderTick {
@@ -5850,13 +6249,34 @@ export interface TradeGreeksThirdOrderTick {
 }
 
 /**
- * Serialise a `TradeGreeksThirdOrderTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `TradeGreeksThirdOrderTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function tradeGreeksThirdOrderTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `TradeGreeksThirdOrderTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `tradeGreeksThirdOrderTickPresentColumns` + `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function tradeGreeksThirdOrderTickToArrowIpc(rows: Array<TradeGreeksThirdOrderTick>): Buffer
+
+/**
+ * Serialise a `TradeGreeksThirdOrderTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `tradeGreeksThirdOrderTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `tradeGreeksThirdOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function tradeGreeksThirdOrderTickToArrowIpcProjected(rows: Array<TradeGreeksThirdOrderTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /** Combined trade + quote tick. */
 export interface TradeQuoteTick {
@@ -5902,13 +6322,34 @@ export interface TradeQuoteTick {
 }
 
 /**
- * Serialise a `TradeQuoteTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `TradeQuoteTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function tradeQuoteTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `TradeQuoteTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `tradeQuoteTickPresentColumns` + `tradeQuoteTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function tradeQuoteTickToArrowIpc(rows: Array<TradeQuoteTick>): Buffer
+
+/**
+ * Serialise a `TradeQuoteTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `tradeQuoteTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `tradeQuoteTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function tradeQuoteTickToArrowIpcProjected(rows: Array<TradeQuoteTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /** Trade tick. Core unit of trade data. */
 export interface TradeTick {
@@ -5951,13 +6392,34 @@ export interface TradeTick {
 }
 
 /**
- * Serialise a `TradeTick` history result to an Arrow IPC stream
- * (the `apache-arrow` wire form). Mirrors the FlatFiles
- * `FlatFileRowList.toArrowIpc()` exit and the Python
- * `<TickName>List.to_arrow()` terminal so every binding can reach a
- * dataframe from an in-band history result.
+ * Resolve a `TradeTick` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `tradeTickToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function tradeTickPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `TradeTick` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `tradeTickPresentColumns` + `tradeTickToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
  */
 export declare function tradeTickToArrowIpc(rows: Array<TradeTick>): Buffer
+
+/**
+ * Serialise a `TradeTick` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `tradeTickPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column. The decode-fed sibling of
+ * `tradeTickToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function tradeTickToArrowIpcProjected(rows: Array<TradeTick>, presentColumns: Array<string>, symbol?: string | undefined | null): Buffer
 
 /** Streaming control variant the SDK does not yet recognise. Surfaced when a newer protocol revision adds a control event this build predates — keep dispatch logic forward-compatible by handling this variant. Carries no payload. */
 export interface UnknownControl {
