@@ -4,12 +4,17 @@
     /// On expiry the in-flight gRPC stream is cancelled and the
     /// `stream(...)` call resolves to `Err(Error::Timeout)`. The
     /// underlying `HistoricalClient` is unaffected; subsequent calls on
-    /// the same handle succeed. `Duration::ZERO` is normalized to
-    /// "no deadline" — see [`crate::mdds::macros`] for the full
-    /// rationale.
+    /// the same handle succeed. `Duration::ZERO` opts the call out of any
+    /// bound, including the configured `request_timeout_secs` default; the
+    /// explicit zero is carried through verbatim and resolved by
+    /// [`crate::mdds::macros::effective_deadline`].
     #[must_use]
     pub fn with_deadline(mut self, duration: std::time::Duration) -> Self {
-        self.deadline = if duration.is_zero() { None } else { Some(duration) };
+        // Carry the value through verbatim — including `ZERO`. A bare
+        // `None` means "caller set nothing" and routes to the configured
+        // default; an explicit `ZERO` must instead disable the deadline,
+        // which `effective_deadline` resolves.
+        self.deadline = Some(duration);
         self
     }
 
@@ -40,7 +45,7 @@
     ///
     /// Returns [`Error`] if the gRPC call fails terminally or response
     /// parsing fails.
-    pub async fn stream<F>(self, mut handler: F) -> Result<(), Error>
+    pub async fn stream<F>(self, handler: F) -> Result<(), Error>
     where
-        F: FnMut(&[__TICK_TYPE__]),
+        F: FnMut(&[__TICK_TYPE__]) + Send,
     {
