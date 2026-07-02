@@ -325,3 +325,52 @@ fn full_to_arrow_still_emits_every_column() {
         );
     }
 }
+
+/// A response whose wire headers resolve to zero schema columns has an empty
+/// `ColumnPresence`. The projected builders must still succeed — a 0-column
+/// frame that keeps its row count — not error. Arrow's plain
+/// `RecordBatch::try_new` cannot infer a row count from zero columns, so the
+/// builder pins it via `try_new_with_options`. Polars carries the height in
+/// `DataFrame::new(height, cols)` already.
+#[test]
+fn empty_presence_projects_to_zero_columns_keeping_rows() {
+    let ticks = vec![
+        TradeTick {
+            ms_of_day: 1,
+            sequence: 2,
+            ext_condition1: 0,
+            ext_condition2: 0,
+            ext_condition3: 0,
+            ext_condition4: 0,
+            condition: 0,
+            size: 5,
+            exchange: 7,
+            price: 1.0,
+            condition_flags: 0,
+            price_flags: 0,
+            volume_type: 0,
+            records_back: 0,
+            date: 20240101,
+            expiration: 0,
+            strike: 0.0,
+            right: '\0',
+        };
+        3
+    ];
+    let empty = ColumnPresence::default();
+    assert!(empty.is_empty());
+
+    let batch = ticks
+        .as_slice()
+        .to_arrow_projected(&empty)
+        .expect("empty presence must not error");
+    assert_eq!(batch.num_columns(), 0, "empty presence -> zero columns");
+    assert_eq!(batch.num_rows(), 3, "zero-column batch keeps its row count");
+
+    let df = ticks
+        .as_slice()
+        .to_polars_projected(&empty)
+        .expect("empty presence must not error");
+    assert_eq!(df.width(), 0, "empty presence -> zero columns");
+    assert_eq!(df.height(), 3, "zero-column frame keeps its height");
+}

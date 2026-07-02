@@ -110,6 +110,30 @@ fn ipc_columns(bytes: &ThetaDataDxArrowBytes) -> Vec<String> {
         .collect()
 }
 
+/// Decode an Arrow IPC byte buffer to its (column names, row count).
+fn ipc_columns_and_rows(bytes: &ThetaDataDxArrowBytes) -> (Vec<String>, usize) {
+    assert!(
+        !bytes.data.is_null(),
+        "terminal returned the error sentinel"
+    );
+    // SAFETY: `data` / `len` describe the buffer the terminal leaked.
+    let slice = unsafe { std::slice::from_raw_parts(bytes.data, bytes.len) };
+    let mut reader = StreamReader::try_new(std::io::Cursor::new(slice), None)
+        .expect("terminal must emit a valid Arrow IPC stream");
+    let cols: Vec<String> = reader
+        .schema()
+        .fields()
+        .iter()
+        .map(|f| f.name().clone())
+        .collect();
+    // Sum row counts across batches (a zero-column stream still carries them).
+    let rows = reader
+        .by_ref()
+        .map(|b| b.expect("valid batch").num_rows())
+        .sum();
+    (cols, rows)
+}
+
 /// The C++ `present_columns` wrapper hands the C ABI a `const char* const*`;
 /// build that from Rust `&str` headers for the FFI call.
 fn presence_from_headers(headers: &[&str]) -> ThetaDataDxColumnPresence {
@@ -223,4 +247,44 @@ fn presence_carrier_reports_the_wire_columns() {
     // SAFETY: free exactly once.
     unsafe { thetadatadx_column_presence_free(presence) };
     assert_eq!(names, STOCK_TRADE_HEADERS);
+}
+
+#[test]
+fn empty_presence_projects_to_zero_columns_with_row_count() {
+    // A response whose wire headers resolve to zero schema columns yields an
+    // empty `ColumnPresence`. The projected export must still succeed — a
+    // 0-column stream carrying the row count — not error. Arrow's plain
+    // `RecordBatch::try_new` cannot infer a row count from zero columns, so
+    // the builder must pin it explicitly.
+    let rows = sample_rows();
+    // Header names that match no schema column -> empty presence.
+    let presence = presence_from_headers(&["not_a_column", "also_missing"]);
+    assert_eq!(
+        presence.len, 0,
+        "no header should resolve to a schema column"
+    );
+    let carrier_copy = ThetaDataDxColumnPresence {
+        names: presence.names,
+        len: presence.len,
+    };
+    // SAFETY: `rows` is a live slice; `carrier_copy` aliases the still-owned
+    // empty carrier. The terminal only reads it.
+    let bytes = unsafe {
+        thetadatadx_trade_ticks_to_arrow_ipc_projected(rows.as_ptr(), rows.len(), carrier_copy)
+    };
+    let (cols, num_rows) = ipc_columns_and_rows(&bytes);
+    // SAFETY: `bytes` came from the terminal; freed exactly once.
+    unsafe { thetadatadx_arrow_bytes_free(bytes) };
+    // SAFETY: free the original carrier exactly once (the copy was never freed).
+    unsafe { thetadatadx_column_presence_free(presence) };
+
+    assert!(
+        cols.is_empty(),
+        "empty presence must project to zero columns"
+    );
+    assert_eq!(
+        num_rows,
+        rows.len(),
+        "zero-column projected batch must still carry its row count"
+    );
 }

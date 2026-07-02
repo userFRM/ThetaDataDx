@@ -59,7 +59,7 @@ pub(super) fn render_rust_frames(schema: &Schema) -> String {
         "use arrow_array::{ArrayRef, BooleanArray, Float64Array, Int32Array, Int64Array, StringArray};\n",
     );
     out.push_str("#[cfg(feature = \"arrow\")]\n");
-    out.push_str("use arrow_array::RecordBatch;\n");
+    out.push_str("use arrow_array::{RecordBatch, RecordBatchOptions};\n");
     out.push_str("#[cfg(feature = \"arrow\")]\n");
     out.push_str("use arrow_schema::{DataType, Field, Schema as ArrowSchema};\n");
     out.push_str("#[cfg(feature = \"arrow\")]\n");
@@ -299,7 +299,13 @@ fn render_arrow_impl(type_name: &str, def: &TickTypeDef) -> String {
         .unwrap();
         out.push_str("        }\n");
     }
-    out.push_str("        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)\n");
+    // `try_new_with_options` + explicit row count: when the wire carried no
+    // schema column, `columns` is empty and `RecordBatch::try_new` cannot
+    // infer the row count from `columns.first()`, so it would error. Pin `n`
+    // so a zero-present response yields a 0-column, `n`-row batch instead.
+    out.push_str(
+        "        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))\n",
+    );
     out.push_str("    }\n");
     out.push_str("}\n");
     out

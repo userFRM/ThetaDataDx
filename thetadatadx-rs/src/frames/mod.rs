@@ -27,9 +27,9 @@
 #[cfg_attr(docsrs, doc(cfg(feature = "polars")))]
 pub trait TicksPolarsExt {
     /// Materialise `self` as a polars `DataFrame`. Column order and
-    /// names match the Arrow schema produced by [`TicksArrowExt::to_arrow`]
-    /// and the Python `.to_polars()` terminal on the matching
-    /// `<TickName>List` wrapper.
+    /// names match the Arrow schema produced by `TicksArrowExt::to_arrow`
+    /// (the `arrow`-gated sibling) and the Python `.to_polars()` terminal on
+    /// the matching `<TickName>List` wrapper.
     ///
     /// Emits the full schema — every column the tick type defines. This is
     /// the hand-built-slice path: a slice a caller assembled itself never

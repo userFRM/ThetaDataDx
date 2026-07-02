@@ -492,6 +492,7 @@ pub(crate) mod slice_arrow {
     use super::*;
     use super::tick;
     use arrow::array::{ArrayRef, BooleanArray, Float64Array, Int32Array, Int64Array, StringArray};
+    use arrow::array::RecordBatchOptions;
     use arrow::record_batch::RecordBatch;
     use arrow::datatypes::{DataType, Field, Schema};
     use std::sync::Arc;
@@ -573,7 +574,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("status", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(col_status)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::CalendarDay]` slice into a
@@ -810,7 +811,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::EodTick]` slice into a
@@ -1157,7 +1158,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::GreeksAllTick]` slice into a
@@ -1624,7 +1625,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::GreeksEodTick]` slice into a
@@ -1831,7 +1832,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::GreeksFirstOrderTick]` slice into a
@@ -2028,7 +2029,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::GreeksSecondOrderTick]` slice into a
@@ -2215,7 +2216,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::GreeksThirdOrderTick]` slice into a
@@ -2362,7 +2363,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::IndexPriceAtTimeTick]` slice into a
@@ -2419,7 +2420,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("rate", DataType::Float64, false));
             columns.push(Arc::new(Float64Array::from(col_rate)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::InterestRateTick]` slice into a
@@ -2596,7 +2597,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::IvTick]` slice into a
@@ -2713,7 +2714,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::MarketValueTick]` slice into a
@@ -2870,7 +2871,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::OhlcTick]` slice into a
@@ -2967,7 +2968,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::OpenInterestTick]` slice into a
@@ -3044,7 +3045,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("right", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::OptionContract]` slice into a
@@ -3111,7 +3112,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::PriceTick]` slice into a
@@ -3288,7 +3289,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("midpoint", DataType::Float64, false));
             columns.push(Arc::new(Float64Array::from(col_midpoint)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::QuoteTick]` slice into a
@@ -3705,7 +3706,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::TradeGreeksAllTick]` slice into a
@@ -3982,7 +3983,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::TradeGreeksFirstOrderTick]` slice into a
@@ -4199,7 +4200,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::TradeGreeksImpliedVolatilityTick]` slice into a
@@ -4466,7 +4467,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::TradeGreeksSecondOrderTick]` slice into a
@@ -4723,7 +4724,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::TradeGreeksThirdOrderTick]` slice into a
@@ -5030,7 +5031,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::TradeQuoteTick]` slice into a
@@ -5247,7 +5248,7 @@ pub(crate) mod slice_arrow {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
+        RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))
     }
 
     /// Convert a decoder-owned `&[tick::TradeTick]` slice into a

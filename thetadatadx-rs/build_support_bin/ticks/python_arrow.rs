@@ -106,6 +106,7 @@ fn render_python_slice_to_arrow_converters(schema: &Schema) -> String {
     out.push_str(
         "    use arrow::array::{ArrayRef, BooleanArray, Float64Array, Int32Array, Int64Array, StringArray};\n",
     );
+    out.push_str("    use arrow::array::RecordBatchOptions;\n");
     out.push_str("    use arrow::record_batch::RecordBatch;\n");
     // `Field` / `Schema` / `DataType` build the projected subset schema
     // (the full readers fetch a fixed schema from `arrow_schema_for_qualname`).
@@ -496,8 +497,12 @@ fn render_python_slice_reader_projected(type_name: &str, def: &TickTypeDef) -> S
         .unwrap();
         out.push_str("    }\n");
     }
+    // `try_new_with_options` + explicit row count: a zero-present response
+    // leaves `columns` empty, and `RecordBatch::try_new` cannot infer the row
+    // count from `columns.first()`, so it errors. Pin `n` so the batch keeps
+    // its row count with zero columns. Mirrors the Rust `to_arrow_projected`.
     out.push_str(
-        "    RecordBatch::try_new(Arc::new(Schema::new(fields)), columns).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))\n",
+        "    RecordBatch::try_new_with_options(Arc::new(Schema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n))).map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))\n",
     );
     out.push_str("}\n");
     out

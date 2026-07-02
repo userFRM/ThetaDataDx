@@ -8,7 +8,7 @@
 #[cfg(feature = "arrow")]
 use arrow_array::{ArrayRef, BooleanArray, Float64Array, Int32Array, Int64Array, StringArray};
 #[cfg(feature = "arrow")]
-use arrow_array::RecordBatch;
+use arrow_array::{RecordBatch, RecordBatchOptions};
 #[cfg(feature = "arrow")]
 use arrow_schema::{DataType, Field, Schema as ArrowSchema};
 #[cfg(feature = "arrow")]
@@ -94,7 +94,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::CalendarDay] {
             fields.push(Field::new("status", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(col_status)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -407,7 +407,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::EodTick] {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -976,7 +976,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksAllTick] 
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -1776,7 +1776,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksEodTick] 
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -2398,7 +2398,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksFirstOrde
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -2775,7 +2775,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksSecondOrd
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -3132,7 +3132,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksThirdOrde
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -3436,7 +3436,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IndexPriceAtTim
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -3605,7 +3605,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::InterestRateTic
             fields.push(Field::new("rate", DataType::Float64, false));
             columns.push(Arc::new(Float64Array::from(col_rate)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -3825,7 +3825,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IvTick] {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -4087,7 +4087,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::MarketValueTick
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -4339,7 +4339,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OhlcTick] {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -4561,7 +4561,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OpenInterestTic
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -4707,7 +4707,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OptionContract]
             fields.push(Field::new("right", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -4824,7 +4824,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::PriceTick] {
             fields.push(Field::new("date", DataType::Int32, false));
             columns.push(Arc::new(Int32Array::from(col_date)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -5053,7 +5053,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
             fields.push(Field::new("midpoint", DataType::Float64, false));
             columns.push(Arc::new(Float64Array::from(col_midpoint)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -5645,7 +5645,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksAllT
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -6299,7 +6299,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksFirs
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -6761,7 +6761,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksImpl
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -7224,7 +7224,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksSeco
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -7721,7 +7721,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksThir
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -8264,7 +8264,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeQuoteTick]
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 
@@ -8753,7 +8753,7 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeTick] {
             fields.push(Field::new("right", DataType::Utf8, true));
             columns.push(Arc::new(StringArray::from(col_right)) as ArrayRef);
         }
-        RecordBatch::try_new(Arc::new(ArrowSchema::new(fields)), columns)
+        RecordBatch::try_new_with_options(Arc::new(ArrowSchema::new(fields)), columns, &RecordBatchOptions::new().with_row_count(Some(n)))
     }
 }
 

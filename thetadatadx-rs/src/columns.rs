@@ -98,7 +98,8 @@ pub trait WireColumns {
     /// order — the "all present" set for hand-built rows a caller assembled
     /// itself (which never touched a wire) and for the streaming collect
     /// path (which drains per-chunk slices and keeps no header list). A
-    /// frame built from this set matches [`crate::frames::TicksArrowExt::to_arrow`].
+    /// frame built from this set matches `TicksArrowExt::to_arrow` (in the
+    /// `arrow`-gated `crate::frames` module).
     fn all_columns() -> ColumnPresence;
 }
 
@@ -108,10 +109,10 @@ pub trait WireColumns {
 /// The buffered (`.await`) return of every historical endpoint. It derefs to
 /// `[T]`, so it reads like the `Vec<T>` it replaced — `.len()`, `.iter()`,
 /// indexing, `for row in &ticks`, `ticks.first()` all work — while carrying
-/// the [`ColumnPresence`] the DataFrame terminals need. Use
-/// [`to_arrow`](Self::to_arrow) / [`to_polars`](Self::to_polars) for a
-/// terminal-exact frame (only the wire's columns), or [`into_vec`](Self::into_vec)
-/// to drop the presence and take the rows.
+/// the [`ColumnPresence`] the DataFrame terminals need. Use `to_arrow` /
+/// `to_polars` (feature-gated on `arrow` / `polars`) for a terminal-exact
+/// frame (only the wire's columns), or [`into_vec`](Self::into_vec) to drop
+/// the presence and take the rows.
 #[derive(Debug, Clone)]
 pub struct Ticks<T> {
     rows: Vec<T>,
