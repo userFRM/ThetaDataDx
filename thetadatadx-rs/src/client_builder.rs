@@ -147,12 +147,12 @@ impl EnvSource {
     /// Resolve the source into a concrete [`DirectConfig`].
     fn resolve(self) -> Result<DirectConfig, Error> {
         match self {
-            EnvSource::Default => Ok(DirectConfig::production()),
+            EnvSource::Default => DirectConfig::try_production(),
             EnvSource::Environment {
                 historical,
                 streaming,
             } => {
-                let mut config = DirectConfig::production();
+                let mut config = DirectConfig::try_production()?;
                 if let Some(env) = historical {
                     config = config.with_historical_environment(env);
                 }

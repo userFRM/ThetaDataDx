@@ -240,19 +240,34 @@ impl DirectConfig {
     /// environment override pushes a knob out of bounds.
     #[must_use]
     pub fn production() -> Self {
+        // Delegate to the fallible sibling and panic on its typed error so the
+        // panic message still names the offending key, its value, and the valid
+        // set (an unrecognized `THETADATA_HISTORICAL_TYPE` / `THETADATA_STREAMING_TYPE`,
+        // including a cross-channel value such as `DEV` on the historical
+        // channel, or an override that pushes a knob out of validated bounds).
+        Self::try_production().unwrap_or_else(|e| {
+            panic!("production defaults with env overrides are within bounds: {e}")
+        })
+    }
+
+    /// Fallible sibling of [`production`](Self::production): the production
+    /// defaults with the same env-var layering, returning the typed selector /
+    /// validation error instead of panicking.
+    ///
+    /// The env-resolution paths (a plain `.connect()`, `.stage()`, `.dev()`)
+    /// use this so an invalid `THETADATA_HISTORICAL_TYPE` surfaces as
+    /// [`Error::Config`] to the caller rather than a panic inside the
+    /// blocking-pool task that resolves the config.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Config`] when an environment variable names an invalid
+    /// selector (naming the offending key, its value, and the valid set) or
+    /// pushes a knob out of [`Self::validate`] bounds.
+    pub fn try_production() -> Result<Self, Error> {
         let mut config = Self::production_defaults();
-        // An unrecognized `THETADATA_HISTORICAL_TYPE` / `THETADATA_STREAMING_TYPE` fails
-        // loud here rather than silently keeping production: a stale or
-        // mistyped selector (including a cross-channel value such as
-        // `DEV` on `THETADATA_HISTORICAL_TYPE`) must surface, never quietly route to the wrong
-        // cluster. Surface the underlying error verbatim so the panic names the
-        // offending key, its value, and the valid set for that channel rather
-        // than a generic string an operator cannot act on.
-        env::apply_env_overrides(&mut config)
-            .unwrap_or_else(|e| panic!("invalid environment selector: {e}"));
-        config
-            .validate()
-            .expect("production defaults are within validated bounds")
+        env::apply_env_overrides(&mut config)?;
+        config.validate()
     }
 
     /// Production defaults without env-var overrides. Tests use this to
@@ -908,6 +923,15 @@ impl DirectConfig {
                 }
             }
         }
+        // Historical retry policy: with retries enabled the initial delay must
+        // be positive, or the exponential ladder stays pinned at `0` and the
+        // retries fire as an unthrottled burst on every transient.
+        if self.retry.max_attempts > 1 && self.retry.initial_delay.is_zero() {
+            return Err(Error::config_invalid(
+                "retry.initial_delay",
+                "initial_delay must be non-zero when max_attempts > 1".to_string(),
+            ));
+        }
         // Historical retry policy: the backoff ceiling cannot sit below the
         // initial delay (mirrors the flatfiles `max_backoff >= initial_backoff`
         // invariant), or the exponential ladder would start above its own cap.
@@ -939,6 +963,41 @@ impl DirectConfig {
         self.historical.window_size_kb = self.historical.window_size_kb.clamp(64, 1_024);
         self.historical.connection_window_size_kb =
             self.historical.connection_window_size_kb.clamp(64, 1_024);
+        // The historical channel needs a routable port. A `0` port is never a
+        // valid dial target, so reject it up front rather than at the connect
+        // attempt.
+        if self.historical.port == 0 {
+            return Err(Error::config_invalid(
+                "historical.port",
+                "port must be non-zero".to_string(),
+            ));
+        }
+        // Historical TCP+TLS connect timeout must be positive: a `0` makes
+        // every channel-pool connect time out on its first poll. Band-checked
+        // against the same range as the flat-file connect timeout it mirrors.
+        if !flatfiles_bounds::CONNECT_TIMEOUT_SECS.contains(&self.historical.connect_timeout_secs) {
+            return Err(Error::config_out_of_range(
+                "historical.connect_timeout_secs",
+                to_i64(self.historical.connect_timeout_secs),
+                to_i64(*flatfiles_bounds::CONNECT_TIMEOUT_SECS.start()),
+                to_i64(*flatfiles_bounds::CONNECT_TIMEOUT_SECS.end()),
+            ));
+        }
+        // Inbound gRPC message size is a pre-allocated decode budget: a `0`
+        // rejects every response and an absurd value commits the channel to a
+        // buffer far beyond any legitimate chunk. Range-checked against the
+        // same ceiling the `[grpc] max_message_size_mb` spelling enforces (the
+        // shared `HistoricalConfig::MAX_MESSAGE_SIZE_MB`, in megabytes, scaled to
+        // bytes here), so the two spellings cannot drift.
+        let max_message_size_bytes = HistoricalConfig::MAX_MESSAGE_SIZE_MB * 1024 * 1024;
+        if !(1..=max_message_size_bytes).contains(&self.historical.max_message_size) {
+            return Err(Error::config_out_of_range(
+                "historical.max_message_size",
+                i64::try_from(self.historical.max_message_size).unwrap_or(i64::MAX),
+                1,
+                to_i64(max_message_size_bytes as u64),
+            ));
+        }
         // NOTE: a `0` historical `request_timeout_secs` is NOT floored here.
         // The floor lives at the single consumption point
         // ([`crate::mdds::macros::effective_deadline`]) so the gRPC hang guard
@@ -951,6 +1010,12 @@ impl DirectConfig {
                 i64::from(self.flatfiles.max_attempts),
                 i64::from(*flatfiles_bounds::MAX_ATTEMPTS.start()),
                 i64::from(*flatfiles_bounds::MAX_ATTEMPTS.end()),
+            ));
+        }
+        if self.flatfiles.max_attempts > 1 && self.flatfiles.initial_backoff.is_zero() {
+            return Err(Error::config_invalid(
+                "flatfiles.initial_backoff",
+                "initial_backoff must be non-zero when max_attempts > 1".to_string(),
             ));
         }
         if self.flatfiles.max_backoff < self.flatfiles.initial_backoff {
@@ -1026,7 +1091,8 @@ impl DirectConfig {
 #[cfg(feature = "config-file")]
 mod config_file {
     use super::{
-        DirectConfig, ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy, StreamingFlushMode,
+        DirectConfig, HistoricalConfig, ReconnectAttemptLimits, ReconnectPolicy, RetryPolicy,
+        StreamingFlushMode,
     };
     use crate::error::Error;
     use serde::Deserialize;
@@ -1143,21 +1209,6 @@ mod config_file {
         max_message_size_mb: Option<usize>,
     }
 
-    impl GrpcSection {
-        /// Upper ceiling for `[grpc] max_message_size_mb`, in megabytes.
-        ///
-        /// The inbound message size is a pre-allocated decode budget, so an
-        /// out-of-range value is a footgun in both directions: the
-        /// MB→byte conversion (`mb * 1024 * 1024`) overflows `usize` for
-        /// absurd inputs, and even a value that does not overflow commits
-        /// the channel to a buffer far beyond any legitimate response. The
-        /// production default is 4 MB; 64 MB leaves generous headroom for
-        /// the largest bulk historical chunk while keeping the budget
-        /// bounded. Values above this — or a `0` that would disable the
-        /// limit entirely — are rejected by name at load time.
-        const MAX_MESSAGE_SIZE_MB: usize = 64;
-    }
-
     impl Default for GrpcSection {
         fn default() -> Self {
             let prod = DirectConfig::production_defaults();
@@ -1190,12 +1241,25 @@ mod config_file {
                         format!("invalid host:port entry: '{entry}'"),
                     )
                 })?;
-                let port: u16 = port_str.parse().map_err(|e| {
+                let host = host.trim();
+                if host.is_empty() {
+                    return Err(Error::config_invalid(
+                        "streaming.hosts",
+                        format!("empty host in '{entry}'"),
+                    ));
+                }
+                let port: u16 = port_str.trim().parse().map_err(|e| {
                     Error::config_invalid(
                         "streaming.hosts",
                         format!("invalid port in '{entry}': {e}"),
                     )
                 })?;
+                if port == 0 {
+                    return Err(Error::config_invalid(
+                        "streaming.hosts",
+                        format!("port must be non-zero in '{entry}'"),
+                    ));
+                }
                 result.push((host.to_string(), port));
             }
             if result.is_empty() {
@@ -1209,9 +1273,11 @@ mod config_file {
         /// Load configuration from a TOML file.
         ///
         /// The file format matches `config.default.toml` shipped with the crate.
-        /// Missing sections and keys fall back to [`DirectConfig::production()`] defaults.
-        /// An unknown key or section is rejected so a typo surfaces as a load
-        /// error instead of silently running the default.
+        /// Missing sections and keys fall back to the hardcoded production
+        /// defaults; unlike [`DirectConfig::production()`], this loader does not
+        /// layer the `THETADATA_*` environment overrides on top. An unknown key or
+        /// section is rejected so a typo surfaces as a load error instead of
+        /// silently running the default.
         ///
         /// # Example file
         ///
@@ -1287,12 +1353,13 @@ mod config_file {
                 // `checked_mul` so an absurd input is reported as a range
                 // error rather than wrapping `usize` into a tiny cap.
                 Some(mb) => {
-                    if mb == 0 || mb > GrpcSection::MAX_MESSAGE_SIZE_MB {
+                    if mb == 0 || mb > HistoricalConfig::MAX_MESSAGE_SIZE_MB {
                         return Err(Error::config_out_of_range(
                             "grpc.max_message_size_mb",
                             i64::try_from(mb).unwrap_or(i64::MAX),
                             1,
-                            i64::try_from(GrpcSection::MAX_MESSAGE_SIZE_MB).unwrap_or(i64::MAX),
+                            i64::try_from(HistoricalConfig::MAX_MESSAGE_SIZE_MB)
+                                .unwrap_or(i64::MAX),
                         ));
                     }
                     mb.checked_mul(1024 * 1024).ok_or_else(|| {
@@ -1300,7 +1367,8 @@ mod config_file {
                             "grpc.max_message_size_mb",
                             i64::try_from(mb).unwrap_or(i64::MAX),
                             1,
-                            i64::try_from(GrpcSection::MAX_MESSAGE_SIZE_MB).unwrap_or(i64::MAX),
+                            i64::try_from(HistoricalConfig::MAX_MESSAGE_SIZE_MB)
+                                .unwrap_or(i64::MAX),
                         )
                     })?
                 }
@@ -1565,6 +1633,17 @@ mod tests {
     #[cfg(feature = "config-file")]
     mod config_file_tests {
         use crate::config::{DirectConfig, StreamingFlushMode};
+
+        #[test]
+        fn streaming_hosts_reject_zero_port_and_empty_host() {
+            let zero_port = DirectConfig::from_toml_str("[streaming]\nhosts = [\"a.test:0\"]\n")
+                .expect_err("port 0 is not a dial target");
+            assert!(zero_port.to_string().contains("streaming.hosts"));
+
+            let empty_host = DirectConfig::from_toml_str("[streaming]\nhosts = [\":20000\"]\n")
+                .expect_err("empty host is not routable");
+            assert!(empty_host.to_string().contains("streaming.hosts"));
+        }
 
         #[test]
         fn empty_toml_gives_production_defaults() {
@@ -2185,6 +2264,67 @@ mod tests {
     }
 
     #[test]
+    fn validate_rejects_zero_historical_connect_timeout() {
+        let mut config = DirectConfig::production_defaults();
+        config.historical.connect_timeout_secs = 0;
+        let err = config
+            .validate()
+            .expect_err("zero connect timeout would time out every connect");
+        assert!(err.to_string().contains("historical.connect_timeout_secs"));
+    }
+
+    #[test]
+    fn validate_rejects_zero_and_oversized_historical_max_message_size() {
+        let mut zero = DirectConfig::production_defaults();
+        zero.historical.max_message_size = 0;
+        assert!(zero
+            .validate()
+            .expect_err("zero budget rejects every response")
+            .to_string()
+            .contains("historical.max_message_size"));
+
+        let mut huge = DirectConfig::production_defaults();
+        huge.historical.max_message_size = 64 * 1024 * 1024 + 1;
+        assert!(huge
+            .validate()
+            .expect_err("above the 64 MiB ceiling")
+            .to_string()
+            .contains("historical.max_message_size"));
+    }
+
+    #[test]
+    fn validate_rejects_zero_historical_port() {
+        let mut config = DirectConfig::production_defaults();
+        config.historical.port = 0;
+        assert!(config
+            .validate()
+            .expect_err("port 0 is not a dial target")
+            .to_string()
+            .contains("historical.port"));
+    }
+
+    #[test]
+    fn validate_rejects_zero_delay_retry_burst() {
+        let mut config = DirectConfig::production_defaults();
+        config.retry.initial_delay = std::time::Duration::ZERO;
+        config.retry.max_attempts = 5;
+        assert!(config
+            .validate()
+            .expect_err("zero initial delay with retries enabled bursts")
+            .to_string()
+            .contains("retry.initial_delay"));
+
+        let mut ff = DirectConfig::production_defaults();
+        ff.flatfiles.initial_backoff = std::time::Duration::ZERO;
+        ff.flatfiles.max_attempts = 5;
+        assert!(ff
+            .validate()
+            .expect_err("zero initial backoff with retries enabled bursts")
+            .to_string()
+            .contains("flatfiles.initial_backoff"));
+    }
+
+    #[test]
     fn validate_rejects_inverted_retry_delays() {
         let mut config = DirectConfig::production_defaults();
         config.retry.initial_delay = std::time::Duration::from_secs(60);
@@ -2369,6 +2509,29 @@ mod tests {
         assert!(
             panicked,
             "THETADATA_HISTORICAL_TYPE=DEV (a streaming-only value) must panic, not fall back"
+        );
+    }
+
+    #[test]
+    fn try_production_returns_typed_error_on_cross_channel_selector() {
+        // The fallible sibling the env-resolution paths use must surface an
+        // invalid selector as a typed `Error::Config`, never a panic: the
+        // builder resolves the config inside a `spawn_blocking` whose join
+        // would otherwise report an opaque worker panic.
+        let _guard = env_test_guard();
+        clear_env_matrix();
+        // SAFETY: see `historical_type_env_dev_panics_as_cross_channel_value`.
+        unsafe {
+            std::env::set_var(ENV_HISTORICAL_TYPE, "DEV");
+        }
+        let result = DirectConfig::try_production();
+        clear_env_matrix();
+        let err = result.expect_err("DEV is a streaming-only selector; must be a typed error");
+        let msg = err.to_string();
+        assert!(msg.contains(ENV_HISTORICAL_TYPE), "names the key: {msg}");
+        assert!(
+            msg.contains("PROD") && msg.contains("STAGE"),
+            "names the valid set: {msg}"
         );
     }
 

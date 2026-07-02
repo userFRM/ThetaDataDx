@@ -156,7 +156,15 @@ where
     // Nexus URL override is the only thing that re-points auth — it must be
     // honoured from every source that carries it.
     if let Some(url) = get(ENV_NEXUS_URL) {
-        cfg.auth.nexus_url = url;
+        // A value that is not an http(s) URL cannot be a Nexus base: applying
+        // it verbatim would silently point auth at an unreachable endpoint.
+        // Skip it and keep the current URL, matching the lenient host/port
+        // handling above.
+        if url.starts_with("http://") || url.starts_with("https://") {
+            cfg.auth.nexus_url = url;
+        } else {
+            tracing::warn!(env = ENV_NEXUS_URL, value = %url, "{}", source.malformed_value());
+        }
     }
     if let Some(client_type) = get(ENV_CLIENT_TYPE) {
         cfg.auth.client_type = client_type;
@@ -260,11 +268,20 @@ pub(super) fn apply_dotenv_overrides(
 ) -> Result<(), Error> {
     use crate::auth::dotenv::lookup;
 
-    // `lookup` already returns trimmed, non-empty values (or `None` for an
-    // absent or blank key), matching the contract `apply_overrides` expects.
+    // `lookup` filters out absent/blank keys but returns the value verbatim so
+    // the credential path keeps opaque secrets byte-exact. These are the
+    // non-secret config keys (host / port / URL / selector), where a quoted
+    // value's surrounding whitespace (`KEY=" host "`) is never significant, so
+    // trim it here to match the process-env path (which trims) and the
+    // "trimmed, non-empty value" contract `apply_overrides` documents.
     apply_overrides(
         cfg,
-        |key| lookup(pairs, key).map(str::to_string),
+        |key| {
+            lookup(pairs, key).and_then(|value| {
+                let trimmed = value.trim();
+                (!trimmed.is_empty()).then(|| trimmed.to_string())
+            })
+        },
         Source::DotEnv,
     )
 }
@@ -276,7 +293,11 @@ mod tests {
     /// Drive `apply_overrides` with a fixed key->value map, the same body both
     /// the process-env and `.env` paths run.
     fn apply(pairs: &[(&str, &str)]) -> Result<DirectConfig, Error> {
-        let mut cfg = DirectConfig::production();
+        // Seed from the hardcoded defaults, not `production()`: these tests
+        // exercise the override layer in isolation, so reading the real process
+        // environment here would make them non-hermetic (a stray `THETADATA_*`
+        // in the runner could flip the baseline or panic on an invalid selector).
+        let mut cfg = DirectConfig::production_defaults();
         let owned: Vec<(String, String)> = pairs
             .iter()
             .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
@@ -346,6 +367,33 @@ mod tests {
             apply(&[(ENV_STREAMING_TYPE, "")]).is_ok(),
             "blank reads as unset"
         );
+    }
+
+    #[test]
+    fn a_malformed_nexus_url_is_skipped_not_applied() {
+        let baseline = DirectConfig::production_defaults().auth.nexus_url.clone();
+        let cfg =
+            apply(&[(ENV_NEXUS_URL, "not-a-url")]).expect("malformed URL is skipped, not fatal");
+        assert_eq!(
+            cfg.auth.nexus_url, baseline,
+            "a non-http(s) value must not re-point auth"
+        );
+        let cfg = apply(&[(ENV_NEXUS_URL, "https://nexus.example.test")])
+            .expect("a valid http(s) URL is honoured");
+        assert_eq!(cfg.auth.nexus_url, "https://nexus.example.test");
+    }
+
+    #[test]
+    fn dotenv_config_keys_are_trimmed_of_quoted_whitespace() {
+        // A quoted value's surrounding whitespace is never significant for a
+        // host override, so the `.env` path trims it just like the process-env
+        // path does.
+        let pairs = crate::auth::dotenv::parse(
+            "THETADATA_HISTORICAL_HOST=\"  historical.example.test  \"\n",
+        );
+        let mut cfg = DirectConfig::production_defaults();
+        apply_dotenv_overrides(&mut cfg, &pairs).expect("valid host override");
+        assert_eq!(cfg.historical.host, "historical.example.test");
     }
 
     #[test]
