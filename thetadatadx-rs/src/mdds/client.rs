@@ -239,7 +239,7 @@ impl HistoricalClient {
 
     /// Deterministically tear the historical client down.
     ///
-    /// The historical client owns only the `Arc`-backed gRPC [`ChannelPool`] —
+    /// The historical client owns only the `Arc`-backed gRPC channel pool —
     /// a set of idle HTTP/2 connections with no worker thread and no streaming
     /// state machine — so there is nothing to signal or join here: the pool's
     /// connections are released when the last client handle is dropped (RAII).
@@ -247,8 +247,6 @@ impl HistoricalClient {
     /// [`crate::Client::close`] across every binding (`close()` /
     /// context-manager exit / destructor); the deterministic point of release
     /// is the binding dropping its owning handle on `close`. Idempotent.
-    ///
-    /// [`ChannelPool`]: crate::grpc::ChannelPool
     pub fn close(&self) {
         // No streaming dispatcher and no owned worker thread: the channel pool
         // releases on handle drop. Kept as an explicit no-op so the base/

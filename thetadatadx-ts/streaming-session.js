@@ -407,20 +407,26 @@ for (const Klass of [native.Client, native.HistoricalClient]) {
   if (typeof Klass.prototype[Symbol.asyncDispose] !== 'function') {
     Klass.prototype[Symbol.asyncDispose] = async function asyncDispose() {
       // `stream` exists only on the unified `Client`; the historical-only
-      // client has no streaming surface, so fall back to `close()` there.
+      // client has no streaming surface, so `close()` alone is the teardown.
       const stream = this.stream;
-      if (!stream) {
-        this.close();
-        return;
+      if (stream) {
+        // Await the drain barrier first so the consumer thread has finished
+        // firing the registered callback before the JS closure is released;
+        // warn (never throw) on timeout to match the context-managed session.
+        stream.stopStreaming();
+        const drained = await stream.awaitDrain(EXIT_DRAIN_TIMEOUT_MS);
+        if (!drained) {
+          console.warn(
+            `Client close drain timed out after ${EXIT_DRAIN_TIMEOUT_MS}ms; ` +
+              'the streaming consumer callback may still be firing.',
+          );
+        }
       }
-      stream.stopStreaming();
-      const drained = await stream.awaitDrain(EXIT_DRAIN_TIMEOUT_MS);
-      if (!drained) {
-        console.warn(
-          `Client close drain timed out after ${EXIT_DRAIN_TIMEOUT_MS}ms; ` +
-            'the streaming consumer callback may still be firing.',
-        );
-      }
+      // Always run the deterministic close: it releases the registered
+      // callback back to V8 and is the single teardown the sync disposer also
+      // routes through. Skipping it would leak the callback reference on the
+      // `await using` path. Idempotent after the stop above.
+      this.close();
     };
   }
 }

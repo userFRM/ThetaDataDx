@@ -180,6 +180,58 @@ def test_double_enter_raises(client) -> None:
 # ─────────────────────────────────────────────────────────────────────
 
 
+def test_streaming_dispatcher_holds_a_weak_client_ref() -> None:
+    """Offline lifecycle guard: the unified streaming dispatcher closure must
+    capture a WEAK reference to the core client, never a strong `Arc`.
+
+    This is the invariant behind the forgetful-drop teardown. The dispatcher
+    closure outlives the `start_streaming` / `reconnect` call and runs on its
+    own thread for the whole session. If it captured a strong
+    `Arc<Client>` (e.g. `Arc::clone(&self.client)`) that strong reference
+    would keep the core client alive after the user drops their Python
+    handle, so `Client::Drop` — the detach that tears the streaming session
+    down off the GIL thread — would never run and the FPSS session would leak
+    until process exit. Capturing `Arc::downgrade(&self.client)` and
+    upgrading only for the `record_panic()` bump keeps the cycle broken.
+
+    Asserted against the generated source (no credentials needed) so a
+    regression of the generator template fails here even offline — the
+    live thread-teardown test above is the end-to-end proof but is gated on
+    a real FPSS handshake.
+    """
+    from pathlib import Path
+
+    here = Path(__file__).resolve().parent
+    src_root = None
+    for candidate in [here, *here.parents]:
+        target = candidate / "src"
+        if target.is_dir() and (target / "lib.rs").is_file():
+            src_root = target
+            break
+    assert src_root is not None, "could not locate thetadatadx-py/src"
+
+    generated = (src_root / "_generated" / "streaming_methods.rs").read_text()
+    # The dispatcher's client handle is bound to `panic_recorder`. It MUST be
+    # a weak downgrade, and there must be no strong clone of the client
+    # captured for the dispatcher.
+    assert "let panic_recorder = Arc::downgrade(&self.client);" in generated, (
+        "the streaming dispatcher must capture a WEAK client handle "
+        "(`Arc::downgrade(&self.client)`) so a forgetful drop still runs "
+        "Client::Drop and tears the session down"
+    )
+    assert "let panic_recorder = Arc::clone(&self.client);" not in generated, (
+        "the streaming dispatcher must NOT capture a strong `Arc<Client>` "
+        "(`Arc::clone(&self.client)`): it would pin the core client alive "
+        "past the user's drop and leak the streaming session"
+    )
+    # Both the start_streaming and reconnect dispatchers carry the capture,
+    # so the weak downgrade must appear on both paths.
+    assert generated.count("Arc::downgrade(&self.client)") >= 2, (
+        "both the start_streaming and reconnect dispatcher closures must "
+        "hold a weak client reference"
+    )
+
+
 def test_base_clients_expose_close_and_context_managers() -> None:
     """Offline surface pin: the base clients carry the deterministic
     teardown surface. `Client` / `HistoricalClient` are sync + async
@@ -237,18 +289,26 @@ def test_direct_start_streaming_then_drop_does_not_deadlock() -> None:
     A user calls `client.stream.start_streaming(cb)` (the DIRECT path, not
     the `with client.streaming(cb)` context manager) and then lets the
     `Client` fall out of scope WITHOUT calling `stop_streaming()`. The
-    final `Arc::drop` runs the core `Client::Drop`, which now detaches the
+    final `Arc::drop` runs the core `Client::Drop`, which detaches the
     dispatcher join off the dropping (GIL-holding) thread, so the drop
     returns instead of deadlocking against the dispatcher's `Python::attach`.
 
-    Driven under a watchdog thread: the test builds a client, starts
-    streaming, drops the sole reference, and asserts the drop-and-GC
-    completes within a bounded window. A regression (inline join under the
-    held GIL) hangs here and trips the deadline. Live-gated because
+    This asserts teardown ACTUALLY happens, not merely that the drop does
+    not hang. The bug the fix closes has two layers: (a) the dispatcher
+    closure must hold a WEAK reference to the core client, else the strong
+    `Arc` pins it alive and `Client::Drop` never runs at all; (b) once Drop
+    runs, its join must be detached off the GIL thread. Layer (a) is what a
+    "does not hang" test misses — with a strong ref the drop returns
+    instantly (nothing to tear down) yet the FPSS reader / dispatcher threads
+    run forever. So the test observes the live streaming worker threads
+    terminating: it snapshots the OS thread count with a stream live, drops
+    the client without `stop_streaming()`, and asserts the count falls back
+    toward the pre-stream baseline within a bounded window. A leaked session
+    keeps those threads and fails the assertion. Live-gated because
     `start_streaming` opens a real FPSS connection.
     """
     import gc
-    import threading
+    import time
 
     creds_path = os.environ.get("THETADATADX_TEST_CREDS")
     if not creds_path:
@@ -257,25 +317,49 @@ def test_direct_start_streaming_then_drop_does_not_deadlock() -> None:
         )
     mod = _import_module()
 
-    done = threading.Event()
+    def os_thread_count() -> int:
+        # OS-level thread count (Linux). Counts every kernel thread of this
+        # process, including the Rust-spawned FPSS reader / dispatcher /
+        # detach-helper threads that Python's `threading` module cannot see.
+        try:
+            return len(os.listdir("/proc/self/task"))
+        except FileNotFoundError:
+            pytest.skip("thread-count teardown check needs /proc (Linux)")
 
-    def run() -> None:
-        creds = mod.Credentials.from_file(creds_path)
-        client = mod.Client(creds, mod.Config.production())
-        client.stream.start_streaming(_noop_callback)
-        # Drop the sole reference WITHOUT stop_streaming(), then force the
-        # collection so the pyclass destructor (and the core `Client::Drop`)
-        # runs here, under the GIL, on this thread.
-        del client
-        gc.collect()
-        done.set()
+    baseline = os_thread_count()
 
-    worker = threading.Thread(target=run, name="drop-no-stop", daemon=True)
-    worker.start()
-    # 30s ceiling: the detached teardown returns in milliseconds; only a
-    # reintroduced GIL-reacquire deadlock would blow past this.
-    assert done.wait(timeout=30.0), (
-        "dropping a streaming Client without stop_streaming() deadlocked: "
-        "the core drop must detach the GIL-reacquiring dispatcher join"
+    client = mod.Client(mod.Credentials.from_file(creds_path), mod.Config.production())
+    client.stream.start_streaming(_noop_callback)
+    # Let the FPSS reader + dispatcher threads come up.
+    time.sleep(1.0)
+    streaming = os_thread_count()
+    assert streaming > baseline, (
+        "precondition: a live stream must have spawned OS worker threads "
+        f"(baseline={baseline}, streaming={streaming})"
     )
-    worker.join(timeout=5.0)
+
+    # Drop the sole reference WITHOUT stop_streaming(), then force collection
+    # so the pyclass destructor (and the core `Client::Drop`) runs now. If the
+    # dispatcher held a strong `Arc<Client>`, Drop would not run and the
+    # streaming threads would persist; the detach helper then joins them.
+    del client
+    gc.collect()
+
+    # The FPSS session must tear down and its threads join back to the
+    # baseline within a bounded window. Poll rather than sleep-once so a fast
+    # teardown returns promptly; a leaked session never converges and trips
+    # the deadline. The detach helper thread itself is short-lived (it joins
+    # the FPSS threads then exits), so the count returns to baseline.
+    deadline = time.monotonic() + 15.0
+    final = streaming
+    while time.monotonic() < deadline:
+        final = os_thread_count()
+        if final <= baseline:
+            break
+        time.sleep(0.1)
+    assert final <= baseline, (
+        "FPSS worker threads did not terminate after a forgetful drop: "
+        f"baseline={baseline}, still_running={final}. The dispatcher closure "
+        "is pinning the core Client with a strong Arc, so Client::Drop never "
+        "ran and the streaming session leaked."
+    )

@@ -89,8 +89,15 @@ export declare class Client {
    * (`using client = connect(...)`) so `close()` runs on scope exit through
    * `[Symbol.dispose]`; for a full streaming-drain barrier use the
    * `[Symbol.asyncDispose]` pairing (`stopStreaming()` + `awaitDrain`) the
-   * context-managed session exposes. `close()` performs the stop; the core
-   * dispatcher join is detached so this never blocks the JS thread.
+   * context-managed session exposes.
+   *
+   * `close()` retires the streaming dispatcher synchronously on the calling
+   * thread, so it can block briefly while the dispatcher drains its
+   * in-flight events. The non-blocking detach (a teardown that returns
+   * immediately and finishes on a helper thread) applies only to the
+   * implicit `Drop` path, which must not block a thread that may hold a
+   * runtime lock the dispatcher re-enters. Callers wanting a non-blocking
+   * release let the handle drop instead of calling `close()`.
    */
   close(): void
   /** FLATFILES namespace handle. Cheap — shares the underlying client connection. */

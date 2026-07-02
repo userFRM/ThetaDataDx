@@ -13,6 +13,17 @@
 //! See `docs-site/docs/configuration.md` for the per-binding setter
 //! samples.
 
+/// Default per-request historical deadline in seconds (5 min).
+///
+/// The floor the effective-deadline resolver applies when a caller leaves the
+/// per-request deadline unset AND the configured `request_timeout_secs` is `0`:
+/// a `0` there would disable the gRPC hang guard for every deadline-less
+/// request, so a live-but-silent server could hang the client forever. Sits
+/// above the slowest realistic bulk pull. The per-call
+/// `with_deadline(Duration::ZERO)` opt-out is a separate, explicit path and is
+/// unaffected by this floor.
+pub(crate) const DEFAULT_REQUEST_TIMEOUT_SECS: u64 = 300;
+
 /// Historical client tuning.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -87,17 +98,15 @@ pub struct HistoricalConfig {
     /// request that did not call `with_deadline(...)`, so a stalled
     /// stream resolves to `Error::Timeout` instead of blocking forever.
     ///
-    /// Configuring `0` here does **not** disable the guard: to keep the
-    /// terminal-safe behaviour, [`DirectConfig::validate`] floors a `0`
-    /// back to the production default so a deadline-less request can never
-    /// hang the client forever. Opt a single request out with the per-call
-    /// escape hatch instead.
+    /// Configuring `0` here does **not** disable the guard: the effective-
+    /// deadline resolver every historical request routes through floors a `0`
+    /// to the production default (`300s`) so a deadline-less request can never
+    /// hang the client forever, regardless of whether the config was validated.
+    /// Opt a single request out with the per-call escape hatch instead.
     ///
     /// Per-call control overrides this: `with_deadline(Duration)` sets a
     /// shorter or longer bound, and `with_deadline(Duration::ZERO)`
     /// opts a single request out of any deadline.
-    ///
-    /// [`DirectConfig::validate`]: crate::config::DirectConfig::validate
     ///
     /// Default `300s` (5 min) — comfortably above the slowest realistic
     /// multi-million-row bulk pull while still bounding a wedged stream.
@@ -160,7 +169,7 @@ impl HistoricalConfig {
             // sending no chunks (h2 keepalive only catches a fully dead
             // peer). Sits above the slowest realistic bulk pull;
             // `with_deadline(Duration::ZERO)` opts a single request out.
-            request_timeout_secs: 300,
+            request_timeout_secs: DEFAULT_REQUEST_TIMEOUT_SECS,
             // 100 MiB — empirically catches bulk pulls (multi-million
             // row option-chain or multi-day backfill responses) while
             // staying silent on ad-hoc single-day quote / OHLC pulls

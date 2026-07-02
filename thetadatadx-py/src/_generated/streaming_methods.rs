@@ -65,11 +65,18 @@ impl StreamView {
         // a reference-count lifetime aid.
         let callback_arc: Arc<Py<PyAny>> = Arc::new(callback);
         let dispatch_cb = Arc::clone(&callback_arc);
-        // Capture a clone of the Rust client so the dispatcher closure can
-        // call `record_panic()` when the Python callback raises an exception.
-        // A `PyErr` is not a Rust panic; it does not unwind through
-        // `catch_unwind`, so the core counter is only bumped here.
-        let panic_recorder = Arc::clone(&self.client);
+        // Capture a WEAK handle to the Rust client so the dispatcher closure
+        // can call `record_panic()` when the Python callback raises an
+        // exception (a `PyErr` is not a Rust panic; it does not unwind through
+        // `catch_unwind`, so the core counter is only bumped here). It MUST be
+        // weak: a strong `Arc<Client>` held by the long-lived dispatcher
+        // closure would keep the core `Client` alive after the user drops
+        // their Python handle, so `Client::Drop` (which detaches the streaming
+        // teardown off the GIL thread) would never run and the session would
+        // leak until process exit. Upgrading only for the `record_panic()`
+        // call, and skipping it when the upgrade fails (the client is gone,
+        // so there is nothing to record on), keeps the cycle broken.
+        let panic_recorder = Arc::downgrade(&self.client);
 
         // Never hold the GIL across the blocking network connect.
         // `start_streaming_scoped` performs the FPSS TLS socket connect
@@ -127,7 +134,13 @@ impl StreamView {
                         };
                         if let Err(err) = dispatch_cb.call1(py, (typed,)) {
                             err.write_unraisable(py, None);
-                            panic_recorder.stream().record_panic();
+                            // Weak upgrade: record the callback failure only
+                            // while the client is still alive. If the user has
+                            // dropped it, teardown is already under way and
+                            // there is no counter to bump.
+                            if let Some(client) = panic_recorder.upgrade() {
+                                client.stream().record_panic();
+                            }
                         }
                     });
                 },
@@ -243,7 +256,10 @@ impl StreamView {
         };
         let callback_arc: Arc<Py<PyAny>> = Arc::new(stored);
         let dispatch_cb = Arc::clone(&callback_arc);
-        let panic_recorder = Arc::clone(&self.client);
+        // WEAK, not strong — see `start_streaming`: a strong `Arc<Client>` in
+        // the long-lived dispatcher closure would pin the core client alive
+        // past the user's drop and defeat `Client::Drop`'s teardown.
+        let panic_recorder = Arc::downgrade(&self.client);
 
         // Never hold the GIL across the blocking network reconnect.
         // `reconnect_streaming_scoped` tears the old session down, opens a
@@ -277,7 +293,10 @@ impl StreamView {
                         };
                         if let Err(err) = dispatch_cb.call1(py, (typed,)) {
                             err.write_unraisable(py, None);
-                            panic_recorder.stream().record_panic();
+                            // Weak upgrade — see `start_streaming`.
+                            if let Some(client) = panic_recorder.upgrade() {
+                                client.stream().record_panic();
+                            }
                         }
                     });
                 },

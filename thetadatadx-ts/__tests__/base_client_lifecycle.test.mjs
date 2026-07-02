@@ -72,8 +72,9 @@ describe('base-client lifecycle surface', () => {
       close() { calls.push('close'); },
     };
     await mod.Client.prototype[Symbol.asyncDispose].call(fake);
-    // Streaming surface present → stop + drain, never the close() fallback.
-    assert.deepEqual(calls, ['stopStreaming', ['awaitDrain', 5000]]);
+    // Streaming surface present → drain first (stop + awaitDrain), THEN the
+    // deterministic close() so the registered callback is released back to V8.
+    assert.deepEqual(calls, ['stopStreaming', ['awaitDrain', 5000], 'close']);
   });
 
   it('[Symbol.asyncDispose] warns (does not throw) when the drain times out', async () => {
