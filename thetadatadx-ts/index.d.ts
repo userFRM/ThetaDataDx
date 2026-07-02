@@ -95,12 +95,15 @@ export declare class Client {
    * `[Symbol.asyncDispose]` pairing (`stopStreaming()` + `awaitDrain`) the
    * context-managed session exposes.
    *
-   * `close()` retires the streaming dispatcher synchronously on the calling
-   * thread, so it can block briefly while the dispatcher drains its
-   * in-flight events. Dropping the taken handle runs the core `Client::Drop`
-   * (the detached streaming quiesce), which returns immediately and finishes
-   * on a helper thread. Callers wanting a non-blocking release let the handle
-   * drop instead of calling `close()`.
+   * `close()` calls `stopStreaming()` synchronously, which retires the
+   * dispatcher by joining it, so `close()` can block briefly while the
+   * dispatcher finishes a callback already in flight. It does NOT run the
+   * `awaitDrain` ring barrier that the `[Symbol.asyncDispose]` path runs; if
+   * you need the full drain before release, use the streaming session's
+   * async disposer. Dropping the taken handle then runs the core
+   * `Client::Drop` (the detached streaming quiesce), which returns
+   * immediately and finishes on a helper thread. Callers wanting a
+   * non-blocking release let the handle drop instead of calling `close()`.
    */
   close(): void
   /** FLATFILES namespace handle. Cheap — shares the underlying client connection. */
