@@ -151,7 +151,14 @@ pub(crate) struct StreamingClient {
     /// already observed does not leak the closure's captured
     /// references — same explicit-handoff model as the unified
     /// [`crate::Client`].
-    callback: Mutex<Option<Py<PyAny>>>,
+    ///
+    /// The callable is held behind an inner `Arc` so a freshly reserved slot
+    /// carries a unique identity (`Arc::ptr_eq`): `start_streaming` releases the
+    /// callback lock before its blocking connect, so a concurrent stop + restart
+    /// can replace the reservation mid-connect; a failed start must clear ONLY
+    /// its own slot, never the newer one. Shared with the unified client's
+    /// [`crate::CallbackReservation`].
+    callback: Mutex<Option<Arc<Py<PyAny>>>>,
     /// Quiescence flags of every superseded streaming session that has
     /// not yet drained. Mirrors the `prev_drained` field on the unified
     /// [`thetadatadx::Client`] — stacked stop/start cycles
@@ -214,7 +221,7 @@ impl StreamingClient {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    fn lock_callback(&self) -> MutexGuard<'_, Option<Py<PyAny>>> {
+    fn lock_callback(&self) -> MutexGuard<'_, Option<Arc<Py<PyAny>>>> {
         self.callback.lock().unwrap_or_else(|e| e.into_inner())
     }
 
@@ -384,14 +391,31 @@ impl StreamingClient {
     /// are dropped and counted via `dropped_event_count()`. User
     /// callback panics are caught and counted via `panic_count()`.
     pub(crate) fn start_streaming(&self, py: Python<'_>, callback: Py<PyAny>) -> PyResult<()> {
-        let mut cb_guard = self.lock_callback();
-        if self.lock_inner().is_some() {
-            return Err(PyRuntimeError::new_err(
-                "streaming already started -- call stop_streaming() before start_streaming() again",
-            ));
-        }
-
         let callback_arc: Arc<Py<PyAny>> = Arc::new(callback);
+        // Reserve the callback slot in an inner scope and DROP the guard before
+        // the GIL-released connect below. Holding the callback mutex across
+        // `py.detach` (whose dispatcher re-acquires the GIL) lets a concurrent
+        // `stop_streaming` / `reconnect` / second `start_streaming` park on the
+        // same mutex WITH the GIL held while this thread blocks on the GIL --
+        // a whole-interpreter deadlock. Reject a double-start (either a live
+        // session or an in-flight reservation) here, then release the lock.
+        {
+            let mut cb_guard = self.lock_callback();
+            if self.lock_inner().is_some() || cb_guard.is_some() {
+                return Err(PyRuntimeError::new_err(
+                    "streaming already started -- call stop_streaming() before start_streaming() again",
+                ));
+            }
+            *cb_guard = Some(Arc::clone(&callback_arc));
+        }
+        // Own the reservation until the connect AND dispatcher spawn succeed. On
+        // any non-success exit -- the `?` on a handshake failure, the spawn
+        // failure below, or a panic before the session is live -- the guard
+        // clears the slot, but ONLY if it still holds THIS reservation
+        // (`Arc::ptr_eq`): the lock is dropped across the detached connect, so a
+        // concurrent stop + restart may have replaced the slot with a newer
+        // callback that must keep its registration. Disarmed on success.
+        let mut reservation = crate::CallbackReservation::armed(&self.callback, &callback_arc);
         let dispatch_cb = Arc::clone(&callback_arc);
 
         // The streaming TLS connect (`StreamingClientBuilder::build`) performs
@@ -407,16 +431,13 @@ impl StreamingClient {
             .map_err(|e| to_py_err(thetadatadx::Error::from(e)))?;
         let client_arc = Arc::new(client);
 
-        // Publish the client and the stored callback BEFORE spawning
-        // the dispatcher so the first delivered event sees a fully
-        // initialised handle. A re-entrant call from inside the user
-        // callback to `subscribe()` / `with_live()` / `is_streaming()`
-        // would otherwise race the late publish and observe
-        // `inner = None`, raising `RuntimeError("streaming not
-        // started")`.
+        // Publish the client BEFORE spawning the dispatcher so the first
+        // delivered event sees a fully initialised handle. A re-entrant call
+        // from inside the user callback to `subscribe()` / `with_live()` /
+        // `is_streaming()` would otherwise race the late publish and observe
+        // `inner = None`, raising `RuntimeError("streaming not started")`.
+        // The callback slot already holds this reservation.
         *self.lock_inner() = Some(Arc::clone(&client_arc));
-        *cb_guard = Some(Python::attach(|py| callback_arc.clone_ref(py)));
-        drop(cb_guard);
 
         let dispatcher_client = Arc::clone(&client_arc);
         // Clone a handle for counting Python exceptions inside the closure.
@@ -505,13 +526,26 @@ impl StreamingClient {
                         // Python runs its own teardown and never reads this flag.
                         registers_drain_flag: true,
                     };
+                // Connect + spawn succeeded: hand the reservation off to the
+                // live session so the guard does not clear it on return.
+                reservation.disarm();
             }
             Err(e) => {
-                let taken = self.lock_inner().take();
-                *self.lock_callback() = None;
-                if let Some(client) = taken {
-                    client.shutdown();
+                // The dispatcher thread never started; reclaim and shut down the
+                // client THIS start published, but ONLY if `inner` still holds
+                // it -- a concurrent stop + restart during the GIL-released
+                // connect may have replaced it (`Arc::ptr_eq`). The inner guard
+                // is dropped before the reservation clears the callback slot on
+                // return, keeping the callback-before-inner lock order. The
+                // reservation clears the callback slot on drop, ownership-checked
+                // the same way.
+                {
+                    let mut inner = self.lock_inner();
+                    if inner.as_ref().is_some_and(|c| Arc::ptr_eq(c, &client_arc)) {
+                        *inner = None;
+                    }
                 }
+                client_arc.shutdown();
                 return Err(PyRuntimeError::new_err(format!(
                     "failed to spawn streaming dispatcher thread: {e}"
                 )));
@@ -526,20 +560,27 @@ impl StreamingClient {
     /// are arriving even though the TLS slot is still populated, so
     /// callers must observe the failed state.
     fn is_streaming(&self) -> bool {
-        let guard = self.lock_inner();
-        if guard.as_ref().is_none() {
+        if self.lock_inner().as_ref().is_none() {
             return false;
         }
-        let session = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
-        if let PyFpssDispatcherSession::Failed { reason } = &*session {
-            tracing::debug!(
-                target: "thetadatadx::python",
-                reason = %reason,
-                "is_streaming: dispatcher failed",
-            );
-            return false;
+        // Copy the failure reason out and DROP both binding mutexes before
+        // tracing: a user log handler that re-enters a pyclass method would
+        // otherwise deadlock on the non-reentrant mutex still held here.
+        let failed_reason = match &*self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) {
+            PyFpssDispatcherSession::Failed { reason } => Some(reason.clone()),
+            _ => None,
+        };
+        match failed_reason {
+            Some(reason) => {
+                tracing::debug!(
+                    target: "thetadatadx::python",
+                    reason = %reason,
+                    "is_streaming: dispatcher failed",
+                );
+                false
+            }
+            None => true,
         }
-        true
     }
 
     /// Whether the streaming session is currently authenticated.

@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The default streaming read timeout is now 10s (was 3s), matching the terminal's streaming socket read timeout so a client rides through the brief silence right after a full-market subscribe instead of tripping the deadline and forcing an unnecessary reconnect. Still configurable via `streaming.timeout_ms`.
+- **Python `AsyncClient.close()` and `async with` teardown no longer block the event loop.** The stop-and-drain runs on a worker thread and is awaited, so a callback that round-trips through the loop can finish instead of forcing the teardown into its drain timeout. `AsyncClient.close()` is now awaitable: use `await client.close()` (#1086).
+- **Python Arrow DataFrame conversion releases the GIL while building each batch**, so sibling Python threads keep running during a large `.to_arrow()` / `.to_pandas()` / `.to_polars()` on a returned tick list. The pyarrow handoff now uses the stable Arrow PyCapsule interface, falling back to the older path on pyarrow below 14 (#1090).
 
 ### Fixed
 
@@ -18,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Historical `*_stream` endpoints now honor the request-timeout backstop and the shared retry loop.** `stock_history_trade_stream`, `stock_history_quote_stream`, `option_history_trade_stream`, and `option_history_quote_stream` mapped an unset deadline to no bound at all, so a call against a live-but-silent server could hang forever holding a request-semaphore permit and starve every later historical request on that client. They also hand-rolled a retry loop that dropped a session refresh on the final attempt and ignored the wall-clock envelope. All four now resolve an unset deadline to the configured `request_timeout_secs` (an explicit `Duration::ZERO` still opts out) and route through the same `run_streaming_retry_loop` the buffered builders use (#1081).
 - **Windows server archive attaches to the release.** The Windows `thetadatadx-server` archive was built, but the upload step received a path the artifact action could not resolve on Windows, so the GitHub Release carried no Windows binary. The archive is now referenced by its native workspace path and attaches correctly.
 - **Python `close()` can no longer deadlock against an in-flight streaming start.** `start_streaming` now releases its callback lock before the blocking connect, so a concurrent `close()` / `__exit__` / `__aexit__` on the client cannot wedge the interpreter.
+- **Python standalone `StreamingClient.start_streaming` can no longer wedge the interpreter.** It now releases its callback lock before the blocking connect and registers the callback with an ownership check, so a concurrent `stop_streaming` / `reconnect` / second `start_streaming` cannot deadlock the interpreter or clobber a newer registration (#1080).
 - **Python `session.subscribe(...)` after `close()` raises the uniform closed error.** The context-managed session's attribute proxy now surfaces the "client is closed" error on a closed unified client instead of masking it as an `AttributeError`.
 - **Python `close()` called from inside a streaming callback returns promptly.** Closing from the dispatcher thread now skips the drain wait it could never observe, instead of burning the full drain timeout and emitting a spurious warning.
 - **The credential exchange no longer follows redirects.** The Nexus auth client is set to not follow redirects, so a 3xx from the auth endpoint surfaces as a server error instead of the credential request body being replayed to the redirect target. Nexus never redirects auth.
@@ -29,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Local disk faults during a flat-file download surface immediately.** A full, read-only, or permission-denied output filesystem is now terminal rather than triggering a full re-download on the retry ladder.
 - **FIT integer fields saturate on overflow.** A digit run longer than an i32 can hold now saturates to the signed bound instead of silently dropping the surplus digits and emitting a plausible wrong value.
 - **Price comparison agrees with display for absent prices.** A price carrying type 0 now compares as zero, consistent with its `0.0` rendering and `to_f64`.
+- **Python `close()` after `stop_streaming()` now drains the consumer.** The drain no longer hinges on a streaming-live check that flips false the instant the stream stops, so `close()` waits for the last callback to finish firing instead of returning while it is still running (#1086).
+- **Python `close()` during a concurrent streaming start no longer stalls the interpreter.** The teardown reads dispatcher state with the GIL released, so it never holds a binding lock across a blocking connect (#1086).
+- **Python `is_streaming()` no longer self-deadlocks a re-entrant log handler.** The failure reason is copied out and both binding locks are released before the debug log is emitted (#1086).
 
 ## [13.0.0-rc.12] - 2026-07-01
 

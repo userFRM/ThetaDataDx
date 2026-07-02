@@ -2,30 +2,40 @@
 /// Interface. One batch in, one Table out; pyarrow aliases the underlying
 /// buffers in place and owns them once the import returns.
 ///
-/// The Rust side wraps the batch in a `RecordBatchIterator`, exports it as
-/// an `FFI_ArrowArrayStream`, and hands pyarrow the stream's address.
-/// `pyarrow.RecordBatchReader._import_from_c` moves the stream out of the
-/// struct (nulling its release callback) and `read_all()` drains it into a
-/// `Table`. Buffer ownership transfers through the C Data Interface, so no
-/// column data is copied at the boundary.
+/// The Rust side wraps the batch in a `RecordBatchIterator` and exports it as
+/// an `FFI_ArrowArrayStream`. Buffer ownership transfers through the C Data
+/// Interface, so no column data is copied at the boundary.
+///
+/// Preferred path: the stable Arrow PyCapsule Interface (public since
+/// pyarrow 14). The stream is wrapped in an `arrow_array_stream` capsule and
+/// imported via `RecordBatchReader._import_from_c_capsule`. Fallback path (for
+/// pyarrow < 14, which lacks the capsule entry point): the older address-based
+/// `_import_from_c`. Both consumers MOVE the stream out and null its release
+/// callback, so the `FFI_ArrowArrayStream` `Drop` (run by the capsule
+/// destructor or on stack unwind) is a no-op on the moved-out handle.
 pub(crate) fn record_batch_to_pyarrow_table(py: Python<'_>, batch: RecordBatch) -> PyResult<Py<PyAny>> {
     use arrow::ffi_stream::FFI_ArrowArrayStream;
     use arrow::record_batch::RecordBatchIterator;
 
     let schema = batch.schema();
     let reader = RecordBatchIterator::new(std::iter::once(Ok(batch)), schema);
-
-    // Stack-owned stream handed to pyarrow by address. `_import_from_c`
-    // takes ownership of the stream contents and nulls the release
-    // callback, so the `FFI_ArrowArrayStream` `Drop` that runs when this
-    // function returns is a no-op on the moved-out handle.
-    let mut stream = FFI_ArrowArrayStream::new(Box::new(reader));
-    let stream_addr = std::ptr::addr_of_mut!(stream) as usize;
+    let stream = FFI_ArrowArrayStream::new(Box::new(reader));
 
     let pyarrow = py.import("pyarrow")?;
-    let reader_obj = pyarrow
-        .getattr("RecordBatchReader")?
-        .call_method1("_import_from_c", (stream_addr,))?;
+    let record_batch_reader = pyarrow.getattr("RecordBatchReader")?;
+
+    let reader_obj = if record_batch_reader.hasattr("_import_from_c_capsule")? {
+        // Capsule owns the stream; `_import_from_c_capsule` moves it out and
+        // nulls the release, so the capsule destructor's `Drop` is a no-op.
+        let capsule =
+            pyo3::types::PyCapsule::new_with_value(py, stream, c"arrow_array_stream")?;
+        record_batch_reader.call_method1("_import_from_c_capsule", (capsule,))?
+    } else {
+        // Stack-owned stream handed to pyarrow by address on the legacy path.
+        let mut stream = stream;
+        let stream_addr = std::ptr::addr_of_mut!(stream) as usize;
+        record_batch_reader.call_method1("_import_from_c", (stream_addr,))?
+    };
     let table = reader_obj.call_method0("read_all")?;
     Ok(table.unbind())
 }

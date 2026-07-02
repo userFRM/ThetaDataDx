@@ -1074,22 +1074,26 @@ impl Client {
             .map(pyo3::Bound::into_any)
     }
 
-    /// Async context-manager exit: closes the client. The teardown itself
-    /// releases the GIL internally, so it runs inline before the returned
-    /// awaitable resolves; the awaitable exists to satisfy the async
-    /// context-manager protocol. Resolves to ``False`` so an exception in the
-    /// ``async with`` body is not swallowed.
+    /// Async context-manager exit: closes the client. The blocking stop + drain
+    /// runs on the tokio blocking pool (via ``spawn_blocking``), never inline on
+    /// the event-loop thread, so a callback that round-trips through the loop
+    /// cannot wedge the teardown into its full drain timeout. Resolves to
+    /// ``False`` so an exception in the ``async with`` body is not swallowed.
     #[pyo3(signature = (_exc_type=None, _exc_value=None, _traceback=None))]
     fn __aexit__<'py>(
-        &self,
+        slf: Py<Self>,
         py: Python<'py>,
         _exc_type: Option<Py<PyAny>>,
         _exc_value: Option<Py<PyAny>>,
         _traceback: Option<Py<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        self.close_impl(py)?;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move { Ok(false) })
-            .map(pyo3::Bound::into_any)
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            tokio::task::spawn_blocking(move || Python::attach(|py| slf.borrow(py).close_impl(py)))
+                .await
+                .map_err(|e| PyRuntimeError::new_err(format!("client close task failed: {e}")))??;
+            Ok(false)
+        })
+        .map(pyo3::Bound::into_any)
     }
 }
 
@@ -1117,29 +1121,32 @@ impl Client {
         let Some(client) = self.client.lock().unwrap_or_else(|e| e.into_inner()).take() else {
             return Ok(());
         };
-        // Only a live streaming session has anything to drain. Snapshot that
-        // BEFORE stopping so we do not wait on a barrier that will never arm on
-        // a historical-only client (whose `prev_drained` slot stays empty).
-        let was_streaming = client.stream().is_streaming();
-        // A `close()` called from inside a per-event callback runs ON the
-        // dispatcher thread; the drain flag it would wait on flips only after the
-        // callback returns, so `await_drain` would burn its full timeout and warn
-        // about the caller's own frame. Snapshot the self-call BEFORE `close()`
-        // retires the dispatcher and skip the wait on that path, mirroring the
-        // core teardown self-join guard.
-        let self_dispatch = client.stream().current_thread_is_dispatcher();
         let drained = py.detach(|| {
+            // Snapshot the self-dispatch guard INSIDE the detached region: it
+            // takes the dispatcher mutex, and taking that mutex with the GIL
+            // held would stall the whole interpreter for a concurrent start's
+            // full connect. A `close()` invoked from inside a per-event callback
+            // runs ON the dispatcher thread; the drain flag it would wait on
+            // flips only after the callback returns, so awaiting it there burns
+            // the full timeout on the caller's own frame -- skip the wait on
+            // that path, mirroring the core teardown self-join guard.
+            //
+            // The drain is NOT gated on a pre-stop `is_streaming()` snapshot:
+            // that flag flips false the instant `stop_streaming()` runs, so a
+            // `close()` after an explicit `stop` would skip the barrier and
+            // return while the last callback is still firing. A quiesced or
+            // historical-only client leaves `prev_drained` empty, so `await_drain`
+            // returns immediately -- the barrier is vacuously satisfied.
+            let self_dispatch = client.stream().current_thread_is_dispatcher();
             client.close();
-            if was_streaming && !self_dispatch {
+            if self_dispatch {
+                true
+            } else {
                 client
                     .stream()
                     .await_drain(std::time::Duration::from_millis(
                         streaming_session::EXIT_DRAIN_TIMEOUT_MS,
                     ))
-            } else {
-                // Nothing was streaming, or this close is the dispatcher's own
-                // reentrant call; the drain barrier is vacuously satisfied.
-                true
             }
         });
         // Release the stored callback now the consumer is quiesced, matching
@@ -1714,11 +1721,21 @@ impl AsyncClient {
     }
 
     /// Deterministically close the async client — stops streaming if live,
-    /// drains the consumer, and releases the callback. Forwards to the inner
-    /// [`Client::close`]; the GIL is released around the wait. Prefer
+    /// drains the consumer, and releases the callback. Awaitable: the blocking
+    /// stop + drain runs on the tokio blocking pool (via ``spawn_blocking``),
+    /// never inline on the event-loop thread, so awaiting ``close()`` never
+    /// parks the loop for the drain. Prefer
     /// ``async with await AsyncClient.connect(...) as c:`` so this runs on exit.
-    fn close(&self, py: Python<'_>) -> PyResult<()> {
-        self.inner.borrow(py).close_impl(py)
+    fn close<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let inner = self.inner.clone_ref(py);
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            tokio::task::spawn_blocking(move || {
+                Python::attach(|py| inner.borrow(py).close_impl(py))
+            })
+            .await
+            .map_err(|e| PyRuntimeError::new_err(format!("client close task failed: {e}")))?
+        })
+        .map(pyo3::Bound::into_any)
     }
 
     /// Async context-manager entry: returns ``self``.
@@ -1727,8 +1744,10 @@ impl AsyncClient {
             .map(pyo3::Bound::into_any)
     }
 
-    /// Async context-manager exit: closes the client. Resolves to ``False`` so
-    /// an exception raised in the ``async with`` body is not swallowed.
+    /// Async context-manager exit: closes the client. The blocking stop + drain
+    /// runs on the tokio blocking pool (via ``spawn_blocking``), never inline on
+    /// the event-loop thread. Resolves to ``False`` so an exception raised in the
+    /// ``async with`` body is not swallowed.
     #[pyo3(signature = (_exc_type=None, _exc_value=None, _traceback=None))]
     fn __aexit__<'py>(
         &self,
@@ -1737,9 +1756,16 @@ impl AsyncClient {
         _exc_value: Option<Py<PyAny>>,
         _traceback: Option<Py<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        self.inner.borrow(py).close_impl(py)?;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move { Ok(false) })
-            .map(pyo3::Bound::into_any)
+        let inner = self.inner.clone_ref(py);
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            tokio::task::spawn_blocking(move || {
+                Python::attach(|py| inner.borrow(py).close_impl(py))
+            })
+            .await
+            .map_err(|e| PyRuntimeError::new_err(format!("client close task failed: {e}")))??;
+            Ok(false)
+        })
+        .map(pyo3::Bound::into_any)
     }
 }
 

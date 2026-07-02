@@ -3,10 +3,15 @@
         // `start_streaming(callback)` so the Python surface stays
         // consistent: there is no implicit zero-callback streaming
         // mode on this binding.
-        let stored = {
+        // Snapshot BOTH the slot's current `Arc` identity (`prev_arc`, for the
+        // ownership-checked store below) and a fresh `clone_ref` for the
+        // reconnected dispatcher. The lock is dropped across the GIL-released
+        // reconnect, so a concurrent stop (clears to `None`) or restart
+        // (installs a newer `Arc`) can replace the slot mid-reconnect.
+        let (prev_arc, stored) = {
             let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
             match guard.as_ref() {
-                Some(cb) => Python::attach(|py| cb.clone_ref(py)),
+                Some(cb) => (Arc::clone(cb), Python::attach(|py| cb.clone_ref(py))),
                 None => {
                     return Err(PyRuntimeError::new_err(
                         "no callback registered -- call start_streaming(callback) before reconnect()",
@@ -67,11 +72,17 @@
         })
         .map_err(to_py_err)?;
 
-        // Replace the stored callable with the reconnected handle so the next
-        // reconnect / shutdown sees the same state shape. The dispatcher closure
-        // already captured a clone of `callback_arc` (via `dispatch_cb`), so this
-        // Arc clone shares the same callable.
+        // Ownership-checked store: install the reconnected handle ONLY if the
+        // slot still holds the registration this reconnect started from
+        // (`Arc::ptr_eq` against `prev_arc`). The callback lock is dropped across
+        // the GIL-released reconnect, so a concurrent stop (`None`) or restart
+        // (newer `Arc`) must win -- overwriting would strand their session with
+        // the wrong callback. The dispatcher closure already captured a clone of
+        // `callback_arc` (via `dispatch_cb`), so this Arc clone shares the same
+        // callable.
         let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
-        *guard = Some(Arc::clone(&callback_arc));
+        if guard.as_ref().is_some_and(|cb| Arc::ptr_eq(cb, &prev_arc)) {
+            *guard = Some(Arc::clone(&callback_arc));
+        }
         Ok(())
     }
