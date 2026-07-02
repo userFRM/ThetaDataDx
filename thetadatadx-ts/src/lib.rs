@@ -780,13 +780,20 @@ pub(crate) type TsfnCallback = napi::threadsafe_function::ThreadsafeFunction<
 
 #[napi]
 pub struct Client {
-    /// Wrapped in `Arc` so async napi methods (e.g. `awaitDrain`) can
-    /// clone a cheap handle into a `tokio::task::spawn_blocking` future
-    /// without violating the `Send + 'static` bound. The inner
-    /// `thetadatadx::Client` is not `Clone` -- its streaming mutex and
-    /// subscription-tier state forbid that -- so the outer `Arc` is the
-    /// only way to hand a borrow off the napi main thread.
-    client: Arc<thetadatadx::Client>,
+    /// Held as `Option` behind a `Mutex` so `close()` can DETERMINISTICALLY
+    /// RELEASE the handle: closing takes the `Arc<Client>` out of the slot and
+    /// drops it, freeing the historical gRPC channel pool once the last
+    /// co-owning surface (a `HistoricalView` / `StreamView` vended before
+    /// close) is also gone — matching the C++ wrapper, where `close()` resets
+    /// the handle. A closed slot (`None`) makes every access via
+    /// [`Client::client_handle`] reject with "client is closed", so the client
+    /// is UNUSABLE after close and a second close is a no-op.
+    ///
+    /// The inner `thetadatadx::Client` is not `Clone` -- its streaming mutex
+    /// and subscription-tier state forbid that -- so surfaces co-own a cheap
+    /// `Arc<Client>` clone (surviving past a parent close, exactly as the C++
+    /// `Historical` / `Stream` views co-own the `shared_ptr`).
+    client: Mutex<Option<Arc<thetadatadx::Client>>>,
     /// Stored JS callback registered via `startStreaming(callback)`.
     /// `None` until the first registration; persisted across
     /// `reconnect()` so the reconnect path can re-attach the same JS
@@ -825,6 +832,19 @@ pub struct HistoricalView {
     client: Arc<thetadatadx::Client>,
 }
 
+impl HistoricalView {
+    /// The core client handle for the generated endpoint bodies.
+    ///
+    /// The view co-owns its `Arc<Client>`, so it stays usable even after the
+    /// parent `Client` closes — matching the C++ `Historical` view, which
+    /// co-owns the `shared_ptr`. Infallible; the `napi::Result` signature is
+    /// shared with `HistoricalClient::client_handle` so the identical generated
+    /// bodies compile against either receiver.
+    pub(crate) fn client_handle(&self) -> napi::Result<Arc<thetadatadx::Client>> {
+        Ok(Arc::clone(&self.client))
+    }
+}
+
 /// User-facing real-time-streaming sub-namespace returned by the
 /// `client.stream` getter.
 ///
@@ -845,10 +865,10 @@ impl Client {
     /// Returns a fresh [`HistoricalView`] that shares the underlying
     /// client connection. No auth round-trip, no streaming-state mutation.
     #[napi(getter)]
-    pub fn historical(&self) -> HistoricalView {
-        HistoricalView {
-            client: Arc::clone(&self.client),
-        }
+    pub fn historical(&self) -> napi::Result<HistoricalView> {
+        Ok(HistoricalView {
+            client: self.client_handle()?,
+        })
     }
 
     /// Real-time-streaming sub-namespace: `client.stream.subscribe(...)`,
@@ -858,11 +878,29 @@ impl Client {
     /// parent's callback slot, so the streaming lifecycle observed through
     /// the view is the one the unified client manages.
     #[napi(getter)]
-    pub fn stream(&self) -> StreamView {
-        StreamView {
-            client: Arc::clone(&self.client),
+    pub fn stream(&self) -> napi::Result<StreamView> {
+        Ok(StreamView {
+            client: self.client_handle()?,
             callback: Arc::clone(&self.callback),
-        }
+        })
+    }
+
+    /// The live core client handle, or a "client is closed" error.
+    ///
+    /// Every surface the client vends (`historical` / `stream` / `flatFiles`)
+    /// resolves the handle through here, so once `close()` has taken it the
+    /// client is uniformly unusable. Returns a cheap `Arc` clone the caller
+    /// co-owns.
+    pub(crate) fn client_handle(&self) -> napi::Result<Arc<thetadatadx::Client>> {
+        self.client
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+            .ok_or_else(|| {
+                napi::Error::from_reason(
+                    "client is closed; construct a new client to make further calls",
+                )
+            })
     }
 }
 
@@ -907,7 +945,7 @@ impl Client {
             .map_err(|e| napi::Error::from_reason(format!("connect task failed to complete: {e}")))?
             .map_err(to_napi_err)?;
         Ok(Client {
-            client: Arc::new(client),
+            client: Mutex::new(Some(Arc::new(client))),
             callback: Arc::new(Mutex::new(None)),
         })
     }
@@ -924,7 +962,7 @@ impl Client {
     pub async fn connect_from_file(path: String, config: Option<&Config>) -> napi::Result<Client> {
         let client = connect_historical_from_file_core(path, config_or_production(config)).await?;
         Ok(Client {
-            client,
+            client: Mutex::new(Some(client)),
             callback: Arc::new(Mutex::new(None)),
         })
     }
@@ -960,17 +998,21 @@ impl Client {
             .map_err(|e| napi::Error::from_reason(format!("connect task failed to complete: {e}")))?
             .map_err(to_napi_err)?;
         Ok(Client {
-            client: Arc::new(client),
+            client: Mutex::new(Some(Arc::new(client))),
             callback: Arc::new(Mutex::new(None)),
         })
     }
 
     /// Deterministically close the client.
     ///
-    /// Stops streaming if it is live (idempotent) and releases the registered
-    /// callback back to V8. The historical gRPC channel pool releases when the
-    /// last handle to this client is dropped. Safe to call more than once and
-    /// safe on a client that only ran historical queries.
+    /// Stops streaming if it is live (idempotent), RELEASES the core client
+    /// handle, and releases the registered callback back to V8. Taking the
+    /// handle out of its slot and dropping it frees the historical gRPC channel
+    /// pool once no vended surface still co-owns it, and makes the client
+    /// UNUSABLE — every subsequent `historical` / `stream` / `flatFiles` access
+    /// rejects with "client is closed". Safe to call more than once (a second
+    /// close finds an empty slot and is a no-op) and safe on a client that only
+    /// ran historical queries.
     ///
     /// This is the recommended teardown. Prefer the `using` declaration
     /// (`using client = connect(...)`) so `close()` runs on scope exit through
@@ -980,14 +1022,20 @@ impl Client {
     ///
     /// `close()` retires the streaming dispatcher synchronously on the calling
     /// thread, so it can block briefly while the dispatcher drains its
-    /// in-flight events. The non-blocking detach (a teardown that returns
-    /// immediately and finishes on a helper thread) applies only to the
-    /// implicit `Drop` path, which must not block a thread that may hold a
-    /// runtime lock the dispatcher re-enters. Callers wanting a non-blocking
-    /// release let the handle drop instead of calling `close()`.
+    /// in-flight events. Dropping the taken handle runs the core `Client::Drop`
+    /// (the detached streaming quiesce), which returns immediately and finishes
+    /// on a helper thread. Callers wanting a non-blocking release let the handle
+    /// drop instead of calling `close()`.
     #[napi]
     pub fn close(&self) {
-        self.client.stream().stop_streaming();
+        // Take the handle: idempotent. A second close finds `None`.
+        let Some(client) = self.client.lock().unwrap_or_else(|e| e.into_inner()).take() else {
+            return;
+        };
+        // Stop streaming synchronously on the calling thread, then release the
+        // stored callback. Dropping `client` at scope end frees the pool and
+        // runs the detached core `Drop`.
+        client.stream().stop_streaming();
         let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
         *guard = None;
     }
@@ -1151,15 +1199,31 @@ impl StreamView {
 /// ```
 #[napi]
 pub struct HistoricalClient {
-    /// Wrapped in `Arc` so the generated async endpoint methods can
-    /// clone a cheap `'static` handle into the worker future, exactly
-    /// like the unified client's `client` field. The generated method
-    /// bodies reference `self.client`, so the historical impl block the
-    /// codegen projects onto this class compiles unchanged. This client
-    /// holds the same `thetadatadx::Client` core but never
-    /// reaches its streaming methods — no streaming TLS slot is opened for a
-    /// session that lives entirely through `HistoricalClient`.
-    client: Arc<thetadatadx::Client>,
+    /// Held as `Option` behind a `Mutex` (like the unified `Client`) so
+    /// `close()` DETERMINISTICALLY RELEASES the handle: closing takes the
+    /// `Arc<Client>` out and drops it, freeing the historical gRPC channel pool,
+    /// and makes the client UNUSABLE — the generated endpoint bodies resolve the
+    /// handle through [`HistoricalClient::client_handle`], which rejects with
+    /// "client is closed" once the slot is empty. A second close is a no-op.
+    client: Mutex<Option<Arc<thetadatadx::Client>>>,
+}
+
+impl HistoricalClient {
+    /// The live core client handle for the generated endpoint bodies, or a
+    /// "client is closed" error. Shares its signature with
+    /// [`HistoricalView::client_handle`] so the identical generated bodies
+    /// compile against either receiver.
+    pub(crate) fn client_handle(&self) -> napi::Result<Arc<thetadatadx::Client>> {
+        self.client
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+            .ok_or_else(|| {
+                napi::Error::from_reason(
+                    "client is closed; construct a new client to make further calls",
+                )
+            })
+    }
 }
 
 #[napi]
@@ -1197,7 +1261,7 @@ impl HistoricalClient {
             .map_err(|e| napi::Error::from_reason(format!("connect task failed to complete: {e}")))?
             .map_err(to_napi_err)?;
         Ok(HistoricalClient {
-            client: Arc::new(client),
+            client: Mutex::new(Some(Arc::new(client))),
         })
     }
 
@@ -1213,23 +1277,27 @@ impl HistoricalClient {
         config: Option<&Config>,
     ) -> napi::Result<HistoricalClient> {
         let client = connect_historical_from_file_core(path, config_or_production(config)).await?;
-        Ok(HistoricalClient { client })
+        Ok(HistoricalClient {
+            client: Mutex::new(Some(client)),
+        })
     }
 
     /// Deterministically close the historical client.
     ///
     /// The historical-only surface never opens streaming, so there is no
-    /// dispatcher to drain; the gRPC channel pool releases when the last handle
-    /// to this client is dropped. Provided so the historical surface matches the
-    /// unified `Client` lifecycle across every binding. Idempotent. Prefer the
+    /// dispatcher to drain; closing takes the core client handle out of its slot
+    /// and drops it, RELEASING the gRPC channel pool once no vended surface still
+    /// co-owns it and making the client UNUSABLE (every endpoint call rejects
+    /// with "client is closed"). Matches the unified `Client` lifecycle across
+    /// every binding. Idempotent — a second close finds an empty slot. Prefer the
     /// `using` declaration (`using c = await HistoricalClient.connect(...)`) so
     /// `close()` runs on scope exit through `[Symbol.dispose]`.
     #[napi]
     pub fn close(&self) {
-        // No streaming dispatcher on the historical-only surface; the channel
-        // pool releases on handle drop. Kept explicit so the lifecycle surface
-        // is uniform across bindings.
-        self.client.close();
+        // Take the handle out of its slot and drop it (idempotent). Dropping the
+        // last co-owning `Arc` frees the channel pool and runs the detached core
+        // `Drop`. A historical-only client has no streaming dispatcher to stop.
+        let _ = self.client.lock().unwrap_or_else(|e| e.into_inner()).take();
     }
 }
 

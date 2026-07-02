@@ -260,10 +260,10 @@ use crate::{Client, HistoricalClient};
 impl Client {
     /// FLATFILES namespace handle. Cheap — shares the underlying client connection.
     #[napi(getter, js_name = "flatFiles")]
-    pub fn flat_files(&self) -> FlatFilesNamespace {
-        FlatFilesNamespace {
-            client: Arc::clone(&self.client),
-        }
+    pub fn flat_files(&self) -> napi::Result<FlatFilesNamespace> {
+        Ok(FlatFilesNamespace {
+            client: self.client_handle()?,
+        })
     }
 
     /// Pull a flat-file blob and write the requested format to `path`.
@@ -278,7 +278,15 @@ impl Client {
         path: String,
         format: Option<String>,
     ) -> napi::Result<String> {
-        flat_file_to_path_impl(&self.client, sec_type, req_type, date, path, format).await
+        flat_file_to_path_impl(
+            &self.client_handle()?,
+            sec_type,
+            req_type,
+            date,
+            path,
+            format,
+        )
+        .await
     }
 }
 
@@ -290,10 +298,10 @@ impl HistoricalClient {
     /// The historical-only client opens the same data channel as the unified
     /// client, so the full flat-file surface is reachable here unchanged.
     #[napi(getter, js_name = "flatFiles")]
-    pub fn flat_files(&self) -> FlatFilesNamespace {
-        FlatFilesNamespace {
-            client: Arc::clone(&self.client),
-        }
+    pub fn flat_files(&self) -> napi::Result<FlatFilesNamespace> {
+        Ok(FlatFilesNamespace {
+            client: self.client_handle()?,
+        })
     }
 
     /// Pull a flat-file blob and write the requested format to `path`.
@@ -308,6 +316,14 @@ impl HistoricalClient {
         path: String,
         format: Option<String>,
     ) -> napi::Result<String> {
-        flat_file_to_path_impl(&self.client, sec_type, req_type, date, path, format).await
+        flat_file_to_path_impl(
+            &self.client_handle()?,
+            sec_type,
+            req_type,
+            date,
+            path,
+            format,
+        )
+        .await
     }
 }

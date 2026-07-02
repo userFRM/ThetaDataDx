@@ -80,10 +80,14 @@ export declare class Client {
   /**
    * Deterministically close the client.
    *
-   * Stops streaming if it is live (idempotent) and releases the registered
-   * callback back to V8. The historical gRPC channel pool releases when the
-   * last handle to this client is dropped. Safe to call more than once and
-   * safe on a client that only ran historical queries.
+   * Stops streaming if it is live (idempotent), RELEASES the core client
+   * handle, and releases the registered callback back to V8. Taking the
+   * handle out of its slot and dropping it frees the historical gRPC channel
+   * pool once no vended surface still co-owns it, and makes the client
+   * UNUSABLE — every subsequent `historical` / `stream` / `flatFiles` access
+   * rejects with "client is closed". Safe to call more than once (a second
+   * close finds an empty slot and is a no-op) and safe on a client that only
+   * ran historical queries.
    *
    * This is the recommended teardown. Prefer the `using` declaration
    * (`using client = connect(...)`) so `close()` runs on scope exit through
@@ -93,11 +97,10 @@ export declare class Client {
    *
    * `close()` retires the streaming dispatcher synchronously on the calling
    * thread, so it can block briefly while the dispatcher drains its
-   * in-flight events. The non-blocking detach (a teardown that returns
-   * immediately and finishes on a helper thread) applies only to the
-   * implicit `Drop` path, which must not block a thread that may hold a
-   * runtime lock the dispatcher re-enters. Callers wanting a non-blocking
-   * release let the handle drop instead of calling `close()`.
+   * in-flight events. Dropping the taken handle runs the core `Client::Drop`
+   * (the detached streaming quiesce), which returns immediately and finishes
+   * on a helper thread. Callers wanting a non-blocking release let the handle
+   * drop instead of calling `close()`.
    */
   close(): void
   /** FLATFILES namespace handle. Cheap — shares the underlying client connection. */
@@ -835,9 +838,11 @@ export declare class HistoricalClient {
    * Deterministically close the historical client.
    *
    * The historical-only surface never opens streaming, so there is no
-   * dispatcher to drain; the gRPC channel pool releases when the last handle
-   * to this client is dropped. Provided so the historical surface matches the
-   * unified `Client` lifecycle across every binding. Idempotent. Prefer the
+   * dispatcher to drain; closing takes the core client handle out of its slot
+   * and drops it, RELEASING the gRPC channel pool once no vended surface still
+   * co-owns it and making the client UNUSABLE (every endpoint call rejects
+   * with "client is closed"). Matches the unified `Client` lifecycle across
+   * every binding. Idempotent — a second close finds an empty slot. Prefer the
    * `using` declaration (`using c = await HistoricalClient.connect(...)`) so
    * `close()` runs on scope exit through `[Symbol.dispose]`.
    */

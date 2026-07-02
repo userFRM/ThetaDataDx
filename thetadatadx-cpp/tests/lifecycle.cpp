@@ -213,3 +213,27 @@ TEST_CASE("close() is idempotent and safe before destruction", "[lifecycle][live
     REQUIRE_NOTHROW(historical.close());
     REQUIRE_NOTHROW(historical.close());
 }
+
+TEST_CASE("close() releases the handle deterministically", "[lifecycle][live]") {
+    const auto creds_path = env_or_empty("THETADATADX_LIVE_CREDS");
+    if (creds_path.empty()) {
+        SKIP("THETADATADX_LIVE_CREDS not set");
+    }
+    auto creds = thetadatadx::Credentials::from_file(creds_path);
+    auto config = thetadatadx::Config::production();
+
+    // Cross-binding parity anchor (the Python / TypeScript bindings match this):
+    // close() RELEASES the client handle, so the client is unusable afterward.
+    // The public raw-handle accessor going null is the deterministic-release
+    // proof — the historical gRPC channel pool is freed at close, not at some
+    // later GC. `HistoricalClient` releases through the same `handle_.reset()`
+    // path (its handle accessor is private, so the idempotent-close case above
+    // is its observable pin).
+    auto client = thetadatadx::Client::connect(creds, config);
+    REQUIRE(client.get() != nullptr);
+    client.close();
+    REQUIRE(client.get() == nullptr);
+    // Idempotent after release: the accessor stays null, no double-free.
+    client.close();
+    REQUIRE(client.get() == nullptr);
+}

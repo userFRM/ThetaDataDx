@@ -283,6 +283,67 @@ def test_close_is_idempotent_and_safe_after_streaming(client) -> None:
     client.close()
 
 
+def test_close_releases_and_makes_client_unusable() -> None:
+    """Offline source pin (#1071 follow-up): `close()` must RELEASE the core
+    client handle, not merely stop streaming, and every vended surface must
+    resolve the handle through the closed-guard so a closed client is unusable.
+
+    Asserted against the generated / hand-written source so a regression that
+    reverts `close()` back to a stop-only teardown (leaving the client usable
+    and the gRPC pool pinned) fails even without live credentials. The
+    behavioural proof lives in the live-gated tests below.
+    """
+    from pathlib import Path
+
+    here = Path(__file__).resolve().parent
+    src_root = None
+    for candidate in [here, *here.parents]:
+        target = candidate / "src"
+        if target.is_dir() and (target / "lib.rs").is_file():
+            src_root = target
+            break
+    assert src_root is not None, "could not locate thetadatadx-py/src"
+
+    lib = (src_root / "lib.rs").read_text()
+    # The handle is held behind an Option so close() can take it.
+    assert (
+        "client: std::sync::Mutex<Option<std::sync::Arc<thetadatadx::Client>>>" in lib
+    ), "the unified Client must hold its handle as an Option so close() can release it"
+    # close_impl takes the handle out of its slot (deterministic release) and the
+    # accessor raises once it is gone (unusable after close).
+    assert ".take()" in lib, "close_impl must take() the handle out to release it"
+    assert "client is closed" in lib, (
+        "the closed-guard must raise a clear 'client is closed' error"
+    )
+
+
+def test_close_makes_client_unusable(client) -> None:
+    """After `close()` every surface accessor raises a clear closed error, so a
+    subsequent historical or streaming call cannot reach the network. Live-gated
+    because the constructor needs a real handshake.
+    """
+    client.close()
+    with pytest.raises(RuntimeError, match="closed"):
+        _ = client.historical
+    with pytest.raises(RuntimeError, match="closed"):
+        _ = client.stream
+    with pytest.raises(RuntimeError, match="closed"):
+        _ = client.flat_files
+    # Idempotent: a second close on the released client is a no-op.
+    client.close()
+
+
+def test_close_releases_via_context_manager(client) -> None:
+    """The `with Client(...)` exit runs the REAL close (release), not just a
+    stop-streaming: inside the block the client is usable, and after the block a
+    surface accessor raises the closed error. Live-gated.
+    """
+    with client as bound:
+        assert bound.historical is not None
+    with pytest.raises(RuntimeError, match="closed"):
+        _ = client.stream
+
+
 def test_direct_start_streaming_then_drop_does_not_deadlock() -> None:
     """The forgetful path is deadlock-safe (issue 1).
 
