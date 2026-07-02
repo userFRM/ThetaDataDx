@@ -36,8 +36,8 @@
 //!   full queue rather than dropping batches queue-side. This bounds loss
 //!   at the reader queue; it does NOT make the pipeline lossless end to
 //!   end. Upstream, the I/O thread publishes into the FPSS event ring with
-//!   a non-blocking `try_publish` and drops on ring-full by design (see
-//!   [`super::ring`]): blocking the I/O thread would stall PING heartbeats
+//!   a non-blocking `try_publish` and drops on ring-full by design (in the
+//!   `super::ring` module): blocking the I/O thread would stall PING heartbeats
 //!   and drop the vendor session on the wire, so it never blocks. A reader
 //!   that stalls long enough to back the dispatcher up until the ring
 //!   fills therefore loses events at the ring, counted on
