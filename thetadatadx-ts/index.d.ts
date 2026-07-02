@@ -77,6 +77,22 @@ export declare class Client {
    * `async` for the same reason as [`Client::connect`].
    */
   static connectWith(options: ClientConnectOptions): Promise<Client>
+  /**
+   * Deterministically close the client.
+   *
+   * Stops streaming if it is live (idempotent) and releases the registered
+   * callback back to V8. The historical gRPC channel pool releases when the
+   * last handle to this client is dropped. Safe to call more than once and
+   * safe on a client that only ran historical queries.
+   *
+   * This is the recommended teardown. Prefer the `using` declaration
+   * (`using client = connect(...)`) so `close()` runs on scope exit through
+   * `[Symbol.dispose]`; for a full streaming-drain barrier use the
+   * `[Symbol.asyncDispose]` pairing (`stopStreaming()` + `awaitDrain`) the
+   * context-managed session exposes. `close()` performs the stop; the core
+   * dispatcher join is detached so this never blocks the JS thread.
+   */
+  close(): void
   /** FLATFILES namespace handle. Cheap — shares the underlying client connection. */
   get flatFiles(): FlatFilesNamespace
   /**
@@ -808,6 +824,17 @@ export declare class HistoricalClient {
    * `async` for the same reason as [`HistoricalClient::connect`].
    */
   static connectFromFile(path: string, config?: Config | undefined | null): Promise<HistoricalClient>
+  /**
+   * Deterministically close the historical client.
+   *
+   * The historical-only surface never opens streaming, so there is no
+   * dispatcher to drain; the gRPC channel pool releases when the last handle
+   * to this client is dropped. Provided so the historical surface matches the
+   * unified `Client` lifecycle across every binding. Idempotent. Prefer the
+   * `using` declaration (`using c = await HistoricalClient.connect(...)`) so
+   * `close()` runs on scope exit through `[Symbol.dispose]`.
+   */
+  close(): void
   /**
    * List all available stock ticker symbols.
    *

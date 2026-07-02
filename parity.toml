@@ -978,6 +978,36 @@ rust = true         # `Client::flat_files()` view accessor
 [method.signature]
 returns = "FlatFilesNamespace"
 
+# Deterministic base-client teardown (issue #1069). `close()` stops streaming
+# if live and releases the client; the language context-manager / RAII wrappers
+# (`__exit__`/`[Symbol.dispose]`/destructor) route through it. The
+# context-manager dunders themselves (`__enter__`/`__exit__`/`__aenter__`/
+# `__aexit__`, `[Symbol.dispose]`/`[Symbol.asyncDispose]`) are exempt from the
+# parity matrix by the collectors' lifecycle-dunder filter, so only the
+# cross-binding `close` verb carries a row.
+[[method]]
+class = "Client"
+name = "close"
+python = true       # `Client.close()` + `with` / `async with` context manager
+typescript = true   # napi `close(): void` + `[Symbol.dispose]` / `[Symbol.asyncDispose]`
+cpp = true          # `Client::close()` (explicit form of the RAII destructor)
+rust = true         # `Client::close()`
+[method.signature]
+returns = "()"
+
+# Historical-only sibling of `Client.close`. The historical surface never opens
+# streaming, so this releases the gRPC channel pool with no drain; present on
+# every binding so the base/historical lifecycle is uniform.
+[[method]]
+class = "HistoricalClient"
+name = "close"
+python = true       # `HistoricalClient.close()` + `with` / `async with` context manager
+typescript = true   # napi `close(): void` + `[Symbol.dispose]` / `[Symbol.asyncDispose]`
+cpp = true          # `HistoricalClient::close()` (explicit form of the RAII destructor)
+rust = true         # `HistoricalClient::close()`
+[method.signature]
+returns = "()"
+
 # Context-managed streaming session opener. A managed-binding ergonomic that
 # pairs `start_streaming` with a scope-exit `stop_streaming` + drain barrier:
 # Python `with client.streaming(cb) as session:` and TypeScript

@@ -735,8 +735,11 @@ impl DirectConfig {
     /// Validate configuration values and reject out-of-range tuning knobs.
     ///
     /// Returns the configuration with historical HTTP/2 window sizes clamped
-    /// into `[64, 1024]` KB on success. Returns
-    /// [`Error::Config`] when any wired streaming
+    /// into `[64, 1024]` KB and a `0` historical `request_timeout_secs` floored
+    /// back to the production default (a `0` there disables the gRPC hang guard
+    /// for every deadline-less request — terminal-unsafe; the per-call
+    /// `with_deadline(Duration::ZERO)` opt-out is unaffected) on success.
+    /// Returns [`Error::Config`] when any wired streaming
     /// knob (`timeout_ms`, `connect_timeout_ms`, `ping_interval_ms`)
     /// falls outside its documented range — silent rounding would
     /// rewrite the caller's stated tuning under their feet, so an
@@ -938,6 +941,17 @@ impl DirectConfig {
         self.historical.window_size_kb = self.historical.window_size_kb.clamp(64, 1_024);
         self.historical.connection_window_size_kb =
             self.historical.connection_window_size_kb.clamp(64, 1_024);
+        // Floor the default request deadline to the production value rather
+        // than leave the hang guard disabled. A `0` here would opt every
+        // deadline-less request out of the gRPC timeout, so a server that
+        // holds the stream open while sending no chunks (which the h2
+        // keepalive PING cannot detect) would hang the request forever — a
+        // terminal-unsafe default. Per-call `with_deadline(Duration::ZERO)`
+        // remains the deliberate single-request opt-out.
+        if self.historical.request_timeout_secs == 0 {
+            self.historical.request_timeout_secs =
+                crate::config::HistoricalConfig::production_defaults().request_timeout_secs;
+        }
         if !flatfiles_bounds::MAX_ATTEMPTS.contains(&self.flatfiles.max_attempts) {
             return Err(Error::config_out_of_range(
                 "flatfiles.max_attempts",
@@ -1999,6 +2013,27 @@ mod tests {
             .expect("historical window sizes are clamped");
         assert_eq!(config.historical.window_size_kb, 1_024);
         assert_eq!(config.historical.connection_window_size_kb, 64);
+    }
+
+    #[test]
+    fn validate_floors_zero_request_timeout_to_default() {
+        // A `0` default deadline would opt every deadline-less request out of
+        // the gRPC hang guard; validation floors it back to the production
+        // default so a silent-but-live server cannot hang the client forever.
+        let mut config = DirectConfig::production_defaults();
+        config.historical.request_timeout_secs = 0;
+        let config = config.validate().expect("zero request timeout is floored");
+        assert_eq!(
+            config.historical.request_timeout_secs,
+            HistoricalConfig::production_defaults().request_timeout_secs,
+        );
+        // A non-zero caller value is preserved untouched.
+        let mut config = DirectConfig::production_defaults();
+        config.historical.request_timeout_secs = 42;
+        let config = config
+            .validate()
+            .expect("non-zero request timeout is preserved");
+        assert_eq!(config.historical.request_timeout_secs, 42);
     }
 
     #[test]

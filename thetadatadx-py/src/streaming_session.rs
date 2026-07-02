@@ -27,7 +27,7 @@ use crate::fpss_client::StreamingClient;
 /// parity matters more than tunability here -- a slow Python callback
 /// that needs >5 s to drain is already a contract violation worth
 /// surfacing.
-const EXIT_DRAIN_TIMEOUT_MS: u64 = 5_000;
+pub(crate) const EXIT_DRAIN_TIMEOUT_MS: u64 = 5_000;
 
 /// Typed handle carried by the context-manager pyclasses. Replaces a
 /// bare `Py<PyAny>` so the streaming lifecycle calls

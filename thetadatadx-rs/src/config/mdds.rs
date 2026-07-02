@@ -78,8 +78,7 @@ pub struct HistoricalConfig {
     pub connect_timeout_secs: u64,
 
     /// Default per-request deadline for historical (gRPC) queries, in
-    /// seconds. `0` disables the default (no deadline unless the caller
-    /// sets one).
+    /// seconds.
     ///
     /// A server that holds the HTTP/2 stream open while sending no
     /// chunks would otherwise hang `collect_stream` / `stream(...)`
@@ -88,9 +87,17 @@ pub struct HistoricalConfig {
     /// request that did not call `with_deadline(...)`, so a stalled
     /// stream resolves to `Error::Timeout` instead of blocking forever.
     ///
+    /// Configuring `0` here does **not** disable the guard: to keep the
+    /// terminal-safe behaviour, [`DirectConfig::validate`] floors a `0`
+    /// back to the production default so a deadline-less request can never
+    /// hang the client forever. Opt a single request out with the per-call
+    /// escape hatch instead.
+    ///
     /// Per-call control overrides this: `with_deadline(Duration)` sets a
     /// shorter or longer bound, and `with_deadline(Duration::ZERO)`
     /// opts a single request out of any deadline.
+    ///
+    /// [`DirectConfig::validate`]: crate::config::DirectConfig::validate
     ///
     /// Default `300s` (5 min) — comfortably above the slowest realistic
     /// multi-million-row bulk pull while still bounding a wedged stream.

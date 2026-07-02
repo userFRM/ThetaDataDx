@@ -172,3 +172,110 @@ def test_double_enter_raises(client) -> None:
         pass
     with pytest.raises(RuntimeError, match="callback already consumed"):
         cm.__enter__()
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Base-client lifecycle: `close()` + `with` / `async with` (issue #1069)
+# and the direct-start-then-drop deadlock-safety (issue 1).
+# ─────────────────────────────────────────────────────────────────────
+
+
+def test_base_clients_expose_close_and_context_managers() -> None:
+    """Offline surface pin: the base clients carry the deterministic
+    teardown surface. `Client` / `HistoricalClient` are sync + async
+    context managers with `close()`; `AsyncClient` is an async-only
+    context manager with `close()`. Asserted without credentials so a
+    regression that drops any of these fails even offline.
+    """
+    mod = _import_module()
+    for name in ("Client", "HistoricalClient"):
+        cls = getattr(mod, name)
+        for attr in ("close", "__enter__", "__exit__", "__aenter__", "__aexit__"):
+            assert hasattr(cls, attr), f"{name} must expose {attr}"
+    # AsyncClient is async-first: async CM + close, no sync CM.
+    async_cls = mod.AsyncClient
+    for attr in ("close", "__aenter__", "__aexit__"):
+        assert hasattr(async_cls, attr), f"AsyncClient must expose {attr}"
+
+
+def test_context_manager_closes_cleanly(client) -> None:
+    """`with Client(...) as c:` binds the client and closes it on exit.
+
+    The block exit runs `close()` (stop streaming if live + drain + drop
+    the callback). With no streaming started, close is a fast no-op and
+    the client is still bound inside the block. Live-gated because the
+    constructor needs a real handshake.
+    """
+    with client as bound:
+        assert bound is client
+        # A historical query still works inside the block (channel open).
+        assert bound.stream.is_streaming() is False
+    # After the block the client is closed; a second close is idempotent
+    # and must not raise.
+    client.close()
+
+
+def test_close_is_idempotent_and_safe_after_streaming(client) -> None:
+    """`close()` is idempotent and safe to call after a streaming session.
+
+    Start streaming, close once (stops + drains), then close again: the
+    second call is a no-op and must not raise or hang. Live-gated.
+    """
+    client.stream.start_streaming(_noop_callback)
+    assert client.stream.is_streaming() is True
+    client.close()
+    assert client.stream.is_streaming() is False
+    # Idempotent: calling close again on an already-closed client is a
+    # no-op, never a panic or a hang.
+    client.close()
+    client.close()
+
+
+def test_direct_start_streaming_then_drop_does_not_deadlock() -> None:
+    """The forgetful path is deadlock-safe (issue 1).
+
+    A user calls `client.stream.start_streaming(cb)` (the DIRECT path, not
+    the `with client.streaming(cb)` context manager) and then lets the
+    `Client` fall out of scope WITHOUT calling `stop_streaming()`. The
+    final `Arc::drop` runs the core `Client::Drop`, which now detaches the
+    dispatcher join off the dropping (GIL-holding) thread, so the drop
+    returns instead of deadlocking against the dispatcher's `Python::attach`.
+
+    Driven under a watchdog thread: the test builds a client, starts
+    streaming, drops the sole reference, and asserts the drop-and-GC
+    completes within a bounded window. A regression (inline join under the
+    held GIL) hangs here and trips the deadline. Live-gated because
+    `start_streaming` opens a real FPSS connection.
+    """
+    import gc
+    import threading
+
+    creds_path = os.environ.get("THETADATADX_TEST_CREDS")
+    if not creds_path:
+        pytest.skip(
+            "set THETADATADX_TEST_CREDS=path/to/creds.txt to enable this live test"
+        )
+    mod = _import_module()
+
+    done = threading.Event()
+
+    def run() -> None:
+        creds = mod.Credentials.from_file(creds_path)
+        client = mod.Client(creds, mod.Config.production())
+        client.stream.start_streaming(_noop_callback)
+        # Drop the sole reference WITHOUT stop_streaming(), then force the
+        # collection so the pyclass destructor (and the core `Client::Drop`)
+        # runs here, under the GIL, on this thread.
+        del client
+        gc.collect()
+        done.set()
+
+    worker = threading.Thread(target=run, name="drop-no-stop", daemon=True)
+    worker.start()
+    # 30s ceiling: the detached teardown returns in milliseconds; only a
+    # reintroduced GIL-reacquire deadlock would blow past this.
+    assert done.wait(timeout=30.0), (
+        "dropping a streaming Client without stop_streaming() deadlocked: "
+        "the core drop must detach the GIL-reacquiring dispatcher join"
+    )
+    worker.join(timeout=5.0)

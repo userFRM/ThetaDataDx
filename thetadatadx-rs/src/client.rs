@@ -286,6 +286,48 @@ impl StreamingState {
         }
     }
 
+    /// Quiesce off the calling thread: extract the teardown work under the
+    /// lock here (cheap, non-blocking), then finish the blocking part — the
+    /// FPSS client shutdown and the dispatcher join — on a detached helper
+    /// thread.
+    ///
+    /// This is the [`Client::drop`] path. A plain [`Self::quiesce`] would run
+    /// [`Self::run_teardown`], whose cross-thread dispatcher join blocks the
+    /// calling thread. When the last `Arc<Client>` is dropped while a binding
+    /// runtime lock is held — the Python GIL, most importantly, since the
+    /// dispatcher re-acquires it via `Python::attach` to finish an in-flight
+    /// callback — that inline join deadlocks: the drop thread waits on the
+    /// dispatcher, the dispatcher waits on the GIL the drop thread still holds.
+    /// Detaching the join breaks the cycle: the drop returns at once (releasing
+    /// the GIL / event loop), and the helper completes the join once the
+    /// dispatcher drains. Callers who want a synchronous barrier use the
+    /// explicit [`Client::close`] / `stop_streaming` + `await_drain` path,
+    /// which already releases the binding lock around the wait.
+    ///
+    /// Mirrors the self-join detach `StreamingClient::drop` uses (see
+    /// `fpss/mod.rs`): both spawn a named helper so cleanup still completes
+    /// instead of blocking a thread on work it cannot finish inline.
+    fn quiesce_detached(self: &Arc<Self>) {
+        let state = Arc::clone(self);
+        let detached = std::thread::Builder::new()
+            .name("thetadatadx-client-drop-detach".to_owned())
+            .spawn(move || state.quiesce());
+        if let Err(e) = detached {
+            // Spawning failed (thread limit / OOM). Fall back to an inline
+            // teardown: on the common no-streaming drop there is no dispatcher
+            // to join, so `quiesce` returns immediately and no deadlock is
+            // possible; only a forgetful streaming drop under a held runtime
+            // lock could still block, and that is strictly better than leaking
+            // the dispatcher thread and the FPSS connection.
+            tracing::warn!(
+                target: "thetadatadx::client",
+                error = %e,
+                "failed to spawn thetadatadx-client-drop-detach; running teardown inline",
+            );
+            self.quiesce();
+        }
+    }
+
     /// Retire the live session ONLY if the live stop-generation still equals
     /// `expected_gen`, atomically with the generation re-check.
     ///
@@ -1873,17 +1915,30 @@ impl Client {
 }
 
 impl Drop for Client {
-    /// Final cleanup: idempotently stops the streaming connection.
+    /// Final cleanup: idempotently stops the streaming connection, off the
+    /// dropping thread.
     ///
     /// `stop_streaming` swaps the state cell to `Stopped` and only
     /// signals the FPSS client when the previous slot was `Live`.
     /// The actual TLS reader + event-dispatch consumer join happens when
     /// the last `Arc<StreamingClient>` is dropped via `StreamingClient::Drop`.
     /// Calling once from `Drop` after the user already called
-    /// `stop_streaming` is therefore a no-op — the state machine
-    /// guarantees the shutdown signal runs exactly once.
+    /// [`Self::close`] / `stop_streaming` is therefore a no-op — the state
+    /// machine guarantees the shutdown signal runs exactly once.
+    ///
+    /// The teardown is **detached** onto a helper thread
+    /// (`StreamingState::quiesce_detached`) rather than run inline. A binding
+    /// that drops its last client handle while holding a runtime lock the
+    /// dispatcher re-enters — the Python GIL is the load-bearing case, since
+    /// the dispatcher re-acquires it via `Python::attach` to finish an
+    /// in-flight callback — would deadlock on an inline dispatcher join: the
+    /// drop thread blocks on the dispatcher, the dispatcher blocks on the lock.
+    /// Detaching lets the drop return immediately (releasing that lock) while
+    /// the helper finishes the join once the callback drains. Callers that need
+    /// a synchronous quiescence barrier use [`Self::close`] (or `stop_streaming`
+    /// + `await_drain`), which the bindings wrap in a lock-releasing region.
     fn drop(&mut self) {
-        self.stop_streaming();
+        self.streaming.quiesce_detached();
     }
 }
 
@@ -1910,6 +1965,34 @@ impl Client {
     #[must_use]
     pub fn historical(&self) -> &HistoricalClient {
         &self.historical
+    }
+
+    /// Deterministically tear the client down.
+    ///
+    /// Stops streaming if it is live (idempotent; a no-op when it was never
+    /// started or is already stopped). This is the deterministic teardown the
+    /// language bindings expose as `close()` / context-manager exit
+    /// (`__exit__`, `[Symbol.dispose]`, destructor): it runs on the calling
+    /// thread and, unlike the detached [`Drop`] path, retires the streaming
+    /// dispatcher synchronously so a subsequent request or reconnect sees a
+    /// truthfully-stopped session.
+    ///
+    /// The historical gRPC channel pool is released when the last client handle
+    /// is dropped: it is an `Arc`-backed set of idle HTTP/2 connections with no
+    /// worker thread to join, so its release is RAII, not an explicit signal.
+    /// The bindings drop their owning handle on `close()` / context-manager
+    /// exit, which is where that pool release becomes deterministic for the
+    /// caller.
+    ///
+    /// Idempotent and safe to call more than once: the streaming state machine
+    /// guarantees the shutdown signal fires exactly once.
+    ///
+    /// For a full callback-quiescence barrier (so a callback context can be
+    /// freed) pair `stop_streaming` with [`StreamSurface::await_drain`]; `close`
+    /// performs the stop but not the post-stop drain wait, matching the
+    /// non-blocking `stop_streaming` contract.
+    pub fn close(&self) {
+        self.stop_streaming();
     }
 
     /// Streaming surface — subscribe / unsubscribe, the dispatcher
@@ -2851,6 +2934,90 @@ mod tests {
             "quiesce must join the dispatcher thread and reset the session to \
              Idle so the client is reusable"
         );
+    }
+
+    /// The `Client` drop path (`quiesce_detached`) must NOT block the calling
+    /// thread on the dispatcher join — that is what makes a forgetful drop
+    /// deadlock-safe when the dropping thread holds a runtime lock the
+    /// dispatcher re-enters (the Python GIL). Modelled without Python: a
+    /// dispatcher thread parks on a gate the caller controls, is installed as
+    /// the `Running` session, and `quiesce_detached` is driven on the "GIL"
+    /// thread. The assertion is that the call RETURNS while the dispatcher is
+    /// still parked — an inline join would block here until the gate opens, so a
+    /// prompt return proves the join ran on the detached helper instead. Only
+    /// after the caller opens the gate does the detached helper's join complete.
+    #[test]
+    fn drop_detaches_the_dispatcher_join_off_the_calling_thread() {
+        use std::sync::atomic::{AtomicBool, Ordering as O};
+
+        // Gate the dispatcher thread the way an in-flight callback awaiting the
+        // GIL would: it will not exit (so the join cannot complete) until the
+        // caller releases it.
+        let gate = Arc::new(AtomicBool::new(false));
+        let gate_t = Arc::clone(&gate);
+        let dispatcher = std::thread::spawn(move || {
+            while !gate_t.load(O::Acquire) {
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+        });
+
+        let state = Arc::new(StreamingState::new());
+        *state.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
+            handle: dispatcher,
+            on_teardown: None,
+            registers_drain_flag: false,
+        };
+
+        // The "GIL" thread's drop. If the join were inline this call would block
+        // until the gate opens; it must return promptly instead.
+        let start = std::time::Instant::now();
+        state.quiesce_detached();
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(2),
+            "quiesce_detached blocked on the dispatcher join instead of \
+             detaching it; a forgetful drop under a held GIL would deadlock",
+        );
+        assert!(
+            !gate.load(O::Acquire),
+            "precondition: dispatcher is still parked, so the prompt return \
+             above proves the join was detached rather than already complete",
+        );
+
+        // Release the parked dispatcher; the detached helper's join now
+        // completes and the session retires to Idle.
+        gate.store(true, O::Release);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !state.dispatcher_is_idle() {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "detached teardown helper never retired the dispatcher session \
+                 after the gate opened",
+            );
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    }
+
+    /// `quiesce` / `close` are idempotent and safe to call repeatedly on a
+    /// never-started (and already-stopped) streaming state: the slot walks to
+    /// `Stopped`, stays there, and each call bumps the stop generation without
+    /// panicking or blocking. This is the base-client `close()` contract —
+    /// calling it twice, or on a client that only ran historical queries, is a
+    /// no-op teardown.
+    #[test]
+    fn quiesce_is_idempotent_on_a_never_started_state() {
+        let state = StreamingState::new();
+        assert_eq!(state.slot_label(), "Idle");
+
+        state.quiesce();
+        let gen1 = state.stop_generation();
+        assert_eq!(state.slot_label(), "Stopped");
+        assert!(state.dispatcher_is_idle());
+
+        // Second close: still safe, still Stopped, generation advances.
+        state.quiesce();
+        assert_eq!(state.slot_label(), "Stopped");
+        assert!(state.dispatcher_is_idle());
+        assert!(state.stop_generation() > gen1);
     }
 
     /// quiesce must not deadlock joining a columnar dispatcher parked in its

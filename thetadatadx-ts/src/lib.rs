@@ -964,6 +964,26 @@ impl Client {
             callback: Arc::new(Mutex::new(None)),
         })
     }
+
+    /// Deterministically close the client.
+    ///
+    /// Stops streaming if it is live (idempotent) and releases the registered
+    /// callback back to V8. The historical gRPC channel pool releases when the
+    /// last handle to this client is dropped. Safe to call more than once and
+    /// safe on a client that only ran historical queries.
+    ///
+    /// This is the recommended teardown. Prefer the `using` declaration
+    /// (`using client = connect(...)`) so `close()` runs on scope exit through
+    /// `[Symbol.dispose]`; for a full streaming-drain barrier use the
+    /// `[Symbol.asyncDispose]` pairing (`stopStreaming()` + `awaitDrain`) the
+    /// context-managed session exposes. `close()` performs the stop; the core
+    /// dispatcher join is detached so this never blocks the JS thread.
+    #[napi]
+    pub fn close(&self) {
+        self.client.stream().stop_streaming();
+        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+        *guard = None;
+    }
 }
 
 #[napi]
@@ -1187,6 +1207,22 @@ impl HistoricalClient {
     ) -> napi::Result<HistoricalClient> {
         let client = connect_historical_from_file_core(path, config_or_production(config)).await?;
         Ok(HistoricalClient { client })
+    }
+
+    /// Deterministically close the historical client.
+    ///
+    /// The historical-only surface never opens streaming, so there is no
+    /// dispatcher to drain; the gRPC channel pool releases when the last handle
+    /// to this client is dropped. Provided so the historical surface matches the
+    /// unified `Client` lifecycle across every binding. Idempotent. Prefer the
+    /// `using` declaration (`using c = await HistoricalClient.connect(...)`) so
+    /// `close()` runs on scope exit through `[Symbol.dispose]`.
+    #[napi]
+    pub fn close(&self) {
+        // No streaming dispatcher on the historical-only surface; the channel
+        // pool releases on handle drop. Kept explicit so the lifecycle surface
+        // is uniform across bindings.
+        self.client.close();
     }
 }
 
