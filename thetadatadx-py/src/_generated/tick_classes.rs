@@ -1733,18 +1733,16 @@ impl CalendarDayList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -1930,18 +1928,16 @@ impl EodTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -2183,18 +2179,16 @@ impl GreeksAllTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -2481,18 +2475,16 @@ impl GreeksEodTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -2789,18 +2781,16 @@ impl GreeksFirstOrderTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -3018,18 +3008,16 @@ impl GreeksSecondOrderTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -3243,18 +3231,16 @@ impl GreeksThirdOrderTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -3461,18 +3447,16 @@ impl IndexPriceAtTimeTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -3658,18 +3642,16 @@ impl InterestRateTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -3840,18 +3822,16 @@ impl IvTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -4052,18 +4032,16 @@ impl MarketValueTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -4250,18 +4228,16 @@ impl OhlcTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -4454,18 +4430,16 @@ impl OpenInterestTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -4638,18 +4612,16 @@ impl OptionContractList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize].clone());
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize].clone());
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize].clone());
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -4815,18 +4787,16 @@ impl PriceTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -5000,18 +4970,16 @@ impl QuoteTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -5242,18 +5210,16 @@ impl TradeGreeksAllTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -5542,18 +5508,16 @@ impl TradeGreeksFirstOrderTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -5794,18 +5758,16 @@ impl TradeGreeksImpliedVolatilityTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -6033,18 +5995,16 @@ impl TradeGreeksSecondOrderTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -6286,18 +6246,16 @@ impl TradeGreeksThirdOrderTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -6541,18 +6499,16 @@ impl TradeQuoteTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -6802,18 +6758,16 @@ impl TradeTickList {
             let src_syms = self.columns.symbols();
             let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize]);
-                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions with the SAME index for
+            // rows and symbols. Comparing against `stop` and stepping by
+            // `indices.step` overflows `i` for a huge step (e.g.
+            // `lst[k::sys.maxsize]`); the count is exact for either
+            // direction and `wrapping_add` keeps the unused final
+            // increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize]);
+                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
+                i = i.wrapping_add(indices.step);
             }
             let mut columns = self.columns.clone();
             if src_syms.is_some() { columns = columns.with_symbols(syms); }
@@ -7865,16 +7819,14 @@ impl StringList {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
             let mut i = indices.start;
-            if indices.step > 0 {
-                while i < indices.stop {
-                    rows.push(self.inner[i as usize].clone());
-                    i += indices.step;
-                }
-            } else {
-                while i > indices.stop {
-                    rows.push(self.inner[i as usize].clone());
-                    i += indices.step;
-                }
+            // Walk exactly `slicelength` positions. Comparing against
+            // `stop` and stepping by `indices.step` overflows `i` for a
+            // huge step (e.g. `lst[k::sys.maxsize]`); the count is exact
+            // for either direction and `wrapping_add` keeps the unused
+            // final increment from panicking.
+            for _ in 0..indices.slicelength {
+                rows.push(self.inner[i as usize].clone());
+                i = i.wrapping_add(indices.step);
             }
             return Ok(Py::new(py, StringList::new(rows, &self.column_name))?.into_any());
         }
