@@ -2359,33 +2359,19 @@ impl StreamingClient {
         // both registrations back on a send failure. The entry is
         // reference-counted (see the per-contract path), so a duplicate
         // full-stream subscribe adds a reference rather than a second row.
-        io_loop::inc_active(
-            &mut self
-                .active_full_subs
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        //
+        // The reference bump and the `req_id` correlation are recorded together
+        // under a single held `pending_subs` lock so the pair is indivisible
+        // against the reconnect replay's pending-locked snapshot+clear, closing
+        // the same window described on the per-contract path.
+        io_loop::track_inflight_subscribe(
+            &self.pending_subs,
+            &self.active_full_subs,
             kind_for_track,
             sec_type,
+            req_id,
+            protocol::PendingSub::Full(kind_for_track, sec_type),
         );
-
-        // Record the pending full-stream subscribe by `req_id`. Each subscribe
-        // carries its own correlation and holds one reference; a rejection
-        // drops exactly this subscribe's reference (removing the entry only when
-        // it was the last), never a live one.
-        {
-            let mut pending = self
-                .pending_subs
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            io_loop::evict_stale_pending(&mut pending);
-            pending.insert(
-                req_id,
-                io_loop::PendingSubEntry {
-                    sub: protocol::PendingSub::Full(kind_for_track, sec_type),
-                    recorded_at: std::time::Instant::now(),
-                },
-            );
-        }
 
         if let Err(e) = self.send_cmd(IoCommand::WriteFrame { code, payload }) {
             // The frame never reached the I/O thread, so no `REQ_RESPONSE`
@@ -2393,14 +2379,12 @@ impl StreamingClient {
             // on this call's own correlation, the rollback drops exactly this
             // subscribe's reference — never one a concurrent duplicate subscribe
             // or a reconnect replay put on the wire.
-            {
-                io_loop::untrack_unsent_subscribe(
-                    req_id,
-                    &self.pending_subs,
-                    &self.active_subs,
-                    &self.active_full_subs,
-                );
-            }
+            io_loop::untrack_unsent_subscribe(
+                req_id,
+                &self.pending_subs,
+                &self.active_subs,
+                &self.active_full_subs,
+            );
             return Err(e);
         }
         tracing::debug!(
@@ -2436,34 +2420,21 @@ impl StreamingClient {
         // drop an entry another subscribe put on the wire. `active_subs`
         // therefore holds one entry per identity, reported once by
         // `active_subscriptions()` and replayed once on reconnect.
-        io_loop::inc_active(
-            &mut self
-                .active_subs
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        //
+        // The reference bump and the `req_id` correlation are recorded together
+        // under a single held `pending_subs` lock so the pair is indivisible
+        // against the reconnect replay's pending-locked snapshot+clear. The
+        // correlation lets a rejection or a send-failure rollback drop exactly
+        // this subscribe's reference (removing the entry only when it was the
+        // last), never a live one.
+        io_loop::track_inflight_subscribe(
+            &self.pending_subs,
+            &self.active_subs,
             kind,
             contract.clone(),
+            req_id,
+            protocol::PendingSub::Contract(kind, contract.clone()),
         );
-
-        // Record this in-flight subscribe keyed by its `req_id` so the I/O
-        // thread can correlate the asynchronous server `REQ_RESPONSE` back to
-        // this contract. Each subscribe carries its own correlation and holds
-        // one reference; a rejection drops exactly this subscribe's reference
-        // (removing the entry only when it was the last), never a live one.
-        {
-            let mut pending = self
-                .pending_subs
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            io_loop::evict_stale_pending(&mut pending);
-            pending.insert(
-                req_id,
-                io_loop::PendingSubEntry {
-                    sub: protocol::PendingSub::Contract(kind, contract.clone()),
-                    recorded_at: std::time::Instant::now(),
-                },
-            );
-        }
 
         if let Err(e) = self.send_cmd(IoCommand::WriteFrame { code, payload }) {
             // The frame never reached the I/O thread, so no `REQ_RESPONSE`

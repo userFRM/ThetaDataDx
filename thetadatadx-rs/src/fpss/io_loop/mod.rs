@@ -156,6 +156,47 @@ pub(in crate::fpss) fn inc_active<T: PartialEq>(
     }
 }
 
+/// Register an in-flight subscribe: add one reference to its tracked entry and
+/// record its `req_id` correlation, both under a single held `pending_subs`
+/// lock.
+///
+/// The two mutations are indivisible against the reconnect replay, which
+/// snapshots the tracked set and clears stale correlations under the same lock.
+/// Were the reference bump and the correlation recorded under two separate lock
+/// acquisitions, a reconnect could slip between them — snapshot-and-replay the
+/// just-referenced entry, then clear pending — and a later send-failure rollback
+/// would find its own freshly recorded correlation and drop an entry the
+/// reconnect had already put live on the wire. Holding `pending_subs` across
+/// both closes that window; the tracked-set mutex is nested inside it, matching
+/// the reconnect and rollback lock order (`pending_subs` first).
+pub(in crate::fpss) fn track_inflight_subscribe<T: PartialEq>(
+    pending_subs: &PendingSubs,
+    active: &Mutex<Vec<(super::protocol::SubscriptionKind, T, u32)>>,
+    kind: super::protocol::SubscriptionKind,
+    key: T,
+    req_id: i32,
+    sub: super::protocol::PendingSub,
+) {
+    let mut pending = pending_subs
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    inc_active(
+        &mut active
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner),
+        kind,
+        key,
+    );
+    evict_stale_pending(&mut pending);
+    pending.insert(
+        req_id,
+        PendingSubEntry {
+            sub,
+            recorded_at: std::time::Instant::now(),
+        },
+    );
+}
+
 /// Drop one reference from the tracked entry for `(kind, key)`, removing the
 /// entry only once its last reference is gone.
 pub(in crate::fpss) fn dec_active<T: PartialEq>(
@@ -3140,6 +3181,65 @@ mod tests {
         assert!(
             active_full_subs.lock().unwrap().is_empty(),
             "a rejected full-stream subscription must be removed from active_full_subs"
+        );
+    }
+
+    /// Registering an in-flight subscribe records both its tracked reference and
+    /// its `req_id` correlation as one operation under a single `pending_subs`
+    /// lock hold, so a reconnect's pending-locked snapshot+clear can never
+    /// observe the reference without the correlation (or vice versa).
+    ///
+    /// The offline harness cannot force the precise two-thread deschedule that a
+    /// split-lock version would need to lose a subscription, so this asserts the
+    /// atomicity structurally: `track_inflight_subscribe` is the one path that
+    /// mutates the tracked set and the pending registry for a subscribe, and it
+    /// leaves both consistently populated. A duplicate adds a second reference
+    /// (one entry, count two) and its own correlation.
+    #[test]
+    fn track_inflight_subscribe_records_reference_and_correlation_together() {
+        use super::super::protocol::{PendingSub, SubscriptionKind};
+        use std::collections::HashMap;
+
+        let contract = Contract::stock("AAPL");
+        let active_subs: ActiveSubs = Arc::new(Mutex::new(Vec::new()));
+        let pending_subs: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
+
+        track_inflight_subscribe(
+            &pending_subs,
+            &active_subs,
+            SubscriptionKind::Trade,
+            contract.clone(),
+            1,
+            PendingSub::Contract(SubscriptionKind::Trade, contract.clone()),
+        );
+        {
+            let subs = active_subs.lock().unwrap();
+            assert_eq!(subs.len(), 1, "one tracked entry");
+            assert_eq!(subs[0].2, 1, "at one reference");
+        }
+        assert!(
+            pending_subs.lock().unwrap().contains_key(&1),
+            "the correlation must be recorded alongside the reference"
+        );
+
+        // A duplicate: second reference on the one entry, its own correlation.
+        track_inflight_subscribe(
+            &pending_subs,
+            &active_subs,
+            SubscriptionKind::Trade,
+            contract.clone(),
+            2,
+            PendingSub::Contract(SubscriptionKind::Trade, contract.clone()),
+        );
+        {
+            let subs = active_subs.lock().unwrap();
+            assert_eq!(subs.len(), 1, "still one entry after a duplicate");
+            assert_eq!(subs[0].2, 2, "duplicate adds a second reference");
+        }
+        assert_eq!(
+            pending_subs.lock().unwrap().len(),
+            2,
+            "each subscribe records its own correlation"
         );
     }
 
