@@ -20,7 +20,7 @@
 //!
 //! # Connector
 //!
-//! TLS rides through a custom connector ([`GrpcConnector`]) so the
+//! TLS rides through a custom connector (`GrpcConnector`) so the
 //! existing single-provider rustls configuration (`ring`, webpki roots,
 //! `h2` ALPN) is reused verbatim — the underlying stack's own TLS
 //! features stay disabled and the dependency graph keeps exactly one
@@ -950,7 +950,7 @@ impl Drop for InFlightToken {
 
 // ─── Connector ──────────────────────────────────────────────────────
 
-/// TCP(+TLS) dial error produced by [`GrpcConnector`]. Wrapped into
+/// TCP(+TLS) dial error produced by `GrpcConnector`. Wrapped into
 /// the transport stack's opaque connect error; [`classify_connect_error`]
 /// recovers it by downcasting the source chain so connect failures
 /// keep their precise [`ChannelError`] taxonomy.
