@@ -217,6 +217,32 @@ impl Drop for StreamingClient {
 }
 
 impl StreamingClient {
+    /// Shared context-manager teardown for `__exit__` / `__aexit__`: stop
+    /// streaming, then block on the drain barrier so the consumer thread has
+    /// finished firing the registered callback. A drain timeout is a
+    /// `RuntimeWarning` (best-effort observability), not a hard error, because
+    /// the pipeline is already stopped and re-raising would swallow any
+    /// exception from the `with` body.
+    fn exit_teardown(&self, py: Python<'_>) -> PyResult<()> {
+        self.stop_streaming(py);
+        let drained = self.await_drain(py, crate::streaming_session::EXIT_DRAIN_TIMEOUT_MS);
+        if !drained {
+            let warnings = py.import("warnings")?;
+            let msg = format!(
+                "streaming drain timed out after {}ms; consumer callback may still be firing.",
+                crate::streaming_session::EXIT_DRAIN_TIMEOUT_MS
+            );
+            let kwargs = pyo3::types::PyDict::new(py);
+            kwargs.set_item("stacklevel", 2_u32)?;
+            warnings.call_method(
+                "warn",
+                (msg, py.get_type::<pyo3::exceptions::PyRuntimeWarning>()),
+                Some(&kwargs),
+            )?;
+        }
+        Ok(())
+    }
+
     fn lock_inner(&self) -> MutexGuard<'_, Option<Arc<RustStreamingClient>>> {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
@@ -373,6 +399,53 @@ impl StreamingClient {
         };
         let hosts = self.params.streaming.hosts().len();
         format!("StreamingClient(streaming={streaming}, hosts={hosts})")
+    }
+
+    /// Sync context-manager entry: returns ``self`` so the ``with`` body can
+    /// call ``start_streaming`` / ``subscribe`` on it.
+    fn __enter__(slf: Py<Self>) -> Py<Self> {
+        slf
+    }
+
+    /// Sync context-manager exit: stop streaming and block on the drain
+    /// barrier so the consumer thread has finished firing the callback before
+    /// this returns, mirroring the TypeScript ``Symbol.dispose`` behavior.
+    /// Returns ``False`` so an exception raised inside the ``with`` body is not
+    /// swallowed.
+    #[pyo3(signature = (_exc_type=None, _exc_value=None, _traceback=None))]
+    fn __exit__(
+        &self,
+        py: Python<'_>,
+        _exc_type: Option<Py<PyAny>>,
+        _exc_value: Option<Py<PyAny>>,
+        _traceback: Option<Py<PyAny>>,
+    ) -> PyResult<bool> {
+        self.exit_teardown(py)?;
+        Ok(false)
+    }
+
+    /// Async context-manager entry: returns ``self``.
+    fn __aenter__<'py>(slf: Py<Self>, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        pyo3_async_runtimes::tokio::future_into_py(py, async move { Ok(slf) })
+            .map(pyo3::Bound::into_any)
+    }
+
+    /// Async context-manager exit: stop streaming and drain, mirroring the
+    /// TypeScript ``Symbol.asyncDispose`` behavior. Resolves to ``False`` so an
+    /// exception raised in the ``async with`` body is not swallowed. The
+    /// teardown itself releases the GIL internally, so it runs before the
+    /// trivial resolving future is returned.
+    #[pyo3(signature = (_exc_type=None, _exc_value=None, _traceback=None))]
+    fn __aexit__<'py>(
+        &self,
+        py: Python<'py>,
+        _exc_type: Option<Py<PyAny>>,
+        _exc_value: Option<Py<PyAny>>,
+        _traceback: Option<Py<PyAny>>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.exit_teardown(py)?;
+        pyo3_async_runtimes::tokio::future_into_py(py, async move { Ok(false) })
+            .map(pyo3::Bound::into_any)
     }
 
     /// Open the streaming TLS connection and register the Python callback

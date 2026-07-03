@@ -5870,6 +5870,25 @@ class StreamingClient:
         """Return a representation of the streaming client."""
         ...
 
+    def __enter__(self) -> "StreamingClient": ...
+    def __exit__(
+        self,
+        exc_type: Optional[type] = None,
+        exc_value: Optional[BaseException] = None,
+        traceback: Optional[object] = None,
+    ) -> bool:
+        """Stop streaming and drain on scope exit."""
+        ...
+    async def __aenter__(self) -> "StreamingClient": ...
+    async def __aexit__(
+        self,
+        exc_type: Optional[type] = None,
+        exc_value: Optional[BaseException] = None,
+        traceback: Optional[object] = None,
+    ) -> bool:
+        """Stop streaming and drain on scope exit."""
+        ...
+
 
 @final
 class HistoricalClient:
