@@ -315,6 +315,36 @@ function streamOrNull(client) {
   }
 }
 
+/**
+ * Resolve the object that carries the streaming lifecycle methods
+ * (`stopStreaming` / `awaitDrain`) for either client kind, or null when
+ * there is nothing live to tear down.
+ *
+ * The unified `Client` exposes streaming under a `.stream` sub-view; the
+ * standalone `StreamingClient` IS the streaming surface, with the same
+ * methods directly on it. `streamOrNull` alone returns `undefined` for a
+ * standalone client (it has no `.stream`), which is why the session disposer
+ * used to silently tear nothing down while the standalone stream kept
+ * running. This resolver returns the `.stream` view for a unified client and
+ * the client itself for a standalone one.
+ *
+ * @param {any} client
+ * @returns {any}
+ */
+function streamSurface(client) {
+  const view = streamOrNull(client);
+  if (view) return view;
+  // Standalone StreamingClient: the lifecycle methods live on the client.
+  if (
+    client &&
+    typeof client.stopStreaming === 'function' &&
+    typeof client.awaitDrain === 'function'
+  ) {
+    return client;
+  }
+  return null;
+}
+
 class StreamingSession {
   /**
    * Construct a session bound to a `Client` instance. Returns a
@@ -377,8 +407,11 @@ class StreamingSession {
    */
   async [Symbol.asyncDispose]() {
     // Disposing a closed client is a no-op: the `stream` getter throws once
-    // `close()` has run, and there is nothing left to drain.
-    const stream = streamOrNull(this._client);
+    // `close()` has run, and there is nothing left to drain. `streamSurface`
+    // resolves both the unified client (`.stream` view) and the standalone
+    // `StreamingClient` (methods on the client itself) so a session wrapping a
+    // standalone client actually tears the stream down instead of leaking it.
+    const stream = streamSurface(this._client);
     if (!stream) return;
     stream.stopStreaming();
     const drained = await stream.awaitDrain(EXIT_DRAIN_TIMEOUT_MS);
@@ -407,6 +440,23 @@ if (
     // catch) rather than escape as an unhandled rejection, and the
     // session must not be handed back before the stream is live.
     await this.stream.startStreaming(callback);
+    return new StreamingSession(this);
+  };
+}
+
+// The same `streaming(callback)` factory on the standalone `StreamingClient`,
+// which has no `.stream` sub-view — its lifecycle methods live directly on the
+// client. Without this a standalone-client user could not open a context-managed
+// `await using session = await streamingClient.streaming(cb)` session at all, so
+// the `StreamingSession` disposer (now resolving the standalone surface via
+// `streamSurface`) had nothing to attach to. Matches the Python standalone
+// client's `streaming(...)` helper.
+if (
+  native.StreamingClient &&
+  typeof native.StreamingClient.prototype.streaming !== 'function'
+) {
+  native.StreamingClient.prototype.streaming = async function streaming(callback) {
+    await this.startStreaming(callback);
     return new StreamingSession(this);
   };
 }
@@ -457,6 +507,33 @@ for (const Klass of [native.Client, native.HistoricalClient]) {
       // routes through. Skipping it would leak the callback reference on the
       // `await using` path. Idempotent after the stop above.
       this.close();
+    };
+  }
+}
+
+// TC39 explicit resource management on the standalone `StreamingClient`, whose
+// terminal teardown is `stopStreaming()` (it has no separate `close()`; the
+// stop clears the callback and retires the session). `[Symbol.dispose]` backs
+// `using sc = StreamingClient.connect(...)`; `[Symbol.asyncDispose]` additionally
+// awaits the drain barrier so the callback closure is safe to release, warning
+// (never throwing) on timeout to match the unified client and the session.
+if (native.StreamingClient) {
+  const Klass = native.StreamingClient;
+  if (typeof Klass.prototype[Symbol.dispose] !== 'function') {
+    Klass.prototype[Symbol.dispose] = function dispose() {
+      this.stopStreaming();
+    };
+  }
+  if (typeof Klass.prototype[Symbol.asyncDispose] !== 'function') {
+    Klass.prototype[Symbol.asyncDispose] = async function asyncDispose() {
+      this.stopStreaming();
+      const drained = await this.awaitDrain(EXIT_DRAIN_TIMEOUT_MS);
+      if (!drained) {
+        console.warn(
+          `StreamingClient drain timed out after ${EXIT_DRAIN_TIMEOUT_MS}ms; ` +
+            'the streaming consumer callback may still be firing.',
+        );
+      }
     };
   }
 }

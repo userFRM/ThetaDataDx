@@ -156,6 +156,34 @@ declare module './index' {
     [Symbol.asyncDispose](): Promise<void>;
   }
 
+  interface StreamingClient {
+    /**
+     * Open a context-managed streaming session over this standalone client:
+     * `await using session = await streamingClient.streaming(callback)`
+     * registers `callback` via `startStreaming` and pairs `stopStreaming()` +
+     * `awaitDrain(5000)` on scope exit, the same RAII semantics as the unified
+     * {@link Client.streaming} helper.
+     */
+    streaming(callback: StreamEventCallback): Promise<StreamingSession>;
+
+    /**
+     * TC39 explicit resource management: `using sc = StreamingClient.connect(...)`
+     * calls this on synchronous scope exit. Runs `stopStreaming()` — the
+     * standalone client's terminal teardown (it has no separate `close()`).
+     * For a streaming-drain barrier before release, use `await using`
+     * ({@link StreamingClient[Symbol.asyncDispose]}) or the session.
+     */
+    [Symbol.dispose](): void;
+
+    /**
+     * TC39 explicit resource management: `await using sc = ...` calls this on
+     * scope exit. Stops streaming and awaits the drain barrier so the consumer
+     * thread has finished firing the registered callback before the JS closure
+     * is released. Drain timeouts emit `console.warn` rather than throwing.
+     */
+    [Symbol.asyncDispose](): Promise<void>;
+  }
+
   interface StreamView {
     /**
      * Open a pull-based columnar reader over the live stream — a sibling
