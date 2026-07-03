@@ -830,8 +830,8 @@ struct SpawnArgs<'a, P> {
     ping_interval: Duration,
     shutdown: Arc<AtomicBool>,
     authenticated: Arc<AtomicBool>,
-    active_subs: Arc<Mutex<Vec<(SubscriptionKind, Contract, u32)>>>,
-    active_full_subs: Arc<Mutex<Vec<(SubscriptionKind, crate::tdbe::types::enums::SecType, u32)>>>,
+    active_subs: io_loop::ActiveSubs,
+    active_full_subs: io_loop::ActiveFullSubs,
     pending_subs: Arc<Mutex<std::collections::HashMap<i32, io_loop::PendingSubEntry>>>,
     dropped: Arc<AtomicU64>,
     panics: Arc<AtomicU64>,
@@ -906,11 +906,10 @@ pub struct StreamingClient {
     /// Active per-contract subscriptions for reconnection. The trailing `u32`
     /// reference-counts the in-flight-or-live subscribes sharing each
     /// `(kind, contract)` entry (see [`io_loop::inc_active`]).
-    pub(in crate::fpss) active_subs: Arc<Mutex<Vec<(SubscriptionKind, Contract, u32)>>>,
+    pub(in crate::fpss) active_subs: io_loop::ActiveSubs,
     /// Active full-type (full-stream) subscriptions for reconnection,
     /// reference-counted like [`Self::active_subs`].
-    pub(in crate::fpss) active_full_subs:
-        Arc<Mutex<Vec<(SubscriptionKind, crate::tdbe::types::enums::SecType, u32)>>>,
+    pub(in crate::fpss) active_full_subs: io_loop::ActiveFullSubs,
     /// In-flight subscribes keyed by `req_id`, awaiting a server
     /// `REQ_RESPONSE`. A subscribe records its tracked identity here when the
     /// frame is sent; the I/O thread removes the entry when the response
@@ -1286,17 +1285,8 @@ impl StreamingClient {
 
         let shutdown = Arc::new(AtomicBool::new(false));
         let authenticated = Arc::new(AtomicBool::new(true));
-        let active_subs: Arc<Mutex<Vec<(protocol::SubscriptionKind, protocol::Contract, u32)>>> =
-            Arc::new(Mutex::new(Vec::new()));
-        let active_full_subs: Arc<
-            Mutex<
-                Vec<(
-                    protocol::SubscriptionKind,
-                    crate::tdbe::types::enums::SecType,
-                    u32,
-                )>,
-            >,
-        > = Arc::new(Mutex::new(Vec::new()));
+        let active_subs: io_loop::ActiveSubs = Arc::new(Mutex::new(Vec::new()));
+        let active_full_subs: io_loop::ActiveFullSubs = Arc::new(Mutex::new(Vec::new()));
         let pending_subs: Arc<Mutex<std::collections::HashMap<i32, io_loop::PendingSubEntry>>> =
             Arc::new(Mutex::new(std::collections::HashMap::new()));
         let dropped = Arc::new(AtomicU64::new(0));
@@ -2557,7 +2547,7 @@ impl StreamingClient {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .iter()
-            .map(|(kind, contract, _refs)| (*kind, contract.clone()))
+            .map(|(kind, contract, _refs, _gen)| (*kind, contract.clone()))
             .collect()
     }
 
@@ -2570,7 +2560,7 @@ impl StreamingClient {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .iter()
-            .map(|(kind, sec_type, _refs)| (*kind, *sec_type))
+            .map(|(kind, sec_type, _refs, _gen)| (*kind, *sec_type))
             .collect()
     }
 
@@ -2705,11 +2695,8 @@ impl StreamingClient {
 
         let shutdown = Arc::new(AtomicBool::new(false));
         let authenticated = Arc::new(AtomicBool::new(true));
-        let active_subs: Arc<Mutex<Vec<(SubscriptionKind, Contract, u32)>>> =
-            Arc::new(Mutex::new(Vec::new()));
-        let active_full_subs: Arc<
-            Mutex<Vec<(SubscriptionKind, crate::tdbe::types::enums::SecType, u32)>>,
-        > = Arc::new(Mutex::new(Vec::new()));
+        let active_subs: io_loop::ActiveSubs = Arc::new(Mutex::new(Vec::new()));
+        let active_full_subs: io_loop::ActiveFullSubs = Arc::new(Mutex::new(Vec::new()));
         let pending_subs: Arc<Mutex<std::collections::HashMap<i32, io_loop::PendingSubEntry>>> =
             Arc::new(Mutex::new(std::collections::HashMap::new()));
         let dropped = Arc::new(AtomicU64::new(0));

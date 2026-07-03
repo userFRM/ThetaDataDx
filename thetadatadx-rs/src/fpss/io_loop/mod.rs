@@ -64,12 +64,27 @@ use super::ring::{
     self, AdaptiveWaitStrategy, RingCursors, RingEvent, RingProducer, SequencedProducer,
 };
 
-/// Reference-counted per-contract tracked set. The trailing `u32` counts the
-/// subscribes (in-flight or live) that reference the `(kind, contract)` entry,
-/// so a rollback of one unsent subscribe can never remove an entry another
-/// concurrent subscribe put on the wire. The entry is present iff its count is
-/// at least one; `active_subscriptions()` reports it once regardless of count.
-type ActiveSubs = Arc<Mutex<Vec<(super::protocol::SubscriptionKind, Contract, u32)>>>;
+/// Reference-counted per-contract tracked set. Each entry is
+/// `(kind, contract, count, generation)`: the `u32` counts the subscribes
+/// (in-flight or live) that reference the identity, so a rollback of one unsent
+/// subscribe can never remove an entry another concurrent subscribe put on the
+/// wire; the `u64` is a fresh monotonic generation stamped whenever the entry is
+/// created (count 0 -> 1), so an unsubscribe + re-subscribe of the same identity
+/// yields a distinguishable new instance the reconnect replay can detect. The
+/// entry is present iff its count is at least one; `active_subscriptions()`
+/// reports it once regardless of count.
+pub(in crate::fpss) type ActiveSubs =
+    Arc<Mutex<Vec<(super::protocol::SubscriptionKind, Contract, u32, u64)>>>;
+
+/// Source of the per-identity instance generation stamped by [`inc_active`] when
+/// it creates an entry. A strictly increasing global counter guarantees a fresh
+/// generation never repeats, so a same-identity re-subscribe (a new instance)
+/// always differs from the instance a reconnect replay snapshotted.
+static NEXT_ACTIVE_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+fn next_active_gen() -> u64 {
+    NEXT_ACTIVE_GEN.fetch_add(1, Ordering::Relaxed)
+}
 /// Maps an in-flight subscribe's `req_id` to the tracked entry it created,
 /// so a rejecting `REQ_RESPONSE` can untrack exactly that subscription.
 ///
@@ -128,31 +143,34 @@ pub(in crate::fpss) fn evict_pending_for_identity(
 ) {
     map.retain(|_, entry| &entry.sub != identity);
 }
-/// Reference-counted full-stream tracked set; the trailing `u32` is the
-/// reference count, mirroring [`ActiveSubs`].
-type ActiveFullSubs = Arc<
+/// Reference-counted full-stream tracked set; each entry is
+/// `(kind, sec_type, count, generation)`, mirroring [`ActiveSubs`].
+pub(in crate::fpss) type ActiveFullSubs = Arc<
     Mutex<
         Vec<(
             super::protocol::SubscriptionKind,
             crate::tdbe::types::enums::SecType,
             u32,
+            u64,
         )>,
     >,
 >;
 
 /// Add one reference to the tracked entry for `(kind, key)`, creating it at a
-/// single reference when absent. Every subscribe — including a duplicate for an
-/// already-tracked identity — adds a reference, so a concurrent rollback of one
-/// unsent subscribe cannot drop an entry another subscribe put on the wire.
+/// single reference — and a fresh instance generation — when absent. Every
+/// subscribe (including a duplicate for an already-tracked identity) adds a
+/// reference, so a concurrent rollback of one unsent subscribe cannot drop an
+/// entry another subscribe put on the wire. A create after a drop-to-zero stamps
+/// a new generation, marking it a distinct subscription instance.
 pub(in crate::fpss) fn inc_active<T: PartialEq>(
-    subs: &mut Vec<(super::protocol::SubscriptionKind, T, u32)>,
+    subs: &mut Vec<(super::protocol::SubscriptionKind, T, u32, u64)>,
     kind: super::protocol::SubscriptionKind,
     key: T,
 ) {
-    if let Some(entry) = subs.iter_mut().find(|(k, x, _)| *k == kind && *x == key) {
+    if let Some(entry) = subs.iter_mut().find(|(k, x, _, _)| *k == kind && *x == key) {
         entry.2 += 1;
     } else {
-        subs.push((kind, key, 1));
+        subs.push((kind, key, 1, next_active_gen()));
     }
 }
 
@@ -174,7 +192,7 @@ pub(in crate::fpss) fn inc_active<T: PartialEq>(
 /// tracked-set mutex then the command sender, and no path takes them in reverse.
 pub(in crate::fpss) fn track_inflight_subscribe<T, F>(
     pending_subs: &PendingSubs,
-    active: &Mutex<Vec<(super::protocol::SubscriptionKind, T, u32)>>,
+    active: &Mutex<Vec<(super::protocol::SubscriptionKind, T, u32, u64)>>,
     kind: super::protocol::SubscriptionKind,
     key: T,
     req_id: i32,
@@ -236,7 +254,7 @@ where
 /// nested inside `pending_subs`, matching every other identity mutation.
 pub(in crate::fpss) fn send_then_untrack_on_unsubscribe<T, F>(
     pending_subs: &PendingSubs,
-    active: &Mutex<Vec<(super::protocol::SubscriptionKind, T, u32)>>,
+    active: &Mutex<Vec<(super::protocol::SubscriptionKind, T, u32, u64)>>,
     kind: super::protocol::SubscriptionKind,
     key: &T,
     identity: &super::protocol::PendingSub,
@@ -254,7 +272,7 @@ where
     active
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .retain(|(k, x, _)| !(*k == kind && x == key));
+        .retain(|(k, x, _, _)| !(*k == kind && x == key));
     evict_pending_for_identity(&mut pending, identity);
     Ok(())
 }
@@ -265,33 +283,38 @@ where
 /// The replay does a BLOCKING socket write, so — unlike the non-blocking
 /// subscribe path — the correlation cannot be recorded before the write under
 /// the lock. Instead the frame is written first, then this records the
-/// correlation only if the identity is still in the tracked set. That closes the
-/// hole against a concurrent public unsubscribe (which removes the tracked entry
-/// and evicts correlations under the same lock): if the unsubscribe ran first,
-/// the entry is already gone and no correlation is inserted here (the
-/// unsubscribe's own frame, queued during reconnect, is drained after this
-/// replay and nets out the just-written subscribe on the wire); if it runs
-/// after, it evicts the correlation inserted here. Either way no stale
-/// correlation for the replayed `req_id` survives a concurrent unsubscribe to
-/// later `dec_active` a fresh re-subscribe by identity. The tracked-set mutex is
-/// nested inside `pending_subs`, matching every other identity mutation.
+/// correlation only if the SAME subscription instance the replay snapshotted is
+/// still tracked: the identity must still be present AND carry the generation it
+/// had at snapshot time (`snapshot_gen`). That closes the hole against a
+/// concurrent public unsubscribe (which removes the entry and evicts
+/// correlations under the same lock), including the value-blind case where an
+/// unsubscribe was immediately followed by a same-identity re-subscribe: the
+/// re-subscribe creates a NEW instance with a fresh generation and registers its
+/// own correlation via [`track_inflight_subscribe`], so a generation mismatch
+/// here skips this stale replay correlation, and a later rejection of the
+/// replay `req_id` finds nothing and cannot `dec_active` the fresh instance. If
+/// the identity was merely unsubscribed (gone), the insert is likewise skipped
+/// and the unsubscribe's own queued frame nets out the just-written subscribe on
+/// the wire. The tracked-set mutex is nested inside `pending_subs`, matching
+/// every other identity mutation.
 fn track_replay_correlation_if_tracked<T: PartialEq>(
     pending_subs: &PendingSubs,
-    active: &Mutex<Vec<(super::protocol::SubscriptionKind, T, u32)>>,
+    active: &Mutex<Vec<(super::protocol::SubscriptionKind, T, u32, u64)>>,
     kind: super::protocol::SubscriptionKind,
     key: &T,
+    snapshot_gen: u64,
     req_id: i32,
     sub: super::protocol::PendingSub,
 ) {
     let mut pending = pending_subs
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let still_tracked = active
+    let same_instance = active
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .iter()
-        .any(|(k, x, _)| *k == kind && x == key);
-    if still_tracked {
+        .any(|(k, x, _, gen)| *k == kind && x == key && *gen == snapshot_gen);
+    if same_instance {
         pending.insert(
             req_id,
             PendingSubEntry {
@@ -305,11 +328,11 @@ fn track_replay_correlation_if_tracked<T: PartialEq>(
 /// Drop one reference from the tracked entry for `(kind, key)`, removing the
 /// entry only once its last reference is gone.
 pub(in crate::fpss) fn dec_active<T: PartialEq>(
-    subs: &mut Vec<(super::protocol::SubscriptionKind, T, u32)>,
+    subs: &mut Vec<(super::protocol::SubscriptionKind, T, u32, u64)>,
     kind: super::protocol::SubscriptionKind,
     key: &T,
 ) {
-    if let Some(pos) = subs.iter().position(|(k, x, _)| *k == kind && x == key) {
+    if let Some(pos) = subs.iter().position(|(k, x, _, _)| *k == kind && x == key) {
         subs[pos].2 -= 1;
         if subs[pos].2 == 0 {
             subs.remove(pos);
@@ -1573,7 +1596,7 @@ where
 
         let mut pacer = ReplayPacer::new(replay_burst_size, replay_pace_ms);
         let writer = reader.get_mut();
-        for (kind, contract, _refs) in &subs_snapshot {
+        for (kind, contract, _refs, snapshot_gen) in &subs_snapshot {
             // Allocate a fresh req_id per re-subscribe so the server's
             // `ReqResponse` events on the reconnected session carry
             // correlatable ids — `-1` is indistinguishable from a
@@ -1607,6 +1630,7 @@ where
                 &active_subs,
                 *kind,
                 contract,
+                *snapshot_gen,
                 req_id,
                 super::protocol::PendingSub::Contract(*kind, contract.clone()),
             );
@@ -1620,7 +1644,7 @@ where
                 break 'session;
             }
         }
-        for (kind, sec_type, _refs) in &full_subs_snapshot {
+        for (kind, sec_type, _refs, snapshot_gen) in &full_subs_snapshot {
             let req_id = super::wire_req_id(next_req_id.fetch_add(1, Ordering::Relaxed));
             let payload = protocol::build_full_type_subscribe_payload(req_id, *sec_type);
             let code = kind.subscribe_code();
@@ -1634,6 +1658,7 @@ where
                 &active_full_subs,
                 *kind,
                 sec_type,
+                *snapshot_gen,
                 req_id,
                 super::protocol::PendingSub::Full(*kind, *sec_type),
             );
@@ -3115,8 +3140,8 @@ mod tests {
         let accepted = Contract::stock("BBBB");
 
         let active_subs: ActiveSubs = Arc::new(Mutex::new(vec![
-            (SubscriptionKind::Trade, rejected.clone(), 1),
-            (SubscriptionKind::Trade, accepted.clone(), 1),
+            (SubscriptionKind::Trade, rejected.clone(), 1, 1),
+            (SubscriptionKind::Trade, accepted.clone(), 1, 1),
         ]));
         let active_full_subs: ActiveFullSubs = Arc::new(Mutex::new(Vec::new()));
 
@@ -3155,11 +3180,11 @@ mod tests {
 
         let tracked = active_subs.lock().unwrap().clone();
         assert!(
-            !tracked.iter().any(|(_, c, _)| *c == rejected),
+            !tracked.iter().any(|(_, c, _, _)| *c == rejected),
             "a rejected subscription must be removed from active_subs"
         );
         assert!(
-            tracked.iter().any(|(_, c, _)| *c == accepted),
+            tracked.iter().any(|(_, c, _, _)| *c == accepted),
             "an accepted subscription must remain tracked"
         );
 
@@ -3167,7 +3192,7 @@ mod tests {
         // is therefore not in the replay set and will not be re-attempted.
         let replay_snapshot = active_subs.lock().unwrap().clone();
         assert!(
-            !replay_snapshot.iter().any(|(_, c, _)| *c == rejected),
+            !replay_snapshot.iter().any(|(_, c, _, _)| *c == rejected),
             "rejected subscription must not appear in the reconnect replay set"
         );
 
@@ -3190,6 +3215,7 @@ mod tests {
         let active_subs: ActiveSubs = Arc::new(Mutex::new(vec![(
             SubscriptionKind::Trade,
             contract.clone(),
+            1,
             1,
         )]));
         let active_full_subs: ActiveFullSubs = Arc::new(Mutex::new(Vec::new()));
@@ -3222,6 +3248,7 @@ mod tests {
         let active_full_subs: ActiveFullSubs = Arc::new(Mutex::new(vec![(
             SubscriptionKind::Trade,
             SecType::Option,
+            1,
             1,
         )]));
         let pending_subs: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
@@ -3358,8 +3385,8 @@ mod tests {
         let gone = Contract::stock("AAPL");
         let kept = Contract::stock("MSFT");
         let active_subs: ActiveSubs = Arc::new(Mutex::new(vec![
-            (SubscriptionKind::Trade, gone.clone(), 1),
-            (SubscriptionKind::Trade, kept.clone(), 1),
+            (SubscriptionKind::Trade, gone.clone(), 1, 1),
+            (SubscriptionKind::Trade, kept.clone(), 1, 1),
         ]));
         let pending_subs: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
         pending_subs.lock().unwrap().insert(
@@ -3392,11 +3419,11 @@ mod tests {
         {
             let subs = active_subs.lock().unwrap();
             assert!(
-                !subs.iter().any(|(_, c, _)| *c == gone),
+                !subs.iter().any(|(_, c, _, _)| *c == gone),
                 "the unsubscribed identity's reference must be gone"
             );
             assert!(
-                subs.iter().any(|(_, c, _)| *c == kept),
+                subs.iter().any(|(_, c, _, _)| *c == kept),
                 "another identity's reference must survive"
             );
             let pending = pending_subs.lock().unwrap();
@@ -3436,33 +3463,38 @@ mod tests {
                 .lock()
                 .unwrap()
                 .iter()
-                .any(|(_, c, _)| *c == kept),
+                .any(|(_, c, _, _)| *c == kept),
             "a failed unsubscribe send must leave the identity tracked"
         );
     }
 
-    /// A reconnect-replay correlation is recorded only while its identity is
-    /// still tracked. If a concurrent unsubscribe removed the tracked entry (the
-    /// replay frame was already written, and the unsubscribe's own queued frame
-    /// nets it out on the wire), no stale correlation is inserted — so a late
-    /// rejection of the replay `req_id` can never `dec_active` a fresh
-    /// re-subscribe of the same identity.
+    /// A reconnect-replay correlation is recorded only for the SAME subscription
+    /// instance the replay snapshotted: the identity must still be tracked AND
+    /// carry the generation it had at snapshot time. This covers all three
+    /// concurrent-unsubscribe outcomes so no stale correlation for the replay
+    /// `req_id` can later `dec_active` a live instance:
+    ///  - identity still tracked at the same generation -> correlation recorded;
+    ///  - identity unsubscribed (entry gone) -> skipped;
+    ///  - identity unsubscribed then re-subscribed (a NEW generation) -> skipped,
+    ///    because the fresh instance registered its own correlation and a
+    ///    rejection of the stale replay `req_id` must not drop it.
     ///
     /// The offline harness cannot force the write-then-register deschedule
-    /// against a live reconnect loop, so this asserts the guard structurally:
-    /// `track_replay_correlation_if_tracked` inserts iff the identity is present.
+    /// against a live reconnect loop, so this asserts the guard structurally.
     #[test]
-    fn replay_correlation_skipped_when_identity_unsubscribed() {
+    fn replay_correlation_recorded_only_for_snapshotted_instance() {
         use super::super::protocol::{PendingSub, SubscriptionKind};
         use std::collections::HashMap;
 
         let contract = Contract::stock("AAPL");
+        let sub = PendingSub::Contract(SubscriptionKind::Trade, contract.clone());
 
-        // Still tracked: the correlation is recorded.
+        // Same instance (generation 7 at snapshot, still 7): correlation recorded.
         let active_subs: ActiveSubs = Arc::new(Mutex::new(vec![(
             SubscriptionKind::Trade,
             contract.clone(),
             1,
+            7,
         )]));
         let pending_subs: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
         track_replay_correlation_if_tracked(
@@ -3470,15 +3502,16 @@ mod tests {
             &active_subs,
             SubscriptionKind::Trade,
             &contract,
+            7,
             5,
-            PendingSub::Contract(SubscriptionKind::Trade, contract.clone()),
+            sub.clone(),
         );
         assert!(
             pending_subs.lock().unwrap().contains_key(&5),
-            "a still-tracked identity records its replay correlation"
+            "the snapshotted instance records its replay correlation"
         );
 
-        // Concurrently unsubscribed (entry gone): no correlation is recorded.
+        // Unsubscribed (entry gone): skipped.
         let active_gone: ActiveSubs = Arc::new(Mutex::new(Vec::new()));
         let pending_gone: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
         track_replay_correlation_if_tracked(
@@ -3486,12 +3519,37 @@ mod tests {
             &active_gone,
             SubscriptionKind::Trade,
             &contract,
+            7,
             6,
-            PendingSub::Contract(SubscriptionKind::Trade, contract.clone()),
+            sub.clone(),
         );
         assert!(
             pending_gone.lock().unwrap().is_empty(),
             "an unsubscribed identity records no stale replay correlation"
+        );
+
+        // Unsubscribed then re-subscribed: same identity, NEW generation (9 != 7).
+        // The stale replay correlation must be skipped so a later rejection of
+        // req_id 6 cannot dec_active the fresh instance.
+        let active_resub: ActiveSubs = Arc::new(Mutex::new(vec![(
+            SubscriptionKind::Trade,
+            contract.clone(),
+            1,
+            9,
+        )]));
+        let pending_resub: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
+        track_replay_correlation_if_tracked(
+            &pending_resub,
+            &active_resub,
+            SubscriptionKind::Trade,
+            &contract,
+            7,
+            6,
+            sub,
+        );
+        assert!(
+            pending_resub.lock().unwrap().is_empty(),
+            "a re-subscribed identity at a new generation records no stale replay correlation"
         );
     }
 
