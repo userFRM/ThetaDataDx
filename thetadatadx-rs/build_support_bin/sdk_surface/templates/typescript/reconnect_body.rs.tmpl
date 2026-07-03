@@ -14,13 +14,22 @@
                 }
             }
         };
+        crate::fpss_client::ensure_callback_open(&callback_arc)?;
         let dispatch_cb = Arc::clone(&callback_arc);
+        let callback_for_result = Arc::clone(&callback_arc);
+        let callback_closing_expected =
+            Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let delivery_failed =
+            Arc::new(std::sync::atomic::AtomicBool::new(false));
         // Fresh teardown wake hook for the reconnected session. The
         // reconnect re-uses the same `ThreadsafeFunction`, but the hook is
         // `FnOnce`, so a new one is built from the persistent callback handle
         // per reconnect to wake a dispatcher blocked in the full callback queue
         // when the NEW session tears down. See `startStreaming`.
-        let teardown_hook = crate::fpss_client::abort_hook(&callback_arc);
+        let teardown_hook = crate::fpss_client::abort_hook_expect_closing(
+            &callback_arc,
+            Arc::clone(&callback_closing_expected),
+        );
 
         // The reconnect re-runs the FPSS connect and authentication
         // handshake plus a paced subscription restore — all network-bound.
@@ -29,16 +38,46 @@
         // handle stays in place; `reconnect_streaming` re-uses the same
         // `ThreadsafeFunction`, so there is no state shape change.
         let client = Arc::clone(&self.client);
+        let callback_closing_expected_for_dispatch = Arc::clone(&callback_closing_expected);
+        let callback_closing_expected_for_result = Arc::clone(&callback_closing_expected);
+        let delivery_failed_for_dispatch = Arc::clone(&delivery_failed);
+        let delivery_failed_for_scope = Arc::clone(&delivery_failed);
         tokio::task::spawn_blocking(move || {
-            client
-                .stream()
-                .reconnect_streaming_with_teardown(move |event: &fpss::StreamEvent| {
+            let stream = client.stream();
+            let result = stream.reconnect_streaming_scoped(
+                move |event: &fpss::StreamEvent| {
                     let buffered = fpss_event_to_buffered(event);
                     let typed = buffered_event_to_typed(buffered);
-                    dispatch_cb.call(typed, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
-                }, teardown_hook)
+                    let status = dispatch_cb.call(
+                        typed,
+                        napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+                    );
+                    crate::fpss_client::note_callback_delivery_status(
+                        status,
+                        &callback_closing_expected_for_dispatch,
+                        &delivery_failed_for_dispatch,
+                    );
+                },
+                move |drain| {
+                    crate::fpss_client::callback_delivery_outcome(
+                        drain(),
+                        &delivery_failed_for_scope,
+                    )
+                },
+                Some(teardown_hook),
+            );
+            if callback_closing_expected_for_result
+                .load(std::sync::atomic::Ordering::Acquire)
+            {
+                stream.stop_streaming();
+                return Err(crate::fpss_client::aborted_callback_error());
+            }
+            if let Err(err) = crate::fpss_client::ensure_callback_open(&callback_for_result) {
+                stream.stop_streaming();
+                return Err(err);
+            }
+            result.map_err(to_napi_err)
         })
         .await
         .map_err(|e| napi::Error::from_reason(format!("reconnect task panicked: {e}")))?
-        .map_err(to_napi_err)
     }

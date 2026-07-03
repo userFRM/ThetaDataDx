@@ -252,6 +252,52 @@ pub(crate) fn abort_hook(callback: &Arc<TsfnCallback>) -> Box<dyn FnOnce() + Sen
     })
 }
 
+pub(crate) fn abort_hook_expect_closing(
+    callback: &Arc<TsfnCallback>,
+    closing_expected: Arc<AtomicBool>,
+) -> Box<dyn FnOnce() + Send> {
+    let hook = abort_hook(callback);
+    Box::new(move || {
+        closing_expected.store(true, Ordering::Release);
+        hook();
+    })
+}
+
+pub(crate) fn ensure_callback_open(callback: &TsfnCallback) -> napi::Result<()> {
+    if callback.handle.with_read_aborted(|aborted| aborted) {
+        Err(aborted_callback_error())
+    } else {
+        Ok(())
+    }
+}
+
+pub(crate) fn aborted_callback_error() -> napi::Error {
+    napi::Error::from_reason(
+        "[StreamError] streaming callback is closed; call startStreaming(callback) with a fresh function",
+    )
+}
+
+pub(crate) fn note_callback_delivery_status(
+    status: napi::Status,
+    closing_expected: &AtomicBool,
+    delivery_failed: &AtomicBool,
+) {
+    if status == napi::Status::Closing && !closing_expected.load(Ordering::Acquire) {
+        delivery_failed.store(true, Ordering::Release);
+    }
+}
+
+pub(crate) fn callback_delivery_outcome(
+    outcome: fpss::PollOutcome,
+    delivery_failed: &AtomicBool,
+) -> fpss::PollOutcome {
+    if delivery_failed.load(Ordering::Acquire) {
+        fpss::PollOutcome::Failed
+    } else {
+        outcome
+    }
+}
+
 /// Snapshot of the parameters required to open a streaming TLS connection.
 ///
 /// Cloned out of the user's `Config` at construction time so subsequent
@@ -512,6 +558,8 @@ impl StreamingClient {
     ///
     /// Lock ordering: `callback` BEFORE `inner`, matching `stopStreaming`.
     async fn start_with_callback(&self, callback: Arc<TsfnCallback>) -> napi::Result<()> {
+        ensure_callback_open(&callback)?;
+
         {
             let mut cb_guard = self.lock_callback();
             if cb_guard.is_some() || self.lock_inner().is_some() {
@@ -558,6 +606,8 @@ impl StreamingClient {
             }
         };
         let client_arc = Arc::new(client);
+        let callback_closing_expected = Arc::new(AtomicBool::new(false));
+        let delivery_failed = Arc::new(AtomicBool::new(false));
 
         // Teardown wake hook, built from a shared-handle clone of the
         // registered function (installing it consumes nothing the
@@ -568,7 +618,8 @@ impl StreamingClient {
         // (see `abort_hook`). The dispatcher would otherwise park forever
         // waiting for the Node main thread — which is itself inside the join —
         // to drain the queue.
-        let on_teardown: Box<dyn FnOnce() + Send> = abort_hook(&callback);
+        let on_teardown: Box<dyn FnOnce() + Send> =
+            abort_hook_expect_closing(&callback, Arc::clone(&callback_closing_expected));
 
         // Publish the client and dispatcher under the callback lock held
         // across the whole transition so a concurrent `stopStreaming` + newer
@@ -599,6 +650,9 @@ impl StreamingClient {
         *self.lock_inner() = Some(Arc::clone(&client_arc));
 
         let dispatcher_client = Arc::clone(&client_arc);
+        let callback_closing_expected_for_dispatch = Arc::clone(&callback_closing_expected);
+        let delivery_failed_for_dispatch = Arc::clone(&delivery_failed);
+        let delivery_failed_for_scope = Arc::clone(&delivery_failed);
         // Hand the dispatcher thread its own handle to the session slot so
         // it can publish `Failed` directly on a caught outer panic, rather
         // than relying on a future teardown's `JoinHandle::join()` to
@@ -643,12 +697,17 @@ impl StreamingClient {
                             // itself is never blocked.
                             let buffered = fpss_event_to_buffered(event);
                             let typed = buffered_event_to_typed(buffered);
-                            dispatch_cb.call(
+                            let status = dispatch_cb.call(
                                 typed,
                                 napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
                             );
+                            note_callback_delivery_status(
+                                status,
+                                &callback_closing_expected_for_dispatch,
+                                &delivery_failed_for_dispatch,
+                            );
                         },
-                        |drain| drain(),
+                        |drain| callback_delivery_outcome(drain(), &delivery_failed_for_scope),
                     )
                 }));
                 // A panic escaping the event-iteration machinery (NOT a
@@ -1106,6 +1165,7 @@ impl StreamingClient {
         // Stop + restart under the same callback. The restart re-runs the
         // streaming connect and authentication handshake off the libuv thread.
         self.stop_streaming();
+        ensure_callback_open(&stored)?;
         self.start_with_callback(stored).await?;
 
         // Re-apply every saved subscription against the freshly reconnected
@@ -1337,6 +1397,53 @@ mod dispatcher_panic_recording_tests {
         assert!(
             matches!(&*session.lock().unwrap(), DispatcherSession::Idle),
             "a superseded (Idle) slot must not be clobbered by the dispatcher self-record",
+        );
+    }
+}
+
+#[cfg(test)]
+mod callback_delivery_failure_tests {
+    use super::*;
+
+    #[test]
+    fn unexpected_closing_marks_dispatcher_delivery_failed() {
+        let closing_expected = AtomicBool::new(false);
+        let delivery_failed = AtomicBool::new(false);
+
+        note_callback_delivery_status(napi::Status::Closing, &closing_expected, &delivery_failed);
+
+        assert!(delivery_failed.load(Ordering::Acquire));
+        assert_eq!(
+            callback_delivery_outcome(fpss::PollOutcome::Drained(1), &delivery_failed),
+            fpss::PollOutcome::Failed
+        );
+    }
+
+    #[test]
+    fn teardown_expected_closing_does_not_mark_delivery_failed() {
+        let closing_expected = AtomicBool::new(true);
+        let delivery_failed = AtomicBool::new(false);
+
+        note_callback_delivery_status(napi::Status::Closing, &closing_expected, &delivery_failed);
+
+        assert!(!delivery_failed.load(Ordering::Acquire));
+        assert_eq!(
+            callback_delivery_outcome(fpss::PollOutcome::Shutdown, &delivery_failed),
+            fpss::PollOutcome::Shutdown
+        );
+    }
+
+    #[test]
+    fn successful_callback_delivery_keeps_scope_outcome() {
+        let closing_expected = AtomicBool::new(false);
+        let delivery_failed = AtomicBool::new(false);
+
+        note_callback_delivery_status(napi::Status::Ok, &closing_expected, &delivery_failed);
+
+        assert!(!delivery_failed.load(Ordering::Acquire));
+        assert_eq!(
+            callback_delivery_outcome(fpss::PollOutcome::Drained(2), &delivery_failed),
+            fpss::PollOutcome::Drained(2)
         );
     }
 }
