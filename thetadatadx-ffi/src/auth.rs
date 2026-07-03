@@ -562,13 +562,17 @@ pub unsafe extern "C" fn thetadatadx_config_set_streaming_ring_size(
         // surface the rejection here so the FFI caller sees it at the
         // setter rather than at connect.
         if n == 0 || !n.is_power_of_two() {
-            set_error(&format!(
-                "streaming_ring_size must be a power of two >= 64; got {n}"
-            ));
+            crate::error::set_error_with_code(
+                &format!("streaming_ring_size must be a power of two >= 64; got {n}"),
+                crate::error::THETADATADX_ERR_INVALID_PARAMETER,
+            );
             return;
         }
         if n < 64 {
-            set_error(&format!("streaming_ring_size must be >= 64; got {n}"));
+            crate::error::set_error_with_code(
+                &format!("streaming_ring_size must be >= 64; got {n}"),
+                crate::error::THETADATADX_ERR_INVALID_PARAMETER,
+            );
             return;
         }
         // SAFETY: config is a non-null pointer returned by thetadatadx_config_* and not yet freed.

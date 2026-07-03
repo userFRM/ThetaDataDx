@@ -782,7 +782,13 @@ public:
      *  >= 64; invalid values are rejected (thetadatadx_last_error). Default
      *  131_072. */
     void set_streaming_ring_size(size_t n) {
+        // The C setter returns void and rejects an invalid ring size through
+        // the error slot; clear it first so a stale error isn't misread, then
+        // surface a rejection as a typed exception instead of silently keeping
+        // the previous value (matching the other validated setters).
+        thetadatadx_clear_error();
         thetadatadx_config_set_streaming_ring_size(handle_.get(), n);
+        if (thetadatadx_last_error()) detail::throw_last_ffi_error();
     }
 
     /** Set the async worker-thread count using the (has_value, n) shape
