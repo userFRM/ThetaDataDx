@@ -182,21 +182,20 @@ fn join_dispatcher_with_wake(
 /// [`ThreadsafeFunctionHandle`](napi::threadsafe_function::ThreadsafeFunctionHandle)
 /// (the `handle` field is an `Arc` shared by every clone of the function,
 /// including the one the blocked consumer holds) and performs the same abort
-/// the framework's deprecated [`ThreadsafeFunction::abort`] performs: it sets
-/// the handle's shared `aborted` flag under its write lock and releases the
-/// underlying napi threadsafe function with
+/// the framework's deprecated [`ThreadsafeFunction::abort`] performs, but in a
+/// lock order that can wake a blocked caller: it releases the underlying napi
+/// threadsafe function with
 /// [`ThreadsafeFunctionReleaseMode::abort`](napi::sys::ThreadsafeFunctionReleaseMode).
-/// Because the flag lives on the shared handle, the blocked consumer's `call`
-/// observes `aborted == true` and returns [`napi::Status::Closing`]
-/// immediately, so the consumer resumes, sees the already-signalled client
-/// shutdown, exits `for_each_scoped`, and the join completes.
+/// N-API then makes a blocked `call(.., Blocking)` return
+/// [`napi::Status::Closing`], dropping napi-rs's `aborted` read guard. Only
+/// after that wake is sent does the hook take the write lock and mark the
+/// shared `aborted` flag, so future calls reject immediately.
 ///
 /// The replicated-abort form is used in preference to calling the deprecated
 /// `abort()` because `abort()` consumes `self` by value, which is impossible
-/// from a shared `Arc<TsfnCallback>` (the blocked consumer co-owns it). The
-/// `aborted`-flag write is guarded so a second invocation (e.g. `Drop` after an
-/// explicit `stopStreaming`) is a harmless no-op, which makes the hook safe to
-/// run more than once even though it is typed `FnOnce`.
+/// from a shared `Arc<TsfnCallback>` (the blocked consumer co-owns it). A
+/// per-hook once flag makes a repeated wake attempt a harmless no-op even if
+/// the hook is ever wrapped behind a replayable teardown adapter.
 ///
 /// # When it runs
 ///
@@ -213,36 +212,42 @@ pub(crate) fn abort_hook(callback: &Arc<TsfnCallback>) -> Box<dyn FnOnce() + Sen
     // — points at this same handle, so aborting through it aborts the call the
     // consumer is parked in.
     let handle = Arc::clone(&callback.handle);
+    let fired = AtomicBool::new(false);
     Box::new(move || {
-        handle.with_write_aborted(|mut aborted| {
-            if !*aborted {
-                let raw = handle.get_raw();
-                if !raw.is_null() {
-                    // SAFETY: `raw` is the live `napi_threadsafe_function`
-                    // pointer owned by `handle`; it is non-null here and the
-                    // function has not yet been aborted (guarded by the
-                    // `aborted` flag we hold the write lock on). Releasing with
-                    // `abort` is exactly what `ThreadsafeFunction::abort` does
-                    // internally and is the documented way to force a pending
-                    // `Blocking` `call` to return `Status::Closing`. Holding the
-                    // write guard across the release serialises this against any
-                    // other clone's abort/drop, and setting `aborted` below
-                    // makes a repeat call (e.g. a later `Drop`) a no-op so the
-                    // function is released exactly once.
-                    let status = unsafe {
-                        napi::sys::napi_release_threadsafe_function(
-                            raw,
-                            napi::sys::ThreadsafeFunctionReleaseMode::abort,
-                        )
-                    };
-                    debug_assert_eq!(
-                        status,
-                        napi::sys::Status::napi_ok,
-                        "napi_release_threadsafe_function(abort) failed",
-                    );
-                }
-                *aborted = true;
+        if fired
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return;
+        }
+
+        let already_aborted = handle.with_read_aborted(|aborted| aborted);
+        if !already_aborted {
+            let raw = handle.get_raw();
+            if !raw.is_null() {
+                // SAFETY: `raw` is the live `napi_threadsafe_function` pointer
+                // owned by `handle`; it is non-null here. Release happens
+                // BEFORE taking `aborted.write()`: napi-rs holds
+                // `aborted.read()` across `call(.., Blocking)`, so taking the
+                // writer first deadlocks behind the caller this release is
+                // meant to wake. N-API allows abort release while a call is
+                // blocked; that call returns `Closing` and drops the read guard.
+                let status = unsafe {
+                    napi::sys::napi_release_threadsafe_function(
+                        raw,
+                        napi::sys::ThreadsafeFunctionReleaseMode::abort,
+                    )
+                };
+                debug_assert_eq!(
+                    status,
+                    napi::sys::Status::napi_ok,
+                    "napi_release_threadsafe_function(abort) failed",
+                );
             }
+        }
+
+        handle.with_write_aborted(|mut aborted| {
+            *aborted = true;
         });
     })
 }
@@ -1393,10 +1398,13 @@ mod teardown_deadlock_tests {
         capacity: usize,
         /// Current queued depth; drained by [`Self::drain_one`].
         depth: Mutex<usize>,
-        /// Signalled when depth drops (a slot frees) OR when `aborted` is set.
+        /// Signalled when depth drops (a slot frees) OR when abort is released.
         space: Condvar,
         /// Shared abort flag — the field [`super::abort_hook`] writes through.
         aborted: RwLock<bool>,
+        /// Models `napi_release_threadsafe_function(..., abort)`: a lock-free
+        /// wake that makes an in-flight blocking call return `Closing`.
+        released: AtomicBool,
     }
 
     /// Outcome of a [`BoundedFn::call`] — mirrors the only two `Status` values
@@ -1414,6 +1422,7 @@ mod teardown_deadlock_tests {
                 depth: Mutex::new(0),
                 space: Condvar::new(),
                 aborted: RwLock::new(false),
+                released: AtomicBool::new(false),
             })
         }
 
@@ -1422,14 +1431,15 @@ mod teardown_deadlock_tests {
         /// free and returns `Ok`. This is the stand-in for
         /// `ThreadsafeFunction::call(.., Blocking)`.
         fn call_blocking(&self) -> CallStatus {
-            // Fast path: an already-aborted function rejects immediately, just
-            // as the real `call` does (`if aborted { return Closing }`).
-            if *self.aborted.read().unwrap() {
+            // The real napi-rs `call` holds this read guard across the
+            // potentially blocking `napi_call_threadsafe_function`.
+            let aborted = self.aborted.read().unwrap();
+            if *aborted {
                 return CallStatus::Closing;
             }
             let mut depth = self.depth.lock().unwrap();
             loop {
-                if *self.aborted.read().unwrap() {
+                if *aborted || self.released.load(Ordering::Acquire) {
                     return CallStatus::Closing;
                 }
                 if *depth < self.capacity {
@@ -1455,20 +1465,17 @@ mod teardown_deadlock_tests {
             }
         }
 
-        /// Abort the function: set the shared flag and wake every waiter so a
-        /// blocked `call_blocking` re-checks and returns `Closing`. The
-        /// flag-write discipline (write-guard the flag, set it, idempotent on a
-        /// repeat) mirrors [`super::abort_hook`]; the production hook
-        /// additionally calls `napi_release_threadsafe_function(.., abort)`,
-        /// whose sole observable effect on a blocked caller is the same flag
-        /// transition reproduced here.
+        /// Abort the function: first send the lock-free N-API wake, then mark
+        /// the shared flag. This mirrors [`super::abort_hook`]. Taking the
+        /// `aborted.write()` lock before the wake would deadlock while a blocked
+        /// caller holds the read guard above.
         fn abort(&self) {
-            let mut aborted = self.aborted.write().unwrap();
-            if !*aborted {
-                *aborted = true;
-                // notify under the lock is fine; waiters re-check the flag.
+            if !self.released.swap(true, Ordering::AcqRel) {
+                let _depth = self.depth.lock().unwrap();
                 self.space.notify_all();
             }
+            let mut aborted = self.aborted.write().unwrap();
+            *aborted = true;
         }
 
         fn is_aborted(&self) -> bool {
