@@ -13,7 +13,7 @@ Three artifacts make this SDK legible to coding assistants and agents:
 
 ## MCP server
 
-The [MCP server](/mcp) exposes every historical endpoint plus the offline Greeks tools to any Model Context Protocol client over JSON-RPC, so an LLM can pull real data mid-conversation. Setup is one config block; see the [MCP page](/mcp).
+The [MCP server](/mcp) exposes every historical endpoint to any Model Context Protocol client over JSON-RPC, so an LLM can pull real data mid-conversation. Setup is one config block; see the [MCP page](/mcp).
 
 ## OpenAPI specification
 
