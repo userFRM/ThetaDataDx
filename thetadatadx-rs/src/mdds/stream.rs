@@ -44,7 +44,7 @@ impl HistoricalClient {
     /// Returns [`Error`] when a chunk fails to decompress or decode, when a
     /// chunk exceeds the channel's `max_message_size` ceiling, or when
     /// mid-stream headers drift from the first chunk's schema
-    /// ([`decode::DecodeError::ChunkHeaderDrift`]).
+    /// (`decode::DecodeError::ChunkHeaderDrift`).
     pub(crate) async fn collect_stream(
         &self,
         mut stream: ServerStreaming<proto::ResponseData>,
@@ -187,7 +187,7 @@ impl HistoricalClient {
     /// # Errors
     ///
     /// Returns an error on network, authentication, or parsing failure
-    /// (including [`decode::DecodeError::ChunkHeaderDrift`]).
+    /// (including `decode::DecodeError::ChunkHeaderDrift`).
     pub async fn for_each_chunk_async<F, Fut>(
         &self,
         mut stream: ServerStreaming<proto::ResponseData>,
@@ -226,7 +226,7 @@ impl HistoricalClient {
 /// [`HistoricalClient::for_each_chunk_async`]: record the first non-empty
 /// header row into `saved_headers`, and reject a later chunk whose
 /// non-empty headers drift from it
-/// ([`decode::DecodeError::ChunkHeaderDrift`]). The caller resolves which
+/// (`decode::DecodeError::ChunkHeaderDrift`). The caller resolves which
 /// header slice to hand the callback (the chunk's own or the preserved
 /// first-chunk schema) since that borrow cannot outlive this helper.
 fn decode_chunk_checked(
