@@ -375,20 +375,28 @@ where
 /// Drive the streaming endpoint retry / refresh loop.
 ///
 /// Streaming sibling of [`run_unary_retry_loop`]: each closure call
-/// represents one full server-streaming attempt. Mid-stream
-/// `Unauthenticated` triggers refresh + restart from chunk zero
-/// (MDDS has no resume token); the closure is invoked again with
-/// the post-refresh snapshot.
+/// represents one full server-streaming attempt.
+///
+/// A restart replays the stream from chunk zero — MDDS has no resume
+/// token — so it is only safe while *no* chunk of the failed attempt
+/// reached the handler. The caller sets `delivered` the first time a
+/// chunk is dispatched downstream; once it is set, a subsequent
+/// transient or `Unauthenticated` is surfaced as terminal rather than
+/// silently replaying, because the downstream (buffered collectors and
+/// streaming callbacks alike) cannot dedup a re-sent prefix without a
+/// resume cursor. A transient before the first chunk still retries.
 ///
 /// # Errors
 ///
 /// Returns the last attempt's [`crate::error::Error`] once the retry
-/// budget or wall-clock envelope is exhausted, or a terminal error
-/// (including a failed session refresh) surfaced unchanged.
+/// budget or wall-clock envelope is exhausted, a mid-stream transient
+/// after delivery began, or a terminal error (including a failed
+/// session refresh) surfaced unchanged.
 pub(crate) async fn run_streaming_retry_loop<F, Fut>(
     session: &crate::auth::SessionToken,
     policy: &crate::config::RetryPolicy,
     endpoint: &'static str,
+    delivered: &std::sync::atomic::AtomicBool,
     mut attempt_fn: F,
 ) -> Result<(), crate::error::Error>
 where
@@ -415,7 +423,10 @@ where
             StreamingAttemptOutcome::Done => return Ok(()),
             StreamingAttemptOutcome::Terminal(err) => return Err(err),
             StreamingAttemptOutcome::Refresh(err) => {
-                if refresh_retry_used {
+                // Once a chunk has reached the handler a restart would
+                // replay the delivered prefix (no resume token); surface
+                // the error instead of duplicating rows downstream.
+                if refresh_retry_used || delivered.load(std::sync::atomic::Ordering::Relaxed) {
                     return Err(err);
                 }
                 refresh_retry_used = true;
@@ -428,7 +439,13 @@ where
                 attempt += 1;
             }
             StreamingAttemptOutcome::Backoff(err) => {
-                if attempt >= budget || !policy.within_elapsed_budget(started.elapsed()) {
+                // A restart replays from chunk zero; if any chunk was
+                // already delivered the replayed prefix would duplicate
+                // downstream, so a mid-stream transient is terminal.
+                if attempt >= budget
+                    || !policy.within_elapsed_budget(started.elapsed())
+                    || delivered.load(std::sync::atomic::Ordering::Relaxed)
+                {
                     return Err(err);
                 }
                 sleep_for_retry(policy, attempt, endpoint, &err).await;
@@ -789,12 +806,13 @@ macro_rules! parsed_endpoint {
             ///
             /// Same shell as the buffered path: transient gRPC
             /// statuses (`Unavailable`, `DeadlineExceeded`,
-            /// `ResourceExhausted`) trigger backoff + restart;
-            /// mid-stream `Unauthenticated` triggers one session
-            /// refresh then restart from chunk zero (upstream MDDS
-            /// has no resume token). Keep `handler` idempotent —
-            /// the first N chunks of a failed attempt are visible
-            /// to `handler` BEFORE the retry begins.
+            /// `ResourceExhausted`) and mid-stream `Unauthenticated`
+            /// trigger backoff / refresh + restart from chunk zero
+            /// (upstream MDDS has no resume token) ONLY while no chunk
+            /// has yet reached `handler`. Once the first chunk is
+            /// dispatched, a later transient is surfaced as an error
+            /// rather than replaying the delivered prefix, so `handler`
+            /// never sees a duplicated chunk.
             ///
             /// Decode / decompress failures are terminal and surface
             /// immediately without retry — the wire bytes won't fix
@@ -840,10 +858,16 @@ macro_rules! parsed_endpoint {
                     // Python SDK's `spawn_awaitable` requires this).
                     let handler_mutex = std::sync::Mutex::new(handler);
                     let handler_mutex = &handler_mutex;
+                    // Set once a chunk reaches `handler`: it makes a later
+                    // transient terminal so the no-resume restart never
+                    // replays an already-delivered prefix.
+                    let delivered = std::sync::atomic::AtomicBool::new(false);
+                    let delivered = &delivered;
                     $crate::mdds::macros::run_streaming_retry_loop(
                         client.session(),
                         &policy,
                         stringify!($name),
+                        delivered,
                         move |snap| {
                             // Clone per-attempt: the FnMut closure may
                             // be invoked twice (post-refresh restart),
@@ -894,6 +918,7 @@ macro_rules! parsed_endpoint {
                                             if let Ok(mut h) = handler_mutex.lock() {
                                                 (*h)(&ticks);
                                             }
+                                            delivered.store(true, std::sync::atomic::Ordering::Relaxed);
                                         }
                                         Err(e) => decode_error = Some(Error::from(e)),
                                     }
@@ -1602,33 +1627,51 @@ mod refresh_retry_disabled_tests {
     }
 
     /// Streaming sibling of [`drive_unary`].
+    ///
+    /// `deliver_on` names the attempt numbers (1-based) that mark a
+    /// chunk as delivered downstream before returning their outcome —
+    /// the test stand-in for `for_each_chunk` handing a chunk to the
+    /// handler. That flips `delivered`, which makes a same-attempt
+    /// transient / refresh terminal in the loop.
     async fn drive_streaming(
         session: &SessionToken,
         policy: &RetryPolicy,
         outcomes: Vec<Result<(), Error>>,
+        deliver_on: &[u32],
     ) -> (Result<(), Error>, u32) {
         let mut rev: Vec<_> = outcomes;
         rev.reverse();
         let outcomes = RefCell::new(rev);
         let attempts = RefCell::new(0u32);
-        let result = run_streaming_retry_loop(session, policy, "test_stream_endpoint", |_snap| {
-            let attempts_ref = &attempts;
-            let outcomes_ref = &outcomes;
-            async move {
-                let n = {
-                    let mut c = attempts_ref.borrow_mut();
-                    *c += 1;
-                    *c
-                };
-                if n == 1 {
-                    session.bump_for_test("v-bumped").await;
+        let delivered = std::sync::atomic::AtomicBool::new(false);
+        let result = run_streaming_retry_loop(
+            session,
+            policy,
+            "test_stream_endpoint",
+            &delivered,
+            |_snap| {
+                let attempts_ref = &attempts;
+                let outcomes_ref = &outcomes;
+                let delivered_ref = &delivered;
+                async move {
+                    let n = {
+                        let mut c = attempts_ref.borrow_mut();
+                        *c += 1;
+                        *c
+                    };
+                    if n == 1 {
+                        session.bump_for_test("v-bumped").await;
+                    }
+                    if deliver_on.contains(&n) {
+                        delivered_ref.store(true, std::sync::atomic::Ordering::Relaxed);
+                    }
+                    outcomes_ref
+                        .borrow_mut()
+                        .pop()
+                        .expect("test fed fewer outcomes than the loop drove")
                 }
-                outcomes_ref
-                    .borrow_mut()
-                    .pop()
-                    .expect("test fed fewer outcomes than the loop drove")
-            }
-        })
+            },
+        )
         .await;
         let count = *attempts.borrow();
         (result, count)
@@ -1763,6 +1806,7 @@ mod refresh_retry_disabled_tests {
             &session,
             &policy,
             vec![Err(grpc(GrpcStatusKind::Unauthenticated)), Ok(())],
+            &[],
         )
         .await;
 
@@ -1781,6 +1825,7 @@ mod refresh_retry_disabled_tests {
             &session,
             &policy,
             vec![Err(grpc(GrpcStatusKind::Unavailable))],
+            &[],
         )
         .await;
 
@@ -1792,6 +1837,97 @@ mod refresh_retry_disabled_tests {
             })
         ));
         assert_eq!(attempts, 1);
+    }
+
+    #[tokio::test]
+    async fn streaming_transient_before_first_chunk_still_retries() {
+        // Regression guard for the mid-stream fix: a transient BEFORE
+        // any chunk reached the handler (delivered stays unset) must
+        // still retry from chunk zero, since the buffered collector is
+        // empty and cannot duplicate. Attempt 1 fails Unavailable
+        // without delivering; attempt 2 completes.
+        let session = fake_token("v0");
+        let policy = RetryPolicy {
+            initial_delay: std::time::Duration::ZERO,
+            max_delay: std::time::Duration::ZERO,
+            max_attempts: 3,
+            max_elapsed: std::time::Duration::ZERO,
+            jitter: false,
+        };
+
+        let (result, attempts) = drive_streaming(
+            &session,
+            &policy,
+            vec![Err(grpc(GrpcStatusKind::Unavailable)), Ok(())],
+            &[],
+        )
+        .await;
+
+        result.expect("pre-first-chunk transient must retry and complete");
+        assert_eq!(attempts, 2);
+    }
+
+    #[tokio::test]
+    async fn streaming_transient_after_delivery_is_terminal() {
+        // Core fix: attempt 1 delivers chunks to the handler (buffered
+        // collector now holds rows 0..N) and THEN fails transiently.
+        // A restart would replay rows 0..N and duplicate the buffered
+        // leading rows, so the loop must surface the error instead of
+        // retrying — even with retry budget to spare.
+        let session = fake_token("v0");
+        let policy = RetryPolicy {
+            initial_delay: std::time::Duration::ZERO,
+            max_delay: std::time::Duration::ZERO,
+            max_attempts: 3,
+            max_elapsed: std::time::Duration::ZERO,
+            jitter: false,
+        };
+
+        let (result, attempts) = drive_streaming(
+            &session,
+            &policy,
+            vec![Err(grpc(GrpcStatusKind::Unavailable))],
+            &[1],
+        )
+        .await;
+
+        assert!(
+            matches!(
+                result,
+                Err(Error::Grpc {
+                    kind: GrpcStatusKind::Unavailable,
+                    ..
+                })
+            ),
+            "mid-stream transient after delivery must be terminal"
+        );
+        assert_eq!(attempts, 1, "no restart once a chunk was delivered");
+    }
+
+    #[tokio::test]
+    async fn streaming_refresh_after_delivery_is_terminal() {
+        // Same guarantee for the refresh path: a mid-stream
+        // Unauthenticated after a chunk was delivered must not replay
+        // from chunk zero (the buffered prefix cannot be deduped).
+        let session = fake_token("v0");
+        let policy = RetryPolicy::disabled();
+
+        let (result, attempts) = drive_streaming(
+            &session,
+            &policy,
+            vec![Err(grpc(GrpcStatusKind::Unauthenticated))],
+            &[1],
+        )
+        .await;
+
+        assert!(matches!(
+            result,
+            Err(Error::Grpc {
+                kind: GrpcStatusKind::Unauthenticated,
+                ..
+            })
+        ));
+        assert_eq!(attempts, 1, "no refresh-restart once a chunk was delivered");
     }
 
     #[tokio::test]

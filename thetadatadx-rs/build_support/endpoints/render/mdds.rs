@@ -339,10 +339,16 @@ pub(super) fn generate_mdds_streaming_endpoint(out: &mut String, endpoint: &Gene
     // post-refresh restart) and the returned future stays Send.
     out.push_str("            let handler_mutex = std::sync::Mutex::new(handler);\n");
     out.push_str("            let handler_mutex = &handler_mutex;\n");
+    // Set once a chunk reaches `handler`: the no-resume restart replays
+    // from chunk zero, so a later transient after delivery began is made
+    // terminal by `run_streaming_retry_loop` to avoid duplicating rows.
+    out.push_str("            let delivered = std::sync::atomic::AtomicBool::new(false);\n");
+    out.push_str("            let delivered = &delivered;\n");
     out.push_str("            crate::mdds::macros::run_streaming_retry_loop(\n");
     out.push_str("                client.session(),\n");
     out.push_str("                &policy,\n");
     writeln!(out, "                {endpoint_name_literal},").unwrap();
+    out.push_str("                delivered,\n");
     out.push_str("                move |snap| {\n");
     // Clone per-attempt: the FnMut closure may fire twice (post-refresh
     // restart) and the `async move` block would otherwise move each
