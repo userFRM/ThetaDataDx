@@ -470,6 +470,28 @@ impl BatchSink {
         }
     }
 
+    /// Terminal error marker, run once when the dispatcher's drain loop ends
+    /// abnormally: the FPSS I/O thread unwound (the drain returned
+    /// [`crate::PollOutcome::Failed`]) or the event-iteration machinery
+    /// panicked. Publishes `err` as the queue's terminal error and wakes any
+    /// parked reader so [`RecordBatchStream::next_blocking`] returns `Err`
+    /// instead of parking on the condvar forever waiting for a `finished` that
+    /// a faulted dispatcher will never set. Preserves an already-set error
+    /// (first fault wins) and does not clear queued batches: they are drained
+    /// before the error surfaces, matching the clean-shutdown ordering.
+    pub(crate) fn fail(&self, err: StreamError) {
+        let mut guard = lock(&self.shared.inner);
+        if guard.error.is_none() {
+            guard.error = Some(err);
+        }
+        let waker = guard.waker.take();
+        drop(guard);
+        self.shared.cv.notify_all();
+        if let Some(w) = waker {
+            w.wake();
+        }
+    }
+
     /// Final flush + terminal marker, run once when the dispatcher's drain
     /// loop returns (clean shutdown or close).
     pub(crate) fn finish(&self) {
@@ -823,6 +845,12 @@ pub(crate) mod test_harness {
         pub(crate) fn finish(self) {
             self.sink.finish();
         }
+
+        /// Publish a terminal error (the dispatcher faulted) and wake the
+        /// reader, mirroring the columnar dispatcher's fault/panic arm.
+        pub(crate) fn fail(self, err: crate::streaming::StreamError) {
+            self.sink.fail(err);
+        }
     }
 
     /// Build a connected `(producer, reader)` pair sharing one queue, with no
@@ -1017,6 +1045,42 @@ mod tests {
 
         assert_eq!(delivered, total, "Block mode must deliver every row");
         assert_eq!(reader.dropped(), 0, "Block mode must never drop");
+    }
+
+    /// A dispatcher that faults (its drain returned `PollOutcome::Failed`, or
+    /// the iteration machinery / linger flush panicked) must WAKE a parked
+    /// reader with a terminal error instead of leaving it blocked on the
+    /// condvar forever waiting for a `finished` the dead dispatcher will never
+    /// set. The reader is parked on an empty queue when the fault lands, so the
+    /// test hangs (and is killed by the suite timeout) if `fail` fails to wake
+    /// it.
+    #[test]
+    fn dispatcher_fault_wakes_parked_reader_with_error() {
+        let (producer, reader) = harness(1_000, Duration::from_millis(50), Backpressure::Block);
+
+        // Reader parks on the empty queue; the producer faults from another
+        // thread after a beat, exercising the wake path (not a pre-set error).
+        let faulter = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(20));
+            producer.fail(crate::streaming::StreamError::DispatcherFailed(
+                "fpss io thread terminated abnormally".to_string(),
+            ));
+        });
+
+        let result = reader.next();
+        faulter.join().unwrap();
+
+        match result {
+            Err(crate::streaming::StreamError::DispatcherFailed(msg)) => {
+                assert!(
+                    msg.contains("terminated abnormally"),
+                    "expected the dispatcher-fault reason, got: {msg}"
+                );
+            }
+            other => panic!(
+                "a faulted dispatcher must wake the reader with DispatcherFailed, got {other:?}"
+            ),
+        }
     }
 
     /// (b) DropOldest increments `dropped()` and never blocks the producer

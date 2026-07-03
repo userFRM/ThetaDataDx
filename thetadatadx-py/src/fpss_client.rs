@@ -518,23 +518,37 @@ impl StreamingClient {
                         });
                     };
                     dispatcher_client
-                        .for_each_scoped(dispatch_one, |drain| Python::attach(|_py| drain()));
+                        .for_each_scoped(dispatch_one, |drain| Python::attach(|_py| drain()))
                 }));
-                if let Err(payload) = outcome {
-                    let reason = downcast_py_panic_payload(payload);
-                    tracing::error!(
-                        target: "thetadatadx::python",
-                        reason = %reason,
-                        "thetadatadx-py-fpss-dispatcher panicked in event iteration machinery; StreamingClient transitioning to failed state",
-                    );
-                    // Publish `Failed` from this thread before it exits so
-                    // health checks reflect the dead loop immediately, not only
-                    // once teardown joins.
-                    publish_failed_if_current(
-                        &dispatcher_slot,
-                        std::thread::current().id(),
-                        reason,
-                    );
+                match outcome {
+                    Err(payload) => {
+                        let reason = downcast_py_panic_payload(payload);
+                        tracing::error!(
+                            target: "thetadatadx::python",
+                            reason = %reason,
+                            "thetadatadx-py-fpss-dispatcher panicked in event iteration machinery; StreamingClient transitioning to failed state",
+                        );
+                        // Publish `Failed` from this thread before it exits so
+                        // health checks reflect the dead loop immediately, not only
+                        // once teardown joins.
+                        publish_failed_if_current(
+                            &dispatcher_slot,
+                            std::thread::current().id(),
+                            reason,
+                        );
+                    }
+                    // The FPSS I/O thread unwound: the drain ended on a fault, not
+                    // a clean stop. Flip the session to `Failed` so `is_streaming`
+                    // reflects the dead loop immediately, matching the Rust core
+                    // and the pull path's `DispatcherFailed`.
+                    Ok(fpss::PollOutcome::Failed) => {
+                        publish_failed_if_current(
+                            &dispatcher_slot,
+                            std::thread::current().id(),
+                            "fpss io thread terminated abnormally".to_string(),
+                        );
+                    }
+                    Ok(_) => {}
                 }
             });
         match dispatcher {

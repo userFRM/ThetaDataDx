@@ -581,7 +581,10 @@ impl StreamingClient {
         // call from inside the user callback runs on this same Node thread, so
         // it cannot execute while this critical section is held.
         let mut cb_guard = self.lock_callback();
-        if !cb_guard.as_ref().is_some_and(|cb| Arc::ptr_eq(cb, &callback)) {
+        if !cb_guard
+            .as_ref()
+            .is_some_and(|cb| Arc::ptr_eq(cb, &callback))
+        {
             drop(cb_guard);
             client_arc.shutdown();
             return Err(napi::Error::from_reason(
@@ -632,7 +635,7 @@ impl StreamingClient {
                             );
                         },
                         |drain| drain(),
-                    );
+                    )
                 }));
                 // A panic escaping the event-iteration machinery (NOT a
                 // user-callback panic — those are caught per-invocation
@@ -648,11 +651,24 @@ impl StreamingClient {
                 // teardown's own `JoinHandle::join()` path still records the
                 // panic for the raced case. The lock is released the instant
                 // the guard drops; no user code runs under it.
-                if let Err(payload) = outcome {
-                    record_own_dispatcher_panic(
-                        &dispatcher_session,
-                        panic_reason(payload.as_ref()),
-                    );
+                match outcome {
+                    Err(payload) => {
+                        record_own_dispatcher_panic(
+                            &dispatcher_session,
+                            panic_reason(payload.as_ref()),
+                        );
+                    }
+                    // The FPSS I/O thread unwound: the drain ended on a fault,
+                    // not a clean stop. Record `Failed` so `isStreaming()`
+                    // reflects the dead loop immediately, matching the Rust core
+                    // and the pull path's `DispatcherFailed`.
+                    Ok(fpss::PollOutcome::Failed) => {
+                        record_own_dispatcher_panic(
+                            &dispatcher_session,
+                            "fpss io thread terminated abnormally".to_string(),
+                        );
+                    }
+                    Ok(_) => {}
                 }
             });
         match dispatcher {
