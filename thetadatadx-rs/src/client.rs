@@ -459,14 +459,19 @@ impl StreamingState {
             // primitive, so the wake hook is neither needed nor run on that path
             // (it is dropped below with `session`).
             //
-            // Dispatcher panic state is derived from `JoinHandle::join()`:
-            // `Err(_)` means the dispatcher thread panicked in the
-            // event-iteration machinery (distinct from user-callback panics
-            // caught by `poll_batch`'s per-invocation `catch_unwind`). Record as
+            // Fallback failed-state record: `JoinHandle::join()` returns `Err`
+            // only if the dispatcher thread panicked OUTSIDE its inner
+            // `catch_unwind` scaffolding (the gate wait or the post-body log) —
+            // a panic INSIDE the consumer body is caught and logged there, so
+            // the thread exits `Ok`. The common faulted-session transition (an
+            // I/O-thread unwind, or a body machinery panic) is published by the
+            // dispatcher thread itself at the fault point
+            // (`record_dispatcher_failed_if_current` / the binding equivalents),
+            // not here. When this fallback does fire it records
             // `DispatcherSession::Failed` so `is_streaming` / `connection_status`
-            // see the failure even though the slot is now `Stopped`. The Failed
-            // state is published by RE-ACQUIRING the lock, which is safe now
-            // that the join has completed and the lock is free.
+            // see the failure even though the slot is now `Stopped`, by
+            // RE-ACQUIRING the lock, which is safe now that the join has
+            // completed and the lock is free.
             if handle.thread().id() != std::thread::current().id() {
                 // Signal-grace-wake-join. `client.shutdown()` above signalled
                 // the event ring, so a dispatcher parked there exits on its own
@@ -893,13 +898,21 @@ impl Client {
                 // `catch_unwind` below guards only the event-iteration
                 // machinery itself (ring mutex poison, OOM in the polling
                 // path, etc.) — not user-callback panics.
+                //
+                // This `catch_unwind` SWALLOWS a body panic and only logs it:
+                // the thread then exits normally, so the teardown join returns
+                // `Ok`. The faulted-session transition is published by the body
+                // itself at the fault point (an I/O-thread unwind flips the
+                // session via `record_dispatcher_failed_if_current`; the
+                // columnar body does the same before it re-raises a machinery
+                // panic into here), so this arm does not itself record `Failed`.
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     dispatcher_body(dispatcher_client);
                 }));
                 if outcome.is_err() {
                     tracing::error!(
                         target: "thetadatadx::client",
-                        "thetadatadx-fpss-dispatcher panicked in event iteration machinery; client transitioning to failed state",
+                        "thetadatadx-fpss-dispatcher panicked in event iteration machinery; failed state recorded by the dispatcher body",
                     );
                 }
             })
@@ -1006,6 +1019,10 @@ impl Client {
         // idempotent, so a close that already woke is harmless.
         let wake_shared = Arc::clone(&shared);
         let on_teardown: Box<dyn FnOnce() + Send> = Box::new(move || wake_shared.close_and_wake());
+        // Captured so the dispatcher body can flip the session to `Failed` on a
+        // fault, so the unified `Client::is_streaming` reports the dead loop for
+        // the columnar pull path too (not only the reader's terminal error).
+        let streaming = Arc::clone(&self.streaming);
         self.start_dispatcher(
             move |client| {
                 let sink = crate::fpss::batch_reader::BatchSink::new(
@@ -1038,20 +1055,32 @@ impl Client {
                     // `finished` after consuming every queued batch.
                     Ok(crate::PollOutcome::Shutdown) => sink.finish(),
                     // The FPSS I/O thread unwound: surface it to the reader as a
-                    // terminal error rather than a graceful end of stream.
+                    // terminal error AND flip the session to `Failed` so
+                    // `is_streaming` reports the dead loop, matching the callback
+                    // path and the pull path's `DispatcherFailed`.
                     Ok(crate::PollOutcome::Failed) => {
                         sink.fail(crate::streaming::StreamError::DispatcherFailed(
                             "fpss io thread terminated abnormally".to_string(),
-                        ))
+                        ));
+                        record_dispatcher_failed_if_current(
+                            &streaming.dispatcher,
+                            "fpss io thread terminated abnormally".to_string(),
+                        );
                     }
                     // `for_each_scoped` only ever returns a terminal outcome.
                     Ok(_) => sink.finish(),
-                    // A panic escaped the drain: wake the reader with an error so
-                    // it stops waiting, then re-raise so the generic dispatcher
-                    // `catch_unwind` records the session as failed via its join.
+                    // A panic escaped the drain: wake the reader with an error and
+                    // flip the session to `Failed` immediately (both here, since
+                    // the spawn closure's `catch_unwind` swallows the re-raised
+                    // panic and only logs, so the thread exits `Ok` and the
+                    // teardown join never records it). Re-raise so that closure
+                    // still logs the machinery panic.
                     Err(payload) => {
                         let reason = panic_reason(payload.as_ref());
-                        sink.fail(crate::streaming::StreamError::DispatcherFailed(reason));
+                        sink.fail(crate::streaming::StreamError::DispatcherFailed(
+                            reason.clone(),
+                        ));
+                        record_dispatcher_failed_if_current(&streaming.dispatcher, reason);
                         std::panic::resume_unwind(payload);
                     }
                 }
@@ -4136,5 +4165,60 @@ mod tests {
         assert_eq!(info.options, "Unknown");
         assert_eq!(info.indices, "Unknown");
         assert_eq!(info.interest_rate, "Unknown");
+    }
+
+    /// The shared fault-record helper the callback dispatcher and the columnar
+    /// pull dispatcher both call on a `PollOutcome::Failed` drain: run from the
+    /// dispatcher thread itself, it flips its OWN `Running` session to `Failed`
+    /// so `is_streaming` / `connection_status` report the dead loop immediately.
+    /// This is what makes the columnar path's `is_streaming` truthful (finding
+    /// that `sink.fail` alone left the unified session `Running`).
+    #[test]
+    fn record_dispatcher_failed_if_current_flips_own_running_session() {
+        use std::sync::atomic::{AtomicBool, Ordering as O};
+
+        let dispatcher = Arc::new(std::sync::Mutex::new(DispatcherSession::Idle));
+        // The dispatcher thread waits until the parent installs its `Running`
+        // session (mirroring the spawn+install ordering), then records `Failed`
+        // from its own thread so the stored handle's id matches.
+        let installed = Arc::new(AtomicBool::new(false));
+        let done = Arc::new(AtomicBool::new(false));
+        let handle = {
+            let dispatcher = Arc::clone(&dispatcher);
+            let installed = Arc::clone(&installed);
+            let done = Arc::clone(&done);
+            std::thread::spawn(move || {
+                while !installed.load(O::Acquire) {
+                    std::hint::spin_loop();
+                }
+                record_dispatcher_failed_if_current(
+                    &dispatcher,
+                    "fpss io thread terminated abnormally".to_string(),
+                );
+                done.store(true, O::Release);
+            })
+        };
+        *dispatcher.lock().unwrap_or_else(|e| e.into_inner()) = DispatcherSession::Running {
+            handle,
+            on_teardown: None,
+            registers_drain_flag: true,
+        };
+        installed.store(true, O::Release);
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while !done.load(O::Acquire) {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the dispatcher thread did not record Failed within 5 s",
+            );
+            std::hint::spin_loop();
+        }
+        assert!(
+            matches!(
+                &*dispatcher.lock().unwrap_or_else(|e| e.into_inner()),
+                DispatcherSession::Failed { reason } if reason.contains("terminated abnormally")
+            ),
+            "the dispatcher's own fault record must flip its Running session to Failed",
+        );
     }
 }

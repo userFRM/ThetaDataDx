@@ -602,6 +602,15 @@ impl StreamingClient {
         // `isStreaming()` / `isAuthenticated()` keep reporting healthy
         // after delivery has died.
         let dispatcher_session = Arc::clone(&self.dispatcher);
+        // Hold the dispatcher lock across the spawn AND the `Running` install so
+        // a dispatcher that reaches its fault arm before the parent installs
+        // `Running` blocks on this lock (`record_own_dispatcher_panic` takes it)
+        // instead of observing `Idle` and dropping the fault against a slot the
+        // parent then overwrites with `Running` for an already-exited thread.
+        // The callback lock is already held (order callback -> dispatcher,
+        // matching `stop_streaming`); the dispatcher's normal drain never takes
+        // this lock, so holding it across the spawn cannot stall delivery.
+        let mut dispatcher_guard = self.lock_dispatcher();
         let dispatcher = std::thread::Builder::new()
             .name("thetadatadx-ts-fpss-dispatcher".into())
             .spawn(move || {
@@ -678,8 +687,10 @@ impl StreamingClient {
                 // dispatcher lock so a teardown racing this start never sees a
                 // `Running` session lacking its hook. Still under `cb_guard`,
                 // so the ownership verified for the inner publish above holds
-                // for the dispatcher publish too.
-                *self.lock_dispatcher() = DispatcherSession::Running {
+                // for the dispatcher publish too. Written through the guard held
+                // across the spawn, so a racing fault publish serialises AFTER
+                // this `Running` install.
+                *dispatcher_guard = DispatcherSession::Running {
                     handle: h,
                     on_teardown: Some(on_teardown),
                     // The standalone client runs its own teardown
@@ -687,6 +698,7 @@ impl StreamingClient {
                     // set the callback-session value for consistency.
                     registers_drain_flag: true,
                 };
+                drop(dispatcher_guard);
                 drop(cb_guard);
                 Ok(())
             }
@@ -694,6 +706,7 @@ impl StreamingClient {
                 // Spawn failed: unwind the inner publish and clear the slot.
                 // This start still owns both (the critical section never
                 // released `cb_guard`), so the clear is unconditional here.
+                drop(dispatcher_guard);
                 let taken = self.lock_inner().take();
                 *cb_guard = None;
                 drop(cb_guard);

@@ -469,6 +469,15 @@ impl StreamingClient {
         // reflects both Rust panics and Python exceptions.
         let panic_recorder = Arc::clone(&client_arc);
         let dispatcher_slot = Arc::clone(&self.dispatcher);
+        // Hold the dispatcher lock across the spawn AND the `Running` install so
+        // a dispatcher that reaches its fault arm before the parent installs
+        // `Running` blocks on this lock (its `publish_failed_if_current` takes
+        // it) instead of observing `Idle` and dropping the fault against a slot
+        // the parent then overwrites with `Running` for an already-exited
+        // thread. The callback lock is already held (order callback -> dispatcher,
+        // matching `stop_streaming`); the dispatcher's normal drain never takes
+        // this lock, so holding it across the spawn cannot stall delivery.
+        let mut dispatcher_guard = self.dispatcher.lock().unwrap_or_else(|e| e.into_inner());
         let dispatcher = std::thread::Builder::new()
             .name("thetadatadx-py-fpss-dispatcher".into())
             .spawn(move || {
@@ -555,13 +564,15 @@ impl StreamingClient {
             Ok(h) => {
                 // The callback dispatcher parks only on the event ring, which
                 // the client shutdown signals on teardown, so no wake hook.
-                *self.dispatcher.lock().unwrap_or_else(|e| e.into_inner()) =
-                    PyFpssDispatcherSession::Running {
-                        handle: h,
-                        on_teardown: None,
-                        // Python runs its own teardown and never reads this flag.
-                        registers_drain_flag: true,
-                    };
+                // Written through the guard held across the spawn, so a racing
+                // fault publish serialises AFTER this `Running` install.
+                *dispatcher_guard = PyFpssDispatcherSession::Running {
+                    handle: h,
+                    on_teardown: None,
+                    // Python runs its own teardown and never reads this flag.
+                    registers_drain_flag: true,
+                };
+                drop(dispatcher_guard);
                 // Connect + spawn succeeded: hand the reservation off to the
                 // live session so the guard does not clear it on return, then
                 // release the callback lock.
@@ -574,6 +585,7 @@ impl StreamingClient {
                 // start's client. Clear it and shut the client down. Release the
                 // callback lock BEFORE returning so the reservation can clear the
                 // slot on drop (ownership-checked) without a double-lock.
+                drop(dispatcher_guard);
                 *self.lock_inner() = None;
                 drop(cb_guard);
                 client_arc.shutdown();

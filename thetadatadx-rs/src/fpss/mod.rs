@@ -1980,6 +1980,15 @@ impl StreamingClient {
             // Re-report the same terminal disposition (faulted vs clean) so a
             // repeated poll after shutdown keeps surfacing a fault rather than
             // decaying to a clean `Shutdown`.
+            //
+            // ponytail: on this state==None path `terminal_poll_outcome`'s
+            // Acquire fence may pair with nothing if a DIFFERENT thread observed
+            // the ring shutdown first (it dropped the staging state before its
+            // own fence). This is the same abstract-machine-only window
+            // `shutdown_outcome` already accepts for its state==None case:
+            // benign on real hardware, and it needs a post-termination
+            // cross-thread drain handoff no shipped consumer performs (the drain
+            // is single-consumer). Left as-is to match that baseline.
             return self.terminal_poll_outcome();
         };
 
@@ -2932,6 +2941,53 @@ impl StreamingClient {
             consumer_cpu: None,
             consumer_pinned_to: Mutex::new(None),
             consumer_thread_id,
+            drained: Arc::new(AtomicBool::new(false)),
+        })
+    }
+
+    /// Test-only constructor for a [`StreamingClient`] already in the faulted
+    /// terminal state: no I/O thread, an empty (shut-down) poller, and
+    /// `io_faulted` set. A callback drain ([`Self::for_each`] /
+    /// [`Self::poll_batch`]) therefore returns [`PollOutcome::Failed`] at once
+    /// and a pull ([`Self::next_event`]) returns `DispatcherFailed`. The
+    /// `authenticated` flag is `true` so that, ABSENT the fault, a binding's
+    /// `is_streaming` would report healthy — the test proves the fault is what
+    /// flips it. Exposed (not `#[cfg(test)]`) so the binding crates' tests can
+    /// drive their real dispatcher loop over a faulted client with no network.
+    #[doc(hidden)]
+    pub fn for_io_fault_test() -> Arc<Self> {
+        let (cmd_tx, _cmd_rx) = std_mpsc::sync_channel::<IoCommand>(CMD_CHANNEL_CAPACITY);
+        let ring_size = ring::check_ring_size(64).expect("64 is a valid ring size");
+        let io_faulted = Arc::new(AtomicBool::new(true));
+        // Publish the fault with a Release fence, exactly as `IoLoopFaultGuard`
+        // orders the store before the ring shutdown, so a drain's Acquire fence
+        // observes it (matching the production memory-ordering discipline).
+        std::sync::atomic::fence(Ordering::Release);
+        Arc::new(StreamingClient {
+            cmd_tx: Mutex::new(cmd_tx),
+            io_handle: None,
+            ping_handle: None,
+            poller_state: Mutex::new(None),
+            shutdown: Arc::new(AtomicBool::new(true)),
+            authenticated: Arc::new(AtomicBool::new(true)),
+            next_req_id: Arc::new(AtomicI64::new(1)),
+            active_subs: Arc::new(Mutex::new(Vec::new())),
+            active_full_subs: Arc::new(Mutex::new(Vec::new())),
+            pending_subs: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            server_addr: "test://io-fault".to_owned(),
+            last_event_at_ns: Arc::new(AtomicI64::new(0)),
+            connected_addr: Arc::new(Mutex::new("test://io-fault".to_owned())),
+            replay_burst_size: 50,
+            replay_pace_ms: 0,
+            dropped: Arc::new(AtomicU64::new(0)),
+            panics: Arc::new(AtomicU64::new(0)),
+            io_faulted,
+            ring_cursors: Arc::new(RingCursors::new()),
+            ring_size,
+            wait_strategy: ring::AdaptiveWaitStrategy::low_latency(),
+            consumer_cpu: None,
+            consumer_pinned_to: Mutex::new(None),
+            consumer_thread_id: Arc::new(Mutex::new(None)),
             drained: Arc::new(AtomicBool::new(false)),
         })
     }
