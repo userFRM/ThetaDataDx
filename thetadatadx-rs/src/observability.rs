@@ -24,10 +24,12 @@
 //! # Recorder lifecycle
 //!
 //! `metrics-exporter-prometheus` installs its recorder as the global
-//! default. Calling [`try_install_exporter`] more than once in the
-//! same process is a hard error from the `metrics` crate; we swallow
-//! that specific failure with a warning so the SDK stays re-entrant
-//! in tests and multi-tenant embedding scenarios.
+//! default and binds the HTTP listener as part of the same install.
+//! Calling [`try_install_exporter`] more than once in the same process
+//! (a second [`crate::Client::connect`] with metrics enabled) would
+//! re-bind the port and fail; the installer tracks its own first
+//! success and treats any later install as a benign warn-and-continue,
+//! so the SDK stays re-entrant in tests and multi-tenant embeddings.
 
 use crate::config::DirectConfig;
 
@@ -50,6 +52,30 @@ pub fn try_install_exporter(config: &DirectConfig) -> Result<(), crate::error::E
 
 #[cfg(feature = "metrics-prometheus")]
 fn install_exporter_impl(port: u16) -> Result<(), crate::error::Error> {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    // Re-install detection by our own flag, not by parsing the bind error.
+    // `install()` binds the HTTP listener INSIDE `build()`, before it registers
+    // the global recorder, so a second connect on the same `metrics_port`
+    // fails at bind with EADDRINUSE and never reaches the
+    // `FailedToSetGlobalRecorder` arm below — the same-port re-install would
+    // otherwise be classified as a hard error and fail `Client::connect`,
+    // contradicting the documented "re-install returns Ok". The first
+    // exporter already serves the port, so a subsequent install is a benign
+    // no-op. A bind error cannot itself distinguish our own listener from a
+    // foreign process, so gate on whether WE already installed.
+    //
+    // ponytail: a Relaxed swap, so two truly-concurrent first installs could
+    // race (the loser returns Ok before the winner finishes binding); connect
+    // is not driven concurrently on one port in practice. Promote to a `Once`
+    // if that changes.
+    static INSTALLED: AtomicBool = AtomicBool::new(false);
+    if INSTALLED.swap(true, Ordering::Relaxed) {
+        tracing::warn!(
+            port,
+            "Prometheus exporter already installed in this process; re-install ignored"
+        );
+        return Ok(());
+    }
     let addr: std::net::SocketAddr = ([0, 0, 0, 0], port).into();
     match metrics_exporter_prometheus::PrometheusBuilder::new()
         .with_http_listener(addr)
@@ -63,9 +89,10 @@ fn install_exporter_impl(port: u16) -> Result<(), crate::error::Error> {
             Ok(())
         }
         Err(metrics_exporter_prometheus::BuildError::FailedToSetGlobalRecorder(err)) => {
-            // A recorder is already registered in this process — the common
-            // case in tests + multi-crate embeddings. Log and continue so SDK
-            // consumers don't see a spurious hard error on re-install.
+            // A recorder is already registered in this process by code OUTSIDE
+            // this installer (a host app or another crate) — the exporter bound
+            // its listener but could not become the global recorder. Log and
+            // continue so SDK consumers don't see a spurious hard error.
             tracing::warn!(
                 error = %err,
                 "Prometheus exporter not installed (another recorder is active)"
@@ -73,6 +100,10 @@ fn install_exporter_impl(port: u16) -> Result<(), crate::error::Error> {
             Ok(())
         }
         Err(err) => {
+            // First install in this process failed to bind (a foreign process
+            // holds the port, or the address is unbindable). Clear the flag so
+            // a later connect with a corrected `metrics_port` can retry.
+            INSTALLED.store(false, Ordering::Relaxed);
             // A real bind / runtime failure (for example the metrics port is
             // already in use, or the address could not be bound). Surface it
             // rather than masking a genuine misconfiguration as a benign

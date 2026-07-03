@@ -1960,12 +1960,15 @@ impl StreamingClient {
         // on a blocking acquire. The drain is single-consumer by contract,
         // so the happy path is always uncontended and acquires immediately;
         // contention can only mean a reentrant or concurrent drain, which is
-        // reported as `Busy` rather than deadlocking. A poisoned mutex keeps
-        // its prior meaning: the producer side faulted, treat as shutdown.
+        // reported as `Busy` rather than deadlocking. A poisoned mutex means
+        // the producer side faulted (a machinery panic unwound while holding
+        // the staging lock), so report the terminal disposition — `Failed`
+        // when the I/O thread faulted — matching what `next_event` /
+        // `try_next_event` surface, rather than decaying to a clean `Shutdown`.
         let mut guard = match self.poller_state.try_lock() {
             Ok(guard) => guard,
             Err(std::sync::TryLockError::WouldBlock) => return PollOutcome::Busy,
-            Err(std::sync::TryLockError::Poisoned(_)) => return PollOutcome::Shutdown,
+            Err(std::sync::TryLockError::Poisoned(_)) => return self.terminal_poll_outcome(),
         };
         // Arm the self-join guard only now that drain ownership is proven:
         // a caller driving `poll_batch` in its own loop and holding the
@@ -4553,5 +4556,48 @@ mod ring_occupancy_tests {
 
         assert_eq!(outcome, PollOutcome::Drained(5));
         assert_eq!(delivered, 5);
+    }
+
+    /// A panic raised inside the caller-supplied `scope` closure propagates
+    /// OUT of `for_each_scoped` rather than being swallowed. This is the
+    /// load-bearing precondition for the callback dispatcher body's
+    /// `catch_unwind` (see `Client::start_streaming_scoped`): the Python
+    /// client wraps each batch drain in `Python::attach`, which can panic
+    /// during interpreter finalization. If `for_each_scoped` swallowed that
+    /// panic the dispatcher would appear to end cleanly and leave the session
+    /// `Running` behind a dead thread; because it propagates, the body's
+    /// `catch_unwind` observes it and flips the session to `Failed`.
+    #[test]
+    fn scope_closure_panic_propagates_out_of_for_each_scoped() {
+        let (client, mut producer) = StreamingClient::for_ring_occupancy_test(64);
+        // One event so the first batch drain has work; the scope panics on its
+        // first (and only) invocation, before the loop could spin on an empty
+        // ring, so this returns promptly via the unwind rather than hanging.
+        assert!(publish_one(&mut producer), "fresh ring must accept publish");
+
+        let prev_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {}));
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.for_each_scoped(
+                |_event| {},
+                |_drain: &mut dyn FnMut() -> PollOutcome| -> PollOutcome {
+                    panic!("scope boom");
+                },
+            )
+        }));
+        std::panic::set_hook(prev_hook);
+
+        let payload = result.expect_err(
+            "a panic in the scope closure must unwind out of for_each_scoped, not be swallowed",
+        );
+        let msg = payload
+            .downcast_ref::<&str>()
+            .copied()
+            .or_else(|| payload.downcast_ref::<String>().map(String::as_str));
+        assert_eq!(
+            msg,
+            Some("scope boom"),
+            "the propagated payload must be the scope closure's own panic",
+        );
     }
 }

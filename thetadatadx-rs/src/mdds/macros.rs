@@ -180,8 +180,10 @@ pub(crate) async fn classify_attempt<T>(
 /// When the failed attempt carried a server-supplied
 /// `google.rpc.RetryInfo` hint (surfaced as
 /// `Error::Grpc { retry_after, .. }`), the sleep is raised to at least
-/// that value — a server-instructed cooldown is honoured in full even
-/// when the client-side schedule would have retried sooner.
+/// that value — capped at the policy's `max_delay` ceiling — so a
+/// server-instructed cooldown is honoured even when the client-side
+/// schedule would have retried sooner, while a hostile hint cannot pin
+/// a request permit for an unbounded sleep.
 pub(crate) async fn sleep_for_retry(
     policy: &crate::config::RetryPolicy,
     attempt: u32,
@@ -255,10 +257,12 @@ pub(crate) enum StreamingAttemptOutcome {
 /// unary path: at most one refresh per call.
 ///
 /// Upstream MDDS does not support mid-stream resume, so a successful
-/// refresh restarts the stream from chunk zero. Callers that drive the
-/// chunk handler must therefore tolerate seeing the first N chunks
-/// twice on a refresh; idempotent counters / accumulators are the
-/// expected handler shape.
+/// refresh restarts the stream from chunk zero. This classifier only
+/// resolves the refresh side-effect and reports the outcome; the replay
+/// itself is gated by [`run_streaming_retry_loop`], which restarts only
+/// while no chunk has yet reached the handler (`delivered` unset). Once
+/// delivery has begun a refresh or transient is surfaced terminal instead
+/// of replaying, so the chunk handler never sees a duplicated prefix.
 pub(crate) async fn classify_streaming_attempt(
     session: &crate::auth::SessionToken,
     snap: &crate::auth::session::SessionSnapshot,
@@ -924,7 +928,18 @@ macro_rules! parsed_endpoint {
                                             if let Ok(mut h) = handler_mutex.lock() {
                                                 (*h)(&ticks);
                                             }
-                                            delivered.store(true, std::sync::atomic::Ordering::Relaxed);
+                                            // Only mark the stream as delivered
+                                            // once a chunk carried rows: an empty
+                                            // chunk (headers-only keepalive /
+                                            // terminator) hands the downstream no
+                                            // rows, so a refresh replay from chunk
+                                            // zero would duplicate nothing. Gating
+                                            // here keeps a recoverable
+                                            // `Unauthenticated` after only empty
+                                            // chunks from being forced terminal.
+                                            if !ticks.is_empty() {
+                                                delivered.store(true, std::sync::atomic::Ordering::Relaxed);
+                                            }
                                         }
                                         Err(e) => decode_error = Some(Error::from(e)),
                                     }

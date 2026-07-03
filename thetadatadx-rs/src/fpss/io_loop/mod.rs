@@ -623,11 +623,17 @@ where
                 {
                     Ok(FrameRead::SkippedUnknown) => {
                         // An unknown-code frame was consumed to stay aligned.
-                        // Loop back so the 'inner top re-checks shutdown and
-                        // the read deadline before the next read, matching the
-                        // terminal's unlimited-skip behaviour without wedging
-                        // a shutting-down thread inside the skip.
-                        continue 'inner;
+                        // Publish nothing and, deliberately, do NOT advance
+                        // `last_frame_at`: an unknown frame is not a data frame,
+                        // so a run of them must not extend the stall/liveness
+                        // window (the read-timeout arm above still fires off the
+                        // last real frame). Fall through to Phase 2 rather than
+                        // `continue`-ing, so queued commands (subscribes, pings)
+                        // are still drained during an unknown-frame burst instead
+                        // of being starved until the next real frame; the 'inner
+                        // top then re-checks shutdown. Unlimited skips match the
+                        // terminal's behaviour without wedging a shutting-down
+                        // thread or the command channel.
                     }
                     Ok(FrameRead::Frame(code, payload_len)) => {
                         last_frame_at = Instant::now();
