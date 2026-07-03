@@ -7,6 +7,7 @@
 //! captured for replay onto the event bus once the Disruptor producer
 //! is live.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use crate::tdbe::types::enums::{RemoveReason, StreamMsgType};
@@ -41,12 +42,20 @@ pub enum LoginResult {
 /// post-login `decode_frame` dispatch uses — a typed control frame that
 /// precedes `METADATA` would otherwise be lost, since the handshake loop
 /// consumes it before the main dispatch can turn it into a typed event.
+/// `shutdown`, when supplied, is polled once per frame so a teardown raised
+/// mid-handshake is observed inside the login read loop rather than after it
+/// completes. The reconnect path (which runs on the I/O thread and can be told
+/// to shut down while the server dribbles pre-`METADATA` heartbeats) passes
+/// `Some`; the initial synchronous dial has no live shutdown flag yet and
+/// passes `None`. Mirrors the dial loop's between-host shutdown check
+/// ([`connection::connect_to_servers`]).
 pub fn wait_for_login(
     stream: &mut connection::FpssStream,
     pending_control: &mut Vec<StreamControl>,
     read_timeout: Duration,
+    shutdown: Option<&AtomicBool>,
 ) -> Result<LoginResult, Error> {
-    wait_for_login_generic(stream, pending_control, read_timeout)
+    wait_for_login_generic(stream, pending_control, read_timeout, shutdown)
 }
 
 /// Read-generic variant of [`wait_for_login`] for unit-testable handshake
@@ -54,16 +63,22 @@ pub fn wait_for_login(
 /// point above and in-memory test harnesses can drive it against a
 /// buffer of pre-canned frames.
 ///
-/// Login is bounded solely by the socket read timeout, exactly like the
-/// terminal: a mute peer that sends nothing surfaces a pre-header read
-/// timeout (`WouldBlock` / `TimedOut`) which propagates as an error the
-/// caller reconnects on, and a peer that dribbles a partial frame then goes
-/// silent is cut off by the per-stall no-progress budget (`stall_timeout`).
-/// There is no wall-clock handshake cap.
+/// Login is bounded by the socket read timeout, exactly like the terminal: a
+/// mute peer that sends nothing surfaces a pre-header read timeout
+/// (`WouldBlock` / `TimedOut`) which propagates as an error the caller
+/// reconnects on, and a peer that dribbles a partial frame then goes silent is
+/// cut off by the per-stall no-progress budget (`stall_timeout`). There is no
+/// wall-clock handshake cap. A supplied `shutdown` flag adds a per-frame
+/// cancellation check so a peer that keeps the handshake alive with
+/// pre-`METADATA` heartbeats (which reset the stall timeout) cannot wedge a
+/// shutting-down I/O thread here; the check breaks out with a `Disconnected`
+/// error the reconnect loop treats as a redial failure, then observes
+/// shutdown and exits.
 fn wait_for_login_generic<R>(
     stream: &mut R,
     pending_control: &mut Vec<StreamControl>,
     stall_timeout: Duration,
+    shutdown: Option<&AtomicBool>,
 ) -> Result<LoginResult, Error>
 where
     R: std::io::Read,
@@ -72,6 +87,15 @@ where
     // the per-stall / socket read timeout.
     let mut frame_buf: Vec<u8> = Vec::new();
     loop {
+        // Between frames, honour a teardown so a live-but-withholding server
+        // (heartbeats without `METADATA`) cannot pin the handshake. Relaxed
+        // matches the I/O loop's other shutdown reads.
+        if shutdown.is_some_and(|s| s.load(Ordering::Relaxed)) {
+            return Err(Error::Stream {
+                kind: crate::error::StreamErrorKind::Disconnected,
+                message: "login aborted: client shutting down".to_string(),
+            });
+        }
         let (code, payload_len) =
             match read_frame_into_with_stall_timeout(stream, &mut frame_buf, stall_timeout)? {
                 FrameRead::Frame(code, len) => (code, len),
@@ -167,7 +191,7 @@ mod tests {
         stream: &mut R,
         pending_control: &mut Vec<StreamControl>,
     ) -> Result<LoginResult, Error> {
-        wait_for_login_generic(stream, pending_control, Duration::from_secs(10))
+        wait_for_login_generic(stream, pending_control, Duration::from_secs(10), None)
     }
 
     /// A CONNECTED frame arriving BEFORE METADATA must be captured in
@@ -399,7 +423,8 @@ mod tests {
         for kind in [std::io::ErrorKind::WouldBlock, std::io::ErrorKind::TimedOut] {
             let mut reader = MutePeer { kind };
             let mut pending: Vec<StreamControl> = Vec::new();
-            let result = wait_for_login_generic(&mut reader, &mut pending, Duration::from_secs(10));
+            let result =
+                wait_for_login_generic(&mut reader, &mut pending, Duration::from_secs(10), None);
             match result {
                 // A pre-header transient surfaces as `Error::Io`; the io_loop
                 // reconnect path treats any login `Err` as a failed attempt.
@@ -465,7 +490,8 @@ mod tests {
         // Short per-stall budget: the permanent mid-payload silence trips it
         // quickly. This per-stall no-progress timeout is the terminal's only
         // mid-frame bound.
-        let result = wait_for_login_generic(&mut reader, &mut pending, Duration::from_millis(30));
+        let result =
+            wait_for_login_generic(&mut reader, &mut pending, Duration::from_millis(30), None);
         match result {
             Err(Error::Stream { kind, message }) => {
                 assert!(
@@ -479,6 +505,66 @@ mod tests {
             }
             Err(other) => panic!("expected an Fpss protocol error, got {other:?}"),
             Ok(_) => panic!("a partial-frame silence must trip the stall timeout"),
+        }
+    }
+
+    /// Reader that dribbles an endless stream of complete pre-`METADATA` PING
+    /// frames: each one is well-formed and resets the per-stall timeout, so the
+    /// handshake makes forward progress forever and neither the read timeout nor
+    /// the stall budget ever fires. Only a shutdown check can break out.
+    struct EndlessPings {
+        frame: Vec<u8>,
+        pos: usize,
+    }
+
+    impl std::io::Read for EndlessPings {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            if self.pos >= self.frame.len() {
+                self.pos = 0;
+            }
+            let remaining = &self.frame[self.pos..];
+            let n = remaining.len().min(buf.len());
+            buf[..n].copy_from_slice(&remaining[..n]);
+            self.pos += n;
+            Ok(n)
+        }
+    }
+
+    /// A reconnect handshake against a server that keeps the connection alive
+    /// with pre-`METADATA` heartbeats must observe a teardown and break out
+    /// rather than looping forever. Without the per-frame shutdown check the
+    /// stall timeout never trips (every PING is progress), so `StreamingClient`
+    /// drop would join the I/O thread forever. The check must surface a
+    /// `Disconnected` error the reconnect loop treats as a redial failure.
+    #[test]
+    fn wait_for_login_reconnect_breaks_out_on_shutdown() {
+        let mut reader = EndlessPings {
+            frame: wire_frame(StreamMsgType::Ping, &[0xAB]),
+            pos: 0,
+        };
+        // Pre-set shutdown: the very first between-frame check must trip so the
+        // test is deterministic and cannot spin on the endless ping stream.
+        let shutdown = AtomicBool::new(true);
+        let mut pending: Vec<StreamControl> = Vec::new();
+        let result = wait_for_login_generic(
+            &mut reader,
+            &mut pending,
+            Duration::from_secs(10),
+            Some(&shutdown),
+        );
+        match result {
+            Err(Error::Stream { kind, message }) => {
+                assert!(
+                    matches!(kind, crate::error::StreamErrorKind::Disconnected),
+                    "a shutdown mid-handshake must surface as Disconnected, got {kind:?}"
+                );
+                assert!(
+                    message.contains("shutting down"),
+                    "expected a shutdown abort message, got: {message}"
+                );
+            }
+            Err(other) => panic!("expected a Disconnected shutdown error, got {other:?}"),
+            Ok(_) => panic!("a shutdown mid-handshake must break out, not complete login"),
         }
     }
 }

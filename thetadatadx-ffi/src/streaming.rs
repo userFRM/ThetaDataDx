@@ -1648,7 +1648,7 @@ fn reject_if_shutdown(handle: &ThetaDataDxStreamHandle) -> bool {
 fn open_fpss<F>(
     handle: &ThetaDataDxStreamHandle,
     callback: Option<FfiCallback>,
-    mut on_event: F,
+    on_event: F,
 ) -> Result<std::thread::JoinHandle<()>, ()>
 where
     F: FnMut(&thetadatadx::fpss::StreamEvent) + Send + 'static,
@@ -1690,31 +1690,7 @@ where
             let spawn_result = std::thread::Builder::new()
                 .name("thetadatadx-ffi-fpss-dispatcher".into())
                 .spawn(move || {
-                    // `StreamingClient::for_each` drives `poll_batch`, which wraps
-                    // each callback invocation in its own `catch_unwind`.  A
-                    // panic in the handler is caught, recorded via
-                    // `panic_count()`, and does not stop event delivery for
-                    // subsequent events.  The outer `catch_unwind` below
-                    // guards only the event-iteration machinery itself.
-                    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        dispatcher_client.for_each(|event| on_event(event));
-                    }));
-                    if let Err(payload) = outcome {
-                        let reason = downcast_ffi_panic_payload(payload);
-                        tracing::error!(
-                            target: "thetadatadx::ffi",
-                            reason = %reason,
-                            "thetadatadx-ffi-fpss-dispatcher panicked in event iteration machinery; handle transitioning to failed state",
-                        );
-                        // Publish `Failed` from this thread before it exits so
-                        // health checks reflect the dead loop immediately, not
-                        // only once teardown joins.
-                        publish_failed_if_current(
-                            &dispatcher_slot,
-                            std::thread::current().id(),
-                            reason,
-                        );
-                    }
+                    run_ffi_dispatcher(dispatcher_client, on_event, &dispatcher_slot, false);
                 });
             match spawn_result {
                 Ok(h) => Ok(h),
@@ -2275,31 +2251,12 @@ pub unsafe extern "C" fn thetadatadx_streaming_reconnect(
             let spawn_result = std::thread::Builder::new()
                 .name("thetadatadx-ffi-fpss-dispatcher".into())
                 .spawn(move || {
-                    // `StreamingClient::for_each` drives `poll_batch`, which wraps
-                    // each callback invocation in its own `catch_unwind`.  A
-                    // panic in the handler is caught, recorded via
-                    // `panic_count()`, and does not stop event delivery for
-                    // subsequent events.  The outer `catch_unwind` below
-                    // guards only the event-iteration machinery itself.
-                    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                        dispatcher_client.for_each(|event| cb.invoke(event));
-                    }));
-                    if let Err(payload) = outcome {
-                        let reason = downcast_ffi_panic_payload(payload);
-                        tracing::error!(
-                            target: "thetadatadx::ffi",
-                            reason = %reason,
-                            "thetadatadx-ffi-fpss-dispatcher panicked in event iteration machinery across reconnect; handle transitioning to failed state",
-                        );
-                        // Publish `Failed` from this thread before it exits so
-                        // health checks reflect the dead loop immediately, not
-                        // only once teardown joins.
-                        publish_failed_if_current(
-                            &dispatcher_slot,
-                            std::thread::current().id(),
-                            reason,
-                        );
-                    }
+                    run_ffi_dispatcher(
+                        dispatcher_client,
+                        move |event| cb.invoke(event),
+                        &dispatcher_slot,
+                        true,
+                    );
                 });
             match spawn_result {
                 Ok(h) => Ok(h),
@@ -2515,6 +2472,63 @@ fn publish_failed_if_current(
         if handle.thread().id() == dispatcher_thread_id {
             *guard = FfpssDispatcherSession::Failed { reason };
         }
+    }
+}
+
+/// Drive the FPSS callback drain to termination on the dispatcher thread,
+/// publishing `Failed` to `dispatcher_slot` when the drain ends on an
+/// I/O-thread fault ([`thetadatadx::PollOutcome::Failed`]) or an outer
+/// event-iteration panic, so the C-ABI health checks flip immediately rather
+/// than only after teardown joins the dead thread. Shared by the `set_callback`
+/// and `reconnect` dispatcher spawns so both handle a fault identically;
+/// `across_reconnect` only tunes the log message.
+///
+/// `for_each` drives `poll_batch`, which wraps each callback invocation in its
+/// own `catch_unwind`; a user-handler panic is caught and counted there and
+/// does not stop delivery. The outer `catch_unwind` here guards only the
+/// event-iteration machinery itself.
+fn run_ffi_dispatcher<F>(
+    client: std::sync::Arc<thetadatadx::fpss::StreamingClient>,
+    on_event: F,
+    dispatcher_slot: &Mutex<FfpssDispatcherSession>,
+    across_reconnect: bool,
+) where
+    F: FnMut(&thetadatadx::fpss::StreamEvent),
+{
+    let outcome =
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| client.for_each(on_event)));
+    match outcome {
+        Err(payload) => {
+            let reason = downcast_ffi_panic_payload(payload);
+            if across_reconnect {
+                tracing::error!(
+                    target: "thetadatadx::ffi",
+                    reason = %reason,
+                    "thetadatadx-ffi-fpss-dispatcher panicked in event iteration machinery across reconnect; handle transitioning to failed state",
+                );
+            } else {
+                tracing::error!(
+                    target: "thetadatadx::ffi",
+                    reason = %reason,
+                    "thetadatadx-ffi-fpss-dispatcher panicked in event iteration machinery; handle transitioning to failed state",
+                );
+            }
+            // Publish `Failed` from this thread before it exits so health checks
+            // reflect the dead loop immediately, not only once teardown joins.
+            publish_failed_if_current(dispatcher_slot, std::thread::current().id(), reason);
+        }
+        // The FPSS I/O thread unwound: the drain ended on a fault, not a clean
+        // stop. Publish `Failed` so `thetadatadx_streaming_is_streaming` reports
+        // the dead loop, matching the Rust core and the pull path's
+        // `DispatcherFailed`.
+        Ok(thetadatadx::PollOutcome::Failed) => {
+            publish_failed_if_current(
+                dispatcher_slot,
+                std::thread::current().id(),
+                "fpss io thread terminated abnormally".to_string(),
+            );
+        }
+        Ok(_) => {}
     }
 }
 
@@ -3375,8 +3389,8 @@ mod health_on_outer_panic_tests {
     use std::sync::{Arc, Mutex};
 
     use super::{
-        publish_failed_if_current, FfiCallback, FfpssDispatcherSession, LockRecover,
-        StreamingConnectParams, ThetaDataDxStreamCallback, ThetaDataDxStreamEvent,
+        publish_failed_if_current, run_ffi_dispatcher, FfiCallback, FfpssDispatcherSession,
+        LockRecover, StreamingConnectParams, ThetaDataDxStreamCallback, ThetaDataDxStreamEvent,
         ThetaDataDxStreamHandle, STREAM_STATE_ACTIVE,
     };
     use std::ffi::c_void;
@@ -3517,5 +3531,72 @@ mod health_on_outer_panic_tests {
             );
             std::thread::sleep(std::time::Duration::from_millis(1));
         }
+    }
+
+    /// The REAL FFI dispatcher loop (`run_ffi_dispatcher`), run over a client
+    /// already in the faulted terminal state, must publish `Failed` so
+    /// `thetadatadx_streaming_is_streaming` flips to 0 WITHOUT any teardown join.
+    /// Pins the `Ok(PollOutcome::Failed)` arm: the FFI has its OWN `for_each`
+    /// loop and does NOT ride the core dispatcher, so the core fix alone does not
+    /// cover it. The parent holds the dispatcher lock across spawn + install
+    /// exactly as production does, so the dispatcher's fault publish serialises
+    /// AFTER the `Running` install (never against an `Idle` slot).
+    #[test]
+    fn io_thread_fault_flips_health_checks_via_dispatcher_loop() {
+        let faulted = StreamingClient::for_io_fault_test();
+        let handle = ThetaDataDxStreamHandle {
+            inner: Arc::new(Mutex::new(Some(Arc::clone(&faulted)))),
+            connect_params: StreamingConnectParams {
+                creds: thetadatadx::Credentials::api_key("test"),
+                streaming: thetadatadx::config::StreamingConfig::production_defaults(),
+                reconnect: thetadatadx::config::ReconnectConfig::production_defaults(),
+            },
+            callback: Mutex::new(Some(FfiCallback {
+                callback: noop as ThetaDataDxStreamCallback,
+                ctx: std::ptr::null_mut(),
+            })),
+            state: AtomicU8::new(STREAM_STATE_ACTIVE),
+            prev_drained: Mutex::new(Vec::new()),
+            dispatcher: Arc::new(Mutex::new(FfpssDispatcherSession::Idle)),
+        };
+
+        // SAFETY: `&handle` is a live, stack-pinned, never-freed handle for the
+        // whole test, so the reader's non-null / not-yet-freed precondition holds.
+        let is_streaming = || unsafe { super::thetadatadx_streaming_is_streaming(&handle) };
+
+        // Production spawn+install discipline: hold the dispatcher lock across the
+        // spawn AND the `Running` install so the dispatcher's fault publish cannot
+        // race ahead of the install and drop the fault against an `Idle` slot.
+        let slot = Arc::clone(&handle.dispatcher);
+        let mut guard = handle.dispatcher.lock_recover();
+        let dispatcher = std::thread::Builder::new()
+            .name("test-ffi-io-fault-dispatcher".into())
+            .spawn(move || {
+                run_ffi_dispatcher(faulted, |_event| {}, &slot, false);
+            })
+            .expect("spawn faulted dispatcher");
+        *guard = FfpssDispatcherSession::Running {
+            handle: dispatcher,
+            on_teardown: None,
+            registers_drain_flag: true,
+        };
+        drop(guard);
+
+        // The dispatcher's `for_each` over the faulted client returns
+        // `PollOutcome::Failed` at once and publishes `Failed`. Wait (bounded)
+        // for the session to flip, proving is_streaming reflects the fault.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while is_streaming() == 1 {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the FFI dispatcher did not flip is_streaming to 0 on an io-thread fault",
+            );
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        assert_eq!(
+            is_streaming(),
+            0,
+            "an io-thread fault must flip FFI is_streaming to 0 via the dispatcher loop",
+        );
     }
 }

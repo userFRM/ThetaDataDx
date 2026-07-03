@@ -1230,7 +1230,11 @@ impl StreamingClient {
         // the same sequence the post-METADATA `decode_frame` dispatch
         // emits.
         let mut pending_control: Vec<StreamControl> = Vec::new();
-        let login_result = wait_for_login(&mut stream, &mut pending_control, read_timeout)?;
+        // Initial synchronous dial on the caller's thread: no live shutdown
+        // flag exists yet (the I/O thread is not spawned), so the handshake is
+        // bounded by the socket timeouts alone. The reconnect path, which runs
+        // on the I/O thread, passes its shutdown flag.
+        let login_result = wait_for_login(&mut stream, &mut pending_control, read_timeout, None)?;
 
         let permissions = match login_result {
             LoginResult::Success(permissions) => {
@@ -1793,6 +1797,30 @@ impl StreamingClient {
         }
     }
 
+    /// Terminal disposition for the callback drain path: [`PollOutcome::Failed`]
+    /// if the I/O thread unwound, else [`PollOutcome::Shutdown`]. The
+    /// callback-drain analogue of [`Self::shutdown_outcome`] (which serves the
+    /// pull path): without it a panicked `io_loop` reads as a graceful
+    /// shutdown to `poll_batch` / `for_each` consumers, so a callback or
+    /// binding dispatcher would see a clean stream end on an I/O-thread fault.
+    fn terminal_poll_outcome(&self) -> PollOutcome {
+        // Same Acquire-fence discipline as `shutdown_outcome`: we reach here
+        // only after the drain observed the ring's shutdown sequence (a RELAXED
+        // load in the disruptor poll). This fence pairs with the Release fence
+        // the fault guard runs after setting `io_faulted`; fence-to-fence
+        // through the relaxed shutdown store/load establishes that a reader
+        // which saw ring shutdown also sees `io_faulted`. A plain Acquire load
+        // would synchronise only with a Release store to `io_faulted` itself,
+        // leaving a weak-memory window where shutdown is visible but
+        // `io_faulted` still reads false.
+        std::sync::atomic::fence(Ordering::Acquire);
+        if self.io_faulted.load(Ordering::Relaxed) {
+            PollOutcome::Failed
+        } else {
+            PollOutcome::Shutdown
+        }
+    }
+
     /// Non-blocking single-event pull from the ring. Returns `Ok(None)`
     /// when the ring is momentarily empty OR terminally shut down — use
     /// [`Self::next_event`] when you need to distinguish the two.
@@ -1948,7 +1976,20 @@ impl StreamingClient {
         // the role.
         self.record_drainer_and_pin();
         let Some(mut state) = guard.take() else {
-            return PollOutcome::Shutdown;
+            // The staging state was already dropped by a prior terminal drain.
+            // Re-report the same terminal disposition (faulted vs clean) so a
+            // repeated poll after shutdown keeps surfacing a fault rather than
+            // decaying to a clean `Shutdown`.
+            //
+            // ponytail: on this state==None path `terminal_poll_outcome`'s
+            // Acquire fence may pair with nothing if a DIFFERENT thread observed
+            // the ring shutdown first (it dropped the staging state before its
+            // own fence). This is the same abstract-machine-only window
+            // `shutdown_outcome` already accepts for its state==None case:
+            // benign on real hardware, and it needs a post-termination
+            // cross-thread drain handoff no shipped consumer performs (the drain
+            // is single-consumer). Left as-is to match that baseline.
+            return self.terminal_poll_outcome();
         };
 
         // Drain anything buffered from a previous `next_event` call so
@@ -2009,7 +2050,10 @@ impl StreamingClient {
                 *guard = Some(state);
                 o
             }
-            None => PollOutcome::Shutdown,
+            // Terminal shutdown with nothing left to deliver: distinguish a
+            // clean stop from an I/O-thread fault so a callback/binding drain
+            // surfaces the failure instead of a graceful end of stream.
+            None => self.terminal_poll_outcome(),
         }
     }
 
@@ -2026,17 +2070,21 @@ impl StreamingClient {
     ///
     /// Returns once [`Self::shutdown`] (or dropping the [`StreamingClient`])
     /// has fired AND every event already published into the ring has
-    /// been delivered.
+    /// been delivered. The returned [`PollOutcome`] is [`PollOutcome::Shutdown`]
+    /// on a clean stop or [`PollOutcome::Failed`] when the I/O thread unwound,
+    /// so a caller can distinguish a graceful end of stream from a dispatcher
+    /// failure (the callback-drain analogue of the pull path's
+    /// [`crate::streaming::StreamError::DispatcherFailed`]).
     ///
     /// Single-consumer: do not re-enter any drain method from inside
     /// `on_event`, and do not run a second drain on the same client
     /// concurrently. Such a reentrant or concurrent drain is rejected (see
     /// [`PollOutcome::Busy`]) rather than blocking the consumer thread.
-    pub fn for_each(&self, on_event: impl FnMut(&StreamEvent)) {
+    pub fn for_each(&self, on_event: impl FnMut(&StreamEvent)) -> PollOutcome {
         // Identity batch scope: each batch drain runs directly, with no
         // wrapping. The inter-batch wait is the same three-phase strategy
         // `for_each_scoped` applies.
-        self.for_each_scoped(on_event, |drain| drain());
+        self.for_each_scoped(on_event, |drain| drain())
     }
 
     /// Block the calling thread draining events through `on_event`, with
@@ -2060,13 +2108,20 @@ impl StreamingClient {
     /// `scope` receives a `FnMut() -> PollOutcome` that drains one batch
     /// and returns its outcome; `scope` must call it exactly once and
     /// return its result. The loop terminates on
-    /// [`PollOutcome::Shutdown`], identical to [`Self::for_each`].
+    /// [`PollOutcome::Shutdown`] (clean stop) or [`PollOutcome::Failed`]
+    /// (the I/O thread unwound), identical to [`Self::for_each`], and
+    /// returns the terminal outcome so a caller can distinguish a graceful
+    /// end of stream from a dispatcher failure.
     ///
     /// Single-consumer: do not re-enter any drain method from inside
     /// `on_event`, and do not run a second drain on the same client
     /// concurrently. A reentrant or concurrent drain is rejected (see
     /// [`PollOutcome::Busy`]) rather than blocking the consumer thread.
-    pub fn for_each_scoped<S>(&self, mut on_event: impl FnMut(&StreamEvent), mut scope: S)
+    pub fn for_each_scoped<S>(
+        &self,
+        mut on_event: impl FnMut(&StreamEvent),
+        mut scope: S,
+    ) -> PollOutcome
     where
         S: FnMut(&mut dyn FnMut() -> PollOutcome) -> PollOutcome,
     {
@@ -2080,7 +2135,9 @@ impl StreamingClient {
             // brackets the batch, it does not change delivery cardinality.
             let outcome = scope(&mut || self.poll_batch(&mut on_event));
             match outcome {
-                PollOutcome::Shutdown => return,
+                // Return the terminal outcome so the caller can tell a clean
+                // shutdown from an I/O-thread fault (`Failed`).
+                terminal @ (PollOutcome::Shutdown | PollOutcome::Failed) => return terminal,
                 // Empty ring or a transient busy (another drain held the
                 // staging state) — wait OUTSIDE the scope so a held resource
                 // (e.g. the GIL) is released across the idle wait, then retry.
@@ -2122,7 +2179,7 @@ impl StreamingClient {
     /// overhead to the single tightest loop in the consumer — a latency
     /// regression, not a tuning knob. The bindings therefore run the
     /// fixed low-latency wait with no override.
-    pub fn for_each_with_wait_strategy<W, F>(&self, mut on_event: F, strategy: W)
+    pub fn for_each_with_wait_strategy<W, F>(&self, mut on_event: F, strategy: W) -> PollOutcome
     where
         W: crate::streaming::wait::WaitStrategy,
         F: FnMut(&StreamEvent),
@@ -2132,7 +2189,9 @@ impl StreamingClient {
         // drainer rather than whichever thread merely entered this loop.
         loop {
             match self.poll_batch(&mut on_event) {
-                PollOutcome::Shutdown => return,
+                // Return the terminal outcome so the caller can tell a clean
+                // shutdown from an I/O-thread fault (`Failed`).
+                terminal @ (PollOutcome::Shutdown | PollOutcome::Failed) => return terminal,
                 // `Busy` cannot arise from this loop's own poll (it holds no
                 // lock when it polls); back off and retry defensively in case
                 // an `on_event` callback re-entered a drain.
@@ -2886,6 +2945,53 @@ impl StreamingClient {
         })
     }
 
+    /// Test-only constructor for a [`StreamingClient`] already in the faulted
+    /// terminal state: no I/O thread, an empty (shut-down) poller, and
+    /// `io_faulted` set. A callback drain ([`Self::for_each`] /
+    /// [`Self::poll_batch`]) therefore returns [`PollOutcome::Failed`] at once
+    /// and a pull ([`Self::next_event`]) returns `DispatcherFailed`. The
+    /// `authenticated` flag is `true` so that, ABSENT the fault, a binding's
+    /// `is_streaming` would report healthy — the test proves the fault is what
+    /// flips it. Exposed (not `#[cfg(test)]`) so the binding crates' tests can
+    /// drive their real dispatcher loop over a faulted client with no network.
+    #[doc(hidden)]
+    pub fn for_io_fault_test() -> Arc<Self> {
+        let (cmd_tx, _cmd_rx) = std_mpsc::sync_channel::<IoCommand>(CMD_CHANNEL_CAPACITY);
+        let ring_size = ring::check_ring_size(64).expect("64 is a valid ring size");
+        let io_faulted = Arc::new(AtomicBool::new(true));
+        // Publish the fault with a Release fence, exactly as `IoLoopFaultGuard`
+        // orders the store before the ring shutdown, so a drain's Acquire fence
+        // observes it (matching the production memory-ordering discipline).
+        std::sync::atomic::fence(Ordering::Release);
+        Arc::new(StreamingClient {
+            cmd_tx: Mutex::new(cmd_tx),
+            io_handle: None,
+            ping_handle: None,
+            poller_state: Mutex::new(None),
+            shutdown: Arc::new(AtomicBool::new(true)),
+            authenticated: Arc::new(AtomicBool::new(true)),
+            next_req_id: Arc::new(AtomicI64::new(1)),
+            active_subs: Arc::new(Mutex::new(Vec::new())),
+            active_full_subs: Arc::new(Mutex::new(Vec::new())),
+            pending_subs: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            server_addr: "test://io-fault".to_owned(),
+            last_event_at_ns: Arc::new(AtomicI64::new(0)),
+            connected_addr: Arc::new(Mutex::new("test://io-fault".to_owned())),
+            replay_burst_size: 50,
+            replay_pace_ms: 0,
+            dropped: Arc::new(AtomicU64::new(0)),
+            panics: Arc::new(AtomicU64::new(0)),
+            io_faulted,
+            ring_cursors: Arc::new(RingCursors::new()),
+            ring_size,
+            wait_strategy: ring::AdaptiveWaitStrategy::low_latency(),
+            consumer_cpu: None,
+            consumer_pinned_to: Mutex::new(None),
+            consumer_thread_id: Arc::new(Mutex::new(None)),
+            drained: Arc::new(AtomicBool::new(false)),
+        })
+    }
+
     /// Test-only constructor wiring the production polling topology —
     /// [`io_loop::build_poller_producer`] plus a live [`PollerState`]
     /// — **without** touching the network or spawning any thread.
@@ -3022,9 +3128,18 @@ pub enum PollOutcome {
     /// The available batch was drained into the closure. Carries the
     /// number of events delivered on this call (may be `0`).
     Drained(usize),
-    /// Terminal: the session has shut down and the ring is fully
+    /// Terminal: the session has shut down cleanly and the ring is fully
     /// drained. No further events will arrive.
     Shutdown,
+    /// Terminal: the session ended because the FPSS I/O thread terminated
+    /// abnormally (it panicked/unwound), not on a clean stop. The ring is
+    /// fully drained and no further events will arrive. This is the
+    /// callback-drain analogue of the pull path's
+    /// [`crate::streaming::StreamError::DispatcherFailed`]: a consumer must
+    /// treat it as a dispatcher failure rather than a graceful end of
+    /// stream (e.g. flip a session to failed / surface an error) so an I/O
+    /// fault is not silently seen as a normal shutdown.
+    Failed,
     /// A concurrent or reentrant drain already holds the staging state.
     /// No events were delivered on this call; retry later. Distinct from
     /// `Drained(0)` (live but momentarily empty) so a reentrant-drain
@@ -4038,6 +4153,59 @@ mod ring_occupancy_tests {
         assert_eq!(
             delivered, 3,
             "every published event must be delivered before shutdown returns"
+        );
+    }
+
+    /// A faulted I/O thread — the `io_loop` unwound and its fault guard set
+    /// `io_faulted` before the ring published its shutdown sequence — must
+    /// surface through the CALLBACK drain path, not read as a clean shutdown.
+    /// `for_each` returns [`PollOutcome::Failed`] and the pull `next_event`
+    /// returns [`StreamError::DispatcherFailed`], so both paths agree on the
+    /// fault. Mirrors the pull-path disposition in `shutdown_outcome`; without
+    /// it a callback/binding dispatcher would see a graceful end of stream on
+    /// an I/O-thread panic and stay "streaming".
+    #[test]
+    fn faulted_io_thread_surfaces_through_callback_drain_not_clean_shutdown() {
+        let (client, producer) = StreamingClient::for_ring_occupancy_test(64);
+        // Simulate the io_loop fault guard: the thread unwound and flagged it.
+        // Release pairs with the drain's Acquire fence, exactly as the real
+        // `IoLoopFaultGuard` orders the store before the ring shutdown.
+        client
+            .io_faulted
+            .store(true, std::sync::atomic::Ordering::Release);
+        // Drop the producer so the poller observes terminal ring shutdown.
+        drop(producer);
+
+        // Blocking callback drain: faulted, not a clean `Shutdown`.
+        assert_eq!(
+            client.for_each(|_event| {}),
+            PollOutcome::Failed,
+            "for_each must return PollOutcome::Failed on a faulted io thread"
+        );
+
+        // Pull drain surfaces DispatcherFailed, proving both paths agree.
+        assert!(
+            matches!(client.next_event(), Err(StreamError::DispatcherFailed(_))),
+            "next_event must surface DispatcherFailed on a faulted io thread"
+        );
+    }
+
+    /// The clean-shutdown path is unchanged: with NO fault flag, `for_each`
+    /// returns [`PollOutcome::Shutdown`] and `next_event` returns `Ok(None)` —
+    /// no false `Failed` / `DispatcherFailed`.
+    #[test]
+    fn clean_shutdown_stays_clean_through_callback_drain() {
+        let (client, producer) = StreamingClient::for_ring_occupancy_test(64);
+        drop(producer);
+
+        assert_eq!(
+            client.for_each(|_event| {}),
+            PollOutcome::Shutdown,
+            "a clean shutdown must not read as Failed"
+        );
+        assert!(
+            matches!(client.next_event(), Ok(None)),
+            "a clean shutdown must surface as Ok(None), not DispatcherFailed"
         );
     }
 

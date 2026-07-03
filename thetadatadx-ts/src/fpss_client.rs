@@ -581,7 +581,10 @@ impl StreamingClient {
         // call from inside the user callback runs on this same Node thread, so
         // it cannot execute while this critical section is held.
         let mut cb_guard = self.lock_callback();
-        if !cb_guard.as_ref().is_some_and(|cb| Arc::ptr_eq(cb, &callback)) {
+        if !cb_guard
+            .as_ref()
+            .is_some_and(|cb| Arc::ptr_eq(cb, &callback))
+        {
             drop(cb_guard);
             client_arc.shutdown();
             return Err(napi::Error::from_reason(
@@ -599,6 +602,15 @@ impl StreamingClient {
         // `isStreaming()` / `isAuthenticated()` keep reporting healthy
         // after delivery has died.
         let dispatcher_session = Arc::clone(&self.dispatcher);
+        // Hold the dispatcher lock across the spawn AND the `Running` install so
+        // a dispatcher that reaches its fault arm before the parent installs
+        // `Running` blocks on this lock (`record_own_dispatcher_panic` takes it)
+        // instead of observing `Idle` and dropping the fault against a slot the
+        // parent then overwrites with `Running` for an already-exited thread.
+        // The callback lock is already held (order callback -> dispatcher,
+        // matching `stop_streaming`); the dispatcher's normal drain never takes
+        // this lock, so holding it across the spawn cannot stall delivery.
+        let mut dispatcher_guard = self.lock_dispatcher();
         let dispatcher = std::thread::Builder::new()
             .name("thetadatadx-ts-fpss-dispatcher".into())
             .spawn(move || {
@@ -632,7 +644,7 @@ impl StreamingClient {
                             );
                         },
                         |drain| drain(),
-                    );
+                    )
                 }));
                 // A panic escaping the event-iteration machinery (NOT a
                 // user-callback panic — those are caught per-invocation
@@ -648,11 +660,24 @@ impl StreamingClient {
                 // teardown's own `JoinHandle::join()` path still records the
                 // panic for the raced case. The lock is released the instant
                 // the guard drops; no user code runs under it.
-                if let Err(payload) = outcome {
-                    record_own_dispatcher_panic(
-                        &dispatcher_session,
-                        panic_reason(payload.as_ref()),
-                    );
+                match outcome {
+                    Err(payload) => {
+                        record_own_dispatcher_panic(
+                            &dispatcher_session,
+                            panic_reason(payload.as_ref()),
+                        );
+                    }
+                    // The FPSS I/O thread unwound: the drain ended on a fault,
+                    // not a clean stop. Record `Failed` so `isStreaming()`
+                    // reflects the dead loop immediately, matching the Rust core
+                    // and the pull path's `DispatcherFailed`.
+                    Ok(fpss::PollOutcome::Failed) => {
+                        record_own_dispatcher_panic(
+                            &dispatcher_session,
+                            "fpss io thread terminated abnormally".to_string(),
+                        );
+                    }
+                    Ok(_) => {}
                 }
             });
         match dispatcher {
@@ -662,8 +687,10 @@ impl StreamingClient {
                 // dispatcher lock so a teardown racing this start never sees a
                 // `Running` session lacking its hook. Still under `cb_guard`,
                 // so the ownership verified for the inner publish above holds
-                // for the dispatcher publish too.
-                *self.lock_dispatcher() = DispatcherSession::Running {
+                // for the dispatcher publish too. Written through the guard held
+                // across the spawn, so a racing fault publish serialises AFTER
+                // this `Running` install.
+                *dispatcher_guard = DispatcherSession::Running {
                     handle: h,
                     on_teardown: Some(on_teardown),
                     // The standalone client runs its own teardown
@@ -671,6 +698,7 @@ impl StreamingClient {
                     // set the callback-session value for consistency.
                     registers_drain_flag: true,
                 };
+                drop(dispatcher_guard);
                 drop(cb_guard);
                 Ok(())
             }
@@ -678,6 +706,7 @@ impl StreamingClient {
                 // Spawn failed: unwind the inner publish and clear the slot.
                 // This start still owns both (the critical section never
                 // released `cb_guard`), so the clear is unconditional here.
+                drop(dispatcher_guard);
                 let taken = self.lock_inner().take();
                 *cb_guard = None;
                 drop(cb_guard);

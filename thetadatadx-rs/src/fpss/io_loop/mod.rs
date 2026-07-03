@@ -1142,10 +1142,17 @@ where
         }
 
         let mut reconnect_pending_control: Vec<StreamControl> = Vec::new();
+        // Pass the shutdown flag so a teardown raised while the server keeps the
+        // handshake alive with pre-METADATA heartbeats (which reset the stall
+        // timeout) is observed inside the login read loop. On break-out the
+        // `Err` arm below carries the reason and `continue 'session`, whose top
+        // re-checks shutdown and exits, instead of joining the I/O thread
+        // forever.
         let login_result = match wait_for_login(
             &mut new_stream,
             &mut reconnect_pending_control,
             read_timeout,
+            Some(&shutdown),
         ) {
             Ok(r) => r,
             Err(e) => {
