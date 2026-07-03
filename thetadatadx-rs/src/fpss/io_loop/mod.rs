@@ -340,6 +340,38 @@ pub(in crate::fpss) fn dec_active<T: PartialEq>(
     }
 }
 
+/// Discard every queued outbound `WriteFrame` (a stale subscribe or ping) from
+/// the command channel without writing it. Returns `true` if a `Shutdown` (or a
+/// disconnected sender) was seen — in which case `shutdown` is set so the caller
+/// can tear down.
+///
+/// The reconnect path discards these frames because the tracked subscription
+/// set, replayed from source of truth, already covers every subscribe/unsubscribe
+/// whose frame is here; writing the queued frame too would duplicate the replay.
+/// Draining under the caller's held `pending_subs` (at the reconnect snapshot)
+/// additionally splits the command timeline at the snapshot: a frame not drained
+/// here landed after the snapshot and is instead written-and-correlated by the
+/// post-replay drain.
+fn drain_stale_queued_writes(
+    cmd_rx: &std_mpsc::Receiver<IoCommand>,
+    shutdown: &AtomicBool,
+) -> bool {
+    loop {
+        match cmd_rx.try_recv() {
+            Ok(IoCommand::WriteFrame { .. }) => {}
+            Ok(IoCommand::Shutdown) => {
+                shutdown.store(true, Ordering::Release);
+                return true;
+            }
+            Err(std_mpsc::TryRecvError::Empty) => return false,
+            Err(std_mpsc::TryRecvError::Disconnected) => {
+                shutdown.store(true, Ordering::Release);
+                return true;
+            }
+        }
+    }
+}
+
 /// Drop one reference from whichever tracked set a resolved pending correlation
 /// names. The caller must already hold `pending_subs` so the correlation
 /// removal and this reference drop are one indivisible mutation of the
@@ -1291,19 +1323,8 @@ where
         // subscribe frames would duplicate the paced replay below
         // (the subscription sets are the source of truth for replay).
         // `Shutdown` is the one command that must survive the drain.
-        loop {
-            match cmd_rx.try_recv() {
-                Ok(IoCommand::WriteFrame { .. }) => {}
-                Ok(IoCommand::Shutdown) => {
-                    shutdown.store(true, Ordering::Release);
-                    break 'session;
-                }
-                Err(std_mpsc::TryRecvError::Empty) => break,
-                Err(std_mpsc::TryRecvError::Disconnected) => {
-                    shutdown.store(true, Ordering::Release);
-                    break 'session;
-                }
-            }
+        if drain_stale_queued_writes(&cmd_rx, &shutdown) {
+            break 'session;
         }
 
         // --- Attempt new TLS connection and re-authenticate ---
@@ -1590,9 +1611,28 @@ where
                 }
                 full.clone()
             };
+            // Discard every command still queued from BEFORE this snapshot,
+            // under the same held `pending_subs` lock. A subscribe/unsubscribe
+            // records its tracked-set change and enqueues its frame atomically
+            // under `pending_subs` (`track_inflight_subscribe` /
+            // `send_then_untrack_on_unsubscribe`), so any frame drained here had
+            // its effect captured in the snapshots above and will be re-driven
+            // by the paced replay from the tracked set (the source of truth).
+            // Leaving such a frame for the post-replay drain would duplicate the
+            // replay AND — its correlation cleared just below — leave that
+            // duplicate live-but-uncorrelated on the wire, so a rejection of the
+            // replayed `req_id` could drop a subscription the queued frame kept
+            // live. Draining here, while holding `pending_subs`, cleanly splits
+            // the timeline: a command whose frame is NOT drained here landed
+            // after this snapshot, is absent from it, and is correctly
+            // written-and-correlated by the post-replay drain instead.
+            drain_stale_queued_writes(&cmd_rx, &shutdown);
             pending.clear();
             (subs_snapshot, full_subs_snapshot)
         };
+        if shutdown.load(Ordering::Relaxed) {
+            break 'session;
+        }
 
         let mut pacer = ReplayPacer::new(replay_burst_size, replay_pace_ms);
         let writer = reader.get_mut();
@@ -3551,6 +3591,54 @@ mod tests {
             pending_resub.lock().unwrap().is_empty(),
             "a re-subscribed identity at a new generation records no stale replay correlation"
         );
+    }
+
+    /// The reconnect snapshot drain discards every command queued before it, so
+    /// a subscribe enqueued in the window between the pre-dial discard and the
+    /// snapshot cannot be written a second time (uncorrelated) by the post-replay
+    /// drain — its identity is instead re-driven, and correlated, by the replay.
+    /// `Shutdown` survives as a teardown signal.
+    ///
+    /// The offline harness cannot force the full reconnect-phase deschedule, so
+    /// this asserts the drain primitive the snapshot uses: it empties queued
+    /// `WriteFrame`s and reports `Shutdown`.
+    #[test]
+    fn snapshot_drain_discards_queued_writes_and_reports_shutdown() {
+        use super::super::events::IoCommand;
+        use crate::tdbe::types::enums::StreamMsgType;
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let (tx, rx) = std::sync::mpsc::sync_channel::<IoCommand>(8);
+        let shutdown = AtomicBool::new(false);
+
+        // Two subscribe frames queued before the snapshot: both discarded, no
+        // teardown, channel emptied (the replay re-drives their identities).
+        tx.try_send(IoCommand::WriteFrame {
+            code: StreamMsgType::Ping,
+            payload: vec![1],
+        })
+        .unwrap();
+        tx.try_send(IoCommand::WriteFrame {
+            code: StreamMsgType::Ping,
+            payload: vec![2],
+        })
+        .unwrap();
+        assert!(!drain_stale_queued_writes(&rx, &shutdown));
+        assert!(!shutdown.load(Ordering::Relaxed));
+        assert!(matches!(
+            rx.try_recv(),
+            Err(std::sync::mpsc::TryRecvError::Empty)
+        ));
+
+        // A queued Shutdown is reported and sets the teardown flag.
+        tx.try_send(IoCommand::WriteFrame {
+            code: StreamMsgType::Ping,
+            payload: vec![3],
+        })
+        .unwrap();
+        tx.try_send(IoCommand::Shutdown).unwrap();
+        assert!(drain_stale_queued_writes(&rx, &shutdown));
+        assert!(shutdown.load(Ordering::Relaxed));
     }
 
     /// A correlation older than the TTL is swept; a fresh one survives.
