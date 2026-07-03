@@ -938,11 +938,11 @@ ThetaDataDxArrowBytes thetadatadx_trade_quote_ticks_to_arrow_ipc_projected(const
  *  thetadatadx_record_batch_stream_close, freed by
  *  thetadatadx_record_batch_stream_free.
  *
- *  The reader is reference-counted internally: thetadatadx_record_batch_stream_close
- *  and thetadatadx_record_batch_stream_free are safe to call from another
- *  thread while a thetadatadx_record_batch_stream_next_ipc pull is in flight:
- *  the pull is woken and returns end of stream, and the reader is not
- *  deallocated until the in-flight pull completes. */
+ *  thetadatadx_record_batch_stream_close is safe to call from another thread
+ *  while a thetadatadx_record_batch_stream_next_ipc pull is in flight: the
+ *  pull is woken and returns end of stream. thetadatadx_record_batch_stream_free
+ *  takes ownership of the opaque handle and must be serialized with all other
+ *  entry points for the same handle. */
 typedef struct ThetaDataDxRecordBatchStream ThetaDataDxRecordBatchStream;
 
 /** Backpressure: lossless block (applies backpressure to the wire). */
@@ -998,11 +998,12 @@ uint64_t thetadatadx_record_batch_stream_dropped(const ThetaDataDxRecordBatchStr
  *  thetadatadx_record_batch_stream_free. A NULL handle is a no-op. */
 void thetadatadx_record_batch_stream_close(const ThetaDataDxRecordBatchStream* stream);
 
-/** Release the reader handle. Signals close first (waking any in-flight pull,
- *  which then returns 1, clean end of stream), then drops this handle's
- *  reference; the reader is deallocated once the last in-flight pull
- *  completes, so freeing while another thread is mid-pull is safe. A NULL
- *  handle is a no-op. After this call the handle is invalid. */
+/** Release the reader handle. Signals close first, then drops this handle's
+ *  reference. This call takes ownership of the opaque handle and must be
+ *  serialized with next_ipc, schema_ipc, dropped, and close for the same
+ *  handle. To tear down from another thread, call close to wake a parked pull,
+ *  wait for in-flight entry points to return, then free. A NULL handle is a
+ *  no-op. After this call the handle is invalid. */
 void thetadatadx_record_batch_stream_free(ThetaDataDxRecordBatchStream* stream);
 
 /* ── Error ── */

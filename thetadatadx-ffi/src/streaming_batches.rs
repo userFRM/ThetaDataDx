@@ -25,24 +25,20 @@
 //! call from another thread WHILE a `..._next_ipc` pull is parked: it wakes
 //! the pull (which then returns end of stream) and tears the FPSS session
 //! down without taking exclusive ownership. `..._free` releases the handle.
+//! It must be serialized with all other entry points for the same handle.
 //! Every entry point is wrapped in the panic boundary so no Rust panic
 //! crosses `extern "C"`.
 //!
 //! # Concurrency and handle ownership
 //!
-//! The reader is held behind an `Arc` so a teardown from one thread cannot
-//! deallocate the reader out from under a blocking pull parked on another
-//! thread. `..._next_ipc` / `..._schema_ipc` / `..._dropped` each take a
-//! short owning clone of that `Arc` for the duration of the call, so the
-//! reader stays alive for the whole pull even if `..._free` runs
-//! concurrently. `..._free` signals close before dropping its handle
-//! reference, so a parked pull is woken (returns end of stream) and the last
-//! `Arc` drop (whichever thread holds it) performs the deallocation. This
-//! mirrors the Python and TypeScript readers, which hold the same core
-//! [`RecordBatchStream`] behind an `Arc` and close through
-//! [`RecordBatchStream::close_shared`]; a bare owned handle freed by value
-//! would instead deallocate the reader while a concurrent pull still
-//! borrowed it.
+//! The reader is held behind an `Arc`, and `..._next_ipc` /
+//! `..._schema_ipc` / `..._dropped` each take a short owning clone of that
+//! `Arc` for the duration of the call. That clone keeps the core reader alive
+//! after the opaque handle has been safely borrowed, but it does not make the
+//! handle box itself safe to free concurrently: each entry point must read the
+//! `Arc` out of that box before it can clone it. Use `..._close` as the
+//! cross-thread wake, wait for or otherwise serialize with any in-flight
+//! accessors, then call `..._free`.
 
 use std::os::raw::c_void;
 use std::sync::Arc;
@@ -71,9 +67,9 @@ pub const THETADATADX_BACKPRESSURE_DROP_OLDEST: i32 = 1;
 /// [`thetadatadx_record_batch_stream_close`], freed by
 /// [`thetadatadx_record_batch_stream_free`].
 ///
-/// The reader is held behind an `Arc` so a concurrent free cannot
-/// deallocate it while a blocking pull on another thread still borrows it;
-/// see the module-level concurrency note.
+/// The reader is held behind an `Arc`, but freeing the opaque handle must
+/// still be serialized with every other entry point for that handle; see the
+/// module-level concurrency note.
 pub struct ThetaDataDxRecordBatchStream {
     inner: Arc<RecordBatchStream>,
 }
@@ -165,6 +161,8 @@ pub unsafe extern "C" fn thetadatadx_client_batches_open(
 /// `stream` must be a valid handle from [`thetadatadx_client_batches_open`]
 /// not yet freed. `out` must be a valid, writable pointer to a
 /// [`ThetaDataDxArrowBytes`]; on every return path it is fully initialised.
+/// No other thread may call [`thetadatadx_record_batch_stream_free`] for the
+/// same handle during this call.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_record_batch_stream_next_ipc(
     stream: *const ThetaDataDxRecordBatchStream,
@@ -189,11 +187,11 @@ pub unsafe extern "C" fn thetadatadx_record_batch_stream_next_ipc(
             set_error("stream handle is null");
             return -1;
         };
-        // Take an owning clone of the reader before the blocking pull so a
-        // concurrent `..._free` on another thread cannot deallocate the reader
-        // while this pull is parked inside `next_blocking`. The `&stream`
-        // borrow of the boxed handle ends here; the pull runs against the
-        // cloned `Arc`, and a concurrent close wakes it (see the module note).
+        // Take an owning clone of the reader before the blocking pull. The
+        // `&stream` borrow of the boxed handle ends here; the pull runs
+        // against the cloned `Arc`, and a concurrent close wakes it. The
+        // handle box itself must not be freed until this clone has been
+        // taken; see the module concurrency note.
         let inner = Arc::clone(&stream.inner);
         match inner.next_blocking() {
             Ok(Some(batch)) => match crate::streaming_batches_ipc::batch_to_ipc(
@@ -230,7 +228,9 @@ pub unsafe extern "C" fn thetadatadx_record_batch_stream_next_ipc(
 /// # Safety
 ///
 /// Same handle / `out` contract as
-/// [`thetadatadx_record_batch_stream_next_ipc`].
+/// [`thetadatadx_record_batch_stream_next_ipc`], including the requirement
+/// that [`thetadatadx_record_batch_stream_free`] is not called concurrently
+/// for the same handle.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_record_batch_stream_schema_ipc(
     stream: *const ThetaDataDxRecordBatchStream,
@@ -250,8 +250,9 @@ pub unsafe extern "C" fn thetadatadx_record_batch_stream_schema_ipc(
             set_error("stream handle is null");
             return -1;
         };
-        // Own the reader for the call so a concurrent `..._free` cannot
-        // deallocate it mid-read (see the module concurrency note).
+        // Own the reader for the call after safely borrowing the handle. The
+        // handle box itself must be serialized with `..._free`; see the
+        // module concurrency note.
         let inner = Arc::clone(&stream.inner);
         match crate::streaming_batches_ipc::schema_to_ipc(&inner.schema()) {
             Ok(bytes) => {
@@ -273,7 +274,9 @@ pub unsafe extern "C" fn thetadatadx_record_batch_stream_schema_ipc(
 /// # Safety
 ///
 /// `stream` must be a valid handle from [`thetadatadx_client_batches_open`]
-/// not yet freed.
+/// not yet freed. No other thread may call
+/// [`thetadatadx_record_batch_stream_free`] for the same handle during this
+/// call.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_record_batch_stream_dropped(
     stream: *const ThetaDataDxRecordBatchStream,
@@ -283,8 +286,9 @@ pub unsafe extern "C" fn thetadatadx_record_batch_stream_dropped(
         // from `thetadatadx_client_batches_open`, not freed; `as_ref` yields
         // `None` for a null pointer, handled below.
         match unsafe { stream.as_ref() } {
-            // Own the reader for the read so a concurrent `..._free` cannot
-            // deallocate it mid-call (see the module concurrency note).
+            // Own the reader for the read after safely borrowing the handle.
+            // The handle box itself must be serialized with `..._free`; see
+            // the module concurrency note.
             Some(stream) => Arc::clone(&stream.inner).dropped(),
             None => {
                 set_error("stream handle is null");
@@ -312,7 +316,9 @@ pub unsafe extern "C" fn thetadatadx_record_batch_stream_dropped(
 /// # Safety
 ///
 /// `stream` must be a valid handle from [`thetadatadx_client_batches_open`]
-/// not yet freed, or null (a null is a no-op).
+/// not yet freed, or null (a null is a no-op). No other thread may call
+/// [`thetadatadx_record_batch_stream_free`] for the same handle during this
+/// call.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_record_batch_stream_close(
     stream: *const ThetaDataDxRecordBatchStream,
@@ -330,15 +336,13 @@ pub unsafe extern "C" fn thetadatadx_record_batch_stream_close(
 
 /// Release the reader handle.
 ///
-/// Signals shutdown first (waking any in-flight pull, which then returns
-/// clean end of stream) and then drops this handle's reference to the
-/// reader. Because the reader is held behind an `Arc` and every pull takes
-/// its own clone for the duration of the call, the underlying reader is
-/// deallocated only once the last reference drops, so a
-/// [`thetadatadx_record_batch_stream_next_ipc`] pull parked on another thread
-/// at the moment of free is woken and completes against still-live memory
-/// rather than being deallocated out from under it. After this call the
-/// handle is invalid and must not be used.
+/// Signals shutdown first and then drops this handle's reference to the
+/// reader. This call takes ownership of the opaque handle box, so callers
+/// must serialize it with every other entry point for the same handle. To
+/// tear down a reader from another thread, call
+/// [`thetadatadx_record_batch_stream_close`] to wake a parked pull, wait for
+/// the accessor to return (or otherwise exclude concurrent access), then call
+/// this function. After this call the handle is invalid and must not be used.
 ///
 /// # Safety
 ///
@@ -355,12 +359,9 @@ pub unsafe extern "C" fn thetadatadx_record_batch_stream_free(
         // SAFETY: caller's contract guarantees `stream` is a live handle
         // from `_open`, not previously freed.
         let boxed = unsafe { Box::from_raw(stream) };
-        // Signal close before dropping this handle's `Arc`, so a pull parked
-        // on another thread is woken and returns end of stream. Dropping
-        // `boxed` then releases this reference; the reader itself is
-        // deallocated by whichever thread drops the last `Arc` (its core
-        // `Drop` re-signals close idempotently), never while a concurrent
-        // pull still holds a clone.
+        // Signal close before dropping this handle's `Arc`; callers must
+        // still serialize `_free` with all other entry points because those
+        // entry points read the `Arc` through this box before cloning it.
         boxed.inner.close_shared();
         drop(boxed);
     })
@@ -384,9 +385,8 @@ mod tests {
     /// Every reader entry point treats a null handle as a well-defined no-op
     /// (or error return), never a deref of null. The out-param functions
     /// additionally leave `out` initialised empty so a caller can always read
-    /// it. The live-handle pull / close / free concurrency contract (that a
-    /// teardown never deallocates the reader out from under an in-flight pull)
-    /// is held by the `Arc` ownership here and proven in the core
+    /// it. The live-handle pull / close wake contract is held by the `Arc`
+    /// ownership here and proven in the core
     /// `fpss::batch_reader` tests (`close_from_another_handle_unblocks_a_parked_pull`);
     /// it needs a live FPSS connection, so it is exercised there rather than
     /// reconstructed against a mock in this layer.

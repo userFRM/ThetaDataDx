@@ -1535,25 +1535,25 @@ enum class Backpressure {
 /// `*_to_arrow_ipc` terminals use.
 ///
 /// Thread-safety: `ReadNext` is the single blocking consumer and is not
-/// itself re-entrant, but `close()` and destruction are safe to call from a
-/// different thread while a `ReadNext` is parked: the underlying reader is
-/// reference-counted across the C ABI, so a teardown wakes the parked pull
-/// (which returns clean end of stream) and the reader is not torn down until
-/// the in-flight pull completes. This matches the standard
-/// `arrow::RecordBatchReader` handoff where a worker drains the reader while
-/// the owner may release the last `shared_ptr` or call `close()`.
-class RecordBatchStream : public arrow::RecordBatchReader {
+/// itself re-entrant, but `close()` is safe to call from a different thread
+/// while a `ReadNext` is parked: it signals close through the C ABI and wakes
+/// the parked pull, which returns clean end of stream. The C ABI free call
+/// must not race with any in-flight C entry point, so this wrapper is always
+/// returned as a `std::shared_ptr`; `ReadNext` co-owns that `shared_ptr` for
+/// the duration of each pull. Pass the `shared_ptr` to worker threads that
+/// drain the reader.
+class RecordBatchStream : public arrow::RecordBatchReader,
+                          public std::enable_shared_from_this<RecordBatchStream> {
 public:
     RecordBatchStream(const RecordBatchStream&) = delete;
     RecordBatchStream& operator=(const RecordBatchStream&) = delete;
 
     ~RecordBatchStream() override {
         if (handle_ != nullptr) {
-            // Safe to free even if another thread is parked in `ReadNext`: the
-            // C ABI handle is reference-counted, so this free signals teardown
-            // (waking the parked pull) and the underlying reader is not torn
-            // down until that in-flight pull returns. See the class-level
-            // thread-safety note above.
+            // The destructor runs when the last wrapper-owned `shared_ptr`
+            // drops. `ReadNext` pins one for the duration of the C ABI pull,
+            // so wrapper-managed drains finish before the opaque handle is
+            // freed.
             thetadatadx_record_batch_stream_free(handle_);
             handle_ = nullptr;
         }
@@ -1572,6 +1572,8 @@ public:
             return arrow::Status::Invalid("ReadNext: null out-parameter");
         }
         *batch = nullptr;
+        auto self = shared_from_this();
+        (void)self;
         if (handle_ == nullptr) {
             return arrow::Status::OK(); // closed -> end of stream
         }
@@ -1594,6 +1596,8 @@ public:
     /// Number of batches dropped so far under the `DropOldest` policy. Always
     /// 0 under `Block`.
     uint64_t dropped() const {
+        auto self = shared_from_this();
+        (void)self;
         return handle_ != nullptr ? thetadatadx_record_batch_stream_dropped(handle_) : 0;
     }
 
@@ -1601,11 +1605,13 @@ public:
     /// Idempotent; subsequent reads return end of stream.
     ///
     /// Safe to call from another thread while a `ReadNext` is in flight: it
-    /// signals close through the reference-counted C ABI (waking the parked
-    /// pull, which then returns clean end of stream) without freeing the
-    /// handle. The handle is released by the destructor, so a `close()` here
-    /// followed by destruction frees exactly once.
+    /// signals close through the C ABI (waking the parked pull, which then
+    /// returns clean end of stream) without freeing the handle. The handle is
+    /// released by the destructor, so a `close()` here followed by destruction
+    /// frees exactly once.
     void close() {
+        auto self = shared_from_this();
+        (void)self;
         if (handle_ != nullptr) {
             thetadatadx_record_batch_stream_close(handle_);
         }
