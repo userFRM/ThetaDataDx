@@ -959,8 +959,10 @@ pub unsafe extern "C" fn thetadatadx_config_get_warn_on_buffered_threshold_bytes
 /// Bounds every request that did not call `with_deadline(...)`, so a
 /// live-but-silent stream resolves to a timeout instead of blocking
 /// forever (the gRPC keepalive PING only detects a fully dead peer).
-/// `secs = 0` disables the default (no deadline unless the caller sets
-/// one). Default `300`.
+/// `secs = 0` no longer disables the default: it is floored to the
+/// `300`-second default at request time, so the deadline always applies.
+/// Reach for the per-call `with_deadline(...)` opt-out to run a single
+/// request with no deadline. Default `300`.
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_config_set_request_timeout_secs(
     config: *mut ThetaDataDxConfig,
@@ -973,7 +975,8 @@ pub unsafe extern "C" fn thetadatadx_config_set_request_timeout_secs(
 }
 
 /// Read the current historical `request_timeout_secs` setting (default
-/// `300`; `0` = no default deadline).
+/// `300`). A stored `0` is floored to the `300`-second default at request
+/// time rather than disabling the deadline.
 ///
 /// Writes the configured value into `*out`. Returns `0` on success,
 /// `-1` if either pointer is null.

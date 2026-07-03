@@ -194,13 +194,19 @@ pub(crate) async fn sleep_for_retry(
         ..
     } = err
     {
-        if *hint > delay {
+        // Clamp the server hint to the policy ceiling: a hostile RetryInfo can
+        // name up to `i64::MAX` seconds, which under a `with_deadline(ZERO)`
+        // request would pin a semaphore permit for an unbounded sleep. The
+        // client-side backoff already saturates at `max_delay`, so honour the
+        // hint only up to that same cap.
+        let hint = (*hint).min(policy.max_delay);
+        if hint > delay {
             tracing::debug!(
                 endpoint,
                 hint_ms = hint.as_millis() as u64,
                 "raising retry delay to server-supplied RetryInfo hint"
             );
-            delay = *hint;
+            delay = hint;
         }
     }
     metrics::counter!(
@@ -1953,6 +1959,42 @@ mod refresh_retry_disabled_tests {
         .await;
         assert_eq!(result.expect("must succeed"), "payload");
         assert_eq!(attempts, 2);
+    }
+}
+
+#[cfg(test)]
+mod retry_hint_clamp_tests {
+    use super::sleep_for_retry;
+    use crate::config::RetryPolicy;
+    use crate::error::{Error, GrpcStatusKind};
+    use std::time::Duration;
+
+    /// A hostile `RetryInfo` hint cannot stretch the backoff past the policy
+    /// ceiling: the sleep is clamped to `max_delay`, so a `with_deadline(ZERO)`
+    /// request cannot be pinned for an unbounded cooldown while holding a
+    /// request-semaphore permit. Bound the call with a `timeout` so a
+    /// regression (the raw ~i64::MAX-second hint) fails fast instead of
+    /// hanging the suite.
+    #[tokio::test]
+    async fn server_hint_is_clamped_to_max_delay() {
+        let policy = RetryPolicy {
+            initial_delay: Duration::from_millis(1),
+            max_delay: Duration::from_millis(20),
+            max_attempts: 3,
+            max_elapsed: Duration::from_secs(3600),
+            jitter: false,
+        };
+        let err = Error::Grpc {
+            kind: GrpcStatusKind::Unavailable,
+            message: "hostile hint".into(),
+            retry_after: Some(Duration::from_secs(i64::MAX as u64)),
+        };
+        let clamped = tokio::time::timeout(
+            Duration::from_secs(5),
+            sleep_for_retry(&policy, 1, "test", &err),
+        )
+        .await;
+        assert!(clamped.is_ok(), "retry sleep was not clamped to max_delay");
     }
 }
 

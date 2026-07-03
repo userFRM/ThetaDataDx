@@ -346,16 +346,17 @@
     ///
     /// Bounds every request that did not set its own deadline, so a
     /// live-but-silent stream resolves to a timeout instead of blocking
-    /// forever. @p secs = 0 disables the default. Default is `300`.
+    /// forever. @p secs = 0 no longer disables the default; it is floored to
+    /// the `300`-second default at request time. Default is `300`.
     void set_request_timeout_secs(std::uint64_t secs) {
         thetadatadx_config_set_request_timeout_secs(handle_.get(), secs);
     }
 
     /// Read the current historical `request_timeout_secs` setting.
     ///
-    /// Returns the configured seconds (`0` = no default deadline), or
-    /// `0` on a null handle (matching the C ABI's `-1` failure mapping
-    /// at the boundary).
+    /// Returns the configured seconds (a stored `0` is floored to the
+    /// `300`-second default at request time), or `0` on a null handle
+    /// (matching the C ABI's `-1` failure mapping at the boundary).
     std::uint64_t get_request_timeout_secs() const {
         std::uint64_t out{};
         thetadatadx_config_get_request_timeout_secs(handle_.get(), &out);

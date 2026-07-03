@@ -204,7 +204,7 @@ class Config:
     warn_on_buffered_threshold_bytes: int
     """Byte ceiling above which a buffered (non-``.stream()``) historical response logs a warning pointing the caller at the streaming surface. ``0`` disables the warning; the default is ``100 * 1024 * 1024`` (100 MiB). The data is still delivered."""
     request_timeout_secs: int
-    """Default per-request deadline, in seconds, for historical queries. Bounds every request that did not set its own deadline, so a live-but-silent stream resolves to a timeout instead of blocking forever. ``0`` disables the default; the default is ``300`` (5 minutes)."""
+    """Default per-request deadline, in seconds, for historical queries. Bounds every request that did not set its own deadline, so a live-but-silent stream resolves to a timeout instead of blocking forever. ``0`` no longer disables the default: it is floored to the ``300``-second default at request time. The default is ``300`` (5 minutes)."""
     reconnect_policy: str
     """Active reconnect policy name: ``"auto"``, ``"manual"``, or ``"custom"`` (the last reported when a :attr:`reconnect_callback` is installed)."""
     reconnect_max_attempts: int
