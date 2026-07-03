@@ -2396,16 +2396,18 @@ impl StreamingClient {
 
         if let Err(e) = self.send_cmd(IoCommand::WriteFrame { code, payload }) {
             // The frame never reached the I/O thread, so no `REQ_RESPONSE`
-            // will reconcile the optimistic registration above; undo it.
+            // will reconcile the optimistic registration above; undo it — but
+            // only if this call still owns its correlation, for the same
+            // reason as the per-contract path: a concurrent reconnect replay
+            // may already have put this full-stream subscription back on the
+            // wire and taken ownership of the tracked entry.
             if newly_tracked {
-                self.pending_subs
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .remove(&req_id);
-                self.active_full_subs
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .retain(|(k, s)| !(*k == kind_for_track && *s == sec_type));
+                io_loop::untrack_unsent_subscribe(
+                    req_id,
+                    &self.pending_subs,
+                    &self.active_subs,
+                    &self.active_full_subs,
+                );
             }
             return Err(e);
         }
@@ -2482,16 +2484,18 @@ impl StreamingClient {
 
         if let Err(e) = self.send_cmd(IoCommand::WriteFrame { code, payload }) {
             // The frame never reached the I/O thread, so no `REQ_RESPONSE`
-            // will reconcile the optimistic registration above; undo it.
+            // will reconcile the optimistic registration above; undo it — but
+            // only if this call still owns its correlation. A concurrent
+            // reconnect replay may already have put this contract back on the
+            // wire (and taken ownership of the tracked entry) since the send
+            // failed; untracking by value would then drop a live subscription.
             if newly_tracked {
-                self.pending_subs
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .remove(&req_id);
-                self.active_subs
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner)
-                    .retain(|(k, c)| !(*k == kind && c == contract));
+                io_loop::untrack_unsent_subscribe(
+                    req_id,
+                    &self.pending_subs,
+                    &self.active_subs,
+                    &self.active_full_subs,
+                );
             }
             return Err(e);
         }
@@ -3405,7 +3409,9 @@ mod builder_tests {
 
 #[cfg(test)]
 mod full_stream_guard_tests {
-    use super::{full_stream_sec_type_supported, HarnessPublishMode, StreamingClient};
+    use super::{
+        full_stream_sec_type_supported, HarnessPublishMode, StreamingClient, SubscriptionKind,
+    };
     use crate::error::{ConfigErrorKind, Error};
     use crate::fpss::protocol::{Contract, SecTypeExt};
     use crate::tdbe::types::enums::SecType;
@@ -3756,6 +3762,184 @@ mod full_stream_guard_tests {
             1,
             "rejecting a superseded full-stream subscribe must leave the \
              re-subscribed entry tracked, got {tracked:?}"
+        );
+
+        client.shutdown();
+    }
+
+    /// A subscribe whose frame never left (command channel full) must not
+    /// untrack an entry a concurrent reconnect replay has since put back on the
+    /// wire.
+    ///
+    /// Reproduces the reconnect-replay-in-window race: the subscribe registers
+    /// its tracked entry and correlation (req_id 1), then an auto-reconnect
+    /// snapshots `active_subs`, clears pending, and re-registers the entry under
+    /// a fresh correlation (req_id 2) — leaving the subscription live on the new
+    /// session. When the original send finally reports the full channel, its
+    /// rollback runs. Keyed on ownership of its own correlation (req_id 1, now
+    /// evicted), the rollback is a no-op, so the live subscription stays tracked
+    /// and in the reconnect-replay set. A value match on `(kind, contract)`
+    /// would instead drop it, silently diverging the client from the wire.
+    #[test]
+    fn send_failure_rollback_keeps_reconnect_replayed_sub() {
+        use super::io_loop::{untrack_unsent_subscribe, PendingSubEntry};
+        use crate::fpss::protocol::PendingSub;
+
+        let client = StreamingClient::for_self_join_test(
+            0,
+            64,
+            HarnessPublishMode::BlockingPublish,
+            None,
+            |_event| {},
+        );
+
+        // First subscribe is accepted, owns the tracked entry and correlation
+        // req_id 1.
+        let contract = Contract::stock("AAPL");
+        client
+            .subscribe(contract.clone().trade())
+            .expect("subscribe");
+
+        // Auto-reconnect replays this entry onto the fresh socket (it stays in
+        // `active_subs`), clears the prior-session correlation, and re-registers
+        // a fresh one (req_id 2). Model that state transition directly.
+        {
+            let mut pending = client
+                .pending_subs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            pending.clear();
+            pending.insert(
+                2,
+                PendingSubEntry {
+                    sub: PendingSub::Contract(SubscriptionKind::Trade, contract.clone()),
+                    recorded_at: std::time::Instant::now(),
+                },
+            );
+        }
+
+        // The original send finally fails; its rollback keys on req_id 1, which
+        // the reconnect evicted, so it must not touch the now-live entry.
+        untrack_unsent_subscribe(
+            1,
+            &client.pending_subs,
+            &client.active_subs,
+            &client.active_full_subs,
+        );
+
+        let tracked = client.active_subscriptions();
+        assert_eq!(
+            tracked.len(),
+            1,
+            "a send-failure rollback must not untrack a subscription a reconnect \
+             replay put back on the wire, got {tracked:?}"
+        );
+        assert!(
+            tracked.iter().any(|(_, c)| *c == contract),
+            "the reconnect-replayed contract must stay in active_subscriptions() \
+             so it is replayed again on the next reconnect, got {tracked:?}"
+        );
+
+        client.shutdown();
+    }
+
+    /// The other side of the ownership gate: a solo send failure (no concurrent
+    /// reconnect) whose correlation is still resident must roll the optimistic
+    /// registration back — the frame never left, nothing else installed it, so
+    /// leaving it tracked would replay a phantom subscription forever.
+    #[test]
+    fn send_failure_rollback_untracks_when_still_owned() {
+        use super::io_loop::untrack_unsent_subscribe;
+
+        let client = StreamingClient::for_self_join_test(
+            0,
+            64,
+            HarnessPublishMode::BlockingPublish,
+            None,
+            |_event| {},
+        );
+
+        // Subscribe owns tracked entry + correlation req_id 1.
+        let contract = Contract::stock("MSFT");
+        client
+            .subscribe(contract.clone().trade())
+            .expect("subscribe");
+        assert_eq!(client.active_subscriptions().len(), 1);
+
+        // Roll back the still-owned correlation: the entry must be dropped.
+        untrack_unsent_subscribe(
+            1,
+            &client.pending_subs,
+            &client.active_subs,
+            &client.active_full_subs,
+        );
+
+        assert!(
+            client.active_subscriptions().is_empty(),
+            "a solo send-failure rollback must untrack the unsent subscription"
+        );
+        assert!(
+            client
+                .pending_subs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_empty(),
+            "the rollback must also drop its own pending correlation"
+        );
+
+        client.shutdown();
+    }
+
+    /// The full-stream sibling of the reconnect-window race: the same
+    /// by-value rollback flaw exists on `send_full_stream`, so its fix carries
+    /// the same ownership gate.
+    #[test]
+    fn full_send_failure_rollback_keeps_reconnect_replayed_sub() {
+        use super::io_loop::{untrack_unsent_subscribe, PendingSubEntry};
+        use crate::fpss::protocol::PendingSub;
+
+        let client = StreamingClient::for_self_join_test(
+            0,
+            64,
+            HarnessPublishMode::BlockingPublish,
+            None,
+            |_event| {},
+        );
+
+        client
+            .subscribe(SecType::Stock.full_trades())
+            .expect("full subscribe");
+
+        // Reconnect replays the full-stream entry live, clears the prior
+        // correlation, and re-registers a fresh one (req_id 2).
+        {
+            let mut pending = client
+                .pending_subs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            pending.clear();
+            pending.insert(
+                2,
+                PendingSubEntry {
+                    sub: PendingSub::Full(SubscriptionKind::Trade, SecType::Stock),
+                    recorded_at: std::time::Instant::now(),
+                },
+            );
+        }
+
+        untrack_unsent_subscribe(
+            1,
+            &client.pending_subs,
+            &client.active_subs,
+            &client.active_full_subs,
+        );
+
+        let tracked = client.active_full_subscriptions();
+        assert_eq!(
+            tracked.len(),
+            1,
+            "a full-stream send-failure rollback must not untrack a subscription \
+             a reconnect replay put back on the wire, got {tracked:?}"
         );
 
         client.shutdown();

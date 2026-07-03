@@ -4,10 +4,24 @@
  * lifecycle.
  *
  * On `[Symbol.asyncDispose]`, `stopStreaming()` is called and then the
- * async drain barrier `awaitDrain(5000)` is awaited so the consumer
- * thread is guaranteed to have finished firing the registered callback
- * before the JS callback closure can be released. This mirrors the
- * C++ RAII destructor in `thetadatadx-cpp/src/thetadatadx.cpp`.
+ * async ring-drain barrier `awaitDrain(5000)` is awaited, so the
+ * streaming consumer thread has stopped and enqueues no further events
+ * before the JS callback closure is released. This mirrors the C++ RAII
+ * destructor in `thetadatadx-cpp/src/thetadatadx.cpp`.
+ *
+ * Delivery caveat (napi-specific, differs from Python/C++): the per-event
+ * callback runs on the Node main thread, delivered through a bounded
+ * threadsafe-function queue that sits DOWNSTREAM of the consumer thread.
+ * `awaitDrain` waits on the consumer thread, not on that delivery queue,
+ * so a bounded backlog of already-queued events can still invoke the
+ * callback on later event-loop turns AFTER the disposer resolves. napi
+ * delivers that backlog in throttled bursts across event-loop turns, so
+ * no finite wait in this wrapper can guarantee it has fully flushed. In
+ * the Python and C++ bindings the callback runs on the consumer thread
+ * itself, so their barrier is exact; here it is not. Do not release state
+ * the callback dereferences at scope exit assuming zero further
+ * invocations -- guard the callback to no-op after teardown if a late
+ * invocation against freed state would be unsafe.
  *
  * Every public method on `Client` (subscribe_*,
  * unsubscribe_*, activeSubscriptions, droppedEventCount, reconnect,
@@ -393,10 +407,16 @@ class StreamingSession {
 
   /**
    * TC39 explicit resource management: invoked by `await using session
-   * = ...` on scope exit. Stops the streaming connection and awaits
-   * the drain barrier so the consumer thread is guaranteed to have
-   * finished firing the registered callback before the JS closure can
-   * be released. Mirrors the C++ RAII destructor.
+   * = ...` on scope exit. Stops the streaming connection and awaits the
+   * ring-drain barrier so the consumer thread has stopped and enqueues no
+   * further events before the JS closure is released. Mirrors the C++
+   * RAII destructor.
+   *
+   * NOT an exact "no callback after this resolves" barrier on the napi
+   * delivery path: already-queued events can still invoke the callback on
+   * later event-loop turns after this resolves (see the module-level
+   * delivery caveat). Python and C++ fire on the consumer thread, so their
+   * barrier is exact; this one covers the consumer thread only.
    *
    * Drain timeout failures fire `console.warn` rather than throwing;
    * the streaming pipeline is already torn down (`stopStreaming` ran),
@@ -490,9 +510,12 @@ for (const Klass of [native.Client, native.HistoricalClient]) {
         stream = undefined;
       }
       if (stream) {
-        // Await the drain barrier first so the consumer thread has finished
-        // firing the registered callback before the JS closure is released;
-        // warn (never throw) on timeout to match the context-managed session.
+        // Await the ring-drain barrier first so the consumer thread has
+        // stopped and enqueues no further events before the JS closure is
+        // released; warn (never throw) on timeout to match the context-managed
+        // session. This covers the consumer thread only: already-queued events
+        // may still invoke the callback on later event-loop turns after this
+        // resolves (see the module-level delivery caveat).
         stream.stopStreaming();
         const drained = await stream.awaitDrain(EXIT_DRAIN_TIMEOUT_MS);
         if (!drained) {
@@ -515,8 +538,11 @@ for (const Klass of [native.Client, native.HistoricalClient]) {
 // terminal teardown is `stopStreaming()` (it has no separate `close()`; the
 // stop clears the callback and retires the session). `[Symbol.dispose]` backs
 // `using sc = StreamingClient.connect(...)`; `[Symbol.asyncDispose]` additionally
-// awaits the drain barrier so the callback closure is safe to release, warning
-// (never throwing) on timeout to match the unified client and the session.
+// awaits the ring-drain barrier (consumer thread stopped, no further events
+// enqueued) before release, warning (never throwing) on timeout to match the
+// unified client and the session. As on the other disposers this covers the
+// consumer thread only -- already-queued events may still invoke the callback
+// on later event-loop turns after it resolves (see the module-level caveat).
 if (native.StreamingClient) {
   const Klass = native.StreamingClient;
   if (typeof Klass.prototype[Symbol.dispose] !== 'function') {

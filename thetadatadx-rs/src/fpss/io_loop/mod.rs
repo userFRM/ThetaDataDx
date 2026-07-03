@@ -399,6 +399,54 @@ pub(in crate::fpss) fn apply_req_response_for_test(
     apply_req_response(req_id, result, pending_subs, active_subs, active_full_subs);
 }
 
+/// Undo the optimistic registration of a subscribe whose frame never reached
+/// the I/O thread (the command channel was full).
+///
+/// The registration is only rolled back if this call still owns its pending
+/// correlation. A subscribe registers `pending_subs[req_id]` before the wire
+/// send; the tracked entry is removed here only when `req_id` is still resident
+/// — proof that no concurrent path has taken ownership of the now-live entry
+/// since the send failed. If the correlation is gone, an auto-reconnect replay
+/// (which snapshots `active_subs`, then clears pending under the same lock and
+/// re-registers fresh correlations) has already put this subscription on the
+/// wire, so the entry must stay tracked and replayed rather than be dropped by
+/// a value match on `(kind, contract)`.
+///
+/// The `pending_subs` lock is held across the tracked-set removal so this
+/// rollback is serialized against that reconnect snapshot+clear: either
+/// reconnect observes the entry before the rollback removes it (and keeps it
+/// live), or the rollback removes it before reconnect snapshots (and it is
+/// never replayed) — never the split where reconnect replays an entry the
+/// rollback then untracks. Lock order is always `pending_subs` before the
+/// tracked-set mutex, matching every other nested acquisition.
+pub(in crate::fpss) fn untrack_unsent_subscribe(
+    req_id: i32,
+    pending_subs: &PendingSubs,
+    active_subs: &ActiveSubs,
+    active_full_subs: &ActiveFullSubs,
+) {
+    let mut pending = pending_subs
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let Some(entry) = pending.remove(&req_id) else {
+        return;
+    };
+    match entry.sub {
+        super::protocol::PendingSub::Contract(kind, contract) => {
+            active_subs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .retain(|(k, c)| !(*k == kind && *c == contract));
+        }
+        super::protocol::PendingSub::Full(kind, sec_type) => {
+            active_full_subs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .retain(|(k, s)| !(*k == kind && *s == sec_type));
+        }
+    }
+}
+
 // Reason: all parameters are moved into this function from a spawned thread closure.
 #[allow(clippy::needless_pass_by_value, clippy::too_many_lines)]
 pub(in crate::fpss) fn io_loop<P>(args: IoLoopArgs<P>)
@@ -1318,24 +1366,32 @@ where
         // fleet of reconnecting clients additionally de-phases through
         // the ±20% pause jitter.
         //
-        // Snapshot + drop lock before writing: holding the mutex during
-        // network I/O would stall concurrent subscribe/unsubscribe calls.
-        let subs_snapshot = active_subs
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .clone();
-        let full_subs_snapshot = active_full_subs
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .clone();
-
-        // A new session invalidates every previously allocated `req_id`, so
-        // any pending correlations from the prior session can never be
-        // answered — drop them before the replay re-registers fresh ones.
-        pending_subs
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .clear();
+        // Snapshot the tracked sets and clear stale pending correlations under
+        // a single held `pending_subs` lock, then drop it before any network
+        // I/O (holding it during writes would stall concurrent
+        // subscribe/unsubscribe calls). A new session invalidates every
+        // previously allocated `req_id`, so prior-session correlations can
+        // never be answered — clearing them here also re-establishes the
+        // ownership boundary a concurrent send-failure rollback keys on: with
+        // the snapshot and the clear serialized against
+        // `untrack_unsent_subscribe` (which holds the same lock across its
+        // tracked-set removal), a subscribe whose frame never left cannot
+        // untrack an entry this replay is about to put back on the wire.
+        let (subs_snapshot, full_subs_snapshot) = {
+            let mut pending = pending_subs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let subs_snapshot = active_subs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
+            let full_subs_snapshot = active_full_subs
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
+            pending.clear();
+            (subs_snapshot, full_subs_snapshot)
+        };
 
         let mut pacer = ReplayPacer::new(replay_burst_size, replay_pace_ms);
         let writer = reader.get_mut();
