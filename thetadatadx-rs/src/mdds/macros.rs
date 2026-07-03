@@ -957,6 +957,134 @@ macro_rules! parsed_endpoint {
                 }).await
             }
 
+            /// Async twin of [`stream`](Self::stream): the per-chunk
+            /// `handler` returns a future that is awaited before the next
+            /// chunk is fetched.
+            ///
+            /// Identical retry / refresh / no-resume-replay semantics and
+            /// identical bounded-peak-memory behaviour as [`stream`]; the
+            /// only difference is that the handler is `async`. Awaiting the
+            /// handler future in-line preserves once-per-chunk, in-order
+            /// delivery and the chunk-freed-before-next backpressure. The
+            /// Python SDK's `*_stream_async` terminal uses this to offload
+            /// its GIL-bound user handler onto a blocking-pool task without
+            /// parking a shared async worker.
+            ///
+            /// # Errors
+            ///
+            /// Same as [`stream`](Self::stream).
+            pub async fn stream_async<F, HFut>(self, handler: F) -> Result<(), Error>
+            where
+                F: FnMut(&[$item]) -> HFut + Send,
+                HFut: std::future::Future<Output = ()> + Send,
+            {
+                let $builder_name {
+                    client,
+                    $($req_arg,)*
+                    $($opt_name,)*
+                    deadline,
+                } = self;
+                let _ = &client;
+                $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
+                let deadline = $crate::mdds::macros::effective_deadline(
+                    deadline,
+                    client.config().historical.request_timeout_secs,
+                );
+                $crate::mdds::macros::run_with_optional_deadline(deadline, async move {
+                    tracing::debug!(endpoint = stringify!($name), "gRPC streaming request");
+                    metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
+                    let _metrics_start = std::time::Instant::now();
+                    let _permit = client.request_semaphore.acquire().await
+                        .map_err(|_| Error::config_internal("request semaphore closed"))?;
+                    let policy = client.config().retry;
+                    // Same `Mutex<F>` wrap as the sync path: the per-attempt
+                    // closure needs a unique mutable borrow on each call, and
+                    // `Mutex<F>` where `F: Send` is `Send + Sync` so the
+                    // spawned future stays Send (the Python SDK's
+                    // `spawn_awaitable` requires this).
+                    let handler_mutex = std::sync::Mutex::new(handler);
+                    let handler_mutex = &handler_mutex;
+                    let delivered = std::sync::atomic::AtomicBool::new(false);
+                    let delivered = &delivered;
+                    $crate::mdds::macros::run_streaming_retry_loop(
+                        client.session(),
+                        &policy,
+                        stringify!($name),
+                        delivered,
+                        move |snap| {
+                            $(let $req_arg = $req_arg.clone();)*
+                            $(let $opt_name = $opt_name.clone();)*
+                            async move {
+                                let qi = client.build_query_info(snap.uuid.clone());
+                                let request = proto::$req {
+                                    query_info: Some(qi),
+                                    params: Some(proto::$query { $($field : $val),* }),
+                                };
+                                let lease = client.channel();
+                                let stream = $crate::proto::beta_theta_terminal::$grpc(
+                                    &lease,
+                                    request,
+                                )
+                                .await
+                                .map_err(|e| -> Error { e.into() })?;
+                                let mut decode_error: Option<Error> = None;
+                                let drain_result = client.for_each_chunk_async(stream, |headers, rows| {
+                                    // Synchronous section: parse the chunk and
+                                    // build the owned user future while holding
+                                    // the handler lock, then release the lock
+                                    // before the future is awaited. The chunk is
+                                    // handed in by value, so nothing borrowed
+                                    // from it can be held across the await.
+                                    let user_fut = if decode_error.is_some() {
+                                        None
+                                    } else {
+                                        let chunk_table = proto::DataTable {
+                                            headers,
+                                            data_table: rows,
+                                        };
+                                        match $parser(&chunk_table) {
+                                            Ok(ticks) => {
+                                                let fut = handler_mutex
+                                                    .lock()
+                                                    .ok()
+                                                    .map(|mut h| (*h)(&ticks));
+                                                // Mark delivered once the handler
+                                                // has taken a non-empty chunk, so a
+                                                // later transient cannot replay an
+                                                // already-delivered prefix. Empty
+                                                // chunks (headers-only keepalive)
+                                                // hand the handler no rows, so a
+                                                // replay would duplicate nothing.
+                                                if !ticks.is_empty() {
+                                                    delivered.store(true, std::sync::atomic::Ordering::Relaxed);
+                                                }
+                                                fut
+                                            }
+                                            Err(e) => {
+                                                decode_error = Some(Error::from(e));
+                                                None
+                                            }
+                                        }
+                                    };
+                                    async move {
+                                        if let Some(user_fut) = user_fut {
+                                            user_fut.await;
+                                        }
+                                    }
+                                }).await;
+                                drain_result.and_then(|()| match decode_error {
+                                    Some(e) => Err(e),
+                                    None => Ok(()),
+                                })
+                            }
+                        },
+                    ).await?;
+                    metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
+                        .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
+                    Ok::<(), Error>(())
+                }).await
+            }
+
         }
 
         impl<'a> IntoFuture for $builder_name<'a> {

@@ -122,6 +122,41 @@ where
         })?
 }
 
+/// Fold a blocking-task [`JoinError`] into the shared per-chunk
+/// callback-error slot so a panicked streaming handler surfaces as a
+/// re-raised `PyErr` instead of being swallowed.
+///
+/// The generated `*_stream_async` terminals run each user handler on a
+/// `spawn_blocking` task (the handler holds the GIL, so keeping it off
+/// the async workers is what stops one slow handler from starving every
+/// other in-flight historical call). A panic inside that task must not
+/// vanish: it is captured here as a `RuntimeError` carrying the panic
+/// payload and re-raised by the terminal's post-await converter. An
+/// already-captured handler `PyErr` is left in place — a panicked task
+/// cannot also have captured an error, and clobbering would drop the
+/// proximate cause.
+///
+/// [`JoinError`]: tokio::task::JoinError
+pub(crate) fn capture_join_error(
+    cb_err: &std::sync::Mutex<Option<PyErr>>,
+    join_err: tokio::task::JoinError,
+) {
+    let msg = if join_err.is_panic() {
+        let payload = join_err.into_panic();
+        payload
+            .downcast_ref::<&str>()
+            .map(|s| (*s).to_string())
+            .or_else(|| payload.downcast_ref::<String>().cloned())
+            .unwrap_or_else(|| "stream handler panicked".to_string())
+    } else {
+        format!("stream handler task did not complete: {join_err}")
+    };
+    let mut slot = cb_err.lock().unwrap();
+    if slot.is_none() {
+        *slot = Some(pyo3::exceptions::PyRuntimeError::new_err(msg));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     //! Unit tests covering the two invariants the generator relies on:
