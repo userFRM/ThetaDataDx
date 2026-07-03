@@ -32,8 +32,16 @@ pub(crate) fn decode_block(
     out: &mut Vec<Vec<i32>>,
 ) -> Result<(), Error> {
     out.clear();
-    if block.is_empty() || n_columns == 0 {
+    if block.is_empty() {
         return Ok(());
+    }
+    if n_columns == 0 {
+        // A zero-column schema over non-empty DATA is a drifted header: every
+        // row would decode to nothing while the block still carries bytes.
+        // Fail loud rather than emit zero rows, matching the truncation guard.
+        return Err(Error::decode_codec(
+            "flatfiles: zero-column header with non-empty data",
+        ));
     }
 
     let mut reader = FitReader::new(block);
@@ -53,6 +61,15 @@ pub(crate) fn decode_block(
             // it rather than accept the truncated block.
             return Err(Error::decode_codec(
                 "flatfiles: FIT block truncated mid-row",
+            ));
+        }
+        if n > n_columns {
+            // Row carries more fields than the blob's column schema, so the
+            // FIT reader already dropped the surplus into a silent clip. A
+            // wider row is a drifted header; reject it rather than emit a
+            // truncated row, matching the FPSS delta path's width guard.
+            return Err(Error::decode_codec(
+                "flatfiles: FIT row wider than header column count",
             ));
         }
         if reader.is_date {
@@ -162,6 +179,33 @@ mod tests {
         assert!(
             err.to_string().contains("truncated"),
             "expected a truncation decode error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn zero_column_header_with_data_is_rejected() {
+        // A header claiming zero columns over a non-empty DATA block is a
+        // drifted schema: silently decoding to zero rows would hide the drift.
+        let buf = vec![pack(1, END)];
+        let mut out = Vec::new();
+        let err = decode_block(&buf, 0, &mut out).unwrap_err();
+        assert!(
+            err.to_string().contains("zero-column"),
+            "expected a zero-column decode error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn over_width_row_is_rejected() {
+        // "12,34<END>" carries 2 fields against a 1-column schema: the extra
+        // field would be silently clipped. The FPSS delta path rejects the
+        // same width drift; decode_block must too.
+        let buf = vec![pack(1, 2), pack(FIELD_SEP, 3), pack(4, END)];
+        let mut out = Vec::new();
+        let err = decode_block(&buf, 1, &mut out).unwrap_err();
+        assert!(
+            err.to_string().contains("wider"),
+            "expected an over-width decode error, got: {err}"
         );
     }
 
