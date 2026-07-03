@@ -24,13 +24,14 @@
 
 use std::sync::Arc;
 
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 
 use thetadatadx::flatfiles::{self, FlatFileFormat, FlatFileRow, FlatFileValue, ReqType, SecType};
 
 use crate::async_runtime::spawn_awaitable;
-use crate::errors::{to_py_err, InvalidParameterError};
+use crate::errors::to_py_err;
 use crate::run_blocking;
 use crate::{pyarrow_table_to_pandas, pyarrow_table_to_polars, record_batch_to_pyarrow_table};
 
@@ -41,7 +42,7 @@ fn parse_flatfile_sec_type(sec: &str) -> PyResult<SecType> {
         "OPTION" => Ok(SecType::Option),
         "STOCK" => Ok(SecType::Stock),
         "INDEX" => Ok(SecType::Index),
-        other => Err(InvalidParameterError::new_err(format!(
+        other => Err(PyValueError::new_err(format!(
             "unknown flat-file sec_type: {other:?} (expected OPTION, STOCK, or INDEX)"
         ))),
     }
@@ -55,7 +56,7 @@ fn parse_flatfile_req_type(req: &str) -> PyResult<ReqType> {
         "OHLC" => Ok(ReqType::Ohlc),
         "TRADE" => Ok(ReqType::Trade),
         "TRADE_QUOTE" | "TRADEQUOTE" => Ok(ReqType::TradeQuote),
-        other => Err(InvalidParameterError::new_err(format!(
+        other => Err(PyValueError::new_err(format!(
             "unknown flat-file req_type: {other:?} (expected EOD, QUOTE, OPEN_INTEREST, OHLC, TRADE, TRADE_QUOTE)"
         ))),
     }
@@ -65,7 +66,7 @@ fn parse_flatfile_format(fmt: Option<&str>) -> PyResult<FlatFileFormat> {
     match fmt.unwrap_or("csv").to_lowercase().as_str() {
         "csv" => Ok(FlatFileFormat::Csv),
         "jsonl" | "json" => Ok(FlatFileFormat::Jsonl),
-        other => Err(InvalidParameterError::new_err(format!(
+        other => Err(PyValueError::new_err(format!(
             "unknown flat-file format: {other:?} (expected csv or jsonl)"
         ))),
     }

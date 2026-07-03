@@ -29,7 +29,7 @@ mod streaming_batches;
 // own `use` declarations.
 use async_runtime::spawn_awaitable;
 use coerce::{PyDateArg, PyStringArg, PySymbols, PyTimeArg};
-use errors::{config_err, to_py_err, InvalidParameterError};
+use errors::{config_err, to_py_err};
 
 /// Shared tokio runtime for running async Rust from sync Python.
 ///
@@ -342,7 +342,7 @@ impl Config {
             "manual" => config::ReconnectPolicy::Manual,
             "auto" => config::ReconnectPolicy::Auto(config::ReconnectAttemptLimits::default()),
             other => {
-                return Err(InvalidParameterError::new_err(format!(
+                return Err(PyValueError::new_err(format!(
                     "unknown reconnect_policy: {other:?} (expected \"auto\" or \"manual\")"
                 )))
             }
@@ -641,7 +641,7 @@ fn resolve_credentials(
 /// `historical_type` (`"PROD"` / `"STAGE"`, case-insensitive) selects the
 /// historical channel and `streaming_type` (`"PROD"` / `"DEV"`,
 /// case-insensitive) the streaming channel. Either absent keeps that
-/// channel on production. An unrecognized value raises ``InvalidParameterError``
+/// channel on production. An unrecognized value raises ``ValueError``
 /// naming the valid set, never a silent fallback.
 fn resolve_direct_config(
     config: Option<&Config>,
@@ -657,7 +657,7 @@ fn resolve_direct_config(
     let mut direct = config::DirectConfig::production();
     if let Some(raw) = historical_type {
         let environment = config::HistoricalEnvironment::parse(raw).ok_or_else(|| {
-            InvalidParameterError::new_err(format!(
+            PyValueError::new_err(format!(
                 "historical_type must be \"PROD\" or \"STAGE\" (case-insensitive); got {raw:?}"
             ))
         })?;
@@ -665,7 +665,7 @@ fn resolve_direct_config(
     }
     if let Some(raw) = streaming_type {
         let environment = config::StreamingEnvironment::parse(raw).ok_or_else(|| {
-            InvalidParameterError::new_err(format!(
+            PyValueError::new_err(format!(
                 "streaming_type must be \"PROD\" or \"DEV\" (case-insensitive); got {raw:?}"
             ))
         })?;
