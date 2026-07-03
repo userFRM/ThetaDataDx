@@ -167,9 +167,10 @@ fn join_dispatcher_with_wake(
 /// with [`ThreadsafeFunctionCallMode::Blocking`] and a bounded call queue
 /// ([`crate::STREAMING_CALLBACK_QUEUE_DEPTH`]). When the queue fills, the
 /// dispatcher thread blocks INSIDE `call` waiting for the Node main thread to
-/// drain it. Teardown (`stopStreaming` / `Drop` / `reconnect`) runs on that
-/// same Node main thread and joins the dispatcher; the main thread is therefore
-/// parked in the join and can never drain the queue, so the blocked `call`
+/// drain it. A synchronous teardown (`stopStreaming`, or a drop that runs on the
+/// JS thread) can run on that same Node main thread and join the dispatcher; the
+/// main thread is therefore parked in the join and can never drain the queue, so
+/// the blocked `call`
 /// never returns, the dispatcher never reaches its shutdown exit, and the join
 /// hangs forever. Dropping every `Arc<TsfnCallback>` would normally release the
 /// function, but it cannot here: the blocked consumer is itself holding a clone,
@@ -371,6 +372,10 @@ fn params_from_direct(creds: &RustCredentials, direct: &DirectConfig) -> napi::R
     Ok(FpssParams::from_config(creds, direct))
 }
 
+type InnerSlot = Arc<Mutex<Option<Arc<RustStreamingClient>>>>;
+type CallbackSlot = Arc<Mutex<Option<StreamingCallbackRegistration<TsfnCallback>>>>;
+type DrainedFlags = Arc<Mutex<Vec<Arc<AtomicBool>>>>;
+
 /// Standalone streaming-only client.
 ///
 /// Opens ONLY the streaming TLS transport, no historical data channel, no
@@ -394,7 +399,7 @@ pub struct StreamingClient {
     params: FpssParams,
     /// Currently-open inner streaming client. `None` between construction and
     /// `startStreaming`, and after `stopStreaming` / `shutdown`.
-    inner: Mutex<Option<Arc<RustStreamingClient>>>,
+    inner: InnerSlot,
     /// Most recently registered JS callback, behind an `Arc` so the
     /// dispatcher closure can hold its own ref-counted clone. Retained
     /// across `startStreaming` so `reconnect()` can re-register the same
@@ -402,7 +407,7 @@ pub struct StreamingClient {
     /// `stopStreaming` / `shutdown` so a teardown the application has
     /// already observed releases the napi reference back to V8 — the same
     /// explicit-handoff model as the unified [`crate::Client`].
-    callback: Mutex<Option<StreamingCallbackRegistration<TsfnCallback>>>,
+    callback: CallbackSlot,
     /// Monotonic identity for each standalone start. Reconnect intentionally
     /// reuses the same `ThreadsafeFunction`, so pointer identity alone cannot
     /// distinguish overlapping reconnect attempts.
@@ -411,7 +416,7 @@ pub struct StreamingClient {
     /// yet drained. Mirrors the unified client's `prev_drained` field:
     /// stacked stop/start cycles can layer multiple in-flight ring
     /// consumers, and `awaitDrain` waits for all of them.
-    prev_drained: Mutex<Vec<Arc<AtomicBool>>>,
+    prev_drained: DrainedFlags,
     /// Dispatcher thread lifecycle. Panic state is set two ways: a
     /// teardown (`stopStreaming` / `Drop`) derives it from
     /// `JoinHandle::join()` returning `Err(_)`, and the dispatcher thread
@@ -569,6 +574,79 @@ impl StreamingClient {
         }
         let guard = self.lock_inner();
         guard.as_ref().map(Arc::clone)
+    }
+
+    fn stop_streaming_slots(
+        inner: InnerSlot,
+        callback: CallbackSlot,
+        dispatcher: Arc<Mutex<DispatcherSession>>,
+        prev_drained: DrainedFlags,
+    ) {
+        // Take the client and stored callback out under the binding mutexes,
+        // then release both before signalling shutdown so a dispatcher
+        // re-entering any method via the callback never sees a lock held.
+        let (taken_client, prev_session) = {
+            let mut cb_guard = callback
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let taken = inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .take();
+            *cb_guard = None;
+            let session = std::mem::replace(
+                &mut *dispatcher
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner),
+                DispatcherSession::Idle,
+            );
+            (taken, session)
+        };
+        if let Some(client) = taken_client {
+            prev_drained
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push(client.drained_flag());
+            client.shutdown();
+            drop(client);
+            if let DispatcherSession::Running {
+                handle,
+                on_teardown,
+                ..
+            } = prev_session
+            {
+                if handle.thread().id() != std::thread::current().id() {
+                    // Signal-grace-wake-join. `client.shutdown()` above signals
+                    // the ring; a dispatcher parked there exits on its own and
+                    // is joined without ever firing the hook. Only if it is
+                    // still blocked off the ring after the grace window — parked
+                    // inside the `Blocking` tsfn `call` because the bounded
+                    // callback queue is full — does the hook abort the function.
+                    // That abort makes the dispatcher resume, see the shutdown,
+                    // and let the join return. Avoiding the hook on the normal
+                    // path keeps the function reusable across the common
+                    // `reconnect()` (see the constant docs above).
+                    if let Err(payload) = join_dispatcher_with_wake(handle, on_teardown) {
+                        let reason = panic_reason(payload.as_ref());
+                        let mut guard = dispatcher
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
+                        if matches!(*guard, DispatcherSession::Idle) {
+                            *guard = DispatcherSession::Failed { reason };
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn stop_streaming_impl(&self) {
+        Self::stop_streaming_slots(
+            Arc::clone(&self.inner),
+            Arc::clone(&self.callback),
+            Arc::clone(&self.dispatcher),
+            Arc::clone(&self.prev_drained),
+        );
     }
 
     /// Run a closure with a borrow of the live streaming client, rejecting with
@@ -1112,64 +1190,7 @@ impl StreamingClient {
     /// Lock ordering: `callback` BEFORE `inner`, matching `startStreaming`.
     #[napi(js_name = "stopStreaming")]
     pub fn stop_streaming(&self) {
-        // Take the client and stored callback out under the binding mutexes,
-        // then release both before signalling shutdown so a dispatcher
-        // re-entering any method via the callback never sees a lock held.
-        let (taken_client, prev_session) = {
-            let mut cb_guard = self.lock_callback();
-            let taken = self.lock_inner().take();
-            *cb_guard = None;
-            let session = std::mem::replace(&mut *self.lock_dispatcher(), DispatcherSession::Idle);
-            (taken, session)
-        };
-        if let Some(client) = taken_client {
-            self.prev_drained
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .push(client.drained_flag());
-            client.shutdown();
-            drop(client);
-            if let DispatcherSession::Running {
-                handle,
-                on_teardown,
-                ..
-            } = prev_session
-            {
-                if handle.thread().id() != std::thread::current().id() {
-                    // Signal-grace-wake-join. `client.shutdown()` above signals
-                    // the ring; a dispatcher parked there exits on its own and
-                    // is joined without ever firing the hook. Only if it is
-                    // still blocked off the ring after the grace window — parked
-                    // inside the `Blocking` tsfn `call` because the bounded
-                    // callback queue is full, which the Node main thread running
-                    // this `stopStreaming` cannot drain while it is about to
-                    // join — does the hook fire and abort the threadsafe
-                    // function so the blocked `call` returns `Status::Closing`,
-                    // the dispatcher resumes, sees the shutdown, and the join
-                    // completes. Firing the abort only as a fallback keeps the
-                    // function reusable across the common `reconnect()` (see
-                    // `join_dispatcher_with_wake`).
-                    if let Err(payload) = join_dispatcher_with_wake(handle, on_teardown) {
-                        // Record the panic reason so `isStreaming()` /
-                        // `isAuthenticated()` report the failed state if
-                        // streaming is restarted without re-checking. Record it
-                        // ONLY if the slot is still `Idle`: the dispatcher lock
-                        // was released across the join, so a concurrent restart
-                        // may have installed a fresh `Running` in that window.
-                        // The panic belongs to the superseded OLD session;
-                        // overwriting unconditionally would clobber the new
-                        // session's handle and falsely fail a healthy live
-                        // session. Matches the FFI `join_extracted_session`
-                        // guard.
-                        let reason = panic_reason(payload.as_ref());
-                        let mut guard = self.lock_dispatcher();
-                        if matches!(*guard, DispatcherSession::Idle) {
-                            *guard = DispatcherSession::Failed { reason };
-                        }
-                    }
-                }
-            }
-        }
+        self.stop_streaming_impl();
     }
 
     /// Alias for `stopStreaming`. Mirrors the unified client's split surface
@@ -1208,9 +1229,19 @@ impl StreamingClient {
         let (per_contract, full_stream) =
             self.with_live(|c| Ok((c.active_subscriptions(), c.active_full_subscriptions())))?;
 
-        // Stop + restart under the same callback. The restart re-runs the
-        // streaming connect and authentication handshake off the libuv thread.
-        self.stop_streaming();
+        // Stop + restart under the same callback. The old session's teardown
+        // can join a dispatcher thread, so run it on a blocking worker before
+        // starting the fresh connection.
+        let inner = Arc::clone(&self.inner);
+        let callback = Arc::clone(&self.callback);
+        let dispatcher = Arc::clone(&self.dispatcher);
+        let prev_drained = Arc::clone(&self.prev_drained);
+        runtime()?
+            .spawn_blocking(move || {
+                Self::stop_streaming_slots(inner, callback, dispatcher, prev_drained)
+            })
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("reconnect teardown panicked: {e}")))?;
         ensure_callback_open(&stored)?;
         let generation = self.start_with_callback(stored).await?;
 
@@ -1287,10 +1318,10 @@ impl StreamingClient {
     fn from_params(params: FpssParams) -> Self {
         Self {
             params,
-            inner: Mutex::new(None),
-            callback: Mutex::new(None),
+            inner: Arc::new(Mutex::new(None)),
+            callback: Arc::new(Mutex::new(None)),
             next_callback_generation: AtomicU64::new(1),
-            prev_drained: Mutex::new(Vec::new()),
+            prev_drained: Arc::new(Mutex::new(Vec::new())),
             dispatcher: Arc::new(Mutex::new(DispatcherSession::Idle)),
         }
     }
@@ -1528,11 +1559,12 @@ mod teardown_deadlock_tests {
     //! [`crate::TsfnCallback`] via a `Blocking`
     //! [`call`](napi::threadsafe_function::ThreadsafeFunction::call) against a
     //! bounded call queue. Once the queue fills, the dispatcher blocks INSIDE
-    //! `call` waiting for the Node main thread to drain it. Teardown
-    //! (`stopStreaming` / `Drop` / `reconnect`) runs on that same Node main
-    //! thread and JOINS the dispatcher, so the main thread is parked in the join
-    //! and can never drain the queue: the blocked `call` never returns, the
-    //! dispatcher never exits, and the join hangs forever.
+    //! `call` waiting for the Node main thread to drain it. A synchronous
+    //! teardown (`stopStreaming`, or a drop that runs on the JS thread) can run
+    //! on that same Node main thread and JOIN the dispatcher, so the main
+    //! thread is parked in the join and can never drain the queue: the blocked
+    //! `call` never returns, the dispatcher never exits, and the join hangs
+    //! forever.
     //!
     //! The fix gives the dispatcher an `on_teardown` wake hook
     //! ([`super::abort_hook`]) that aborts the threadsafe function so the
