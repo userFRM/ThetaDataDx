@@ -657,19 +657,21 @@ impl StockHistoryEodBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match eod_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match eod_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -964,19 +966,21 @@ impl StockHistoryOhlcBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -1246,19 +1250,21 @@ impl StockHistoryTradeBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -1554,19 +1560,21 @@ impl StockHistoryQuoteBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match quote_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -1860,19 +1868,21 @@ impl StockHistoryTradeQuoteBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeQuoteTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_quote_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::TradeQuoteTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match trade_quote_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -2075,19 +2085,21 @@ impl StockAtTimeTradeBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -2290,19 +2302,21 @@ impl StockAtTimeQuoteBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match quote_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -2786,19 +2800,21 @@ impl OptionListContractsBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::OptionContract as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match option_contracts_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::OptionContract as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match option_contracts_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -4989,19 +5005,21 @@ impl OptionHistoryEodBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match eod_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match eod_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -5354,19 +5372,21 @@ impl OptionHistoryOhlcBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -5719,19 +5739,21 @@ impl OptionHistoryTradeBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -6107,19 +6129,21 @@ impl OptionHistoryQuoteBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match quote_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -6496,19 +6520,21 @@ impl OptionHistoryTradeQuoteBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeQuoteTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_quote_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::TradeQuoteTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match trade_quote_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -6812,19 +6838,21 @@ impl OptionHistoryOpenInterestBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::OpenInterestTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match open_interest_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::OpenInterestTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match open_interest_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -7211,19 +7239,21 @@ impl OptionHistoryGreeksEodBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksEodTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match greeks_eod_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::GreeksEodTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match greeks_eod_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -7671,19 +7701,21 @@ impl OptionHistoryGreeksAllBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksAllTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match greeks_all_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::GreeksAllTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match greeks_all_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -8130,19 +8162,21 @@ impl OptionHistoryTradeGreeksAllBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksAllTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_greeks_all_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksAllTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match trade_greeks_all_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -8590,19 +8624,21 @@ impl OptionHistoryGreeksFirstOrderBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksFirstOrderTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match greeks_first_order_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::GreeksFirstOrderTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match greeks_first_order_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -9049,19 +9085,21 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksFirstOrderTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_greeks_first_order_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksFirstOrderTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match trade_greeks_first_order_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -9509,19 +9547,21 @@ impl OptionHistoryGreeksSecondOrderBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksSecondOrderTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match greeks_second_order_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::GreeksSecondOrderTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match greeks_second_order_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -9968,19 +10008,21 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksSecondOrderTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_greeks_second_order_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksSecondOrderTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match trade_greeks_second_order_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -10428,19 +10470,21 @@ impl OptionHistoryGreeksThirdOrderBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksThirdOrderTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match greeks_third_order_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::GreeksThirdOrderTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match greeks_third_order_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -10887,19 +10931,21 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksThirdOrderTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_greeks_third_order_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksThirdOrderTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match trade_greeks_third_order_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -11346,19 +11392,21 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::IvTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match iv_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::IvTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match iv_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -11804,19 +11852,21 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksImpliedVolatilityTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_greeks_implied_volatility_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksImpliedVolatilityTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match trade_greeks_implied_volatility_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -12097,19 +12147,21 @@ impl OptionAtTimeTradeBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -12388,19 +12440,21 @@ impl OptionAtTimeQuoteBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match quote_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -12909,19 +12963,21 @@ impl IndexHistoryEodBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match eod_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match eod_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -13157,19 +13213,21 @@ impl IndexHistoryOhlcBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -13441,19 +13499,21 @@ impl IndexHistoryPriceBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::PriceTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match price_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::PriceTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match price_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -13625,19 +13685,21 @@ impl IndexAtTimePriceBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::IndexPriceAtTimeTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match index_price_at_time_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::IndexPriceAtTimeTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match index_price_at_time_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -13974,19 +14036,21 @@ impl InterestRateHistoryEodBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::InterestRateTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match interest_rate_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::InterestRateTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match interest_rate_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {
@@ -14242,19 +14306,21 @@ impl StockHistoryOhlcRangeBuilder {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
-                Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
-                        Ok(list) => list,
-                        Err(e) => {
+                tokio::task::block_in_place(|| {
+                    Python::attach(|py| {
+                        let owned: Vec<_> = chunk.to_vec();
+                        let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
+                        let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
+                            Ok(list) => list,
+                            Err(e) => {
+                                *cb_err_for_closure.lock().unwrap() = Some(e);
+                                return;
+                            }
+                        };
+                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
-                            return;
                         }
-                    };
-                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {
-                        *cb_err_for_closure.lock().unwrap() = Some(e);
-                    }
+                    });
                 });
             }).await
         }, move |py, ()| {

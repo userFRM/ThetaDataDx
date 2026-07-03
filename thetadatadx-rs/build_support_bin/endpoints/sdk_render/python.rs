@@ -1036,9 +1036,11 @@ fn write_sync_stream_terminal(
 }
 
 /// Emit the `stream_async(handler)` async terminal — awaitable variant
-/// of [`write_sync_stream_terminal`]. `handler` is invoked synchronously
-/// on the tokio worker thread (under the GIL via `Python::attach`); the
-/// awaitable resolves to `None` on clean drain, raises on first error.
+/// of [`write_sync_stream_terminal`]. `handler` runs once per gRPC chunk
+/// under the GIL via `Python::attach`, wrapped in `block_in_place` so the
+/// GIL-holding call is lifted off the shared runtime worker and cannot
+/// stall other concurrent historical requests; the awaitable resolves to
+/// `None` on clean drain, raises on first error.
 ///
 /// Same PyErr-folding strategy as the sync path: the chunk closure
 /// stashes a captured PyErr inside an `Arc<Mutex<Option<PyErr>>>` so
@@ -1075,33 +1077,44 @@ fn write_async_stream_terminal(
     out.push_str("                if cb_err_for_closure.lock().unwrap().is_some() {\n");
     out.push_str("                    return;\n");
     out.push_str("                }\n");
-    out.push_str("                Python::attach(|py| {\n");
-    out.push_str("                    let owned: Vec<_> = chunk.to_vec();\n");
+    // The chunk closure is polled on a shared runtime worker. Building the
+    // pylist and calling the handler both hold the GIL and can be slow, so
+    // wrap them in `block_in_place`: it hands this worker's other tasks to a
+    // sibling thread for the duration, keeping the pool at capacity so a slow
+    // handler cannot stall the h2 tasks serving other concurrent historical
+    // requests. The sync `stream()` path needs no equivalent — it drives the
+    // stream on the caller's own thread via `run_blocking`, never a worker.
+    out.push_str("                tokio::task::block_in_place(|| {\n");
+    out.push_str("                    Python::attach(|py| {\n");
+    out.push_str("                        let owned: Vec<_> = chunk.to_vec();\n");
     // Per-chunk handler gets a plain pylist of rows; the chunk carries no
     // header list, so wrap with the full-schema column set.
     writeln!(
         out,
-        "                    let owned = thetadatadx::Ticks::new(owned, <tick::{} as thetadatadx::WireColumns>::all_columns());",
+        "                        let owned = thetadatadx::Ticks::new(owned, <tick::{} as thetadatadx::WireColumns>::all_columns());",
         python_pyclass_row_class(&endpoint.return_type)
     )
     .unwrap();
     writeln!(
         out,
-        "                    let py_list = match {}(py, owned) {{",
+        "                        let py_list = match {}(py, owned) {{",
         pylist_converter
     )
     .unwrap();
-    out.push_str("                        Ok(list) => list,\n");
-    out.push_str("                        Err(e) => {\n");
-    out.push_str("                            *cb_err_for_closure.lock().unwrap() = Some(e);\n");
-    out.push_str("                            return;\n");
-    out.push_str("                        }\n");
-    out.push_str("                    };\n");
+    out.push_str("                            Ok(list) => list,\n");
+    out.push_str("                            Err(e) => {\n");
     out.push_str(
-        "                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {\n",
+        "                                *cb_err_for_closure.lock().unwrap() = Some(e);\n",
     );
-    out.push_str("                        *cb_err_for_closure.lock().unwrap() = Some(e);\n");
-    out.push_str("                    }\n");
+    out.push_str("                                return;\n");
+    out.push_str("                            }\n");
+    out.push_str("                        };\n");
+    out.push_str(
+        "                        if let Err(e) = handler_for_closure.call1(py, (py_list,)) {\n",
+    );
+    out.push_str("                            *cb_err_for_closure.lock().unwrap() = Some(e);\n");
+    out.push_str("                        }\n");
+    out.push_str("                    });\n");
     out.push_str("                });\n");
     out.push_str("            }).await\n");
     out.push_str("        }, move |py, ()| {\n");
