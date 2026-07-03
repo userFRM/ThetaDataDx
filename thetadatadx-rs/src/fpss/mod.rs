@@ -2325,11 +2325,9 @@ impl StreamingClient {
             ),
         };
         // Untrack-on-unsubscribe is terminal: send, then remove the tracked
-        // entry and evict the in-flight correlation for this identity for the
-        // same reason as the per-contract unsubscribe — the removed entry is
-        // no longer live, so a late rejection of its subscribe must not
-        // survive to untrack a future re-subscribe of the same
-        // `(kind, sec_type)` by value.
+        // entry and evict its in-flight correlations under a single held
+        // `pending_subs` lock, indivisible against a same-identity re-subscribe
+        // for the same reason as the per-contract unsubscribe.
         if unsubscribe {
             self.send_cmd(IoCommand::WriteFrame { code, payload })?;
             tracing::debug!(
@@ -2338,15 +2336,11 @@ impl StreamingClient {
                 unsubscribe,
                 "sent full-stream unsubscribe frame"
             );
-            self.active_full_subs
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .retain(|(k, s, _)| !(*k == kind_for_track && *s == sec_type));
-            io_loop::evict_pending_for_identity(
-                &mut self
-                    .pending_subs
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner),
+            io_loop::untrack_identity_on_unsubscribe(
+                &self.pending_subs,
+                &self.active_full_subs,
+                kind_for_track,
+                &sec_type,
                 &protocol::PendingSub::Full(kind_for_track, sec_type),
             );
             return Ok(());
@@ -2475,29 +2469,18 @@ impl StreamingClient {
 
         self.send_cmd(IoCommand::WriteFrame { code, payload })?;
 
-        // Remove from tracked subscriptions
-        {
-            let mut subs = self
-                .active_subs
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            subs.retain(|(k, c, _)| !(k == &kind && c == contract));
-        }
-
-        // Evict any in-flight correlation for this identity. The removed entry
-        // is no longer live, so a late rejection of the subscribe that created
-        // it must not survive to untrack a future re-subscribe of the same
-        // `(kind, contract)` by value.
-        {
-            let mut pending = self
-                .pending_subs
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            io_loop::evict_pending_for_identity(
-                &mut pending,
-                &protocol::PendingSub::Contract(kind, contract.clone()),
-            );
-        }
+        // Remove the tracked entry and evict its in-flight correlations under a
+        // single held `pending_subs` lock, so the pair is indivisible against a
+        // same-identity re-subscribe: splitting the two would let a re-subscribe
+        // install a fresh reference and correlation in the gap that this
+        // unsubscribe would then evict, stranding a phantom active reference.
+        io_loop::untrack_identity_on_unsubscribe(
+            &self.pending_subs,
+            &self.active_subs,
+            kind,
+            contract,
+            &protocol::PendingSub::Contract(kind, contract.clone()),
+        );
 
         tracing::debug!(
             req_id,

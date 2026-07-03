@@ -197,6 +197,36 @@ pub(in crate::fpss) fn track_inflight_subscribe<T: PartialEq>(
     );
 }
 
+/// Fully untrack an identity on unsubscribe: drop every tracked reference for
+/// `(kind, key)` and evict its in-flight correlations, both under a single held
+/// `pending_subs` lock.
+///
+/// The two mutations are indivisible against a same-identity re-subscribe (via
+/// [`track_inflight_subscribe`], which also holds `pending_subs` across its
+/// reference bump and correlation insert). Were the tracked-set removal and the
+/// correlation eviction taken under two separate locks, a re-subscribe could
+/// slip between them, install a fresh reference and correlation, and then this
+/// unsubscribe would evict the fresh correlation — leaving a phantom active
+/// reference that a later rollback or rejection can no longer find, replayed
+/// forever on reconnect. The tracked-set mutex is nested inside `pending_subs`,
+/// matching every other identity mutation.
+pub(in crate::fpss) fn untrack_identity_on_unsubscribe<T: PartialEq>(
+    pending_subs: &PendingSubs,
+    active: &Mutex<Vec<(super::protocol::SubscriptionKind, T, u32)>>,
+    kind: super::protocol::SubscriptionKind,
+    key: &T,
+    identity: &super::protocol::PendingSub,
+) {
+    let mut pending = pending_subs
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    active
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .retain(|(k, x, _)| !(*k == kind && x == key));
+    evict_pending_for_identity(&mut pending, identity);
+}
+
 /// Drop one reference from the tracked entry for `(kind, key)`, removing the
 /// entry only once its last reference is gone.
 pub(in crate::fpss) fn dec_active<T: PartialEq>(
@@ -208,6 +238,38 @@ pub(in crate::fpss) fn dec_active<T: PartialEq>(
         subs[pos].2 -= 1;
         if subs[pos].2 == 0 {
             subs.remove(pos);
+        }
+    }
+}
+
+/// Drop one reference from whichever tracked set a resolved pending correlation
+/// names. The caller must already hold `pending_subs` so the correlation
+/// removal and this reference drop are one indivisible mutation of the
+/// identity; the relevant tracked-set mutex is taken (and released) here,
+/// nested inside that held `pending_subs` lock.
+fn dec_active_for_pending_sub(
+    sub: &super::protocol::PendingSub,
+    active_subs: &ActiveSubs,
+    active_full_subs: &ActiveFullSubs,
+) {
+    match sub {
+        super::protocol::PendingSub::Contract(kind, contract) => {
+            dec_active(
+                &mut active_subs
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner),
+                *kind,
+                contract,
+            );
+        }
+        super::protocol::PendingSub::Full(kind, sec_type) => {
+            dec_active(
+                &mut active_full_subs
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner),
+                *kind,
+                sec_type,
+            );
         }
     }
 }
@@ -430,12 +492,16 @@ fn apply_req_response(
     active_subs: &ActiveSubs,
     active_full_subs: &ActiveFullSubs,
 ) {
-    let pending = pending_subs
+    // Hold `pending_subs` across both the correlation removal and the reference
+    // drop so the pair is indivisible against a same-identity unsubscribe +
+    // re-subscribe: releasing the lock between them would let a re-subscribe
+    // install a fresh reference in the gap that this stale rejection would then
+    // drop by value. The tracked-set mutex is nested inside `pending_subs`,
+    // matching `track_inflight_subscribe` and the reconnect snapshot+clear.
+    let mut pending = pending_subs
         .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .remove(&req_id);
-
-    let Some(pending) = pending else {
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let Some(entry) = pending.remove(&req_id) else {
         return;
     };
 
@@ -443,26 +509,7 @@ fn apply_req_response(
         return;
     }
 
-    match pending.sub {
-        super::protocol::PendingSub::Contract(kind, contract) => {
-            dec_active(
-                &mut active_subs
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner),
-                kind,
-                &contract,
-            );
-        }
-        super::protocol::PendingSub::Full(kind, sec_type) => {
-            dec_active(
-                &mut active_full_subs
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner),
-                kind,
-                &sec_type,
-            );
-        }
-    }
+    dec_active_for_pending_sub(&entry.sub, active_subs, active_full_subs);
     tracing::debug!(
         req_id,
         result = ?result,
@@ -518,26 +565,7 @@ pub(in crate::fpss) fn untrack_unsent_subscribe(
     let Some(entry) = pending.remove(&req_id) else {
         return;
     };
-    match entry.sub {
-        super::protocol::PendingSub::Contract(kind, contract) => {
-            dec_active(
-                &mut active_subs
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner),
-                kind,
-                &contract,
-            );
-        }
-        super::protocol::PendingSub::Full(kind, sec_type) => {
-            dec_active(
-                &mut active_full_subs
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner),
-                kind,
-                &sec_type,
-            );
-        }
-    }
+    dec_active_for_pending_sub(&entry.sub, active_subs, active_full_subs);
 }
 
 // Reason: all parameters are moved into this function from a spawned thread closure.
@@ -3240,6 +3268,75 @@ mod tests {
             pending_subs.lock().unwrap().len(),
             2,
             "each subscribe records its own correlation"
+        );
+    }
+
+    /// An unsubscribe drops the tracked entry and evicts its in-flight
+    /// correlation as one operation under a single `pending_subs` lock hold, so
+    /// a concurrent same-identity re-subscribe cannot slip between the two and
+    /// have its fresh correlation evicted while its reference survives.
+    ///
+    /// The offline harness cannot force the precise two-thread deschedule that a
+    /// split-lock version would need to strand a phantom reference, so this
+    /// asserts the atomicity structurally: `untrack_identity_on_unsubscribe` is
+    /// the one path that removes both, and it leaves neither behind. A stale
+    /// correlation for a different identity is untouched.
+    #[test]
+    fn untrack_identity_on_unsubscribe_removes_reference_and_correlation_together() {
+        use super::super::protocol::{PendingSub, SubscriptionKind};
+        use std::collections::HashMap;
+
+        let gone = Contract::stock("AAPL");
+        let kept = Contract::stock("MSFT");
+        let active_subs: ActiveSubs = Arc::new(Mutex::new(vec![
+            (SubscriptionKind::Trade, gone.clone(), 1),
+            (SubscriptionKind::Trade, kept.clone(), 1),
+        ]));
+        let pending_subs: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
+        pending_subs.lock().unwrap().insert(
+            1,
+            PendingSubEntry {
+                sub: PendingSub::Contract(SubscriptionKind::Trade, gone.clone()),
+                recorded_at: std::time::Instant::now(),
+            },
+        );
+        pending_subs.lock().unwrap().insert(
+            2,
+            PendingSubEntry {
+                sub: PendingSub::Contract(SubscriptionKind::Trade, kept.clone()),
+                recorded_at: std::time::Instant::now(),
+            },
+        );
+
+        untrack_identity_on_unsubscribe(
+            &pending_subs,
+            &active_subs,
+            SubscriptionKind::Trade,
+            &gone,
+            &PendingSub::Contract(SubscriptionKind::Trade, gone.clone()),
+        );
+
+        let subs = active_subs.lock().unwrap();
+        assert!(
+            !subs.iter().any(|(_, c, _)| *c == gone),
+            "the unsubscribed identity's reference must be gone"
+        );
+        assert!(
+            subs.iter().any(|(_, c, _)| *c == kept),
+            "another identity's reference must survive"
+        );
+        let pending = pending_subs.lock().unwrap();
+        assert!(
+            !pending
+                .values()
+                .any(|e| e.sub == PendingSub::Contract(SubscriptionKind::Trade, gone.clone())),
+            "the unsubscribed identity's correlation must be evicted"
+        );
+        assert!(
+            pending
+                .values()
+                .any(|e| e.sub == PendingSub::Contract(SubscriptionKind::Trade, kept.clone())),
+            "another identity's correlation must survive"
         );
     }
 
