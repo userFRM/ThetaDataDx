@@ -431,9 +431,9 @@ impl Config {
     /// Set the default per-request deadline (in seconds) for historical
     /// queries. Bounds every request that did not call
     /// ``with_deadline(...)``, so a live-but-silent stream resolves to a
-    /// timeout instead of blocking forever. ``0`` disables the default
-    /// (no deadline unless the caller sets one). Default is ``300``
-    /// (5 minutes).
+    /// timeout instead of blocking forever. ``0`` no longer disables the
+    /// default: it is floored to the ``300``-second default at request time,
+    /// so the deadline always applies. Default is ``300`` (5 minutes).
     ///
     /// Examples
     /// --------
@@ -445,8 +445,9 @@ impl Config {
         guard.historical.request_timeout_secs = secs;
     }
 
-    /// Current historical ``request_timeout_secs`` setting (``0`` = no
-    /// default deadline).
+    /// Current historical ``request_timeout_secs`` setting. A stored ``0``
+    /// is floored to the ``300``-second default at request time rather than
+    /// disabling the deadline.
     #[getter]
     fn get_request_timeout_secs(&self) -> u64 {
         let guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());

@@ -1435,6 +1435,21 @@ mod config_file {
     }
 }
 
+/// Serialise every test that reads or writes process env. `std::env` is a
+/// process-global singleton, so the config env-matrix tests and the
+/// `client_builder` tests that call `try_production()` must share one mutex
+/// or they trample each other under `cargo test -- --test-threads=N`. Crate
+/// visible so both suites take the same guard. Held for the full body of each
+/// env test.
+#[cfg(test)]
+pub(crate) fn env_test_guard() -> std::sync::MutexGuard<'static, ()> {
+    use std::sync::{Mutex, OnceLock};
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2430,18 +2445,6 @@ mod tests {
         assert_eq!(p.max_attempts, 1);
         assert_eq!(p.delay_for_attempt(1), Duration::ZERO);
         assert!(!p.jitter);
-    }
-
-    // `std::env` is a process-global singleton; the env-var tests use a
-    // single mutex so they don't trample each other under
-    // `cargo test -- --test-threads=N`. Each test keeps hold of the
-    // guard for the duration of the config build + assertions.
-    fn env_test_guard() -> std::sync::MutexGuard<'static, ()> {
-        use std::sync::{Mutex, OnceLock};
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
-            .lock()
-            .unwrap_or_else(|poison| poison.into_inner())
     }
 
     fn clear_env_matrix() {

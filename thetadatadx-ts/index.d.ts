@@ -466,14 +466,16 @@ export declare class Config {
    * Set the default per-request deadline (seconds) for historical
    * queries. Bounds every request that did not set its own deadline,
    * so a live-but-silent stream resolves to a timeout instead of
-   * blocking forever. `0n` disables the default. Default `300n`
+   * blocking forever. `0n` no longer disables the default; it is floored
+   * to the `300n`-second default at request time. Default `300n`
    * (5 minutes). Seconds are taken as a `BigInt` for parity with the
    * other `*Secs` knobs.
    */
   setRequestTimeoutSecs(secs: bigint): void
   /**
    * Current historical `request_timeout_secs` setting in seconds
-   * (default `300n`; `0n` = no default deadline).
+   * (default `300n`). A stored `0n` is floored to the `300n`-second
+   * default at request time rather than disabling the deadline.
    */
   get requestTimeoutSecs(): bigint
   /** Current `retry.initial_delay` value (ms, returned as BigInt). */

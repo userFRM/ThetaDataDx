@@ -1354,23 +1354,26 @@ on a config handle.
 Bounds every request that did not call `with_deadline(...)`, so a
 live-but-silent stream resolves to a timeout instead of blocking
 forever (the gRPC keepalive PING only detects a fully dead peer).
-`secs = 0` disables the default (no deadline unless the caller sets
-one). Default `300`.
+`secs = 0` no longer disables the default: it is floored to the
+`300`-second default at request time, so the deadline always applies.
+Reach for the per-call `with_deadline(...)` opt-out to run a single
+request with no deadline. Default `300`.
 """
 cpp_doc = """
 Set the default per-request deadline (seconds) for historical queries.
 
 Bounds every request that did not set its own deadline, so a
 live-but-silent stream resolves to a timeout instead of blocking
-forever. @p secs = 0 disables the default. Default is `300`.
+forever. @p secs = 0 no longer disables the default; it is floored to
+the `300`-second default at request time. Default is `300`.
 """
 py_doc = """
 Set the default per-request deadline (in seconds) for historical
 queries. Bounds every request that did not call
 ``with_deadline(...)``, so a live-but-silent stream resolves to a
-timeout instead of blocking forever. ``0`` disables the default
-(no deadline unless the caller sets one). Default is ``300``
-(5 minutes).
+timeout instead of blocking forever. ``0`` no longer disables the
+default: it is floored to the ``300``-second default at request time,
+so the deadline always applies. Default is ``300`` (5 minutes).
 
 Examples
 --------
@@ -1381,7 +1384,8 @@ ts_doc = """
 Set the default per-request deadline (seconds) for historical
 queries. Bounds every request that did not set its own deadline,
 so a live-but-silent stream resolves to a timeout instead of
-blocking forever. `0n` disables the default. Default `300n`
+blocking forever. `0n` no longer disables the default; it is floored
+to the `300n`-second default at request time. Default `300n`
 (5 minutes). Seconds are taken as a `BigInt` for parity with the
 other `*Secs` knobs.
 """
@@ -1396,7 +1400,8 @@ abi_type = "u64"
 path = "historical.request_timeout_secs"
 doc = """
 Read the current historical `request_timeout_secs` setting (default
-`300`; `0` = no default deadline).
+`300`). A stored `0` is floored to the `300`-second default at request
+time rather than disabling the deadline.
 
 Writes the configured value into `*out`. Returns `0` on success,
 `-1` if either pointer is null.
@@ -1404,17 +1409,19 @@ Writes the configured value into `*out`. Returns `0` on success,
 cpp_doc = """
 Read the current historical `request_timeout_secs` setting.
 
-Returns the configured seconds (`0` = no default deadline), or
-`0` on a null handle (matching the C ABI's `-1` failure mapping
-at the boundary).
+Returns the configured seconds (a stored `0` is floored to the
+`300`-second default at request time), or `0` on a null handle
+(matching the C ABI's `-1` failure mapping at the boundary).
 """
 py_doc = """
-Current historical ``request_timeout_secs`` setting (``0`` = no
-default deadline).
+Current historical ``request_timeout_secs`` setting. A stored ``0``
+is floored to the ``300``-second default at request time rather than
+disabling the deadline.
 """
 ts_doc = """
 Current historical `request_timeout_secs` setting in seconds
-(default `300n`; `0n` = no default deadline).
+(default `300n`). A stored `0n` is floored to the `300n`-second
+default at request time rather than disabling the deadline.
 """
 
 

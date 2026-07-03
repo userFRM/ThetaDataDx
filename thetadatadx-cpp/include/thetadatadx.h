@@ -2043,14 +2043,14 @@ int32_t thetadatadx_config_get_warn_on_buffered_threshold_bytes(const ThetaDataD
  * live-but-silent stream resolves to a timeout instead of blocking
  * forever.
  * @param config Config handle to mutate; no-op when NULL.
- * @param secs Deadline in seconds; 0 disables the default. Default 300.
+ * @param secs Deadline in seconds; 0 no longer disables the default, it is floored to the 300-second default at request time. Default 300.
  */
 void thetadatadx_config_set_request_timeout_secs(ThetaDataDxConfig* config, uint64_t secs);
 
 /**
  * Read the current historical request_timeout_secs setting.
  * @param config Config handle to read.
- * @param out Receives the configured seconds on success (0 = no default deadline).
+ * @param out Receives the configured seconds on success (a stored 0 is floored to the 300-second default at request time).
  * @return 0 on success, -1 if either pointer is null.
  */
 int32_t thetadatadx_config_get_request_timeout_secs(const ThetaDataDxConfig* config, uint64_t* out);

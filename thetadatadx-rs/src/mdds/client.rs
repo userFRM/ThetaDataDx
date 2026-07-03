@@ -98,6 +98,16 @@ impl HistoricalClient {
     ///
     /// Returns an error on network, authentication, or parsing failure.
     pub async fn connect(creds: &Credentials, config: DirectConfig) -> Result<Self, Error> {
+        // Belt-and-braces: run the config invariants here, the single funnel
+        // every historical connect path routes through (`Client::connect`,
+        // `connect_with_api_key`, the builder's `EnvSource::Config`, and this
+        // constructor directly). The typed construction paths do not all run
+        // `validate`, so a hand-built config could otherwise drive the
+        // historical channel with an out-of-range `max_message_size` (an
+        // unbounded decode budget) or a zero port. Mirrors the streaming-side
+        // re-check at `StreamingClient::connect`. Idempotent when the caller
+        // already validated.
+        let config = config.validate()?;
         // Step 1: Authenticate against Nexus API using the configured URL
         // (env-var / builder overridable). `config.auth.nexus_url` already
         // reflects that precedence via `DirectConfig::production()`.

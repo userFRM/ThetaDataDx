@@ -468,6 +468,12 @@ mod tests {
     /// happy-path tests can assert the composed `Credentials` and
     /// `DirectConfig` shape directly.
     fn resolve(b: ClientBuilder) -> Result<(Credentials, DirectConfig), Error> {
+        // `env.resolve()` reads the process-global env via `try_production()`.
+        // The config env-matrix suite mutates the same variables under its own
+        // guard, so share that guard here to serialise the two suites; held
+        // only for the env read, since the returned `DirectConfig` is already
+        // materialised before any assertion runs.
+        let _guard = crate::config::env_test_guard();
         let auth = b.auth.expect("auth set").into_resolved_source()?;
         let creds = auth.resolve()?;
         let config = b.env.resolve()?;
