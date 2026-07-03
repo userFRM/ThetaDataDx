@@ -2136,6 +2136,8 @@ public:
         // ordering invariant above the member declarations below.
         : callback_(std::move(other.callback_)),
           handle_(std::move(other.handle_)) {}
+    ~Client() { close(); }
+
     /** Move-assign. The receiver may already hold a live streaming
      *  session whose consumer thread is invoking through the callback
      *  node. Drain the consumer before releasing the node, the same
