@@ -332,9 +332,17 @@ impl StreamView {
     /// Clears the registered callback. To resume streaming, start streaming again with a freshly bound callback -- reconnect will fail because no callback is held. See the reconnect docs for the rationale: the callback is released at the same scope boundary the application observes, so a stopped session never retains a captured reference past a teardown the caller has already seen.
     #[napi(js_name = "stopStreaming")]
     pub fn stop_streaming(&self) {
+        let previous_callback = {
+            let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            guard.as_ref().map(Arc::clone)
+        };
         self.client.stream().stop_streaming();
-        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
-        *guard = None;
+        if let Some(previous_callback) = previous_callback {
+            let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            if guard.as_ref().is_some_and(|cb| Arc::ptr_eq(cb, &previous_callback)) {
+                *guard = None;
+            }
+        }
     }
 
     /// Shut down the streaming connection.
@@ -342,9 +350,17 @@ impl StreamView {
     /// On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as stopping the stream); reconnect will then fail until the caller starts streaming again with a freshly bound callback. The C++ binding preserves the underlying connection's behaviour.
     #[napi(js_name = "shutdown")]
     pub fn shutdown(&self) {
+        let previous_callback = {
+            let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            guard.as_ref().map(Arc::clone)
+        };
         self.client.stream().stop_streaming();
-        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
-        *guard = None;
+        if let Some(previous_callback) = previous_callback {
+            let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            if guard.as_ref().is_some_and(|cb| Arc::ptr_eq(cb, &previous_callback)) {
+                *guard = None;
+            }
+        }
     }
 
     /// Block until the previous streaming session's consumer thread has finished firing the registered callback. Returns true if the drain completed within the timeout, false otherwise.
