@@ -439,10 +439,12 @@ impl SubscriptionAccess {
 /// `None` — no client yet — advertises only [`OFFLINE_TOOL_NAMES`], matching
 /// what `tools/call` can serve offline. `Some(access)` advertises every tool
 /// whose asset class the subscription grants plus the always-available tools
-/// (`ping`, the trading calendar, the multi-asset flat-file dispatcher), so
-/// `tools/list` never offers a tool the account cannot call. That is both a
-/// correctness win and sharper tool selection for the LLM, which no longer
-/// picks tools that only ever return a not-subscribed error.
+/// (`ping`, the trading calendar). The multi-asset flat-file dispatcher is
+/// advertised only when the account holds a flat-file-eligible subscription
+/// (stock or option), so `tools/list` never offers a tool the account cannot
+/// call. That is both a correctness win and sharper tool selection for the
+/// LLM, which no longer picks tools that only ever return a not-subscribed
+/// error.
 ///
 /// Gating is per asset class only. The upstream per-endpoint minimum-tier
 /// matrix (`x-min-subscription` in scripts/ci/data/upstream_openapi.yaml) is
@@ -465,6 +467,15 @@ fn tool_definitions_for(access: Option<SubscriptionAccess>) -> Vec<Value> {
         .filter(|tool| {
             tool_name(tool).is_some_and(|name| match tool_asset_class(name) {
                 Some(class) => access.allows(class),
+                // The multi-asset flat-file dispatcher validates asset class
+                // per call, so advertise it only to an account with at least
+                // one flat-file-eligible subscription (stock and option are
+                // the only classes with flat files). An index- or rate-only
+                // account is then never offered a flat-file tool it can serve
+                // for no class at all.
+                None if name == flatfile_tools::FLATFILE_DISPATCHER_TOOL => {
+                    access.stock || access.option
+                }
                 None => true,
             })
         })
@@ -1934,6 +1945,8 @@ mod tests {
         assert!(stock_only.contains("stock_history_eod"));
         assert!(stock_only.contains("thetadatadx_flatfile_stock_eod"));
         assert!(stock_only.contains("ping"));
+        // Stock is flat-file-eligible, so the multi-asset dispatcher stays.
+        assert!(stock_only.contains(flatfile_tools::FLATFILE_DISPATCHER_TOOL));
         assert!(!stock_only.contains("option_history_greeks_eod"));
         assert!(!stock_only.contains("thetadatadx_flatfile_option_trade_quote"));
 
@@ -1946,8 +1959,23 @@ mod tests {
         })));
         assert!(option_only.contains("option_history_greeks_eod"));
         assert!(option_only.contains("thetadatadx_flatfile_option_trade_quote"));
+        assert!(option_only.contains(flatfile_tools::FLATFILE_DISPATCHER_TOOL));
         assert!(!option_only.contains("stock_history_eod"));
         assert!(!option_only.contains("thetadatadx_flatfile_stock_eod"));
+
+        // Interest-rate only: no flat-file-eligible class, so the multi-asset
+        // dispatcher is withheld too — the account cannot serve it for any
+        // class. Rate tools stay; the always-available `ping` stays.
+        let rate_only = tool_names(&tool_definitions_for(Some(SubscriptionAccess {
+            stock: false,
+            option: false,
+            index: false,
+            interest_rate: true,
+        })));
+        assert!(rate_only.contains("ping"));
+        assert!(!rate_only.contains(flatfile_tools::FLATFILE_DISPATCHER_TOOL));
+        assert!(!rate_only.contains("thetadatadx_flatfile_stock_eod"));
+        assert!(!rate_only.contains("thetadatadx_flatfile_option_trade_quote"));
 
         // Every class subscribed advertises the complete surface.
         assert_eq!(
