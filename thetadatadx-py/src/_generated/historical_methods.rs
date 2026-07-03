@@ -606,14 +606,12 @@ impl StockHistoryEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match eod_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match eod_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -654,7 +652,7 @@ impl StockHistoryEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -665,8 +663,7 @@ impl StockHistoryEodBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -918,14 +915,12 @@ impl StockHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match ohlc_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -989,7 +984,7 @@ impl StockHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -1000,8 +995,7 @@ impl StockHistoryOhlcBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -1232,14 +1226,12 @@ impl StockHistoryTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -1299,7 +1291,7 @@ impl StockHistoryTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -1310,8 +1302,7 @@ impl StockHistoryTradeBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -1564,14 +1555,12 @@ impl StockHistoryQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match quote_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -1635,7 +1624,7 @@ impl StockHistoryQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -1646,8 +1635,7 @@ impl StockHistoryQuoteBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -1898,14 +1886,12 @@ impl StockHistoryTradeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeQuoteTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_quote_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_quote_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -1969,7 +1955,7 @@ impl StockHistoryTradeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -1980,8 +1966,7 @@ impl StockHistoryTradeQuoteBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::TradeQuoteTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -2159,14 +2144,12 @@ impl StockAtTimeTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -2212,7 +2195,7 @@ impl StockAtTimeTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -2223,8 +2206,7 @@ impl StockAtTimeTradeBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -2402,14 +2384,12 @@ impl StockAtTimeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match quote_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -2455,7 +2435,7 @@ impl StockAtTimeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -2466,8 +2446,7 @@ impl StockAtTimeQuoteBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -2924,14 +2903,12 @@ impl OptionListContractsBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::OptionContract as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match option_contracts_vec_to_pylist(py, owned) {
+                    let py_list = match option_contracts_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -2979,7 +2956,7 @@ impl OptionListContractsBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -2990,8 +2967,7 @@ impl OptionListContractsBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::OptionContract as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -5145,14 +5121,12 @@ impl OptionHistoryEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match eod_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match eod_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -5210,7 +5184,7 @@ impl OptionHistoryEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -5221,8 +5195,7 @@ impl OptionHistoryEodBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -5523,14 +5496,12 @@ impl OptionHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match ohlc_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -5603,7 +5574,7 @@ impl OptionHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -5614,8 +5585,7 @@ impl OptionHistoryOhlcBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -5916,14 +5886,12 @@ impl OptionHistoryTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -5996,7 +5964,7 @@ impl OptionHistoryTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -6007,8 +5975,7 @@ impl OptionHistoryTradeBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -6328,14 +6295,12 @@ impl OptionHistoryQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match quote_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -6412,7 +6377,7 @@ impl OptionHistoryQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -6423,8 +6388,7 @@ impl OptionHistoryQuoteBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -6745,14 +6709,12 @@ impl OptionHistoryTradeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeQuoteTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_quote_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_quote_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -6829,7 +6791,7 @@ impl OptionHistoryTradeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -6840,8 +6802,7 @@ impl OptionHistoryTradeQuoteBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::TradeQuoteTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -7101,14 +7062,12 @@ impl OptionHistoryOpenInterestBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::OpenInterestTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match open_interest_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match open_interest_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -7173,7 +7132,7 @@ impl OptionHistoryOpenInterestBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -7184,8 +7143,7 @@ impl OptionHistoryOpenInterestBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::OpenInterestTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -7515,14 +7473,12 @@ impl OptionHistoryGreeksEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksEodTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match greeks_eod_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match greeks_eod_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -7600,7 +7556,7 @@ impl OptionHistoryGreeksEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -7611,8 +7567,7 @@ impl OptionHistoryGreeksEodBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::GreeksEodTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -7992,14 +7947,12 @@ impl OptionHistoryGreeksAllBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksAllTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match greeks_all_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match greeks_all_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -8088,7 +8041,7 @@ impl OptionHistoryGreeksAllBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -8099,8 +8052,7 @@ impl OptionHistoryGreeksAllBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::GreeksAllTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -8479,14 +8431,12 @@ impl OptionHistoryTradeGreeksAllBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksAllTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_greeks_all_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_greeks_all_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -8575,7 +8525,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -8586,8 +8536,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::TradeGreeksAllTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -8967,14 +8916,12 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksFirstOrderTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match greeks_first_order_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match greeks_first_order_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -9063,7 +9010,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -9074,8 +9021,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::GreeksFirstOrderTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -9454,14 +9400,12 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksFirstOrderTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_greeks_first_order_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_greeks_first_order_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -9550,7 +9494,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -9561,8 +9505,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::TradeGreeksFirstOrderTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -9942,14 +9885,12 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksSecondOrderTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match greeks_second_order_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match greeks_second_order_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -10038,7 +9979,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -10049,8 +9990,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::GreeksSecondOrderTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -10429,14 +10369,12 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksSecondOrderTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_greeks_second_order_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_greeks_second_order_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -10525,7 +10463,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -10536,8 +10474,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::TradeGreeksSecondOrderTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -10917,14 +10854,12 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::GreeksThirdOrderTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match greeks_third_order_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match greeks_third_order_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -11013,7 +10948,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -11024,8 +10959,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::GreeksThirdOrderTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -11404,14 +11338,12 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksThirdOrderTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_greeks_third_order_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_greeks_third_order_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -11500,7 +11432,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -11511,8 +11443,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::TradeGreeksThirdOrderTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -11891,14 +11822,12 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::IvTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match iv_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match iv_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -11987,7 +11916,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -11998,8 +11927,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::IvTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -12377,14 +12305,12 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksImpliedVolatilityTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_greeks_implied_volatility_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_greeks_implied_volatility_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -12473,7 +12399,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -12484,8 +12410,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::TradeGreeksImpliedVolatilityTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -12728,14 +12653,12 @@ impl OptionAtTimeTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match trade_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match trade_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -12794,7 +12717,7 @@ impl OptionAtTimeTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -12805,8 +12728,7 @@ impl OptionAtTimeTradeBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -13047,14 +12969,12 @@ impl OptionAtTimeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match quote_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match quote_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -13113,7 +13033,7 @@ impl OptionAtTimeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -13124,8 +13044,7 @@ impl OptionAtTimeQuoteBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -13614,14 +13533,12 @@ impl IndexHistoryEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match eod_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match eod_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -13662,7 +13579,7 @@ impl IndexHistoryEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -13673,8 +13590,7 @@ impl IndexHistoryEodBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -13878,14 +13794,12 @@ impl IndexHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match ohlc_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -13938,7 +13852,7 @@ impl IndexHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -13949,8 +13863,7 @@ impl IndexHistoryOhlcBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -14183,14 +14096,12 @@ impl IndexHistoryPriceBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::PriceTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match price_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match price_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -14250,7 +14161,7 @@ impl IndexHistoryPriceBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -14261,8 +14172,7 @@ impl IndexHistoryPriceBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::PriceTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -14413,14 +14323,12 @@ impl IndexAtTimePriceBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::IndexPriceAtTimeTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match index_price_at_time_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match index_price_at_time_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -14462,7 +14370,7 @@ impl IndexAtTimePriceBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -14473,8 +14381,7 @@ impl IndexAtTimePriceBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::IndexPriceAtTimeTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -14791,14 +14698,12 @@ impl InterestRateHistoryEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::InterestRateTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match interest_rate_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match interest_rate_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -14839,7 +14744,7 @@ impl InterestRateHistoryEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -14850,8 +14755,7 @@ impl InterestRateHistoryEodBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::InterestRateTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
@@ -15071,14 +14975,12 @@ impl StockHistoryOhlcRangeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream(|chunk| {
+            request.stream_ticks(|chunk| {
                 if cb_err_for_closure.lock().unwrap().is_some() {
                     return;
                 }
                 Python::attach(|py| {
-                    let owned: Vec<_> = chunk.to_vec();
-                    let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
-                    let py_list = match ohlc_ticks_vec_to_pylist(py, owned) {
+                    let py_list = match ohlc_ticks_vec_to_pylist(py, chunk) {
                         Ok(list) => list,
                         Err(e) => {
                             *cb_err_for_closure.lock().unwrap() = Some(e);
@@ -15135,7 +15037,7 @@ impl StockHistoryOhlcRangeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -15146,8 +15048,7 @@ impl StockHistoryOhlcRangeBuilder {
                 let owned = if cb_err_for_closure.lock().unwrap().is_some() {
                     None
                 } else {
-                    let owned: Vec<_> = chunk.to_vec();
-                    Some(thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns()))
+                    Some(chunk)
                 };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);

@@ -722,7 +722,7 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
         }
     }
 
-    // Bind the callback behind an `Arc`: the `FnMut(&[Tick]) + Send` chunk
+    // Bind the callback behind an `Arc`: the chunk
     // closure the core `request.stream` takes captures the handle, and
     // `ThreadsafeFunction` is `Send + Sync` but does not implement `Clone`
     // in napi-rs 3.x — the outer `Arc` is the canonical share path (same as
@@ -781,7 +781,7 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
         "                request = request.with_deadline(std::time::Duration::from_millis(ms));\n",
     );
     out.push_str("            }\n");
-    // Per-chunk: convert the decoder-owned `&[Tick]` to the typed napi row
+    // Per-chunk: convert the decoder-owned rows to the typed napi row
     // array, hand it to the `ThreadsafeFunction`, and await the JS callback
     // result before the next chunk is fetched. `call_async_catch` turns a
     // thrown JS handler error into `Err(napi::Error)` instead of routing it
@@ -791,13 +791,17 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
         "            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);\n",
     );
     out.push_str("            let stream_result = request\n");
-    out.push_str("                .stream_async(move |chunk| {\n");
+    out.push_str("                .stream_ticks_async(move |chunk| {\n");
     out.push_str("                    let callback = std::sync::Arc::clone(&callback);\n");
     out.push_str("                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);\n");
     out.push_str("                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {\n");
     out.push_str("                        None\n");
     out.push_str("                    } else {\n");
-    writeln!(out, "                        Some({vec_converter}(chunk))").unwrap();
+    writeln!(
+        out,
+        "                        Some({vec_converter}(chunk.as_slice()))"
+    )
+    .unwrap();
     out.push_str("                    };\n");
     out.push_str("                    async move {\n");
     out.push_str("                        let Some(rows) = rows else { return; };\n");
@@ -899,7 +903,7 @@ mod tests {
         let rendered = render_typescript_endpoint_stream_method(&stock_history_eod_endpoint());
 
         assert!(rendered.contains("spawn_napi_task(async move"));
-        assert!(rendered.contains(".stream_async(move |chunk|"));
+        assert!(rendered.contains(".stream_ticks_async(move |chunk|"));
         assert!(rendered.contains("callback.call_async_catch(rows).await"));
         assert!(rendered.contains("let callback_error ="));
         assert!(!rendered.contains("callback.call(rows"));

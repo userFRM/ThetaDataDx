@@ -115,41 +115,32 @@ pub(super) fn render_ts_tick_classes(schema: &Schema) -> String {
         out.push_str(BIGINT_TO_I64_HELPER);
         out.push('\n');
     }
-    // Arrow-IPC terminals per columnar tick type: the full-schema
+    // Arrow-IPC terminals per tick type: the full-schema
     // `<tick>ToArrowIpc(rows)` for a hand-built row vector, plus the decode-fed
     // projected pair `<tick>PresentColumns(headers)` + `<tick>ToArrowIpcProjected(rows, presentColumns, symbol?)`
     // that mirror the C ABI `thetadatadx_<tick>_present_columns` /
     // `_to_arrow_ipc_projected` and Python's projected `<TickName>List.to_arrow()`.
-    if sorted_type_names(schema)
-        .iter()
-        .any(|t| **t != *"OptionContract")
-    {
+    if !sorted_type_names(schema).is_empty() {
         out.push_str(ARROW_BATCH_TO_IPC_HELPER);
         out.push('\n');
     }
     for type_name in sorted_type_names(schema) {
         let def = &schema.types[type_name];
-        if let Some(rendered) = render_ts_tick_arrow_ipc(type_name, def) {
-            out.push_str(&rendered);
-            out.push('\n');
-        }
+        let rendered = render_ts_tick_arrow_ipc(type_name, def);
+        out.push_str(&rendered);
+        out.push('\n');
     }
     out
 }
 
-/// Emit the Arrow-IPC terminals for one columnar tick type: the private
+/// Emit the Arrow-IPC terminals for one tick type: the private
 /// `<tick>_reconstruct_rows` helper (JS objects -> `Vec<tick::T>`), the
 /// full-schema `<tick>ToArrowIpc(rows)`, the `<tick>PresentColumns(headers)`
 /// wire-column producer, and the decode-fed `<tick>ToArrowIpcProjected(rows,
 /// presentColumns, symbol?)`. The projected pair mirrors the C ABI
 /// `thetadatadx_<tick>_present_columns` / `_to_arrow_ipc_projected` and
-/// Python's projected `<TickName>List.to_arrow()`. Returns `None` for
-/// non-columnar types (`OptionContract` carries a heap string and ships no
-/// Arrow terminal, matching the C++ / FFI surface).
-fn render_ts_tick_arrow_ipc(type_name: &str, def: &TickTypeDef) -> Option<String> {
-    if type_name == "OptionContract" {
-        return None;
-    }
+/// Python's projected `<TickName>List.to_arrow()`.
+fn render_ts_tick_arrow_ipc(type_name: &str, def: &TickTypeDef) -> String {
     let snake = type_name.to_snake_case();
     let mut out = String::new();
     out.push_str(&render_ts_arrow_reconstruct_rows(type_name, def));
@@ -275,7 +266,7 @@ fn render_ts_tick_arrow_ipc(type_name: &str, def: &TickTypeDef) -> Option<String
     out.push_str("        .map_err(|e| napi::Error::from_reason(format!(\"arrow conversion failed: {e}\")))?;\n");
     out.push_str("    arrow_batch_to_ipc_buffer(&batch)\n");
     out.push_str("}\n");
-    Some(out)
+    out
 }
 
 /// Emit the private `<tick>_reconstruct_rows(rows: Vec<Tick>) ->

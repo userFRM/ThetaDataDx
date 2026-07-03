@@ -213,6 +213,16 @@ const EXIT_DRAIN_TIMEOUT_MS = 5000;
 // finds the wrapper's dispose, not anything on the native binding.
 const WRAPPER_OWN = new Set(['_client', 'constructor']);
 
+function isClosedClientError(err) {
+  return err instanceof Error && /client is closed/.test(err.message);
+}
+
+function closedClientError() {
+  return new StreamError(
+    'client is closed; construct a new client to make further calls',
+  );
+}
+
 // apache-arrow is loaded lazily so it is only required by callers that
 // actually consume the columnar `batches()` reader. The per-tick
 // `*ToArrowIpc` exports likewise hand back raw IPC buffers and leave the
@@ -329,6 +339,17 @@ function streamOrNull(client) {
   }
 }
 
+function streamOrClosed(client) {
+  try {
+    return { stream: client.stream, closed: false };
+  } catch (err) {
+    if (isClosedClientError(err)) {
+      return { stream: null, closed: true };
+    }
+    return { stream: null, closed: false };
+  }
+}
+
 /**
  * Resolve the object that carries the streaming lifecycle methods
  * (`stopStreaming` / `awaitDrain`) for either client kind, or null when
@@ -386,10 +407,13 @@ class StreamingSession {
         // `session.activeSubscriptions()` keep working, then fall back to
         // the methods that stay on `Client` (e.g. `sessionUuid`,
         // `subscriptionInfo`, `activeFullSubscriptions`).
-        const stream = streamOrNull(client);
+        const { stream, closed } = streamOrClosed(client);
         if (stream && prop in stream) {
           const value = stream[prop];
           return typeof value === 'function' ? value.bind(stream) : value;
+        }
+        if (!(prop in client) && closed && typeof prop === 'string') {
+          throw closedClientError();
         }
         const value = client[prop];
         // Bind methods to the underlying instance so `this` resolves

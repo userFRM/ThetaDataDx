@@ -17,22 +17,21 @@ ThetaDataDx connects directly to ThetaData's servers — nothing to install and 
 # Cargo.toml
 [dependencies]
 thetadatadx = "13.0.0-rc.14"
-tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
-The historical client is async; `tokio` provides the runtime.
+The historical client is async; call it from your application's async runtime.
 
 </template>
 
 <template #python>
 
 ```bash
-pip install thetadatadx
+pip install --pre thetadatadx
 
 # Optional DataFrame adapters:
-pip install thetadatadx[pandas]    # pandas
-pip install thetadatadx[polars]    # polars
-pip install thetadatadx[arrow]     # pyarrow only
+pip install --pre "thetadatadx[pandas]"    # pandas
+pip install --pre "thetadatadx[polars]"    # polars
+pip install --pre "thetadatadx[arrow]"     # pyarrow only
 ```
 
 Requires Python 3.12+. Pre-built `abi3` wheels for Linux x86_64, macOS, and Windows — no Rust toolchain needed. On other platforms, build from source with [maturin](https://www.maturin.rs/) (`maturin develop --release` in `thetadatadx-py`).
@@ -42,7 +41,7 @@ Requires Python 3.12+. Pre-built `abi3` wheels for Linux x86_64, macOS, and Wind
 <template #typescript>
 
 ```bash
-npm install thetadatadx
+npm install thetadatadx@next
 ```
 
 Requires Node.js 20+. Pre-built native binaries install automatically per platform.
@@ -578,8 +577,7 @@ thetadatadx-server --creds creds.txt &
 ```rust
 use thetadatadx::Client;
 
-#[tokio::main]
-async fn main() -> Result<(), thetadatadx::Error> {
+async fn run() -> Result<(), thetadatadx::Error> {
     // Pass your API key directly. Add .stage() before .connect() for staging.
     let client = Client::builder().api_key("your_api_key").connect().await?;
 

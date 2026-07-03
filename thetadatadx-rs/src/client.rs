@@ -1442,10 +1442,12 @@ impl Client {
     /// Returns `false` on timeout. The poll cadence is 1 ms — drain is
     /// a low-latency event in practice (single-digit milliseconds for
     /// a non-backlogged ring); the worst case is bounded by the user
-    /// callback's wall-clock budget on the slowest in-flight tick.
+    /// callback's wall-clock budget on the slowest in-flight tick. An
+    /// extreme timeout whose absolute deadline cannot be represented is
+    /// treated as unbounded rather than panicking.
     #[must_use]
     pub(crate) fn await_drain(&self, timeout: Duration) -> bool {
-        let deadline = Instant::now() + timeout;
+        let deadline = Instant::now().checked_add(timeout);
         loop {
             let all_drained = {
                 let mut guard = self
@@ -1462,7 +1464,7 @@ impl Client {
             if all_drained {
                 return true;
             }
-            if Instant::now() >= deadline {
+            if deadline.is_some_and(|d| Instant::now() >= d) {
                 return false;
             }
             std::thread::sleep(Duration::from_millis(1));

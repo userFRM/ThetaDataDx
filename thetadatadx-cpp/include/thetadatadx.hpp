@@ -465,6 +465,26 @@ std::vector<T> to_vector(const T* data, size_t len) {
     return std::vector<T>(data, data + len);
 }
 
+template<typename Arr, typename Free>
+class FfiArrayGuard {
+public:
+    FfiArrayGuard(Arr arr, Free free_fn) noexcept
+        : arr_(arr), free_fn_(free_fn), active_(true) {}
+    FfiArrayGuard(const FfiArrayGuard&) = delete;
+    FfiArrayGuard& operator=(const FfiArrayGuard&) = delete;
+    ~FfiArrayGuard() {
+        if (active_) {
+            free_fn_(arr_);
+        }
+    }
+    void dismiss() noexcept { active_ = false; }
+
+private:
+    Arr arr_;
+    Free free_fn_;
+    bool active_;
+};
+
 // Convert an FFI array to `vector<T>`, throwing on FFI error.
 //
 // `convert` maps the array to rows (it must NOT free — this helper owns the
@@ -475,13 +495,14 @@ std::vector<T> to_vector(const T* data, size_t len) {
 // FFI call so a stale error from a prior call isn't misattributed.
 template<typename T, typename Arr, typename Convert, typename Free>
 std::vector<T> check_tick_array(Arr arr, Convert convert, Free free_fn) {
+    FfiArrayGuard<Arr, Free> guard(arr, free_fn);
     const std::string err = last_ffi_error_raw();
     if (!err.empty()) {
         const int32_t code = thetadatadx_last_error_code();
-        free_fn(arr);
         throw_for_code(code, err);
     }
     auto result = convert(arr);
+    guard.dismiss();
     free_fn(arr);
     return result;
 }
@@ -587,8 +608,8 @@ inline constexpr std::chrono::seconds kReclaimQuiescenceCap{300};
 /// calling (move / replace) path never blocks on the drain.
 template <typename IsDrained, typename Release>
 inline void reclaim_after_drain(IsDrained is_drained, Release release) {
-    std::thread([is_drained = std::move(is_drained),
-                 release = std::move(release)]() mutable {
+    auto worker = [is_drained = std::move(is_drained),
+                   release = std::move(release)]() mutable {
         const auto deadline = std::chrono::steady_clock::now() + kReclaimQuiescenceCap;
         while (!is_drained()) {
             if (std::chrono::steady_clock::now() >= deadline) {
@@ -615,7 +636,19 @@ inline void reclaim_after_drain(IsDrained is_drained, Release release) {
         // dereference of the retired node, so dropping it now cannot be
         // observed as a use-after-free.
         release();
-    }).detach();
+    };
+    try {
+        std::thread(std::move(worker)).detach();
+    } catch (...) {
+        // Thread creation failure must not escape noexcept teardown paths that
+        // call this helper. Leak the worker and the retired storage it owns so
+        // any still-running callback keeps a valid ctx rather than seeing the
+        // storage destroyed on this stack.
+        try {
+            new decltype(worker)(std::move(worker));
+        } catch (...) {
+        }
+    }
 }
 
 } // namespace detail
@@ -1762,6 +1795,9 @@ public:
      *  into the shared `CallbackState`, both the `Client` and this view see
      *  it afterward. */
     void set_callback(std::function<void(const StreamEvent&)> fn) {
+        if (!handle_ || !callback_) {
+            detail::throw_for_code(THETADATADX_ERR_STREAM, "client is closed");
+        }
         // Replacing a live registration: stop the session and wait for the
         // consumer thread to stop firing through the old node. Matches the
         // C ABI's replace-allowed contract, which requires that a fresh

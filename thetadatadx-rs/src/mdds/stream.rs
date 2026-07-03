@@ -14,6 +14,7 @@
 //!   processing multi-million-row responses.
 
 use std::future::Future;
+use std::ops::ControlFlow;
 
 use crate::util::stream_ext::StreamNextExt;
 
@@ -23,6 +24,21 @@ use crate::grpc::ServerStreaming;
 use crate::proto;
 
 use super::client::HistoricalClient;
+
+pub(crate) fn chunk_columns<T: crate::columns::WireColumns>(
+    table: &proto::DataTable,
+) -> crate::columns::ColumnPresence {
+    let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
+    let columns = T::present_columns(&header_refs);
+    if columns.contains("symbol") {
+        return columns;
+    }
+    match super::decode::extract::response_symbol(table) {
+        super::decode::extract::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol),
+        super::decode::extract::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols),
+        super::decode::extract::ResponseSymbol::Absent => columns,
+    }
+}
 
 impl HistoricalClient {
     /// Collect all streamed `ResponseData` chunks into a single `DataTable`.
@@ -134,11 +150,26 @@ impl HistoricalClient {
     /// Returns an error on network, authentication, or parsing failure.
     pub async fn for_each_chunk<F>(
         &self,
-        mut stream: ServerStreaming<proto::ResponseData>,
+        stream: ServerStreaming<proto::ResponseData>,
         mut f: F,
     ) -> Result<(), Error>
     where
         F: FnMut(&[String], &[proto::DataValueList]),
+    {
+        self.for_each_chunk_control(stream, |headers, rows| {
+            f(headers, rows);
+            ControlFlow::Continue(())
+        })
+        .await
+    }
+
+    pub(crate) async fn for_each_chunk_control<F>(
+        &self,
+        mut stream: ServerStreaming<proto::ResponseData>,
+        mut f: F,
+    ) -> Result<(), Error>
+    where
+        F: FnMut(&[String], &[proto::DataValueList]) -> ControlFlow<()>,
     {
         // Preserve first-chunk headers across all chunks, matching
         // collect_stream behavior. Reject any mid-stream chunk whose
@@ -157,7 +188,9 @@ impl HistoricalClient {
             } else {
                 &table.headers
             };
-            f(headers, &table.data_table);
+            if f(headers, &table.data_table).is_break() {
+                break;
+            }
             chunk_index += 1;
         }
         Ok(())
@@ -190,12 +223,31 @@ impl HistoricalClient {
     /// (including `decode::DecodeError::ChunkHeaderDrift`).
     pub async fn for_each_chunk_async<F, Fut>(
         &self,
-        mut stream: ServerStreaming<proto::ResponseData>,
+        stream: ServerStreaming<proto::ResponseData>,
         mut f: F,
     ) -> Result<(), Error>
     where
         F: FnMut(Vec<String>, Vec<proto::DataValueList>) -> Fut,
         Fut: Future<Output = ()>,
+    {
+        self.for_each_chunk_async_control(stream, |headers, rows| {
+            let fut = f(headers, rows);
+            async move {
+                fut.await;
+                ControlFlow::Continue(())
+            }
+        })
+        .await
+    }
+
+    pub(crate) async fn for_each_chunk_async_control<F, Fut>(
+        &self,
+        mut stream: ServerStreaming<proto::ResponseData>,
+        mut f: F,
+    ) -> Result<(), Error>
+    where
+        F: FnMut(Vec<String>, Vec<proto::DataValueList>) -> Fut,
+        Fut: Future<Output = ControlFlow<()>>,
     {
         let mut saved_headers: Option<Vec<String>> = None;
         let mut chunk_index: usize = 0;
@@ -214,7 +266,9 @@ impl HistoricalClient {
             } else {
                 headers
             };
-            f(headers, data_table).await;
+            if f(headers, data_table).await.is_break() {
+                break;
+            }
             chunk_index += 1;
         }
         Ok(())
@@ -404,6 +458,47 @@ mod streaming_decode_contract {
             ),
             "drift source must be ChunkHeaderDrift at chunk_index 2, got {src:?}"
         );
+    }
+
+    #[test]
+    fn chunk_columns_project_wire_columns_and_symbol() {
+        let table = proto::DataTable {
+            headers: vec![
+                "symbol".to_string(),
+                "ms_of_day".to_string(),
+                "sequence".to_string(),
+                "price".to_string(),
+                "date".to_string(),
+            ],
+            data_table: vec![proto::DataValueList {
+                values: vec![
+                    proto::DataValue {
+                        data_type: Some(proto::data_value::DataType::Text("SPY".into())),
+                    },
+                    proto::DataValue {
+                        data_type: Some(proto::data_value::DataType::Number(34_200_000)),
+                    },
+                    proto::DataValue {
+                        data_type: Some(proto::data_value::DataType::Number(1)),
+                    },
+                    proto::DataValue {
+                        data_type: Some(proto::data_value::DataType::Number(50_125)),
+                    },
+                    proto::DataValue {
+                        data_type: Some(proto::data_value::DataType::Number(20_260_701)),
+                    },
+                ],
+            }],
+        };
+        let columns = chunk_columns::<crate::TradeTick>(&table);
+        assert!(columns.contains("ms_of_day"));
+        assert!(columns.contains("sequence"));
+        assert!(columns.contains("price"));
+        assert!(columns.contains("date"));
+        assert!(!columns.contains("expiration"));
+        assert!(!columns.contains("strike"));
+        assert!(!columns.contains("right"));
+        assert_eq!(columns.symbol(), Some("SPY"));
     }
 
     #[tokio::test]

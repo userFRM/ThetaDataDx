@@ -54,6 +54,67 @@ pub(super) fn render_ffi_endpoint_request_options(params: &[GeneratedParam]) -> 
     out.push_str("    /// Presence flag for `timeout_ms`; set to `1` to apply the deadline.\n");
     out.push_str("    pub has_timeout_ms: i32,\n");
     out.push_str("}\n\n");
+    out.push_str(
+        "// Layout drift-guard for the LP64 `#[repr(C)]` ABI contract shared with the C header.\n",
+    );
+    out.push_str("const _: () = {\n");
+    out.push_str(
+        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, venue) == 0);\n",
+    );
+    out.push_str(
+        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, min_time) == 8);\n",
+    );
+    out.push_str(
+        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, interval) == 16);\n",
+    );
+    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, start_time) == 24);\n");
+    out.push_str(
+        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, end_time) == 32);\n",
+    );
+    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, start_date) == 40);\n");
+    out.push_str(
+        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, end_date) == 48);\n",
+    );
+    out.push_str(
+        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, exclusive) == 56);\n",
+    );
+    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_exclusive) == 60);\n");
+    out.push_str(
+        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, strike) == 64);\n",
+    );
+    out.push_str(
+        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, right) == 72);\n",
+    );
+    out.push_str(
+        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, symbol) == 80);\n",
+    );
+    out.push_str(
+        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, max_dte) == 88);\n",
+    );
+    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_max_dte) == 92);\n");
+    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, strike_range) == 96);\n");
+    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_strike_range) == 100);\n");
+    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, annual_dividend) == 104);\n");
+    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_annual_dividend) == 112);\n");
+    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, rate_type) == 120);\n");
+    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, rate_value) == 128);\n");
+    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_rate_value) == 136);\n");
+    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, stock_price) == 144);\n");
+    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_stock_price) == 152);\n");
+    out.push_str(
+        "    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, version) == 160);\n",
+    );
+    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, use_market_value) == 168);\n");
+    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_use_market_value) == 172);\n");
+    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, underlyer_use_nbbo) == 176);\n");
+    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_underlyer_use_nbbo) == 180);\n");
+    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, timeout_ms) == 184);\n");
+    out.push_str("    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_timeout_ms) == 192);\n");
+    out.push_str(
+        "    assert!(core::mem::size_of::<ThetaDataDxEndpointRequestOptions>() == 200);\n",
+    );
+    out.push_str("    assert!(core::mem::align_of::<ThetaDataDxEndpointRequestOptions>() == 8);\n");
+    out.push_str("};\n\n");
     out.push_str("fn apply_endpoint_request_options(\n");
     out.push_str("    args: &mut thetadatadx::EndpointArgs,\n");
     out.push_str("    options: *const ThetaDataDxEndpointRequestOptions,\n");

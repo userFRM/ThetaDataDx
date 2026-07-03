@@ -2,6 +2,11 @@ name: Deploy Docs
 on:
   push:
     branches: [main]
+  pull_request:
+    paths:
+      - "docs-site/**"
+      - ".github/workflows/docs.yml"
+      - ".github/workflows/paths.yml"
   workflow_dispatch:
 permissions:
   contents: read
@@ -11,11 +16,8 @@ concurrency:
   group: "pages"
   cancel-in-progress: false
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -27,7 +29,17 @@ jobs:
       - run: cd docs-site && npm ci
       - run: cd docs-site && npx vitepress build docs
       - uses: actions/upload-pages-artifact@v5
+        if: github.event_name != 'pull_request'
         with:
           path: docs-site/docs/.vitepress/dist
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v5

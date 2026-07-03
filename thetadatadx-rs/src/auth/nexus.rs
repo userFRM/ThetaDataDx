@@ -44,6 +44,7 @@
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroizing;
 
 use super::Credentials;
 use crate::config::HistoricalEnvironment;
@@ -160,6 +161,24 @@ impl<'a> AuthRequest<'a> {
             }
         }
     }
+}
+
+struct SecretJsonBody(Zeroizing<Vec<u8>>);
+
+impl AsRef<[u8]> for SecretJsonBody {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_slice()
+    }
+}
+
+fn auth_request_body_bytes(body: &AuthRequest<'_>) -> Result<bytes::Bytes, Error> {
+    let json = serde_json::to_vec(body).map_err(|e| Error::Auth {
+        kind: crate::error::AuthErrorKind::ServerError,
+        message: format!("failed to encode auth request: {e}"),
+    })?;
+    Ok(bytes::Bytes::from_owner(SecretJsonBody(Zeroizing::new(
+        json,
+    ))))
 }
 
 /// Serialize the auth request body for `environment` using a fixed
@@ -510,7 +529,8 @@ pub async fn authenticate_at(
                 .post(url)
                 .header(TERMINAL_KEY_HEADER, TERMINAL_KEY)
                 .header("Accept", "application/json")
-                .json(&body)
+                .header(reqwest::header::CONTENT_TYPE, "application/json")
+                .body(auth_request_body_bytes(&body)?)
                 .send()
                 .await
             {
@@ -749,6 +769,21 @@ mod tests {
             serde_json::json!({
                 "email": "user@example.com",
                 "password": "hunter2",
+                "authEnv": { "envType": "STAGE" }
+            })
+        );
+    }
+
+    #[test]
+    fn auth_request_body_bytes_match_wire_json() {
+        let creds = Credentials::api_key("secret-key-xyz");
+        let body = AuthRequest::from_credentials(&creds, HistoricalEnvironment::Stage);
+        let bytes = auth_request_body_bytes(&body).unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "apiKey": "secret-key-xyz",
                 "authEnv": { "envType": "STAGE" }
             })
         );

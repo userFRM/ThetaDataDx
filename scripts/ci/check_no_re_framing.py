@@ -60,8 +60,9 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 # doc comments (crates.io + docs.rs), C++ headers and source, Python and
 # its stubs, TypeScript and its declaration files, every flavour of
 # JavaScript module, every `.toml` manifest / schema descriptor, all
-# Markdown (top-level and the docs site), and the CI workflows whose text
-# is echoed into release artifacts. Walking by extension rather than by a
+# Markdown (top-level and the docs site), JSON package metadata / notebooks,
+# and the CI workflows whose text is echoed into release artifacts. Walking
+# by extension rather than by a
 # curated glob list means a new source directory or binding is covered the
 # moment it lands, with no edit to this gate.
 SCAN_EXTENSIONS = frozenset(
@@ -81,6 +82,8 @@ SCAN_EXTENSIONS = frozenset(
         ".cc",
         ".cxx",
         ".md",
+        ".json",
+        ".ipynb",
         ".toml",
         ".yml",
         ".yaml",
@@ -264,8 +267,8 @@ def _scan(root: pathlib.Path) -> list[tuple[pathlib.Path, int, str, str]]:
     for path in _iter_files(root):
         rel = path.relative_to(root)
         try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
             continue
         for lineno, line in enumerate(text.splitlines(), start=1):
             for matched in _scan_line(line):
@@ -284,6 +287,9 @@ def _selftest() -> int:
       a `jar build NNN` provenance comment — must be flagged. This is the
       class of leak that previously evaded the `.rs`-only scan and shipped
       in the crates.io tarball.
+    * A package `description` in `package.json` and notebook markdown cell
+      carrying the same framing — both must be flagged. These public JSON
+      surfaces were outside the previous extension set.
     * A file outside the old hand-picked glob list (`tools/server/src`)
       carrying a hyphenated `Java-terminal` — must be flagged. This proves
       the whole-tree walk plus the hyphen/underscore/whitespace pattern
@@ -321,6 +327,22 @@ def _selftest() -> int:
         'doc = """OHLC tick -- 9 fields.\n'
         "Wire layout verified-live against terminal jar build `202605221`.\n"
         '"""\n'
+    )
+    leaky_package_json = (
+        '{\n'
+        '  "name": "thetadatadx-test",\n'
+        '  "description": "reverse-engineered the Java terminal framing"\n'
+        '}\n'
+    )
+    leaky_notebook = (
+        '{\n'
+        '  "cells": [\n'
+        '    {"cell_type": "markdown", "source": ["Java-terminal framing notes"]}\n'
+        '  ],\n'
+        '  "metadata": {},\n'
+        '  "nbformat": 4,\n'
+        '  "nbformat_minor": 5\n'
+        '}\n'
     )
     # Hyphenated spelling in a tree outside the old curated glob list.
     leaky_hyphen = (
@@ -384,6 +406,14 @@ def _selftest() -> int:
         schema_path.parent.mkdir(parents=True, exist_ok=True)
         schema_path.write_text(leaky_schema, encoding="utf-8")
 
+        package_json_path = root / "thetadatadx-ts" / "package.json"
+        package_json_path.parent.mkdir(parents=True, exist_ok=True)
+        package_json_path.write_text(leaky_package_json, encoding="utf-8")
+
+        notebook_path = root / "docs-site" / "docs" / "example.ipynb"
+        notebook_path.parent.mkdir(parents=True, exist_ok=True)
+        notebook_path.write_text(leaky_notebook, encoding="utf-8")
+
         hyphen_path = root / "tools" / "server" / "src" / "hyphen.rs"
         hyphen_path.parent.mkdir(parents=True, exist_ok=True)
         hyphen_path.write_text(leaky_hyphen, encoding="utf-8")
@@ -428,6 +458,12 @@ def _selftest() -> int:
                 "selftest FAILED: the planted jar-build line in the shipped "
                 "schema descriptor was not flagged"
             )
+            return 1
+        if not [h for h in hits if h[0].name == "package.json"]:
+            print("selftest FAILED: package.json description framing was not flagged")
+            return 1
+        if not [h for h in hits if h[0].name == "example.ipynb"]:
+            print("selftest FAILED: notebook framing was not flagged")
             return 1
         hyphen_hits = [h for h in hits if h[0].name == "hyphen.rs"]
         if not any("terminal" in m.lower() for (_, _, m, _) in hyphen_hits):

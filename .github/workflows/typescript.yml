@@ -206,6 +206,34 @@ jobs:
         with:
           node-version: "20"
           registry-url: "https://registry.npmjs.org"
+      - name: Preflight - tag matches package version
+        working-directory: thetadatadx-ts
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          for dir in npm/*/; do
+            [ -f "${dir}package.json" ] || continue
+            v=$(node -p "require('./${dir}package.json').version")
+            if [ "$v" != "$version" ]; then
+              echo "::error::package version mismatch: ${dir}package.json is ${v}, root package is ${version}"
+              exit 1
+            fi
+          done
+          node <<'JS'
+          const pkg = require('./package.json');
+          const version = pkg.version;
+          for (const [name, depVersion] of Object.entries(pkg.optionalDependencies ?? {})) {
+            if (depVersion !== version) {
+              console.error(`::error::optional dependency ${name} is ${depVersion}, root package is ${version}`);
+              process.exit(1);
+            }
+          }
+          JS
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} does not match TypeScript package version ${version} (expected v${version})"
+            exit 1
+          fi
       - working-directory: thetadatadx-ts
         run: npm install
       - name: Download all artifacts

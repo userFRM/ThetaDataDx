@@ -89,8 +89,8 @@ describe('streaming-session wrapper', () => {
   });
 
   // A closed client throws on the `stream` getter ("client is closed"); the
-  // session's disposer and proxy traps must treat that as no streaming surface
-  // rather than letting the throw escape (issue #1089 MEDIUM).
+  // session's disposer treats that as no streaming surface, while forwarding a
+  // streaming method through the session raises the public typed error.
   function closedClient() {
     return {
       get stream() { throw new Error('client is closed'); },
@@ -111,6 +111,11 @@ describe('streaming-session wrapper', () => {
     // `get` trap: reading a client-own method must not throw and must forward.
     assert.equal(typeof session.someOwnMethod, 'function');
     assert.equal(session.someOwnMethod(), 'ok');
+    assert.throws(
+      () => session.subscribe,
+      (err) => err instanceof mod.StreamError && /client is closed/.test(err.message),
+      'missing streaming methods on a closed client must not become TypeError',
+    );
   });
 
   it('Symbol.asyncDispose tears down a standalone StreamingClient (no .stream view)', async () => {

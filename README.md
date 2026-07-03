@@ -50,7 +50,7 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 Point an AI client (Claude Desktop, Cursor, and others) at the MCP server, no install and no Rust toolchain:
 
 ```json
-{ "command": "npx", "args": ["-y", "thetadatadx-mcp"], "env": { "THETADATA_API_KEY": "your_key" } }
+{ "command": "npx", "args": ["-y", "thetadatadx-mcp@next"], "env": { "THETADATA_API_KEY": "your_key" } }
 ```
 
 C++ ships as a header plus a small implementation file over a prebuilt library (a CMake target wires it up). See the [C++ guide](thetadatadx-cpp/).
@@ -201,14 +201,12 @@ int main() {
 ```toml
 [dependencies]
 thetadatadx = "13.0.0-rc.14"
-tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 ```
 
 ```rust
 use thetadatadx::Client;
 
-#[tokio::main]
-async fn main() -> Result<(), thetadatadx::Error> {
+async fn run() -> Result<(), thetadatadx::Error> {
     // Pass your API key directly. Add .stage() before .connect() for staging.
     let client = Client::builder().api_key("td1_...").connect().await?;
 
@@ -231,7 +229,7 @@ no row-by-row iteration:
 
 ```python
 greeks.to_polars()   # polars.DataFrame
-greeks.to_pandas()   # pandas.DataFrame   (pip install thetadatadx[pandas])
+greeks.to_pandas()   # pandas.DataFrame   (pip install --pre "thetadatadx[pandas]")
 greeks.to_arrow()    # pyarrow.Table      (zero-copy)
 ```
 
@@ -325,7 +323,7 @@ common `ThetaDataError` base.
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md) for where the project is headed. Up next: a [native Go SDK](https://github.com/userFRM/ThetaDataDx/issues/1019) and a [self-updating server](https://github.com/userFRM/ThetaDataDx/issues/957). The MCP server now runs straight from npm — `npx -y thetadatadx-mcp`.
+See [ROADMAP.md](ROADMAP.md) for where the project is headed. Up next: a [native Go SDK](https://github.com/userFRM/ThetaDataDx/issues/1019) and a [self-updating server](https://github.com/userFRM/ThetaDataDx/issues/957). The MCP server now runs straight from npm — `npx -y thetadatadx-mcp@next`.
 
 ## Contributing
 

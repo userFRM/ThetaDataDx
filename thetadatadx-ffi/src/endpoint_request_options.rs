@@ -73,6 +73,42 @@ pub struct ThetaDataDxEndpointRequestOptions {
     pub has_timeout_ms: i32,
 }
 
+// Layout drift-guard for the LP64 `#[repr(C)]` ABI contract shared with the C header.
+const _: () = {
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, venue) == 0);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, min_time) == 8);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, interval) == 16);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, start_time) == 24);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, end_time) == 32);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, start_date) == 40);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, end_date) == 48);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, exclusive) == 56);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_exclusive) == 60);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, strike) == 64);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, right) == 72);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, symbol) == 80);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, max_dte) == 88);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_max_dte) == 92);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, strike_range) == 96);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_strike_range) == 100);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, annual_dividend) == 104);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_annual_dividend) == 112);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, rate_type) == 120);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, rate_value) == 128);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_rate_value) == 136);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, stock_price) == 144);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_stock_price) == 152);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, version) == 160);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, use_market_value) == 168);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_use_market_value) == 172);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, underlyer_use_nbbo) == 176);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_underlyer_use_nbbo) == 180);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, timeout_ms) == 184);
+    assert!(core::mem::offset_of!(ThetaDataDxEndpointRequestOptions, has_timeout_ms) == 192);
+    assert!(core::mem::size_of::<ThetaDataDxEndpointRequestOptions>() == 200);
+    assert!(core::mem::align_of::<ThetaDataDxEndpointRequestOptions>() == 8);
+};
+
 fn apply_endpoint_request_options(
     args: &mut thetadatadx::EndpointArgs,
     options: *const ThetaDataDxEndpointRequestOptions,

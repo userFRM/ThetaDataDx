@@ -2464,13 +2464,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(eod_ticks_to_class_vec(chunk))
+                        Some(eod_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -2634,13 +2634,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(ohlc_ticks_to_class_vec(chunk))
+                        Some(ohlc_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -2816,13 +2816,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_ticks_to_class_vec(chunk))
+                        Some(trade_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -3005,13 +3005,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(quote_ticks_to_class_vec(chunk))
+                        Some(quote_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -3196,13 +3196,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_quote_ticks_to_class_vec(chunk))
+                        Some(trade_quote_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -3357,13 +3357,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_ticks_to_class_vec(chunk))
+                        Some(trade_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -3502,13 +3502,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(quote_ticks_to_class_vec(chunk))
+                        Some(quote_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -3769,13 +3769,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(option_contracts_to_class_vec(chunk))
+                        Some(option_contracts_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -5224,13 +5224,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(eod_ticks_to_class_vec(chunk))
+                        Some(eod_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -5433,13 +5433,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(ohlc_ticks_to_class_vec(chunk))
+                        Some(ohlc_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -5656,13 +5656,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_ticks_to_class_vec(chunk))
+                        Some(trade_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -5887,13 +5887,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(quote_ticks_to_class_vec(chunk))
+                        Some(quote_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -6123,13 +6123,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_quote_ticks_to_class_vec(chunk))
+                        Some(trade_quote_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -6331,13 +6331,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(open_interest_ticks_to_class_vec(chunk))
+                        Some(open_interest_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -6558,13 +6558,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(greeks_eod_ticks_to_class_vec(chunk))
+                        Some(greeks_eod_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -6822,13 +6822,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(greeks_all_ticks_to_class_vec(chunk))
+                        Some(greeks_all_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -7095,13 +7095,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_greeks_all_ticks_to_class_vec(chunk))
+                        Some(trade_greeks_all_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -7369,13 +7369,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(greeks_first_order_ticks_to_class_vec(chunk))
+                        Some(greeks_first_order_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -7642,13 +7642,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_greeks_first_order_ticks_to_class_vec(chunk))
+                        Some(trade_greeks_first_order_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -7916,13 +7916,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(greeks_second_order_ticks_to_class_vec(chunk))
+                        Some(greeks_second_order_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -8189,13 +8189,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_greeks_second_order_ticks_to_class_vec(chunk))
+                        Some(trade_greeks_second_order_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -8463,13 +8463,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(greeks_third_order_ticks_to_class_vec(chunk))
+                        Some(greeks_third_order_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -8736,13 +8736,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_greeks_third_order_ticks_to_class_vec(chunk))
+                        Some(trade_greeks_third_order_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -9009,13 +9009,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(iv_ticks_to_class_vec(chunk))
+                        Some(iv_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -9281,13 +9281,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_greeks_implied_volatility_ticks_to_class_vec(chunk))
+                        Some(trade_greeks_implied_volatility_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -9494,13 +9494,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_ticks_to_class_vec(chunk))
+                        Some(trade_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -9677,13 +9677,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(quote_ticks_to_class_vec(chunk))
+                        Some(quote_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -10076,13 +10076,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(eod_ticks_to_class_vec(chunk))
+                        Some(eod_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -10225,13 +10225,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(ohlc_ticks_to_class_vec(chunk))
+                        Some(ohlc_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -10399,13 +10399,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(price_ticks_to_class_vec(chunk))
+                        Some(price_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -10540,13 +10540,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(index_price_at_time_ticks_to_class_vec(chunk))
+                        Some(index_price_at_time_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -10837,13 +10837,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(interest_rate_ticks_to_class_vec(chunk))
+                        Some(interest_rate_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -10991,13 +10991,13 @@ impl HistoricalView {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(ohlc_ticks_to_class_vec(chunk))
+                        Some(ohlc_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -11507,13 +11507,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(eod_ticks_to_class_vec(chunk))
+                        Some(eod_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -11677,13 +11677,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(ohlc_ticks_to_class_vec(chunk))
+                        Some(ohlc_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -11859,13 +11859,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_ticks_to_class_vec(chunk))
+                        Some(trade_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -12048,13 +12048,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(quote_ticks_to_class_vec(chunk))
+                        Some(quote_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -12239,13 +12239,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_quote_ticks_to_class_vec(chunk))
+                        Some(trade_quote_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -12400,13 +12400,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_ticks_to_class_vec(chunk))
+                        Some(trade_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -12545,13 +12545,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(quote_ticks_to_class_vec(chunk))
+                        Some(quote_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -12812,13 +12812,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(option_contracts_to_class_vec(chunk))
+                        Some(option_contracts_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -14267,13 +14267,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(eod_ticks_to_class_vec(chunk))
+                        Some(eod_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -14476,13 +14476,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(ohlc_ticks_to_class_vec(chunk))
+                        Some(ohlc_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -14699,13 +14699,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_ticks_to_class_vec(chunk))
+                        Some(trade_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -14930,13 +14930,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(quote_ticks_to_class_vec(chunk))
+                        Some(quote_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -15166,13 +15166,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_quote_ticks_to_class_vec(chunk))
+                        Some(trade_quote_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -15374,13 +15374,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(open_interest_ticks_to_class_vec(chunk))
+                        Some(open_interest_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -15601,13 +15601,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(greeks_eod_ticks_to_class_vec(chunk))
+                        Some(greeks_eod_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -15865,13 +15865,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(greeks_all_ticks_to_class_vec(chunk))
+                        Some(greeks_all_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -16138,13 +16138,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_greeks_all_ticks_to_class_vec(chunk))
+                        Some(trade_greeks_all_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -16412,13 +16412,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(greeks_first_order_ticks_to_class_vec(chunk))
+                        Some(greeks_first_order_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -16685,13 +16685,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_greeks_first_order_ticks_to_class_vec(chunk))
+                        Some(trade_greeks_first_order_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -16959,13 +16959,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(greeks_second_order_ticks_to_class_vec(chunk))
+                        Some(greeks_second_order_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -17232,13 +17232,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_greeks_second_order_ticks_to_class_vec(chunk))
+                        Some(trade_greeks_second_order_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -17506,13 +17506,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(greeks_third_order_ticks_to_class_vec(chunk))
+                        Some(greeks_third_order_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -17779,13 +17779,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_greeks_third_order_ticks_to_class_vec(chunk))
+                        Some(trade_greeks_third_order_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -18052,13 +18052,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(iv_ticks_to_class_vec(chunk))
+                        Some(iv_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -18324,13 +18324,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_greeks_implied_volatility_ticks_to_class_vec(chunk))
+                        Some(trade_greeks_implied_volatility_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -18537,13 +18537,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(trade_ticks_to_class_vec(chunk))
+                        Some(trade_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -18720,13 +18720,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(quote_ticks_to_class_vec(chunk))
+                        Some(quote_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -19119,13 +19119,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(eod_ticks_to_class_vec(chunk))
+                        Some(eod_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -19268,13 +19268,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(ohlc_ticks_to_class_vec(chunk))
+                        Some(ohlc_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -19442,13 +19442,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(price_ticks_to_class_vec(chunk))
+                        Some(price_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -19583,13 +19583,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(index_price_at_time_ticks_to_class_vec(chunk))
+                        Some(index_price_at_time_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -19880,13 +19880,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(interest_rate_ticks_to_class_vec(chunk))
+                        Some(interest_rate_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };
@@ -20034,13 +20034,13 @@ impl HistoricalClient {
             }
             let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
             let stream_result = request
-                .stream_async(move |chunk| {
+                .stream_ticks_async(move |chunk| {
                     let callback = std::sync::Arc::clone(&callback);
                     let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
                     let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
                         None
                     } else {
-                        Some(ohlc_ticks_to_class_vec(chunk))
+                        Some(ohlc_ticks_to_class_vec(chunk.as_slice()))
                     };
                     async move {
                         let Some(rows) = rows else { return; };

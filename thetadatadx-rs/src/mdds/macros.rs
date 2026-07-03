@@ -900,16 +900,10 @@ macro_rules! parsed_endpoint {
                                 )
                                 .await
                                 .map_err(|e| -> Error { e.into() })?;
-                                // Strict decode: a parse error inside a
-                                // chunk is captured here and surfaced
-                                // after `for_each_chunk` returns. The
-                                // `for_each_chunk` closure cannot
-                                // propagate Result, so the short-circuit
-                                // is via the captured `Option<Error>`.
                                 let mut decode_error: Option<Error> = None;
-                                let drain_result = client.for_each_chunk(stream, |_headers, rows| {
+                                let drain_result = client.for_each_chunk_control(stream, |_headers, rows| {
                                     if decode_error.is_some() {
-                                        return;
+                                        return std::ops::ControlFlow::Break(());
                                     }
                                     let chunk_table = proto::DataTable {
                                         headers: _headers.to_vec(),
@@ -917,6 +911,8 @@ macro_rules! parsed_endpoint {
                                     };
                                     match $parser(&chunk_table) {
                                         Ok(ticks) => {
+                                            let columns = $crate::mdds::stream::chunk_columns::<$item>(&chunk_table);
+                                            let ticks = $crate::columns::Ticks::new(ticks, columns);
                                             // Mutex is single-threaded
                                             // in practice (one call
                                             // chain at a time); a
@@ -926,7 +922,7 @@ macro_rules! parsed_endpoint {
                                             // which would already be
                                             // a hard error path.
                                             if let Ok(mut h) = handler_mutex.lock() {
-                                                (*h)(&ticks);
+                                                (*h)(ticks.as_slice());
                                             }
                                             // Only mark the stream as delivered
                                             // once a chunk carried rows: an empty
@@ -940,8 +936,102 @@ macro_rules! parsed_endpoint {
                                             if !ticks.is_empty() {
                                                 delivered.store(true, std::sync::atomic::Ordering::Relaxed);
                                             }
+                                            std::ops::ControlFlow::Continue(())
                                         }
-                                        Err(e) => decode_error = Some(Error::from(e)),
+                                        Err(e) => {
+                                            decode_error = Some(Error::from(e));
+                                            std::ops::ControlFlow::Break(())
+                                        }
+                                    }
+                                }).await;
+                                drain_result.and_then(|()| match decode_error {
+                                    Some(e) => Err(e),
+                                    None => Ok(()),
+                                })
+                            }
+                        },
+                    ).await?;
+                    metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
+                        .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
+                    Ok::<(), Error>(())
+                }).await
+            }
+
+            #[doc(hidden)]
+            pub async fn stream_ticks<F>(self, handler: F) -> Result<(), Error>
+            where
+                F: FnMut($crate::columns::Ticks<$item>) + Send,
+            {
+                let $builder_name {
+                    client,
+                    $($req_arg,)*
+                    $($opt_name,)*
+                    deadline,
+                } = self;
+                let _ = &client;
+                $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
+                let deadline = $crate::mdds::macros::effective_deadline(
+                    deadline,
+                    client.config().historical.request_timeout_secs,
+                );
+                $crate::mdds::macros::run_with_optional_deadline(deadline, async move {
+                    tracing::debug!(endpoint = stringify!($name), "gRPC streaming request");
+                    metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
+                    let _metrics_start = std::time::Instant::now();
+                    let _permit = client.request_semaphore.acquire().await
+                        .map_err(|_| Error::config_internal("request semaphore closed"))?;
+                    let policy = client.config().retry;
+                    let handler_mutex = std::sync::Mutex::new(handler);
+                    let handler_mutex = &handler_mutex;
+                    let delivered = std::sync::atomic::AtomicBool::new(false);
+                    let delivered = &delivered;
+                    $crate::mdds::macros::run_streaming_retry_loop(
+                        client.session(),
+                        &policy,
+                        stringify!($name),
+                        delivered,
+                        move |snap| {
+                            $(let $req_arg = $req_arg.clone();)*
+                            $(let $opt_name = $opt_name.clone();)*
+                            async move {
+                                let qi = client.build_query_info(snap.uuid.clone());
+                                let request = proto::$req {
+                                    query_info: Some(qi),
+                                    params: Some(proto::$query { $($field : $val),* }),
+                                };
+                                let lease = client.channel();
+                                let stream = $crate::proto::beta_theta_terminal::$grpc(
+                                    &lease,
+                                    request,
+                                )
+                                .await
+                                .map_err(|e| -> Error { e.into() })?;
+                                let mut decode_error: Option<Error> = None;
+                                let drain_result = client.for_each_chunk_control(stream, |_headers, rows| {
+                                    if decode_error.is_some() {
+                                        return std::ops::ControlFlow::Break(());
+                                    }
+                                    let chunk_table = proto::DataTable {
+                                        headers: _headers.to_vec(),
+                                        data_table: rows.to_vec(),
+                                    };
+                                    match $parser(&chunk_table) {
+                                        Ok(rows) => {
+                                            let columns = $crate::mdds::stream::chunk_columns::<$item>(&chunk_table);
+                                            let ticks = $crate::columns::Ticks::new(rows, columns);
+                                            let delivered_nonempty = !ticks.is_empty();
+                                            if let Ok(mut h) = handler_mutex.lock() {
+                                                (*h)(ticks);
+                                            }
+                                            if delivered_nonempty {
+                                                delivered.store(true, std::sync::atomic::Ordering::Relaxed);
+                                            }
+                                            std::ops::ControlFlow::Continue(())
+                                        }
+                                        Err(e) => {
+                                            decode_error = Some(Error::from(e));
+                                            std::ops::ControlFlow::Break(())
+                                        }
                                     }
                                 }).await;
                                 drain_result.and_then(|()| match decode_error {
@@ -1028,14 +1118,15 @@ macro_rules! parsed_endpoint {
                                 .await
                                 .map_err(|e| -> Error { e.into() })?;
                                 let mut decode_error: Option<Error> = None;
-                                let drain_result = client.for_each_chunk_async(stream, |headers, rows| {
+                                let drain_result = client.for_each_chunk_async_control(stream, |headers, rows| {
                                     // Synchronous section: parse the chunk and
                                     // build the owned user future while holding
                                     // the handler lock, then release the lock
                                     // before the future is awaited. The chunk is
                                     // handed in by value, so nothing borrowed
                                     // from it can be held across the await.
-                                    let user_fut = if decode_error.is_some() {
+                                    let mut stop_stream = decode_error.is_some();
+                                    let user_fut = if stop_stream {
                                         None
                                     } else {
                                         let chunk_table = proto::DataTable {
@@ -1044,10 +1135,12 @@ macro_rules! parsed_endpoint {
                                         };
                                         match $parser(&chunk_table) {
                                             Ok(ticks) => {
+                                                let columns = $crate::mdds::stream::chunk_columns::<$item>(&chunk_table);
+                                                let ticks = $crate::columns::Ticks::new(ticks, columns);
                                                 let fut = handler_mutex
                                                     .lock()
                                                     .ok()
-                                                    .map(|mut h| (*h)(&ticks));
+                                                    .map(|mut h| (*h)(ticks.as_slice()));
                                                 // Mark delivered once the handler
                                                 // has taken a non-empty chunk, so a
                                                 // later transient cannot replay an
@@ -1062,6 +1155,7 @@ macro_rules! parsed_endpoint {
                                             }
                                             Err(e) => {
                                                 decode_error = Some(Error::from(e));
+                                                stop_stream = true;
                                                 None
                                             }
                                         }
@@ -1069,6 +1163,116 @@ macro_rules! parsed_endpoint {
                                     async move {
                                         if let Some(user_fut) = user_fut {
                                             user_fut.await;
+                                        }
+                                        if stop_stream {
+                                            std::ops::ControlFlow::Break(())
+                                        } else {
+                                            std::ops::ControlFlow::Continue(())
+                                        }
+                                    }
+                                }).await;
+                                drain_result.and_then(|()| match decode_error {
+                                    Some(e) => Err(e),
+                                    None => Ok(()),
+                                })
+                            }
+                        },
+                    ).await?;
+                    metrics::histogram!("thetadatadx.grpc.latency_ms", "endpoint" => stringify!($name))
+                        .record(_metrics_start.elapsed().as_secs_f64() * 1_000.0);
+                    Ok::<(), Error>(())
+                }).await
+            }
+
+            #[doc(hidden)]
+            pub async fn stream_ticks_async<F, HFut>(self, handler: F) -> Result<(), Error>
+            where
+                F: FnMut($crate::columns::Ticks<$item>) -> HFut + Send,
+                HFut: std::future::Future<Output = ()> + Send,
+            {
+                let $builder_name {
+                    client,
+                    $($req_arg,)*
+                    $($opt_name,)*
+                    deadline,
+                } = self;
+                let _ = &client;
+                $($($crate::mdds::validate::validate_date_required(&$date_arg)?;)+)?
+                let deadline = $crate::mdds::macros::effective_deadline(
+                    deadline,
+                    client.config().historical.request_timeout_secs,
+                );
+                $crate::mdds::macros::run_with_optional_deadline(deadline, async move {
+                    tracing::debug!(endpoint = stringify!($name), "gRPC streaming request");
+                    metrics::counter!("thetadatadx.grpc.requests", "endpoint" => stringify!($name)).increment(1);
+                    let _metrics_start = std::time::Instant::now();
+                    let _permit = client.request_semaphore.acquire().await
+                        .map_err(|_| Error::config_internal("request semaphore closed"))?;
+                    let policy = client.config().retry;
+                    let handler_mutex = std::sync::Mutex::new(handler);
+                    let handler_mutex = &handler_mutex;
+                    let delivered = std::sync::atomic::AtomicBool::new(false);
+                    let delivered = &delivered;
+                    $crate::mdds::macros::run_streaming_retry_loop(
+                        client.session(),
+                        &policy,
+                        stringify!($name),
+                        delivered,
+                        move |snap| {
+                            $(let $req_arg = $req_arg.clone();)*
+                            $(let $opt_name = $opt_name.clone();)*
+                            async move {
+                                let qi = client.build_query_info(snap.uuid.clone());
+                                let request = proto::$req {
+                                    query_info: Some(qi),
+                                    params: Some(proto::$query { $($field : $val),* }),
+                                };
+                                let lease = client.channel();
+                                let stream = $crate::proto::beta_theta_terminal::$grpc(
+                                    &lease,
+                                    request,
+                                )
+                                .await
+                                .map_err(|e| -> Error { e.into() })?;
+                                let mut decode_error: Option<Error> = None;
+                                let drain_result = client.for_each_chunk_async_control(stream, |headers, rows| {
+                                    let mut stop_stream = decode_error.is_some();
+                                    let user_fut = if stop_stream {
+                                        None
+                                    } else {
+                                        let chunk_table = proto::DataTable {
+                                            headers,
+                                            data_table: rows,
+                                        };
+                                        match $parser(&chunk_table) {
+                                            Ok(rows) => {
+                                                let columns = $crate::mdds::stream::chunk_columns::<$item>(&chunk_table);
+                                                let ticks = $crate::columns::Ticks::new(rows, columns);
+                                                let delivered_nonempty = !ticks.is_empty();
+                                                let fut = handler_mutex
+                                                    .lock()
+                                                    .ok()
+                                                    .map(|mut h| (*h)(ticks));
+                                                if delivered_nonempty {
+                                                    delivered.store(true, std::sync::atomic::Ordering::Relaxed);
+                                                }
+                                                fut
+                                            }
+                                            Err(e) => {
+                                                decode_error = Some(Error::from(e));
+                                                stop_stream = true;
+                                                None
+                                            }
+                                        }
+                                    };
+                                    async move {
+                                        if let Some(user_fut) = user_fut {
+                                            user_fut.await;
+                                        }
+                                        if stop_stream {
+                                            std::ops::ControlFlow::Break(())
+                                        } else {
+                                            std::ops::ControlFlow::Continue(())
                                         }
                                     }
                                 }).await;

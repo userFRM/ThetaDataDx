@@ -145,6 +145,7 @@ def main() -> int:
     baseline = load_baseline(args.baseline)
     failures: list[tuple[str, float, float, float]] = []
     missing: list[str] = []
+    checked = 0
 
     for bench_id, entry in sorted(baseline.items()):
         # Underscore-prefixed keys are documentation-only entries
@@ -169,6 +170,7 @@ def main() -> int:
             missing.append(bench_id)
             continue
 
+        checked += 1
         abs_delta = current_p50 - float(baseline_p50)
         delta_pct = abs_delta / float(baseline_p50) * 100.0
         # A bench may carry its own `threshold_pct` to set a tolerance that
@@ -217,7 +219,14 @@ def main() -> int:
         )
         return 1
 
-    print("\nAll tracked benches within threshold.")
+    if checked == 0:
+        sys.stderr.write(
+            "no tracked benches were checked; the baseline lists none "
+            "(or all entries are documentation-only). Add at least one bench entry.\n"
+        )
+        return 2
+
+    print(f"\nAll {checked} tracked bench(es) within threshold.")
     return 0
 
 

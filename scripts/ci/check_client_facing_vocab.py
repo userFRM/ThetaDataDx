@@ -174,8 +174,8 @@ def _scan(root: pathlib.Path) -> list[tuple[pathlib.Path, int, str]]:
     for path in _iter_swept_files(root):
         rel = path.relative_to(root)
         try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
             continue
         for lineno, line in enumerate(text.splitlines(), start=1):
             if LEAK_PATTERN.search(_strip_exempt_spans(line)):

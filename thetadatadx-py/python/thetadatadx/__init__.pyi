@@ -1002,8 +1002,8 @@ class Disconnected:
 class ParseError:
     """A streaming protocol-level parse error.
 
-    Named ``ParseError`` so it never collides with the :class:`Error`
-    exception class.
+    Named ``ParseError`` so streaming events stay distinct from the SDK
+    exception hierarchy.
     """
 
     message: str

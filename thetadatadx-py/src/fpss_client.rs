@@ -430,22 +430,26 @@ impl StreamingClient {
             .map(pyo3::Bound::into_any)
     }
 
-    /// Async context-manager exit: stop streaming and drain, mirroring the
-    /// TypeScript ``Symbol.asyncDispose`` behavior. Resolves to ``False`` so an
-    /// exception raised in the ``async with`` body is not swallowed. The
-    /// teardown itself releases the GIL internally, so it runs before the
-    /// trivial resolving future is returned.
+    /// Async context-manager exit: stop streaming and drain on a blocking
+    /// worker. Resolves to ``False`` so an exception raised in the
+    /// ``async with`` body is not swallowed.
     #[pyo3(signature = (_exc_type=None, _exc_value=None, _traceback=None))]
     fn __aexit__<'py>(
-        &self,
+        slf: Py<Self>,
         py: Python<'py>,
         _exc_type: Option<Py<PyAny>>,
         _exc_value: Option<Py<PyAny>>,
         _traceback: Option<Py<PyAny>>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        self.exit_teardown(py)?;
-        pyo3_async_runtimes::tokio::future_into_py(py, async move { Ok(false) })
-            .map(pyo3::Bound::into_any)
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            tokio::task::spawn_blocking(move || {
+                Python::attach(|py| slf.borrow(py).exit_teardown(py))
+            })
+            .await
+            .map_err(|e| PyRuntimeError::new_err(format!("streaming close task failed: {e}")))??;
+            Ok(false)
+        })
+        .map(pyo3::Bound::into_any)
     }
 
     /// Open the streaming TLS connection and register the Python callback

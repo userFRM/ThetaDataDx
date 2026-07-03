@@ -126,17 +126,18 @@ impl ChannelPool {
     /// when the pool is idle and prevents a heavily-loaded callsite
     /// from pinning to a single channel for sticky reasons.
     ///
-    /// The in-flight counter is bumped at three points:
+    /// The in-flight counter is bumped at two reservation points:
     ///   1. Here, when the lease is constructed — covers the
     ///      window between `pool.next()` returning and the async
     ///      dispatch future actually running.
     ///   2. Inside [`Channel::server_streaming`], when the open
     ///      path commits — covers the entire RPC lifetime.
-    ///   3. Decremented when the lease drops (after the dispatch
-    ///      future is constructed) and again when the resulting
-    ///      `ServerStreaming` drops (after the response stream
-    ///      ends). Net commitment per RPC: exactly 1 from open to
-    ///      stream end.
+    ///
+    /// Each reservation has a matching decrement: the lease drops after
+    /// dispatch is constructed, and the resulting `ServerStreaming` drops
+    /// after the response stream ends. A live dispatched RPC therefore carries
+    /// a net commitment of 1 until stream end, with a brief peak of 2 while
+    /// the handoff from lease to stream is in flight.
     ///
     /// Relaxed ordering on the counter is sufficient — the pool's
     /// pick is a load-balancing hint, not a correctness barrier,
