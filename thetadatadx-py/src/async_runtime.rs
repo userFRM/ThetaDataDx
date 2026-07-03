@@ -30,9 +30,10 @@ use crate::errors::to_py_err;
 /// # Error propagation
 ///
 /// `thetadatadx::Error` values returned by the awaited future are routed
-/// through [`crate::errors::to_py_err`] so the caller sees a concrete
-/// `thetadatadx` exception subclass (e.g. `TimeoutError`, `RateLimitError`)
-/// rather than a generic `RuntimeError`.
+/// through [`crate::errors::to_py_err`] on tokio's blocking pool so the
+/// caller sees a concrete `thetadatadx` exception subclass (e.g.
+/// `TimeoutError`, `RateLimitError`) rather than a generic `RuntimeError`,
+/// and error branches that need the GIL never park a runtime worker.
 ///
 /// # GIL + scheduling contract
 ///
@@ -97,29 +98,54 @@ where
     T: Send + 'static,
     C: FnOnce(Python<'_>, T) -> PyResult<Py<PyAny>> + Send + 'static,
 {
-    let value = fut.await.map_err(to_py_err)?;
+    let value = match fut.await {
+        Ok(value) => value,
+        Err(err) => return convert_error_on_blocking_pool(err).await,
+    };
     tokio::task::spawn_blocking(move || Python::attach(|py| convert(py, value)))
         .await
         .map_err(|join_err| {
-            // `JoinError::into_panic()` is the documented way to surface a
-            // panicked blocking task; other JoinError causes (cancellation)
-            // map to a generic RuntimeError.
-            if join_err.is_panic() {
-                let payload = join_err.into_panic();
-                let msg = payload
-                    .downcast_ref::<&str>()
-                    .map(|s| (*s).to_string())
-                    .or_else(|| payload.downcast_ref::<String>().cloned())
-                    .unwrap_or_else(|| "convert closure panicked".to_string());
-                pyo3::exceptions::PyRuntimeError::new_err(format!(
-                    "convert closure panicked: {msg}"
-                ))
-            } else {
-                pyo3::exceptions::PyRuntimeError::new_err(format!(
-                    "convert task join failed: {join_err}"
-                ))
-            }
+            blocking_task_join_error(
+                join_err,
+                "convert closure panicked",
+                "convert task join failed",
+            )
         })?
+}
+
+async fn convert_error_on_blocking_pool(err: thetadatadx::Error) -> PyResult<Py<PyAny>> {
+    tokio::task::spawn_blocking(move || {
+        Python::attach(|_py| -> PyResult<Py<PyAny>> { Err(to_py_err(err)) })
+    })
+    .await
+    .map_err(|join_err| {
+        blocking_task_join_error(
+            join_err,
+            "error conversion task panicked",
+            "error conversion task join failed",
+        )
+    })?
+}
+
+fn blocking_task_join_error(
+    join_err: tokio::task::JoinError,
+    panic_prefix: &'static str,
+    join_prefix: &'static str,
+) -> PyErr {
+    // `JoinError::into_panic()` is the documented way to surface a
+    // panicked blocking task; other JoinError causes (cancellation)
+    // map to a generic RuntimeError.
+    if join_err.is_panic() {
+        let payload = join_err.into_panic();
+        let msg = payload
+            .downcast_ref::<&str>()
+            .map(|s| (*s).to_string())
+            .or_else(|| payload.downcast_ref::<String>().cloned())
+            .unwrap_or_else(|| panic_prefix.to_string());
+        pyo3::exceptions::PyRuntimeError::new_err(format!("{panic_prefix}: {msg}"))
+    } else {
+        pyo3::exceptions::PyRuntimeError::new_err(format!("{join_prefix}: {join_err}"))
+    }
 }
 
 /// Fold a blocking-task [`JoinError`] into the shared per-chunk
@@ -161,10 +187,10 @@ pub(crate) fn capture_join_error(
 mod tests {
     //! Unit tests covering the two invariants the generator relies on:
     //!
-    //! 1. `thetadatadx::Error` values crossing the await point arrive on
-    //!    the Python side as the matching `ThetaDataError` subclass, not
-    //!    a generic `RuntimeError`. Verifies the helper honours the same
-    //!    [`to_py_err`] mapping the sync path uses.
+    //! 1. `thetadatadx::Error` values crossing the await point are mapped on
+    //!    the blocking pool and arrive on the Python side as the matching
+    //!    `ThetaDataError` subclass, not a generic `RuntimeError`. Verifies
+    //!    the helper honours the same [`to_py_err`] mapping the sync path uses.
     //! 2. The `convert` closure runs with a held GIL token — it must be
     //!    safe to allocate Python objects there.
     //!
@@ -199,14 +225,13 @@ mod tests {
 
     #[test]
     fn spawn_awaitable_propagates_rust_error_as_typed_py_exception() {
-        // The helper's error path is
-        //   fut.await.map_err(to_py_err)?
-        // so the full mapping lives in `errors::to_py_err`. We assert
-        // the helper wires through to that function by constructing the
-        // inner coroutine directly and awaiting it on a minimal tokio
-        // runtime — this skips the `future_into_py` wrapping (which
-        // would need a full pyo3-async-runtimes module bootstrap) and
-        // tests the single line we actually care about.
+        // The full mapping lives in `errors::to_py_err`; the helper must
+        // run it via the blocking pool before returning the `PyErr`. We
+        // assert that by constructing the inner coroutine directly and
+        // awaiting it on a minimal tokio runtime — this skips the
+        // `future_into_py` wrapping (which would need a full
+        // pyo3-async-runtimes module bootstrap) and tests the rail we
+        // care about.
         //
         // Note the `py.detach(|| block_on(...))` envelope: the
         // `spawn_awaitable` body offloads `convert` onto a
@@ -247,6 +272,46 @@ mod tests {
                 name, "DeadlineExceededError",
                 "Error::Timeout must route to the DeadlineExceededError leaf, got {name}"
             );
+        });
+    }
+
+    #[test]
+    fn spawn_awaitable_rate_limit_preserves_retry_after_attribute() {
+        Python::initialize();
+        Python::attach(|py| {
+            install_runtime();
+            let runtime = pyo3_async_runtimes::tokio::get_runtime();
+            let err = py
+                .detach(|| {
+                    runtime.block_on(resolve_then_convert(
+                        async {
+                            Err::<i64, _>(thetadatadx::Error::Grpc {
+                                kind: thetadatadx::error::GrpcStatusKind::ResourceExhausted,
+                                message: "429".into(),
+                                retry_after: Some(std::time::Duration::from_millis(1500)),
+                            })
+                        },
+                        |_py: Python<'_>, _value: i64| -> PyResult<Py<PyAny>> {
+                            unreachable!("convert runs only on Ok path")
+                        },
+                    ))
+                })
+                .expect_err("rate limit must map to a PyErr");
+
+            let type_obj = err.get_type(py);
+            let name = type_obj
+                .qualname()
+                .and_then(|q| q.extract::<String>())
+                .expect("every pyo3 exception class has a qualname");
+            assert_eq!(name, "RateLimitError");
+
+            let retry_after: Option<f64> = err
+                .value(py)
+                .getattr("retry_after")
+                .expect("retry_after attribute is present")
+                .extract()
+                .expect("retry_after is float | None");
+            assert_eq!(retry_after, Some(1.5));
         });
     }
 
