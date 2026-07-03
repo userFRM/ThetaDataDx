@@ -179,6 +179,14 @@ impl Config {
                 ReconnectDecisionArgs,
                 napi::Status,
                 false,
+                // Weak: the reconnect callback is seated onto a `Config` that may
+                // never drive a connection, so a strong threadsafe function would
+                // hold the libuv loop open and a process that merely called
+                // `setReconnectCallback` could never exit. The `Status != Ok`
+                // path already treats a released function as "stop reconnecting",
+                // so a weak reference that the runtime may drop on shutdown is
+                // handled cleanly.
+                true,
             >,
         >,
     ) -> napi::Result<()> {
