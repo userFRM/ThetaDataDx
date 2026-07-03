@@ -222,6 +222,8 @@ async fn run() -> Result<(), thetadatadx::Error> {
 }
 ```
 
+Call the async function from your application's runtime.
+
 ## DataFrames
 
 Every historical result is a typed list that converts directly to a dataframe:

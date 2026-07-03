@@ -911,8 +911,13 @@ macro_rules! parsed_endpoint {
                                     };
                                     match $parser(&chunk_table) {
                                         Ok(ticks) => {
-                                            let columns = $crate::mdds::stream::chunk_columns::<$item>(&chunk_table);
-                                            let ticks = $crate::columns::Ticks::new(ticks, columns);
+                                            // This terminal's handler takes `&[$item]`
+                                            // (raw rows), so it never reads column
+                                            // presence — compute none here. The
+                                            // presence-carrying `Ticks` wrap lives only
+                                            // in `stream_ticks`, whose handler reads it;
+                                            // computing it here would be per-chunk dead
+                                            // work on the streaming hot path.
                                             // Mutex is single-threaded
                                             // in practice (one call
                                             // chain at a time); a
@@ -922,7 +927,7 @@ macro_rules! parsed_endpoint {
                                             // which would already be
                                             // a hard error path.
                                             if let Ok(mut h) = handler_mutex.lock() {
-                                                (*h)(ticks.as_slice());
+                                                (*h)(&ticks);
                                             }
                                             // Only mark the stream as delivered
                                             // once a chunk carried rows: an empty
@@ -1135,12 +1140,14 @@ macro_rules! parsed_endpoint {
                                         };
                                         match $parser(&chunk_table) {
                                             Ok(ticks) => {
-                                                let columns = $crate::mdds::stream::chunk_columns::<$item>(&chunk_table);
-                                                let ticks = $crate::columns::Ticks::new(ticks, columns);
+                                                // `&[$item]` handler — no presence read,
+                                                // so skip the per-chunk `chunk_columns`
+                                                // scan (dead work on the hot path). The
+                                                // `Ticks` wrap lives in `stream_ticks_async`.
                                                 let fut = handler_mutex
                                                     .lock()
                                                     .ok()
-                                                    .map(|mut h| (*h)(ticks.as_slice()));
+                                                    .map(|mut h| (*h)(&ticks));
                                                 // Mark delivered once the handler
                                                 // has taken a non-empty chunk, so a
                                                 // later transient cannot replay an

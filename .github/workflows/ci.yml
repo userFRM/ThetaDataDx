@@ -800,7 +800,7 @@ jobs:
 
           A local HTTP REST (port 25503) and WebSocket (port 25520) server that
           speaks the v3 route surface. It connects to the upstream data servers
-          directly; no JVM terminal is required.
+          directly; no separate terminal process is required.
 
           These binaries are not code-signed yet, so each operating system asks
           for a one-time confirmation the first time you run them.
