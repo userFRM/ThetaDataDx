@@ -113,6 +113,39 @@ describe('streaming-session wrapper', () => {
     assert.equal(session.someOwnMethod(), 'ok');
   });
 
+  it('Symbol.asyncDispose tears down a standalone StreamingClient (no .stream view)', async () => {
+    const calls = [];
+    // The standalone StreamingClient has NO `.stream` sub-view; its lifecycle
+    // methods live directly on the client. Before the `streamSurface` fix the
+    // disposer resolved the surface via `client.stream` (undefined for a
+    // standalone client) and silently tore nothing down, leaking the live
+    // stream while `await using` reported a clean scope exit.
+    const standalone = {
+      stopStreaming() { calls.push('stopStreaming'); },
+      async awaitDrain(timeoutMs) {
+        calls.push(['awaitDrain', timeoutMs]);
+        return true;
+      },
+    };
+    const session = new mod.StreamingSession(standalone);
+    await session[Symbol.asyncDispose]();
+    assert.deepEqual(
+      calls,
+      ['stopStreaming', ['awaitDrain', 5000]],
+      'a session over a standalone client must stop + drain, not no-op',
+    );
+  });
+
+  it('exposes streaming() and dispose symbols on the standalone StreamingClient', () => {
+    assert.equal(typeof mod.StreamingClient, 'function');
+    // streaming() factory + `using` / `await using` symbols are monkey-patched
+    // onto the standalone client prototype on require, mirroring the unified
+    // Client, so `await using s = await streamingClient.streaming(cb)` works.
+    assert.equal(typeof mod.StreamingClient.prototype.streaming, 'function');
+    assert.equal(typeof mod.StreamingClient.prototype[Symbol.dispose], 'function');
+    assert.equal(typeof mod.StreamingClient.prototype[Symbol.asyncDispose], 'function');
+  });
+
   it('Proxy forwards arbitrary method calls to the underlying client', () => {
     // Method that does NOT exist on StreamingSession itself but should
     // proxy through to the client. This is the SSOT property: adding a new
