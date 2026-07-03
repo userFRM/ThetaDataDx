@@ -10,7 +10,7 @@
 //! message, and the `google.rpc.RetryInfo` backoff hint — so no
 //! third-party status type crosses the module boundary. The conversion
 //! from the underlying stack's status type happens once, at
-//! [`Status::from_tonic`], inside this module.
+//! `Status::from_tonic`, inside this module.
 
 /// Fully-qualified `Any.type_url` suffix for `google.rpc.RetryInfo`.
 const RETRY_INFO_TYPE_URL_SUFFIX: &str = "google.rpc.RetryInfo";

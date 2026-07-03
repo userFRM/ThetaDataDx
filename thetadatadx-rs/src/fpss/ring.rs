@@ -281,7 +281,7 @@ where
 ///
 /// Each cursor is padded to its own cache line so the producer's
 /// store stream never contends with the consumer's
-/// ([`CachePadded`]). Reads are cold: only operator polling touches
+/// (`CachePadded`). Reads are cold: only operator polling touches
 /// them.
 // `RingCursors` is `pub` (re-exported under `__test-helpers`) so the
 // out-of-crate streaming bench can build the shared occupancy cursor pair
