@@ -1036,15 +1036,21 @@ fn write_sync_stream_terminal(
 }
 
 /// Emit the `stream_async(handler)` async terminal — awaitable variant
-/// of [`write_sync_stream_terminal`]. `handler` is invoked synchronously
-/// on the tokio worker thread (under the GIL via `Python::attach`); the
-/// awaitable resolves to `None` on clean drain, raises on first error.
+/// of [`write_sync_stream_terminal`]. Each chunk's owned rows are copied
+/// out synchronously, then the GIL-bound `handler` runs on tokio's
+/// blocking pool via `spawn_blocking` (driven by `stream_async` on the
+/// builder, which awaits the per-chunk future before fetching the next).
+/// Offloading the handler keeps the shared async workers free for every
+/// other in-flight historical call while the handler runs — `block_in_place`
+/// would instead churn the worker pool for an arbitrary-duration handler.
+/// The awaitable resolves to `None` on clean drain, raises on first error.
 ///
 /// Same PyErr-folding strategy as the sync path: the chunk closure
 /// stashes a captured PyErr inside an `Arc<Mutex<Option<PyErr>>>` so
 /// the spawned future's `Result<(), thetadatadx::Error>` stays free of
-/// PyErr (the bound on `spawn_awaitable` wouldn't accept it). The
-/// stashed PyErr is unstashed in the post-await converter step where
+/// PyErr (the bound on `spawn_awaitable` wouldn't accept it). A panic in
+/// the blocking task is folded into the same slot rather than swallowed.
+/// The stashed PyErr is unstashed in the post-await converter step where
 /// the GIL is reacquired.
 fn write_async_stream_terminal(
     out: &mut String,
@@ -1055,9 +1061,14 @@ fn write_async_stream_terminal(
     let pylist_converter = python_vec_to_pylist_converter(&endpoint.return_type);
     let doc = format!(
         "Async companion to `stream()` — awaitable yields `None` when the \
-         streamed response of `{}` rows finishes. Cancelling the awaitable \
+         streamed response of `{}` rows finishes. `handler(chunk: list[Tick]) \
+         -> None` runs once per gRPC chunk, in order, on a worker thread; the \
+         next chunk is not fetched until it returns. Cancelling the awaitable \
          drops the in-flight gRPC stream (RST_STREAM on the underlying h2 \
-         stream).",
+         stream) and fetches no further chunks. A handler already running when \
+         cancellation lands runs to completion — Python is not interruptible \
+         mid-call — so one final `handler` call may finish after the awaitable \
+         is cancelled.",
         endpoint.name
     );
     out.push_str(&render_rust_doc_block("    ", &doc));
@@ -1071,38 +1082,69 @@ fn write_async_stream_terminal(
     out.push_str("        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);\n");
     out.push_str("        spawn_awaitable(py, async move {\n");
     write_stream_request_setup(out, endpoint, method_params, builder_params, "            ");
-    out.push_str("            request.stream(|chunk| {\n");
-    out.push_str("                if cb_err_for_closure.lock().unwrap().is_some() {\n");
-    out.push_str("                    return;\n");
-    out.push_str("                }\n");
-    out.push_str("                Python::attach(|py| {\n");
-    out.push_str("                    let owned: Vec<_> = chunk.to_vec();\n");
+    out.push_str("            request.stream_async(|chunk| {\n");
+    out.push_str("                // Copy the chunk out synchronously so nothing borrowed\n");
+    out.push_str("                // is held across the await, then run the GIL-bound\n");
+    out.push_str("                // handler on the blocking pool: a slow handler parks a\n");
+    out.push_str("                // pool thread, never a shared async worker driving other\n");
+    out.push_str("                // in-flight historical calls. The handler Py<PyAny> is\n");
+    out.push_str("                // Arc'd once (Send + Sync); we clone the Arc per chunk\n");
+    out.push_str("                // (no GIL needed), never clone_ref.\n");
+    out.push_str("                let owned: Vec<_> = chunk.to_vec();\n");
     // Per-chunk handler gets a plain pylist of rows; the chunk carries no
     // header list, so wrap with the full-schema column set.
     writeln!(
         out,
-        "                    let owned = thetadatadx::Ticks::new(owned, <tick::{} as thetadatadx::WireColumns>::all_columns());",
+        "                let owned = thetadatadx::Ticks::new(owned, <tick::{} as thetadatadx::WireColumns>::all_columns());",
         python_pyclass_row_class(&endpoint.return_type)
     )
     .unwrap();
+    out.push_str(
+        "                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);\n",
+    );
+    out.push_str(
+        "                let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);\n",
+    );
+    out.push_str(
+        "                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);\n",
+    );
+    out.push_str("                async move {\n");
+    out.push_str("                    if cb_err_for_task.lock().unwrap().is_some() {\n");
+    out.push_str("                        return;\n");
+    out.push_str("                    }\n");
+    out.push_str("                    // GIL acquired strictly inside spawn_blocking — never\n");
+    out.push_str("                    // held on the async side while awaiting the join, so a\n");
+    out.push_str("                    // pool thread waiting on the GIL cannot deadlock the\n");
+    out.push_str("                    // task awaiting it.\n");
+    out.push_str("                    let join = tokio::task::spawn_blocking(move || {\n");
+    out.push_str("                        Python::attach(|py| {\n");
     writeln!(
         out,
-        "                    let py_list = match {}(py, owned) {{",
+        "                            let py_list = match {}(py, owned) {{",
         pylist_converter
     )
     .unwrap();
-    out.push_str("                        Ok(list) => list,\n");
-    out.push_str("                        Err(e) => {\n");
-    out.push_str("                            *cb_err_for_closure.lock().unwrap() = Some(e);\n");
-    out.push_str("                            return;\n");
-    out.push_str("                        }\n");
-    out.push_str("                    };\n");
+    out.push_str("                                Ok(list) => list,\n");
+    out.push_str("                                Err(e) => {\n");
     out.push_str(
-        "                    if let Err(e) = handler_for_closure.call1(py, (py_list,)) {\n",
+        "                                    *cb_err_for_task.lock().unwrap() = Some(e);\n",
     );
-    out.push_str("                        *cb_err_for_closure.lock().unwrap() = Some(e);\n");
+    out.push_str("                                    return;\n");
+    out.push_str("                                }\n");
+    out.push_str("                            };\n");
+    out.push_str(
+        "                            if let Err(e) = handler_for_task.call1(py, (py_list,)) {\n",
+    );
+    out.push_str("                                *cb_err_for_task.lock().unwrap() = Some(e);\n");
+    out.push_str("                            }\n");
+    out.push_str("                        })\n");
+    out.push_str("                    }).await;\n");
+    out.push_str("                    if let Err(join_err) = join {\n");
+    out.push_str("                        // A panic in the handler task surfaces as a\n");
+    out.push_str("                        // re-raised RuntimeError instead of being swallowed.\n");
+    out.push_str("                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);\n");
     out.push_str("                    }\n");
-    out.push_str("                });\n");
+    out.push_str("                }\n");
     out.push_str("            }).await\n");
     out.push_str("        }, move |py, ()| {\n");
     out.push_str("            // Post-await converter — reacquired GIL. Re-raise any\n");
