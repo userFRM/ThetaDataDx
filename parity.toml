@@ -2822,23 +2822,29 @@ typescript = "Option<BigInt>"
 #
 #   * Decode-fed projected (only the columns the response's wire carried, plus
 #     the optional broadcast `symbol`) — `TicksArrowExt::to_arrow_projected`,
-#     the terminal-exact path: Python's `<TickName>List.to_arrow()` on a decoded
-#     list auto-projects from the `ColumnPresence` the list carries; TypeScript
-#     and C++ return bare rows, so the caller resolves the response headers to
-#     the present columns with `<tick>PresentColumns(headers)` /
-#     `thetadatadx_<tick>_present_columns` and hands them plus the optional
-#     `symbol` to `<tick>ToArrowIpcProjected(rows, presentColumns, symbol?)` /
+#     the terminal-exact path. Every binding surfaces the response's own
+#     `ColumnPresence` from a live query so the projection is drivable without
+#     hand-supplying the header list: Python's `<TickName>List.to_arrow()` on a
+#     decoded list auto-projects from the presence the list carries; the C ABI /
+#     C++ buffered `_with_options` entry points return the present columns
+#     through the `ColumnPresence` out-param; TypeScript's `<endpoint>WithColumns`
+#     method returns `{ rows, presentColumns, symbol? }`. The caller then hands
+#     `presentColumns` plus the optional `symbol` to
+#     `<tick>ToArrowIpcProjected(rows, presentColumns, symbol?)` /
 #     `thetadatadx_<tick>_to_arrow_ipc_projected`. The projected `RecordBatch` is
 #     identical; the only difference is where the presence is carried (on the
-#     Python result vs. an explicit argument on TS/C++).
+#     Python result, the C/C++ out-param, or the TypeScript return object).
 #
 # All surfaces are generated from `tick_schema.toml` and funnel through the one
 # `TicksArrowExt::to_arrow` / `to_arrow_projected` + Arrow IPC `StreamWriter`
 # path; the `generate_sdk_surfaces --check` drift gate and the
-# `check_c_abi_completeness` header/symbol parity gate guard a regression. They
-# are free functions, not methods on a tracked class, so they are not
-# expressible as `[[method]]` / `[[value_field]]` rows — this note records the
-# contract the drift gates enforce.
+# `check_c_abi_completeness` header/symbol parity gate guard a regression. The
+# per-tick serializer free functions are not methods on a tracked class, so they
+# are not expressible as `[[method]]` / `[[value_field]]` rows. The TypeScript
+# `<endpoint>WithColumns` reachability (a presence-carrying variant per columnar
+# buffered endpoint) is machine-enforced by the check_binding_parity
+# `withColumns` reachability gate, mirroring the C/C++ `_with_options` presence
+# out-param — this note records the rest of the contract the drift gates enforce.
 
 
 # ─── Historical server-stream surface ([[historical_streaming]]) ──────

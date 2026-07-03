@@ -42,6 +42,8 @@
 
 use std::fmt::Write as _;
 
+use heck::ToLowerCamelCase as _;
+
 use super::super::helpers::{compose_endpoint_doc, endpoint_streams, is_streaming_endpoint};
 use super::super::model::GeneratedEndpoint;
 use super::super::sdk_helpers::{
@@ -90,6 +92,24 @@ pub(super) fn render_typescript_historical_methods(endpoints: &[GeneratedEndpoin
         out.push_str(&render_typescript_endpoint_options_struct(endpoint));
         out.push('\n');
     }
+    // One `<Tick>WithColumns` return object per distinct columnar return type —
+    // the `{ rows, presentColumns, symbol? }` shape the `<method>WithColumns`
+    // variant returns, so a live caller can drive the projected Arrow-IPC exit
+    // from the response's own column set. `StringList` endpoints carry no
+    // column set and get none.
+    let mut seen_return_types = std::collections::HashSet::new();
+    for endpoint in endpoints
+        .iter()
+        .filter(|endpoint| !is_streaming_endpoint(endpoint))
+        .filter(|endpoint| endpoint.return_type != "StringList")
+    {
+        if seen_return_types.insert(endpoint.return_type.clone()) {
+            out.push_str(&render_typescript_with_columns_struct(
+                &endpoint.return_type,
+            ));
+            out.push('\n');
+        }
+    }
     for class_name in HISTORICAL_IMPL_CLASSES {
         out.push_str(&render_typescript_historical_impl_block(
             endpoints, class_name,
@@ -133,6 +153,14 @@ fn render_typescript_historical_impl_block(
         // method.
         if endpoint_streams(endpoint) {
             out.push_str(&render_typescript_endpoint_stream_method(endpoint));
+            out.push('\n');
+        }
+        // Presence-carrying variant: the same query returning the rows plus the
+        // response's projected column set (and the broadcast `symbol` when the
+        // wire carried one), so the projected Arrow-IPC exit is reachable from a
+        // live call. `StringList` endpoints carry no column set and get none.
+        if endpoint.return_type != "StringList" {
+            out.push_str(&render_typescript_endpoint_with_columns_method(endpoint));
             out.push('\n');
         }
     }
@@ -195,11 +223,6 @@ fn render_typescript_endpoint_options_struct(endpoint: &GeneratedEndpoint) -> St
 fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     let method_params = method_params(endpoint);
     let is_string_list = endpoint.return_type == "StringList";
-    let builder_params = if is_string_list {
-        Vec::new()
-    } else {
-        builder_params(endpoint)
-    };
     let camel_name = to_camel_case(&endpoint.name);
     let struct_name = options_struct_name(endpoint);
     let mut out = String::new();
@@ -237,6 +260,74 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
         .unwrap();
     }
 
+    write_ts_request_prelude(&mut out, endpoint, is_string_list);
+
+    let has_symbols = method_params
+        .iter()
+        .any(|param| param.param_type == "Symbols");
+
+    if is_string_list {
+        let positional_args = method_params
+            .iter()
+            .map(|param| {
+                if param.param_type == "Symbols" {
+                    "&refs".into()
+                } else if matches!(param.param_type.as_str(), "Date" | "Expiration")
+                    || is_time_arg(param)
+                {
+                    format!("{}.as_str()", sdk_method_arg_name(param))
+                } else {
+                    format!("&{}", sdk_method_arg_name(param))
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        // The builder borrows `client` and the owned params, so it is
+        // constructed and awaited inside the spawned future where those
+        // values live for `'static`.
+        out.push_str("        spawn_endpoint_task(async move {\n");
+        if has_symbols {
+            out.push_str(
+                "            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();\n",
+            );
+        }
+        writeln!(
+            out,
+            "            let call = client.historical().{name}({positional_args});",
+            name = endpoint.name,
+        )
+        .unwrap();
+        write_timeout_call(&mut out, "            ");
+        out.push_str("        })\n");
+        out.push_str("        .await\n");
+        out.push_str("    }\n");
+        return out;
+    }
+
+    // Builder-backed endpoints.
+    write_ts_builder_request(&mut out, endpoint);
+    writeln!(
+        out,
+        "        Ok({}(&ticks))",
+        ts_class_vec_converter(&endpoint.return_type)
+    )
+    .unwrap();
+    out.push_str("    }\n");
+    out
+}
+
+/// Emit the shared method prelude: `options` unwrap, deadline validation,
+/// client-handle clone, and the argument / builder-parameter normalization.
+/// Byte-identical across the buffered `Array<Tick>` method, the `StringList`
+/// list method, and the presence-carrying `<method>WithColumns` variant, so
+/// they share one source of the request setup.
+fn write_ts_request_prelude(out: &mut String, endpoint: &GeneratedEndpoint, is_string_list: bool) {
+    let method_params = method_params(endpoint);
+    let builder_params = if is_string_list {
+        Vec::new()
+    } else {
+        builder_params(endpoint)
+    };
     out.push_str("        let options = options.unwrap_or_default();\n");
 
     // Validate the per-call deadline up front, before the request task
@@ -309,46 +400,19 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
             }
         }
     }
+}
 
-    if is_string_list {
-        let positional_args = method_params
-            .iter()
-            .map(|param| {
-                if param.param_type == "Symbols" {
-                    "&refs".into()
-                } else if matches!(param.param_type.as_str(), "Date" | "Expiration")
-                    || is_time_arg(param)
-                {
-                    format!("{}.as_str()", sdk_method_arg_name(param))
-                } else {
-                    format!("&{}", sdk_method_arg_name(param))
-                }
-            })
-            .collect::<Vec<_>>()
-            .join(", ");
-        // The builder borrows `client` and the owned params, so it is
-        // constructed and awaited inside the spawned future where those
-        // values live for `'static`.
-        out.push_str("        spawn_endpoint_task(async move {\n");
-        if has_symbols {
-            out.push_str(
-                "            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();\n",
-            );
-        }
-        writeln!(
-            out,
-            "            let call = client.historical().{name}({positional_args});",
-            name = endpoint.name,
-        )
-        .unwrap();
-        write_timeout_call(&mut out, "            ");
-        out.push_str("        })\n");
-        out.push_str("        .await\n");
-        out.push_str("    }\n");
-        return out;
-    }
-
-    // Builder-backed endpoints.
+/// Emit the builder construction, spawn, and `.await?` for a builder-backed
+/// (non-`StringList`) endpoint, binding the decoded `ticks` — a core
+/// `Ticks<T>` carrying the response's column presence (`ticks.columns()`).
+/// Shared by the buffered `Array<Tick>` method and the `<method>WithColumns`
+/// variant, which read the presence off the same `ticks` binding.
+fn write_ts_builder_request(out: &mut String, endpoint: &GeneratedEndpoint) {
+    let method_params = method_params(endpoint);
+    let builder_params = builder_params(endpoint);
+    let has_symbols = method_params
+        .iter()
+        .any(|param| param.param_type == "Symbols");
     let positional_args = method_params
         .iter()
         .map(|param| {
@@ -401,12 +465,111 @@ fn render_typescript_endpoint_method(endpoint: &GeneratedEndpoint) -> String {
     out.push_str("            request.await\n");
     out.push_str("        })\n");
     out.push_str("        .await?;\n");
+}
+
+/// `TradeTick` (the collection's element class) -> `TradeTickWithColumns`, the
+/// `#[napi(object)]` return shape of the `<method>WithColumns` variant.
+fn with_columns_struct_name(return_type: &str) -> String {
+    format!("{}WithColumns", ts_class_name(return_type))
+}
+
+/// Emit the `#[napi(object)] <Tick>WithColumns` return struct: the decoded
+/// rows plus the response's projected column set and optional broadcast
+/// `symbol`. A live caller feeds `presentColumns` (and `symbol`) straight into
+/// `<tick>ToArrowIpcProjected` for a terminal-exact columnar frame, without
+/// hand-supplying the header list.
+fn render_typescript_with_columns_struct(return_type: &str) -> String {
+    let tick_class = ts_class_name(return_type);
+    let struct_name = with_columns_struct_name(return_type);
+    let mut out = String::new();
     writeln!(
         out,
-        "        Ok({}(&ticks))",
-        ts_class_vec_converter(&endpoint.return_type)
+        "/// A decoded history result paired with the columns the response's wire"
     )
     .unwrap();
+    out.push_str("/// actually carried. Returned by the `<method>WithColumns` variant so a\n");
+    out.push_str("/// live caller can serialize a projected Arrow-IPC frame (only the wire's\n");
+    out.push_str("/// columns, matching the terminal's columnar output) without hand-supplying\n");
+    writeln!(
+        out,
+        "/// the header list: pass `presentColumns` and `symbol` to `{}ToArrowIpcProjected`.",
+        tick_class.to_lower_camel_case()
+    )
+    .unwrap();
+    out.push_str("#[napi(object)]\n");
+    writeln!(out, "pub struct {struct_name} {{").unwrap();
+    out.push_str("    /// The decoded rows, identical to the `Array<Tick>` the buffered\n");
+    out.push_str("    /// method returns.\n");
+    writeln!(out, "    pub rows: Vec<{tick_class}>,").unwrap();
+    out.push_str("    /// The schema-column names the response's wire carried, in schema\n");
+    out.push_str("    /// order — the projection set for a terminal-exact Arrow frame.\n");
+    out.push_str("    pub present_columns: Vec<String>,\n");
+    out.push_str("    /// The response's constant `symbol` (root) when the wire carried one\n");
+    out.push_str("    /// (option and index responses), else `undefined` (stock responses).\n");
+    out.push_str("    pub symbol: Option<String>,\n");
+    out.push_str("}\n");
+    out
+}
+
+/// Emit the `<endpoint>WithColumns` method: the same query as the buffered
+/// method, returning the rows plus the response's projected column set and
+/// broadcast `symbol` (a `<Tick>WithColumns` object) so the projected
+/// Arrow-IPC exit is reachable from a live call — the TypeScript analogue of
+/// the C `_with_options` presence out-param and Python's presence-carrying
+/// `<Tick>List`. Only emitted for builder-backed (non-`StringList`) endpoints.
+fn render_typescript_endpoint_with_columns_method(endpoint: &GeneratedEndpoint) -> String {
+    let method_params = method_params(endpoint);
+    let camel_name = to_camel_case(&endpoint.name);
+    let struct_name = options_struct_name(endpoint);
+    let return_struct = with_columns_struct_name(&endpoint.return_type);
+    let converter = ts_class_vec_converter(&endpoint.return_type);
+    let mut out = String::new();
+
+    let doc = format!(
+        "Run the `{camel}` query and return the rows together with the columns the \
+         response's wire carried, so a projected Arrow-IPC frame is drivable from a \
+         live call. Same parameters and result rows as the `{camel}` method; the \
+         returned object adds `presentColumns` (the schema columns the wire sent, in \
+         schema order) and `symbol` (the response's constant root, set for option and \
+         index responses). Feed both to `{tick_camel}ToArrowIpcProjected` for a \
+         terminal-exact columnar export that omits the columns the wire omitted.",
+        camel = camel_name,
+        tick_camel = ts_class_name(&endpoint.return_type).to_lower_camel_case(),
+    );
+    out.push_str(&render_rust_doc_block("    ", &doc));
+    writeln!(out, "    #[napi(js_name = \"{camel_name}WithColumns\")]").unwrap();
+    writeln!(
+        out,
+        "    pub async fn {name}_with_columns(",
+        name = endpoint.name
+    )
+    .unwrap();
+    out.push_str("        &self,\n");
+    for param in &method_params {
+        writeln!(
+            out,
+            "        {}: {},",
+            sdk_method_arg_name(param),
+            ts_napi_arg_type(param)
+        )
+        .unwrap();
+    }
+    writeln!(out, "        options: Option<{struct_name}>,").unwrap();
+    writeln!(out, "    ) -> napi::Result<{return_struct}> {{").unwrap();
+
+    write_ts_request_prelude(&mut out, endpoint, false);
+    write_ts_builder_request(&mut out, endpoint);
+
+    // The core `Ticks<T>` carries the response's `ColumnPresence`: emit its
+    // present schema columns and broadcast `symbol` alongside the converted
+    // rows so the projected Arrow terminal is drivable without a header list.
+    writeln!(out, "        Ok({return_struct} {{").unwrap();
+    writeln!(out, "            rows: {converter}(&ticks),").unwrap();
+    out.push_str(
+        "            present_columns: ticks.columns().present_names().map(String::from).collect(),\n",
+    );
+    out.push_str("            symbol: ticks.columns().symbol().map(String::from),\n");
+    out.push_str("        })\n");
     out.push_str("    }\n");
     out
 }

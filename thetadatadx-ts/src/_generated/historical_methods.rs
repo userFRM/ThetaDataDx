@@ -1474,6 +1474,420 @@ pub struct StockHistoryOHLCRangeOptions {
     pub timeout_ms: Option<f64>,
 }
 
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `ohlcTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct OhlcTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<OhlcTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `tradeTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct TradeTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<TradeTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `quoteTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct QuoteTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<QuoteTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `marketValueTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct MarketValueTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<MarketValueTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `eodTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct EodTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<EodTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `tradeQuoteTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct TradeQuoteTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<TradeQuoteTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `optionContractToArrowIpcProjected`.
+#[napi(object)]
+pub struct OptionContractWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<OptionContract>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `openInterestTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct OpenInterestTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<OpenInterestTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `ivTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct IvTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<IvTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `greeksAllTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct GreeksAllTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<GreeksAllTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `greeksFirstOrderTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct GreeksFirstOrderTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<GreeksFirstOrderTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `greeksSecondOrderTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct GreeksSecondOrderTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<GreeksSecondOrderTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `greeksThirdOrderTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct GreeksThirdOrderTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<GreeksThirdOrderTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `greeksEodTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct GreeksEodTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<GreeksEodTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `tradeGreeksAllTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct TradeGreeksAllTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<TradeGreeksAllTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `tradeGreeksFirstOrderTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct TradeGreeksFirstOrderTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<TradeGreeksFirstOrderTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `tradeGreeksSecondOrderTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct TradeGreeksSecondOrderTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<TradeGreeksSecondOrderTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `tradeGreeksThirdOrderTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct TradeGreeksThirdOrderTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<TradeGreeksThirdOrderTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `tradeGreeksImpliedVolatilityTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct TradeGreeksImpliedVolatilityTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<TradeGreeksImpliedVolatilityTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `priceTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct PriceTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<PriceTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `indexPriceAtTimeTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct IndexPriceAtTimeTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<IndexPriceAtTimeTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `calendarDayToArrowIpcProjected`.
+#[napi(object)]
+pub struct CalendarDayWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<CalendarDay>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
+/// A decoded history result paired with the columns the response's wire
+/// actually carried. Returned by the `<method>WithColumns` variant so a
+/// live caller can serialize a projected Arrow-IPC frame (only the wire's
+/// columns, matching the terminal's columnar output) without hand-supplying
+/// the header list: pass `presentColumns` and `symbol` to `interestRateTickToArrowIpcProjected`.
+#[napi(object)]
+pub struct InterestRateTickWithColumns {
+    /// The decoded rows, identical to the `Array<Tick>` the buffered
+    /// method returns.
+    pub rows: Vec<InterestRateTick>,
+    /// The schema-column names the response's wire carried, in schema
+    /// order — the projection set for a terminal-exact Arrow frame.
+    pub present_columns: Vec<String>,
+    /// The response's constant `symbol` (root) when the wire carried one
+    /// (option and index responses), else `undefined` (stock responses).
+    pub symbol: Option<String>,
+}
+
 #[napi]
 impl HistoricalView {
     /// List all available stock ticker symbols.
@@ -1576,6 +1990,44 @@ impl HistoricalView {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
+    /// Run the `stockSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockSnapshotOHLCWithColumns")]
+    pub async fn stock_snapshot_ohlc_with_columns(
+        &self,
+        symbols: Either<String, Vec<String>>,
+        options: Option<StockSnapshotOHLCOptions>,
+    ) -> napi::Result<OhlcTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let symbols = normalize_symbols(symbols);
+        let venue = options.venue;
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = client.historical().stock_snapshot_ohlc(&refs);
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OhlcTickWithColumns {
+            rows: ohlc_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get the latest trade snapshot for one or more stocks.
     ///
     /// Returns a real-time last trade from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
@@ -1615,6 +2067,44 @@ impl HistoricalView {
         })
         .await?;
         Ok(trade_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `stockSnapshotTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockSnapshotTradeWithColumns")]
+    pub async fn stock_snapshot_trade_with_columns(
+        &self,
+        symbols: Either<String, Vec<String>>,
+        options: Option<StockSnapshotTradeOptions>,
+    ) -> napi::Result<TradeTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let symbols = normalize_symbols(symbols);
+        let venue = options.venue;
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = client.historical().stock_snapshot_trade(&refs);
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeTickWithColumns {
+            rows: trade_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Get the latest NBBO quote snapshot for one or more stocks.
@@ -1658,6 +2148,44 @@ impl HistoricalView {
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
+    /// Run the `stockSnapshotQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockSnapshotQuoteWithColumns")]
+    pub async fn stock_snapshot_quote_with_columns(
+        &self,
+        symbols: Either<String, Vec<String>>,
+        options: Option<StockSnapshotQuoteOptions>,
+    ) -> napi::Result<QuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let symbols = normalize_symbols(symbols);
+        let venue = options.venue;
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = client.historical().stock_snapshot_quote(&refs);
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(QuoteTickWithColumns {
+            rows: quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get the latest market value snapshot for one or more stocks.
     ///
     /// * Returns a real-time market value derived from the last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
@@ -1697,6 +2225,44 @@ impl HistoricalView {
         })
         .await?;
         Ok(market_value_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `stockSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockSnapshotMarketValueWithColumns")]
+    pub async fn stock_snapshot_market_value_with_columns(
+        &self,
+        symbols: Either<String, Vec<String>>,
+        options: Option<StockSnapshotMarketValueOptions>,
+    ) -> napi::Result<MarketValueTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let symbols = normalize_symbols(symbols);
+        let venue = options.venue;
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = client.historical().stock_snapshot_market_value(&refs);
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(MarketValueTickWithColumns {
+            rows: market_value_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
@@ -1761,6 +2327,38 @@ impl HistoricalView {
                 .await
         })
         .await
+    }
+
+    /// Run the `stockHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockHistoryEODWithColumns")]
+    pub async fn stock_history_eod_with_columns(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockHistoryEODOptions>,
+    ) -> napi::Result<EodTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(EodTickWithColumns {
+            rows: eod_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch intraday OHLC bars for a stock on a single date.
@@ -1879,6 +2477,60 @@ impl HistoricalView {
         .await
     }
 
+    /// Run the `stockHistoryOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockHistoryOHLCWithColumns")]
+    pub async fn stock_history_ohlc_with_columns(
+        &self,
+        symbol: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockHistoryOHLCOptions>,
+    ) -> napi::Result<OhlcTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let venue = options.venue;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().stock_history_ohlc(&symbol, date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OhlcTickWithColumns {
+            rows: ohlc_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch all trades for a stock on a given date.
     ///
     /// Returns every trade reported by UTP & CTA. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
@@ -1983,6 +2635,56 @@ impl HistoricalView {
                 .await
         })
         .await
+    }
+
+    /// Run the `stockHistoryTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockHistoryTradeWithColumns")]
+    pub async fn stock_history_trade_with_columns(
+        &self,
+        symbol: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockHistoryTradeOptions>,
+    ) -> napi::Result<TradeTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let venue = options.venue;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().stock_history_trade(&symbol, date.as_str());
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeTickWithColumns {
+            rows: trade_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch NBBO quotes for a stock on a given date at a given interval.
@@ -2102,6 +2804,60 @@ impl HistoricalView {
         .await
     }
 
+    /// Run the `stockHistoryQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockHistoryQuoteWithColumns")]
+    pub async fn stock_history_quote_with_columns(
+        &self,
+        symbol: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockHistoryQuoteOptions>,
+    ) -> napi::Result<QuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let venue = options.venue;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().stock_history_quote(&symbol, date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(QuoteTickWithColumns {
+            rows: quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
     ///
     /// Returns every trade reported by UTP & CTA paired with the last BBO quote reported by UTP or CTA at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
@@ -2217,6 +2973,60 @@ impl HistoricalView {
         .await
     }
 
+    /// Run the `stockHistoryTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockHistoryTradeQuoteWithColumns")]
+    pub async fn stock_history_trade_quote_with_columns(
+        &self,
+        symbol: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockHistoryTradeQuoteOptions>,
+    ) -> napi::Result<TradeQuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let exclusive = options.exclusive;
+        let venue = options.venue;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().stock_history_trade_quote(&symbol, date.as_str());
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = exclusive {
+                request = request.exclusive(value);
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeQuoteTickWithColumns {
+            rows: trade_quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch the trade at a specific time of day across a date range.
     ///
     /// #### Real-time request:
@@ -2302,6 +3112,44 @@ impl HistoricalView {
         .await
     }
 
+    /// Run the `stockAtTimeTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockAtTimeTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockAtTimeTradeWithColumns")]
+    pub async fn stock_at_time_trade_with_columns(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockAtTimeTradeOptions>,
+    ) -> napi::Result<TradeTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let venue = options.venue;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeTickWithColumns {
+            rows: trade_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch the quote at a specific time of day across a date range.
     ///
     /// #### Real-time request:
@@ -2385,6 +3233,44 @@ impl HistoricalView {
                 .await
         })
         .await
+    }
+
+    /// Run the `stockAtTimeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockAtTimeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockAtTimeQuoteWithColumns")]
+    pub async fn stock_at_time_quote_with_columns(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockAtTimeQuoteOptions>,
+    ) -> napi::Result<QuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let venue = options.venue;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(QuoteTickWithColumns {
+            rows: quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// List all available option underlying symbols.
@@ -2594,6 +3480,44 @@ impl HistoricalView {
         .await
     }
 
+    /// Run the `optionListContracts` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionListContracts` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `optionContractToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionListContractsWithColumns")]
+    pub async fn option_list_contracts_with_columns(
+        &self,
+        request_type: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionListContractsOptions>,
+    ) -> napi::Result<OptionContractWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let symbol = options.symbol;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_list_contracts(&request_type, date.as_str());
+            if let Some(value) = symbol {
+                request = request.symbol(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OptionContractWithColumns {
+            rows: option_contracts_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get the latest OHLC snapshot for an option contract.
     ///
     /// - Retrieve a real-time last ohlc of an option contract for the trading day.
@@ -2646,6 +3570,56 @@ impl HistoricalView {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
+    /// Run the `optionSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotOHLCWithColumns")]
+    pub async fn option_snapshot_ohlc_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotOHLCOptions>,
+    ) -> napi::Result<OhlcTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_ohlc(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OhlcTickWithColumns {
+            rows: ohlc_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get the latest trade snapshot for an option contract.
     ///
     /// - Retrieve the real-time last trade of an option contract.
@@ -2693,6 +3667,52 @@ impl HistoricalView {
         })
         .await?;
         Ok(trade_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `optionSnapshotTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotTradeWithColumns")]
+    pub async fn option_snapshot_trade_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotTradeOptions>,
+    ) -> napi::Result<TradeTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_trade(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeTickWithColumns {
+            rows: trade_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Get the latest NBBO quote snapshot for an option contract.
@@ -2746,6 +3766,56 @@ impl HistoricalView {
         })
         .await?;
         Ok(quote_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `optionSnapshotQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotQuoteWithColumns")]
+    pub async fn option_snapshot_quote_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotQuoteOptions>,
+    ) -> napi::Result<QuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_quote(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(QuoteTickWithColumns {
+            rows: quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Get the latest open interest snapshot for an option contract.
@@ -2802,6 +3872,56 @@ impl HistoricalView {
         Ok(open_interest_ticks_to_class_vec(&ticks))
     }
 
+    /// Run the `optionSnapshotOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotOpenInterestWithColumns")]
+    pub async fn option_snapshot_open_interest_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotOpenInterestOptions>,
+    ) -> napi::Result<OpenInterestTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_open_interest(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OpenInterestTickWithColumns {
+            rows: open_interest_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get the latest market value snapshot for an option contract.
     ///
     /// * Returns a real-time market value derived from the last NBBO quote of an option contract.
@@ -2852,6 +3972,56 @@ impl HistoricalView {
         })
         .await?;
         Ok(market_value_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `optionSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotMarketValueWithColumns")]
+    pub async fn option_snapshot_market_value_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotMarketValueOptions>,
+    ) -> napi::Result<MarketValueTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_market_value(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(MarketValueTickWithColumns {
+            rows: market_value_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Get implied volatility snapshot for an option contract (from ThetaData server).
@@ -2936,6 +4106,80 @@ impl HistoricalView {
         Ok(iv_ticks_to_class_vec(&ticks))
     }
 
+    /// Run the `optionSnapshotGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `ivTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotGreeksImpliedVolatilityWithColumns")]
+    pub async fn option_snapshot_greeks_implied_volatility_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotGreeksImpliedVolatilityOptions>,
+    ) -> napi::Result<IvTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(IvTickWithColumns {
+            rows: iv_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get all Greeks snapshot for an option contract (from ThetaData server).
     ///
     /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
@@ -3014,6 +4258,80 @@ impl HistoricalView {
         })
         .await?;
         Ok(greeks_all_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `optionSnapshotGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotGreeksAllWithColumns")]
+    pub async fn option_snapshot_greeks_all_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotGreeksAllOptions>,
+    ) -> napi::Result<GreeksAllTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_greeks_all(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksAllTickWithColumns {
+            rows: greeks_all_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
@@ -3096,6 +4414,80 @@ impl HistoricalView {
         Ok(greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
+    /// Run the `optionSnapshotGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotGreeksFirstOrderWithColumns")]
+    pub async fn option_snapshot_greeks_first_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotGreeksFirstOrderOptions>,
+    ) -> napi::Result<GreeksFirstOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_greeks_first_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksFirstOrderTickWithColumns {
+            rows: greeks_first_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
     ///
     /// - Retrieve a real-time last second order greeks calculation for all option contracts that lie on a provided expiration.
@@ -3176,6 +4568,80 @@ impl HistoricalView {
         Ok(greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
+    /// Run the `optionSnapshotGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotGreeksSecondOrderWithColumns")]
+    pub async fn option_snapshot_greeks_second_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotGreeksSecondOrderOptions>,
+    ) -> napi::Result<GreeksSecondOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_greeks_second_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksSecondOrderTickWithColumns {
+            rows: greeks_second_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
     ///
     /// - Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
@@ -3254,6 +4720,80 @@ impl HistoricalView {
         })
         .await?;
         Ok(greeks_third_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `optionSnapshotGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotGreeksThirdOrderWithColumns")]
+    pub async fn option_snapshot_greeks_third_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotGreeksThirdOrderOptions>,
+    ) -> napi::Result<GreeksThirdOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_greeks_third_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksThirdOrderTickWithColumns {
+            rows: greeks_third_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch end-of-day option data for a contract over a date range.
@@ -3361,6 +4901,56 @@ impl HistoricalView {
                 .await
         })
         .await
+    }
+
+    /// Run the `optionHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryEODWithColumns")]
+    pub async fn option_history_eod_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryEODOptions>,
+    ) -> napi::Result<EodTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(EodTickWithColumns {
+            rows: eod_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch intraday OHLC bars for an option contract.
@@ -3500,6 +5090,70 @@ impl HistoricalView {
         .await
     }
 
+    /// Run the `optionHistoryOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryOHLCWithColumns")]
+    pub async fn option_history_ohlc_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryOHLCOptions>,
+    ) -> napi::Result<OhlcTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OhlcTickWithColumns {
+            rows: ohlc_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch all trades for an option contract on a given date.
     ///
     /// - Returns every trade reported by OPRA. 
@@ -3635,6 +5289,70 @@ impl HistoricalView {
                 .await
         })
         .await
+    }
+
+    /// Run the `optionHistoryTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryTradeWithColumns")]
+    pub async fn option_history_trade_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeOptions>,
+    ) -> napi::Result<TradeTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeTickWithColumns {
+            rows: trade_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch NBBO quotes for an option contract on a given date.
@@ -3780,6 +5498,74 @@ impl HistoricalView {
                 .await
         })
         .await
+    }
+
+    /// Run the `optionHistoryQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryQuoteWithColumns")]
+    pub async fn option_history_quote_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryQuoteOptions>,
+    ) -> napi::Result<QuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(QuoteTickWithColumns {
+            rows: quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch combined trade + quote ticks for an option contract.
@@ -3928,6 +5714,74 @@ impl HistoricalView {
         .await
     }
 
+    /// Run the `optionHistoryTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryTradeQuoteWithColumns")]
+    pub async fn option_history_trade_quote_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeQuoteOptions>,
+    ) -> napi::Result<TradeQuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let exclusive = options.exclusive;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = exclusive {
+                request = request.exclusive(value);
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeQuoteTickWithColumns {
+            rows: trade_quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch open interest history for an option contract.
     ///
     /// - Open Interest is normally reported once per day by OPRA at approximately 06:30 ET.
@@ -4044,6 +5898,62 @@ impl HistoricalView {
                 .await
         })
         .await
+    }
+
+    /// Run the `optionHistoryOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryOpenInterestWithColumns")]
+    pub async fn option_history_open_interest_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryOpenInterestOptions>,
+    ) -> napi::Result<OpenInterestTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OpenInterestTickWithColumns {
+            rows: open_interest_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch end-of-day Greeks history for an option contract.
@@ -4193,6 +6103,76 @@ impl HistoricalView {
                 .await
         })
         .await
+    }
+
+    /// Run the `optionHistoryGreeksEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `greeksEodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryGreeksEODWithColumns")]
+    pub async fn option_history_greeks_eod_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryGreeksEODOptions>,
+    ) -> napi::Result<GreeksEodTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let underlyer_use_nbbo = options.underlyer_use_nbbo;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = underlyer_use_nbbo {
+                request = request.underlyer_use_nbbo(value);
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksEodTickWithColumns {
+            rows: greeks_eod_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
@@ -4367,6 +6347,86 @@ impl HistoricalView {
         .await
     }
 
+    /// Run the `optionHistoryGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryGreeksAllWithColumns")]
+    pub async fn option_history_greeks_all_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryGreeksAllOptions>,
+    ) -> napi::Result<GreeksAllTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksAllTickWithColumns {
+            rows: greeks_all_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch all Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration. 
@@ -4536,6 +6596,86 @@ impl HistoricalView {
                 .await
         })
         .await
+    }
+
+    /// Run the `optionHistoryTradeGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryTradeGreeksAllWithColumns")]
+    pub async fn option_history_trade_greeks_all_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeGreeksAllOptions>,
+    ) -> napi::Result<TradeGreeksAllTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeGreeksAllTickWithColumns {
+            rows: trade_greeks_all_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch first-order Greeks history (intraday, sampled by interval).
@@ -4710,6 +6850,86 @@ impl HistoricalView {
         .await
     }
 
+    /// Run the `optionHistoryGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryGreeksFirstOrderWithColumns")]
+    pub async fn option_history_greeks_first_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryGreeksFirstOrderOptions>,
+    ) -> napi::Result<GreeksFirstOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksFirstOrderTickWithColumns {
+            rows: greeks_first_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch first-order Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -4879,6 +7099,86 @@ impl HistoricalView {
                 .await
         })
         .await
+    }
+
+    /// Run the `optionHistoryTradeGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryTradeGreeksFirstOrderWithColumns")]
+    pub async fn option_history_trade_greeks_first_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeGreeksFirstOrderOptions>,
+    ) -> napi::Result<TradeGreeksFirstOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeGreeksFirstOrderTickWithColumns {
+            rows: trade_greeks_first_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch second-order Greeks history (intraday, sampled by interval).
@@ -5053,6 +7353,86 @@ impl HistoricalView {
         .await
     }
 
+    /// Run the `optionHistoryGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryGreeksSecondOrderWithColumns")]
+    pub async fn option_history_greeks_second_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryGreeksSecondOrderOptions>,
+    ) -> napi::Result<GreeksSecondOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksSecondOrderTickWithColumns {
+            rows: greeks_second_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch second-order Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -5222,6 +7602,86 @@ impl HistoricalView {
                 .await
         })
         .await
+    }
+
+    /// Run the `optionHistoryTradeGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryTradeGreeksSecondOrderWithColumns")]
+    pub async fn option_history_trade_greeks_second_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeGreeksSecondOrderOptions>,
+    ) -> napi::Result<TradeGreeksSecondOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeGreeksSecondOrderTickWithColumns {
+            rows: trade_greeks_second_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch third-order Greeks history (intraday, sampled by interval).
@@ -5396,6 +7856,86 @@ impl HistoricalView {
         .await
     }
 
+    /// Run the `optionHistoryGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryGreeksThirdOrderWithColumns")]
+    pub async fn option_history_greeks_third_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryGreeksThirdOrderOptions>,
+    ) -> napi::Result<GreeksThirdOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksThirdOrderTickWithColumns {
+            rows: greeks_third_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch third-order Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -5565,6 +8105,86 @@ impl HistoricalView {
                 .await
         })
         .await
+    }
+
+    /// Run the `optionHistoryTradeGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryTradeGreeksThirdOrderWithColumns")]
+    pub async fn option_history_trade_greeks_third_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeGreeksThirdOrderOptions>,
+    ) -> napi::Result<TradeGreeksThirdOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeGreeksThirdOrderTickWithColumns {
+            rows: trade_greeks_third_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch implied volatility history (intraday, sampled by interval).
@@ -5738,6 +8358,86 @@ impl HistoricalView {
         .await
     }
 
+    /// Run the `optionHistoryGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `ivTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryGreeksImpliedVolatilityWithColumns")]
+    pub async fn option_history_greeks_implied_volatility_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryGreeksImpliedVolatilityOptions>,
+    ) -> napi::Result<IvTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(IvTickWithColumns {
+            rows: iv_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch implied volatility on each trade for an option contract.
     ///
     /// - Returns implied volatilies calculated using the trade reported by OPRA. 
@@ -5908,6 +8608,86 @@ impl HistoricalView {
         .await
     }
 
+    /// Run the `optionHistoryTradeGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeGreeksImpliedVolatilityTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryTradeGreeksImpliedVolatilityWithColumns")]
+    pub async fn option_history_trade_greeks_implied_volatility_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeGreeksImpliedVolatilityOptions>,
+    ) -> napi::Result<TradeGreeksImpliedVolatilityTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeGreeksImpliedVolatilityTickWithColumns {
+            rows: trade_greeks_implied_volatility_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch the trade at a specific time of day across a date range for an option.
     ///
     /// - Returns the last trade reported by OPRA at a specified millisecond of the day.
@@ -6019,6 +8799,58 @@ impl HistoricalView {
         .await
     }
 
+    /// Run the `optionAtTimeTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionAtTimeTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionAtTimeTradeWithColumns")]
+    pub async fn option_at_time_trade_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionAtTimeTradeOptions>,
+    ) -> napi::Result<TradeTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeTickWithColumns {
+            rows: trade_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch the quote at a specific time of day across a date range for an option.
     ///
     /// - Returns the last NBBO quote reported by OPRA at a specified millisecond of the day.
@@ -6128,6 +8960,58 @@ impl HistoricalView {
         .await
     }
 
+    /// Run the `optionAtTimeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionAtTimeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionAtTimeQuoteWithColumns")]
+    pub async fn option_at_time_quote_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionAtTimeQuoteOptions>,
+    ) -> napi::Result<QuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(QuoteTickWithColumns {
+            rows: quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// List all available index symbols.
     ///
     /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
@@ -6218,6 +9102,40 @@ impl HistoricalView {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
+    /// Run the `indexSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "indexSnapshotOHLCWithColumns")]
+    pub async fn index_snapshot_ohlc_with_columns(
+        &self,
+        symbols: Either<String, Vec<String>>,
+        options: Option<IndexSnapshotOHLCOptions>,
+    ) -> napi::Result<OhlcTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let symbols = normalize_symbols(symbols);
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = client.historical().index_snapshot_ohlc(&refs);
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OhlcTickWithColumns {
+            rows: ohlc_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get the latest price snapshot for one or more indices.
     ///
     /// - Retrieves a real-time last index price.
@@ -6251,6 +9169,40 @@ impl HistoricalView {
         Ok(price_ticks_to_class_vec(&ticks))
     }
 
+    /// Run the `indexSnapshotPrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotPrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `priceTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "indexSnapshotPriceWithColumns")]
+    pub async fn index_snapshot_price_with_columns(
+        &self,
+        symbols: Either<String, Vec<String>>,
+        options: Option<IndexSnapshotPriceOptions>,
+    ) -> napi::Result<PriceTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let symbols = normalize_symbols(symbols);
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = client.historical().index_snapshot_price(&refs);
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(PriceTickWithColumns {
+            rows: price_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get the latest market value snapshot for one or more indices.
     ///
     /// - Retrieves a real-time last index market value.
@@ -6282,6 +9234,40 @@ impl HistoricalView {
         })
         .await?;
         Ok(market_value_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `indexSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "indexSnapshotMarketValueWithColumns")]
+    pub async fn index_snapshot_market_value_with_columns(
+        &self,
+        symbols: Either<String, Vec<String>>,
+        options: Option<IndexSnapshotMarketValueOptions>,
+    ) -> napi::Result<MarketValueTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let symbols = normalize_symbols(symbols);
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = client.historical().index_snapshot_market_value(&refs);
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(MarketValueTickWithColumns {
+            rows: market_value_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch end-of-day index data for a date range.
@@ -6346,6 +9332,38 @@ impl HistoricalView {
                 .await
         })
         .await
+    }
+
+    /// Run the `indexHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "indexHistoryEODWithColumns")]
+    pub async fn index_history_eod_with_columns(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<IndexHistoryEODOptions>,
+    ) -> napi::Result<EodTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(EodTickWithColumns {
+            rows: eod_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch intraday OHLC bars for an index.
@@ -6441,6 +9459,50 @@ impl HistoricalView {
                 .await
         })
         .await
+    }
+
+    /// Run the `indexHistoryOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexHistoryOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "indexHistoryOHLCWithColumns")]
+    pub async fn index_history_ohlc_with_columns(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<IndexHistoryOHLCOptions>,
+    ) -> napi::Result<OhlcTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OhlcTickWithColumns {
+            rows: ohlc_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch intraday price history for an index.
@@ -6551,6 +9613,56 @@ impl HistoricalView {
         .await
     }
 
+    /// Run the `indexHistoryPrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexHistoryPrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `priceTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "indexHistoryPriceWithColumns")]
+    pub async fn index_history_price_with_columns(
+        &self,
+        symbol: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<IndexHistoryPriceOptions>,
+    ) -> napi::Result<PriceTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().index_history_price(&symbol, date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(PriceTickWithColumns {
+            rows: price_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch the index price at a specific time of day across a date range.
     ///
     /// - Retrieves historical indices price reports. Exchanges typically generate a price report every second for popular indices like SPX.
@@ -6620,6 +9732,40 @@ impl HistoricalView {
         .await
     }
 
+    /// Run the `indexAtTimePrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexAtTimePrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `indexPriceAtTimeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "indexAtTimePriceWithColumns")]
+    pub async fn index_at_time_price_with_columns(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<IndexAtTimePriceOptions>,
+    ) -> napi::Result<IndexPriceAtTimeTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(IndexPriceAtTimeTickWithColumns {
+            rows: index_price_at_time_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Check whether the market is open today.
     ///
     /// - Retrieves current day equity market schedule
@@ -6645,6 +9791,33 @@ impl HistoricalView {
         })
         .await?;
         Ok(calendar_days_to_class_vec(&ticks))
+    }
+
+    /// Run the `calendarOpenToday` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `calendarOpenToday` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `calendarDayToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "calendarOpenTodayWithColumns")]
+    pub async fn calendar_open_today_with_columns(
+        &self,
+        options: Option<CalendarOpenTodayOptions>,
+    ) -> napi::Result<CalendarDayWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().calendar_open_today();
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(CalendarDayWithColumns {
+            rows: calendar_days_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Get calendar information for a specific date.
@@ -6677,6 +9850,35 @@ impl HistoricalView {
         Ok(calendar_days_to_class_vec(&ticks))
     }
 
+    /// Run the `calendarOnDate` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `calendarOnDate` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `calendarDayToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "calendarOnDateWithColumns")]
+    pub async fn calendar_on_date_with_columns(
+        &self,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<CalendarOnDateOptions>,
+    ) -> napi::Result<CalendarDayWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().calendar_on_date(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(CalendarDayWithColumns {
+            rows: calendar_days_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day).
     ///
     /// - Retrieves equity market holidays for a given year
@@ -6704,6 +9906,34 @@ impl HistoricalView {
         })
         .await?;
         Ok(calendar_days_to_class_vec(&ticks))
+    }
+
+    /// Run the `calendarYear` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `calendarYear` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `calendarDayToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "calendarYearWithColumns")]
+    pub async fn calendar_year_with_columns(
+        &self,
+        year: String,
+        options: Option<CalendarYearOptions>,
+    ) -> napi::Result<CalendarDayWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().calendar_year(&year);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(CalendarDayWithColumns {
+            rows: calendar_days_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch end-of-day interest rate history.
@@ -6772,6 +10002,38 @@ impl HistoricalView {
                 .await
         })
         .await
+    }
+
+    /// Run the `interestRateHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `interestRateHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `interestRateTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "interestRateHistoryEODWithColumns")]
+    pub async fn interest_rate_history_eod_with_columns(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<InterestRateHistoryEODOptions>,
+    ) -> napi::Result<InterestRateTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(InterestRateTickWithColumns {
+            rows: interest_rate_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
@@ -6872,6 +10134,54 @@ impl HistoricalView {
                 .await
         })
         .await
+    }
+
+    /// Run the `stockHistoryOHLCRange` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryOHLCRange` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockHistoryOHLCRangeWithColumns")]
+    pub async fn stock_history_ohlc_range_with_columns(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockHistoryOHLCRangeOptions>,
+    ) -> napi::Result<OhlcTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let venue = options.venue;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OhlcTickWithColumns {
+            rows: ohlc_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
 }
@@ -6977,6 +10287,44 @@ impl HistoricalClient {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
+    /// Run the `stockSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockSnapshotOHLCWithColumns")]
+    pub async fn stock_snapshot_ohlc_with_columns(
+        &self,
+        symbols: Either<String, Vec<String>>,
+        options: Option<StockSnapshotOHLCOptions>,
+    ) -> napi::Result<OhlcTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let symbols = normalize_symbols(symbols);
+        let venue = options.venue;
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = client.historical().stock_snapshot_ohlc(&refs);
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OhlcTickWithColumns {
+            rows: ohlc_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get the latest trade snapshot for one or more stocks.
     ///
     /// Returns a real-time last trade from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
@@ -7016,6 +10364,44 @@ impl HistoricalClient {
         })
         .await?;
         Ok(trade_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `stockSnapshotTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockSnapshotTradeWithColumns")]
+    pub async fn stock_snapshot_trade_with_columns(
+        &self,
+        symbols: Either<String, Vec<String>>,
+        options: Option<StockSnapshotTradeOptions>,
+    ) -> napi::Result<TradeTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let symbols = normalize_symbols(symbols);
+        let venue = options.venue;
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = client.historical().stock_snapshot_trade(&refs);
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeTickWithColumns {
+            rows: trade_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Get the latest NBBO quote snapshot for one or more stocks.
@@ -7059,6 +10445,44 @@ impl HistoricalClient {
         Ok(quote_ticks_to_class_vec(&ticks))
     }
 
+    /// Run the `stockSnapshotQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockSnapshotQuoteWithColumns")]
+    pub async fn stock_snapshot_quote_with_columns(
+        &self,
+        symbols: Either<String, Vec<String>>,
+        options: Option<StockSnapshotQuoteOptions>,
+    ) -> napi::Result<QuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let symbols = normalize_symbols(symbols);
+        let venue = options.venue;
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = client.historical().stock_snapshot_quote(&refs);
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(QuoteTickWithColumns {
+            rows: quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get the latest market value snapshot for one or more stocks.
     ///
     /// * Returns a real-time market value derived from the last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
@@ -7098,6 +10522,44 @@ impl HistoricalClient {
         })
         .await?;
         Ok(market_value_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `stockSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockSnapshotMarketValueWithColumns")]
+    pub async fn stock_snapshot_market_value_with_columns(
+        &self,
+        symbols: Either<String, Vec<String>>,
+        options: Option<StockSnapshotMarketValueOptions>,
+    ) -> napi::Result<MarketValueTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let symbols = normalize_symbols(symbols);
+        let venue = options.venue;
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = client.historical().stock_snapshot_market_value(&refs);
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(MarketValueTickWithColumns {
+            rows: market_value_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch end-of-day stock data for a date range. Returns OHLCV + bid/ask per trading day.
@@ -7162,6 +10624,38 @@ impl HistoricalClient {
                 .await
         })
         .await
+    }
+
+    /// Run the `stockHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockHistoryEODWithColumns")]
+    pub async fn stock_history_eod_with_columns(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockHistoryEODOptions>,
+    ) -> napi::Result<EodTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(EodTickWithColumns {
+            rows: eod_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch intraday OHLC bars for a stock on a single date.
@@ -7280,6 +10774,60 @@ impl HistoricalClient {
         .await
     }
 
+    /// Run the `stockHistoryOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockHistoryOHLCWithColumns")]
+    pub async fn stock_history_ohlc_with_columns(
+        &self,
+        symbol: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockHistoryOHLCOptions>,
+    ) -> napi::Result<OhlcTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let venue = options.venue;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().stock_history_ohlc(&symbol, date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OhlcTickWithColumns {
+            rows: ohlc_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch all trades for a stock on a given date.
     ///
     /// Returns every trade reported by UTP & CTA. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
@@ -7384,6 +10932,56 @@ impl HistoricalClient {
                 .await
         })
         .await
+    }
+
+    /// Run the `stockHistoryTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockHistoryTradeWithColumns")]
+    pub async fn stock_history_trade_with_columns(
+        &self,
+        symbol: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockHistoryTradeOptions>,
+    ) -> napi::Result<TradeTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let venue = options.venue;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().stock_history_trade(&symbol, date.as_str());
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeTickWithColumns {
+            rows: trade_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch NBBO quotes for a stock on a given date at a given interval.
@@ -7503,6 +11101,60 @@ impl HistoricalClient {
         .await
     }
 
+    /// Run the `stockHistoryQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockHistoryQuoteWithColumns")]
+    pub async fn stock_history_quote_with_columns(
+        &self,
+        symbol: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockHistoryQuoteOptions>,
+    ) -> napi::Result<QuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let venue = options.venue;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().stock_history_quote(&symbol, date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(QuoteTickWithColumns {
+            rows: quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch combined trade + quote ticks for a stock on a given date. Returns raw DataTable.
     ///
     /// Returns every trade reported by UTP & CTA paired with the last BBO quote reported by UTP or CTA at the time of trade. A quote is matched with a trade if its timestamp ``<=`` the trade timestamp. If you prefer to match quotes with timestamps that are ``<`` the trade timestamp, specify the ``exclusive`` parameter to ``true``. Set the ``venue`` parameter to ``nqb`` to access current-day real-time historic data from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
@@ -7618,6 +11270,60 @@ impl HistoricalClient {
         .await
     }
 
+    /// Run the `stockHistoryTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockHistoryTradeQuoteWithColumns")]
+    pub async fn stock_history_trade_quote_with_columns(
+        &self,
+        symbol: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockHistoryTradeQuoteOptions>,
+    ) -> napi::Result<TradeQuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let exclusive = options.exclusive;
+        let venue = options.venue;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().stock_history_trade_quote(&symbol, date.as_str());
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = exclusive {
+                request = request.exclusive(value);
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeQuoteTickWithColumns {
+            rows: trade_quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch the trade at a specific time of day across a date range.
     ///
     /// #### Real-time request:
@@ -7703,6 +11409,44 @@ impl HistoricalClient {
         .await
     }
 
+    /// Run the `stockAtTimeTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockAtTimeTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockAtTimeTradeWithColumns")]
+    pub async fn stock_at_time_trade_with_columns(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockAtTimeTradeOptions>,
+    ) -> napi::Result<TradeTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let venue = options.venue;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeTickWithColumns {
+            rows: trade_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch the quote at a specific time of day across a date range.
     ///
     /// #### Real-time request:
@@ -7786,6 +11530,44 @@ impl HistoricalClient {
                 .await
         })
         .await
+    }
+
+    /// Run the `stockAtTimeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockAtTimeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockAtTimeQuoteWithColumns")]
+    pub async fn stock_at_time_quote_with_columns(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockAtTimeQuoteOptions>,
+    ) -> napi::Result<QuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let venue = options.venue;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(QuoteTickWithColumns {
+            rows: quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// List all available option underlying symbols.
@@ -7995,6 +11777,44 @@ impl HistoricalClient {
         .await
     }
 
+    /// Run the `optionListContracts` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionListContracts` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `optionContractToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionListContractsWithColumns")]
+    pub async fn option_list_contracts_with_columns(
+        &self,
+        request_type: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionListContractsOptions>,
+    ) -> napi::Result<OptionContractWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let symbol = options.symbol;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_list_contracts(&request_type, date.as_str());
+            if let Some(value) = symbol {
+                request = request.symbol(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OptionContractWithColumns {
+            rows: option_contracts_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get the latest OHLC snapshot for an option contract.
     ///
     /// - Retrieve a real-time last ohlc of an option contract for the trading day.
@@ -8047,6 +11867,56 @@ impl HistoricalClient {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
+    /// Run the `optionSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotOHLCWithColumns")]
+    pub async fn option_snapshot_ohlc_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotOHLCOptions>,
+    ) -> napi::Result<OhlcTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_ohlc(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OhlcTickWithColumns {
+            rows: ohlc_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get the latest trade snapshot for an option contract.
     ///
     /// - Retrieve the real-time last trade of an option contract.
@@ -8094,6 +11964,52 @@ impl HistoricalClient {
         })
         .await?;
         Ok(trade_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `optionSnapshotTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotTradeWithColumns")]
+    pub async fn option_snapshot_trade_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotTradeOptions>,
+    ) -> napi::Result<TradeTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_trade(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeTickWithColumns {
+            rows: trade_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Get the latest NBBO quote snapshot for an option contract.
@@ -8147,6 +12063,56 @@ impl HistoricalClient {
         })
         .await?;
         Ok(quote_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `optionSnapshotQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotQuoteWithColumns")]
+    pub async fn option_snapshot_quote_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotQuoteOptions>,
+    ) -> napi::Result<QuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_quote(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(QuoteTickWithColumns {
+            rows: quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Get the latest open interest snapshot for an option contract.
@@ -8203,6 +12169,56 @@ impl HistoricalClient {
         Ok(open_interest_ticks_to_class_vec(&ticks))
     }
 
+    /// Run the `optionSnapshotOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotOpenInterestWithColumns")]
+    pub async fn option_snapshot_open_interest_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotOpenInterestOptions>,
+    ) -> napi::Result<OpenInterestTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_open_interest(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OpenInterestTickWithColumns {
+            rows: open_interest_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get the latest market value snapshot for an option contract.
     ///
     /// * Returns a real-time market value derived from the last NBBO quote of an option contract.
@@ -8253,6 +12269,56 @@ impl HistoricalClient {
         })
         .await?;
         Ok(market_value_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `optionSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotMarketValueWithColumns")]
+    pub async fn option_snapshot_market_value_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotMarketValueOptions>,
+    ) -> napi::Result<MarketValueTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_market_value(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(MarketValueTickWithColumns {
+            rows: market_value_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Get implied volatility snapshot for an option contract (from ThetaData server).
@@ -8337,6 +12403,80 @@ impl HistoricalClient {
         Ok(iv_ticks_to_class_vec(&ticks))
     }
 
+    /// Run the `optionSnapshotGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `ivTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotGreeksImpliedVolatilityWithColumns")]
+    pub async fn option_snapshot_greeks_implied_volatility_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotGreeksImpliedVolatilityOptions>,
+    ) -> napi::Result<IvTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_greeks_implied_volatility(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(IvTickWithColumns {
+            rows: iv_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get all Greeks snapshot for an option contract (from ThetaData server).
     ///
     /// - Retrieve a real-time last greeks calculation for all option contracts that lie on a provided expiration.
@@ -8415,6 +12555,80 @@ impl HistoricalClient {
         })
         .await?;
         Ok(greeks_all_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `optionSnapshotGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotGreeksAllWithColumns")]
+    pub async fn option_snapshot_greeks_all_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotGreeksAllOptions>,
+    ) -> napi::Result<GreeksAllTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_greeks_all(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksAllTickWithColumns {
+            rows: greeks_all_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Get first-order Greeks snapshot (delta, theta, rho) for an option contract.
@@ -8497,6 +12711,80 @@ impl HistoricalClient {
         Ok(greeks_first_order_ticks_to_class_vec(&ticks))
     }
 
+    /// Run the `optionSnapshotGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotGreeksFirstOrderWithColumns")]
+    pub async fn option_snapshot_greeks_first_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotGreeksFirstOrderOptions>,
+    ) -> napi::Result<GreeksFirstOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_greeks_first_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksFirstOrderTickWithColumns {
+            rows: greeks_first_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get second-order Greeks snapshot (gamma, vanna, charm) for an option contract.
     ///
     /// - Retrieve a real-time last second order greeks calculation for all option contracts that lie on a provided expiration.
@@ -8577,6 +12865,80 @@ impl HistoricalClient {
         Ok(greeks_second_order_ticks_to_class_vec(&ticks))
     }
 
+    /// Run the `optionSnapshotGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotGreeksSecondOrderWithColumns")]
+    pub async fn option_snapshot_greeks_second_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotGreeksSecondOrderOptions>,
+    ) -> napi::Result<GreeksSecondOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_greeks_second_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksSecondOrderTickWithColumns {
+            rows: greeks_second_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get third-order Greeks snapshot (speed, color, ultima) for an option contract.
     ///
     /// - Retrieve a real-time last third order greeks calculation for all option contracts that lie on a provided expiration.
@@ -8655,6 +13017,80 @@ impl HistoricalClient {
         })
         .await?;
         Ok(greeks_third_order_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `optionSnapshotGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionSnapshotGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionSnapshotGreeksThirdOrderWithColumns")]
+    pub async fn option_snapshot_greeks_third_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionSnapshotGreeksThirdOrderOptions>,
+    ) -> napi::Result<GreeksThirdOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let stock_price = options.stock_price;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let min_time = normalize_optional_time(options.min_time);
+        let use_market_value = options.use_market_value;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_snapshot_greeks_third_order(&symbol, expiration.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = stock_price {
+                request = request.stock_price(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(value) = use_market_value {
+                request = request.use_market_value(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksThirdOrderTickWithColumns {
+            rows: greeks_third_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch end-of-day option data for a contract over a date range.
@@ -8762,6 +13198,56 @@ impl HistoricalClient {
                 .await
         })
         .await
+    }
+
+    /// Run the `optionHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryEODWithColumns")]
+    pub async fn option_history_eod_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryEODOptions>,
+    ) -> napi::Result<EodTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(EodTickWithColumns {
+            rows: eod_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch intraday OHLC bars for an option contract.
@@ -8901,6 +13387,70 @@ impl HistoricalClient {
         .await
     }
 
+    /// Run the `optionHistoryOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryOHLCWithColumns")]
+    pub async fn option_history_ohlc_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryOHLCOptions>,
+    ) -> napi::Result<OhlcTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OhlcTickWithColumns {
+            rows: ohlc_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch all trades for an option contract on a given date.
     ///
     /// - Returns every trade reported by OPRA. 
@@ -9036,6 +13586,70 @@ impl HistoricalClient {
                 .await
         })
         .await
+    }
+
+    /// Run the `optionHistoryTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryTradeWithColumns")]
+    pub async fn option_history_trade_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeOptions>,
+    ) -> napi::Result<TradeTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_trade(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeTickWithColumns {
+            rows: trade_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch NBBO quotes for an option contract on a given date.
@@ -9181,6 +13795,74 @@ impl HistoricalClient {
                 .await
         })
         .await
+    }
+
+    /// Run the `optionHistoryQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryQuoteWithColumns")]
+    pub async fn option_history_quote_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryQuoteOptions>,
+    ) -> napi::Result<QuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_quote(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(QuoteTickWithColumns {
+            rows: quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch combined trade + quote ticks for an option contract.
@@ -9329,6 +14011,74 @@ impl HistoricalClient {
         .await
     }
 
+    /// Run the `optionHistoryTradeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeQuoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryTradeQuoteWithColumns")]
+    pub async fn option_history_trade_quote_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeQuoteOptions>,
+    ) -> napi::Result<TradeQuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let exclusive = options.exclusive;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = exclusive {
+                request = request.exclusive(value);
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeQuoteTickWithColumns {
+            rows: trade_quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch open interest history for an option contract.
     ///
     /// - Open Interest is normally reported once per day by OPRA at approximately 06:30 ET.
@@ -9445,6 +14195,62 @@ impl HistoricalClient {
                 .await
         })
         .await
+    }
+
+    /// Run the `optionHistoryOpenInterest` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryOpenInterest` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `openInterestTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryOpenInterestWithColumns")]
+    pub async fn option_history_open_interest_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryOpenInterestOptions>,
+    ) -> napi::Result<OpenInterestTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OpenInterestTickWithColumns {
+            rows: open_interest_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch end-of-day Greeks history for an option contract.
@@ -9594,6 +14400,76 @@ impl HistoricalClient {
                 .await
         })
         .await
+    }
+
+    /// Run the `optionHistoryGreeksEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `greeksEodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryGreeksEODWithColumns")]
+    pub async fn option_history_greeks_eod_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryGreeksEODOptions>,
+    ) -> napi::Result<GreeksEodTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let strike = options.strike;
+        let right = options.right;
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let underlyer_use_nbbo = options.underlyer_use_nbbo;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = underlyer_use_nbbo {
+                request = request.underlyer_use_nbbo(value);
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksEodTickWithColumns {
+            rows: greeks_eod_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch all Greeks history for an option contract (intraday, sampled by interval).
@@ -9768,6 +14644,86 @@ impl HistoricalClient {
         .await
     }
 
+    /// Run the `optionHistoryGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `greeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryGreeksAllWithColumns")]
+    pub async fn option_history_greeks_all_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryGreeksAllOptions>,
+    ) -> napi::Result<GreeksAllTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksAllTickWithColumns {
+            rows: greeks_all_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch all Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration. 
@@ -9937,6 +14893,86 @@ impl HistoricalClient {
                 .await
         })
         .await
+    }
+
+    /// Run the `optionHistoryTradeGreeksAll` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksAll` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeGreeksAllTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryTradeGreeksAllWithColumns")]
+    pub async fn option_history_trade_greeks_all_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeGreeksAllOptions>,
+    ) -> napi::Result<TradeGreeksAllTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeGreeksAllTickWithColumns {
+            rows: trade_greeks_all_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch first-order Greeks history (intraday, sampled by interval).
@@ -10111,6 +15147,86 @@ impl HistoricalClient {
         .await
     }
 
+    /// Run the `optionHistoryGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `greeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryGreeksFirstOrderWithColumns")]
+    pub async fn option_history_greeks_first_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryGreeksFirstOrderOptions>,
+    ) -> napi::Result<GreeksFirstOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksFirstOrderTickWithColumns {
+            rows: greeks_first_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch first-order Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -10280,6 +15396,86 @@ impl HistoricalClient {
                 .await
         })
         .await
+    }
+
+    /// Run the `optionHistoryTradeGreeksFirstOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksFirstOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeGreeksFirstOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryTradeGreeksFirstOrderWithColumns")]
+    pub async fn option_history_trade_greeks_first_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeGreeksFirstOrderOptions>,
+    ) -> napi::Result<TradeGreeksFirstOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeGreeksFirstOrderTickWithColumns {
+            rows: trade_greeks_first_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch second-order Greeks history (intraday, sampled by interval).
@@ -10454,6 +15650,86 @@ impl HistoricalClient {
         .await
     }
 
+    /// Run the `optionHistoryGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `greeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryGreeksSecondOrderWithColumns")]
+    pub async fn option_history_greeks_second_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryGreeksSecondOrderOptions>,
+    ) -> napi::Result<GreeksSecondOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksSecondOrderTickWithColumns {
+            rows: greeks_second_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch second-order Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -10623,6 +15899,86 @@ impl HistoricalClient {
                 .await
         })
         .await
+    }
+
+    /// Run the `optionHistoryTradeGreeksSecondOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksSecondOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeGreeksSecondOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryTradeGreeksSecondOrderWithColumns")]
+    pub async fn option_history_trade_greeks_second_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeGreeksSecondOrderOptions>,
+    ) -> napi::Result<TradeGreeksSecondOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeGreeksSecondOrderTickWithColumns {
+            rows: trade_greeks_second_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch third-order Greeks history (intraday, sampled by interval).
@@ -10797,6 +16153,86 @@ impl HistoricalClient {
         .await
     }
 
+    /// Run the `optionHistoryGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `greeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryGreeksThirdOrderWithColumns")]
+    pub async fn option_history_greeks_third_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryGreeksThirdOrderOptions>,
+    ) -> napi::Result<GreeksThirdOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(GreeksThirdOrderTickWithColumns {
+            rows: greeks_third_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch third-order Greeks on each trade for an option contract.
     ///
     /// - Returns the data for all contracts that share the same provided symbol and expiration.
@@ -10966,6 +16402,86 @@ impl HistoricalClient {
                 .await
         })
         .await
+    }
+
+    /// Run the `optionHistoryTradeGreeksThirdOrder` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksThirdOrder` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeGreeksThirdOrderTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryTradeGreeksThirdOrderWithColumns")]
+    pub async fn option_history_trade_greeks_third_order_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeGreeksThirdOrderOptions>,
+    ) -> napi::Result<TradeGreeksThirdOrderTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeGreeksThirdOrderTickWithColumns {
+            rows: trade_greeks_third_order_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch implied volatility history (intraday, sampled by interval).
@@ -11139,6 +16655,86 @@ impl HistoricalClient {
         .await
     }
 
+    /// Run the `optionHistoryGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `ivTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryGreeksImpliedVolatilityWithColumns")]
+    pub async fn option_history_greeks_implied_volatility_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryGreeksImpliedVolatilityOptions>,
+    ) -> napi::Result<IvTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(IvTickWithColumns {
+            rows: iv_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch implied volatility on each trade for an option contract.
     ///
     /// - Returns implied volatilies calculated using the trade reported by OPRA. 
@@ -11309,6 +16905,86 @@ impl HistoricalClient {
         .await
     }
 
+    /// Run the `optionHistoryTradeGreeksImpliedVolatility` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionHistoryTradeGreeksImpliedVolatility` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeGreeksImpliedVolatilityTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionHistoryTradeGreeksImpliedVolatilityWithColumns")]
+    pub async fn option_history_trade_greeks_implied_volatility_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionHistoryTradeGreeksImpliedVolatilityOptions>,
+    ) -> napi::Result<TradeGreeksImpliedVolatilityTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let date = normalize_date(date);
+        let strike = options.strike;
+        let right = options.right;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let annual_dividend = options.annual_dividend;
+        let rate_type = options.rate_type;
+        let rate_value = options.rate_value;
+        let version = options.version;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = annual_dividend {
+                request = request.annual_dividend(value);
+            }
+            if let Some(value) = rate_type {
+                request = request.rate_type(value.as_str());
+            }
+            if let Some(value) = rate_value {
+                request = request.rate_value(value);
+            }
+            if let Some(value) = version {
+                request = request.version(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeGreeksImpliedVolatilityTickWithColumns {
+            rows: trade_greeks_implied_volatility_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch the trade at a specific time of day across a date range for an option.
     ///
     /// - Returns the last trade reported by OPRA at a specified millisecond of the day.
@@ -11420,6 +17096,58 @@ impl HistoricalClient {
         .await
     }
 
+    /// Run the `optionAtTimeTrade` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionAtTimeTrade` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `tradeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionAtTimeTradeWithColumns")]
+    pub async fn option_at_time_trade_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionAtTimeTradeOptions>,
+    ) -> napi::Result<TradeTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(TradeTickWithColumns {
+            rows: trade_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch the quote at a specific time of day across a date range for an option.
     ///
     /// - Returns the last NBBO quote reported by OPRA at a specified millisecond of the day.
@@ -11529,6 +17257,58 @@ impl HistoricalClient {
         .await
     }
 
+    /// Run the `optionAtTimeQuote` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `optionAtTimeQuote` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `quoteTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "optionAtTimeQuoteWithColumns")]
+    pub async fn option_at_time_quote_with_columns(
+        &self,
+        symbol: String,
+        expiration: Either<String, chrono::DateTime<chrono::Utc>>,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<OptionAtTimeQuoteOptions>,
+    ) -> napi::Result<QuoteTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let expiration = normalize_date(expiration);
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let strike = options.strike;
+        let right = options.right;
+        let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
+        let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(value) = strike {
+                request = request.strike(value.as_str());
+            }
+            if let Some(value) = right {
+                request = request.right(value.as_str());
+            }
+            if let Some(value) = max_dte {
+                request = request.max_dte(value);
+            }
+            if let Some(value) = strike_range {
+                request = request.strike_range(value);
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(QuoteTickWithColumns {
+            rows: quote_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// List all available index symbols.
     ///
     /// A symbol can be defined as a unique identifier for a stock / underlying asset. Common terms also include: root, ticker, and underlying. This endpoint returns all traded symbols for options. This endpoint is updated overnight.
@@ -11619,6 +17399,40 @@ impl HistoricalClient {
         Ok(ohlc_ticks_to_class_vec(&ticks))
     }
 
+    /// Run the `indexSnapshotOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "indexSnapshotOHLCWithColumns")]
+    pub async fn index_snapshot_ohlc_with_columns(
+        &self,
+        symbols: Either<String, Vec<String>>,
+        options: Option<IndexSnapshotOHLCOptions>,
+    ) -> napi::Result<OhlcTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let symbols = normalize_symbols(symbols);
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = client.historical().index_snapshot_ohlc(&refs);
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OhlcTickWithColumns {
+            rows: ohlc_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get the latest price snapshot for one or more indices.
     ///
     /// - Retrieves a real-time last index price.
@@ -11652,6 +17466,40 @@ impl HistoricalClient {
         Ok(price_ticks_to_class_vec(&ticks))
     }
 
+    /// Run the `indexSnapshotPrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotPrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `priceTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "indexSnapshotPriceWithColumns")]
+    pub async fn index_snapshot_price_with_columns(
+        &self,
+        symbols: Either<String, Vec<String>>,
+        options: Option<IndexSnapshotPriceOptions>,
+    ) -> napi::Result<PriceTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let symbols = normalize_symbols(symbols);
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = client.historical().index_snapshot_price(&refs);
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(PriceTickWithColumns {
+            rows: price_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get the latest market value snapshot for one or more indices.
     ///
     /// - Retrieves a real-time last index market value.
@@ -11683,6 +17531,40 @@ impl HistoricalClient {
         })
         .await?;
         Ok(market_value_ticks_to_class_vec(&ticks))
+    }
+
+    /// Run the `indexSnapshotMarketValue` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexSnapshotMarketValue` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `marketValueTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "indexSnapshotMarketValueWithColumns")]
+    pub async fn index_snapshot_market_value_with_columns(
+        &self,
+        symbols: Either<String, Vec<String>>,
+        options: Option<IndexSnapshotMarketValueOptions>,
+    ) -> napi::Result<MarketValueTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let symbols = normalize_symbols(symbols);
+        let min_time = normalize_optional_time(options.min_time);
+        let ticks = spawn_endpoint_task(async move {
+            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
+            let mut request = client.historical().index_snapshot_market_value(&refs);
+            if let Some(value) = min_time {
+                request = request.min_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(MarketValueTickWithColumns {
+            rows: market_value_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch end-of-day index data for a date range.
@@ -11747,6 +17629,38 @@ impl HistoricalClient {
                 .await
         })
         .await
+    }
+
+    /// Run the `indexHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `eodTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "indexHistoryEODWithColumns")]
+    pub async fn index_history_eod_with_columns(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<IndexHistoryEODOptions>,
+    ) -> napi::Result<EodTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(EodTickWithColumns {
+            rows: eod_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch intraday OHLC bars for an index.
@@ -11842,6 +17756,50 @@ impl HistoricalClient {
                 .await
         })
         .await
+    }
+
+    /// Run the `indexHistoryOHLC` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexHistoryOHLC` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "indexHistoryOHLCWithColumns")]
+    pub async fn index_history_ohlc_with_columns(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<IndexHistoryOHLCOptions>,
+    ) -> napi::Result<OhlcTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OhlcTickWithColumns {
+            rows: ohlc_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch intraday price history for an index.
@@ -11952,6 +17910,56 @@ impl HistoricalClient {
         .await
     }
 
+    /// Run the `indexHistoryPrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexHistoryPrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `priceTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "indexHistoryPriceWithColumns")]
+    pub async fn index_history_price_with_columns(
+        &self,
+        symbol: String,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<IndexHistoryPriceOptions>,
+    ) -> napi::Result<PriceTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let start_date = normalize_optional_date(options.start_date);
+        let end_date = normalize_optional_date(options.end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().index_history_price(&symbol, date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = start_date {
+                request = request.start_date(value.as_str());
+            }
+            if let Some(value) = end_date {
+                request = request.end_date(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(PriceTickWithColumns {
+            rows: price_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Fetch the index price at a specific time of day across a date range.
     ///
     /// - Retrieves historical indices price reports. Exchanges typically generate a price report every second for popular indices like SPX.
@@ -12021,6 +18029,40 @@ impl HistoricalClient {
         .await
     }
 
+    /// Run the `indexAtTimePrice` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `indexAtTimePrice` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `indexPriceAtTimeTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "indexAtTimePriceWithColumns")]
+    pub async fn index_at_time_price_with_columns(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        time_of_day: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<IndexAtTimePriceOptions>,
+    ) -> napi::Result<IndexPriceAtTimeTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let time_of_day = normalize_time(time_of_day);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(IndexPriceAtTimeTickWithColumns {
+            rows: index_price_at_time_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Check whether the market is open today.
     ///
     /// - Retrieves current day equity market schedule
@@ -12046,6 +18088,33 @@ impl HistoricalClient {
         })
         .await?;
         Ok(calendar_days_to_class_vec(&ticks))
+    }
+
+    /// Run the `calendarOpenToday` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `calendarOpenToday` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `calendarDayToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "calendarOpenTodayWithColumns")]
+    pub async fn calendar_open_today_with_columns(
+        &self,
+        options: Option<CalendarOpenTodayOptions>,
+    ) -> napi::Result<CalendarDayWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().calendar_open_today();
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(CalendarDayWithColumns {
+            rows: calendar_days_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Get calendar information for a specific date.
@@ -12078,6 +18147,35 @@ impl HistoricalClient {
         Ok(calendar_days_to_class_vec(&ticks))
     }
 
+    /// Run the `calendarOnDate` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `calendarOnDate` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `calendarDayToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "calendarOnDateWithColumns")]
+    pub async fn calendar_on_date_with_columns(
+        &self,
+        date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<CalendarOnDateOptions>,
+    ) -> napi::Result<CalendarDayWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let date = normalize_date(date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().calendar_on_date(date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(CalendarDayWithColumns {
+            rows: calendar_days_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
+    }
+
     /// Get equity market holidays and early-close days for a year (vendor `year_holidays` endpoint — only non-standard days, not every trading day).
     ///
     /// - Retrieves equity market holidays for a given year
@@ -12105,6 +18203,34 @@ impl HistoricalClient {
         })
         .await?;
         Ok(calendar_days_to_class_vec(&ticks))
+    }
+
+    /// Run the `calendarYear` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `calendarYear` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `calendarDayToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "calendarYearWithColumns")]
+    pub async fn calendar_year_with_columns(
+        &self,
+        year: String,
+        options: Option<CalendarYearOptions>,
+    ) -> napi::Result<CalendarDayWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().calendar_year(&year);
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(CalendarDayWithColumns {
+            rows: calendar_days_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch end-of-day interest rate history.
@@ -12173,6 +18299,38 @@ impl HistoricalClient {
                 .await
         })
         .await
+    }
+
+    /// Run the `interestRateHistoryEOD` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `interestRateHistoryEOD` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `interestRateTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "interestRateHistoryEODWithColumns")]
+    pub async fn interest_rate_history_eod_with_columns(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<InterestRateHistoryEODOptions>,
+    ) -> napi::Result<InterestRateTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(InterestRateTickWithColumns {
+            rows: interest_rate_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
     /// Fetch intraday OHLC bars across a date range (start_date..end_date). This is a dedicated upstream route, distinct from the single-date stock_history_ohlc; the `_range` suffix mirrors the vendor's separate `ohlc_range` route.
@@ -12273,6 +18431,54 @@ impl HistoricalClient {
                 .await
         })
         .await
+    }
+
+    /// Run the `stockHistoryOHLCRange` query and return the rows together with the columns the response's wire carried, so a projected Arrow-IPC frame is drivable from a live call. Same parameters and result rows as the `stockHistoryOHLCRange` method; the returned object adds `presentColumns` (the schema columns the wire sent, in schema order) and `symbol` (the response's constant root, set for option and index responses). Feed both to `ohlcTickToArrowIpcProjected` for a terminal-exact columnar export that omits the columns the wire omitted.
+    #[napi(js_name = "stockHistoryOHLCRangeWithColumns")]
+    pub async fn stock_history_ohlc_range_with_columns(
+        &self,
+        symbol: String,
+        start_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        end_date: Either<String, chrono::DateTime<chrono::Utc>>,
+        options: Option<StockHistoryOHLCRangeOptions>,
+    ) -> napi::Result<OhlcTickWithColumns> {
+        let options = options.unwrap_or_default();
+        let timeout_ms = match options.timeout_ms {
+            Some(ms) => Some(validate_timeout_ms(ms)?),
+            None => None,
+        };
+        let client = self.client_handle()?;
+        let start_date = normalize_date(start_date);
+        let end_date = normalize_date(end_date);
+        let interval = options.interval;
+        let start_time = normalize_optional_time(options.start_time);
+        let end_time = normalize_optional_time(options.end_time);
+        let venue = options.venue;
+        let ticks = spawn_endpoint_task(async move {
+            let mut request = client.historical().stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
+            if let Some(value) = interval {
+                request = request.interval(value.as_str());
+            }
+            if let Some(value) = start_time {
+                request = request.start_time(value.as_str());
+            }
+            if let Some(value) = end_time {
+                request = request.end_time(value.as_str());
+            }
+            if let Some(value) = venue {
+                request = request.venue(value.as_str());
+            }
+            if let Some(ms) = timeout_ms {
+                request = request.with_deadline(std::time::Duration::from_millis(ms));
+            }
+            request.await
+        })
+        .await?;
+        Ok(OhlcTickWithColumns {
+            rows: ohlc_ticks_to_class_vec(&ticks),
+            present_columns: ticks.columns().present_names().map(String::from).collect(),
+            symbol: ticks.columns().symbol().map(String::from),
+        })
     }
 
 }
