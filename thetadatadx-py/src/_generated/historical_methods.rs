@@ -635,7 +635,7 @@ impl StockHistoryEodBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -661,15 +661,17 @@ impl StockHistoryEodBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -942,7 +944,7 @@ impl StockHistoryOhlcBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_ohlc` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_ohlc` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -991,15 +993,17 @@ impl StockHistoryOhlcBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -1251,7 +1255,7 @@ impl StockHistoryTradeBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -1296,15 +1300,17 @@ impl StockHistoryTradeBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -1578,7 +1584,7 @@ impl StockHistoryQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -1627,15 +1633,17 @@ impl StockHistoryQuoteBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -1907,7 +1915,7 @@ impl StockHistoryTradeQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_trade_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_trade_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -1956,15 +1964,17 @@ impl StockHistoryTradeQuoteBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::TradeQuoteTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::TradeQuoteTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -2163,7 +2173,7 @@ impl StockAtTimeTradeBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_at_time_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_at_time_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -2194,15 +2204,17 @@ impl StockAtTimeTradeBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -2401,7 +2413,7 @@ impl StockAtTimeQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_at_time_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_at_time_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -2432,15 +2444,17 @@ impl StockAtTimeQuoteBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -2918,7 +2932,7 @@ impl OptionListContractsBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_list_contracts` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_list_contracts` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let request_type = self.request_type.clone();
@@ -2951,15 +2965,17 @@ impl OptionListContractsBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::OptionContract as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::OptionContract as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -5134,7 +5150,7 @@ impl OptionHistoryEodBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -5177,15 +5193,17 @@ impl OptionHistoryEodBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -5507,7 +5525,7 @@ impl OptionHistoryOhlcBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_ohlc` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_ohlc` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -5565,15 +5583,17 @@ impl OptionHistoryOhlcBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -5895,7 +5915,7 @@ impl OptionHistoryTradeBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -5953,15 +5973,17 @@ impl OptionHistoryTradeBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -6302,7 +6324,7 @@ impl OptionHistoryQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -6364,15 +6386,17 @@ impl OptionHistoryQuoteBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -6714,7 +6738,7 @@ impl OptionHistoryTradeQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -6776,15 +6800,17 @@ impl OptionHistoryTradeQuoteBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::TradeQuoteTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::TradeQuoteTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -7065,7 +7091,7 @@ impl OptionHistoryOpenInterestBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_open_interest` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_open_interest` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -7115,15 +7141,17 @@ impl OptionHistoryOpenInterestBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::OpenInterestTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::OpenInterestTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -7474,7 +7502,7 @@ impl OptionHistoryGreeksEodBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -7537,15 +7565,17 @@ impl OptionHistoryGreeksEodBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::GreeksEodTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::GreeksEodTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -7946,7 +7976,7 @@ impl OptionHistoryGreeksAllBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_all` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_all` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -8020,15 +8050,17 @@ impl OptionHistoryGreeksAllBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::GreeksAllTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::GreeksAllTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -8428,7 +8460,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_all` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_all` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -8502,15 +8534,17 @@ impl OptionHistoryTradeGreeksAllBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksAllTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::TradeGreeksAllTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -8911,7 +8945,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_first_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_first_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -8985,15 +9019,17 @@ impl OptionHistoryGreeksFirstOrderBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::GreeksFirstOrderTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::GreeksFirstOrderTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -9393,7 +9429,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_first_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_first_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -9467,15 +9503,17 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksFirstOrderTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::TradeGreeksFirstOrderTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -9876,7 +9914,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_second_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_second_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -9950,15 +9988,17 @@ impl OptionHistoryGreeksSecondOrderBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::GreeksSecondOrderTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::GreeksSecondOrderTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -10358,7 +10398,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_second_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_second_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -10432,15 +10472,17 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksSecondOrderTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::TradeGreeksSecondOrderTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -10841,7 +10883,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_third_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_third_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -10915,15 +10957,17 @@ impl OptionHistoryGreeksThirdOrderBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::GreeksThirdOrderTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::GreeksThirdOrderTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -11323,7 +11367,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_third_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_third_order` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -11397,15 +11441,17 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksThirdOrderTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::TradeGreeksThirdOrderTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -11805,7 +11851,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_implied_volatility` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_greeks_implied_volatility` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -11879,15 +11925,17 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::IvTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::IvTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -12286,7 +12334,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_implied_volatility` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_history_trade_greeks_implied_volatility` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -12360,15 +12408,17 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::TradeGreeksImpliedVolatilityTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::TradeGreeksImpliedVolatilityTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -12632,7 +12682,7 @@ impl OptionAtTimeTradeBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_at_time_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_at_time_trade` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -12676,15 +12726,17 @@ impl OptionAtTimeTradeBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::TradeTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -12946,7 +12998,7 @@ impl OptionAtTimeQuoteBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_at_time_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `option_at_time_quote` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -12990,15 +13042,17 @@ impl OptionAtTimeQuoteBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::QuoteTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -13508,7 +13562,7 @@ impl IndexHistoryEodBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -13534,15 +13588,17 @@ impl IndexHistoryEodBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::EodTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -13767,7 +13823,7 @@ impl IndexHistoryOhlcBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_history_ohlc` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_history_ohlc` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -13805,15 +13861,17 @@ impl IndexHistoryOhlcBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -14067,7 +14125,7 @@ impl IndexHistoryPriceBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_history_price` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_history_price` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -14112,15 +14170,17 @@ impl IndexHistoryPriceBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::PriceTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::PriceTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -14292,7 +14352,7 @@ impl IndexAtTimePriceBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_at_time_price` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `index_at_time_price` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -14319,15 +14379,17 @@ impl IndexAtTimePriceBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::IndexPriceAtTimeTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::IndexPriceAtTimeTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -14665,7 +14727,7 @@ impl InterestRateHistoryEodBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `interest_rate_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `interest_rate_history_eod` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -14691,15 +14753,17 @@ impl InterestRateHistoryEodBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::InterestRateTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::InterestRateTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the
@@ -14940,7 +15004,7 @@ impl StockHistoryOhlcRangeBuilder {
         Ok(())
     }
 
-    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_ohlc_range` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled.
+    /// Async companion to `stream()` — awaitable yields `None` when the streamed response of `stock_history_ohlc_range` rows finishes. `handler(chunk: list[Tick]) -> None` runs once per gRPC chunk, in order, on a worker thread; the next chunk is not fetched until it returns. Cancelling the awaitable drops the in-flight gRPC stream (RST_STREAM on the underlying h2 stream) and fetches no further chunks. A handler already running when cancellation lands runs to completion — Python is not interruptible mid-call — so one final `handler` call may finish after the awaitable is cancelled or its deadline expires.
     fn stream_async<'py>(&self, py: Python<'py>, handler: Py<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         let client = self.client.clone();
         let symbol = self.symbol.clone();
@@ -14982,15 +15046,17 @@ impl StockHistoryOhlcRangeBuilder {
                 // in-flight historical calls. The handler Py<PyAny> is
                 // Arc'd once (Send + Sync); we clone the Arc per chunk
                 // (no GIL needed), never clone_ref.
-                let owned: Vec<_> = chunk.to_vec();
-                let owned = thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns());
+                let owned = if cb_err_for_closure.lock().unwrap().is_some() {
+                    None
+                } else {
+                    let owned: Vec<_> = chunk.to_vec();
+                    Some(thetadatadx::Ticks::new(owned, <tick::OhlcTick as thetadatadx::WireColumns>::all_columns()))
+                };
                 let handler_for_task = std::sync::Arc::clone(&handler_for_closure);
                 let cb_err_for_task = std::sync::Arc::clone(&cb_err_for_closure);
                 let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);
                 async move {
-                    if cb_err_for_task.lock().unwrap().is_some() {
-                        return;
-                    }
+                    let Some(owned) = owned else { return; };
                     // GIL acquired strictly inside spawn_blocking — never
                     // held on the async side while awaiting the join, so a
                     // pool thread waiting on the GIL cannot deadlock the

@@ -1068,7 +1068,7 @@ fn write_async_stream_terminal(
          stream) and fetches no further chunks. A handler already running when \
          cancellation lands runs to completion — Python is not interruptible \
          mid-call — so one final `handler` call may finish after the awaitable \
-         is cancelled.",
+         is cancelled or its deadline expires.",
         endpoint.name
     );
     out.push_str(&render_rust_doc_block("    ", &doc));
@@ -1090,15 +1090,22 @@ fn write_async_stream_terminal(
     out.push_str("                // in-flight historical calls. The handler Py<PyAny> is\n");
     out.push_str("                // Arc'd once (Send + Sync); we clone the Arc per chunk\n");
     out.push_str("                // (no GIL needed), never clone_ref.\n");
-    out.push_str("                let owned: Vec<_> = chunk.to_vec();\n");
-    // Per-chunk handler gets a plain pylist of rows; the chunk carries no
+    // Short-circuit the per-chunk copy synchronously once a handler has
+    // errored: handlers run one-at-a-time (awaited in-line), so a post-error
+    // drain must not pay a `to_vec` per chunk the sync path skips. The
+    // per-chunk handler gets a plain pylist of rows; the chunk carries no
     // header list, so wrap with the full-schema column set.
+    out.push_str("                let owned = if cb_err_for_closure.lock().unwrap().is_some() {\n");
+    out.push_str("                    None\n");
+    out.push_str("                } else {\n");
+    out.push_str("                    let owned: Vec<_> = chunk.to_vec();\n");
     writeln!(
         out,
-        "                let owned = thetadatadx::Ticks::new(owned, <tick::{} as thetadatadx::WireColumns>::all_columns());",
+        "                    Some(thetadatadx::Ticks::new(owned, <tick::{} as thetadatadx::WireColumns>::all_columns()))",
         python_pyclass_row_class(&endpoint.return_type)
     )
     .unwrap();
+    out.push_str("                };\n");
     out.push_str(
         "                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);\n",
     );
@@ -1109,9 +1116,7 @@ fn write_async_stream_terminal(
         "                let cb_err_for_join = std::sync::Arc::clone(&cb_err_for_closure);\n",
     );
     out.push_str("                async move {\n");
-    out.push_str("                    if cb_err_for_task.lock().unwrap().is_some() {\n");
-    out.push_str("                        return;\n");
-    out.push_str("                    }\n");
+    out.push_str("                    let Some(owned) = owned else { return; };\n");
     out.push_str("                    // GIL acquired strictly inside spawn_blocking — never\n");
     out.push_str("                    // held on the async side while awaiting the join, so a\n");
     out.push_str("                    // pool thread waiting on the GIL cannot deadlock the\n");
