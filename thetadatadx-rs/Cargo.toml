@@ -1,6 +1,6 @@
 [package]
 name = "thetadatadx"
-version = "13.0.0-rc.13"
+version = "13.0.0-rc.14"
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
