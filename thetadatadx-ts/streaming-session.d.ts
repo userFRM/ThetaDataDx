@@ -82,9 +82,14 @@ export type StreamEventCallback = (event: StreamEvent) => void;
  * Context object returned by `client.streaming(callback)`. Implements
  * `Symbol.asyncDispose` so `await using session = ...` blocks pair
  * `startStreaming` (on the awaited factory call) with
- * `stopStreaming() + awaitDrain(5000)` on scope exit. The drain
- * barrier guarantees the consumer thread has finished firing the
- * registered callback before the JS closure can be released.
+ * `stopStreaming() + awaitDrain(5000)` on scope exit. The ring-drain
+ * barrier guarantees the consumer thread has stopped and enqueues no
+ * further events before the JS closure is released. It is not an exact
+ * "no callback after dispose" barrier on the napi delivery path:
+ * already-queued events can still invoke the callback on later
+ * event-loop turns after the disposer resolves (unlike Python/C++, whose
+ * callback runs on the consumer thread). Do not free callback-referenced
+ * state at scope exit assuming zero further invocations.
  *
  * The runtime forwarding is `Proxy`-based and resolves names against
  * `client.stream` (the `StreamView` streaming surface) first, then the
@@ -96,10 +101,11 @@ export type StreamEventCallback = (event: StreamEvent) => void;
 export interface StreamingSession extends Client, StreamView {
   /**
    * Invoked by `await using session = ...` on scope exit. Stops the
-   * streaming connection and awaits the drain barrier so the consumer
-   * thread is guaranteed to have finished firing the registered
-   * callback before the JS closure can be released. Drain timeouts
-   * emit `console.warn` rather than throwing.
+   * streaming connection and awaits the ring-drain barrier so the consumer
+   * thread has stopped and enqueues no further events before the JS closure
+   * is released. Already-queued events may still invoke the callback on
+   * later event-loop turns after this resolves (see the interface doc).
+   * Drain timeouts emit `console.warn` rather than throwing.
    */
   [Symbol.asyncDispose](): Promise<void>;
 }
@@ -134,10 +140,13 @@ declare module './index' {
 
     /**
      * TC39 explicit resource management: `await using client = ...` calls this
-     * on scope exit. Stops streaming and awaits the drain barrier so the
-     * consumer thread has finished firing the registered callback before the
-     * JS closure is released. Drain timeouts emit `console.warn` rather than
-     * throwing, so an error from the `using` body is not masked.
+     * on scope exit. Stops streaming and awaits the ring-drain barrier so the
+     * consumer thread has stopped and enqueues no further events before the JS
+     * closure is released. Already-queued events may still invoke the callback
+     * on later event-loop turns after this resolves (napi delivery is
+     * downstream of the consumer thread, unlike Python/C++). Drain timeouts
+     * emit `console.warn` rather than throwing, so an error from the `using`
+     * body is not masked.
      */
     [Symbol.asyncDispose](): Promise<void>;
   }
@@ -177,9 +186,11 @@ declare module './index' {
 
     /**
      * TC39 explicit resource management: `await using sc = ...` calls this on
-     * scope exit. Stops streaming and awaits the drain barrier so the consumer
-     * thread has finished firing the registered callback before the JS closure
-     * is released. Drain timeouts emit `console.warn` rather than throwing.
+     * scope exit. Stops streaming and awaits the ring-drain barrier so the
+     * consumer thread has stopped and enqueues no further events before the JS
+     * closure is released. Already-queued events may still invoke the callback
+     * on later event-loop turns after this resolves (see {@link Client}'s async
+     * disposer). Drain timeouts emit `console.warn` rather than throwing.
      */
     [Symbol.asyncDispose](): Promise<void>;
   }
