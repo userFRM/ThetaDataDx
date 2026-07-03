@@ -155,6 +155,8 @@ fn decode_fed_projected_export_omits_flags_and_contract_id() {
     let carrier_copy = ThetaDataDxColumnPresence {
         names: presence.names,
         len: presence.len,
+        symbols: presence.symbols,
+        symbols_len: presence.symbols_len,
     };
     // SAFETY: `rows` is a live slice; `carrier_copy` aliases the still-owned
     // `presence` names, valid for the call. The terminal only reads it.
@@ -228,6 +230,8 @@ fn projected_export_broadcasts_symbol_as_leading_column() {
     let carrier_copy = ThetaDataDxColumnPresence {
         names: presence.names,
         len: presence.len,
+        symbols: presence.symbols,
+        symbols_len: presence.symbols_len,
     };
     let symbol = CString::new("SPY").unwrap();
     // SAFETY: `rows` is a live slice; `carrier_copy` aliases the still-owned
@@ -322,6 +326,8 @@ fn empty_presence_projects_to_zero_columns_with_row_count() {
     let carrier_copy = ThetaDataDxColumnPresence {
         names: presence.names,
         len: presence.len,
+        symbols: presence.symbols,
+        symbols_len: presence.symbols_len,
     };
     // SAFETY: `rows` is a live slice; `carrier_copy` aliases the still-owned
     // empty carrier. The terminal only reads it.

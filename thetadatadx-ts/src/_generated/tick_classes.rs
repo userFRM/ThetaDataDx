@@ -1446,7 +1446,9 @@ pub fn calendar_day_present_columns(headers: Vec<String>) -> Vec<String> {
 /// Serialise a `CalendarDay` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `calendarDayPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `calendarDayToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -1455,11 +1457,14 @@ pub fn calendar_day_to_arrow_ipc_projected(
     rows: Vec<CalendarDay>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = calendar_day_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -1533,7 +1538,9 @@ pub fn eod_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// Serialise a `EodTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `eodTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `eodTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -1542,11 +1549,14 @@ pub fn eod_tick_to_arrow_ipc_projected(
     rows: Vec<EodTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = eod_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -1631,7 +1641,9 @@ pub fn greeks_all_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// Serialise a `GreeksAllTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `greeksAllTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `greeksAllTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -1640,11 +1652,14 @@ pub fn greeks_all_tick_to_arrow_ipc_projected(
     rows: Vec<GreeksAllTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = greeks_all_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -1741,7 +1756,9 @@ pub fn greeks_eod_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// Serialise a `GreeksEodTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `greeksEodTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `greeksEodTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -1750,11 +1767,14 @@ pub fn greeks_eod_tick_to_arrow_ipc_projected(
     rows: Vec<GreeksEodTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = greeks_eod_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -1825,7 +1845,9 @@ pub fn greeks_first_order_tick_present_columns(headers: Vec<String>) -> Vec<Stri
 /// Serialise a `GreeksFirstOrderTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `greeksFirstOrderTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `greeksFirstOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -1834,11 +1856,14 @@ pub fn greeks_first_order_tick_to_arrow_ipc_projected(
     rows: Vec<GreeksFirstOrderTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = greeks_first_order_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -1908,7 +1933,9 @@ pub fn greeks_second_order_tick_present_columns(headers: Vec<String>) -> Vec<Str
 /// Serialise a `GreeksSecondOrderTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `greeksSecondOrderTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `greeksSecondOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -1917,11 +1944,14 @@ pub fn greeks_second_order_tick_to_arrow_ipc_projected(
     rows: Vec<GreeksSecondOrderTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = greeks_second_order_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -1990,7 +2020,9 @@ pub fn greeks_third_order_tick_present_columns(headers: Vec<String>) -> Vec<Stri
 /// Serialise a `GreeksThirdOrderTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `greeksThirdOrderTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `greeksThirdOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -1999,11 +2031,14 @@ pub fn greeks_third_order_tick_to_arrow_ipc_projected(
     rows: Vec<GreeksThirdOrderTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = greeks_third_order_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -2068,7 +2103,9 @@ pub fn index_price_at_time_tick_present_columns(headers: Vec<String>) -> Vec<Str
 /// Serialise a `IndexPriceAtTimeTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `indexPriceAtTimeTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `indexPriceAtTimeTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -2077,11 +2114,14 @@ pub fn index_price_at_time_tick_to_arrow_ipc_projected(
     rows: Vec<IndexPriceAtTimeTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = index_price_at_time_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -2137,7 +2177,9 @@ pub fn interest_rate_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// Serialise a `InterestRateTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `interestRateTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `interestRateTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -2146,11 +2188,14 @@ pub fn interest_rate_tick_to_arrow_ipc_projected(
     rows: Vec<InterestRateTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = interest_rate_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -2218,7 +2263,9 @@ pub fn iv_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// Serialise a `IvTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `ivTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `ivTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -2227,11 +2274,14 @@ pub fn iv_tick_to_arrow_ipc_projected(
     rows: Vec<IvTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = iv_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -2293,7 +2343,9 @@ pub fn market_value_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// Serialise a `MarketValueTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `marketValueTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `marketValueTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -2302,11 +2354,14 @@ pub fn market_value_tick_to_arrow_ipc_projected(
     rows: Vec<MarketValueTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = market_value_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -2372,7 +2427,9 @@ pub fn ohlc_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// Serialise a `OhlcTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `ohlcTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `ohlcTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -2381,11 +2438,14 @@ pub fn ohlc_tick_to_arrow_ipc_projected(
     rows: Vec<OhlcTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = ohlc_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -2445,7 +2505,9 @@ pub fn open_interest_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// Serialise a `OpenInterestTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `openInterestTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `openInterestTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -2454,11 +2516,14 @@ pub fn open_interest_tick_to_arrow_ipc_projected(
     rows: Vec<OpenInterestTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = open_interest_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -2515,7 +2580,9 @@ pub fn price_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// Serialise a `PriceTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `priceTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `priceTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -2524,11 +2591,14 @@ pub fn price_tick_to_arrow_ipc_projected(
     rows: Vec<PriceTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = price_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -2596,7 +2666,9 @@ pub fn quote_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// Serialise a `QuoteTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `quoteTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `quoteTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -2605,11 +2677,14 @@ pub fn quote_tick_to_arrow_ipc_projected(
     rows: Vec<QuoteTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = quote_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -2701,7 +2776,9 @@ pub fn trade_greeks_all_tick_present_columns(headers: Vec<String>) -> Vec<String
 /// Serialise a `TradeGreeksAllTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `tradeGreeksAllTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `tradeGreeksAllTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -2710,11 +2787,14 @@ pub fn trade_greeks_all_tick_to_arrow_ipc_projected(
     rows: Vec<TradeGreeksAllTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = trade_greeks_all_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -2792,7 +2872,9 @@ pub fn trade_greeks_first_order_tick_present_columns(headers: Vec<String>) -> Ve
 /// Serialise a `TradeGreeksFirstOrderTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `tradeGreeksFirstOrderTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `tradeGreeksFirstOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -2801,11 +2883,14 @@ pub fn trade_greeks_first_order_tick_to_arrow_ipc_projected(
     rows: Vec<TradeGreeksFirstOrderTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = trade_greeks_first_order_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -2877,7 +2962,9 @@ pub fn trade_greeks_implied_volatility_tick_present_columns(headers: Vec<String>
 /// Serialise a `TradeGreeksImpliedVolatilityTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `tradeGreeksImpliedVolatilityTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `tradeGreeksImpliedVolatilityTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -2886,11 +2973,14 @@ pub fn trade_greeks_implied_volatility_tick_to_arrow_ipc_projected(
     rows: Vec<TradeGreeksImpliedVolatilityTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = trade_greeks_implied_volatility_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -2967,7 +3057,9 @@ pub fn trade_greeks_second_order_tick_present_columns(headers: Vec<String>) -> V
 /// Serialise a `TradeGreeksSecondOrderTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `tradeGreeksSecondOrderTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `tradeGreeksSecondOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -2976,11 +3068,14 @@ pub fn trade_greeks_second_order_tick_to_arrow_ipc_projected(
     rows: Vec<TradeGreeksSecondOrderTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = trade_greeks_second_order_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -3056,7 +3151,9 @@ pub fn trade_greeks_third_order_tick_present_columns(headers: Vec<String>) -> Ve
 /// Serialise a `TradeGreeksThirdOrderTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `tradeGreeksThirdOrderTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `tradeGreeksThirdOrderTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -3065,11 +3162,14 @@ pub fn trade_greeks_third_order_tick_to_arrow_ipc_projected(
     rows: Vec<TradeGreeksThirdOrderTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = trade_greeks_third_order_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -3150,7 +3250,9 @@ pub fn trade_quote_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// Serialise a `TradeQuoteTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `tradeQuoteTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `tradeQuoteTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -3159,11 +3261,14 @@ pub fn trade_quote_tick_to_arrow_ipc_projected(
     rows: Vec<TradeQuoteTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = trade_quote_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }
@@ -3235,7 +3340,9 @@ pub fn trade_tick_present_columns(headers: Vec<String>) -> Vec<String> {
 /// Serialise a `TradeTick` history result to a projected Arrow IPC stream
 /// carrying ONLY the columns named in `presentColumns` (build it with
 /// `tradeTickPresentColumns` from the response headers), optionally broadcasting
-/// `symbol` as the leading column. The decode-fed sibling of
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
 /// `tradeTickToArrowIpc`: same wire format, projected to the wire's exact column
 /// set, matching Python's projected `<TickName>List.to_arrow()` and the C
 /// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
@@ -3244,11 +3351,14 @@ pub fn trade_tick_to_arrow_ipc_projected(
     rows: Vec<TradeTick>,
     present_columns: Vec<String>,
     symbol: Option<String>,
+    symbols: Option<Vec<String>>,
 ) -> napi::Result<napi::bindgen_prelude::Buffer> {
     let owned = trade_tick_reconstruct_rows(rows)?;
     let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
     if !columns.contains("symbol") {
-        if let Some(sym) = symbol {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
             columns = columns.with_symbol(sym);
         }
     }

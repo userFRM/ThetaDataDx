@@ -491,13 +491,20 @@ fn render_python_slice_reader_projected(type_name: &str, def: &TickTypeDef) -> S
     out.push_str("    }\n");
     out.push_str("    let mut fields: Vec<Field> = Vec::new();\n");
     out.push_str("    let mut columns: Vec<ArrayRef> = Vec::new();\n");
-    // Leading `symbol` (root) column, broadcast from the response constant —
-    // option/index endpoints carry it, stock does not. First in schema order,
-    // mirroring the Rust `to_arrow_projected` builder. Skipped when the tick
-    // already owns a per-row `symbol` column (OptionContract) to avoid a
-    // duplicate field.
+    // Leading `symbol` (root) column, first in schema order, mirroring the Rust
+    // `to_arrow_projected` builder. A multi-symbol snapshot carries a per-row
+    // `symbol` column (`present.symbols()`, one value per row) attributing each
+    // row to its underlying; option/index and single-symbol responses carry a
+    // constant broadcast (`present.symbol()`); per-row takes precedence.
+    // Skipped when the tick already owns a per-row `symbol` column
+    // (OptionContract) to avoid a duplicate field.
     if !def.columns.iter().any(|c| c.field == "symbol") {
-        out.push_str("    if let Some(sym) = present.symbol() {\n");
+        out.push_str("    if let Some(syms) = present.symbols() {\n");
+        out.push_str("        fields.push(Field::new(\"symbol\", DataType::Utf8, false));\n");
+        out.push_str(
+            "        columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);\n",
+        );
+        out.push_str("    } else if let Some(sym) = present.symbol() {\n");
         out.push_str("        fields.push(Field::new(\"symbol\", DataType::Utf8, false));\n");
         out.push_str(
             "        columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);\n",

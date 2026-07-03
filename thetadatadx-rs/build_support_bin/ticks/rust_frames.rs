@@ -289,12 +289,20 @@ fn render_arrow_impl(type_name: &str, def: &TickTypeDef) -> String {
     out.push_str("        }\n");
     out.push_str("        let mut fields: Vec<Field> = Vec::new();\n");
     out.push_str("        let mut columns: Vec<ArrayRef> = Vec::new();\n");
-    // Leading `symbol` (root) column, broadcast from the response constant —
-    // option/index endpoints carry it, stock does not. First in schema order
-    // to match the wire header layout. Skipped for tick types that already own
-    // a per-row `symbol` column (OptionContract) so the schema has no duplicate.
+    // Leading `symbol` (root) column, first in schema order to match the wire
+    // header layout. A multi-symbol snapshot carries a per-row `symbol` column
+    // (`present.symbols()`, one value per row) that attributes each row to its
+    // underlying; option/index and single-symbol responses carry a constant
+    // broadcast (`present.symbol()`); stock history carries neither. Per-row
+    // takes precedence. Skipped for tick types that already own a per-row
+    // `symbol` column (OptionContract) so the schema has no duplicate.
     if !has_symbol_field {
-        out.push_str("        if let Some(sym) = present.symbol() {\n");
+        out.push_str("        if let Some(syms) = present.symbols() {\n");
+        out.push_str("            fields.push(Field::new(\"symbol\", DataType::Utf8, false));\n");
+        out.push_str(
+            "            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);\n",
+        );
+        out.push_str("        } else if let Some(sym) = present.symbol() {\n");
         out.push_str("            fields.push(Field::new(\"symbol\", DataType::Utf8, false));\n");
         out.push_str(
             "            columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);\n",
@@ -434,11 +442,18 @@ fn render_polars_impl(type_name: &str, def: &TickTypeDef) -> String {
     }
     out.push_str("        }\n");
     out.push_str("        let mut series: Vec<polars::prelude::Column> = Vec::new();\n");
-    // Leading `symbol` (root) column, broadcast from the response constant —
-    // first in schema order to match the Arrow builder and the wire. Skipped
-    // when the tick already owns a per-row `symbol` column (OptionContract).
+    // Leading `symbol` (root) column, first in schema order to match the Arrow
+    // builder and the wire. A multi-symbol snapshot carries a per-row `symbol`
+    // column (`present.symbols()`, one value per row); option/index and
+    // single-symbol responses carry a constant broadcast (`present.symbol()`);
+    // per-row takes precedence. Skipped when the tick already owns a per-row
+    // `symbol` column (OptionContract).
     if !has_symbol_field {
-        out.push_str("        if let Some(sym) = present.symbol() {\n");
+        out.push_str("        if let Some(syms) = present.symbols() {\n");
+        out.push_str(
+            "            series.push(Series::new(PlSmallStr::from_static(\"symbol\"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());\n",
+        );
+        out.push_str("        } else if let Some(sym) = present.symbol() {\n");
         out.push_str(
             "            series.push(Series::new(PlSmallStr::from_static(\"symbol\"), vec![sym.to_string(); n]).into());\n",
         );

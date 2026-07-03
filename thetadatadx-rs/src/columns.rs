@@ -37,13 +37,26 @@ pub struct ColumnPresence {
     /// so a linear scan in [`Self::contains`] beats a hashed set.
     names: Vec<Box<str>>,
     /// The response's `symbol` (root) header value, when the wire carried
-    /// one. Option + index historical endpoints send a `symbol` column
-    /// constant across the response (the queried underlying); stock
-    /// endpoints do not. It is not a tick-struct field (the flat POD ticks
-    /// hold no per-row `String`), so it rides here once and the projected
-    /// builders broadcast it as the first Arrow/Polars column. `None` for
-    /// stock responses and every hand-built / streaming frame.
+    /// one constant across every row. Option + index historical endpoints
+    /// send a `symbol` column constant across the response (the queried
+    /// underlying); single-symbol stock snapshots do too. It is not a
+    /// tick-struct field (the flat POD ticks hold no per-row `String`), so it
+    /// rides here once and the projected builders broadcast it as the first
+    /// Arrow/Polars column. `None` for a multi-symbol response (see
+    /// [`Self::symbols`]), for stock history responses, and for every
+    /// hand-built / streaming frame.
     symbol: Option<Box<str>>,
+    /// The response's per-row `symbol` values, when the wire carried a
+    /// `symbol` column that VARIES across rows — a multi-symbol snapshot
+    /// (`stock_snapshot_quote(["AAPL","MSFT"])`) attributes each row to its
+    /// underlying. Like [`Self::symbol`] it is not a tick-struct field (the
+    /// flat POD ticks stay flat), so it rides here once as one value per row
+    /// and the projected builders emit it as the leading `symbol` column.
+    /// Length equals the decoded row count. Mutually exclusive with
+    /// [`Self::symbol`]: the wire's symbol column is either constant
+    /// (broadcast) or varying (per-row), never both. `None` when the wire
+    /// carried no varying `symbol` column.
+    symbols: Option<Vec<Box<str>>>,
 }
 
 impl ColumnPresence {
@@ -61,6 +74,7 @@ impl ColumnPresence {
         Self {
             names: names.into_iter().map(Into::into).collect(),
             symbol: None,
+            symbols: None,
         }
     }
 
@@ -74,11 +88,38 @@ impl ColumnPresence {
         self
     }
 
-    /// The response's constant `symbol` (root), when the wire carried one.
-    /// `None` for stock responses and hand-built / streaming frames.
+    /// Attach the response's per-row `symbol` values, so the projected
+    /// builders emit a real per-row `symbol` column attributing each row to
+    /// its underlying. The decode seam calls this once per response when the
+    /// wire's `symbol` column varies across rows (a multi-symbol snapshot);
+    /// `symbols.len()` must equal the row count. Takes precedence over
+    /// [`Self::with_symbol`] in the projected builders.
+    #[must_use]
+    pub fn with_symbols<I, S>(mut self, symbols: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<Box<str>>,
+    {
+        self.symbols = Some(symbols.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// The response's constant `symbol` (root), when the wire carried one
+    /// constant across every row. `None` for multi-symbol responses (see
+    /// [`Self::symbols`]), stock history responses, and hand-built /
+    /// streaming frames.
     #[must_use]
     pub fn symbol(&self) -> Option<&str> {
         self.symbol.as_deref()
+    }
+
+    /// The response's per-row `symbol` values, one per row, when the wire
+    /// carried a `symbol` column that varies across rows (a multi-symbol
+    /// snapshot). The projected builders emit these as the leading `symbol`
+    /// column. `None` when the response has no varying `symbol` column.
+    #[must_use]
+    pub fn symbols(&self) -> Option<&[Box<str>]> {
+        self.symbols.as_deref()
     }
 
     /// `true` when the response carried the column `name` (a schema field
@@ -355,6 +396,22 @@ mod tests {
         assert!(!p.contains("expiration"));
         assert_eq!(p.len(), 3);
         assert!(!p.is_empty());
+    }
+
+    /// The constant broadcast and the per-row vector are distinct carriers:
+    /// `with_symbol` populates only `symbol()`, `with_symbols` only `symbols()`.
+    #[test]
+    fn constant_and_per_row_symbol_are_distinct() {
+        let constant = ColumnPresence::from_names(["bid"]).with_symbol("SPY");
+        assert_eq!(constant.symbol(), Some("SPY"));
+        assert_eq!(constant.symbols(), None);
+
+        let per_row = ColumnPresence::from_names(["bid"]).with_symbols(["AAPL", "MSFT"]);
+        assert_eq!(per_row.symbol(), None);
+        assert_eq!(
+            per_row.symbols().map(<[Box<str>]>::to_vec),
+            Some(vec!["AAPL".into(), "MSFT".into()])
+        );
     }
 
     #[test]

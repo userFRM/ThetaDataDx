@@ -35,12 +35,13 @@ pub use error::DecodeError;
 // used in the `cell` generated parsers — keep it always-available.
 #[cfg(feature = "__internal")]
 pub use extract::{extract_number_column, extract_price_column};
-// `response_symbol` reads the response's constant root header so the offline
-// decode bench projects the leading `symbol` column exactly as the live
-// collector does; workspace bindings reach it via `__internal`.
-#[cfg(feature = "__internal")]
-pub use extract::response_symbol;
+// `response_symbol` classifies the response's root column (absent / constant
+// broadcast / per-row) so the offline decode bench projects the leading
+// `symbol` column exactly as the live collector does; workspace bindings reach
+// it via `__internal`.
 pub use extract::{extract_text_column, sorted_list_values};
+#[cfg(feature = "__internal")]
+pub use extract::{response_symbol, ResponseSymbol};
 // `decode_data_table` and `decompress_response` (non-`_with_max` variants)
 // plus `decompress_response_with_max` are only used by workspace
 // bindings and tests; gate them under `__internal`.

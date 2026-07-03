@@ -1030,12 +1030,17 @@ macro_rules! parsed_endpoint {
                         let columns = <$item as $crate::columns::WireColumns>::present_columns(
                             &present_headers,
                         );
-                        // Carry the response's constant `symbol` (root) so the
-                        // projected frame broadcasts it as the leading column —
-                        // option/index endpoints send it, stock does not.
+                        // Carry the response's `symbol` (root) so the projected
+                        // frame emits it as the leading column: option/index and
+                        // single-symbol snapshots send a constant broadcast; a
+                        // multi-symbol snapshot sends a per-row `symbol` column
+                        // that attributes each row to its underlying; stock
+                        // history sends neither.
+                        use $crate::mdds::decode::extract::ResponseSymbol;
                         let columns = match $crate::mdds::decode::extract::response_symbol(&table) {
-                            Some(symbol) => columns.with_symbol(symbol),
-                            None => columns,
+                            ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol),
+                            ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols),
+                            ResponseSymbol::Absent => columns,
                         };
                         // Surface the wrong-API-for-this-workload
                         // signal exactly once per request, after the buffered
