@@ -259,6 +259,49 @@ where
     Ok(())
 }
 
+/// Register a reconnect-replay correlation, but only while its identity is still
+/// tracked, under a single held `pending_subs` lock.
+///
+/// The replay does a BLOCKING socket write, so — unlike the non-blocking
+/// subscribe path — the correlation cannot be recorded before the write under
+/// the lock. Instead the frame is written first, then this records the
+/// correlation only if the identity is still in the tracked set. That closes the
+/// hole against a concurrent public unsubscribe (which removes the tracked entry
+/// and evicts correlations under the same lock): if the unsubscribe ran first,
+/// the entry is already gone and no correlation is inserted here (the
+/// unsubscribe's own frame, queued during reconnect, is drained after this
+/// replay and nets out the just-written subscribe on the wire); if it runs
+/// after, it evicts the correlation inserted here. Either way no stale
+/// correlation for the replayed `req_id` survives a concurrent unsubscribe to
+/// later `dec_active` a fresh re-subscribe by identity. The tracked-set mutex is
+/// nested inside `pending_subs`, matching every other identity mutation.
+fn track_replay_correlation_if_tracked<T: PartialEq>(
+    pending_subs: &PendingSubs,
+    active: &Mutex<Vec<(super::protocol::SubscriptionKind, T, u32)>>,
+    kind: super::protocol::SubscriptionKind,
+    key: &T,
+    req_id: i32,
+    sub: super::protocol::PendingSub,
+) {
+    let mut pending = pending_subs
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let still_tracked = active
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .iter()
+        .any(|(k, x, _)| *k == kind && x == key);
+    if still_tracked {
+        pending.insert(
+            req_id,
+            PendingSubEntry {
+                sub,
+                recorded_at: std::time::Instant::now(),
+            },
+        );
+    }
+}
+
 /// Drop one reference from the tracked entry for `(kind, key)`, removing the
 /// entry only once its last reference is gone.
 pub(in crate::fpss) fn dec_active<T: PartialEq>(
@@ -1559,16 +1602,14 @@ where
                 pending_reason = Some(reason);
                 continue 'session;
             }
-            pending_subs
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .insert(
-                    req_id,
-                    PendingSubEntry {
-                        sub: super::protocol::PendingSub::Contract(*kind, contract.clone()),
-                        recorded_at: std::time::Instant::now(),
-                    },
-                );
+            track_replay_correlation_if_tracked(
+                &pending_subs,
+                &active_subs,
+                *kind,
+                contract,
+                req_id,
+                super::protocol::PendingSub::Contract(*kind, contract.clone()),
+            );
             tracing::debug!(kind = ?kind, contract = %contract, req_id, "re-subscribed on auto-reconnect");
             if let Err(e) = pacer.frame_written(writer, &shutdown) {
                 tracing::warn!(error = %e, "re-subscribe burst flush failed; treating socket as broken and reconnecting");
@@ -1588,16 +1629,14 @@ where
                 pending_reason = Some(reason);
                 continue 'session;
             }
-            pending_subs
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .insert(
-                    req_id,
-                    PendingSubEntry {
-                        sub: super::protocol::PendingSub::Full(*kind, *sec_type),
-                        recorded_at: std::time::Instant::now(),
-                    },
-                );
+            track_replay_correlation_if_tracked(
+                &pending_subs,
+                &active_full_subs,
+                *kind,
+                sec_type,
+                req_id,
+                super::protocol::PendingSub::Full(*kind, *sec_type),
+            );
             tracing::debug!(kind = ?kind, sec_type = ?sec_type, req_id, "re-subscribed full-type on auto-reconnect");
             if let Err(e) = pacer.frame_written(writer, &shutdown) {
                 tracing::warn!(error = %e, "re-subscribe burst flush failed; treating socket as broken and reconnecting");
@@ -3399,6 +3438,60 @@ mod tests {
                 .iter()
                 .any(|(_, c, _)| *c == kept),
             "a failed unsubscribe send must leave the identity tracked"
+        );
+    }
+
+    /// A reconnect-replay correlation is recorded only while its identity is
+    /// still tracked. If a concurrent unsubscribe removed the tracked entry (the
+    /// replay frame was already written, and the unsubscribe's own queued frame
+    /// nets it out on the wire), no stale correlation is inserted — so a late
+    /// rejection of the replay `req_id` can never `dec_active` a fresh
+    /// re-subscribe of the same identity.
+    ///
+    /// The offline harness cannot force the write-then-register deschedule
+    /// against a live reconnect loop, so this asserts the guard structurally:
+    /// `track_replay_correlation_if_tracked` inserts iff the identity is present.
+    #[test]
+    fn replay_correlation_skipped_when_identity_unsubscribed() {
+        use super::super::protocol::{PendingSub, SubscriptionKind};
+        use std::collections::HashMap;
+
+        let contract = Contract::stock("AAPL");
+
+        // Still tracked: the correlation is recorded.
+        let active_subs: ActiveSubs = Arc::new(Mutex::new(vec![(
+            SubscriptionKind::Trade,
+            contract.clone(),
+            1,
+        )]));
+        let pending_subs: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
+        track_replay_correlation_if_tracked(
+            &pending_subs,
+            &active_subs,
+            SubscriptionKind::Trade,
+            &contract,
+            5,
+            PendingSub::Contract(SubscriptionKind::Trade, contract.clone()),
+        );
+        assert!(
+            pending_subs.lock().unwrap().contains_key(&5),
+            "a still-tracked identity records its replay correlation"
+        );
+
+        // Concurrently unsubscribed (entry gone): no correlation is recorded.
+        let active_gone: ActiveSubs = Arc::new(Mutex::new(Vec::new()));
+        let pending_gone: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
+        track_replay_correlation_if_tracked(
+            &pending_gone,
+            &active_gone,
+            SubscriptionKind::Trade,
+            &contract,
+            6,
+            PendingSub::Contract(SubscriptionKind::Trade, contract.clone()),
+        );
+        assert!(
+            pending_gone.lock().unwrap().is_empty(),
+            "an unsubscribed identity records no stale replay correlation"
         );
     }
 
