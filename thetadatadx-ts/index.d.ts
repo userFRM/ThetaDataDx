@@ -2798,8 +2798,9 @@ export declare class StreamingClient {
    *
    * Opens the streaming connection and begins delivering events. Each typed
    * streaming event is delivered to your `callback(event)` on the Node main
-   * thread, so the callback may use any JS API safely. A callback that
-   * panics or throws is isolated and does not interrupt the stream.
+   * thread, so the callback may use any JS API safely. Rust-side delivery
+   * panics are isolated and counted by `panicCount()`; a JavaScript
+   * exception follows Node's normal exception handling.
    *
    * Backpressure: a slow callback first fills a bounded delivery queue
    * and then the event ring behind it, at which point the oldest events
@@ -3061,9 +3062,10 @@ export declare class StreamView {
    *
    * Each typed streaming event is delivered to your
    * `callback(event)` on the Node main thread, so the
-   * callback may use any JS API safely. A callback that
-   * panics or throws is isolated and does not interrupt
-   * the stream.
+   * callback may use any JS API safely. Rust-side delivery
+   * panics are isolated and counted by `panicCount()`; a
+   * JavaScript exception follows Node's normal exception
+   * handling.
    *
    * Backpressure: a slow callback first fills a bounded
    * delivery queue and then the event ring behind it, at
@@ -4982,6 +4984,38 @@ export interface OptionContract {
   strike: number
   right: string
 }
+
+/**
+ * Resolve a `OptionContract` history response's wire header names to the schema
+ * columns it carried, in schema order. Feed the result to
+ * `optionContractToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+ * C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+ * `<TickName>List.columns`.
+ */
+export declare function optionContractPresentColumns(headers: Array<string>): Array<string>
+
+/**
+ * Serialise a hand-built `OptionContract` row vector to a full-schema Arrow
+ * IPC stream (the `apache-arrow` wire form) carrying every column the
+ * tick type defines. For rows decoded from a history response, use
+ * `optionContractPresentColumns` + `optionContractToArrowIpcProjected` for a terminal-exact
+ * frame carrying only the wire's columns, mirroring Python's
+ * projected `<TickName>List.to_arrow()`.
+ */
+export declare function optionContractToArrowIpc(rows: Array<OptionContract>): Buffer
+
+/**
+ * Serialise a `OptionContract` history result to a projected Arrow IPC stream
+ * carrying ONLY the columns named in `presentColumns` (build it with
+ * `optionContractPresentColumns` from the response headers), optionally broadcasting
+ * `symbol` as the leading column, or emitting a per-row `symbols` column
+ * for a multi-symbol snapshot (one value per row; takes precedence over
+ * `symbol`). The decode-fed sibling of
+ * `optionContractToArrowIpc`: same wire format, projected to the wire's exact column
+ * set, matching Python's projected `<TickName>List.to_arrow()` and the C
+ * ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+ */
+export declare function optionContractToArrowIpcProjected(rows: Array<OptionContract>, presentColumns: Array<string>, symbol?: string | undefined | null, symbols?: Array<string> | undefined | null): Buffer
 
 /**
  * A decoded history result paired with the columns the response's wire
