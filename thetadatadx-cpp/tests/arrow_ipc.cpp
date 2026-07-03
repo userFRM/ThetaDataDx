@@ -70,3 +70,36 @@ TEST_CASE("the columnar terminal is present for several history tick types",
     REQUIRE(looks_like_arrow_ipc_stream(thetadatadx::interest_rate_ticks_to_arrow_ipc({})));
     REQUIRE(looks_like_arrow_ipc_stream(thetadatadx::calendar_days_to_arrow_ipc({})));
 }
+
+TEST_CASE("ColumnPresence move semantics free the C carrier exactly once",
+          "[arrow][offline]") {
+    // The RAII wrapper owns one heap-allocated C carrier and frees it on
+    // destruction. Moving must transfer that ownership (leaving the source
+    // empty so its destructor is a no-op), so a construct + move-assign +
+    // self-move + double destruct sequence frees the carrier exactly once —
+    // no leak, no double free. A double free would abort the process here.
+    const std::vector<std::string> headers = {"ms_of_day", "price", "date"};
+
+    // Move construction: `moved` takes ownership; `original` is left empty.
+    thetadatadx::ColumnPresence original = thetadatadx::trade_ticks_present_columns(headers);
+    REQUIRE(original.size() == headers.size());
+    thetadatadx::ColumnPresence moved(std::move(original));
+    REQUIRE(moved.size() == headers.size());
+    REQUIRE(original.size() == 0); // NOLINT(bugprone-use-after-move): asserting the moved-from state
+
+    // Move assignment: `sink` frees its own carrier, then adopts `moved`'s.
+    thetadatadx::ColumnPresence sink = thetadatadx::trade_ticks_present_columns({"bid", "ask"});
+    sink = std::move(moved);
+    REQUIRE(sink.size() == headers.size());
+    REQUIRE(moved.size() == 0); // NOLINT(bugprone-use-after-move)
+
+    // Self move-assignment: the `this != &other` guard makes it a no-op, so
+    // the carrier is neither freed-then-read nor lost.
+    thetadatadx::ColumnPresence& alias = sink;
+    sink = std::move(alias); // NOLINT(clang-diagnostic-self-move)
+    REQUIRE(sink.size() == headers.size());
+
+    // Leaving scope destroys `sink` (frees the carrier once) and the two
+    // moved-from empties (no-ops). Reaching here without an abort is the pass.
+    SUCCEED();
+}

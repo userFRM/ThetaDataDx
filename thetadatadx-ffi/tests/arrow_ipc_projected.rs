@@ -134,6 +134,25 @@ fn ipc_columns_and_rows(bytes: &ThetaDataDxArrowBytes) -> (Vec<String>, usize) {
     (cols, rows)
 }
 
+/// Decode the first column of an Arrow IPC buffer as UTF-8 string values.
+fn ipc_first_column_strings(bytes: &ThetaDataDxArrowBytes) -> Vec<String> {
+    use arrow_array::{cast::AsArray, Array};
+    assert!(
+        !bytes.data.is_null(),
+        "terminal returned the error sentinel"
+    );
+    // SAFETY: `data` / `len` describe the buffer the terminal leaked.
+    let slice = unsafe { std::slice::from_raw_parts(bytes.data, bytes.len) };
+    let mut reader = StreamReader::try_new(std::io::Cursor::new(slice), None)
+        .expect("terminal must emit a valid Arrow IPC stream");
+    let batch = reader
+        .next()
+        .expect("stream carries a batch")
+        .expect("valid batch");
+    let col = batch.column(0).as_string::<i32>();
+    (0..col.len()).map(|i| col.value(i).to_string()).collect()
+}
+
 /// The C++ `present_columns` wrapper hands the C ABI a `const char* const*`;
 /// build that from Rust `&str` headers for the FFI call.
 fn presence_from_headers(headers: &[&str]) -> ThetaDataDxColumnPresence {
@@ -258,6 +277,56 @@ fn projected_export_broadcasts_symbol_as_leading_column() {
     assert!(
         cols.contains(&"expiration".to_string()),
         "option projection keeps the contract-id trio; got {cols:?}"
+    );
+}
+
+#[test]
+fn projected_export_emits_per_row_symbols_in_row_order() {
+    // A multi-symbol snapshot carries one `symbol` per row on the presence
+    // carrier (not the constant broadcast). The projected terminal must emit a
+    // leading `symbol` column valued row-for-row, in the carrier's order.
+    let rows = sample_rows();
+    let presence = presence_from_headers(STOCK_TRADE_HEADERS);
+    // One C string per row, in row order — the shape the decode seam leaks via
+    // `from_presence`. Kept owned here so the terminal only borrows them.
+    let syms_owned: Vec<CString> = ["AAPL", "MSFT"]
+        .iter()
+        .map(|s| CString::new(*s).unwrap())
+        .collect();
+    let syms_ptrs: Vec<*const c_char> = syms_owned.iter().map(|c| c.as_ptr()).collect();
+    let carrier = ThetaDataDxColumnPresence {
+        names: presence.names,
+        len: presence.len,
+        symbols: syms_ptrs.as_ptr(),
+        symbols_len: syms_ptrs.len(),
+    };
+    // SAFETY: `rows` is a live slice; `carrier` aliases the still-owned
+    // `presence` names and the live `syms_ptrs`. The terminal only reads it.
+    let bytes = unsafe {
+        thetadatadx_trade_ticks_to_arrow_ipc_projected(
+            rows.as_ptr(),
+            rows.len(),
+            carrier,
+            std::ptr::null(),
+        )
+    };
+    let cols = ipc_columns(&bytes);
+    let syms = ipc_first_column_strings(&bytes);
+    // SAFETY: `bytes` came from the terminal; freed exactly once.
+    unsafe { thetadatadx_arrow_bytes_free(bytes) };
+    // SAFETY: free the `presence` (its `names` array; `symbols` was null on it —
+    // the per-row array is `syms_owned`, dropped by Rust). Freed exactly once.
+    unsafe { thetadatadx_column_presence_free(presence) };
+
+    assert_eq!(
+        cols.first().map(String::as_str),
+        Some("symbol"),
+        "per-row symbols must be the leading projected column; got {cols:?}"
+    );
+    assert_eq!(
+        syms,
+        vec!["AAPL", "MSFT"],
+        "per-row symbol column must follow row order",
     );
 }
 

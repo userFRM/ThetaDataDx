@@ -1167,8 +1167,16 @@ macro_rules! parsed_endpoint {
                         use $crate::mdds::decode::extract::ResponseSymbol;
                         let columns = match $crate::mdds::decode::extract::response_symbol(&table) {
                             ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol),
-                            ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols),
-                            ResponseSymbol::Absent => columns,
+                            // A tick that already owns a `symbol` column (the
+                            // contract universe) emits it from its own field;
+                            // the wire's varying root column would duplicate it
+                            // per row and never be read. Attach the per-row
+                            // values only for the flat POD ticks that carry no
+                            // `symbol` field of their own.
+                            ResponseSymbol::PerRow(symbols) if !columns.contains("symbol") => {
+                                columns.with_symbols(symbols)
+                            }
+                            ResponseSymbol::PerRow(_) | ResponseSymbol::Absent => columns,
                         };
                         // Surface the wrong-API-for-this-workload
                         // signal exactly once per request, after the buffered
