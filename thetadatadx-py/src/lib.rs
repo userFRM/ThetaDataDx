@@ -657,7 +657,7 @@ fn resolve_direct_config(
     let mut direct = config::DirectConfig::production();
     if let Some(raw) = historical_type {
         let environment = config::HistoricalEnvironment::parse(raw).ok_or_else(|| {
-            PyValueError::new_err(format!(
+            config_err(format!(
                 "historical_type must be \"PROD\" or \"STAGE\" (case-insensitive); got {raw:?}"
             ))
         })?;
@@ -665,7 +665,7 @@ fn resolve_direct_config(
     }
     if let Some(raw) = streaming_type {
         let environment = config::StreamingEnvironment::parse(raw).ok_or_else(|| {
-            PyValueError::new_err(format!(
+            config_err(format!(
                 "streaming_type must be \"PROD\" or \"DEV\" (case-insensitive); got {raw:?}"
             ))
         })?;
