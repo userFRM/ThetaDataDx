@@ -124,6 +124,10 @@ def _resolve_ts_entry(pkg_dir: pathlib.Path, key: str, fallback: str) -> pathlib
 TS_DTS = _resolve_ts_entry(TS_PKG_DIR, "types", "index.d.ts")
 TS_MAIN_JS = _resolve_ts_entry(TS_PKG_DIR, "main", "index.js")
 TS_SRC = REPO_ROOT / "thetadatadx-ts" / "src"
+# The committed generated napi historical surface. The `<endpoint>WithColumns`
+# reachability gate reads its `#[napi(js_name = ...)]` attributes directly (a
+# deterministic no-build source the napi compile lowers into `index.d.ts`).
+TS_HISTORICAL_METHODS_RS = TS_SRC / "_generated" / "historical_methods.rs"
 CPP_HPP = REPO_ROOT / "thetadatadx-cpp" / "include" / "thetadatadx.hpp"
 CPP_H = REPO_ROOT / "thetadatadx-cpp" / "include" / "thetadatadx.h"
 FFI_SRC = REPO_ROOT / "thetadatadx-ffi" / "src"
@@ -4200,8 +4204,10 @@ def _collect_typescript_async_endpoints(
     `Promise`, so the buffered endpoint method IS the async surface — there
     is no separate `_async` spelling. Reuses the already-collected
     `{class: {method, ...}}` map: take the `HistoricalView` methods, drop
-    the `<endpoint>Stream` server-stream companions and the FPSS lifecycle
-    methods, and snake-ify the remainder to recover the endpoint names.
+    the `<endpoint>Stream` server-stream companions, the `<endpoint>WithColumns`
+    presence-carrying variants (tracked by the withColumns reachability gate),
+    and the FPSS lifecycle methods, and snake-ify the remainder to recover the
+    endpoint names.
     """
     out: set[str] = set()
     methods = ts_methods.get("HistoricalView", set())
@@ -4210,6 +4216,8 @@ def _collect_typescript_async_endpoints(
         if method in lifecycle:
             continue
         if method.endswith("Stream") and len(method) > len("Stream"):
+            continue
+        if method.endswith("WithColumns") and len(method) > len("WithColumns"):
             continue
         out.add(_endpoint_method_to_snake(method))
     return out
@@ -4379,6 +4387,92 @@ def _endpoint_is_calendar(endpoint: dict[str, Any]) -> bool:
     return a bounded result and get no server-stream terminal.
     """
     return endpoint.get("name", "").startswith("calendar")
+
+
+def _collect_rust_columnar_buffered_endpoints(
+    surface_toml: pathlib.Path,
+) -> set[str]:
+    """Snake_case names of every buffered COLUMNAR historical endpoint.
+
+    The buffered set (`_collect_rust_buffered_endpoints`) minus the flat
+    `StringList` list endpoints, which carry no column set. Each columnar
+    endpoint's `.await` decode yields a core `Ticks<T>` carrying the response's
+    `ColumnPresence`, so each must surface a presence-carrying variant on the
+    managed bindings for the projected Arrow-IPC exit to be drivable from a live
+    call. This is the expected set the TypeScript `withColumns` reachability gate
+    holds the binding to (the same registry of record the streaming / base
+    families read).
+    """
+    if not surface_toml.is_file():
+        return set()
+    data = tomllib.loads(surface_toml.read_text(encoding="utf-8"))
+    out: set[str] = set()
+    for endpoint in data.get("endpoints", []):
+        name = endpoint.get("name")
+        if not name or name.endswith("_stream"):
+            continue
+        if _endpoint_is_simple_list(endpoint):
+            continue
+        out.add(name)
+    return out
+
+
+def _collect_typescript_with_columns_endpoints(
+    hist_methods_rs: pathlib.Path,
+) -> set[str]:
+    """Snake_case endpoint names whose TypeScript historical surface exposes a
+    `<endpoint>WithColumns` presence-carrying query variant.
+
+    Reads the committed generated napi source
+    (`thetadatadx-ts/src/_generated/historical_methods.rs`) rather than the
+    built `index.d.ts`, so the gate holds against the deterministic no-build
+    source the napi compile lowers into the `.d.ts` — the same reason the
+    streaming / buffered rows read `endpoint_surface.toml`. Each variant carries
+    a `#[napi(js_name = "<camel>WithColumns")]` attribute; the camel stem
+    snake-ifies back to the endpoint name. The method is emitted onto both the
+    `HistoricalView` and `HistoricalClient` impl blocks, so the set dedups.
+    """
+    out: set[str] = set()
+    if not hist_methods_rs.is_file():
+        return out
+    text = _read_source(hist_methods_rs)
+    for m in re.finditer(r'#\[napi\(js_name = "(\w+?)WithColumns"\)\]', text):
+        out.add(_endpoint_method_to_snake(m.group(1)))
+    return out
+
+
+def _check_typescript_with_columns_reachability(
+    expected: set[str],
+    actual: set[str],
+) -> list[str]:
+    """The TypeScript projected-Arrow reachability gate.
+
+    Every buffered columnar endpoint (`expected`) must surface a
+    `<endpoint>WithColumns` variant returning the rows plus the response's
+    `presentColumns` / `symbol`, so the projected Arrow-IPC exit is reachable
+    from a live call at parity with Python's presence-carrying `<Tick>List` and
+    the C / C++ `_with_options` presence out-param. A missing variant leaves the
+    only live-call path on that endpoint the full-schema `<tick>ToArrowIpc`,
+    which emits always-present flag / contract-identity columns the wire never
+    sent. An unexpected variant (present on TS but not a columnar buffered
+    endpoint) is generator drift. Both trip the gate.
+    """
+    errors: list[str] = []
+    for name in sorted(expected - actual):
+        errors.append(
+            f"  {name}: buffered columnar endpoint has no `{_snake_to_camel(name)}"
+            f"WithColumns` TypeScript variant. Without it a live caller cannot "
+            f"obtain the response's presentColumns / symbol, so the projected "
+            f"Arrow-IPC export is unreachable (the #1072 always-zero-flag frame). "
+            f"Regenerate the TypeScript historical surface."
+        )
+    for name in sorted(actual - expected):
+        errors.append(
+            f"  {name}: TypeScript exposes a `{_snake_to_camel(name)}WithColumns` "
+            f"variant but it is not a buffered columnar endpoint. Remove it or "
+            f"correct the endpoint registry."
+        )
+    return errors
 
 
 def _collect_rust_streaming_endpoints(
@@ -7963,6 +8057,23 @@ def main(argv: list[str] | None = None) -> int:
         historical_async_rows, rust_buffered, py_async, ts_async, cpp_async
     )
 
+    # TypeScript projected-Arrow reachability — every buffered columnar endpoint
+    # must surface a `<endpoint>WithColumns` variant returning the response's
+    # presentColumns / symbol alongside the rows, so the projected Arrow-IPC
+    # exit is drivable from a live call (parity with Python's presence-carrying
+    # `<Tick>List` and the C / C++ `_with_options` presence out-param). Read
+    # from the committed generated napi source, the deterministic no-build
+    # counterpart of the streaming / base families' `endpoint_surface.toml`.
+    ts_with_columns = _collect_typescript_with_columns_endpoints(
+        TS_HISTORICAL_METHODS_RS
+    )
+    rust_columnar_buffered = _collect_rust_columnar_buffered_endpoints(
+        ENDPOINT_SURFACE_TOML
+    )
+    ts_with_columns_errors = _check_typescript_with_columns_reachability(
+        rust_columnar_buffered, ts_with_columns
+    )
+
     # Historical buffered base surface ([[historical_base]] rows) — the
     # blocking query terminal per endpoint on ALL FIVE surfaces: the Rust
     # `HistoricalClient::<endpoint>` method (registry of record), the Python
@@ -8302,6 +8413,17 @@ def main(argv: list[str] | None = None) -> int:
             f"`[[historical_base]]` granularity):"
         )
         for e in historical_base_errors:
+            print(e)
+        print()
+
+    if ts_with_columns_errors:
+        had_errors = True
+        print(
+            f"check_binding_parity: {len(ts_with_columns_errors)} TypeScript "
+            f"projected-Arrow reachability mismatch(es) (per-endpoint "
+            f"`<endpoint>WithColumns` variant):"
+        )
+        for e in ts_with_columns_errors:
             print(e)
         print()
 

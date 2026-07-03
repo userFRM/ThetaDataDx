@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **TypeScript projected Arrow-IPC is now drivable from a live historical call.** Every columnar historical method gains a `<method>WithColumns` variant returning `{ rows, presentColumns, symbol? }`: the same rows as the plain method plus the columns the response's wire actually carried (and the broadcast root symbol when the response has one). Feed `presentColumns` and `symbol` straight to `<tick>ToArrowIpcProjected` for a terminal-exact columnar frame that omits the columns the wire omitted, without hand-supplying a header list. The existing `Array<Tick>` methods are unchanged. This brings TypeScript to parity with Python's presence-carrying tick list and the C and C++ `_with_options` presence out-param.
+
 ### Fixed
 
 - **A mid-stream reconnect on a historical `*_stream` no longer duplicates the leading rows.** When a server-streaming call delivered some chunks and then dropped with a transient status (or `Unauthenticated`), the shared retry loop restarted the call from chunk zero even though the buffered collectors behind the Python / TypeScript / C / C++ bindings had already appended those chunks, producing a successful result with duplicated leading rows. Because the upstream has no resume cursor, a restart is now allowed only while no chunk has reached the handler; once delivery has begun a later transient is surfaced as an error instead of silently replaying the delivered prefix. A transient before the first chunk still retries.

@@ -79,14 +79,17 @@ describe('historical methods resolve off the execution thread', () => {
   // The `<endpoint>Stream(...)` server-stream companions share the same
   // name families (`stockHistoryEODStream` etc.) but are a distinct
   // surface: they pump chunks into a callback and resolve `Promise<void>`
-  // rather than returning the buffered row array. They are excluded here
-  // so this block pins the buffered-fetch contract; their shape is
-  // covered by the bare-Array assertion below.
+  // rather than returning the buffered row array. The
+  // `<endpoint>WithColumns(...)` presence-carrying variants likewise share the
+  // families but return `Promise<<Tick>WithColumns>` (rows plus the response's
+  // present columns), not the bare row array. Both are excluded here so this
+  // block pins the buffered-fetch contract; their shapes are covered by their
+  // own tests.
   const familyRe =
     /^\s+((?:stock|option|index)History\w*|\w*Snapshot\w*|\w*AtTime\w*|\w*List\w*|calendar\w*|interestRate\w*)\(/;
   const methodLines = body
     .split('\n')
-    .filter((line) => familyRe.test(line) && !/Stream\(/.test(line));
+    .filter((line) => familyRe.test(line) && !/Stream\(/.test(line) && !/WithColumns\(/.test(line));
 
   it('every buffered data-fetch method is present (61 of them)', () => {
     // Pin the count so a generator change that drops a method, or leaks

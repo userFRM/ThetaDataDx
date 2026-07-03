@@ -156,3 +156,66 @@ describe('projected Arrow-IPC terminal', () => {
     }
   });
 });
+
+// The `<method>WithColumns` live-call variant (#1098 TypeScript parity). The
+// plain `<method>` returns `Array<Tick>` with no presence, so a live caller
+// could only reach the full-schema `<tick>ToArrowIpc`. The variant returns
+// `{ rows, presentColumns, symbol? }`, so the response's own column set drives
+// `<tick>ToArrowIpcProjected` — the projected exit reachable from a live call.
+//
+// The prebuilt native addon in the tree predates this method, so the live call
+// itself is exercised against the committed generated napi source (the shape
+// napi lowers into index.d.ts, verified by the drift gate). The end-to-end
+// drivability of the RETURN SHAPE is exercised for real: the object a live call
+// yields is assembled and its `presentColumns` / `symbol` feed the real
+// projected serialiser in the addon.
+describe('withColumns live-call variant drives the projected export', () => {
+  const generated = readFileSync(
+    resolve(__dirname, '..', 'src', '_generated', 'historical_methods.rs'),
+    'utf8'
+  );
+
+  // Emulate what `stockHistoryTradeWithColumns` returns for a stock response:
+  // the converted rows plus the response's present columns (resolved from the
+  // wire headers exactly as the method does from the core ColumnPresence) and
+  // the broadcast symbol (absent on a stock response).
+  function withColumnsReturn(headers, symbol) {
+    return {
+      rows: sampleRows(),
+      presentColumns: addon.tradeTickPresentColumns(headers),
+      symbol: symbol ?? undefined,
+    };
+  }
+
+  it('projects a stock response to only its wire columns from the return object', () => {
+    const page = withColumnsReturn(STOCK_TRADE_HEADERS, null);
+    const buf = addon.tradeTickToArrowIpcProjected(page.rows, page.presentColumns, page.symbol ?? null);
+    const cols = ipcColumns(buf);
+    assert.deepEqual(cols, STOCK_TRADE_HEADERS, 'the return object must drive a terminal-exact frame');
+    for (const absent of ['condition_flags', 'price_flags', 'volume_type', 'records_back', 'expiration', 'strike', 'right']) {
+      assert.ok(!cols.includes(absent), `projected export leaked wire-absent column ${absent}`);
+    }
+  });
+
+  it('broadcasts the return object symbol as the leading column', () => {
+    const optionHeaders = ['expiration', 'strike', 'right', 'ms_of_day', 'sequence', 'condition', 'size', 'exchange', 'price'];
+    const page = withColumnsReturn(optionHeaders, 'SPY');
+    const buf = addon.tradeTickToArrowIpcProjected(page.rows, page.presentColumns, page.symbol ?? null);
+    const cols = ipcColumns(buf);
+    assert.equal(cols[0], 'symbol', 'the return object symbol must lead the projected frame');
+  });
+
+  it('generates the WithColumns variant on both historical classes', () => {
+    // Present on the standalone HistoricalClient and the unified HistoricalView
+    // (both impl blocks), returning the presence-carrying object, never the bare
+    // row array.
+    const jsName = (generated.match(/js_name = "(\w+WithColumns)"/g) || []).length;
+    assert.ok(jsName >= 2, 'stockHistoryTradeWithColumns must exist on both historical impl blocks');
+    assert.match(generated, /pub async fn stock_history_trade_with_columns\(/);
+    assert.match(generated, /-> napi::Result<TradeTickWithColumns>/);
+    assert.match(generated, /pub struct TradeTickWithColumns \{/);
+    assert.match(generated, /pub present_columns: Vec<String>,/);
+    // The plain buffered method is untouched (no breaking change).
+    assert.match(generated, /pub async fn stock_history_trade\(\s*&self,[\s\S]*?-> napi::Result<Vec<TradeTick>>/);
+  });
+});
