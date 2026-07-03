@@ -932,6 +932,16 @@ impl DirectConfig {
                 "initial_delay must be non-zero when max_attempts > 1".to_string(),
             ));
         }
+        // A retry policy runs at least one attempt: `0` is never a meaningful
+        // budget (the request path floors it to 1 deep inside the loop). Reject
+        // it here so every binding fails fast and identically, the same way the
+        // `flatfiles.max_attempts` budget is floor-checked below.
+        if self.retry.max_attempts == 0 {
+            return Err(Error::config_invalid(
+                "retry.max_attempts",
+                "max_attempts must be at least 1".to_string(),
+            ));
+        }
         // Historical retry policy: the backoff ceiling cannot sit below the
         // initial delay (mirrors the flatfiles `max_backoff >= initial_backoff`
         // invariant), or the exponential ladder would start above its own cap.
@@ -954,6 +964,29 @@ impl DirectConfig {
         if self.streaming.hosts.is_empty() {
             return Err(Error::config_missing("streaming.hosts"));
         }
+        // Each streaming host must be a routable dial target. A blank host or a
+        // zero port is accepted only by the raw `set_streaming_hosts` setter and
+        // would otherwise fail late at dial with a generic transport error that
+        // never names the offending entry, burning a failover slot. Trim and
+        // reject here so every construction path shares the check.
+        for (host, port) in &mut self.streaming.hosts {
+            let trimmed = host.trim();
+            if trimmed.is_empty() {
+                return Err(Error::config_invalid(
+                    "streaming.hosts",
+                    "each streaming host must be non-empty".to_string(),
+                ));
+            }
+            if trimmed.len() != host.len() {
+                *host = trimmed.to_string();
+            }
+            if *port == 0 {
+                return Err(Error::config_invalid(
+                    "streaming.hosts",
+                    format!("streaming host '{host}' has a zero port"),
+                ));
+            }
+        }
         // Validate ring_size eagerly so a bad config fails fast rather
         // than waiting for the connect attempt. Re-validation happens
         // at `StreamingClient::connect` for callers that bypass `validate`.
@@ -971,6 +1004,20 @@ impl DirectConfig {
                 "historical.port",
                 "port must be non-zero".to_string(),
             ));
+        }
+        // The historical channel needs a routable host. A blank or whitespace
+        // host is accepted only by the raw `set_historical_host` setter and the
+        // config-file path; reject it here (after trimming) so it fails fast
+        // with a named field error instead of a late dial-time transport error.
+        let trimmed_host = self.historical.host.trim();
+        if trimmed_host.is_empty() {
+            return Err(Error::config_invalid(
+                "historical.host",
+                "host must be non-empty".to_string(),
+            ));
+        }
+        if trimmed_host.len() != self.historical.host.len() {
+            self.historical.host = trimmed_host.to_string();
         }
         // Historical TCP+TLS connect timeout must be positive: a `0` makes
         // every channel-pool connect time out on its first poll. Band-checked
@@ -2201,6 +2248,54 @@ mod tests {
         config.streaming.ring_size = 100; // not a power of two
         let err = config.validate().expect_err("must reject non-power-of-two");
         assert!(err.to_string().contains("ring_size"));
+    }
+
+    #[test]
+    fn validate_rejects_empty_historical_host() {
+        let mut config = DirectConfig::production_defaults();
+        config.historical.host = "   ".to_string();
+        let err = config
+            .validate()
+            .expect_err("must reject a blank historical host");
+        assert!(err.to_string().contains("historical.host"));
+    }
+
+    #[test]
+    fn validate_trims_historical_host() {
+        let mut config = DirectConfig::production_defaults();
+        config.historical.host = "  data.example  ".to_string();
+        let config = config.validate().expect("a padded host trims and validates");
+        assert_eq!(config.historical.host, "data.example");
+    }
+
+    #[test]
+    fn validate_rejects_empty_streaming_host() {
+        let mut config = DirectConfig::production_defaults();
+        config.streaming.hosts = vec![(String::new(), 11_000)];
+        let err = config
+            .validate()
+            .expect_err("must reject a blank streaming host");
+        assert!(err.to_string().contains("streaming.hosts"));
+    }
+
+    #[test]
+    fn validate_rejects_zero_streaming_host_port() {
+        let mut config = DirectConfig::production_defaults();
+        config.streaming.hosts = vec![("stream.example".to_string(), 0)];
+        let err = config
+            .validate()
+            .expect_err("must reject a zero streaming port");
+        assert!(err.to_string().contains("streaming.hosts"));
+    }
+
+    #[test]
+    fn validate_rejects_zero_retry_max_attempts() {
+        let mut config = DirectConfig::production_defaults();
+        config.retry.max_attempts = 0;
+        let err = config
+            .validate()
+            .expect_err("must reject a zero retry budget");
+        assert!(err.to_string().contains("max_attempts"));
     }
 
     #[test]
