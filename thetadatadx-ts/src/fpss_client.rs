@@ -42,7 +42,7 @@
 //! 4. `stopStreaming()` / `shutdown()` — atomic stop with drain barrier.
 //! 5. `reconnect()` — re-open under the same callback.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
@@ -402,7 +402,11 @@ pub struct StreamingClient {
     /// `stopStreaming` / `shutdown` so a teardown the application has
     /// already observed releases the napi reference back to V8 — the same
     /// explicit-handoff model as the unified [`crate::Client`].
-    callback: Mutex<Option<Arc<TsfnCallback>>>,
+    callback: Mutex<Option<StreamingCallbackRegistration<TsfnCallback>>>,
+    /// Monotonic identity for each standalone start. Reconnect intentionally
+    /// reuses the same `ThreadsafeFunction`, so pointer identity alone cannot
+    /// distinguish overlapping reconnect attempts.
+    next_callback_generation: AtomicU64,
     /// Quiescence flags of every superseded streaming session that has not
     /// yet drained. Mirrors the unified client's `prev_drained` field:
     /// stacked stop/start cycles can layer multiple in-flight ring
@@ -417,6 +421,25 @@ pub struct StreamingClient {
     /// no teardown is ever called. Wrapped in `Arc` so the dispatcher
     /// thread holds its own handle to publish that state.
     dispatcher: Arc<Mutex<DispatcherSession>>,
+}
+
+#[derive(Clone)]
+struct StreamingCallbackRegistration<T> {
+    generation: u64,
+    callback: Arc<T>,
+}
+
+impl<T> StreamingCallbackRegistration<T> {
+    fn new(generation: u64, callback: Arc<T>) -> Self {
+        Self {
+            generation,
+            callback,
+        }
+    }
+
+    fn owns(&self, generation: u64, callback: &Arc<T>) -> bool {
+        self.generation == generation && Arc::ptr_eq(&self.callback, callback)
+    }
 }
 
 impl Drop for StreamingClient {
@@ -510,7 +533,7 @@ impl StreamingClient {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    fn lock_callback(&self) -> MutexGuard<'_, Option<Arc<TsfnCallback>>> {
+    fn lock_callback(&self) -> MutexGuard<'_, Option<StreamingCallbackRegistration<TsfnCallback>>> {
         self.callback.lock().unwrap_or_else(|e| e.into_inner())
     }
 
@@ -518,17 +541,34 @@ impl StreamingClient {
         self.dispatcher.lock().unwrap_or_else(|e| e.into_inner())
     }
 
+    fn next_callback_generation(&self) -> u64 {
+        self.next_callback_generation
+            .fetch_add(1, Ordering::Relaxed)
+    }
+
     /// Clear the reserved callback slot only when it still holds THIS start's
-    /// callback. `start_with_callback` reserves the slot before the
+    /// generation and callback. `start_with_callback` reserves the slot before the
     /// lock-released blocking connect, so a concurrent `stopStreaming` +
     /// newer `startStreaming` may have replaced the reservation across the
-    /// `.await`; `Arc::ptr_eq` identity keeps a superseded start from wiping
-    /// the newer registration on its own failure path.
-    fn clear_callback_if_owner(&self, owner: &Arc<TsfnCallback>) {
+    /// `.await`; the generation keeps a superseded reconnect from wiping the
+    /// newer registration even when both starts reuse the same callback handle.
+    fn clear_callback_if_owner(&self, generation: u64, owner: &Arc<TsfnCallback>) {
         let mut cb = self.lock_callback();
-        if cb.as_ref().is_some_and(|c| Arc::ptr_eq(c, owner)) {
+        if cb.as_ref().is_some_and(|c| c.owns(generation, owner)) {
             *cb = None;
         }
+    }
+
+    fn live_inner_if_callback_owner(&self, generation: u64) -> Option<Arc<RustStreamingClient>> {
+        let cb_guard = self.lock_callback();
+        if cb_guard
+            .as_ref()
+            .is_none_or(|registration| registration.generation != generation)
+        {
+            return None;
+        }
+        let guard = self.lock_inner();
+        guard.as_ref().map(Arc::clone)
     }
 
     /// Run a closure with a borrow of the live streaming client, rejecting with
@@ -557,8 +597,9 @@ impl StreamingClient {
     /// the first is still connecting.
     ///
     /// Lock ordering: `callback` BEFORE `inner`, matching `stopStreaming`.
-    async fn start_with_callback(&self, callback: Arc<TsfnCallback>) -> napi::Result<()> {
+    async fn start_with_callback(&self, callback: Arc<TsfnCallback>) -> napi::Result<u64> {
         ensure_callback_open(&callback)?;
+        let generation = self.next_callback_generation();
 
         {
             let mut cb_guard = self.lock_callback();
@@ -569,7 +610,10 @@ impl StreamingClient {
             }
             // Reserve the slot so a concurrent call is rejected while the
             // handshake below is in flight.
-            *cb_guard = Some(Arc::clone(&callback));
+            *cb_guard = Some(StreamingCallbackRegistration::new(
+                generation,
+                Arc::clone(&callback),
+            ));
         }
 
         let dispatch_cb = Arc::clone(&callback);
@@ -588,7 +632,7 @@ impl StreamingClient {
                 // instead of a stuck "streaming already started". Clear
                 // ONLY when this start still owns the slot: a concurrent
                 // stop + newer start may already hold it.
-                self.clear_callback_if_owner(&callback);
+                self.clear_callback_if_owner(generation, &callback);
                 return Err(napi::Error::from_reason(format!(
                     "start_streaming task panicked: {e}"
                 )));
@@ -601,7 +645,7 @@ impl StreamingClient {
                 // clean registration. Clear ONLY when this start still owns
                 // the slot -- a concurrent stop + newer start may already
                 // hold it.
-                self.clear_callback_if_owner(&callback);
+                self.clear_callback_if_owner(generation, &callback);
                 return Err(to_napi_err(thetadatadx::Error::from(e)));
             }
         };
@@ -625,11 +669,11 @@ impl StreamingClient {
         // across the whole transition so a concurrent `stopStreaming` + newer
         // `startStreaming` cannot interleave. There is no shared core lock, so
         // two starts can both reach here; a superseded start (the slot now
-        // holds a different callback `Arc`) must NOT publish its client over
-        // the live session -- doing so would leak a live TLS session and a
-        // detached dispatcher for the process lifetime. Verify ownership by
-        // `Arc::ptr_eq`; if superseded, shut the freshly built client down and
-        // return an error. Lock ordering: callback BEFORE inner BEFORE
+        // holds a different callback generation) must NOT publish its client
+        // over the live session -- doing so would leak a live TLS session and a
+        // detached dispatcher for the process lifetime. Verify ownership by the
+        // start generation; if superseded, shut the freshly built client down
+        // and return an error. Lock ordering: callback BEFORE inner BEFORE
         // dispatcher, matching `stopStreaming`.
         //
         // The client is published BEFORE spawning the dispatcher so the first
@@ -637,9 +681,9 @@ impl StreamingClient {
         // call from inside the user callback runs on this same Node thread, so
         // it cannot execute while this critical section is held.
         let mut cb_guard = self.lock_callback();
-        if !cb_guard
+        if cb_guard
             .as_ref()
-            .is_some_and(|cb| Arc::ptr_eq(cb, &callback))
+            .is_none_or(|cb| !cb.owns(generation, &callback))
         {
             drop(cb_guard);
             client_arc.shutdown();
@@ -764,7 +808,7 @@ impl StreamingClient {
                 };
                 drop(dispatcher_guard);
                 drop(cb_guard);
-                Ok(())
+                Ok(generation)
             }
             Err(e) => {
                 // Spawn failed: unwind the inner publish and clear the slot.
@@ -876,7 +920,9 @@ impl StreamingClient {
             { crate::STREAMING_CALLBACK_QUEUE_DEPTH },
         >,
     ) -> napi::Result<()> {
-        self.start_with_callback(Arc::new(callback)).await
+        self.start_with_callback(Arc::new(callback))
+            .await
+            .map(|_| ())
     }
 
     /// Whether the streaming TLS connection is currently open. Returns `false`
@@ -1149,7 +1195,7 @@ impl StreamingClient {
         let stored = {
             let guard = self.lock_callback();
             match guard.as_ref() {
-                Some(cb) => Arc::clone(cb),
+                Some(registration) => Arc::clone(&registration.callback),
                 None => {
                     return Err(napi::Error::from_reason(
                         "no callback registered -- call startStreaming(callback) before reconnect()",
@@ -1166,21 +1212,19 @@ impl StreamingClient {
         // streaming connect and authentication handshake off the libuv thread.
         self.stop_streaming();
         ensure_callback_open(&stored)?;
-        self.start_with_callback(stored).await?;
+        let generation = self.start_with_callback(stored).await?;
 
         // Re-apply every saved subscription against the freshly reconnected
         // session through the core's paced replay engine. The replay is
         // network-bound and paced, so it runs on a blocking worker to keep
         // the Node event loop free for the whole restore.
-        let inner = {
-            let guard = self.lock_inner();
-            guard.as_ref().map(Arc::clone)
-        };
-        let Some(inner) = inner else {
-            return Err(napi::Error::from_reason(
-                "streaming not started -- call startStreaming(callback) first",
-            ));
-        };
+        let inner = self
+            .live_inner_if_callback_owner(generation)
+            .ok_or_else(|| {
+                napi::Error::from_reason(
+                    "streaming reconnect superseded by a concurrent startStreaming/stopStreaming",
+                )
+            })?;
         runtime()?
             .spawn_blocking(move || inner.restore_subscriptions(&per_contract, &full_stream))
             .await
@@ -1245,6 +1289,7 @@ impl StreamingClient {
             params,
             inner: Mutex::new(None),
             callback: Mutex::new(None),
+            next_callback_generation: AtomicU64::new(1),
             prev_drained: Mutex::new(Vec::new()),
             dispatcher: Arc::new(Mutex::new(DispatcherSession::Idle)),
         }
@@ -1445,6 +1490,33 @@ mod callback_delivery_failure_tests {
             callback_delivery_outcome(fpss::PollOutcome::Drained(2), &delivery_failed),
             fpss::PollOutcome::Drained(2)
         );
+    }
+}
+
+#[cfg(test)]
+mod callback_generation_tests {
+    use super::*;
+
+    #[test]
+    fn same_callback_handle_requires_matching_generation() {
+        let callback = Arc::new(());
+        let first = StreamingCallbackRegistration::new(1, Arc::clone(&callback));
+        let second = StreamingCallbackRegistration::new(2, Arc::clone(&callback));
+
+        assert!(first.owns(1, &callback));
+        assert!(!first.owns(2, &callback));
+        assert!(second.owns(2, &callback));
+        assert!(!second.owns(1, &callback));
+    }
+
+    #[test]
+    fn matching_generation_requires_same_callback_handle() {
+        let callback = Arc::new(());
+        let other_callback = Arc::new(());
+        let stored = StreamingCallbackRegistration::new(3, Arc::clone(&callback));
+
+        assert!(stored.owns(3, &callback));
+        assert!(!stored.owns(3, &other_callback));
     }
 }
 
