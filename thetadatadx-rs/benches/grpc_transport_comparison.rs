@@ -305,6 +305,10 @@ fn build_rows(row_count: usize, seed: u64) -> DataTable {
                     + rng.random_range(1..=12_i32) * 100
                     + rng.random_range(1..=28_i32),
             );
+            // `created` is a required EodTick column (the EOD report creation
+            // time, a milliseconds-of-day value like `ms_of_day`), so the
+            // synthetic row must carry it or the production build rejects it.
+            let created = i64::from(rng.random_range(0..=86_400_000_i32));
             let values = [
                 ms_of_day,
                 rng.random::<i64>(), // open
@@ -314,6 +318,7 @@ fn build_rows(row_count: usize, seed: u64) -> DataTable {
                 rng.random::<i64>(), // volume
                 rng.random::<i64>(), // count
                 date,
+                created,
             ]
             .into_iter()
             .map(|n| DataValue {
@@ -333,6 +338,7 @@ fn build_rows(row_count: usize, seed: u64) -> DataTable {
             "volume",
             "count",
             "date",
+            "created",
         ]
         .iter()
         .map(|s| (*s).to_string())
