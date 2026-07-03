@@ -161,7 +161,7 @@ pub(super) fn render_python_decode_bench(endpoints: &[GeneratedEndpoint]) -> Str
         // multi-symbol snapshot, one value per row), or neither (stock history).
         writeln!(
             out,
-            "            let columns = match thetadatadx::decode::response_symbol(&table) {{ thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) if !columns.contains(\"symbol\") => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::PerRow(_) | thetadatadx::decode::ResponseSymbol::Absent => columns }};"
+            "            let columns = if columns.contains(\"symbol\") {{ columns }} else {{ match thetadatadx::decode::response_symbol(&table) {{ thetadatadx::decode::ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol), thetadatadx::decode::ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols), thetadatadx::decode::ResponseSymbol::Absent => columns }} }};"
         )
         .unwrap();
         writeln!(
