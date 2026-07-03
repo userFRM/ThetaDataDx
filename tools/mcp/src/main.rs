@@ -341,20 +341,132 @@ fn is_hex_token_at(bytes: &[u8], pos: usize) -> bool {
 /// the offline-mode tools the README and process banner promise.
 const OFFLINE_TOOL_NAMES: [&str; 1] = ["ping"];
 
-/// Tool definitions to advertise given the current connection state.
-///
-/// Connected: the full surface. Disconnected: only [`OFFLINE_TOOL_NAMES`], so
-/// the advertised list matches what `tools/call` can actually serve offline.
-fn tool_definitions_for(connected: bool) -> Vec<Value> {
-    let all = tool_definitions();
-    if connected {
-        return all;
+/// Asset class an endpoint's data belongs to, used to gate a tool behind the
+/// authenticated account's per-asset-class subscription.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AssetClass {
+    Stock,
+    Option,
+    Index,
+    InterestRate,
+}
+
+impl AssetClass {
+    /// Registry category ([`EndpointMeta::category`]) to asset class. `None`
+    /// for categories not gated by a market-data subscription — notably
+    /// `"calendar"`, the trading-session calendar every account can read.
+    fn from_category(category: &str) -> Option<Self> {
+        match category {
+            "stock" => Some(Self::Stock),
+            "option" => Some(Self::Option),
+            "index" => Some(Self::Index),
+            "rate" => Some(Self::InterestRate),
+            _ => None,
+        }
     }
+
+    /// Name of the subscription a tool in this class needs, for the tool
+    /// description so the gating is transparent to the LLM.
+    fn subscription_label(self) -> &'static str {
+        match self {
+            Self::Stock => "stock",
+            Self::Option => "options",
+            Self::Index => "indices",
+            Self::InterestRate => "interest-rate",
+        }
+    }
+}
+
+/// Asset class a tool's data belongs to, or `None` when the tool is not gated
+/// by a market-data subscription: `ping`, the trading calendar, and the
+/// multi-asset `thetadatadx_flatfile_request` dispatcher (it validates the
+/// asset class per call).
+fn tool_asset_class(name: &str) -> Option<AssetClass> {
+    if let Some(ep) = ENDPOINTS.iter().find(|e| e.name == name) {
+        return AssetClass::from_category(ep.category);
+    }
+    // Flat-file convenience tools encode their security type in the name (see
+    // `convenience_pair` in flatfile_tools.rs); the multi-asset
+    // `_flatfile_request` dispatcher matches neither and stays ungated.
+    if name.contains("_flatfile_option_") {
+        Some(AssetClass::Option)
+    } else if name.contains("_flatfile_stock_") {
+        Some(AssetClass::Stock)
+    } else {
+        None
+    }
+}
+
+/// Per-asset-class access granted by the authenticated subscription.
+///
+/// A class is accessible when the Nexus auth response carried any tier for it,
+/// FREE included — FREE grants delayed data for that class, so its tools stay
+/// advertised. A class the response omits (no decoded tier) is withheld.
+#[derive(Clone, Copy)]
+struct SubscriptionAccess {
+    stock: bool,
+    option: bool,
+    index: bool,
+    interest_rate: bool,
+}
+
+impl SubscriptionAccess {
+    /// Read the per-asset-class tiers captured at authentication time. A class
+    /// is accessible when its Nexus tier decoded to a known value (FREE..=PRO);
+    /// an omitted or unrecognized tier reads as no access.
+    fn from_client(client: &Client) -> Self {
+        let hist = client.historical();
+        Self {
+            stock: hist.stock_tier().is_some(),
+            option: hist.options_tier().is_some(),
+            index: hist.indices_tier().is_some(),
+            interest_rate: hist.interest_rate_tier().is_some(),
+        }
+    }
+
+    fn allows(&self, class: AssetClass) -> bool {
+        match class {
+            AssetClass::Stock => self.stock,
+            AssetClass::Option => self.option,
+            AssetClass::Index => self.index,
+            AssetClass::InterestRate => self.interest_rate,
+        }
+    }
+}
+
+/// Tool definitions to advertise given the connection and subscription state.
+///
+/// `None` — no client yet — advertises only [`OFFLINE_TOOL_NAMES`], matching
+/// what `tools/call` can serve offline. `Some(access)` advertises every tool
+/// whose asset class the subscription grants plus the always-available tools
+/// (`ping`, the trading calendar, the multi-asset flat-file dispatcher), so
+/// `tools/list` never offers a tool the account cannot call. That is both a
+/// correctness win and sharper tool selection for the LLM, which no longer
+/// picks tools that only ever return a not-subscribed error.
+///
+/// Gating is per asset class only. The upstream per-endpoint minimum-tier
+/// matrix (`x-min-subscription` in scripts/ci/data/upstream_openapi.yaml) is
+/// consumed only by the docs tooling and is not carried on `EndpointMeta` at
+/// runtime, so finer per-endpoint tier gating (e.g. hiding a PRO-only tool
+/// from a VALUE stock account) is a follow-up that needs that field threaded
+/// through the registry codegen. See issue #1123.
+fn tool_definitions_for(access: Option<SubscriptionAccess>) -> Vec<Value> {
+    fn tool_name(tool: &Value) -> Option<&str> {
+        tool.get("name").and_then(|n: &Value| n.as_str())
+    }
+    let all = tool_definitions();
+    let Some(access) = access else {
+        return all
+            .into_iter()
+            .filter(|tool| tool_name(tool).is_some_and(|name| OFFLINE_TOOL_NAMES.contains(&name)))
+            .collect();
+    };
     all.into_iter()
         .filter(|tool| {
-            tool.get("name")
-                .and_then(|name: &Value| name.as_str())
-                .is_some_and(|name| OFFLINE_TOOL_NAMES.contains(&name))
+            tool_name(tool).is_some_and(|name| match tool_asset_class(name) {
+                Some(class) => access.allows(class),
+                None => true,
+            })
         })
         .collect()
 }
@@ -378,9 +490,19 @@ fn tool_definitions() -> Vec<Value> {
                 required.push(p.name);
             }
         }
+        // Note the required asset class in the description so the subscription
+        // gating (see `tool_definitions_for`) is transparent to the LLM.
+        let description = match AssetClass::from_category(ep.category) {
+            Some(class) => format!(
+                "{} Requires a {} subscription.",
+                ep.description,
+                class.subscription_label()
+            ),
+            None => ep.description.to_string(),
+        };
         tools.push(json!({
             "name": ep.name,
-            "description": ep.description,
+            "description": description,
             "inputSchema": {
                 "type": "object",
                 "properties": props,
@@ -1151,10 +1273,12 @@ async fn handle_request(
 
         "tools/list" => {
             // Advertise only what `tools/call` can serve in the current state:
-            // the full surface when a client is connected, otherwise just the
-            // offline tools. `client` is the lock-free `OnceCell::get` above,
-            // so presence reflects whether the background connect has landed.
-            let tools = tool_definitions_for(client.is_some());
+            // once connected, the tools the account's subscription grants;
+            // otherwise just the offline tools. `client` is the lock-free
+            // `OnceCell::get` above, so presence reflects whether the
+            // background connect has landed.
+            let access = client.map(SubscriptionAccess::from_client);
+            let tools = tool_definitions_for(access);
             JsonRpcResponse::success(id, json!({ "tools": tools }))
         }
 
@@ -1732,13 +1856,22 @@ mod tests {
         assert_eq!(pw.api_key_secret(), None);
     }
 
-    /// Offline (`connected = false`), `tools/list` must advertise exactly the
-    /// tools that run without an upstream connection — the same set the
-    /// README and process banner promise — and nothing that `tools/call` would
-    /// reject for lack of a client.
+    /// Subscription access granting every asset class, for tests that want the
+    /// full connected surface without a live client.
+    const ALL_ACCESS: SubscriptionAccess = SubscriptionAccess {
+        stock: true,
+        option: true,
+        index: true,
+        interest_rate: true,
+    };
+
+    /// Offline (no client yet), `tools/list` must advertise exactly the tools
+    /// that run without an upstream connection — the same set the README and
+    /// process banner promise — and nothing that `tools/call` would reject for
+    /// lack of a client.
     #[test]
     fn offline_tools_list_advertises_only_the_offline_tools() {
-        let offline = tool_definitions_for(false);
+        let offline = tool_definitions_for(None);
         let names = tool_names(&offline);
 
         let expected: HashSet<String> =
@@ -1749,12 +1882,12 @@ mod tests {
         );
     }
 
-    /// Connected (`connected = true`), `tools/list` must advertise the full
-    /// surface: the offline tools plus the registry historical endpoints and
-    /// the flat-file tools that require a live client.
+    /// Connected with every asset class subscribed, `tools/list` must advertise
+    /// the full surface: the offline tools plus the registry historical
+    /// endpoints and the flat-file tools that require a live client.
     #[test]
     fn connected_tools_list_advertises_the_full_surface() {
-        let connected = tool_definitions_for(true);
+        let connected = tool_definitions_for(Some(ALL_ACCESS));
         let names = tool_names(&connected);
 
         for offline in OFFLINE_TOOL_NAMES {
@@ -1782,6 +1915,45 @@ mod tests {
             connected.len(),
             tool_definitions().len(),
             "connected tools/list must advertise the complete tool surface"
+        );
+    }
+
+    /// `tools/list` gates the advertised surface by the account's per-asset
+    /// subscription: a class the subscription omits contributes no tools, while
+    /// the always-available tools (`ping`, calendar) stay regardless.
+    #[test]
+    fn tools_list_gates_by_asset_class_subscription() {
+        // Stock only: stock tools present, option/index/rate withheld; the
+        // ungated tools (`ping`) stay.
+        let stock_only = tool_names(&tool_definitions_for(Some(SubscriptionAccess {
+            stock: true,
+            option: false,
+            index: false,
+            interest_rate: false,
+        })));
+        assert!(stock_only.contains("stock_history_eod"));
+        assert!(stock_only.contains("thetadatadx_flatfile_stock_eod"));
+        assert!(stock_only.contains("ping"));
+        assert!(!stock_only.contains("option_history_greeks_eod"));
+        assert!(!stock_only.contains("thetadatadx_flatfile_option_trade_quote"));
+
+        // Options only: the mirror image.
+        let option_only = tool_names(&tool_definitions_for(Some(SubscriptionAccess {
+            stock: false,
+            option: true,
+            index: false,
+            interest_rate: false,
+        })));
+        assert!(option_only.contains("option_history_greeks_eod"));
+        assert!(option_only.contains("thetadatadx_flatfile_option_trade_quote"));
+        assert!(!option_only.contains("stock_history_eod"));
+        assert!(!option_only.contains("thetadatadx_flatfile_stock_eod"));
+
+        // Every class subscribed advertises the complete surface.
+        assert_eq!(
+            tool_definitions_for(Some(ALL_ACCESS)).len(),
+            tool_definitions().len(),
+            "all-tier access must advertise the complete tool surface"
         );
     }
 
