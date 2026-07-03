@@ -686,7 +686,7 @@ pub(super) fn render_python_config_accessors() -> Result<String, Box<dyn std::er
                 };
                 write!(
                     out,
-                    "    #[setter]\n    fn set_{field}(&self, {param}: &str) -> PyResult<()> {{\n{lower}        let parsed = {core}::parse({parse_arg}).ok_or_else(|| {{\n            crate::errors::InvalidParameterError::new_err(format!(\n                \"{err}\"\n            ))\n        }})?;\n{LOCK}\n        guard.{path} = parsed;\n        Ok(())\n    }}\n\n",
+                    "    #[setter]\n    fn set_{field}(&self, {param}: &str) -> PyResult<()> {{\n{lower}        let parsed = {core}::parse({parse_arg}).ok_or_else(|| {{\n            PyValueError::new_err(format!(\n                \"{err}\"\n            ))\n        }})?;\n{LOCK}\n        guard.{path} = parsed;\n        Ok(())\n    }}\n\n",
                     field = field, param = param, core = core, err = err, path = a.path,
                     lower = lower, parse_arg = parse_arg,
                 )?;
@@ -703,13 +703,13 @@ pub(super) fn render_python_config_accessors() -> Result<String, Box<dyn std::er
                 let param = a.py_param.as_deref().expect("setter row needs py_param");
                 match a.abi_type.as_str() {
                     // u16 fields narrow from a Python `int`; a value outside
-                    // `0..=65535` raises `InvalidParameterError`.
+                    // `0..=65535` raises `ValueError`.
                     "u16" => {
                         let err =
                             rust_lit(a.py_err.as_deref().expect("option u16 setter needs py_err"));
                         write!(
                             out,
-                            "    #[setter]\n    fn set_{field}(&self, {param}: Option<u32>) -> PyResult<()> {{\n        let resolved = match {param} {{\n            Some(v) => Some(u16::try_from(v).map_err(|_| {{\n                crate::errors::InvalidParameterError::new_err(format!(\"{err}\"))\n            }})?),\n            None => None,\n        }};\n{LOCK}\n        guard.{path} = resolved;\n        Ok(())\n    }}\n\n",
+                            "    #[setter]\n    fn set_{field}(&self, {param}: Option<u32>) -> PyResult<()> {{\n        let resolved = match {param} {{\n            Some(v) => Some(u16::try_from(v).map_err(|_| {{\n                PyValueError::new_err(format!(\"{err}\"))\n            }})?),\n            None => None,\n        }};\n{LOCK}\n        guard.{path} = resolved;\n        Ok(())\n    }}\n\n",
                             field = field, param = param, err = err, path = a.path,
                         )?;
                     }
