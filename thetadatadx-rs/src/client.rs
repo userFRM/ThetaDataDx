@@ -608,6 +608,12 @@ impl Client {
     ///
     /// Returns an error on network, authentication, or parsing failure.
     pub async fn connect(creds: &Credentials, config: DirectConfig) -> Result<Self, Error> {
+        // Validate BEFORE the exporter install: `try_install_exporter` binds
+        // the metrics port and installs the process-global recorder (which has
+        // no uninstall), so running it against a config that the downstream
+        // funnel would reject leaves a port bound with no live client. Idempotent
+        // with the re-check inside `HistoricalClient::connect`.
+        let config = config.validate()?;
         // Start the Prometheus exporter BEFORE opening the gRPC channel
         // so the first `thetadatadx.grpc.requests` counter hit is already
         // covered. No-op when the feature is disabled or `metrics_port`
@@ -743,17 +749,43 @@ impl Client {
         let streaming = Arc::clone(&self.streaming);
         self.start_dispatcher(
             move |client| {
-                if matches!(
-                    client.for_each_scoped(|event| handler(event), &mut scope),
-                    crate::PollOutcome::Failed
-                ) {
+                // Mirror the columnar body's `catch_unwind`: a panic in the
+                // drain machinery or in the binding-supplied scope closure (the
+                // Python client's `Python::attach`, which can panic during
+                // interpreter finalization) escapes `for_each_scoped`. Without
+                // this catch the panic reaches the spawn closure's
+                // `catch_unwind`, which only logs, so the thread exits `Ok`, the
+                // teardown join never records, and the session stays `Running`
+                // behind a dead dispatcher — the exact appears-healthy stall
+                // this fault path exists to eliminate.
+                let drained = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    client.for_each_scoped(|event| handler(event), &mut scope)
+                }));
+                match drained {
                     // The FPSS I/O thread unwound: surface it to callback and
                     // binding users as a failed session so `is_streaming` flips
                     // false, matching the pull path's `DispatcherFailed`.
-                    record_dispatcher_failed_if_current(
-                        &streaming.dispatcher,
-                        "fpss io thread terminated abnormally".to_string(),
-                    );
+                    Ok(crate::PollOutcome::Failed) => {
+                        record_dispatcher_failed_if_current(
+                            &streaming.dispatcher,
+                            "fpss io thread terminated abnormally".to_string(),
+                        );
+                    }
+                    // Clean shutdown (`for_each_scoped` only ever returns a
+                    // terminal outcome): the callback path has no sink to flush.
+                    Ok(_) => {}
+                    // A panic escaped the drain: flip the session to `Failed`
+                    // here (the spawn closure's `catch_unwind` swallows the
+                    // re-raised panic and only logs, so the thread exits `Ok`
+                    // and the teardown join never records it), then re-raise so
+                    // that closure still logs the machinery panic.
+                    Err(payload) => {
+                        record_dispatcher_failed_if_current(
+                            &streaming.dispatcher,
+                            panic_reason(payload.as_ref()),
+                        );
+                        std::panic::resume_unwind(payload);
+                    }
                 }
             },
             on_teardown,

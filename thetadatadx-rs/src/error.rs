@@ -395,9 +395,10 @@ pub enum Error {
         /// Server-supplied minimum backoff before the next retry,
         /// decoded from the `google.rpc.RetryInfo` status detail when
         /// the server attached one. The retry loop raises its computed
-        /// delay to at least this value so a server-instructed
-        /// cooldown is honoured in full; `None` (the common case)
-        /// leaves the client-side backoff schedule unchanged.
+        /// delay to at least this value, capped at the retry policy's
+        /// `max_delay` ceiling so a hostile `RetryInfo` cannot pin a
+        /// request permit for an unbounded sleep; `None` (the common
+        /// case) leaves the client-side backoff schedule unchanged.
         retry_after: Option<std::time::Duration>,
     },
 

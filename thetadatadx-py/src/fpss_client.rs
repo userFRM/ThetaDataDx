@@ -448,8 +448,16 @@ impl StreamingClient {
         {
             // Superseded. Do not publish. Shut the freshly built client down and
             // return; the reservation drops as a no-op (the slot is not ours).
+            // Drop the sole client Arc OFF the GIL: `StreamingClient::Drop`
+            // inline-joins the I/O thread, which re-acquires the GIL via
+            // `Python::attach` if a `Custom` reconnect callback fires on a
+            // transient disconnect in this window — joining under the held GIL
+            // would deadlock the interpreter. Mirrors `stop_streaming` / `Drop`.
             drop(cb_guard);
-            client_arc.shutdown();
+            py.detach(move || {
+                client_arc.shutdown();
+                drop(client_arc);
+            });
             return Err(PyRuntimeError::new_err(
                 "streaming start superseded by a concurrent stop/start",
             ));
@@ -586,9 +594,18 @@ impl StreamingClient {
                 // callback lock BEFORE returning so the reservation can clear the
                 // slot on drop (ownership-checked) without a double-lock.
                 drop(dispatcher_guard);
+                // Drops a non-last clone (`client_arc` still holds a ref), so
+                // this is cheap and never joins the I/O thread under the GIL.
                 *self.lock_inner() = None;
                 drop(cb_guard);
-                client_arc.shutdown();
+                // Drop the last client Arc OFF the GIL so `StreamingClient::Drop`
+                // inline-joins the I/O thread without holding the GIL a `Custom`
+                // reconnect callback's `Python::attach` would block on. Mirrors
+                // the superseded path above and `stop_streaming` / `Drop`.
+                py.detach(move || {
+                    client_arc.shutdown();
+                    drop(client_arc);
+                });
                 return Err(PyRuntimeError::new_err(format!(
                     "failed to spawn streaming dispatcher thread: {e}"
                 )));
@@ -847,10 +864,18 @@ impl StreamingClient {
             (taken, session)
         };
         if let Some(client) = taken_client {
-            self.prev_drained
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .push(client.drained_flag());
+            {
+                let mut prev = self
+                    .prev_drained
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                // Prune prior sessions that have finished draining before
+                // pushing this one, so repeated stop/start cycles that never
+                // call `await_drain` cannot grow this vec unboundedly. Bounds it
+                // to the sessions still draining (mirrors `await_drain`'s retain).
+                prev.retain(|f| !f.load(Ordering::Acquire));
+                prev.push(client.drained_flag());
+            }
             client.shutdown();
             // Detach the GIL while dropping the Arc and joining the
             // dispatcher so the dispatcher thread (which re-acquires the
@@ -871,8 +896,19 @@ impl StreamingClient {
                                 reason = %reason,
                                 "thetadatadx-py-fpss-dispatcher panicked; StreamingClient marked as failed",
                             );
-                            *dispatcher_ref.lock().unwrap_or_else(|e| e.into_inner()) =
-                                PyFpssDispatcherSession::Failed { reason };
+                            // Record `Failed` ONLY if the slot is still `Idle`:
+                            // the dispatcher lock was released across the join,
+                            // so a concurrent restart may have installed a fresh
+                            // `Running` in that window. The panic belongs to the
+                            // superseded OLD session; overwriting unconditionally
+                            // would clobber the new session's handle (orphaning
+                            // its thread) and falsely fail a healthy live session.
+                            // Matches the FFI `join_extracted_session` guard.
+                            let mut guard =
+                                dispatcher_ref.lock().unwrap_or_else(|e| e.into_inner());
+                            if matches!(*guard, PyFpssDispatcherSession::Idle) {
+                                *guard = PyFpssDispatcherSession::Failed { reason };
+                            }
                         }
                     }
                 }

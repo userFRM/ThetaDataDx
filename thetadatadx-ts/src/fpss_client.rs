@@ -1042,16 +1042,20 @@ impl StreamingClient {
                     if let Err(payload) = join_dispatcher_with_wake(handle, on_teardown) {
                         // Record the panic reason so `isStreaming()` /
                         // `isAuthenticated()` report the failed state if
-                        // streaming is restarted without re-checking. The
-                        // `Failed` state is the observable signal; no
-                        // logging dependency is pulled into this crate. The
-                        // dispatcher thread may already have recorded `Failed`
-                        // itself; re-stating it here is harmless (the slot is
-                        // `Idle` after the extract above, so this is the sole
-                        // writer for the teardown-observed-panic case).
-                        *self.lock_dispatcher() = DispatcherSession::Failed {
-                            reason: panic_reason(payload.as_ref()),
-                        };
+                        // streaming is restarted without re-checking. Record it
+                        // ONLY if the slot is still `Idle`: the dispatcher lock
+                        // was released across the join, so a concurrent restart
+                        // may have installed a fresh `Running` in that window.
+                        // The panic belongs to the superseded OLD session;
+                        // overwriting unconditionally would clobber the new
+                        // session's handle and falsely fail a healthy live
+                        // session. Matches the FFI `join_extracted_session`
+                        // guard.
+                        let reason = panic_reason(payload.as_ref());
+                        let mut guard = self.lock_dispatcher();
+                        if matches!(*guard, DispatcherSession::Idle) {
+                            *guard = DispatcherSession::Failed { reason };
+                        }
                     }
                 }
             }

@@ -134,8 +134,34 @@ impl StreamView {
             // drop, but only when this start still owns it.
             return Err(to_napi_err(e));
         }
-        // Connect succeeded: hand the reservation off to the live session so
-        // the guard does not clear it on return.
+        // Connect succeeded and the core session is live. Re-check ownership
+        // before disarming: the callback lock was released across the awaited
+        // connect, so a concurrent `stopStreaming` / `close` may have cleared
+        // the slot (or a restart replaced it) while the core session was still
+        // connecting, at which point the core-side stop found nothing live to
+        // stop. Without this re-check the core dispatcher keeps firing the
+        // captured callback behind a binding slot the caller has already torn
+        // down -- a superseded start stranding a live session, bypassing the
+        // double-start guard, and delivering events past an observed close. The
+        // lock guard is dropped before any await (it is `!Send`), so this only
+        // reads a bool. If the slot is no longer ours, tear the freshly started
+        // core session down on a blocking worker and return; the reservation
+        // drops as a no-op. Mirrors the standalone `StreamingClient`.
+        let still_ours = self
+            .callback
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .is_some_and(|cb| Arc::ptr_eq(cb, &callback_arc));
+        if !still_ours {
+            let client = Arc::clone(&self.client);
+            let _ = tokio::task::spawn_blocking(move || client.stream().stop_streaming()).await;
+            return Err(napi::Error::from_reason(
+                "streaming start superseded by a concurrent stop/start",
+            ));
+        }
+        // Still ours: hand the reservation off to the live session so the guard
+        // does not clear it on return.
         reservation.disarm();
         Ok(())
     }

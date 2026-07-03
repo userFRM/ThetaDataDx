@@ -213,3 +213,15 @@ export interface RecordBatchStream extends AsyncIterable<import('apache-arrow').
   close(): void;
   [Symbol.asyncDispose](): Promise<void>;
 }
+
+/**
+ * Value binding for the {@link RecordBatchStream} class, exported at runtime
+ * so consumers can reference it (for example `stream instanceof
+ * RecordBatchStream`). The reader is produced by {@link StreamView.batches},
+ * not constructed directly, so the constructor is not part of the public
+ * surface. Mirrors the paired {@link StreamingSession} value declaration.
+ */
+export declare const RecordBatchStream: {
+  prototype: RecordBatchStream;
+  new (...args: never[]): RecordBatchStream;
+};

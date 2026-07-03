@@ -30,8 +30,10 @@ pub struct Status {
     message: String,
     /// Server-supplied backoff hint decoded from the
     /// `google.rpc.RetryInfo` detail in `grpc-status-details-bin`, when
-    /// present. Retry loops clamp their computed delay up to this value
-    /// so a server-instructed cooldown is always honoured in full.
+    /// present. Retry loops raise their computed delay up to this value,
+    /// capped at the policy's `max_delay` ceiling, so a server-instructed
+    /// cooldown is honoured while a hostile hint cannot pin a request
+    /// permit for an unbounded sleep.
     retry_delay: Option<std::time::Duration>,
 }
 
