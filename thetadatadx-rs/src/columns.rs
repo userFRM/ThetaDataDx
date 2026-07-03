@@ -244,6 +244,39 @@ pub fn present_columns_from(
     ColumnPresence::from_names(present)
 }
 
+/// Resolve the present public `CalendarDay` fields from the v3 calendar wire
+/// headers.
+///
+/// Calendar rows are parsed by `parse_calendar_days_v3`, not the generated
+/// parser, because the server's `type` column feeds two public fields:
+/// `is_open` and `status`. The generic one-physical-header/one-field
+/// projection helper intentionally deduplicates aliases and cannot model
+/// that fan-out, so the generated `WireColumns` impl for `CalendarDay` routes
+/// through this table.
+#[must_use]
+pub fn present_calendar_day_columns(headers: &[&str]) -> ColumnPresence {
+    let has = |name| headers.contains(&name);
+    let mut present = Vec::with_capacity(5);
+
+    if has("date") {
+        present.push("date");
+    }
+    if has("type") || has("is_open") {
+        present.push("is_open");
+    }
+    if has("open") || has("open_time") {
+        present.push("open_time");
+    }
+    if has("close") || has("close_time") {
+        present.push("close_time");
+    }
+    if has("type") || has("status") {
+        present.push("status");
+    }
+
+    ColumnPresence::from_names(present)
+}
+
 /// A tick type that knows which of its schema columns a response's wire
 /// header list actually carried.
 ///
@@ -514,5 +547,27 @@ mod tests {
         let p = present_columns_from(&["timestamp", "date", "rate"], COLS, false, false);
         let got: Vec<&str> = p.present_names().collect();
         assert_eq!(got, ["ms_of_day", "date", "rate"]);
+    }
+
+    /// The v3 calendar `type` header fans out to both `is_open` and
+    /// `status`; `open` / `close` feed the public time fields. The single-day
+    /// calendar endpoints omit `date`, so it must not be fabricated.
+    #[test]
+    fn present_calendar_day_maps_v3_type_and_times() {
+        let p = present_calendar_day_columns(&["type", "open", "close"]);
+        let got: Vec<&str> = p.present_names().collect();
+        assert_eq!(got, ["is_open", "open_time", "close_time", "status"]);
+    }
+
+    /// The year-style calendar response carries `date` in addition to the
+    /// same v3 day-type and session-time columns.
+    #[test]
+    fn present_calendar_day_keeps_year_date() {
+        let p = present_calendar_day_columns(&["date", "type", "open", "close"]);
+        let got: Vec<&str> = p.present_names().collect();
+        assert_eq!(
+            got,
+            ["date", "is_open", "open_time", "close_time", "status"]
+        );
     }
 }
