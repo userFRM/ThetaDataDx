@@ -45,11 +45,13 @@ static_assert(offsetof(ThetaDataDxColumnPresence, names) == 0,
               "ThetaDataDxColumnPresence::names offset drifted from Rust");
 static_assert(offsetof(ThetaDataDxColumnPresence, len) == 8,
               "ThetaDataDxColumnPresence::len offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxColumnPresence, symbols) == 16,
+static_assert(offsetof(ThetaDataDxColumnPresence, symbol) == 16,
+              "ThetaDataDxColumnPresence::symbol offset drifted from Rust");
+static_assert(offsetof(ThetaDataDxColumnPresence, symbols) == 24,
               "ThetaDataDxColumnPresence::symbols offset drifted from Rust");
-static_assert(offsetof(ThetaDataDxColumnPresence, symbols_len) == 24,
+static_assert(offsetof(ThetaDataDxColumnPresence, symbols_len) == 32,
               "ThetaDataDxColumnPresence::symbols_len offset drifted from Rust");
-static_assert(sizeof(ThetaDataDxColumnPresence) == 32,
+static_assert(sizeof(ThetaDataDxColumnPresence) == 40,
               "ThetaDataDxColumnPresence total size drifted from Rust");
 
 // ── ThetaDataDxSubscription (thetadatadx-ffi/src/streaming.rs) ──

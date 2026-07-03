@@ -252,15 +252,28 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
             let js_name = to_ts_camel_case(&method.name);
             writeln!(out, "    #[napi(js_name = \"{js_name}\")]").unwrap();
             writeln!(out, "    pub fn {}(&self) {{", method.name).unwrap();
-            // Drop the stored callback handle so its JS reference is
-            // released before the streaming side tears down —
-            // re-installing via `startStreaming` after stop / shutdown
-            // then sees a clean slot.
-            out.push_str("        self.client.stream().stop_streaming();\n");
+            // Snapshot the stored callback handle before teardown and clear it
+            // only if the slot still holds that same handle afterward. A
+            // concurrent stop + restart can otherwise install a newer callback
+            // while this stop is blocked in the Rust teardown, only to have it
+            // wiped when the old stop returns.
+            out.push_str("        let previous_callback = {\n");
             out.push_str(
-                "        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());\n",
+                "            let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());\n",
             );
-            out.push_str("        *guard = None;\n");
+            out.push_str("            guard.as_ref().map(Arc::clone)\n");
+            out.push_str("        };\n");
+            out.push_str("        self.client.stream().stop_streaming();\n");
+            out.push_str("        if let Some(previous_callback) = previous_callback {\n");
+            out.push_str(
+                "            let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());\n",
+            );
+            out.push_str(
+                "            if guard.as_ref().is_some_and(|cb| Arc::ptr_eq(cb, &previous_callback)) {\n",
+            );
+            out.push_str("                *guard = None;\n");
+            out.push_str("            }\n");
+            out.push_str("        }\n");
             out.push_str("    }\n");
         }
         other => panic!("unsupported TypeScript method kind: {other:?}"),

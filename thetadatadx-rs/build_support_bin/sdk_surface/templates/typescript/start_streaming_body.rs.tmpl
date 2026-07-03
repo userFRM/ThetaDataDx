@@ -38,6 +38,10 @@
         let mut reservation =
             crate::fpss_client::CallbackReservation::armed(&self.callback, &callback_arc);
         let dispatch_cb = Arc::clone(&callback_arc);
+        let callback_closing_expected =
+            Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let delivery_failed =
+            Arc::new(std::sync::atomic::AtomicBool::new(false));
 
         // Teardown wake hook. The dispatcher does NOT park only on the
         // event ring: once the bounded callback queue is full it blocks inside
@@ -50,7 +54,10 @@
         // shutdown, exits `for_each_scoped`, and the join completes. It is
         // built from `callback_arc` (a shared-handle clone, NOT the stored
         // slot) so installing it consumes nothing the dispatcher needs.
-        let teardown_hook = crate::fpss_client::abort_hook(&callback_arc);
+        let teardown_hook = crate::fpss_client::abort_hook_expect_closing(
+            &callback_arc,
+            Arc::clone(&callback_closing_expected),
+        );
 
         // The FPSS connect and authentication handshake are network-bound
         // and run synchronously inside `start_streaming`. Move that work
@@ -60,10 +67,13 @@
         // both `Send + 'static`, so the closure satisfies the
         // `spawn_blocking` bound.
         let client = Arc::clone(&self.client);
+        let callback_closing_expected_for_dispatch = Arc::clone(&callback_closing_expected);
+        let delivery_failed_for_dispatch = Arc::clone(&delivery_failed);
+        let delivery_failed_for_scope = Arc::clone(&delivery_failed);
         let join_result = tokio::task::spawn_blocking(move || {
             client
                 .stream()
-                .start_streaming_with_teardown(move |event: &fpss::StreamEvent| {
+                .start_streaming_scoped(move |event: &fpss::StreamEvent| {
                     // Convert to the typed `StreamEvent` napi object on the
                     // dispatcher thread, then hand the value
                     // to `ThreadsafeFunction::call`. napi-rs' internal
@@ -90,8 +100,21 @@
                     // `Result<T, _>` — exceptions in the JS callback are
                     // the JS side's problem, surfaced through Node's own
                     // `uncaughtException`.
-                    dispatch_cb.call(typed, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
-                }, teardown_hook)
+                    let status = dispatch_cb.call(
+                        typed,
+                        napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+                    );
+                    crate::fpss_client::note_callback_delivery_status(
+                        status,
+                        &callback_closing_expected_for_dispatch,
+                        &delivery_failed_for_dispatch,
+                    );
+                }, move |drain| {
+                    crate::fpss_client::callback_delivery_outcome(
+                        drain(),
+                        &delivery_failed_for_scope,
+                    )
+                }, Some(teardown_hook))
         })
         .await;
 

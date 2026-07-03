@@ -42,7 +42,7 @@
 //! 4. `stopStreaming()` / `shutdown()` — atomic stop with drain barrier.
 //! 5. `reconnect()` — re-open under the same callback.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
@@ -167,9 +167,10 @@ fn join_dispatcher_with_wake(
 /// with [`ThreadsafeFunctionCallMode::Blocking`] and a bounded call queue
 /// ([`crate::STREAMING_CALLBACK_QUEUE_DEPTH`]). When the queue fills, the
 /// dispatcher thread blocks INSIDE `call` waiting for the Node main thread to
-/// drain it. Teardown (`stopStreaming` / `Drop` / `reconnect`) runs on that
-/// same Node main thread and joins the dispatcher; the main thread is therefore
-/// parked in the join and can never drain the queue, so the blocked `call`
+/// drain it. A synchronous teardown (`stopStreaming`, or a drop that runs on the
+/// JS thread) can run on that same Node main thread and join the dispatcher; the
+/// main thread is therefore parked in the join and can never drain the queue, so
+/// the blocked `call`
 /// never returns, the dispatcher never reaches its shutdown exit, and the join
 /// hangs forever. Dropping every `Arc<TsfnCallback>` would normally release the
 /// function, but it cannot here: the blocked consumer is itself holding a clone,
@@ -182,21 +183,20 @@ fn join_dispatcher_with_wake(
 /// [`ThreadsafeFunctionHandle`](napi::threadsafe_function::ThreadsafeFunctionHandle)
 /// (the `handle` field is an `Arc` shared by every clone of the function,
 /// including the one the blocked consumer holds) and performs the same abort
-/// the framework's deprecated [`ThreadsafeFunction::abort`] performs: it sets
-/// the handle's shared `aborted` flag under its write lock and releases the
-/// underlying napi threadsafe function with
+/// the framework's deprecated [`ThreadsafeFunction::abort`] performs, but in a
+/// lock order that can wake a blocked caller: it releases the underlying napi
+/// threadsafe function with
 /// [`ThreadsafeFunctionReleaseMode::abort`](napi::sys::ThreadsafeFunctionReleaseMode).
-/// Because the flag lives on the shared handle, the blocked consumer's `call`
-/// observes `aborted == true` and returns [`napi::Status::Closing`]
-/// immediately, so the consumer resumes, sees the already-signalled client
-/// shutdown, exits `for_each_scoped`, and the join completes.
+/// N-API then makes a blocked `call(.., Blocking)` return
+/// [`napi::Status::Closing`], dropping napi-rs's `aborted` read guard. Only
+/// after that wake is sent does the hook take the write lock and mark the
+/// shared `aborted` flag, so future calls reject immediately.
 ///
 /// The replicated-abort form is used in preference to calling the deprecated
 /// `abort()` because `abort()` consumes `self` by value, which is impossible
-/// from a shared `Arc<TsfnCallback>` (the blocked consumer co-owns it). The
-/// `aborted`-flag write is guarded so a second invocation (e.g. `Drop` after an
-/// explicit `stopStreaming`) is a harmless no-op, which makes the hook safe to
-/// run more than once even though it is typed `FnOnce`.
+/// from a shared `Arc<TsfnCallback>` (the blocked consumer co-owns it). A
+/// per-hook once flag makes a repeated wake attempt a harmless no-op even if
+/// the hook is ever wrapped behind a replayable teardown adapter.
 ///
 /// # When it runs
 ///
@@ -213,38 +213,90 @@ pub(crate) fn abort_hook(callback: &Arc<TsfnCallback>) -> Box<dyn FnOnce() + Sen
     // — points at this same handle, so aborting through it aborts the call the
     // consumer is parked in.
     let handle = Arc::clone(&callback.handle);
+    let fired = AtomicBool::new(false);
     Box::new(move || {
-        handle.with_write_aborted(|mut aborted| {
-            if !*aborted {
-                let raw = handle.get_raw();
-                if !raw.is_null() {
-                    // SAFETY: `raw` is the live `napi_threadsafe_function`
-                    // pointer owned by `handle`; it is non-null here and the
-                    // function has not yet been aborted (guarded by the
-                    // `aborted` flag we hold the write lock on). Releasing with
-                    // `abort` is exactly what `ThreadsafeFunction::abort` does
-                    // internally and is the documented way to force a pending
-                    // `Blocking` `call` to return `Status::Closing`. Holding the
-                    // write guard across the release serialises this against any
-                    // other clone's abort/drop, and setting `aborted` below
-                    // makes a repeat call (e.g. a later `Drop`) a no-op so the
-                    // function is released exactly once.
-                    let status = unsafe {
-                        napi::sys::napi_release_threadsafe_function(
-                            raw,
-                            napi::sys::ThreadsafeFunctionReleaseMode::abort,
-                        )
-                    };
-                    debug_assert_eq!(
-                        status,
-                        napi::sys::Status::napi_ok,
-                        "napi_release_threadsafe_function(abort) failed",
-                    );
-                }
-                *aborted = true;
+        if fired
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return;
+        }
+
+        let already_aborted = handle.with_read_aborted(|aborted| aborted);
+        if !already_aborted {
+            let raw = handle.get_raw();
+            if !raw.is_null() {
+                // SAFETY: `raw` is the live `napi_threadsafe_function` pointer
+                // owned by `handle`; it is non-null here. Release happens
+                // BEFORE taking `aborted.write()`: napi-rs holds
+                // `aborted.read()` across `call(.., Blocking)`, so taking the
+                // writer first deadlocks behind the caller this release is
+                // meant to wake. N-API allows abort release while a call is
+                // blocked; that call returns `Closing` and drops the read guard.
+                let status = unsafe {
+                    napi::sys::napi_release_threadsafe_function(
+                        raw,
+                        napi::sys::ThreadsafeFunctionReleaseMode::abort,
+                    )
+                };
+                debug_assert_eq!(
+                    status,
+                    napi::sys::Status::napi_ok,
+                    "napi_release_threadsafe_function(abort) failed",
+                );
             }
+        }
+
+        handle.with_write_aborted(|mut aborted| {
+            *aborted = true;
         });
     })
+}
+
+pub(crate) fn abort_hook_expect_closing(
+    callback: &Arc<TsfnCallback>,
+    closing_expected: Arc<AtomicBool>,
+) -> Box<dyn FnOnce() + Send> {
+    let hook = abort_hook(callback);
+    Box::new(move || {
+        closing_expected.store(true, Ordering::Release);
+        hook();
+    })
+}
+
+pub(crate) fn ensure_callback_open(callback: &TsfnCallback) -> napi::Result<()> {
+    if callback.handle.with_read_aborted(|aborted| aborted) {
+        Err(aborted_callback_error())
+    } else {
+        Ok(())
+    }
+}
+
+pub(crate) fn aborted_callback_error() -> napi::Error {
+    napi::Error::from_reason(
+        "[StreamError] streaming callback is closed; call startStreaming(callback) with a fresh function",
+    )
+}
+
+pub(crate) fn note_callback_delivery_status(
+    status: napi::Status,
+    closing_expected: &AtomicBool,
+    delivery_failed: &AtomicBool,
+) {
+    if status == napi::Status::Closing && !closing_expected.load(Ordering::Acquire) {
+        delivery_failed.store(true, Ordering::Release);
+    }
+}
+
+pub(crate) fn callback_delivery_outcome(
+    outcome: fpss::PollOutcome,
+    delivery_failed: &AtomicBool,
+) -> fpss::PollOutcome {
+    if delivery_failed.load(Ordering::Acquire) {
+        fpss::PollOutcome::Failed
+    } else {
+        outcome
+    }
 }
 
 /// Snapshot of the parameters required to open a streaming TLS connection.
@@ -320,6 +372,10 @@ fn params_from_direct(creds: &RustCredentials, direct: &DirectConfig) -> napi::R
     Ok(FpssParams::from_config(creds, direct))
 }
 
+type InnerSlot = Arc<Mutex<Option<Arc<RustStreamingClient>>>>;
+type CallbackSlot = Arc<Mutex<Option<StreamingCallbackRegistration<TsfnCallback>>>>;
+type DrainedFlags = Arc<Mutex<Vec<Arc<AtomicBool>>>>;
+
 /// Standalone streaming-only client.
 ///
 /// Opens ONLY the streaming TLS transport, no historical data channel, no
@@ -343,7 +399,7 @@ pub struct StreamingClient {
     params: FpssParams,
     /// Currently-open inner streaming client. `None` between construction and
     /// `startStreaming`, and after `stopStreaming` / `shutdown`.
-    inner: Mutex<Option<Arc<RustStreamingClient>>>,
+    inner: InnerSlot,
     /// Most recently registered JS callback, behind an `Arc` so the
     /// dispatcher closure can hold its own ref-counted clone. Retained
     /// across `startStreaming` so `reconnect()` can re-register the same
@@ -351,12 +407,16 @@ pub struct StreamingClient {
     /// `stopStreaming` / `shutdown` so a teardown the application has
     /// already observed releases the napi reference back to V8 — the same
     /// explicit-handoff model as the unified [`crate::Client`].
-    callback: Mutex<Option<Arc<TsfnCallback>>>,
+    callback: CallbackSlot,
+    /// Monotonic identity for each standalone start. Reconnect intentionally
+    /// reuses the same `ThreadsafeFunction`, so pointer identity alone cannot
+    /// distinguish overlapping reconnect attempts.
+    next_callback_generation: AtomicU64,
     /// Quiescence flags of every superseded streaming session that has not
     /// yet drained. Mirrors the unified client's `prev_drained` field:
     /// stacked stop/start cycles can layer multiple in-flight ring
     /// consumers, and `awaitDrain` waits for all of them.
-    prev_drained: Mutex<Vec<Arc<AtomicBool>>>,
+    prev_drained: DrainedFlags,
     /// Dispatcher thread lifecycle. Panic state is set two ways: a
     /// teardown (`stopStreaming` / `Drop`) derives it from
     /// `JoinHandle::join()` returning `Err(_)`, and the dispatcher thread
@@ -366,6 +426,25 @@ pub struct StreamingClient {
     /// no teardown is ever called. Wrapped in `Arc` so the dispatcher
     /// thread holds its own handle to publish that state.
     dispatcher: Arc<Mutex<DispatcherSession>>,
+}
+
+#[derive(Clone)]
+struct StreamingCallbackRegistration<T> {
+    generation: u64,
+    callback: Arc<T>,
+}
+
+impl<T> StreamingCallbackRegistration<T> {
+    fn new(generation: u64, callback: Arc<T>) -> Self {
+        Self {
+            generation,
+            callback,
+        }
+    }
+
+    fn owns(&self, generation: u64, callback: &Arc<T>) -> bool {
+        self.generation == generation && Arc::ptr_eq(&self.callback, callback)
+    }
 }
 
 impl Drop for StreamingClient {
@@ -459,7 +538,7 @@ impl StreamingClient {
         self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    fn lock_callback(&self) -> MutexGuard<'_, Option<Arc<TsfnCallback>>> {
+    fn lock_callback(&self) -> MutexGuard<'_, Option<StreamingCallbackRegistration<TsfnCallback>>> {
         self.callback.lock().unwrap_or_else(|e| e.into_inner())
     }
 
@@ -467,17 +546,107 @@ impl StreamingClient {
         self.dispatcher.lock().unwrap_or_else(|e| e.into_inner())
     }
 
+    fn next_callback_generation(&self) -> u64 {
+        self.next_callback_generation
+            .fetch_add(1, Ordering::Relaxed)
+    }
+
     /// Clear the reserved callback slot only when it still holds THIS start's
-    /// callback. `start_with_callback` reserves the slot before the
+    /// generation and callback. `start_with_callback` reserves the slot before the
     /// lock-released blocking connect, so a concurrent `stopStreaming` +
     /// newer `startStreaming` may have replaced the reservation across the
-    /// `.await`; `Arc::ptr_eq` identity keeps a superseded start from wiping
-    /// the newer registration on its own failure path.
-    fn clear_callback_if_owner(&self, owner: &Arc<TsfnCallback>) {
+    /// `.await`; the generation keeps a superseded reconnect from wiping the
+    /// newer registration even when both starts reuse the same callback handle.
+    fn clear_callback_if_owner(&self, generation: u64, owner: &Arc<TsfnCallback>) {
         let mut cb = self.lock_callback();
-        if cb.as_ref().is_some_and(|c| Arc::ptr_eq(c, owner)) {
+        if cb.as_ref().is_some_and(|c| c.owns(generation, owner)) {
             *cb = None;
         }
+    }
+
+    fn live_inner_if_callback_owner(&self, generation: u64) -> Option<Arc<RustStreamingClient>> {
+        let cb_guard = self.lock_callback();
+        if cb_guard
+            .as_ref()
+            .is_none_or(|registration| registration.generation != generation)
+        {
+            return None;
+        }
+        let guard = self.lock_inner();
+        guard.as_ref().map(Arc::clone)
+    }
+
+    fn stop_streaming_slots(
+        inner: InnerSlot,
+        callback: CallbackSlot,
+        dispatcher: Arc<Mutex<DispatcherSession>>,
+        prev_drained: DrainedFlags,
+    ) {
+        // Take the client and stored callback out under the binding mutexes,
+        // then release both before signalling shutdown so a dispatcher
+        // re-entering any method via the callback never sees a lock held.
+        let (taken_client, prev_session) = {
+            let mut cb_guard = callback
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let taken = inner
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .take();
+            *cb_guard = None;
+            let session = std::mem::replace(
+                &mut *dispatcher
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner),
+                DispatcherSession::Idle,
+            );
+            (taken, session)
+        };
+        if let Some(client) = taken_client {
+            prev_drained
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push(client.drained_flag());
+            client.shutdown();
+            drop(client);
+            if let DispatcherSession::Running {
+                handle,
+                on_teardown,
+                ..
+            } = prev_session
+            {
+                if handle.thread().id() != std::thread::current().id() {
+                    // Signal-grace-wake-join. `client.shutdown()` above signals
+                    // the ring; a dispatcher parked there exits on its own and
+                    // is joined without ever firing the hook. Only if it is
+                    // still blocked off the ring after the grace window — parked
+                    // inside the `Blocking` tsfn `call` because the bounded
+                    // callback queue is full — does the hook abort the function.
+                    // That abort makes the dispatcher resume, see the shutdown,
+                    // and let the join return. Avoiding the hook on the normal
+                    // path keeps the function reusable across the common
+                    // `reconnect()` (see the constant docs above).
+                    if let Err(payload) = join_dispatcher_with_wake(handle, on_teardown) {
+                        let reason = panic_reason(payload.as_ref());
+                        let mut guard = dispatcher
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
+                        if matches!(*guard, DispatcherSession::Idle) {
+                            *guard = DispatcherSession::Failed { reason };
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn stop_streaming_impl(&self) {
+        Self::stop_streaming_slots(
+            Arc::clone(&self.inner),
+            Arc::clone(&self.callback),
+            Arc::clone(&self.dispatcher),
+            Arc::clone(&self.prev_drained),
+        );
     }
 
     /// Run a closure with a borrow of the live streaming client, rejecting with
@@ -506,7 +675,10 @@ impl StreamingClient {
     /// the first is still connecting.
     ///
     /// Lock ordering: `callback` BEFORE `inner`, matching `stopStreaming`.
-    async fn start_with_callback(&self, callback: Arc<TsfnCallback>) -> napi::Result<()> {
+    async fn start_with_callback(&self, callback: Arc<TsfnCallback>) -> napi::Result<u64> {
+        ensure_callback_open(&callback)?;
+        let generation = self.next_callback_generation();
+
         {
             let mut cb_guard = self.lock_callback();
             if cb_guard.is_some() || self.lock_inner().is_some() {
@@ -516,7 +688,10 @@ impl StreamingClient {
             }
             // Reserve the slot so a concurrent call is rejected while the
             // handshake below is in flight.
-            *cb_guard = Some(Arc::clone(&callback));
+            *cb_guard = Some(StreamingCallbackRegistration::new(
+                generation,
+                Arc::clone(&callback),
+            ));
         }
 
         let dispatch_cb = Arc::clone(&callback);
@@ -535,7 +710,7 @@ impl StreamingClient {
                 // instead of a stuck "streaming already started". Clear
                 // ONLY when this start still owns the slot: a concurrent
                 // stop + newer start may already hold it.
-                self.clear_callback_if_owner(&callback);
+                self.clear_callback_if_owner(generation, &callback);
                 return Err(napi::Error::from_reason(format!(
                     "start_streaming task panicked: {e}"
                 )));
@@ -548,11 +723,13 @@ impl StreamingClient {
                 // clean registration. Clear ONLY when this start still owns
                 // the slot -- a concurrent stop + newer start may already
                 // hold it.
-                self.clear_callback_if_owner(&callback);
+                self.clear_callback_if_owner(generation, &callback);
                 return Err(to_napi_err(thetadatadx::Error::from(e)));
             }
         };
         let client_arc = Arc::new(client);
+        let callback_closing_expected = Arc::new(AtomicBool::new(false));
+        let delivery_failed = Arc::new(AtomicBool::new(false));
 
         // Teardown wake hook, built from a shared-handle clone of the
         // registered function (installing it consumes nothing the
@@ -563,17 +740,18 @@ impl StreamingClient {
         // (see `abort_hook`). The dispatcher would otherwise park forever
         // waiting for the Node main thread — which is itself inside the join —
         // to drain the queue.
-        let on_teardown: Box<dyn FnOnce() + Send> = abort_hook(&callback);
+        let on_teardown: Box<dyn FnOnce() + Send> =
+            abort_hook_expect_closing(&callback, Arc::clone(&callback_closing_expected));
 
         // Publish the client and dispatcher under the callback lock held
         // across the whole transition so a concurrent `stopStreaming` + newer
         // `startStreaming` cannot interleave. There is no shared core lock, so
         // two starts can both reach here; a superseded start (the slot now
-        // holds a different callback `Arc`) must NOT publish its client over
-        // the live session -- doing so would leak a live TLS session and a
-        // detached dispatcher for the process lifetime. Verify ownership by
-        // `Arc::ptr_eq`; if superseded, shut the freshly built client down and
-        // return an error. Lock ordering: callback BEFORE inner BEFORE
+        // holds a different callback generation) must NOT publish its client
+        // over the live session -- doing so would leak a live TLS session and a
+        // detached dispatcher for the process lifetime. Verify ownership by the
+        // start generation; if superseded, shut the freshly built client down
+        // and return an error. Lock ordering: callback BEFORE inner BEFORE
         // dispatcher, matching `stopStreaming`.
         //
         // The client is published BEFORE spawning the dispatcher so the first
@@ -581,9 +759,9 @@ impl StreamingClient {
         // call from inside the user callback runs on this same Node thread, so
         // it cannot execute while this critical section is held.
         let mut cb_guard = self.lock_callback();
-        if !cb_guard
+        if cb_guard
             .as_ref()
-            .is_some_and(|cb| Arc::ptr_eq(cb, &callback))
+            .is_none_or(|cb| !cb.owns(generation, &callback))
         {
             drop(cb_guard);
             client_arc.shutdown();
@@ -594,6 +772,9 @@ impl StreamingClient {
         *self.lock_inner() = Some(Arc::clone(&client_arc));
 
         let dispatcher_client = Arc::clone(&client_arc);
+        let callback_closing_expected_for_dispatch = Arc::clone(&callback_closing_expected);
+        let delivery_failed_for_dispatch = Arc::clone(&delivery_failed);
+        let delivery_failed_for_scope = Arc::clone(&delivery_failed);
         // Hand the dispatcher thread its own handle to the session slot so
         // it can publish `Failed` directly on a caught outer panic, rather
         // than relying on a future teardown's `JoinHandle::join()` to
@@ -638,12 +819,17 @@ impl StreamingClient {
                             // itself is never blocked.
                             let buffered = fpss_event_to_buffered(event);
                             let typed = buffered_event_to_typed(buffered);
-                            dispatch_cb.call(
+                            let status = dispatch_cb.call(
                                 typed,
                                 napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
                             );
+                            note_callback_delivery_status(
+                                status,
+                                &callback_closing_expected_for_dispatch,
+                                &delivery_failed_for_dispatch,
+                            );
                         },
-                        |drain| drain(),
+                        |drain| callback_delivery_outcome(drain(), &delivery_failed_for_scope),
                     )
                 }));
                 // A panic escaping the event-iteration machinery (NOT a
@@ -700,7 +886,7 @@ impl StreamingClient {
                 };
                 drop(dispatcher_guard);
                 drop(cb_guard);
-                Ok(())
+                Ok(generation)
             }
             Err(e) => {
                 // Spawn failed: unwind the inner publish and clear the slot.
@@ -812,7 +998,9 @@ impl StreamingClient {
             { crate::STREAMING_CALLBACK_QUEUE_DEPTH },
         >,
     ) -> napi::Result<()> {
-        self.start_with_callback(Arc::new(callback)).await
+        self.start_with_callback(Arc::new(callback))
+            .await
+            .map(|_| ())
     }
 
     /// Whether the streaming TLS connection is currently open. Returns `false`
@@ -1002,64 +1190,7 @@ impl StreamingClient {
     /// Lock ordering: `callback` BEFORE `inner`, matching `startStreaming`.
     #[napi(js_name = "stopStreaming")]
     pub fn stop_streaming(&self) {
-        // Take the client and stored callback out under the binding mutexes,
-        // then release both before signalling shutdown so a dispatcher
-        // re-entering any method via the callback never sees a lock held.
-        let (taken_client, prev_session) = {
-            let mut cb_guard = self.lock_callback();
-            let taken = self.lock_inner().take();
-            *cb_guard = None;
-            let session = std::mem::replace(&mut *self.lock_dispatcher(), DispatcherSession::Idle);
-            (taken, session)
-        };
-        if let Some(client) = taken_client {
-            self.prev_drained
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .push(client.drained_flag());
-            client.shutdown();
-            drop(client);
-            if let DispatcherSession::Running {
-                handle,
-                on_teardown,
-                ..
-            } = prev_session
-            {
-                if handle.thread().id() != std::thread::current().id() {
-                    // Signal-grace-wake-join. `client.shutdown()` above signals
-                    // the ring; a dispatcher parked there exits on its own and
-                    // is joined without ever firing the hook. Only if it is
-                    // still blocked off the ring after the grace window — parked
-                    // inside the `Blocking` tsfn `call` because the bounded
-                    // callback queue is full, which the Node main thread running
-                    // this `stopStreaming` cannot drain while it is about to
-                    // join — does the hook fire and abort the threadsafe
-                    // function so the blocked `call` returns `Status::Closing`,
-                    // the dispatcher resumes, sees the shutdown, and the join
-                    // completes. Firing the abort only as a fallback keeps the
-                    // function reusable across the common `reconnect()` (see
-                    // `join_dispatcher_with_wake`).
-                    if let Err(payload) = join_dispatcher_with_wake(handle, on_teardown) {
-                        // Record the panic reason so `isStreaming()` /
-                        // `isAuthenticated()` report the failed state if
-                        // streaming is restarted without re-checking. Record it
-                        // ONLY if the slot is still `Idle`: the dispatcher lock
-                        // was released across the join, so a concurrent restart
-                        // may have installed a fresh `Running` in that window.
-                        // The panic belongs to the superseded OLD session;
-                        // overwriting unconditionally would clobber the new
-                        // session's handle and falsely fail a healthy live
-                        // session. Matches the FFI `join_extracted_session`
-                        // guard.
-                        let reason = panic_reason(payload.as_ref());
-                        let mut guard = self.lock_dispatcher();
-                        if matches!(*guard, DispatcherSession::Idle) {
-                            *guard = DispatcherSession::Failed { reason };
-                        }
-                    }
-                }
-            }
-        }
+        self.stop_streaming_impl();
     }
 
     /// Alias for `stopStreaming`. Mirrors the unified client's split surface
@@ -1085,7 +1216,7 @@ impl StreamingClient {
         let stored = {
             let guard = self.lock_callback();
             match guard.as_ref() {
-                Some(cb) => Arc::clone(cb),
+                Some(registration) => Arc::clone(&registration.callback),
                 None => {
                     return Err(napi::Error::from_reason(
                         "no callback registered -- call startStreaming(callback) before reconnect()",
@@ -1098,24 +1229,33 @@ impl StreamingClient {
         let (per_contract, full_stream) =
             self.with_live(|c| Ok((c.active_subscriptions(), c.active_full_subscriptions())))?;
 
-        // Stop + restart under the same callback. The restart re-runs the
-        // streaming connect and authentication handshake off the libuv thread.
-        self.stop_streaming();
-        self.start_with_callback(stored).await?;
+        // Stop + restart under the same callback. The old session's teardown
+        // can join a dispatcher thread, so run it on a blocking worker before
+        // starting the fresh connection.
+        let inner = Arc::clone(&self.inner);
+        let callback = Arc::clone(&self.callback);
+        let dispatcher = Arc::clone(&self.dispatcher);
+        let prev_drained = Arc::clone(&self.prev_drained);
+        runtime()?
+            .spawn_blocking(move || {
+                Self::stop_streaming_slots(inner, callback, dispatcher, prev_drained)
+            })
+            .await
+            .map_err(|e| napi::Error::from_reason(format!("reconnect teardown panicked: {e}")))?;
+        ensure_callback_open(&stored)?;
+        let generation = self.start_with_callback(stored).await?;
 
         // Re-apply every saved subscription against the freshly reconnected
         // session through the core's paced replay engine. The replay is
         // network-bound and paced, so it runs on a blocking worker to keep
         // the Node event loop free for the whole restore.
-        let inner = {
-            let guard = self.lock_inner();
-            guard.as_ref().map(Arc::clone)
-        };
-        let Some(inner) = inner else {
-            return Err(napi::Error::from_reason(
-                "streaming not started -- call startStreaming(callback) first",
-            ));
-        };
+        let inner = self
+            .live_inner_if_callback_owner(generation)
+            .ok_or_else(|| {
+                napi::Error::from_reason(
+                    "streaming reconnect superseded by a concurrent startStreaming/stopStreaming",
+                )
+            })?;
         runtime()?
             .spawn_blocking(move || inner.restore_subscriptions(&per_contract, &full_stream))
             .await
@@ -1178,9 +1318,10 @@ impl StreamingClient {
     fn from_params(params: FpssParams) -> Self {
         Self {
             params,
-            inner: Mutex::new(None),
-            callback: Mutex::new(None),
-            prev_drained: Mutex::new(Vec::new()),
+            inner: Arc::new(Mutex::new(None)),
+            callback: Arc::new(Mutex::new(None)),
+            next_callback_generation: AtomicU64::new(1),
+            prev_drained: Arc::new(Mutex::new(Vec::new())),
             dispatcher: Arc::new(Mutex::new(DispatcherSession::Idle)),
         }
     }
@@ -1337,6 +1478,80 @@ mod dispatcher_panic_recording_tests {
 }
 
 #[cfg(test)]
+mod callback_delivery_failure_tests {
+    use super::*;
+
+    #[test]
+    fn unexpected_closing_marks_dispatcher_delivery_failed() {
+        let closing_expected = AtomicBool::new(false);
+        let delivery_failed = AtomicBool::new(false);
+
+        note_callback_delivery_status(napi::Status::Closing, &closing_expected, &delivery_failed);
+
+        assert!(delivery_failed.load(Ordering::Acquire));
+        assert_eq!(
+            callback_delivery_outcome(fpss::PollOutcome::Drained(1), &delivery_failed),
+            fpss::PollOutcome::Failed
+        );
+    }
+
+    #[test]
+    fn teardown_expected_closing_does_not_mark_delivery_failed() {
+        let closing_expected = AtomicBool::new(true);
+        let delivery_failed = AtomicBool::new(false);
+
+        note_callback_delivery_status(napi::Status::Closing, &closing_expected, &delivery_failed);
+
+        assert!(!delivery_failed.load(Ordering::Acquire));
+        assert_eq!(
+            callback_delivery_outcome(fpss::PollOutcome::Shutdown, &delivery_failed),
+            fpss::PollOutcome::Shutdown
+        );
+    }
+
+    #[test]
+    fn successful_callback_delivery_keeps_scope_outcome() {
+        let closing_expected = AtomicBool::new(false);
+        let delivery_failed = AtomicBool::new(false);
+
+        note_callback_delivery_status(napi::Status::Ok, &closing_expected, &delivery_failed);
+
+        assert!(!delivery_failed.load(Ordering::Acquire));
+        assert_eq!(
+            callback_delivery_outcome(fpss::PollOutcome::Drained(2), &delivery_failed),
+            fpss::PollOutcome::Drained(2)
+        );
+    }
+}
+
+#[cfg(test)]
+mod callback_generation_tests {
+    use super::*;
+
+    #[test]
+    fn same_callback_handle_requires_matching_generation() {
+        let callback = Arc::new(());
+        let first = StreamingCallbackRegistration::new(1, Arc::clone(&callback));
+        let second = StreamingCallbackRegistration::new(2, Arc::clone(&callback));
+
+        assert!(first.owns(1, &callback));
+        assert!(!first.owns(2, &callback));
+        assert!(second.owns(2, &callback));
+        assert!(!second.owns(1, &callback));
+    }
+
+    #[test]
+    fn matching_generation_requires_same_callback_handle() {
+        let callback = Arc::new(());
+        let other_callback = Arc::new(());
+        let stored = StreamingCallbackRegistration::new(3, Arc::clone(&callback));
+
+        assert!(stored.owns(3, &callback));
+        assert!(!stored.owns(3, &other_callback));
+    }
+}
+
+#[cfg(test)]
 mod teardown_deadlock_tests {
     //! Deterministic watchdog for the bounded-queue teardown deadlock.
     //!
@@ -1344,11 +1559,12 @@ mod teardown_deadlock_tests {
     //! [`crate::TsfnCallback`] via a `Blocking`
     //! [`call`](napi::threadsafe_function::ThreadsafeFunction::call) against a
     //! bounded call queue. Once the queue fills, the dispatcher blocks INSIDE
-    //! `call` waiting for the Node main thread to drain it. Teardown
-    //! (`stopStreaming` / `Drop` / `reconnect`) runs on that same Node main
-    //! thread and JOINS the dispatcher, so the main thread is parked in the join
-    //! and can never drain the queue: the blocked `call` never returns, the
-    //! dispatcher never exits, and the join hangs forever.
+    //! `call` waiting for the Node main thread to drain it. A synchronous
+    //! teardown (`stopStreaming`, or a drop that runs on the JS thread) can run
+    //! on that same Node main thread and JOIN the dispatcher, so the main
+    //! thread is parked in the join and can never drain the queue: the blocked
+    //! `call` never returns, the dispatcher never exits, and the join hangs
+    //! forever.
     //!
     //! The fix gives the dispatcher an `on_teardown` wake hook
     //! ([`super::abort_hook`]) that aborts the threadsafe function so the
@@ -1393,10 +1609,13 @@ mod teardown_deadlock_tests {
         capacity: usize,
         /// Current queued depth; drained by [`Self::drain_one`].
         depth: Mutex<usize>,
-        /// Signalled when depth drops (a slot frees) OR when `aborted` is set.
+        /// Signalled when depth drops (a slot frees) OR when abort is released.
         space: Condvar,
         /// Shared abort flag — the field [`super::abort_hook`] writes through.
         aborted: RwLock<bool>,
+        /// Models `napi_release_threadsafe_function(..., abort)`: a lock-free
+        /// wake that makes an in-flight blocking call return `Closing`.
+        released: AtomicBool,
     }
 
     /// Outcome of a [`BoundedFn::call`] — mirrors the only two `Status` values
@@ -1414,6 +1633,7 @@ mod teardown_deadlock_tests {
                 depth: Mutex::new(0),
                 space: Condvar::new(),
                 aborted: RwLock::new(false),
+                released: AtomicBool::new(false),
             })
         }
 
@@ -1422,14 +1642,15 @@ mod teardown_deadlock_tests {
         /// free and returns `Ok`. This is the stand-in for
         /// `ThreadsafeFunction::call(.., Blocking)`.
         fn call_blocking(&self) -> CallStatus {
-            // Fast path: an already-aborted function rejects immediately, just
-            // as the real `call` does (`if aborted { return Closing }`).
-            if *self.aborted.read().unwrap() {
+            // The real napi-rs `call` holds this read guard across the
+            // potentially blocking `napi_call_threadsafe_function`.
+            let aborted = self.aborted.read().unwrap();
+            if *aborted {
                 return CallStatus::Closing;
             }
             let mut depth = self.depth.lock().unwrap();
             loop {
-                if *self.aborted.read().unwrap() {
+                if *aborted || self.released.load(Ordering::Acquire) {
                     return CallStatus::Closing;
                 }
                 if *depth < self.capacity {
@@ -1455,20 +1676,17 @@ mod teardown_deadlock_tests {
             }
         }
 
-        /// Abort the function: set the shared flag and wake every waiter so a
-        /// blocked `call_blocking` re-checks and returns `Closing`. The
-        /// flag-write discipline (write-guard the flag, set it, idempotent on a
-        /// repeat) mirrors [`super::abort_hook`]; the production hook
-        /// additionally calls `napi_release_threadsafe_function(.., abort)`,
-        /// whose sole observable effect on a blocked caller is the same flag
-        /// transition reproduced here.
+        /// Abort the function: first send the lock-free N-API wake, then mark
+        /// the shared flag. This mirrors [`super::abort_hook`]. Taking the
+        /// `aborted.write()` lock before the wake would deadlock while a blocked
+        /// caller holds the read guard above.
         fn abort(&self) {
-            let mut aborted = self.aborted.write().unwrap();
-            if !*aborted {
-                *aborted = true;
-                // notify under the lock is fine; waiters re-check the flag.
+            if !self.released.swap(true, Ordering::AcqRel) {
+                let _depth = self.depth.lock().unwrap();
                 self.space.notify_all();
             }
+            let mut aborted = self.aborted.write().unwrap();
+            *aborted = true;
         }
 
         fn is_aborted(&self) -> bool {

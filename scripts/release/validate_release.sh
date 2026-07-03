@@ -56,6 +56,37 @@ record() {
     SECTION_RESULTS+=("$(printf "  %-12s %3d PASS  %3d SKIP  %3d FAIL" "$surface" "$pass" "$skip" "$fail")")
 }
 
+parse_counts() {
+    local surface="$1" result="$2" exit_code="$3" pass_var="$4" skip_var="$5" fail_var="$6"
+    local counts pass skip fail status=0
+
+    counts=$(printf "%s\n" "$result" | sed -n 's/^.*COUNTS:\([0-9][0-9]*:[0-9][0-9]*:[0-9][0-9]*\).*$/\1/p' | tail -n 1)
+    if [ -z "$counts" ]; then
+        echo "  $surface validator did not emit COUNTS:p:s:f."
+        if [ "$exit_code" -ne 0 ]; then
+            echo "  $surface validator exited with status $exit_code."
+        fi
+        printf -v "$pass_var" "%d" 0
+        printf -v "$skip_var" "%d" 0
+        printf -v "$fail_var" "%d" 1
+        return 1
+    fi
+
+    IFS=: read -r pass skip fail <<<"$counts"
+    if [ "$exit_code" -ne 0 ]; then
+        echo "  $surface validator exited with status $exit_code."
+        if [ "$fail" -eq 0 ]; then
+            fail=1
+        fi
+        status=1
+    fi
+
+    printf -v "$pass_var" "%d" "$pass"
+    printf -v "$skip_var" "%d" "$skip"
+    printf -v "$fail_var" "%d" "$fail"
+    return "$status"
+}
+
 ensure_python_sdk() {
     local py_bin="${PYTHON_BIN:-python3}"
     if "$py_bin" -c "import thetadatadx" >/dev/null 2>&1; then
@@ -92,11 +123,9 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 if ensure_python_sdk; then
     py_result=$("$PYTHON_BIN" "$REPO/scripts/ci/check_python.py" "$CREDS" 2>&1)
+    py_exit=$?
     echo "$py_result"
-    py_counts=$(echo "$py_result" | grep -oP 'COUNTS:\K.*')
-    py_pass=$(echo "$py_counts" | cut -d: -f1)
-    py_skip=$(echo "$py_counts" | cut -d: -f2)
-    py_fail=$(echo "$py_counts" | cut -d: -f3)
+    parse_counts "Python" "$py_result" "$py_exit" py_pass py_skip py_fail || true
 else
     echo "  Python SDK bootstrap failed."
     py_fail=61
@@ -125,11 +154,9 @@ fi
 
 if [ -x "$CPP_BUILD/thetadatadx_validate" ]; then
     cpp_result=$(cd "$REPO" && LD_LIBRARY_PATH="$FFI_LIB" "$CPP_BUILD/thetadatadx_validate" "$CREDS" 2>&1)
+    cpp_exit=$?
     echo "$cpp_result"
-    cpp_counts=$(echo "$cpp_result" | grep -oP 'COUNTS:\K.*')
-    cpp_pass=$(echo "$cpp_counts" | cut -d: -f1)
-    cpp_skip=$(echo "$cpp_counts" | cut -d: -f2)
-    cpp_fail=$(echo "$cpp_counts" | cut -d: -f3)
+    parse_counts "C++" "$cpp_result" "$cpp_exit" cpp_pass cpp_skip cpp_fail || true
 else
     echo "  C++ validator build failed or target missing."
     cpp_fail=1
@@ -141,8 +168,8 @@ record "C++" "$cpp_pass" "$cpp_skip" "$cpp_fail"
 section "3/3  Cross-language agreement"
 
 agreement_result=$(python3 "$REPO/scripts/ci/check_agreement.py" 2>&1)
-echo "$agreement_result"
 agreement_exit=$?
+echo "$agreement_result"
 if [ "$agreement_exit" -ne 0 ]; then
     TOTAL_FAIL=$((TOTAL_FAIL + 1))
     SECTION_RESULTS+=("$(printf "  %-12s %3s       %3s      %3d FAIL" "Agreement" "" "" 1)")

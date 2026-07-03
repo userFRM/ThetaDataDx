@@ -268,28 +268,35 @@ fn generate_parser(out: &mut String, type_name: &str, def: &TickTypeDef) {
 ///
 /// The set names the public schema *field* (e.g. `condition_flags`,
 /// `expiration`) — the name the Arrow / Polars builders key on — not the
-/// wire spelling the alias table resolves.
+/// wire spelling the alias table resolves. `CalendarDay` is the exception:
+/// the hand-written v3 parser maps the single `type` wire column to both
+/// `is_open` and `status`, so its generated impl delegates to the matching
+/// calendar-specific presence table instead of the generic first-claim helper.
 fn generate_present_columns(out: &mut String, type_name: &str, def: &TickTypeDef) {
     let derive_midpoint = type_name == "QuoteTick";
     writeln!(out, "impl crate::columns::WireColumns for {type_name} {{").unwrap();
     out.push_str("    fn present_columns(headers: &[&str]) -> crate::columns::ColumnPresence {\n");
-    out.push_str("        const COLS: &[(&str, &str)] = &[\n");
-    for col in &def.columns {
+    if type_name == "CalendarDay" {
+        out.push_str("        crate::columns::present_calendar_day_columns(headers)\n");
+    } else {
+        out.push_str("        const COLS: &[(&str, &str)] = &[\n");
+        for col in &def.columns {
+            writeln!(
+                out,
+                "            (\"{name}\", \"{field}\"),",
+                name = col.name,
+                field = col.field,
+            )
+            .unwrap();
+        }
+        out.push_str("        ];\n");
         writeln!(
             out,
-            "            (\"{name}\", \"{field}\"),",
-            name = col.name,
-            field = col.field,
+            "        crate::columns::present_columns_from(headers, COLS, {}, {derive_midpoint})",
+            def.contract_id,
         )
         .unwrap();
     }
-    out.push_str("        ];\n");
-    writeln!(
-        out,
-        "        crate::columns::present_columns_from(headers, COLS, {}, {derive_midpoint})",
-        def.contract_id,
-    )
-    .unwrap();
     out.push_str("    }\n\n");
 
     // all_columns(): the full-schema column set (schema columns + the

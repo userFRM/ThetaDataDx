@@ -2456,17 +2456,38 @@ impl HistoricalView {
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = eod_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(eod_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -2587,7 +2608,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().stock_history_ohlc(&symbol, date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -2610,12 +2632,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = ohlc_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(ohlc_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -2751,7 +2793,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().stock_history_trade(&symbol, date.as_str());
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -2771,12 +2814,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -2916,7 +2979,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().stock_history_quote(&symbol, date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -2939,12 +3003,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = quote_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(quote_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -3086,7 +3170,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().stock_history_trade_quote(&symbol, date.as_str());
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -3109,12 +3194,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_quote_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_quote_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -3241,7 +3346,8 @@ impl HistoricalView {
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
@@ -3249,12 +3355,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -3365,7 +3491,8 @@ impl HistoricalView {
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
@@ -3373,12 +3500,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = quote_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(quote_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -3608,7 +3755,8 @@ impl HistoricalView {
         let symbol = options.symbol;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_list_contracts(&request_type, date.as_str());
             if let Some(value) = symbol {
                 request = request.symbol(value.as_str());
@@ -3619,12 +3767,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = option_contracts_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(option_contracts_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -5036,7 +5204,8 @@ impl HistoricalView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -5053,12 +5222,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = eod_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(eod_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -5212,7 +5401,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -5241,12 +5431,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = ohlc_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(ohlc_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -5414,7 +5624,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_trade(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -5443,12 +5654,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -5621,7 +5852,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_quote(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -5653,12 +5885,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = quote_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(quote_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -5836,7 +6088,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -5868,12 +6121,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_quote_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_quote_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -6032,7 +6305,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -6055,12 +6329,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = open_interest_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(open_interest_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -6229,7 +6523,8 @@ impl HistoricalView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -6261,12 +6556,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = greeks_eod_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(greeks_eod_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -6463,7 +6778,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -6504,12 +6820,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = greeks_all_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(greeks_all_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -6715,7 +7051,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -6756,12 +7093,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_greeks_all_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_greeks_all_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -6968,7 +7325,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -7009,12 +7367,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = greeks_first_order_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(greeks_first_order_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -7220,7 +7598,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -7261,12 +7640,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_greeks_first_order_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_greeks_first_order_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -7473,7 +7872,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -7514,12 +7914,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = greeks_second_order_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(greeks_second_order_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -7725,7 +8145,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -7766,12 +8187,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_greeks_second_order_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_greeks_second_order_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -7978,7 +8419,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -8019,12 +8461,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = greeks_third_order_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(greeks_third_order_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -8230,7 +8692,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -8271,12 +8734,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_greeks_third_order_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_greeks_third_order_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -8482,7 +8965,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -8523,12 +9007,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = iv_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(iv_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -8733,7 +9237,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -8774,12 +9279,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_greeks_implied_volatility_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_greeks_implied_volatility_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -8949,7 +9474,8 @@ impl HistoricalView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -8966,12 +9492,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -9111,7 +9657,8 @@ impl HistoricalView {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -9128,12 +9675,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = quote_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(quote_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -9501,17 +10068,38 @@ impl HistoricalView {
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = eod_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(eod_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -9620,7 +10208,8 @@ impl HistoricalView {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -9634,12 +10223,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = ohlc_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(ohlc_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -9767,7 +10376,8 @@ impl HistoricalView {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().index_history_price(&symbol, date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -9787,12 +10397,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = price_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(price_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -9902,17 +10532,38 @@ impl HistoricalView {
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = index_price_at_time_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(index_price_at_time_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -10178,17 +10829,38 @@ impl HistoricalView {
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = interest_rate_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(interest_rate_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -10299,7 +10971,8 @@ impl HistoricalView {
         let end_time = normalize_optional_time(options.end_time);
         let venue = options.venue;
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -10316,12 +10989,32 @@ impl HistoricalView {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = ohlc_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(ohlc_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -10806,17 +11499,38 @@ impl HistoricalClient {
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().stock_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = eod_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(eod_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -10937,7 +11651,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().stock_history_ohlc(&symbol, date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -10960,12 +11675,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = ohlc_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(ohlc_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -11101,7 +11836,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().stock_history_trade(&symbol, date.as_str());
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -11121,12 +11857,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -11266,7 +12022,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().stock_history_quote(&symbol, date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -11289,12 +12046,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = quote_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(quote_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -11436,7 +12213,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().stock_history_trade_quote(&symbol, date.as_str());
             if let Some(value) = start_time {
                 request = request.start_time(value.as_str());
@@ -11459,12 +12237,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_quote_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_quote_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -11591,7 +12389,8 @@ impl HistoricalClient {
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().stock_at_time_trade(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
@@ -11599,12 +12398,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -11715,7 +12534,8 @@ impl HistoricalClient {
         let time_of_day = normalize_time(time_of_day);
         let venue = options.venue;
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().stock_at_time_quote(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = venue {
                 request = request.venue(value.as_str());
@@ -11723,12 +12543,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = quote_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(quote_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -11958,7 +12798,8 @@ impl HistoricalClient {
         let symbol = options.symbol;
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_list_contracts(&request_type, date.as_str());
             if let Some(value) = symbol {
                 request = request.symbol(value.as_str());
@@ -11969,12 +12810,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = option_contracts_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(option_contracts_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -13386,7 +14247,8 @@ impl HistoricalClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -13403,12 +14265,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = eod_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(eod_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -13562,7 +14444,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_ohlc(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -13591,12 +14474,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = ohlc_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(ohlc_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -13764,7 +14667,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_trade(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -13793,12 +14697,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -13971,7 +14895,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_quote(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -14003,12 +14928,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = quote_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(quote_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -14186,7 +15131,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_trade_quote(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -14218,12 +15164,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_quote_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_quote_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -14382,7 +15348,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_open_interest(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -14405,12 +15372,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = open_interest_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(open_interest_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -14579,7 +15566,8 @@ impl HistoricalClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_greeks_eod(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -14611,12 +15599,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = greeks_eod_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(greeks_eod_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -14813,7 +15821,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_greeks_all(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -14854,12 +15863,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = greeks_all_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(greeks_all_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -15065,7 +16094,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_trade_greeks_all(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -15106,12 +16136,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_greeks_all_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_greeks_all_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -15318,7 +16368,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -15359,12 +16410,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = greeks_first_order_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(greeks_first_order_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -15570,7 +16641,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -15611,12 +16683,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_greeks_first_order_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_greeks_first_order_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -15823,7 +16915,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -15864,12 +16957,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = greeks_second_order_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(greeks_second_order_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -16075,7 +17188,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -16116,12 +17230,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_greeks_second_order_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_greeks_second_order_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -16328,7 +17462,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -16369,12 +17504,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = greeks_third_order_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(greeks_third_order_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -16580,7 +17735,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -16621,12 +17777,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_greeks_third_order_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_greeks_third_order_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -16832,7 +18008,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -16873,12 +18050,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = iv_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(iv_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -17083,7 +18280,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, expiration.as_str(), date.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -17124,12 +18322,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_greeks_implied_volatility_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_greeks_implied_volatility_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -17299,7 +18517,8 @@ impl HistoricalClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_at_time_trade(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -17316,12 +18535,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = trade_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(trade_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -17461,7 +18700,8 @@ impl HistoricalClient {
         let max_dte = validate_optional_nonneg_i32("maxDte", options.max_dte)?;
         let strike_range = validate_optional_nonneg_i32("strikeRange", options.strike_range)?;
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().option_at_time_quote(&symbol, expiration.as_str(), start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(value) = strike {
                 request = request.strike(value.as_str());
@@ -17478,12 +18718,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = quote_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(quote_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -17851,17 +19111,38 @@ impl HistoricalClient {
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().index_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = eod_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(eod_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -17970,7 +19251,8 @@ impl HistoricalClient {
         let start_time = normalize_optional_time(options.start_time);
         let end_time = normalize_optional_time(options.end_time);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().index_history_ohlc(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -17984,12 +19266,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = ohlc_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(ohlc_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -18117,7 +19419,8 @@ impl HistoricalClient {
         let start_date = normalize_optional_date(options.start_date);
         let end_date = normalize_optional_date(options.end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().index_history_price(&symbol, date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -18137,12 +19440,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = price_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(price_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -18252,17 +19575,38 @@ impl HistoricalClient {
         let end_date = normalize_date(end_date);
         let time_of_day = normalize_time(time_of_day);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().index_at_time_price(&symbol, start_date.as_str(), end_date.as_str(), time_of_day.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = index_price_at_time_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(index_price_at_time_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -18528,17 +19872,38 @@ impl HistoricalClient {
         let start_date = normalize_date(start_date);
         let end_date = normalize_date(end_date);
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().interest_rate_history_eod(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = interest_rate_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(interest_rate_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }
@@ -18649,7 +20014,8 @@ impl HistoricalClient {
         let end_time = normalize_optional_time(options.end_time);
         let venue = options.venue;
         let callback = std::sync::Arc::new(callback);
-        spawn_endpoint_task(async move {
+        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));
+        spawn_napi_task(async move {
             let mut request = client.historical().stock_history_ohlc_range(&symbol, start_date.as_str(), end_date.as_str());
             if let Some(value) = interval {
                 request = request.interval(value.as_str());
@@ -18666,12 +20032,32 @@ impl HistoricalClient {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request
-                .stream(|chunk| {
-                    let rows = ohlc_ticks_to_class_vec(chunk);
-                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
+            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);
+            let stream_result = request
+                .stream_async(move |chunk| {
+                    let callback = std::sync::Arc::clone(&callback);
+                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);
+                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
+                        None
+                    } else {
+                        Some(ohlc_ticks_to_class_vec(chunk))
+                    };
+                    async move {
+                        let Some(rows) = rows else { return; };
+                        if let Err(err) = callback.call_async_catch(rows).await {
+                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());
+                            if guard.is_none() {
+                                *guard = Some(err);
+                            }
+                        }
+                    }
                 })
-                .await
+                .await;
+            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {
+                Err(err)
+            } else {
+                stream_result.map_err(to_napi_err)
+            }
         })
         .await
     }

@@ -85,6 +85,18 @@ static NEXT_ACTIVE_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::Atomic
 fn next_active_gen() -> u64 {
     NEXT_ACTIVE_GEN.fetch_add(1, Ordering::Relaxed)
 }
+
+fn reconnect_reason_for_decoded_event(event: &FpssEventInternal) -> Option<RemoveReason> {
+    match event {
+        FpssEventInternal::Control(StreamControl::Disconnected { reason })
+            if reconnect_delay(*reason).is_some() =>
+        {
+            Some(*reason)
+        }
+        _ => None,
+    }
+}
+
 /// Maps an in-flight subscribe's `req_id` to the tracked entry it created,
 /// so a rejecting `REQ_RESPONSE` can untrack exactly that subscription.
 ///
@@ -943,6 +955,7 @@ where
                         }
 
                         if let Some(evt) = primary {
+                            let reconnect_reason = reconnect_reason_for_decoded_event(&evt);
                             if producer
                                 .try_publish(|slot| {
                                     slot.event = evt;
@@ -956,6 +969,10 @@ where
                                 // vendor session to drop on a slow
                                 // user callback.
                                 dropped.fetch_add(1, Ordering::Relaxed);
+                            }
+                            if let Some(reason) = reconnect_reason {
+                                authenticated.store(false, Ordering::Release);
+                                break 'inner reason;
                             }
                         }
                     }
@@ -2409,6 +2426,39 @@ mod tests {
             "the server-restart counter advances on its own class, independent of the prior transient attempt"
         );
         assert_eq!(counters.server_restart, 1);
+    }
+
+    /// A decoded in-session DISCONNECTED frame must hand its server-supplied
+    /// reason to the reconnect classifier. The frame has already been decoded
+    /// by the time the read loop publishes it, so this is the last point where
+    /// `TooManyRequests` / `ServerRestarting` can retain their patient cadence
+    /// instead of being downgraded to a generic EOF/read timeout reason.
+    #[test]
+    fn decoded_disconnect_reason_reaches_reconnect_classifier() {
+        for reason in [
+            RemoveReason::TooManyRequests,
+            RemoveReason::ServerRestarting,
+            RemoveReason::TimedOut,
+        ] {
+            let event = FpssEventInternal::Control(StreamControl::Disconnected { reason });
+            assert_eq!(
+                reconnect_reason_for_decoded_event(&event),
+                Some(reason),
+                "decoded reconnectable DISCONNECTED({reason:?}) must break the read loop with its exact reason"
+            );
+        }
+
+        let permanent = FpssEventInternal::Control(StreamControl::Disconnected {
+            reason: RemoveReason::InvalidCredentials,
+        });
+        assert_eq!(
+            reconnect_reason_for_decoded_event(&permanent),
+            None,
+            "permanent disconnects must not enter the reconnect classifier"
+        );
+
+        let non_disconnect = FpssEventInternal::Control(StreamControl::Connected);
+        assert_eq!(reconnect_reason_for_decoded_event(&non_disconnect), None);
     }
 
     /// Stable-window reset: a session that ran cleanly for at least

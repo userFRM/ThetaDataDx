@@ -848,27 +848,30 @@ void thetadatadx_arrow_bytes_free(ThetaDataDxArrowBytes bytes);
 
 /* ── Column presence + projected Arrow IPC terminal for decode-fed history ── */
 
-/* Heap-owned set of present schema-column names (the decode's ColumnPresence
- * crossing the C boundary). Built by a thetadatadx_*_present_columns terminal and
- * consumed by the matching thetadatadx_*_to_arrow_ipc_projected terminal. Caller
- * MUST free with thetadatadx_column_presence_free.
+/* Heap-owned set of present schema-column names plus optional symbol
+ * attribution (the decode's ColumnPresence crossing the C boundary). Built by
+ * a thetadatadx_*_present_columns terminal and consumed by the matching
+ * thetadatadx_*_to_arrow_ipc_projected terminal. Caller MUST free with
+ * thetadatadx_column_presence_free.
+ *
+ * `symbol` carries a constant root value for responses whose wire has one
+ * symbol across every row.
  *
  * `symbols` carries a multi-symbol snapshot's per-row `symbol` (root) values —
  * one NUL-terminated C string per decoded row — so the projected serialiser
  * emits a leading per-row `symbol` column attributing each row to its
- * underlying. It is NULL for every other response (option/index and
- * single-symbol snapshots carry a constant broadcast passed to
- * thetadatadx_*_to_arrow_ipc_projected via its `symbol` argument; stock history
- * carries none). When non-NULL it takes precedence over that argument. */
+ * underlying. It is NULL for every other response and takes precedence over
+ * the constant `symbol` field. */
 typedef struct ThetaDataDxColumnPresence {
     const char* const* names;
     size_t len;
+    const char* symbol;
     const char* const* symbols;
     size_t symbols_len;
 } ThetaDataDxColumnPresence;
 
 /** Free a ThetaDataDxColumnPresence returned by any thetadatadx_*_present_columns
- *  terminal, including its names.
+ *  terminal, including its names and symbol attribution.
  *  @param presence Carrier from a thetadatadx_*_present_columns call; a
  *                  (names=NULL, len=0) carrier is a no-op. Call exactly once. */
 void thetadatadx_column_presence_free(ThetaDataDxColumnPresence presence);
@@ -938,11 +941,11 @@ ThetaDataDxArrowBytes thetadatadx_trade_quote_ticks_to_arrow_ipc_projected(const
  *  thetadatadx_record_batch_stream_close, freed by
  *  thetadatadx_record_batch_stream_free.
  *
- *  The reader is reference-counted internally: thetadatadx_record_batch_stream_close
- *  and thetadatadx_record_batch_stream_free are safe to call from another
- *  thread while a thetadatadx_record_batch_stream_next_ipc pull is in flight:
- *  the pull is woken and returns end of stream, and the reader is not
- *  deallocated until the in-flight pull completes. */
+ *  thetadatadx_record_batch_stream_close is safe to call from another thread
+ *  while a thetadatadx_record_batch_stream_next_ipc pull is in flight: the
+ *  pull is woken and returns end of stream. thetadatadx_record_batch_stream_free
+ *  takes ownership of the opaque handle and must be serialized with all other
+ *  entry points for the same handle. */
 typedef struct ThetaDataDxRecordBatchStream ThetaDataDxRecordBatchStream;
 
 /** Backpressure: lossless block (applies backpressure to the wire). */
@@ -998,11 +1001,12 @@ uint64_t thetadatadx_record_batch_stream_dropped(const ThetaDataDxRecordBatchStr
  *  thetadatadx_record_batch_stream_free. A NULL handle is a no-op. */
 void thetadatadx_record_batch_stream_close(const ThetaDataDxRecordBatchStream* stream);
 
-/** Release the reader handle. Signals close first (waking any in-flight pull,
- *  which then returns 1, clean end of stream), then drops this handle's
- *  reference; the reader is deallocated once the last in-flight pull
- *  completes, so freeing while another thread is mid-pull is safe. A NULL
- *  handle is a no-op. After this call the handle is invalid. */
+/** Release the reader handle. Signals close first, then drops this handle's
+ *  reference. This call takes ownership of the opaque handle and must be
+ *  serialized with next_ipc, schema_ipc, dropped, and close for the same
+ *  handle. To tear down from another thread, call close to wake a parked pull,
+ *  wait for in-flight entry points to return, then free. A NULL handle is a
+ *  no-op. After this call the handle is invalid. */
 void thetadatadx_record_batch_stream_free(ThetaDataDxRecordBatchStream* stream);
 
 /* ── Error ── */

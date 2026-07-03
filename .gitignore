@@ -26,3 +26,8 @@ out/
 report/
 rust_out
 worktrees/
+
+# Internal audit dossier — never publish (impl vocab + severity framing)
+/AUDIT_v12_to_main.md
+/TRACE_issues.md
+/CODEX_SUMMARY.md

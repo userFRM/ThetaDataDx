@@ -566,6 +566,24 @@ where
     }
 }
 
+/// Run an endpoint task whose failure is already a napi error.
+///
+/// Historical stream callbacks use this path because JavaScript handler
+/// exceptions must reject the returned Promise with the original napi error,
+/// not be converted through the core `thetadatadx::Error` hierarchy.
+pub(crate) async fn spawn_napi_task<F, T>(fut: F) -> napi::Result<T>
+where
+    F: std::future::Future<Output = napi::Result<T>> + Send + 'static,
+    T: Send + 'static,
+{
+    match runtime()?.spawn(fut).await {
+        Ok(inner) => inner,
+        Err(join_err) => Err(napi::Error::from_reason(format!(
+            "endpoint task failed to complete: {join_err}"
+        ))),
+    }
+}
+
 /// Pick the typed leaf class name for a `thetadatadx::Error`. The
 /// JS shim parses this prefix off the error reason. The canonical leaf
 /// names match the Python `to_py_err` dispatch one-for-one.

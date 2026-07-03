@@ -33,12 +33,13 @@
 //! (the TypeScript surface of the Python builders' `.stream(handler)`).
 //! Instead of buffering the whole response, it pumps each decoded gRPC
 //! chunk to `callback(chunk: Tick[])` through a napi-rs
-//! `ThreadsafeFunction`, so peak memory tracks one chunk rather than the
-//! full result — the path the `Config.setWarnOnBufferedThresholdBytes`
-//! warning points oversized buffered pulls at. The coverage set mirrors
-//! the Python streaming builders exactly (non-snapshot, non-FPSS-kind
-//! endpoints that decode to a row collection); snapshot endpoints and the
-//! flat `StringList` list endpoints have no stream companion.
+//! `ThreadsafeFunction` and awaits that callback before fetching the next
+//! chunk, so peak memory tracks one chunk rather than the full result — the
+//! path the `Config.setWarnOnBufferedThresholdBytes` warning points
+//! oversized buffered pulls at. The coverage set mirrors the Python streaming
+//! builders exactly (non-snapshot, non-FPSS-kind endpoints that decode to a
+//! row collection); snapshot endpoints and the flat `StringList` list
+//! endpoints have no stream companion.
 
 use std::fmt::Write as _;
 
@@ -598,17 +599,18 @@ fn render_typescript_endpoint_with_columns_method(endpoint: &GeneratedEndpoint) 
 /// JS `callback`. Each decoded gRPC chunk is converted to the typed row
 /// array (`Tick[]`) and delivered to `callback` through a napi-rs
 /// `ThreadsafeFunction`, which routes the call onto the Node main thread —
-/// the only thread allowed to execute V8. The decoder-owned chunk is dropped
-/// the moment the converter returns, so peak memory tracks one chunk, never
-/// the full response: the memory-bounded path the `Config` doc points
-/// buffered callers at.
+/// the only thread allowed to execute V8 — and the Rust future awaits that
+/// callback before the next chunk is fetched. The decoder-owned chunk is
+/// dropped after the awaited callback returns, so peak memory tracks one
+/// chunk, never the full response: the memory-bounded path the `Config` doc
+/// points buffered callers at.
 ///
 /// The callback is the LAST positional argument (after the options object)
 /// rather than riding inside the options object: a `ThreadsafeFunction`
 /// cannot be a `#[napi(object)]` field, and a trailing function argument is
 /// the JavaScript idiom for a stream sink. `callback(chunk: Tick[]) => void`
-/// is invoked once per gRPC chunk; a slow callback applies bounded
-/// back-pressure (`Blocking` call mode) rather than dropping rows.
+/// is invoked once per gRPC chunk; a slow callback applies back-pressure by
+/// delaying the next chunk fetch rather than dropping rows.
 fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> String {
     let method_params = method_params(endpoint);
     let builder_params = builder_params(endpoint);
@@ -648,10 +650,10 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
         .unwrap();
     }
     writeln!(out, "        options: Option<{struct_name}>,").unwrap();
-    // `ErrorStrategy::Fatal` (the `false` const generic): the chunk array is
-    // passed to `call` directly, not as a `Result`, and a JS-callback throw
-    // surfaces through Node's own `uncaughtException` — matching the FPSS
-    // streaming callback contract on this same client.
+    // `ErrorStrategy::CalleeHandled` is false, but the body uses
+    // `call_async_catch`, so a JS-callback throw is returned as
+    // `Err(napi::Error)` and rejects the Promise instead of being routed to
+    // `uncaughtException`.
     writeln!(
         out,
         "        callback: napi::threadsafe_function::ThreadsafeFunction<Vec<{tick_class}>, (), Vec<{tick_class}>, napi::Status, false>,"
@@ -726,6 +728,7 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
     // in napi-rs 3.x — the outer `Arc` is the canonical share path (same as
     // the FPSS `startStreaming` registration on this client).
     out.push_str("        let callback = std::sync::Arc::new(callback);\n");
+    out.push_str("        let callback_error = std::sync::Arc::new(std::sync::Mutex::new(None::<napi::Error>));\n");
 
     let positional_args = method_params
         .iter()
@@ -747,7 +750,7 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
     // that owns the connection's sockets), spawned off the V8 thread exactly
     // like the buffered method, so the Node event loop stays free for the
     // whole drain.
-    out.push_str("        spawn_endpoint_task(async move {\n");
+    out.push_str("        spawn_napi_task(async move {\n");
     if has_symbols {
         out.push_str(
             "            let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();\n",
@@ -779,20 +782,41 @@ fn render_typescript_endpoint_stream_method(endpoint: &GeneratedEndpoint) -> Str
     );
     out.push_str("            }\n");
     // Per-chunk: convert the decoder-owned `&[Tick]` to the typed napi row
-    // array and hand it to the `ThreadsafeFunction`. `Blocking` applies
-    // bounded back-pressure when the tsfn queue is full (a stalled Node
-    // event loop) instead of silently dropping rows; the converted `Vec`
-    // and the wire chunk are both dropped before the next chunk is fetched.
-    out.push_str("            request\n");
-    out.push_str("                .stream(|chunk| {\n");
-    writeln!(
-        out,
-        "                    let rows = {vec_converter}(chunk);"
-    )
-    .unwrap();
-    out.push_str("                    callback.call(rows, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);\n");
+    // array, hand it to the `ThreadsafeFunction`, and await the JS callback
+    // result before the next chunk is fetched. `call_async_catch` turns a
+    // thrown JS handler error into `Err(napi::Error)` instead of routing it
+    // through `uncaughtException`; the first such error wins and later chunks
+    // skip callback invocation while the core stream drains.
+    out.push_str(
+        "            let callback_error_for_stream = std::sync::Arc::clone(&callback_error);\n",
+    );
+    out.push_str("            let stream_result = request\n");
+    out.push_str("                .stream_async(move |chunk| {\n");
+    out.push_str("                    let callback = std::sync::Arc::clone(&callback);\n");
+    out.push_str("                    let callback_error = std::sync::Arc::clone(&callback_error_for_stream);\n");
+    out.push_str("                    let rows = if callback_error.lock().unwrap_or_else(|e| e.into_inner()).is_some() {\n");
+    out.push_str("                        None\n");
+    out.push_str("                    } else {\n");
+    writeln!(out, "                        Some({vec_converter}(chunk))").unwrap();
+    out.push_str("                    };\n");
+    out.push_str("                    async move {\n");
+    out.push_str("                        let Some(rows) = rows else { return; };\n");
+    out.push_str(
+        "                        if let Err(err) = callback.call_async_catch(rows).await {\n",
+    );
+    out.push_str("                            let mut guard = callback_error.lock().unwrap_or_else(|e| e.into_inner());\n");
+    out.push_str("                            if guard.is_none() {\n");
+    out.push_str("                                *guard = Some(err);\n");
+    out.push_str("                            }\n");
+    out.push_str("                        }\n");
+    out.push_str("                    }\n");
     out.push_str("                })\n");
-    out.push_str("                .await\n");
+    out.push_str("                .await;\n");
+    out.push_str("            if let Some(err) = callback_error.lock().unwrap_or_else(|e| e.into_inner()).take() {\n");
+    out.push_str("                Err(err)\n");
+    out.push_str("            } else {\n");
+    out.push_str("                stream_result.map_err(to_napi_err)\n");
+    out.push_str("            }\n");
     out.push_str("        })\n");
     out.push_str("        .await\n");
     out.push_str("    }\n");
@@ -828,6 +852,58 @@ fn napi_field_camel(snake: &str) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::super::model::{GeneratedParam, ProtoField};
+    use super::*;
+
+    fn method_param(name: &str, param_type: &str) -> GeneratedParam {
+        GeneratedParam {
+            name: name.to_string(),
+            description: String::new(),
+            param_type: param_type.to_string(),
+            required: true,
+            binding: "method".to_string(),
+            _arg_name: None,
+            default: None,
+        }
+    }
+
+    fn stock_history_eod_endpoint() -> GeneratedEndpoint {
+        GeneratedEndpoint {
+            name: "stock_history_eod".to_string(),
+            description: "stock eod".to_string(),
+            category: "stock".to_string(),
+            subcategory: "history".to_string(),
+            _rest_path: "/v3/stock/history/eod".to_string(),
+            grpc_name: "get_stock_history_eod".to_string(),
+            request_type: "StockHistoryEodRequest".to_string(),
+            query_type: "StockHistoryEodQuery".to_string(),
+            fields: Vec::<ProtoField>::new(),
+            params: vec![
+                method_param("symbol", "Symbol"),
+                method_param("start_date", "Date"),
+                method_param("end_date", "Date"),
+            ],
+            return_type: "EodTicks".to_string(),
+            kind: "historical".to_string(),
+            list_column: None,
+            vendor_docstring: None,
+        }
+    }
+
+    #[test]
+    fn historical_stream_awaits_callback_and_catches_js_errors() {
+        let rendered = render_typescript_endpoint_stream_method(&stock_history_eod_endpoint());
+
+        assert!(rendered.contains("spawn_napi_task(async move"));
+        assert!(rendered.contains(".stream_async(move |chunk|"));
+        assert!(rendered.contains("callback.call_async_catch(rows).await"));
+        assert!(rendered.contains("let callback_error ="));
+        assert!(!rendered.contains("callback.call(rows"));
+    }
 }
 
 fn ts_napi_optional_type(param: &super::super::model::GeneratedParam) -> &'static str {

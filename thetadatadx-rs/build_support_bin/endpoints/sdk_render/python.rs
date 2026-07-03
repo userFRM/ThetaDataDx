@@ -44,7 +44,7 @@ use super::super::sdk_helpers::{
     builder_params, is_snapshot_endpoint, is_time_arg, method_params, python_method_arg_decl,
     python_optional_type, python_pyclass_list_class, python_pyclass_list_converter,
     python_pyclass_row_class, python_string_arg_type, python_vec_to_pylist_converter,
-    render_rust_doc_block, sdk_method_arg_name, write_timeout_call,
+    render_rust_doc_block, sdk_method_arg_name, snapshot_returns_plain_pylist, write_timeout_call,
 };
 
 /// Emit `thetadatadx-py/src/_generated/decode_bench.rs` — the offline decode hook.
@@ -262,6 +262,7 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
     };
     let is_streaming_kind = endpoint.kind == "stream";
     let is_snapshot = is_snapshot_endpoint(endpoint);
+    let snapshot_plain_list = snapshot_returns_plain_pylist(endpoint);
     let mut out = String::new();
 
     let doc = compose_endpoint_doc(endpoint);
@@ -307,12 +308,11 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
         // carries both the `Vec<String>` payload and the DataFrame
         // column name pulled from `endpoint_surface.toml::list_column`.
         out.push_str("Py<StringList>> {\n");
-    } else if is_snapshot {
+    } else if snapshot_plain_list {
         // Snapshot fast-path: return a plain `Py<PyList>` of typed
-        // pyclass rows. Snapshots are ≤ 10 small rows; callers never
-        // chain `.to_polars()` on a 1-row calendar result, so we skip
-        // the `<TickName>List` wrapper allocation to close the latency
-        // gap on <100 ms calls.
+        // pyclass rows. This is only safe for snapshots that cannot carry a
+        // per-row symbol vector; multi-symbol snapshots need the list wrapper
+        // to preserve row attribution.
         out.push_str("Py<pyo3::types::PyList>> {\n");
     } else {
         // Chained return: `endpoint(...).to_polars()` — typed list
@@ -423,20 +423,29 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
         return out;
     }
     if is_snapshot {
-        // Snapshot fast-path: bounded-timeout future on the shared
-        // runtime, no signal-check polling ticker. Materialises a plain
-        // `Py<PyList>` of typed pyclass rows directly — no `<T>List`
-        // wrapper. See `run_blocking_snapshot` in `thetadatadx-py/src/lib.rs`
-        // for the +1-5 ms first-tick-jitter elimination rationale.
+        // Snapshot wait fast-path: bounded-timeout future on the shared
+        // runtime, no signal-check polling ticker. Plain-list snapshots keep
+        // the low-allocation `PyList` materialiser; multi-symbol snapshots use
+        // the typed list wrapper so `ColumnPresence::symbols()` survives to
+        // DataFrame terminals.
         out.push_str(
             "        let ticks = run_blocking_snapshot(py, async move { request.await })?;\n",
         );
-        writeln!(
-            out,
-            "        {}(py, ticks)",
-            python_vec_to_pylist_converter(&endpoint.return_type)
-        )
-        .unwrap();
+        if snapshot_plain_list {
+            writeln!(
+                out,
+                "        {}(py, ticks)",
+                python_vec_to_pylist_converter(&endpoint.return_type)
+            )
+            .unwrap();
+        } else {
+            writeln!(
+                out,
+                "        {}(py, ticks)",
+                python_pyclass_list_converter(&endpoint.return_type)
+            )
+            .unwrap();
+        }
         out.push_str("    }\n");
         return out;
     }
@@ -462,7 +471,7 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
         builder_params(endpoint)
     };
     let is_streaming_kind = endpoint.kind == "stream";
-    let is_snapshot = is_snapshot_endpoint(endpoint);
+    let snapshot_plain_list = snapshot_returns_plain_pylist(endpoint);
     let mut out = String::new();
 
     // Same composed doc as sync — readers of `name_async` see the same
@@ -635,12 +644,12 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
     } else {
         out.push_str("            request.await\n");
     }
-    // Convert back on the Python thread with GIL held. Snapshot
-    // endpoints materialise a plain `Py<PyList>` of typed pyclass rows
-    // (no `<T>List` wrapper); parsed list endpoints keep the wrapper so
-    // callers can chain `.to_polars()` off the awaited value. `.into_any()`
-    // coerces either return type up to `Py<PyAny>` for the helper signature.
-    if is_snapshot {
+    // Convert back on the Python thread with GIL held. Plain-list snapshots
+    // use the low-allocation pylist materialiser; multi-symbol snapshots and
+    // parsed list endpoints keep the wrapper so callers can chain
+    // `.to_polars()` and preserve symbol attribution. `.into_any()` coerces
+    // either return type up to `Py<PyAny>` for the helper signature.
+    if snapshot_plain_list {
         writeln!(
             out,
             "        }}, |py, ticks| {}(py, ticks).map(|p| p.into_any()))",
@@ -989,7 +998,7 @@ fn write_sync_stream_terminal(
     out.push_str("        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =\n");
     out.push_str("            std::sync::Arc::new(std::sync::Mutex::new(None));\n");
     out.push_str("        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);\n");
-    out.push_str("        run_blocking(py, async move {\n");
+    out.push_str("        let stream_result = run_blocking(py, async move {\n");
     write_stream_request_setup(out, endpoint, method_params, builder_params, "            ");
     out.push_str("            request.stream(|chunk| {\n");
     out.push_str("                if cb_err_for_closure.lock().unwrap().is_some() {\n");
@@ -1024,13 +1033,14 @@ fn write_sync_stream_terminal(
     out.push_str("                    }\n");
     out.push_str("                });\n");
     out.push_str("            }).await\n");
-    out.push_str("        })?;\n");
-    out.push_str("        // Surface the callback PyErr (if any) AFTER run_blocking\n");
-    out.push_str("        // returns clean — `request.stream` returns Ok(()) when the\n");
-    out.push_str("        // wire finishes even if our chunk closure stopped processing.\n");
+    out.push_str("        });\n");
+    out.push_str("        // Surface the callback PyErr before any later stream/deadline\n");
+    out.push_str("        // error observed while draining after the callback stopped\n");
+    out.push_str("        // processing; the callback exception is the proximate cause.\n");
     out.push_str("        if let Some(py_err) = callback_error.lock().unwrap().take() {\n");
     out.push_str("            return Err(py_err);\n");
     out.push_str("        }\n");
+    out.push_str("        stream_result?;\n");
     out.push_str("        Ok(())\n");
     out.push_str("    }\n");
 }
@@ -1082,7 +1092,7 @@ fn write_async_stream_terminal(
     out.push_str("        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);\n");
     out.push_str("        spawn_awaitable(py, async move {\n");
     write_stream_request_setup(out, endpoint, method_params, builder_params, "            ");
-    out.push_str("            request.stream_async(|chunk| {\n");
+    out.push_str("            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {\n");
     out.push_str("                // Copy the chunk out synchronously so nothing borrowed\n");
     out.push_str("                // is held across the await, then run the GIL-bound\n");
     out.push_str("                // handler on the blocking pool: a slow handler parks a\n");
@@ -1150,13 +1160,15 @@ fn write_async_stream_terminal(
     out.push_str("                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);\n");
     out.push_str("                    }\n");
     out.push_str("                }\n");
-    out.push_str("            }).await\n");
-    out.push_str("        }, move |py, ()| {\n");
+    out.push_str("            }).await)\n");
+    out.push_str("        }, move |py, stream_result| {\n");
     out.push_str("            // Post-await converter — reacquired GIL. Re-raise any\n");
-    out.push_str("            // captured callback PyErr before resolving the awaitable.\n");
+    out.push_str("            // captured callback PyErr before any later stream/deadline\n");
+    out.push_str("            // error observed after the callback stopped processing.\n");
     out.push_str("            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {\n");
     out.push_str("                return Err(py_err);\n");
     out.push_str("            }\n");
+    out.push_str("            stream_result.map_err(to_py_err)?;\n");
     out.push_str("            Ok::<_, PyErr>(py.None())\n");
     out.push_str("        })\n");
     out.push_str("    }\n");

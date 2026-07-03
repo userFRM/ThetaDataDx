@@ -65,8 +65,9 @@ All network connections use a **unified TLS stack** (`rustls` with ring backend)
 
 Root certificates come from `webpki-roots` (Mozilla's CA bundle). Certificate
 validation is enforced on MDDS (gRPC) and Nexus (HTTP) connections. FPSS (streaming)
-skips certificate verification because ThetaData's FPSS servers have certificates
-expired since January 2024 -- this matches the JVM terminal's behavior.
+uses a pinned verifier: it accepts only the configured streaming hostnames and the expected
+leaf `SubjectPublicKeyInfo` SHA-256 pin, while still verifying the TLS handshake
+signature.
 
 ### Credential Handling (FPSS)
 

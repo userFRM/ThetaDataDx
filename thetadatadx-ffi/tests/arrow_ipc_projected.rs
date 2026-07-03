@@ -174,6 +174,7 @@ fn decode_fed_projected_export_omits_flags_and_contract_id() {
     let carrier_copy = ThetaDataDxColumnPresence {
         names: presence.names,
         len: presence.len,
+        symbol: presence.symbol,
         symbols: presence.symbols,
         symbols_len: presence.symbols_len,
     };
@@ -249,6 +250,7 @@ fn projected_export_broadcasts_symbol_as_leading_column() {
     let carrier_copy = ThetaDataDxColumnPresence {
         names: presence.names,
         len: presence.len,
+        symbol: presence.symbol,
         symbols: presence.symbols,
         symbols_len: presence.symbols_len,
     };
@@ -297,6 +299,7 @@ fn projected_export_emits_per_row_symbols_in_row_order() {
     let carrier = ThetaDataDxColumnPresence {
         names: presence.names,
         len: presence.len,
+        symbol: std::ptr::null(),
         symbols: syms_ptrs.as_ptr(),
         symbols_len: syms_ptrs.len(),
     };
@@ -395,6 +398,7 @@ fn empty_presence_projects_to_zero_columns_with_row_count() {
     let carrier_copy = ThetaDataDxColumnPresence {
         names: presence.names,
         len: presence.len,
+        symbol: presence.symbol,
         symbols: presence.symbols,
         symbols_len: presence.symbols_len,
     };

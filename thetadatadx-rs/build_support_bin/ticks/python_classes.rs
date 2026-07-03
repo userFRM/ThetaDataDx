@@ -204,16 +204,14 @@ fn render_python_string_list() -> String {
     out.push_str("            let indices = slice.indices(self.inner.len() as isize)?;\n");
     out.push_str("            let mut rows = Vec::new();\n");
     out.push_str("            let mut i = indices.start;\n");
-    out.push_str("            if indices.step > 0 {\n");
-    out.push_str("                while i < indices.stop {\n");
-    out.push_str("                    rows.push(self.inner[i as usize].clone());\n");
-    out.push_str("                    i += indices.step;\n");
-    out.push_str("                }\n");
-    out.push_str("            } else {\n");
-    out.push_str("                while i > indices.stop {\n");
-    out.push_str("                    rows.push(self.inner[i as usize].clone());\n");
-    out.push_str("                    i += indices.step;\n");
-    out.push_str("                }\n");
+    out.push_str("            // Walk exactly `slicelength` positions. Comparing against\n");
+    out.push_str("            // `stop` and stepping by `indices.step` overflows `i` for a\n");
+    out.push_str("            // huge step (e.g. `lst[k::sys.maxsize]`); the count is exact\n");
+    out.push_str("            // for either direction and `wrapping_add` keeps the unused\n");
+    out.push_str("            // final increment from panicking.\n");
+    out.push_str("            for _ in 0..indices.slicelength {\n");
+    out.push_str("                rows.push(self.inner[i as usize].clone());\n");
+    out.push_str("                i = i.wrapping_add(indices.step);\n");
     out.push_str("            }\n");
     out.push_str(
         "            return Ok(Py::new(py, StringList::new(rows, &self.column_name))?.into_any());\n",
@@ -964,22 +962,18 @@ fn render_python_tick_list_struct(schema: &Schema, type_name: &str, def: &TickTy
     out.push_str("            let src_syms = self.columns.symbols();\n");
     out.push_str("            let mut syms: Vec<Box<str>> = Vec::new();\n");
     out.push_str("            let mut i = indices.start;\n");
-    out.push_str("            if indices.step > 0 {\n");
-    out.push_str("                while i < indices.stop {\n");
-    writeln!(out, "                    rows.push({row_at});").unwrap();
+    out.push_str("            // Walk exactly `slicelength` positions with the SAME index for\n");
+    out.push_str("            // rows and symbols. Comparing against `stop` and stepping by\n");
+    out.push_str("            // `indices.step` overflows `i` for a huge step (e.g.\n");
+    out.push_str("            // `lst[k::sys.maxsize]`); the count is exact for either\n");
+    out.push_str("            // direction and `wrapping_add` keeps the unused final\n");
+    out.push_str("            // increment from panicking.\n");
+    out.push_str("            for _ in 0..indices.slicelength {\n");
+    writeln!(out, "                rows.push({row_at});").unwrap();
     out.push_str(
-        "                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }\n",
+        "                if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }\n",
     );
-    out.push_str("                    i += indices.step;\n");
-    out.push_str("                }\n");
-    out.push_str("            } else {\n");
-    out.push_str("                while i > indices.stop {\n");
-    writeln!(out, "                    rows.push({row_at});").unwrap();
-    out.push_str(
-        "                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }\n",
-    );
-    out.push_str("                    i += indices.step;\n");
-    out.push_str("                }\n");
+    out.push_str("                i = i.wrapping_add(indices.step);\n");
     out.push_str("            }\n");
     out.push_str("            let mut columns = self.columns.clone();\n");
     out.push_str("            if src_syms.is_some() { columns = columns.with_symbols(syms); }\n");

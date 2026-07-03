@@ -97,6 +97,6 @@ thetadatadx-server --creds creds.txt
 
 ## Security defaults
 
-- Binds loopback by default. Per-IP rate limiting is **off by default** — the server imposes no per-IP limit, matching the terminal it replaces. Operators exposing the server as a relay opt in by setting `THETADATADX_RATE_LIMIT_PER_SECOND` and/or `THETADATADX_RATE_LIMIT_BURST_SIZE`; once on, excess traffic from a single IP is answered with `429` and `Retry-After`, on both the HTTP routes and the WebSocket upgrade.
+- Binds all interfaces by default; pass `--bind 127.0.0.1` for loopback-only exposure. Per-IP rate limiting is **off by default** — the server imposes no per-IP limit, matching the terminal it replaces. Operators exposing the server as a relay opt in by setting `THETADATADX_RATE_LIMIT_PER_SECOND` and/or `THETADATADX_RATE_LIMIT_BURST_SIZE`; once on, excess traffic from a single IP is answered with `429` and `Retry-After`, on both the HTTP routes and the WebSocket upgrade.
 - `POST /v3/system/shutdown` requires the `X-Shutdown-Token` header — a random token printed once to stderr at startup; there is no flag or environment variable to set it.
 - Request bodies are capped at 64 KiB and query strings at 32 parameters.

@@ -60,6 +60,10 @@ impl StreamView {
         let mut reservation =
             crate::fpss_client::CallbackReservation::armed(&self.callback, &callback_arc);
         let dispatch_cb = Arc::clone(&callback_arc);
+        let callback_closing_expected =
+            Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let delivery_failed =
+            Arc::new(std::sync::atomic::AtomicBool::new(false));
 
         // Teardown wake hook. The dispatcher does NOT park only on the
         // event ring: once the bounded callback queue is full it blocks inside
@@ -72,7 +76,10 @@ impl StreamView {
         // shutdown, exits `for_each_scoped`, and the join completes. It is
         // built from `callback_arc` (a shared-handle clone, NOT the stored
         // slot) so installing it consumes nothing the dispatcher needs.
-        let teardown_hook = crate::fpss_client::abort_hook(&callback_arc);
+        let teardown_hook = crate::fpss_client::abort_hook_expect_closing(
+            &callback_arc,
+            Arc::clone(&callback_closing_expected),
+        );
 
         // The FPSS connect and authentication handshake are network-bound
         // and run synchronously inside `start_streaming`. Move that work
@@ -82,10 +89,13 @@ impl StreamView {
         // both `Send + 'static`, so the closure satisfies the
         // `spawn_blocking` bound.
         let client = Arc::clone(&self.client);
+        let callback_closing_expected_for_dispatch = Arc::clone(&callback_closing_expected);
+        let delivery_failed_for_dispatch = Arc::clone(&delivery_failed);
+        let delivery_failed_for_scope = Arc::clone(&delivery_failed);
         let join_result = tokio::task::spawn_blocking(move || {
             client
                 .stream()
-                .start_streaming_with_teardown(move |event: &fpss::StreamEvent| {
+                .start_streaming_scoped(move |event: &fpss::StreamEvent| {
                     // Convert to the typed `StreamEvent` napi object on the
                     // dispatcher thread, then hand the value
                     // to `ThreadsafeFunction::call`. napi-rs' internal
@@ -112,8 +122,21 @@ impl StreamView {
                     // `Result<T, _>` — exceptions in the JS callback are
                     // the JS side's problem, surfaced through Node's own
                     // `uncaughtException`.
-                    dispatch_cb.call(typed, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
-                }, teardown_hook)
+                    let status = dispatch_cb.call(
+                        typed,
+                        napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+                    );
+                    crate::fpss_client::note_callback_delivery_status(
+                        status,
+                        &callback_closing_expected_for_dispatch,
+                        &delivery_failed_for_dispatch,
+                    );
+                }, move |drain| {
+                    crate::fpss_client::callback_delivery_outcome(
+                        drain(),
+                        &delivery_failed_for_scope,
+                    )
+                }, Some(teardown_hook))
         })
         .await;
 
@@ -236,13 +259,22 @@ impl StreamView {
                 }
             }
         };
+        crate::fpss_client::ensure_callback_open(&callback_arc)?;
         let dispatch_cb = Arc::clone(&callback_arc);
+        let callback_for_result = Arc::clone(&callback_arc);
+        let callback_closing_expected =
+            Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let delivery_failed =
+            Arc::new(std::sync::atomic::AtomicBool::new(false));
         // Fresh teardown wake hook for the reconnected session. The
         // reconnect re-uses the same `ThreadsafeFunction`, but the hook is
         // `FnOnce`, so a new one is built from the persistent callback handle
         // per reconnect to wake a dispatcher blocked in the full callback queue
         // when the NEW session tears down. See `startStreaming`.
-        let teardown_hook = crate::fpss_client::abort_hook(&callback_arc);
+        let teardown_hook = crate::fpss_client::abort_hook_expect_closing(
+            &callback_arc,
+            Arc::clone(&callback_closing_expected),
+        );
 
         // The reconnect re-runs the FPSS connect and authentication
         // handshake plus a paced subscription restore — all network-bound.
@@ -251,18 +283,48 @@ impl StreamView {
         // handle stays in place; `reconnect_streaming` re-uses the same
         // `ThreadsafeFunction`, so there is no state shape change.
         let client = Arc::clone(&self.client);
+        let callback_closing_expected_for_dispatch = Arc::clone(&callback_closing_expected);
+        let callback_closing_expected_for_result = Arc::clone(&callback_closing_expected);
+        let delivery_failed_for_dispatch = Arc::clone(&delivery_failed);
+        let delivery_failed_for_scope = Arc::clone(&delivery_failed);
         tokio::task::spawn_blocking(move || {
-            client
-                .stream()
-                .reconnect_streaming_with_teardown(move |event: &fpss::StreamEvent| {
+            let stream = client.stream();
+            let result = stream.reconnect_streaming_scoped(
+                move |event: &fpss::StreamEvent| {
                     let buffered = fpss_event_to_buffered(event);
                     let typed = buffered_event_to_typed(buffered);
-                    dispatch_cb.call(typed, napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking);
-                }, teardown_hook)
+                    let status = dispatch_cb.call(
+                        typed,
+                        napi::threadsafe_function::ThreadsafeFunctionCallMode::Blocking,
+                    );
+                    crate::fpss_client::note_callback_delivery_status(
+                        status,
+                        &callback_closing_expected_for_dispatch,
+                        &delivery_failed_for_dispatch,
+                    );
+                },
+                move |drain| {
+                    crate::fpss_client::callback_delivery_outcome(
+                        drain(),
+                        &delivery_failed_for_scope,
+                    )
+                },
+                Some(teardown_hook),
+            );
+            if callback_closing_expected_for_result
+                .load(std::sync::atomic::Ordering::Acquire)
+            {
+                stream.stop_streaming();
+                return Err(crate::fpss_client::aborted_callback_error());
+            }
+            if let Err(err) = crate::fpss_client::ensure_callback_open(&callback_for_result) {
+                stream.stop_streaming();
+                return Err(err);
+            }
+            result.map_err(to_napi_err)
         })
         .await
         .map_err(|e| napi::Error::from_reason(format!("reconnect task panicked: {e}")))?
-        .map_err(to_napi_err)
     }
 
     /// Stop streaming while keeping the historical client usable.
@@ -270,9 +332,17 @@ impl StreamView {
     /// Clears the registered callback. To resume streaming, start streaming again with a freshly bound callback -- reconnect will fail because no callback is held. See the reconnect docs for the rationale: the callback is released at the same scope boundary the application observes, so a stopped session never retains a captured reference past a teardown the caller has already seen.
     #[napi(js_name = "stopStreaming")]
     pub fn stop_streaming(&self) {
+        let previous_callback = {
+            let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            guard.as_ref().map(Arc::clone)
+        };
         self.client.stream().stop_streaming();
-        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
-        *guard = None;
+        if let Some(previous_callback) = previous_callback {
+            let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            if guard.as_ref().is_some_and(|cb| Arc::ptr_eq(cb, &previous_callback)) {
+                *guard = None;
+            }
+        }
     }
 
     /// Shut down the streaming connection.
@@ -280,9 +350,17 @@ impl StreamView {
     /// On the Python and TypeScript bindings, this clears the registered callback (same explicit-handoff semantics as stopping the stream); reconnect will then fail until the caller starts streaming again with a freshly bound callback. The C++ binding preserves the underlying connection's behaviour.
     #[napi(js_name = "shutdown")]
     pub fn shutdown(&self) {
+        let previous_callback = {
+            let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            guard.as_ref().map(Arc::clone)
+        };
         self.client.stream().stop_streaming();
-        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
-        *guard = None;
+        if let Some(previous_callback) = previous_callback {
+            let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());
+            if guard.as_ref().is_some_and(|cb| Arc::ptr_eq(cb, &previous_callback)) {
+                *guard = None;
+            }
+        }
     }
 
     /// Block until the previous streaming session's consumer thread has finished firing the registered callback. Returns true if the drain completed within the timeout, false otherwise.

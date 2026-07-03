@@ -316,10 +316,10 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             )
             .unwrap();
             // PR C (#482) replaced the receiver `rx` field with a
-            // stored `Py<PyAny>` callback. Drop the callable so the
-            // Python reference is released before the streaming side
-            // tears down — re-installing via `start_streaming` after
-            // stop / shutdown then sees a clean slot.
+            // stored `Py<PyAny>` callback. Snapshot the slot before
+            // teardown and clear it only if it still holds that same
+            // callable, so a concurrent stop + restart cannot have its
+            // newer registration wiped after the Rust teardown returns.
             //
             // Detach the GIL while the Rust teardown runs.
             // `Client::stop_streaming` drops the slot `Arc`;
@@ -327,11 +327,23 @@ fn python_streaming_method(method: &MethodSpec) -> String {
             // the dispatcher thread, which re-acquires the GIL on every
             // event via `Python::attach`. Holding the GIL across the
             // join would deadlock.
-            out.push_str("        py.detach(|| self.client.stream().stop_streaming());\n");
+            out.push_str("        let previous_callback = {\n");
             out.push_str(
-                "        let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());\n",
+                "            let guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());\n",
             );
-            out.push_str("        *guard = None;\n");
+            out.push_str("            guard.as_ref().map(Arc::clone)\n");
+            out.push_str("        };\n");
+            out.push_str("        py.detach(|| self.client.stream().stop_streaming());\n");
+            out.push_str("        if let Some(previous_callback) = previous_callback {\n");
+            out.push_str(
+                "            let mut guard = self.callback.lock().unwrap_or_else(|e| e.into_inner());\n",
+            );
+            out.push_str(
+                "            if guard.as_ref().is_some_and(|cb| Arc::ptr_eq(cb, &previous_callback)) {\n",
+            );
+            out.push_str("                *guard = None;\n");
+            out.push_str("            }\n");
+            out.push_str("        }\n");
             out.push_str("    }\n");
         }
         other => panic!("unsupported Python method kind: {other:?}"),

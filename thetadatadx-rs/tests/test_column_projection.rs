@@ -21,7 +21,7 @@
 use thetadatadx::frames::{TicksArrowExt, TicksPolarsExt};
 use thetadatadx::wire as proto;
 use thetadatadx::{
-    decode, ColumnPresence, EodTick, QuoteTick, TradeQuoteTick, TradeTick, WireColumns,
+    decode, CalendarDay, ColumnPresence, EodTick, QuoteTick, TradeQuoteTick, TradeTick, WireColumns,
 };
 
 #[path = "common/capture_loader.rs"]
@@ -547,6 +547,42 @@ fn index_snapshot_market_value_drops_bid_ask() {
             "index market_value must not carry {dropped}; got {index:?}"
         );
     }
+}
+
+/// `calendar_open_today` sends `type,open,close` with no `date` column. The
+/// hand-written parser maps `type` to both `is_open` and `status`; the
+/// projected frame must carry those decoded fields plus the two session times
+/// and must not fabricate `date`.
+#[test]
+fn calendar_open_today_projects_v3_fields_from_fixture() {
+    let table = load_data_table("calendar_open_today");
+    let present = presence_of::<CalendarDay>(&table);
+    let days: Vec<CalendarDay> =
+        decode::parse_calendar_days_v3(&table).expect("parse_calendar_days_v3");
+
+    let batch = days.as_slice().to_arrow_projected(&present).unwrap();
+    let cols = arrow_columns(&batch);
+    assert_eq!(cols, ["is_open", "open_time", "close_time", "status"]);
+
+    let df = days.as_slice().to_polars_projected(&present).unwrap();
+    assert_eq!(
+        polars_columns(&df),
+        cols,
+        "arrow/polars column sets diverge"
+    );
+    assert_eq!(df.height(), days.len());
+}
+
+/// `calendar_year` includes `date` along with the same v3 day-type and
+/// session-time columns. Pin the pure header mapping so the date-bearing
+/// calendar shape does not regress to a date-only projection.
+#[test]
+fn calendar_year_headers_project_all_v3_fields() {
+    let cols = projected_columns::<CalendarDay>(&["date", "type", "open", "close"]);
+    assert_eq!(
+        cols,
+        ["date", "is_open", "open_time", "close_time", "status"]
+    );
 }
 
 /// `QuoteTick.midpoint` is computed at decode from `bid` + `ask` and is never a
