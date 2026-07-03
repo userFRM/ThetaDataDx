@@ -998,7 +998,7 @@ fn write_sync_stream_terminal(
     out.push_str("        let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =\n");
     out.push_str("            std::sync::Arc::new(std::sync::Mutex::new(None));\n");
     out.push_str("        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);\n");
-    out.push_str("        run_blocking(py, async move {\n");
+    out.push_str("        let stream_result = run_blocking(py, async move {\n");
     write_stream_request_setup(out, endpoint, method_params, builder_params, "            ");
     out.push_str("            request.stream(|chunk| {\n");
     out.push_str("                if cb_err_for_closure.lock().unwrap().is_some() {\n");
@@ -1033,13 +1033,14 @@ fn write_sync_stream_terminal(
     out.push_str("                    }\n");
     out.push_str("                });\n");
     out.push_str("            }).await\n");
-    out.push_str("        })?;\n");
-    out.push_str("        // Surface the callback PyErr (if any) AFTER run_blocking\n");
-    out.push_str("        // returns clean — `request.stream` returns Ok(()) when the\n");
-    out.push_str("        // wire finishes even if our chunk closure stopped processing.\n");
+    out.push_str("        });\n");
+    out.push_str("        // Surface the callback PyErr before any later stream/deadline\n");
+    out.push_str("        // error observed while draining after the callback stopped\n");
+    out.push_str("        // processing; the callback exception is the proximate cause.\n");
     out.push_str("        if let Some(py_err) = callback_error.lock().unwrap().take() {\n");
     out.push_str("            return Err(py_err);\n");
     out.push_str("        }\n");
+    out.push_str("        stream_result?;\n");
     out.push_str("        Ok(())\n");
     out.push_str("    }\n");
 }
@@ -1091,7 +1092,7 @@ fn write_async_stream_terminal(
     out.push_str("        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);\n");
     out.push_str("        spawn_awaitable(py, async move {\n");
     write_stream_request_setup(out, endpoint, method_params, builder_params, "            ");
-    out.push_str("            request.stream_async(|chunk| {\n");
+    out.push_str("            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {\n");
     out.push_str("                // Copy the chunk out synchronously so nothing borrowed\n");
     out.push_str("                // is held across the await, then run the GIL-bound\n");
     out.push_str("                // handler on the blocking pool: a slow handler parks a\n");
@@ -1159,13 +1160,15 @@ fn write_async_stream_terminal(
     out.push_str("                        crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);\n");
     out.push_str("                    }\n");
     out.push_str("                }\n");
-    out.push_str("            }).await\n");
-    out.push_str("        }, move |py, ()| {\n");
+    out.push_str("            }).await)\n");
+    out.push_str("        }, move |py, stream_result| {\n");
     out.push_str("            // Post-await converter — reacquired GIL. Re-raise any\n");
-    out.push_str("            // captured callback PyErr before resolving the awaitable.\n");
+    out.push_str("            // captured callback PyErr before any later stream/deadline\n");
+    out.push_str("            // error observed after the callback stopped processing.\n");
     out.push_str("            if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {\n");
     out.push_str("                return Err(py_err);\n");
     out.push_str("            }\n");
+    out.push_str("            stream_result.map_err(to_py_err)?;\n");
     out.push_str("            Ok::<_, PyErr>(py.None())\n");
     out.push_str("        })\n");
     out.push_str("    }\n");

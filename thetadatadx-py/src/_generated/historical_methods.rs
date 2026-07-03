@@ -601,7 +601,7 @@ impl StockHistoryEodBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().stock_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -625,13 +625,14 @@ impl StockHistoryEodBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -653,7 +654,7 @@ impl StockHistoryEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -696,13 +697,15 @@ impl StockHistoryEodBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -892,7 +895,7 @@ impl StockHistoryOhlcBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().stock_history_ohlc(&symbol, &date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -934,13 +937,14 @@ impl StockHistoryOhlcBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -985,7 +989,7 @@ impl StockHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -1028,13 +1032,15 @@ impl StockHistoryOhlcBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -1206,7 +1212,7 @@ impl StockHistoryTradeBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().stock_history_trade(&symbol, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -1245,13 +1251,14 @@ impl StockHistoryTradeBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -1292,7 +1299,7 @@ impl StockHistoryTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -1335,13 +1342,15 @@ impl StockHistoryTradeBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -1532,7 +1541,7 @@ impl StockHistoryQuoteBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().stock_history_quote(&symbol, &date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -1574,13 +1583,14 @@ impl StockHistoryQuoteBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -1625,7 +1635,7 @@ impl StockHistoryQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -1668,13 +1678,15 @@ impl StockHistoryQuoteBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -1863,7 +1875,7 @@ impl StockHistoryTradeQuoteBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().stock_history_trade_quote(&symbol, &date);
             if let Some(value) = &start_time {
                 request = request.start_time(value.as_str());
@@ -1905,13 +1917,14 @@ impl StockHistoryTradeQuoteBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -1956,7 +1969,7 @@ impl StockHistoryTradeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -1999,13 +2012,15 @@ impl StockHistoryTradeQuoteBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -2136,7 +2151,7 @@ impl StockAtTimeTradeBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().stock_at_time_trade(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
@@ -2163,13 +2178,14 @@ impl StockAtTimeTradeBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -2196,7 +2212,7 @@ impl StockAtTimeTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -2239,13 +2255,15 @@ impl StockAtTimeTradeBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -2376,7 +2394,7 @@ impl StockAtTimeQuoteBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().stock_at_time_quote(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(value) = &venue {
                 request = request.venue(value.as_str());
@@ -2403,13 +2421,14 @@ impl StockAtTimeQuoteBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -2436,7 +2455,7 @@ impl StockAtTimeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -2479,13 +2498,15 @@ impl StockAtTimeQuoteBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -2892,7 +2913,7 @@ impl OptionListContractsBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_list_contracts(&request_type, &date);
             if let Some(value) = &symbol {
                 request = request.symbol(value.as_str());
@@ -2922,13 +2943,14 @@ impl OptionListContractsBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -2957,7 +2979,7 @@ impl OptionListContractsBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -3000,13 +3022,15 @@ impl OptionListContractsBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -5104,7 +5128,7 @@ impl OptionHistoryEodBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_history_eod(&symbol, &expiration, &start_date, &end_date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
@@ -5140,13 +5164,14 @@ impl OptionHistoryEodBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -5185,7 +5210,7 @@ impl OptionHistoryEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -5228,13 +5253,15 @@ impl OptionHistoryEodBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -5467,7 +5494,7 @@ impl OptionHistoryOhlcBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_history_ohlc(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
@@ -5515,13 +5542,14 @@ impl OptionHistoryOhlcBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -5575,7 +5603,7 @@ impl OptionHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -5618,13 +5646,15 @@ impl OptionHistoryOhlcBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -5857,7 +5887,7 @@ impl OptionHistoryTradeBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_history_trade(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
@@ -5905,13 +5935,14 @@ impl OptionHistoryTradeBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -5965,7 +5996,7 @@ impl OptionHistoryTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -6008,13 +6039,15 @@ impl OptionHistoryTradeBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -6263,7 +6296,7 @@ impl OptionHistoryQuoteBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_history_quote(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
@@ -6314,13 +6347,14 @@ impl OptionHistoryQuoteBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -6378,7 +6412,7 @@ impl OptionHistoryQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -6421,13 +6455,15 @@ impl OptionHistoryQuoteBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -6677,7 +6713,7 @@ impl OptionHistoryTradeQuoteBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_history_trade_quote(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
@@ -6728,13 +6764,14 @@ impl OptionHistoryTradeQuoteBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -6792,7 +6829,7 @@ impl OptionHistoryTradeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -6835,13 +6872,15 @@ impl OptionHistoryTradeQuoteBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -7039,7 +7078,7 @@ impl OptionHistoryOpenInterestBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_history_open_interest(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
@@ -7081,13 +7120,14 @@ impl OptionHistoryOpenInterestBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -7133,7 +7173,7 @@ impl OptionHistoryOpenInterestBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -7176,13 +7216,15 @@ impl OptionHistoryOpenInterestBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -7441,7 +7483,7 @@ impl OptionHistoryGreeksEodBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_history_greeks_eod(&symbol, &expiration, &start_date, &end_date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
@@ -7492,13 +7534,14 @@ impl OptionHistoryGreeksEodBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -7557,7 +7600,7 @@ impl OptionHistoryGreeksEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -7600,13 +7643,15 @@ impl OptionHistoryGreeksEodBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -7906,7 +7951,7 @@ impl OptionHistoryGreeksAllBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_history_greeks_all(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
@@ -7966,13 +8011,14 @@ impl OptionHistoryGreeksAllBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -8042,7 +8088,7 @@ impl OptionHistoryGreeksAllBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -8085,13 +8131,15 @@ impl OptionHistoryGreeksAllBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -8390,7 +8438,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_history_trade_greeks_all(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
@@ -8450,13 +8498,14 @@ impl OptionHistoryTradeGreeksAllBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -8526,7 +8575,7 @@ impl OptionHistoryTradeGreeksAllBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -8569,13 +8618,15 @@ impl OptionHistoryTradeGreeksAllBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -8875,7 +8926,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_history_greeks_first_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
@@ -8935,13 +8986,14 @@ impl OptionHistoryGreeksFirstOrderBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -9011,7 +9063,7 @@ impl OptionHistoryGreeksFirstOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -9054,13 +9106,15 @@ impl OptionHistoryGreeksFirstOrderBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -9359,7 +9413,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_history_trade_greeks_first_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
@@ -9419,13 +9473,14 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -9495,7 +9550,7 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -9538,13 +9593,15 @@ impl OptionHistoryTradeGreeksFirstOrderBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -9844,7 +9901,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_history_greeks_second_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
@@ -9904,13 +9961,14 @@ impl OptionHistoryGreeksSecondOrderBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -9980,7 +10038,7 @@ impl OptionHistoryGreeksSecondOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -10023,13 +10081,15 @@ impl OptionHistoryGreeksSecondOrderBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -10328,7 +10388,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_history_trade_greeks_second_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
@@ -10388,13 +10448,14 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -10464,7 +10525,7 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -10507,13 +10568,15 @@ impl OptionHistoryTradeGreeksSecondOrderBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -10813,7 +10876,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_history_greeks_third_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
@@ -10873,13 +10936,14 @@ impl OptionHistoryGreeksThirdOrderBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -10949,7 +11013,7 @@ impl OptionHistoryGreeksThirdOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -10992,13 +11056,15 @@ impl OptionHistoryGreeksThirdOrderBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -11297,7 +11363,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_history_trade_greeks_third_order(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
@@ -11357,13 +11423,14 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -11433,7 +11500,7 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -11476,13 +11543,15 @@ impl OptionHistoryTradeGreeksThirdOrderBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -11781,7 +11850,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_history_greeks_implied_volatility(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
@@ -11841,13 +11910,14 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -11917,7 +11987,7 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -11960,13 +12030,15 @@ impl OptionHistoryGreeksImpliedVolatilityBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -12264,7 +12336,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_history_trade_greeks_implied_volatility(&symbol, &expiration, &date);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
@@ -12324,13 +12396,14 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -12400,7 +12473,7 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -12443,13 +12516,15 @@ impl OptionHistoryTradeGreeksImpliedVolatilityBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -12636,7 +12711,7 @@ impl OptionAtTimeTradeBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_at_time_trade(&symbol, &expiration, &start_date, &end_date, &time_of_day);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
@@ -12672,13 +12747,14 @@ impl OptionAtTimeTradeBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -12718,7 +12794,7 @@ impl OptionAtTimeTradeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -12761,13 +12837,15 @@ impl OptionAtTimeTradeBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -12952,7 +13030,7 @@ impl OptionAtTimeQuoteBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().option_at_time_quote(&symbol, &expiration, &start_date, &end_date, &time_of_day);
             if let Some(value) = &strike {
                 request = request.strike(value.as_str());
@@ -12988,13 +13066,14 @@ impl OptionAtTimeQuoteBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -13034,7 +13113,7 @@ impl OptionAtTimeQuoteBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -13077,13 +13156,15 @@ impl OptionAtTimeQuoteBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -13528,7 +13609,7 @@ impl IndexHistoryEodBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().index_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -13552,13 +13633,14 @@ impl IndexHistoryEodBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -13580,7 +13662,7 @@ impl IndexHistoryEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -13623,13 +13705,15 @@ impl IndexHistoryEodBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -13780,7 +13864,7 @@ impl IndexHistoryOhlcBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().index_history_ohlc(&symbol, &start_date, &end_date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -13813,13 +13897,14 @@ impl IndexHistoryOhlcBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -13853,7 +13938,7 @@ impl IndexHistoryOhlcBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -13896,13 +13981,15 @@ impl IndexHistoryOhlcBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -14076,7 +14163,7 @@ impl IndexHistoryPriceBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().index_history_price(&symbol, &date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -14115,13 +14202,14 @@ impl IndexHistoryPriceBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -14162,7 +14250,7 @@ impl IndexHistoryPriceBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -14205,13 +14293,15 @@ impl IndexHistoryPriceBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -14318,7 +14408,7 @@ impl IndexAtTimePriceBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().index_at_time_price(&symbol, &start_date, &end_date, &time_of_day);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -14342,13 +14432,14 @@ impl IndexAtTimePriceBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -14371,7 +14462,7 @@ impl IndexAtTimePriceBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -14414,13 +14505,15 @@ impl IndexAtTimePriceBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -14693,7 +14786,7 @@ impl InterestRateHistoryEodBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().interest_rate_history_eod(&symbol, &start_date, &end_date);
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
@@ -14717,13 +14810,14 @@ impl InterestRateHistoryEodBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -14745,7 +14839,7 @@ impl InterestRateHistoryEodBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -14788,13 +14882,15 @@ impl InterestRateHistoryEodBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
@@ -14958,7 +15054,7 @@ impl StockHistoryOhlcRangeBuilder {
         let callback_error: std::sync::Arc<std::sync::Mutex<Option<PyErr>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
         let cb_err_for_closure = std::sync::Arc::clone(&callback_error);
-        run_blocking(py, async move {
+        let stream_result = run_blocking(py, async move {
             let mut request = client.historical().stock_history_ohlc_range(&symbol, &start_date, &end_date);
             if let Some(value) = &interval {
                 request = request.interval(value.as_str());
@@ -14994,13 +15090,14 @@ impl StockHistoryOhlcRangeBuilder {
                     }
                 });
             }).await
-        })?;
-        // Surface the callback PyErr (if any) AFTER run_blocking
-        // returns clean — `request.stream` returns Ok(()) when the
-        // wire finishes even if our chunk closure stopped processing.
+        });
+        // Surface the callback PyErr before any later stream/deadline
+        // error observed while draining after the callback stopped
+        // processing; the callback exception is the proximate cause.
         if let Some(py_err) = callback_error.lock().unwrap().take() {
             return Err(py_err);
         }
+        stream_result?;
         Ok(())
     }
 
@@ -15038,7 +15135,7 @@ impl StockHistoryOhlcRangeBuilder {
             if let Some(ms) = timeout_ms {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
-            request.stream_async(|chunk| {
+            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {
                 // Copy the chunk out synchronously so nothing borrowed
                 // is held across the await, then run the GIL-bound
                 // handler on the blocking pool: a slow handler parks a
@@ -15081,13 +15178,15 @@ impl StockHistoryOhlcRangeBuilder {
                         crate::async_runtime::capture_join_error(&cb_err_for_join, join_err);
                     }
                 }
-            }).await
-        }, move |py, ()| {
+            }).await)
+        }, move |py, stream_result| {
             // Post-await converter — reacquired GIL. Re-raise any
-            // captured callback PyErr before resolving the awaitable.
+            // captured callback PyErr before any later stream/deadline
+            // error observed after the callback stopped processing.
             if let Some(py_err) = cb_err_for_convert.lock().unwrap().take() {
                 return Err(py_err);
             }
+            stream_result.map_err(to_py_err)?;
             Ok::<_, PyErr>(py.None())
         })
     }
