@@ -97,9 +97,9 @@ println!("{} {}", rows[0].bid, rows[0].ask);
     The active release line is the **13.0.0 release candidate**. It carries the latest data coverage and fixes, and we recommend installing it. Grab the newest RC:
 
     ```bash
-    pip install --pre thetadatadx          # Python 3.12+ (pinned: pip install thetadatadx==13.0.0rc13)
-    npm install thetadatadx@next           # Node.js 20+ (pinned: npm install thetadatadx@13.0.0-rc.13)
-    cargo add thetadatadx@13.0.0-rc.13     # Rust, async over tokio
+    pip install --pre thetadatadx          # Python 3.12+ (pinned: pip install thetadatadx==13.0.0rc14)
+    npm install thetadatadx@next           # Node.js 20+ (pinned: npm install thetadatadx@13.0.0-rc.14)
+    cargo add thetadatadx@13.0.0-rc.14     # Rust, async over tokio
     ```
 
 C++ links the same C ABI: build `thetadatadx-ffi`, then include `thetadatadx-cpp/include/thetadatadx.hpp`. Full steps in the [Quickstart](/articles/getting-started).

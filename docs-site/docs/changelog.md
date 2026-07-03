@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [13.0.0-rc.14] - 2026-07-03
+
 ### Added
 
 - **TypeScript projected Arrow-IPC is now drivable from a live historical call.** Every columnar historical method gains a `<method>WithColumns` variant returning `{ rows, presentColumns, symbol?, symbols? }`: the same rows as the plain method plus the columns the response's wire actually carried, the broadcast root `symbol` when the response has one constant across every row, and a per-row `symbols` array when a multi-symbol snapshot varies the symbol row to row. Feed `presentColumns` plus `symbol` / `symbols` straight to `<tick>ToArrowIpcProjected` for a terminal-exact columnar frame that omits the columns the wire omitted and attributes each row to its symbol, without hand-supplying a header list. The existing `Array<Tick>` methods are unchanged. This brings TypeScript to parity with Python's presence-carrying tick list and the C and C++ `_with_options` presence out-param.
