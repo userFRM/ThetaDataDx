@@ -8,7 +8,7 @@
 //! is live.
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::tdbe::types::enums::{RemoveReason, StreamMsgType};
 
@@ -42,11 +42,13 @@ pub enum LoginResult {
 /// post-login `decode_frame` dispatch uses — a typed control frame that
 /// precedes `METADATA` would otherwise be lost, since the handshake loop
 /// consumes it before the main dispatch can turn it into a typed event.
-/// `shutdown`, when supplied, is polled once per frame so a teardown raised
-/// mid-handshake is observed inside the login read loop rather than after it
-/// completes. The reconnect path (which runs on the I/O thread and can be told
-/// to shut down while the server dribbles pre-`METADATA` heartbeats) passes
-/// `Some`; the initial synchronous dial has no live shutdown flag yet and
+/// The handshake has a wall-clock cap equal to `read_timeout`, so a server that
+/// keeps the socket alive with pre-`METADATA` control frames cannot withhold
+/// login forever. `shutdown`, when supplied, is also polled once per frame so a
+/// teardown raised mid-handshake is observed inside the login read loop rather
+/// than after it completes. The reconnect path (which runs on the I/O thread and
+/// can be told to shut down while the server dribbles pre-`METADATA` heartbeats)
+/// passes `Some`; the initial synchronous dial has no live shutdown flag yet and
 /// passes `None`. Mirrors the dial loop's between-host shutdown check
 /// ([`connection::connect_to_servers`]).
 pub fn wait_for_login(
@@ -63,17 +65,14 @@ pub fn wait_for_login(
 /// point above and in-memory test harnesses can drive it against a
 /// buffer of pre-canned frames.
 ///
-/// Login is bounded by the socket read timeout, exactly like the terminal: a
-/// mute peer that sends nothing surfaces a pre-header read timeout
-/// (`WouldBlock` / `TimedOut`) which propagates as an error the caller
-/// reconnects on, and a peer that dribbles a partial frame then goes silent is
-/// cut off by the per-stall no-progress budget (`stall_timeout`). There is no
-/// wall-clock handshake cap. A supplied `shutdown` flag adds a per-frame
-/// cancellation check so a peer that keeps the handshake alive with
-/// pre-`METADATA` heartbeats (which reset the stall timeout) cannot wedge a
-/// shutting-down I/O thread here; the check breaks out with a `Disconnected`
-/// error the reconnect loop treats as a redial failure, then observes
-/// shutdown and exits.
+/// Login is bounded by the socket read timeout in three ways: a mute peer that
+/// sends nothing surfaces a pre-header read timeout (`WouldBlock` / `TimedOut`),
+/// a peer that dribbles a partial frame then goes silent is cut off by the
+/// per-stall no-progress budget (`stall_timeout`), and the whole handshake has
+/// the same wall-clock budget so complete pre-`METADATA` control frames cannot
+/// reset the deadline forever. A supplied `shutdown` flag adds a per-frame
+/// cancellation check; shutdown wins over the wall-clock timeout so teardown
+/// still reports a user-initiated abort rather than a timeout.
 fn wait_for_login_generic<R>(
     stream: &mut R,
     pending_control: &mut Vec<StreamControl>,
@@ -86,6 +85,7 @@ where
     // Reused across frames. Each read consumes one complete frame bounded by
     // the per-stall / socket read timeout.
     let mut frame_buf: Vec<u8> = Vec::new();
+    let handshake_deadline = Instant::now() + stall_timeout;
     loop {
         // Between frames, honour a teardown so a live-but-withholding server
         // (heartbeats without `METADATA`) cannot pin the handshake. Relaxed
@@ -94,6 +94,15 @@ where
             return Err(Error::Stream {
                 kind: crate::error::StreamErrorKind::Disconnected,
                 message: "login aborted: client shutting down".to_string(),
+            });
+        }
+        if Instant::now() >= handshake_deadline {
+            return Err(Error::Stream {
+                kind: crate::error::StreamErrorKind::Timeout,
+                message: format!(
+                    "login handshake timed out after {}ms without METADATA",
+                    stall_timeout.as_millis()
+                ),
             });
         }
         let (code, payload_len) =
@@ -510,8 +519,8 @@ mod tests {
 
     /// Reader that dribbles an endless stream of complete pre-`METADATA` PING
     /// frames: each one is well-formed and resets the per-stall timeout, so the
-    /// handshake makes forward progress forever and neither the read timeout nor
-    /// the stall budget ever fires. Only a shutdown check can break out.
+    /// per-stall timeout never fires. The wall-clock handshake budget must still
+    /// break out.
     struct EndlessPings {
         frame: Vec<u8>,
         pos: usize,
@@ -528,6 +537,45 @@ mod tests {
             self.pos += n;
             Ok(n)
         }
+    }
+
+    /// An initial handshake has no live shutdown flag yet, so the wall-clock
+    /// login budget is the only thing that can break out when a server keeps
+    /// sending complete pre-`METADATA` control frames forever.
+    #[test]
+    fn wait_for_login_initial_handshake_heartbeats_hit_wall_clock_timeout() {
+        let mut reader = EndlessPings {
+            frame: wire_frame(StreamMsgType::Ping, &[0xAB]),
+            pos: 0,
+        };
+        let mut pending: Vec<StreamControl> = Vec::new();
+        let started = Instant::now();
+
+        let result =
+            wait_for_login_generic(&mut reader, &mut pending, Duration::from_millis(2), None);
+
+        match result {
+            Err(Error::Stream { kind, message }) => {
+                assert!(
+                    matches!(kind, crate::error::StreamErrorKind::Timeout),
+                    "endless pre-METADATA frames must surface as Timeout, got {kind:?}"
+                );
+                assert!(
+                    message.contains("without METADATA"),
+                    "expected a missing-METADATA timeout message, got: {message}"
+                );
+            }
+            Err(other) => panic!("expected a Timeout stream error, got {other:?}"),
+            Ok(_) => panic!("endless pre-METADATA frames must time out, not complete login"),
+        }
+        assert!(
+            !pending.is_empty(),
+            "the test must exercise complete pre-METADATA control frames"
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(1),
+            "handshake timeout test should not run for wall-clock seconds"
+        );
     }
 
     /// A reconnect handshake against a server that keeps the connection alive
