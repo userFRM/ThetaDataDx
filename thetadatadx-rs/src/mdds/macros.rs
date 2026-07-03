@@ -1165,10 +1165,20 @@ macro_rules! parsed_endpoint {
                         // that attributes each row to its underlying; stock
                         // history sends neither.
                         use $crate::mdds::decode::extract::ResponseSymbol;
-                        let columns = match $crate::mdds::decode::extract::response_symbol(&table) {
-                            ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol),
-                            ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols),
-                            ResponseSymbol::Absent => columns,
+                        // A tick that already owns a `symbol` column (the
+                        // contract universe) emits it from its own field, so skip
+                        // the root classifier entirely: for a varying-root
+                        // universe it would collect one `Box<str>` per row that no
+                        // builder reads. Only the flat POD ticks, which carry no
+                        // `symbol` field, run it and attach the result.
+                        let columns = if columns.contains("symbol") {
+                            columns
+                        } else {
+                            match $crate::mdds::decode::extract::response_symbol(&table) {
+                                ResponseSymbol::Constant(symbol) => columns.with_symbol(symbol),
+                                ResponseSymbol::PerRow(symbols) => columns.with_symbols(symbols),
+                                ResponseSymbol::Absent => columns,
+                            }
                         };
                         // Surface the wrong-API-for-this-workload
                         // signal exactly once per request, after the buffered

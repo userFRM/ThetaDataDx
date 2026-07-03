@@ -608,32 +608,29 @@ impl ThetaDataDxColumnPresence {
     /// validated-then-`into_raw` discipline of [`ThetaDataDxStringArray::from_vec`].
     pub(crate) fn from_presence(present: &thetadatadx::columns::ColumnPresence) -> Self {
         // Per-row `symbol` values (a multi-symbol snapshot): one C string per
-        // row, leaked as an owned array. `None` for every other response.
+        // row, leaked as an owned array. `None`/empty for every other response.
         // Unlike the schema names these are wire values, so an interior NUL is
-        // conceivable — drop a value that carries one rather than panicking.
+        // conceivable — substitute the empty string for such a value rather
+        // than dropping it. Dropping would shift every later row's symbol and
+        // silently lose the whole column; the empty-string substitution keeps
+        // the column row-aligned, matching the decode's own per-row null
+        // handling (`response_symbol` yields `""` for an unrepresentable cell).
         let (symbols, symbols_len) = match present.symbols() {
-            Some(syms) => {
+            Some(syms) if !syms.is_empty() => {
                 let owned: Vec<*const c_char> = syms
                     .iter()
-                    .filter_map(|s| CString::new(s.as_ref()).ok())
-                    .map(|c| c.into_raw().cast_const())
+                    .map(|s| {
+                        CString::new(s.as_ref())
+                            .unwrap_or_default()
+                            .into_raw()
+                            .cast_const()
+                    })
                     .collect();
-                if owned.len() == syms.len() && !owned.is_empty() {
-                    let boxed = owned.into_boxed_slice();
-                    let len = boxed.len();
-                    (Box::into_raw(boxed) as *const *const c_char, len)
-                } else {
-                    // An interior NUL dropped a value (or the vec was empty);
-                    // free what leaked and omit the per-row column rather than
-                    // emit a misaligned one.
-                    for &p in &owned {
-                        // SAFETY: each `p` came from `CString::into_raw` above.
-                        drop(unsafe { CString::from_raw(p.cast_mut()) });
-                    }
-                    (ptr::null(), 0)
-                }
+                let boxed = owned.into_boxed_slice();
+                let len = boxed.len();
+                (Box::into_raw(boxed) as *const *const c_char, len)
             }
-            None => (ptr::null(), 0),
+            _ => (ptr::null(), 0),
         };
         let owned: Vec<CString> = present
             .present_names()
@@ -1428,6 +1425,33 @@ mod column_presence_carrier_tests {
             rebuilt.symbol(),
             None,
             "per-row must not set the constant broadcast"
+        );
+        // SAFETY: `carrier` owns the two leaked arrays; free exactly once.
+        unsafe { thetadatadx_column_presence_free(carrier) };
+    }
+
+    /// A wire symbol carrying an interior NUL cannot be a C string, but it must
+    /// not silently drop the whole per-row column (which would leave every row
+    /// unattributed). `from_presence` substitutes the empty string for that one
+    /// value, keeping the column row-aligned — the carrier stays non-null with
+    /// one entry per row and the NUL-bearing slot reads back as `""`.
+    #[test]
+    fn interior_nul_symbol_substitutes_empty_and_keeps_column() {
+        let present = ColumnPresence::from_names(["bid"]).with_symbols(["AAPL", "MS\0FT", "SPY"]);
+        let carrier = ThetaDataDxColumnPresence::from_presence(&present);
+        assert!(
+            !carrier.symbols.is_null(),
+            "interior NUL must not null the whole per-row column"
+        );
+        assert_eq!(carrier.symbols_len, 3, "column stays row-aligned");
+        // SAFETY: `carrier` was just built by `from_presence`.
+        let rebuilt = unsafe { carrier.to_presence() }.expect("valid carrier reconstructs");
+        assert_eq!(
+            rebuilt
+                .symbols()
+                .map(|s| s.iter().map(|v| v.to_string()).collect::<Vec<_>>()),
+            Some(vec!["AAPL".to_string(), String::new(), "SPY".to_string()]),
+            "the NUL-bearing symbol reads back as the empty string, not a shift",
         );
         // SAFETY: `carrier` owns the two leaked arrays; free exactly once.
         unsafe { thetadatadx_column_presence_free(carrier) };

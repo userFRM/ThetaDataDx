@@ -1730,19 +1730,25 @@ impl CalendarDayList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, CalendarDayList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, CalendarDayList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -1921,19 +1927,25 @@ impl EodTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, EodTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, EodTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -2168,19 +2180,25 @@ impl GreeksAllTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, GreeksAllTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, GreeksAllTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -2460,19 +2478,25 @@ impl GreeksEodTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, GreeksEodTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, GreeksEodTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -2762,19 +2786,25 @@ impl GreeksFirstOrderTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, GreeksFirstOrderTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, GreeksFirstOrderTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -2985,19 +3015,25 @@ impl GreeksSecondOrderTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, GreeksSecondOrderTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, GreeksSecondOrderTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -3204,19 +3240,25 @@ impl GreeksThirdOrderTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, GreeksThirdOrderTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, GreeksThirdOrderTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -3416,19 +3458,25 @@ impl IndexPriceAtTimeTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, IndexPriceAtTimeTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, IndexPriceAtTimeTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -3607,19 +3655,25 @@ impl InterestRateTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, InterestRateTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, InterestRateTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -3783,19 +3837,25 @@ impl IvTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, IvTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, IvTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -3989,19 +4049,25 @@ impl MarketValueTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, MarketValueTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, MarketValueTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -4181,19 +4247,25 @@ impl OhlcTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, OhlcTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, OhlcTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -4379,19 +4451,25 @@ impl OpenInterestTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, OpenInterestTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, OpenInterestTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -4557,19 +4635,25 @@ impl OptionContractList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize].clone());
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize].clone());
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, OptionContractList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, OptionContractList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -4728,19 +4812,25 @@ impl PriceTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, PriceTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, PriceTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -4907,19 +4997,25 @@ impl QuoteTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, QuoteTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, QuoteTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -5143,19 +5239,25 @@ impl TradeGreeksAllTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, TradeGreeksAllTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, TradeGreeksAllTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -5437,19 +5539,25 @@ impl TradeGreeksFirstOrderTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, TradeGreeksFirstOrderTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, TradeGreeksFirstOrderTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -5683,19 +5791,25 @@ impl TradeGreeksImpliedVolatilityTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, TradeGreeksImpliedVolatilityTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, TradeGreeksImpliedVolatilityTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -5916,19 +6030,25 @@ impl TradeGreeksSecondOrderTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, TradeGreeksSecondOrderTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, TradeGreeksSecondOrderTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -6163,19 +6283,25 @@ impl TradeGreeksThirdOrderTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, TradeGreeksThirdOrderTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, TradeGreeksThirdOrderTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -6412,19 +6538,25 @@ impl TradeQuoteTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, TradeQuoteTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, TradeQuoteTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;
@@ -6667,19 +6799,25 @@ impl TradeTickList {
         if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {
             let indices = slice.indices(self.inner.len() as isize)?;
             let mut rows = Vec::new();
+            let src_syms = self.columns.symbols();
+            let mut syms: Vec<Box<str>> = Vec::new();
             let mut i = indices.start;
             if indices.step > 0 {
                 while i < indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             } else {
                 while i > indices.stop {
                     rows.push(self.inner[i as usize]);
+                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }
                     i += indices.step;
                 }
             }
-            return Ok(Py::new(py, TradeTickList::new(rows, self.columns.clone()))?.into_any());
+            let mut columns = self.columns.clone();
+            if src_syms.is_some() { columns = columns.with_symbols(syms); }
+            return Ok(Py::new(py, TradeTickList::new(rows, columns))?.into_any());
         }
         let idx: isize = key.extract()?;
         let len = self.inner.len() as isize;

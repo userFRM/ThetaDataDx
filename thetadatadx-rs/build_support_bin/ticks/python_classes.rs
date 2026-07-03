@@ -956,21 +956,36 @@ fn render_python_tick_list_struct(schema: &Schema, type_name: &str, def: &TickTy
     out.push_str("        if let Ok(slice) = key.cast::<pyo3::types::PySlice>() {\n");
     out.push_str("            let indices = slice.indices(self.inner.len() as isize)?;\n");
     out.push_str("            let mut rows = Vec::new();\n");
+    // A multi-symbol snapshot carries one `symbol` per row on the presence.
+    // Gather it with the SAME index walk that selects `rows` so a
+    // subset/reversed slice keeps each kept row's OWN symbol; reusing the
+    // response-order `symbols` would misattribute (equal-length reverse) or
+    // length-mismatch (subset) at the projected DataFrame terminal.
+    out.push_str("            let src_syms = self.columns.symbols();\n");
+    out.push_str("            let mut syms: Vec<Box<str>> = Vec::new();\n");
     out.push_str("            let mut i = indices.start;\n");
     out.push_str("            if indices.step > 0 {\n");
     out.push_str("                while i < indices.stop {\n");
     writeln!(out, "                    rows.push({row_at});").unwrap();
+    out.push_str(
+        "                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }\n",
+    );
     out.push_str("                    i += indices.step;\n");
     out.push_str("                }\n");
     out.push_str("            } else {\n");
     out.push_str("                while i > indices.stop {\n");
     writeln!(out, "                    rows.push({row_at});").unwrap();
+    out.push_str(
+        "                    if let Some(s) = src_syms { syms.push(s[i as usize].clone()); }\n",
+    );
     out.push_str("                    i += indices.step;\n");
     out.push_str("                }\n");
     out.push_str("            }\n");
+    out.push_str("            let mut columns = self.columns.clone();\n");
+    out.push_str("            if src_syms.is_some() { columns = columns.with_symbols(syms); }\n");
     writeln!(
         out,
-        "            return Ok(Py::new(py, {list_class}::new(rows, self.columns.clone()))?.into_any());"
+        "            return Ok(Py::new(py, {list_class}::new(rows, columns))?.into_any());"
     )
     .unwrap();
     out.push_str("        }\n");
