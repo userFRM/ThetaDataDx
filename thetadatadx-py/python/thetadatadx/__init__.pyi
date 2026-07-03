@@ -1271,21 +1271,18 @@ EventCallback = Callable[[Any], None]
 StringList = Any
 StockListSymbolsBuilder = Any
 StockListDatesBuilder = Any
-OhlcTick = Any
+OhlcTickList = Any
 StockSnapshotOhlcBuilder = Any
-TradeTick = Any
+TradeTickList = Any
 StockSnapshotTradeBuilder = Any
-QuoteTick = Any
+QuoteTickList = Any
 StockSnapshotQuoteBuilder = Any
-MarketValueTick = Any
+MarketValueTickList = Any
 StockSnapshotMarketValueBuilder = Any
 EodTickList = Any
 StockHistoryEodBuilder = Any
-OhlcTickList = Any
 StockHistoryOhlcBuilder = Any
-TradeTickList = Any
 StockHistoryTradeBuilder = Any
-QuoteTickList = Any
 StockHistoryQuoteBuilder = Any
 TradeQuoteTickList = Any
 StockHistoryTradeQuoteBuilder = Any
@@ -1297,11 +1294,15 @@ OptionListExpirationsBuilder = Any
 OptionListStrikesBuilder = Any
 OptionContractList = Any
 OptionListContractsBuilder = Any
+OhlcTick = Any
 OptionSnapshotOhlcBuilder = Any
+TradeTick = Any
 OptionSnapshotTradeBuilder = Any
+QuoteTick = Any
 OptionSnapshotQuoteBuilder = Any
 OpenInterestTick = Any
 OptionSnapshotOpenInterestBuilder = Any
+MarketValueTick = Any
 OptionSnapshotMarketValueBuilder = Any
 IvTick = Any
 OptionSnapshotGreeksImpliedVolatilityBuilder = Any
@@ -1347,12 +1348,11 @@ OptionAtTimeQuoteBuilder = Any
 IndexListSymbolsBuilder = Any
 IndexListDatesBuilder = Any
 IndexSnapshotOhlcBuilder = Any
-PriceTick = Any
+PriceTickList = Any
 IndexSnapshotPriceBuilder = Any
 IndexSnapshotMarketValueBuilder = Any
 IndexHistoryEodBuilder = Any
 IndexHistoryOhlcBuilder = Any
-PriceTickList = Any
 IndexHistoryPriceBuilder = Any
 IndexPriceAtTimeTickList = Any
 IndexAtTimePriceBuilder = Any
@@ -1448,7 +1448,7 @@ class HistoricalView:
         venue: Optional[str] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         timeout_ms: Optional[int] = None,
-    ) -> List[OhlcTick]:
+    ) -> OhlcTickList:
         """Get the latest OHLC snapshot for one or more stocks.
 
         Provides a real-time Open, High, Low, Close for the current day.
@@ -1468,7 +1468,7 @@ class HistoricalView:
         venue: Optional[str] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         timeout_ms: Optional[int] = None,
-    ) -> Awaitable[List[OhlcTick]]:
+    ) -> Awaitable[OhlcTickList]:
         """Get the latest OHLC snapshot for one or more stocks.
 
         Provides a real-time Open, High, Low, Close for the current day.
@@ -1498,7 +1498,7 @@ class HistoricalView:
         venue: Optional[str] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         timeout_ms: Optional[int] = None,
-    ) -> List[TradeTick]:
+    ) -> TradeTickList:
         """Get the latest trade snapshot for one or more stocks.
 
         Returns a real-time last trade from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
@@ -1517,7 +1517,7 @@ class HistoricalView:
         venue: Optional[str] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         timeout_ms: Optional[int] = None,
-    ) -> Awaitable[List[TradeTick]]:
+    ) -> Awaitable[TradeTickList]:
         """Get the latest trade snapshot for one or more stocks.
 
         Returns a real-time last trade from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
@@ -1546,7 +1546,7 @@ class HistoricalView:
         venue: Optional[str] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         timeout_ms: Optional[int] = None,
-    ) -> List[QuoteTick]:
+    ) -> QuoteTickList:
         """Get the latest NBBO quote snapshot for one or more stocks.
 
         * Returns a real-time last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
@@ -1565,7 +1565,7 @@ class HistoricalView:
         venue: Optional[str] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         timeout_ms: Optional[int] = None,
-    ) -> Awaitable[List[QuoteTick]]:
+    ) -> Awaitable[QuoteTickList]:
         """Get the latest NBBO quote snapshot for one or more stocks.
 
         * Returns a real-time last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
@@ -1594,7 +1594,7 @@ class HistoricalView:
         venue: Optional[str] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         timeout_ms: Optional[int] = None,
-    ) -> List[MarketValueTick]:
+    ) -> MarketValueTickList:
         """Get the latest market value snapshot for one or more stocks.
 
         * Returns a real-time market value derived from the last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
@@ -1613,7 +1613,7 @@ class HistoricalView:
         venue: Optional[str] = None,
         min_time: Optional[Union[str, time, datetime]] = None,
         timeout_ms: Optional[int] = None,
-    ) -> Awaitable[List[MarketValueTick]]:
+    ) -> Awaitable[MarketValueTickList]:
         """Get the latest market value snapshot for one or more stocks.
 
         * Returns a real-time market value derived from the last BBO quote from the Nasdaq Basic feed if the account has a stocks standard or pro subscription.
@@ -4495,7 +4495,7 @@ class HistoricalView:
         *,
         min_time: Optional[Union[str, time, datetime]] = None,
         timeout_ms: Optional[int] = None,
-    ) -> List[OhlcTick]:
+    ) -> OhlcTickList:
         """Get the latest OHLC snapshot for one or more indices.
 
         - Retrieves the real-time current day OHLC.
@@ -4509,7 +4509,7 @@ class HistoricalView:
         *,
         min_time: Optional[Union[str, time, datetime]] = None,
         timeout_ms: Optional[int] = None,
-    ) -> Awaitable[List[OhlcTick]]:
+    ) -> Awaitable[OhlcTickList]:
         """Get the latest OHLC snapshot for one or more indices.
 
         - Retrieves the real-time current day OHLC.
@@ -4533,7 +4533,7 @@ class HistoricalView:
         *,
         min_time: Optional[Union[str, time, datetime]] = None,
         timeout_ms: Optional[int] = None,
-    ) -> List[PriceTick]:
+    ) -> PriceTickList:
         """Get the latest price snapshot for one or more indices.
 
         - Retrieves a real-time last index price.
@@ -4547,7 +4547,7 @@ class HistoricalView:
         *,
         min_time: Optional[Union[str, time, datetime]] = None,
         timeout_ms: Optional[int] = None,
-    ) -> Awaitable[List[PriceTick]]:
+    ) -> Awaitable[PriceTickList]:
         """Get the latest price snapshot for one or more indices.
 
         - Retrieves a real-time last index price.
@@ -4571,7 +4571,7 @@ class HistoricalView:
         *,
         min_time: Optional[Union[str, time, datetime]] = None,
         timeout_ms: Optional[int] = None,
-    ) -> List[MarketValueTick]:
+    ) -> MarketValueTickList:
         """Get the latest market value snapshot for one or more indices.
 
         - Retrieves a real-time last index market value.
@@ -4585,7 +4585,7 @@ class HistoricalView:
         *,
         min_time: Optional[Union[str, time, datetime]] = None,
         timeout_ms: Optional[int] = None,
-    ) -> Awaitable[List[MarketValueTick]]:
+    ) -> Awaitable[MarketValueTickList]:
         """Get the latest market value snapshot for one or more indices.
 
         - Retrieves a real-time last index market value.

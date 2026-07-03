@@ -24,8 +24,8 @@ use std::fmt::Write as _;
 use super::super::helpers::{compose_endpoint_doc, is_streaming_endpoint, to_pascal_case};
 use super::super::model::{GeneratedEndpoint, GeneratedParam};
 use super::super::sdk_helpers::{
-    builder_params, is_snapshot_endpoint, is_time_arg, method_params, python_pyclass_list_class,
-    python_pyclass_row_class, sdk_method_arg_name,
+    builder_params, is_time_arg, method_params, python_pyclass_list_class,
+    python_pyclass_row_class, sdk_method_arg_name, snapshot_returns_plain_pylist,
 };
 
 /// Marker comments bounding the generated module-scope region that holds
@@ -310,14 +310,13 @@ fn stub_optional_inner_type(param: &GeneratedParam) -> &'static str {
 }
 
 /// Return-type annotation for the sync endpoint method. The async variant
-/// wraps this in `Awaitable[...]`. Matches the three runtime shapes:
-/// `StringList`, the snapshot `list[<row>]` fast path, and the chainable
-/// `<Tick>List` wrapper.
+/// wraps this in `Awaitable[...]`. Matches the runtime shapes: `StringList`,
+/// the plain-list snapshot fast path, and the chainable `<Tick>List` wrapper.
 fn stub_return_type(endpoint: &GeneratedEndpoint) -> String {
     if endpoint.return_type == "StringList" {
         return "StringList".to_string();
     }
-    if is_snapshot_endpoint(endpoint) {
+    if snapshot_returns_plain_pylist(endpoint) {
         return format!("List[{}]", python_pyclass_row_class(&endpoint.return_type));
     }
     python_pyclass_list_class(&endpoint.return_type)

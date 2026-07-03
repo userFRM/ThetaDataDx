@@ -15319,7 +15319,7 @@ impl HistoricalView {
         venue: Option<PyStringArg>,
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<pyo3::types::PyList>> {
+    ) -> PyResult<Py<OhlcTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.client.historical().stock_snapshot_ohlc(&refs);
         if let Some(value) = venue {
@@ -15332,7 +15332,7 @@ impl HistoricalView {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking_snapshot(py, async move { request.await })?;
-        ohlc_ticks_vec_to_pylist(py, ticks)
+        ohlc_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get the latest OHLC snapshot for one or more stocks.
@@ -15372,7 +15372,7 @@ impl HistoricalView {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| ohlc_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `stock_snapshot_ohlc`. Chain setters then call `.list()`
@@ -15411,7 +15411,7 @@ impl HistoricalView {
         venue: Option<PyStringArg>,
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<pyo3::types::PyList>> {
+    ) -> PyResult<Py<TradeTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.client.historical().stock_snapshot_trade(&refs);
         if let Some(value) = venue {
@@ -15424,7 +15424,7 @@ impl HistoricalView {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking_snapshot(py, async move { request.await })?;
-        trade_ticks_vec_to_pylist(py, ticks)
+        trade_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get the latest trade snapshot for one or more stocks.
@@ -15463,7 +15463,7 @@ impl HistoricalView {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| trade_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| trade_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `stock_snapshot_trade`. Chain setters then call `.list()`
@@ -15502,7 +15502,7 @@ impl HistoricalView {
         venue: Option<PyStringArg>,
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<pyo3::types::PyList>> {
+    ) -> PyResult<Py<QuoteTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.client.historical().stock_snapshot_quote(&refs);
         if let Some(value) = venue {
@@ -15515,7 +15515,7 @@ impl HistoricalView {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking_snapshot(py, async move { request.await })?;
-        quote_ticks_vec_to_pylist(py, ticks)
+        quote_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get the latest NBBO quote snapshot for one or more stocks.
@@ -15554,7 +15554,7 @@ impl HistoricalView {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| quote_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| quote_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `stock_snapshot_quote`. Chain setters then call `.list()`
@@ -15593,7 +15593,7 @@ impl HistoricalView {
         venue: Option<PyStringArg>,
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<pyo3::types::PyList>> {
+    ) -> PyResult<Py<MarketValueTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.client.historical().stock_snapshot_market_value(&refs);
         if let Some(value) = venue {
@@ -15606,7 +15606,7 @@ impl HistoricalView {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking_snapshot(py, async move { request.await })?;
-        market_value_ticks_vec_to_pylist(py, ticks)
+        market_value_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get the latest market value snapshot for one or more stocks.
@@ -15645,7 +15645,7 @@ impl HistoricalView {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| market_value_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| market_value_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `stock_snapshot_market_value`. Chain setters then call `.list()`
@@ -21835,7 +21835,7 @@ impl HistoricalView {
         symbols: PySymbols,
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<pyo3::types::PyList>> {
+    ) -> PyResult<Py<OhlcTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.client.historical().index_snapshot_ohlc(&refs);
         if let Some(value) = min_time {
@@ -21845,7 +21845,7 @@ impl HistoricalView {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking_snapshot(py, async move { request.await })?;
-        ohlc_ticks_vec_to_pylist(py, ticks)
+        ohlc_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get the latest OHLC snapshot for one or more indices.
@@ -21876,7 +21876,7 @@ impl HistoricalView {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| ohlc_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| ohlc_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `index_snapshot_ohlc`. Chain setters then call `.list()`
@@ -21909,7 +21909,7 @@ impl HistoricalView {
         symbols: PySymbols,
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<pyo3::types::PyList>> {
+    ) -> PyResult<Py<PriceTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.client.historical().index_snapshot_price(&refs);
         if let Some(value) = min_time {
@@ -21919,7 +21919,7 @@ impl HistoricalView {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking_snapshot(py, async move { request.await })?;
-        price_ticks_vec_to_pylist(py, ticks)
+        price_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get the latest price snapshot for one or more indices.
@@ -21950,7 +21950,7 @@ impl HistoricalView {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| price_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| price_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `index_snapshot_price`. Chain setters then call `.list()`
@@ -21983,7 +21983,7 @@ impl HistoricalView {
         symbols: PySymbols,
         min_time: Option<PyTimeArg>,
         timeout_ms: Option<u64>,
-    ) -> PyResult<Py<pyo3::types::PyList>> {
+    ) -> PyResult<Py<MarketValueTickList>> {
         let refs: Vec<&str> = symbols.iter().map(|s| s.as_str()).collect();
         let mut request = self.client.historical().index_snapshot_market_value(&refs);
         if let Some(value) = min_time {
@@ -21993,7 +21993,7 @@ impl HistoricalView {
             request = request.with_deadline(std::time::Duration::from_millis(ms));
         }
         let ticks = run_blocking_snapshot(py, async move { request.await })?;
-        market_value_ticks_vec_to_pylist(py, ticks)
+        market_value_ticks_to_pyclass_list(py, ticks)
     }
 
     /// Get the latest market value snapshot for one or more indices.
@@ -22024,7 +22024,7 @@ impl HistoricalView {
                 request = request.with_deadline(std::time::Duration::from_millis(ms));
             }
             request.await
-        }, |py, ticks| market_value_ticks_vec_to_pylist(py, ticks).map(|p| p.into_any()))
+        }, |py, ticks| market_value_ticks_to_pyclass_list(py, ticks).map(|p| p.into_any()))
     }
 
     /// Create a fluent-builder for `index_snapshot_market_value`. Chain setters then call `.list()`

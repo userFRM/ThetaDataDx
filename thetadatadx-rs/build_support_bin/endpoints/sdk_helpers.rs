@@ -122,6 +122,20 @@ pub(super) fn method_params(endpoint: &GeneratedEndpoint) -> Vec<&GeneratedParam
         .collect()
 }
 
+/// `true` for snapshot endpoints that can safely keep the Python plain-list
+/// fast path.
+///
+/// Multi-symbol snapshots carry per-row symbol attribution on
+/// `ColumnPresence`, so they must return the typed `<TickName>List` wrapper
+/// rather than a plain `PyList`; otherwise the per-row `symbols()` vector is
+/// dropped before callers can materialise a DataFrame.
+pub(super) fn snapshot_returns_plain_pylist(endpoint: &GeneratedEndpoint) -> bool {
+    is_snapshot_endpoint(endpoint)
+        && !method_params(endpoint)
+            .iter()
+            .any(|param| param.param_type == "Symbols")
+}
+
 /// Returns the endpoint's optional parameters (those chained on the
 /// builder rather than passed in the method call).
 pub(super) fn builder_params(endpoint: &GeneratedEndpoint) -> Vec<&GeneratedParam> {
