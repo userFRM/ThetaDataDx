@@ -851,11 +851,20 @@ void thetadatadx_arrow_bytes_free(ThetaDataDxArrowBytes bytes);
 /* Heap-owned set of present schema-column names (the decode's ColumnPresence
  * crossing the C boundary). Built by a thetadatadx_*_present_columns terminal and
  * consumed by the matching thetadatadx_*_to_arrow_ipc_projected terminal. Caller
- * MUST free with thetadatadx_column_presence_free. Layout-identical to
- * ThetaDataDxStringArray (an owned array of NUL-terminated C strings). */
+ * MUST free with thetadatadx_column_presence_free.
+ *
+ * `symbols` carries a multi-symbol snapshot's per-row `symbol` (root) values —
+ * one NUL-terminated C string per decoded row — so the projected serialiser
+ * emits a leading per-row `symbol` column attributing each row to its
+ * underlying. It is NULL for every other response (option/index and
+ * single-symbol snapshots carry a constant broadcast passed to
+ * thetadatadx_*_to_arrow_ipc_projected via its `symbol` argument; stock history
+ * carries none). When non-NULL it takes precedence over that argument. */
 typedef struct ThetaDataDxColumnPresence {
     const char* const* names;
     size_t len;
+    const char* const* symbols;
+    size_t symbols_len;
 } ThetaDataDxColumnPresence;
 
 /** Free a ThetaDataDxColumnPresence returned by any thetadatadx_*_present_columns

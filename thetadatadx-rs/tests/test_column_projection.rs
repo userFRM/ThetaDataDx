@@ -271,6 +271,107 @@ fn option_contract_projects_exactly_one_symbol_column() {
     );
 }
 
+/// A multi-symbol snapshot response carries a per-row-varying `symbol` column
+/// (`stock_snapshot_quote(["AAPL","MSFT","SPY"])`). The projected frame emits a
+/// real per-row `symbol` column — the wire values, one per row — so each row is
+/// attributable to its underlying, rather than dropping the column silently.
+#[test]
+fn multi_symbol_snapshot_projects_per_row_symbol_column() {
+    // The quote columns a multi-symbol snapshot's wire carries (no `date`;
+    // `midpoint` rides on `bid`+`ask`), plus the per-row roots the seam reads
+    // off the varying `symbol` column.
+    let present = ColumnPresence::from_names([
+        "ms_of_day",
+        "bid_size",
+        "bid_exchange",
+        "bid",
+        "bid_condition",
+        "ask_size",
+        "ask_exchange",
+        "ask",
+        "ask_condition",
+        "midpoint",
+    ])
+    .with_symbols(["AAPL", "MSFT", "SPY"]);
+    let quote = |bid: f64, ask: f64| QuoteTick {
+        ms_of_day: 1,
+        bid_size: 1,
+        bid_exchange: 1,
+        bid,
+        bid_condition: 0,
+        ask_size: 1,
+        ask_exchange: 1,
+        ask,
+        ask_condition: 0,
+        date: 0,
+        expiration: 0,
+        strike: 0.0,
+        right: '\0',
+        midpoint: (bid + ask) / 2.0,
+    };
+    let ticks = vec![quote(1.0, 2.0), quote(3.0, 4.0), quote(5.0, 6.0)];
+
+    let batch = ticks.as_slice().to_arrow_projected(&present).unwrap();
+    let cols = arrow_columns(&batch);
+    assert_eq!(
+        cols.first().map(String::as_str),
+        Some("symbol"),
+        "symbol must be the leading column; got {cols:?}"
+    );
+    assert_eq!(
+        cols.iter().filter(|c| c.as_str() == "symbol").count(),
+        1,
+        "exactly one symbol column; got {cols:?}"
+    );
+    let values = symbol_column(&batch).expect("symbol column present");
+    assert_eq!(
+        values,
+        vec!["AAPL", "MSFT", "SPY"],
+        "each row must carry its own wire symbol, not a broadcast",
+    );
+
+    // Polars agrees on the column set and the per-row values.
+    let df = ticks.as_slice().to_polars_projected(&present).unwrap();
+    assert_eq!(
+        polars_columns(&df),
+        cols,
+        "arrow/polars column sets diverge"
+    );
+    assert_eq!(df.height(), ticks.len());
+}
+
+/// A single-symbol snapshot keeps the constant-broadcast path: one root value
+/// repeated on every row (no regression from the per-row addition).
+#[test]
+fn single_symbol_snapshot_still_broadcasts_constant() {
+    let present =
+        ColumnPresence::from_names(["ms_of_day", "bid", "ask", "midpoint"]).with_symbol("AAPL");
+    let quote = QuoteTick {
+        ms_of_day: 1,
+        bid_size: 0,
+        bid_exchange: 0,
+        bid: 1.0,
+        bid_condition: 0,
+        ask_size: 0,
+        ask_exchange: 0,
+        ask: 2.0,
+        ask_condition: 0,
+        date: 0,
+        expiration: 0,
+        strike: 0.0,
+        right: '\0',
+        midpoint: 1.5,
+    };
+    let ticks = vec![quote, quote];
+    let batch = ticks.as_slice().to_arrow_projected(&present).unwrap();
+    let values = symbol_column(&batch).expect("symbol column present");
+    assert_eq!(
+        values,
+        vec!["AAPL", "AAPL"],
+        "constant symbol must broadcast to every row",
+    );
+}
+
 /// A stock response carries no `symbol` header — the projected frame gains no
 /// `symbol` column.
 #[test]

@@ -573,12 +573,24 @@ pub struct ThetaDataDxColumnPresence {
     pub names: *const *const c_char,
     /// Number of names.
     pub len: usize,
+    /// Per-row `symbol` (root) values for a multi-symbol snapshot — one
+    /// NUL-terminated C string per decoded row, so the projected serialiser
+    /// emits a leading per-row `symbol` column attributing each row to its
+    /// underlying. Null for every other response (option/index and
+    /// single-symbol snapshots carry a constant broadcast supplied to
+    /// `thetadatadx_<tick>_to_arrow_ipc_projected` via its `symbol` argument;
+    /// stock history carries none). When non-null it takes precedence over
+    /// that `symbol` argument.
+    pub symbols: *const *const c_char,
+    /// Number of per-row symbols (equals the decoded row count when
+    /// `symbols` is non-null; 0 otherwise).
+    pub symbols_len: usize,
 }
 
 // Layout drift-guard: pin the LP64 `#[repr(C)]` size + alignment, the same
 // values the C++ `abi_struct_layout_asserts.hpp.inc` pins.
 const _: () = {
-    assert!(core::mem::size_of::<ThetaDataDxColumnPresence>() == 16);
+    assert!(core::mem::size_of::<ThetaDataDxColumnPresence>() == 32);
     assert!(core::mem::align_of::<ThetaDataDxColumnPresence>() == 8);
 };
 
@@ -586,6 +598,8 @@ impl ThetaDataDxColumnPresence {
     pub(crate) const EMPTY: Self = Self {
         names: ptr::null(),
         len: 0,
+        symbols: ptr::null(),
+        symbols_len: 0,
     };
 
     /// Leak a [`thetadatadx::columns::ColumnPresence`] as an owned C-string
@@ -593,12 +607,45 @@ impl ThetaDataDxColumnPresence {
     /// cannot see an interior NUL; the map is still fallible only to reuse the
     /// validated-then-`into_raw` discipline of [`ThetaDataDxStringArray::from_vec`].
     pub(crate) fn from_presence(present: &thetadatadx::columns::ColumnPresence) -> Self {
+        // Per-row `symbol` values (a multi-symbol snapshot): one C string per
+        // row, leaked as an owned array. `None` for every other response.
+        // Unlike the schema names these are wire values, so an interior NUL is
+        // conceivable — drop a value that carries one rather than panicking.
+        let (symbols, symbols_len) = match present.symbols() {
+            Some(syms) => {
+                let owned: Vec<*const c_char> = syms
+                    .iter()
+                    .filter_map(|s| CString::new(s.as_ref()).ok())
+                    .map(|c| c.into_raw().cast_const())
+                    .collect();
+                if owned.len() == syms.len() && !owned.is_empty() {
+                    let boxed = owned.into_boxed_slice();
+                    let len = boxed.len();
+                    (Box::into_raw(boxed) as *const *const c_char, len)
+                } else {
+                    // An interior NUL dropped a value (or the vec was empty);
+                    // free what leaked and omit the per-row column rather than
+                    // emit a misaligned one.
+                    for &p in &owned {
+                        // SAFETY: each `p` came from `CString::into_raw` above.
+                        drop(unsafe { CString::from_raw(p.cast_mut()) });
+                    }
+                    (ptr::null(), 0)
+                }
+            }
+            None => (ptr::null(), 0),
+        };
         let owned: Vec<CString> = present
             .present_names()
             .map(|n| CString::new(n).expect("schema column names contain no interior NUL"))
             .collect();
         if owned.is_empty() {
-            return Self::EMPTY;
+            return Self {
+                names: ptr::null(),
+                len: 0,
+                symbols,
+                symbols_len,
+            };
         }
         let cstrings = owned
             .into_iter()
@@ -607,7 +654,12 @@ impl ThetaDataDxColumnPresence {
         let boxed = cstrings.into_boxed_slice();
         let len = boxed.len();
         let names = Box::into_raw(boxed) as *const *const c_char;
-        Self { names, len }
+        Self {
+            names,
+            len,
+            symbols,
+            symbols_len,
+        }
     }
 
     /// Reconstruct the borrowed [`thetadatadx::columns::ColumnPresence`] from
@@ -618,9 +670,51 @@ impl ThetaDataDxColumnPresence {
     /// `names` must point to `len` valid NUL-terminated C strings, as produced
     /// by [`Self::from_presence`] or supplied by the caller.
     unsafe fn to_presence(&self) -> Option<thetadatadx::columns::ColumnPresence> {
+        // Reconstruct the per-row `symbol` values (a multi-symbol snapshot)
+        // first, so `names.is_null()` (a wire that carried no schema column)
+        // still surfaces them onto the presence.
+        let per_row_symbols = if self.symbols.is_null() {
+            if self.symbols_len != 0 {
+                crate::error::set_error(
+                    "column presence symbols pointer is null with non-zero symbols_len",
+                );
+                return None;
+            }
+            None
+        } else {
+            // SAFETY: caller's contract guarantees `symbols` points to
+            // `symbols_len` initialised C-string pointers for the call.
+            let slice = unsafe { std::slice::from_raw_parts(self.symbols, self.symbols_len) };
+            let mut syms: Vec<&str> = Vec::with_capacity(self.symbols_len);
+            for &p in slice {
+                // SAFETY: each element is a NUL-terminated C string per the
+                // carrier contract; `cstr_to_str` validates non-null + UTF-8.
+                match unsafe { crate::error::cstr_to_str(p) } {
+                    Ok(Some(s)) => syms.push(s),
+                    Ok(None) => {
+                        crate::error::set_error("column presence carried a null symbol pointer");
+                        return None;
+                    }
+                    Err(e) => {
+                        crate::error::set_error(&format!(
+                            "column presence symbol is not UTF-8: {e}"
+                        ));
+                        return None;
+                    }
+                }
+            }
+            Some(syms)
+        };
+        let apply_symbols = |p: thetadatadx::columns::ColumnPresence| match &per_row_symbols {
+            Some(syms) => p.with_symbols(syms.iter().copied()),
+            None => p,
+        };
+
         if self.names.is_null() {
             if self.len == 0 {
-                return Some(thetadatadx::columns::ColumnPresence::default());
+                return Some(apply_symbols(
+                    thetadatadx::columns::ColumnPresence::default(),
+                ));
             }
             crate::error::set_error("column presence names pointer is null with non-zero len");
             return None;
@@ -644,7 +738,9 @@ impl ThetaDataDxColumnPresence {
                 }
             }
         }
-        Some(thetadatadx::columns::ColumnPresence::from_names(names))
+        Some(apply_symbols(
+            thetadatadx::columns::ColumnPresence::from_names(names),
+        ))
     }
 }
 
@@ -653,25 +749,40 @@ impl ThetaDataDxColumnPresence {
 #[no_mangle]
 pub unsafe extern "C" fn thetadatadx_column_presence_free(presence: ThetaDataDxColumnPresence) {
     ffi_boundary!((), {
-        if !presence.names.is_null() && presence.len > 0 {
-            // SAFETY: `names` + `len` describe the slice `from_presence` leaked.
-            let slice = unsafe { std::slice::from_raw_parts(presence.names, presence.len) };
+        // Free the two owned C-string arrays independently: `names` (the schema
+        // columns) and `symbols` (a multi-symbol snapshot's per-row roots). One
+        // helper so the leak/free discipline lives in one place.
+        //
+        // # Safety
+        // `ptr`+`len` must describe a slice `from_presence` leaked via
+        // `Box::into_raw` of a `Box<[*const c_char]>`, each element produced by
+        // `CString::into_raw`; ownership returns here for drop. `(null, 0)` is a
+        // no-op.
+        unsafe fn free_cstr_array(ptr: *const *const c_char, len: usize) {
+            if ptr.is_null() || len == 0 {
+                return;
+            }
+            // SAFETY: caller's contract guarantees `ptr` points to `len`
+            // initialised C-string pointers leaked by `from_presence`.
+            let slice = unsafe { std::slice::from_raw_parts(ptr, len) };
             for &s in slice {
                 if !s.is_null() {
-                    // SAFETY: produced by `CString::into_raw` in `from_presence`.
+                    // SAFETY: `s` was produced by `CString::into_raw` in
+                    // `from_presence`; ownership returns for drop.
                     drop(unsafe { CString::from_raw(s.cast_mut()) });
                 }
             }
-            // SAFETY: `names` was returned by `Box::into_raw` on a
-            // `Box<[*const c_char]>` of length `len`; ownership returns for
-            // drop. Null + zero-len gated; per-element strings freed above.
-            let _ = unsafe {
-                Box::from_raw(std::ptr::slice_from_raw_parts_mut(
-                    presence.names.cast_mut(),
-                    presence.len,
-                ))
-            };
+            // SAFETY: `ptr` was returned by `Box::into_raw` on a
+            // `Box<[*const c_char]>` of length `len`; per-element strings freed
+            // above, so this reclaims only the outer array.
+            let _ =
+                unsafe { Box::from_raw(std::ptr::slice_from_raw_parts_mut(ptr.cast_mut(), len)) };
         }
+        // SAFETY: `names`/`len` and `symbols`/`symbols_len` are the two arrays
+        // `from_presence` leaked (or the null/zero empty state); free each once.
+        unsafe { free_cstr_array(presence.names, presence.len) };
+        // SAFETY: as above, for the optional per-row symbols array.
+        unsafe { free_cstr_array(presence.symbols, presence.symbols_len) };
     })
 }
 
@@ -752,8 +863,10 @@ macro_rules! tick_array_to_arrow_ipc_projected {
                 };
                 // Ignore the broadcast `symbol` when the tick already owns a
                 // per-row `symbol` column (OptionContract) so the projected
-                // schema never carries a duplicate `symbol`.
-                if !columns.contains("symbol") {
+                // schema never carries a duplicate, and when the carrier already
+                // conveyed a multi-symbol snapshot's per-row `symbols` (which
+                // take precedence over the constant broadcast).
+                if !columns.contains("symbol") && columns.symbols().is_none() {
                     // SAFETY: `symbol` is the caller's optional NUL-terminated
                     // string; `cstr_to_str` validates non-null + UTF-8.
                     match unsafe { crate::error::cstr_to_str(symbol) } {
@@ -1277,5 +1390,61 @@ mod array_construction_tests {
         // SAFETY: `arr` was produced by `from_vec` above; the free matches the
         // `Box::into_raw` + per-string `CString::into_raw` that built it.
         unsafe { thetadatadx_string_array_free(arr) };
+    }
+}
+
+#[cfg(test)]
+mod column_presence_carrier_tests {
+    use super::{thetadatadx_column_presence_free, ThetaDataDxColumnPresence};
+    use thetadatadx::columns::ColumnPresence;
+
+    /// A multi-symbol snapshot's per-row `symbol` values survive the round-trip
+    /// across the C carrier: `from_presence` leaks them, `to_presence`
+    /// reconstructs them onto the `ColumnPresence`, and the free path releases
+    /// both owned arrays without a leak or double-free.
+    #[test]
+    fn per_row_symbols_round_trip_through_carrier() {
+        let present = ColumnPresence::from_names(["bid_size", "bid", "ask"])
+            .with_symbols(["AAPL", "MSFT", "SPY"]);
+        let carrier = ThetaDataDxColumnPresence::from_presence(&present);
+        // SAFETY: `carrier` was just built by `from_presence`; its name/symbol
+        // pointers are valid for this call.
+        let rebuilt = unsafe { carrier.to_presence() }.expect("valid carrier reconstructs");
+        assert_eq!(
+            rebuilt.present_names().collect::<Vec<_>>(),
+            vec!["bid_size", "bid", "ask"],
+        );
+        assert_eq!(
+            rebuilt
+                .symbols()
+                .map(|s| s.iter().map(|v| v.to_string()).collect::<Vec<_>>()),
+            Some(vec![
+                "AAPL".to_string(),
+                "MSFT".to_string(),
+                "SPY".to_string()
+            ]),
+        );
+        assert_eq!(
+            rebuilt.symbol(),
+            None,
+            "per-row must not set the constant broadcast"
+        );
+        // SAFETY: `carrier` owns the two leaked arrays; free exactly once.
+        unsafe { thetadatadx_column_presence_free(carrier) };
+    }
+
+    /// A response with no per-row symbols leaves the carrier's `symbols` null,
+    /// and the free path is a no-op on it.
+    #[test]
+    fn absent_per_row_symbols_leave_carrier_null() {
+        let present = ColumnPresence::from_names(["bid", "ask"]).with_symbol("SPY");
+        let carrier = ThetaDataDxColumnPresence::from_presence(&present);
+        assert!(carrier.symbols.is_null());
+        assert_eq!(carrier.symbols_len, 0);
+        // SAFETY: `carrier` was just built by `from_presence`.
+        let rebuilt = unsafe { carrier.to_presence() }.expect("valid carrier reconstructs");
+        assert_eq!(rebuilt.symbols(), None);
+        // SAFETY: free the single owned `names` array once.
+        unsafe { thetadatadx_column_presence_free(carrier) };
     }
 }

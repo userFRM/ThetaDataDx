@@ -215,45 +215,73 @@ pub fn extract_price_column(
         .collect()
 }
 
-/// The response's constant `symbol` (root) value to broadcast as the leading
-/// projected column, when the wire carried a `symbol`/`root` header — the
-/// option + index single-underlying historical endpoints do, stock does not.
-///
-/// The value is broadcast to every row, so it is only returned when it is
-/// *provably constant*: the whole `symbol` column is scanned and a value is
-/// returned only when every row is the same `Text` cell. A multi-symbol
-/// snapshot response (a per-row-varying `symbol`) or a non-`Text` cell yields
-/// `None`, so the frame keeps its per-row symbol column (or gains none for
-/// the flat POD ticks that hold no per-row symbol) rather than mislabelling
-/// every row with row 0's value.
-///
-/// Returns `None` when the header is absent (stock responses gain no `symbol`
-/// column). A header-present-but-rowless response returns `Some("")` so the
-/// column set stays keyed on the header, matching the per-column projection.
-pub fn response_symbol(table: &proto::DataTable) -> Option<Box<str>> {
+/// The response's `symbol` (root) shape, read once from the wire's
+/// `symbol`/`root` column and carried onto the projected frame's leading
+/// `symbol` column. The flat POD ticks hold no per-row `String`, so the
+/// symbol rides on the response's [`crate::columns::ColumnPresence`] instead
+/// of a tick field.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ResponseSymbol {
+    /// The wire carried no `symbol`/`root` header — stock history responses,
+    /// which gain no `symbol` column.
+    Absent,
+    /// The wire's `symbol` column is constant across every row (broadcast as
+    /// one value): the option + index single-underlying endpoints, and a
+    /// single-symbol stock snapshot. A header-present-but-rowless response is
+    /// `Constant("")` so the column set stays keyed on the header.
+    Constant(Box<str>),
+    /// The wire's `symbol` column varies row-to-row — a multi-symbol snapshot
+    /// (`stock_snapshot_quote(["AAPL","MSFT"])`). One value per row, so each
+    /// row is attributable to its underlying rather than mislabelled with row
+    /// 0's value. A non-`Text` symbol cell yields the empty string for that
+    /// row (matching the per-column projection's null handling).
+    PerRow(Vec<Box<str>>),
+}
+
+/// Classify the response's `symbol` (root) column: absent, constant across
+/// all rows (broadcast), or per-row-varying (a multi-symbol snapshot). The
+/// decode seam calls this once per response and attaches the result to the
+/// [`crate::columns::ColumnPresence`] so the projected builders emit the
+/// leading `symbol` column terminal-exact — one value broadcast, one value
+/// per row, or none.
+pub fn response_symbol(table: &proto::DataTable) -> ResponseSymbol {
     let header_refs: Vec<&str> = table.headers.iter().map(String::as_str).collect();
-    let col_idx = find_header(&header_refs, "root")?;
+    let Some(col_idx) = find_header(&header_refs, "root") else {
+        return ResponseSymbol::Absent;
+    };
     if table.data_table.is_empty() {
-        return Some("".into());
+        return ResponseSymbol::Constant("".into());
     }
-    // Borrow the cell text; box only the single returned value, not per row —
-    // a ~1M-row response would otherwise pay ~1M heap allocations here. A local
-    // fn (not a closure) so the returned `&str` borrows from the `row` argument.
+    // Borrow the cell text; a local fn (not a closure) so the returned `&str`
+    // borrows from the `row` argument.
     fn cell(row: &proto::DataValueList, col_idx: usize) -> Option<&str> {
         match row.values.get(col_idx).and_then(|dv| dv.data_type.as_ref()) {
             Some(proto::data_value::DataType::Text(s)) => Some(s.as_str()),
             _ => None,
         }
     }
-    let first = cell(table.data_table.first()?, col_idx)?;
+    // A missing/non-Text first cell (a fully absent constant value) keeps the
+    // broadcast-absent shape rather than fabricating a per-row column.
+    let Some(first) = cell(&table.data_table[0], col_idx) else {
+        return ResponseSymbol::Absent;
+    };
     if table.data_table[1..]
         .iter()
         .all(|row| cell(row, col_idx) == Some(first))
     {
-        Some(first.into())
-    } else {
-        None
+        // Constant: box the single value once, not per row — a ~1M-row
+        // response would otherwise pay ~1M heap allocations.
+        return ResponseSymbol::Constant(first.into());
     }
+    // Varying: one value per row so each row is attributable. A non-`Text`
+    // cell yields `""` for that row (the per-column projection nulls it too).
+    ResponseSymbol::PerRow(
+        table
+            .data_table
+            .iter()
+            .map(|row| cell(row, col_idx).unwrap_or("").into())
+            .collect(),
+    )
 }
 
 /// Sort list-endpoint values ascending for the public `list_*` returns.
@@ -407,11 +435,15 @@ mod tests {
                 },
             ],
         };
-        assert_eq!(response_symbol(&table).as_deref(), Some("SPY"));
+        assert_eq!(
+            response_symbol(&table),
+            ResponseSymbol::Constant("SPY".into())
+        );
     }
 
-    /// A stock response carries no `symbol`/`root` header, so `response_symbol`
-    /// returns `None` — the projected frame then gains no `symbol` column.
+    /// A stock history response carries no `symbol`/`root` header, so
+    /// `response_symbol` is `Absent` — the projected frame gains no `symbol`
+    /// column.
     #[test]
     fn response_symbol_absent_header_is_none() {
         let table = proto::DataTable {
@@ -427,14 +459,15 @@ mod tests {
                 ],
             }],
         };
-        assert_eq!(response_symbol(&table), None);
+        assert_eq!(response_symbol(&table), ResponseSymbol::Absent);
     }
 
-    /// A multi-symbol snapshot response carries a per-row-varying `symbol`; the
-    /// broadcast is only valid when constant, so a varying column yields `None`
-    /// rather than mislabelling every row with row 0's symbol.
+    /// A multi-symbol snapshot response carries a per-row-varying `symbol`, so
+    /// `response_symbol` returns `PerRow` with one value per row — each row is
+    /// attributable to its underlying rather than mislabelled with row 0's
+    /// symbol.
     #[test]
-    fn response_symbol_varying_column_is_none() {
+    fn response_symbol_varying_column_is_per_row() {
         let row = |sym: &str| proto::DataValueList {
             values: vec![proto::DataValue {
                 data_type: Some(proto::data_value::DataType::Text(sym.into())),
@@ -442,17 +475,18 @@ mod tests {
         };
         let table = proto::DataTable {
             headers: vec!["symbol".to_string()],
-            data_table: vec![row("AAPL"), row("MSFT")],
+            data_table: vec![row("AAPL"), row("MSFT"), row("SPY")],
         };
         assert_eq!(
             response_symbol(&table),
-            None,
-            "a per-row-varying symbol must not broadcast row 0 to every row",
+            ResponseSymbol::PerRow(vec!["AAPL".into(), "MSFT".into(), "SPY".into()]),
+            "a per-row-varying symbol must carry one value per row",
         );
     }
 
-    /// A non-`Text` cell in the symbol column (e.g. a Null row 0) yields `None`
-    /// rather than broadcasting an empty string to every row.
+    /// A non-`Text` cell in a single-row symbol column yields `Absent` (the
+    /// lone value is unreadable, so there is nothing to broadcast) rather than
+    /// broadcasting an empty string.
     #[test]
     fn response_symbol_non_text_cell_is_none() {
         let table = proto::DataTable {
@@ -463,18 +497,19 @@ mod tests {
                 }],
             }],
         };
-        assert_eq!(response_symbol(&table), None);
+        assert_eq!(response_symbol(&table), ResponseSymbol::Absent);
     }
 
-    /// Header present but no data rows -> `Some("")`: the column set stays keyed
-    /// on the header (matching per-column projection), broadcast over zero rows.
+    /// Header present but no data rows -> `Constant("")`: the column set stays
+    /// keyed on the header (matching per-column projection), broadcast over
+    /// zero rows.
     #[test]
     fn response_symbol_header_present_no_rows_is_empty() {
         let table = proto::DataTable {
             headers: vec!["symbol".to_string()],
             data_table: Vec::new(),
         };
-        assert_eq!(response_symbol(&table).as_deref(), Some(""));
+        assert_eq!(response_symbol(&table), ResponseSymbol::Constant("".into()));
     }
 
     /// Empty `DataTable` returns empty Vec without alias resolution —

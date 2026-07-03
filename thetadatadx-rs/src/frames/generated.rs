@@ -74,7 +74,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::CalendarDay] {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -150,7 +153,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::CalendarDay] {
             if has_status { col_status.push(t.status.as_str().to_string()); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_date {
@@ -334,7 +339,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::EodTick] {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -560,7 +568,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::EodTick] {
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_created_ms_of_day {
@@ -866,7 +876,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksAllTick] 
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -1202,7 +1215,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksAllTick]
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_ms_of_day {
@@ -1625,7 +1640,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksEodTick] 
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -2081,7 +2099,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksEodTick]
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_ms_of_day {
@@ -2358,7 +2378,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksFirstOrde
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -2554,7 +2577,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksFirstOrd
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_ms_of_day {
@@ -2746,7 +2771,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksSecondOrd
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -2932,7 +2960,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksSecondOr
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_ms_of_day {
@@ -3114,7 +3144,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::GreeksThirdOrde
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -3290,7 +3323,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::GreeksThirdOrd
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_ms_of_day {
@@ -3441,7 +3476,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IndexPriceAtTim
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -3577,7 +3615,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::IndexPriceAtTi
             if has_date { col_date.push(t.date); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_ms_of_day {
@@ -3653,7 +3693,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::InterestRateTic
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -3699,7 +3742,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::InterestRateTi
             if has_rate { col_rate.push(t.rate); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_date {
@@ -3832,7 +3877,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::IvTick] {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -3998,7 +4046,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::IvTick] {
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_ms_of_day {
@@ -4125,7 +4175,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::MarketValueTick
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -4231,7 +4284,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::MarketValueTic
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_ms_of_day {
@@ -4368,7 +4423,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OhlcTick] {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -4514,7 +4572,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::OhlcTick] {
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_ms_of_day {
@@ -4621,7 +4681,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::OpenInterestTic
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -4707,7 +4770,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::OpenInterestTi
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_ms_of_day {
@@ -4903,7 +4968,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::PriceTick] {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -4959,7 +5027,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::PriceTick] {
             if has_date { col_date.push(t.date); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_ms_of_day {
@@ -5095,7 +5165,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::QuoteTick] {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -5261,7 +5334,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::QuoteTick] {
             if has_midpoint { col_midpoint.push(t.midpoint); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_ms_of_day {
@@ -5598,7 +5673,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksAllT
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -6004,7 +6082,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksAll
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_ms_of_day {
@@ -6315,7 +6395,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksFirs
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -6581,7 +6664,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksFir
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_ms_of_day {
@@ -6808,7 +6893,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksImpl
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -7014,7 +7102,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksImp
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_ms_of_day {
@@ -7258,7 +7348,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksSeco
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -7514,7 +7607,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksSec
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_ms_of_day {
@@ -7766,7 +7861,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeGreeksThir
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -8012,7 +8110,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeGreeksThi
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_ms_of_day {
@@ -8296,7 +8396,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeQuoteTick]
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -8592,7 +8695,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeQuoteTick
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_ms_of_day {
@@ -8828,7 +8933,10 @@ impl crate::frames::TicksArrowExt for [crate::tdbe::types::tick::TradeTick] {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -9034,7 +9142,9 @@ impl crate::frames::TicksPolarsExt for [crate::tdbe::types::tick::TradeTick] {
             if has_right { col_right.push(if t.right == '\0' { None } else { Some(t.right.to_string()) }); }
         }
         let mut series: Vec<polars::prelude::Column> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            series.push(Series::new(PlSmallStr::from_static("symbol"), syms.iter().map(|s| s.to_string()).collect::<Vec<String>>()).into());
+        } else if let Some(sym) = present.symbol() {
             series.push(Series::new(PlSmallStr::from_static("symbol"), vec![sym.to_string(); n]).into());
         }
         if has_ms_of_day {

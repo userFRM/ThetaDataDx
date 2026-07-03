@@ -85,22 +85,23 @@ pub(super) fn render_cpp_tick_arrow_ipc(schema: &Schema) -> String {
     // `ColumnPresence cols; client.<endpoint>(..., &cols);` — move-assigning
     // into it frees a valid empty carrier (the free is a no-op on {nullptr, 0}),
     // not uninitialized storage.
-    out.push_str("    ColumnPresence() noexcept : raw_{nullptr, 0} {}\n");
+    out.push_str("    ColumnPresence() noexcept : raw_{} {}\n");
     out.push_str(
         "    explicit ColumnPresence(ThetaDataDxColumnPresence raw) noexcept : raw_(raw) {}\n",
     );
     out.push_str("    ColumnPresence(const ColumnPresence&) = delete;\n");
     out.push_str("    ColumnPresence& operator=(const ColumnPresence&) = delete;\n");
+    // Reset the moved-from carrier to the fully-empty state: it owns two arrays
+    // (`names` and a multi-symbol snapshot's per-row `symbols`), so nulling one
+    // pointer alone would leave the other double-freed by both destructors.
     out.push_str("    ColumnPresence(ColumnPresence&& other) noexcept : raw_(other.raw_) {\n");
-    out.push_str("        other.raw_.names = nullptr;\n");
-    out.push_str("        other.raw_.len = 0;\n");
+    out.push_str("        other.raw_ = ThetaDataDxColumnPresence{};\n");
     out.push_str("    }\n");
     out.push_str("    ColumnPresence& operator=(ColumnPresence&& other) noexcept {\n");
     out.push_str("        if (this != &other) {\n");
     out.push_str("            thetadatadx_column_presence_free(raw_);\n");
     out.push_str("            raw_ = other.raw_;\n");
-    out.push_str("            other.raw_.names = nullptr;\n");
-    out.push_str("            other.raw_.len = 0;\n");
+    out.push_str("            other.raw_ = ThetaDataDxColumnPresence{};\n");
     out.push_str("        }\n");
     out.push_str("        return *this;\n");
     out.push_str("    }\n");

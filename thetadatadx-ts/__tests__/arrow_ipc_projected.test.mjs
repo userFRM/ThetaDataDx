@@ -122,6 +122,23 @@ describe('projected Arrow-IPC terminal', () => {
     assert.ok(cols.includes('expiration'), 'option projection keeps the contract-id trio');
   });
 
+  it('emits a per-row symbol column for a multi-symbol snapshot (#1100)', () => {
+    // A multi-symbol snapshot's wire carries a per-row-varying `symbol`; the
+    // `symbols` param (one value per row) drives a real per-row leading symbol
+    // column so each row is attributable, instead of a single broadcast value.
+    const rows = sampleRows();
+    const perRow = ['AAPL', 'MSFT'];
+    assert.equal(perRow.length, rows.length, 'one symbol per row');
+    const present = addon.tradeTickPresentColumns(STOCK_TRADE_HEADERS);
+    const buf = addon.tradeTickToArrowIpcProjected(rows, present, null, perRow);
+    const table = tableFromIPC(buf);
+    const cols = table.schema.fields.map((f) => f.name);
+    assert.equal(cols[0], 'symbol', 'per-row symbol must be the leading projected column');
+    const symCol = table.getChild('symbol');
+    const got = rows.map((_, i) => symCol.get(i));
+    assert.deepEqual(got, perRow, 'each row must carry its own symbol, not a broadcast');
+  });
+
   it('an empty presence projects to zero columns without throwing', () => {
     // A response whose headers resolve to no schema column yields an empty
     // presence; the projected export must still produce a valid zero-column

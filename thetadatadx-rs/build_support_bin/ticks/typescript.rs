@@ -238,7 +238,9 @@ fn render_ts_tick_arrow_ipc(type_name: &str, def: &TickTypeDef) -> Option<String
         type_name.to_lower_camel_case()
     )
     .unwrap();
-    out.push_str("/// `symbol` as the leading column. The decode-fed sibling of\n");
+    out.push_str("/// `symbol` as the leading column, or emitting a per-row `symbols` column\n");
+    out.push_str("/// for a multi-symbol snapshot (one value per row; takes precedence over\n");
+    out.push_str("/// `symbol`). The decode-fed sibling of\n");
     writeln!(
         out,
         "/// `{}ToArrowIpc`: same wire format, projected to the wire's exact column",
@@ -252,6 +254,7 @@ fn render_ts_tick_arrow_ipc(type_name: &str, def: &TickTypeDef) -> Option<String
     writeln!(out, "    rows: Vec<{type_name}>,").unwrap();
     out.push_str("    present_columns: Vec<String>,\n");
     out.push_str("    symbol: Option<String>,\n");
+    out.push_str("    symbols: Option<Vec<String>>,\n");
     out.push_str(") -> napi::Result<napi::bindgen_prelude::Buffer> {\n");
     writeln!(out, "    let owned = {snake}_reconstruct_rows(rows)?;").unwrap();
     out.push_str(
@@ -259,9 +262,12 @@ fn render_ts_tick_arrow_ipc(type_name: &str, def: &TickTypeDef) -> Option<String
     );
     // Ignore the broadcast symbol when the tick already owns a per-row `symbol`
     // column so the projected schema never carries a duplicate, matching the C
-    // ABI serialiser.
+    // ABI serialiser. A per-row `symbols` (a multi-symbol snapshot) takes
+    // precedence over the constant `symbol` broadcast.
     out.push_str("    if !columns.contains(\"symbol\") {\n");
-    out.push_str("        if let Some(sym) = symbol {\n");
+    out.push_str("        if let Some(syms) = symbols {\n");
+    out.push_str("            columns = columns.with_symbols(syms);\n");
+    out.push_str("        } else if let Some(sym) = symbol {\n");
     out.push_str("            columns = columns.with_symbol(sym);\n");
     out.push_str("        }\n");
     out.push_str("    }\n");

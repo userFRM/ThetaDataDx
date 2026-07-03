@@ -529,7 +529,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -629,7 +632,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -822,7 +828,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -1095,7 +1104,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -1338,7 +1350,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -1474,7 +1489,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -1603,7 +1621,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -1716,7 +1737,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -1786,7 +1810,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -1856,7 +1883,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -1956,7 +1986,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -2044,7 +2077,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -2130,7 +2166,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -2227,7 +2266,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -2301,7 +2343,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -2491,7 +2536,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -2735,7 +2783,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -2905,7 +2956,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -3066,7 +3120,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -3244,7 +3301,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -3433,7 +3493,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
@@ -3688,7 +3751,10 @@ pub(crate) mod slice_arrow {
         }
         let mut fields: Vec<Field> = Vec::new();
         let mut columns: Vec<ArrayRef> = Vec::new();
-        if let Some(sym) = present.symbol() {
+        if let Some(syms) = present.symbols() {
+            fields.push(Field::new("symbol", DataType::Utf8, false));
+            columns.push(Arc::new(StringArray::from(syms.iter().map(Box::as_ref).collect::<Vec<&str>>())) as ArrayRef);
+        } else if let Some(sym) = present.symbol() {
             fields.push(Field::new("symbol", DataType::Utf8, false));
             columns.push(Arc::new(StringArray::from(vec![sym; n])) as ArrayRef);
         }
