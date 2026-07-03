@@ -64,7 +64,12 @@ use super::ring::{
     self, AdaptiveWaitStrategy, RingCursors, RingEvent, RingProducer, SequencedProducer,
 };
 
-type ActiveSubs = Arc<Mutex<Vec<(super::protocol::SubscriptionKind, Contract)>>>;
+/// Reference-counted per-contract tracked set. The trailing `u32` counts the
+/// subscribes (in-flight or live) that reference the `(kind, contract)` entry,
+/// so a rollback of one unsent subscribe can never remove an entry another
+/// concurrent subscribe put on the wire. The entry is present iff its count is
+/// at least one; `active_subscriptions()` reports it once regardless of count.
+type ActiveSubs = Arc<Mutex<Vec<(super::protocol::SubscriptionKind, Contract, u32)>>>;
 /// Maps an in-flight subscribe's `req_id` to the tracked entry it created,
 /// so a rejecting `REQ_RESPONSE` can untrack exactly that subscription.
 ///
@@ -123,14 +128,48 @@ pub(in crate::fpss) fn evict_pending_for_identity(
 ) {
     map.retain(|_, entry| &entry.sub != identity);
 }
+/// Reference-counted full-stream tracked set; the trailing `u32` is the
+/// reference count, mirroring [`ActiveSubs`].
 type ActiveFullSubs = Arc<
     Mutex<
         Vec<(
             super::protocol::SubscriptionKind,
             crate::tdbe::types::enums::SecType,
+            u32,
         )>,
     >,
 >;
+
+/// Add one reference to the tracked entry for `(kind, key)`, creating it at a
+/// single reference when absent. Every subscribe — including a duplicate for an
+/// already-tracked identity — adds a reference, so a concurrent rollback of one
+/// unsent subscribe cannot drop an entry another subscribe put on the wire.
+pub(in crate::fpss) fn inc_active<T: PartialEq>(
+    subs: &mut Vec<(super::protocol::SubscriptionKind, T, u32)>,
+    kind: super::protocol::SubscriptionKind,
+    key: T,
+) {
+    if let Some(entry) = subs.iter_mut().find(|(k, x, _)| *k == kind && *x == key) {
+        entry.2 += 1;
+    } else {
+        subs.push((kind, key, 1));
+    }
+}
+
+/// Drop one reference from the tracked entry for `(kind, key)`, removing the
+/// entry only once its last reference is gone.
+pub(in crate::fpss) fn dec_active<T: PartialEq>(
+    subs: &mut Vec<(super::protocol::SubscriptionKind, T, u32)>,
+    kind: super::protocol::SubscriptionKind,
+    key: &T,
+) {
+    if let Some(pos) = subs.iter().position(|(k, x, _)| *k == kind && x == key) {
+        subs[pos].2 -= 1;
+        if subs[pos].2 == 0 {
+            subs.remove(pos);
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // I/O thread: blocking read + Disruptor publish + command drain
@@ -325,25 +364,24 @@ impl<P: RingProducer> GuardedProducer<P> {
 /// authority on which tracked entry this response answers. A `Subscribed`
 /// outcome leaves the subscription tracked (it is live and must be replayed
 /// on reconnect); a rejection (`Error` / `MaxStreamsReached` / `InvalidPerms`)
-/// removes the matching entry from `active_subs` / `active_full_subs` so the
-/// reconnect replay does not re-attempt it forever and
-/// `active_subscriptions()` does not over-report it. Either way the pending
-/// entry is consumed.
+/// drops one reference from the matching entry, removing it from `active_subs`
+/// / `active_full_subs` only once unreferenced, so the reconnect replay does
+/// not re-attempt a dead subscription forever and `active_subscriptions()` does
+/// not over-report it. Either way the pending entry is consumed.
 ///
 /// A response whose `req_id` is unknown (the uncorrelated `-1` sentinel, or an
 /// id from a span longer than the 31-bit counter cycle) leaves the tracked set
-/// untouched: with no correlation, untracking would risk dropping a healthy
+/// untouched: with no correlation, decrementing would risk dropping a healthy
 /// subscription, so the conservative choice is to keep it.
 ///
-/// The `req_id` lookup is a safe untrack because the pending registry holds the
-/// invariant that at most one correlation per `(kind, contract)` (or `(kind,
-/// sec_type)`) identity is resident, and it always names the current live
-/// entry. A duplicate subscribe shares the live entry and registers no second
-/// correlation; an unsubscribe removes the entry and evicts its correlation
-/// (see [`evict_pending_for_identity`]). So a subscribe that is superseded by an
-/// unsubscribe + re-subscribe of the same identity has no resident correlation
-/// for its old `req_id`, and a late rejection of that id is a no-op rather than
-/// a value match that would drop the re-subscribed live entry.
+/// Every subscribe registers its own `req_id` correlation and holds one
+/// reference on the tracked entry, so rejecting one subscribe (for example a
+/// duplicate whose slot the first subscribe already claimed) only drops that
+/// subscribe's reference and leaves any other live reference tracked. An
+/// unsubscribe removes the entry and evicts its correlations (see
+/// [`evict_pending_for_identity`]), so a subscribe superseded by an unsubscribe
+/// then re-subscribe of the same identity has no resident correlation for its
+/// old `req_id`, and a late rejection of that id is a no-op.
 fn apply_req_response(
     req_id: i32,
     result: StreamResponseType,
@@ -366,22 +404,28 @@ fn apply_req_response(
 
     match pending.sub {
         super::protocol::PendingSub::Contract(kind, contract) => {
-            active_subs
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .retain(|(k, c)| !(*k == kind && *c == contract));
+            dec_active(
+                &mut active_subs
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner),
+                kind,
+                &contract,
+            );
         }
         super::protocol::PendingSub::Full(kind, sec_type) => {
-            active_full_subs
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .retain(|(k, s)| !(*k == kind && *s == sec_type));
+            dec_active(
+                &mut active_full_subs
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner),
+                kind,
+                &sec_type,
+            );
         }
     }
     tracing::debug!(
         req_id,
         result = ?result,
-        "untracked rejected subscription; it will not be replayed on reconnect"
+        "dropped a reference from the rejected subscription; it will not be replayed on reconnect once unreferenced"
     );
 }
 
@@ -402,23 +446,25 @@ pub(in crate::fpss) fn apply_req_response_for_test(
 /// Undo the optimistic registration of a subscribe whose frame never reached
 /// the I/O thread (the command channel was full).
 ///
-/// The registration is only rolled back if this call still owns its pending
+/// The reference is only dropped if this call still owns its pending
 /// correlation. A subscribe registers `pending_subs[req_id]` before the wire
-/// send; the tracked entry is removed here only when `req_id` is still resident
-/// — proof that no concurrent path has taken ownership of the now-live entry
-/// since the send failed. If the correlation is gone, an auto-reconnect replay
-/// (which snapshots `active_subs`, then clears pending under the same lock and
-/// re-registers fresh correlations) has already put this subscription on the
-/// wire, so the entry must stay tracked and replayed rather than be dropped by
-/// a value match on `(kind, contract)`.
+/// send; one reference is dropped from the tracked entry here only when
+/// `req_id` is still resident — proof that this call's own subscribe has not
+/// already been reconciled by another path. If the correlation is gone, an
+/// auto-reconnect replay (which snapshots `active_subs`, then clears pending
+/// under the same lock and re-registers fresh correlations) has already put
+/// this subscription on the wire, so this rollback must not touch the count.
+/// Because the entry is reference-counted, a concurrent duplicate subscribe
+/// that put its own frame on the wire holds its own reference, so this drop
+/// removes the entry only when it was the last reference — never a live one.
 ///
-/// The `pending_subs` lock is held across the tracked-set removal so this
+/// The `pending_subs` lock is held across the tracked-set mutation so this
 /// rollback is serialized against that reconnect snapshot+clear: either
-/// reconnect observes the entry before the rollback removes it (and keeps it
-/// live), or the rollback removes it before reconnect snapshots (and it is
-/// never replayed) — never the split where reconnect replays an entry the
-/// rollback then untracks. Lock order is always `pending_subs` before the
-/// tracked-set mutex, matching every other nested acquisition.
+/// reconnect observes the entry before the rollback runs (and keeps it live),
+/// or the rollback runs before reconnect snapshots — never the split where
+/// reconnect replays an entry the rollback then removes. Lock order is always
+/// `pending_subs` before the tracked-set mutex, matching every other nested
+/// acquisition.
 pub(in crate::fpss) fn untrack_unsent_subscribe(
     req_id: i32,
     pending_subs: &PendingSubs,
@@ -433,16 +479,22 @@ pub(in crate::fpss) fn untrack_unsent_subscribe(
     };
     match entry.sub {
         super::protocol::PendingSub::Contract(kind, contract) => {
-            active_subs
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .retain(|(k, c)| !(*k == kind && *c == contract));
+            dec_active(
+                &mut active_subs
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner),
+                kind,
+                &contract,
+            );
         }
         super::protocol::PendingSub::Full(kind, sec_type) => {
-            active_full_subs
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .retain(|(k, s)| !(*k == kind && *s == sec_type));
+            dec_active(
+                &mut active_full_subs
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner),
+                kind,
+                &sec_type,
+            );
         }
     }
 }
@@ -1377,25 +1429,43 @@ where
         // `untrack_unsent_subscribe` (which holds the same lock across its
         // tracked-set removal), a subscribe whose frame never left cannot
         // untrack an entry this replay is about to put back on the wire.
+        // Collapse each surviving entry's reference count to one live reference
+        // in the same critical section that clears pending. Prior-session
+        // subscribe references are void (their correlations are cleared here and
+        // can never be answered), and this replay re-subscribes each tracked
+        // identity exactly once, so exactly one reference is live afterward.
+        // Without this collapse a pre-reconnect count above one (a server that
+        // accepted a duplicate subscribe) would survive a single post-reconnect
+        // server rejection and keep replaying a dead subscription forever.
         let (subs_snapshot, full_subs_snapshot) = {
             let mut pending = pending_subs
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            let subs_snapshot = active_subs
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .clone();
-            let full_subs_snapshot = active_full_subs
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .clone();
+            let subs_snapshot = {
+                let mut subs = active_subs
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                for entry in subs.iter_mut() {
+                    entry.2 = 1;
+                }
+                subs.clone()
+            };
+            let full_subs_snapshot = {
+                let mut full = active_full_subs
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                for entry in full.iter_mut() {
+                    entry.2 = 1;
+                }
+                full.clone()
+            };
             pending.clear();
             (subs_snapshot, full_subs_snapshot)
         };
 
         let mut pacer = ReplayPacer::new(replay_burst_size, replay_pace_ms);
         let writer = reader.get_mut();
-        for (kind, contract) in &subs_snapshot {
+        for (kind, contract, _refs) in &subs_snapshot {
             // Allocate a fresh req_id per re-subscribe so the server's
             // `ReqResponse` events on the reconnected session carry
             // correlatable ids — `-1` is indistinguishable from a
@@ -1444,7 +1514,7 @@ where
                 break 'session;
             }
         }
-        for (kind, sec_type) in &full_subs_snapshot {
+        for (kind, sec_type, _refs) in &full_subs_snapshot {
             let req_id = super::wire_req_id(next_req_id.fetch_add(1, Ordering::Relaxed));
             let payload = protocol::build_full_type_subscribe_payload(req_id, *sec_type);
             let code = kind.subscribe_code();
@@ -2941,8 +3011,8 @@ mod tests {
         let accepted = Contract::stock("BBBB");
 
         let active_subs: ActiveSubs = Arc::new(Mutex::new(vec![
-            (SubscriptionKind::Trade, rejected.clone()),
-            (SubscriptionKind::Trade, accepted.clone()),
+            (SubscriptionKind::Trade, rejected.clone(), 1),
+            (SubscriptionKind::Trade, accepted.clone(), 1),
         ]));
         let active_full_subs: ActiveFullSubs = Arc::new(Mutex::new(Vec::new()));
 
@@ -2981,11 +3051,11 @@ mod tests {
 
         let tracked = active_subs.lock().unwrap().clone();
         assert!(
-            !tracked.iter().any(|(_, c)| *c == rejected),
+            !tracked.iter().any(|(_, c, _)| *c == rejected),
             "a rejected subscription must be removed from active_subs"
         );
         assert!(
-            tracked.iter().any(|(_, c)| *c == accepted),
+            tracked.iter().any(|(_, c, _)| *c == accepted),
             "an accepted subscription must remain tracked"
         );
 
@@ -2993,7 +3063,7 @@ mod tests {
         // is therefore not in the replay set and will not be re-attempted.
         let replay_snapshot = active_subs.lock().unwrap().clone();
         assert!(
-            !replay_snapshot.iter().any(|(_, c)| *c == rejected),
+            !replay_snapshot.iter().any(|(_, c, _)| *c == rejected),
             "rejected subscription must not appear in the reconnect replay set"
         );
 
@@ -3016,6 +3086,7 @@ mod tests {
         let active_subs: ActiveSubs = Arc::new(Mutex::new(vec![(
             SubscriptionKind::Trade,
             contract.clone(),
+            1,
         )]));
         let active_full_subs: ActiveFullSubs = Arc::new(Mutex::new(Vec::new()));
         let pending_subs: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
@@ -3044,8 +3115,11 @@ mod tests {
         use std::collections::HashMap;
 
         let active_subs: ActiveSubs = Arc::new(Mutex::new(Vec::new()));
-        let active_full_subs: ActiveFullSubs =
-            Arc::new(Mutex::new(vec![(SubscriptionKind::Trade, SecType::Option)]));
+        let active_full_subs: ActiveFullSubs = Arc::new(Mutex::new(vec![(
+            SubscriptionKind::Trade,
+            SecType::Option,
+            1,
+        )]));
         let pending_subs: PendingSubs = Arc::new(Mutex::new(HashMap::new()));
         pending_subs.lock().unwrap().insert(
             7,
