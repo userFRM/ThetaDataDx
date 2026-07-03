@@ -2264,7 +2264,9 @@ mod tests {
     fn validate_trims_historical_host() {
         let mut config = DirectConfig::production_defaults();
         config.historical.host = "  data.example  ".to_string();
-        let config = config.validate().expect("a padded host trims and validates");
+        let config = config
+            .validate()
+            .expect("a padded host trims and validates");
         assert_eq!(config.historical.host, "data.example");
     }
 
