@@ -24,19 +24,20 @@
     ///
     /// The stream open phase and the per-chunk drain are wrapped in a
     /// retry loop bounded by [`crate::config::RetryPolicy::max_attempts`].
-    /// Transient gRPC statuses (`Unavailable`, `DeadlineExceeded`,
-    /// `ResourceExhausted`) and mid-stream `Unauthenticated` (which
-    /// implies a session-token expiry the upstream just observed) trigger
-    /// a restart. On `Unauthenticated` the session is refreshed at most
-    /// once per call before the next attempt; a second `Unauthenticated`
-    /// surfaces as a terminal error.
-    ///
     /// Upstream MDDS does not support mid-stream resume, so a restart
-    /// re-runs the request from chunk zero. The supplied `handler` will
-    /// see any chunks it already received on the failed attempt a second
-    /// time on the successful attempt — keep it idempotent (e.g. append
-    /// into a fresh accumulator owned per-call, not into shared state
-    /// accumulated across calls).
+    /// re-runs the request from chunk zero and is only safe while no
+    /// chunk has yet reached `handler`. A transient gRPC status
+    /// (`Unavailable`, `DeadlineExceeded`, `ResourceExhausted`) or a
+    /// mid-stream `Unauthenticated` (a session-token expiry the upstream
+    /// just observed) that arrives BEFORE the first chunk retries
+    /// transparently; on `Unauthenticated` the session is refreshed at
+    /// most once per call first, and a second `Unauthenticated` surfaces
+    /// as a terminal error.
+    ///
+    /// Once any chunk has been delivered to `handler`, a later transient
+    /// or `Unauthenticated` is terminal: the error is surfaced without a
+    /// restart, so `handler` never sees a chunk twice and no duplicate
+    /// rows reach a buffered caller.
     ///
     /// Decode and decompress failures are terminal and surfaced
     /// immediately without retry.
