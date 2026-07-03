@@ -29,7 +29,7 @@ mod streaming_batches;
 // own `use` declarations.
 use async_runtime::spawn_awaitable;
 use coerce::{PyDateArg, PyStringArg, PySymbols, PyTimeArg};
-use errors::{config_err, to_py_err};
+use errors::{config_err, to_py_err, InvalidParameterError};
 
 /// Shared tokio runtime for running async Rust from sync Python.
 ///
@@ -342,7 +342,7 @@ impl Config {
             "manual" => config::ReconnectPolicy::Manual,
             "auto" => config::ReconnectPolicy::Auto(config::ReconnectAttemptLimits::default()),
             other => {
-                return Err(PyValueError::new_err(format!(
+                return Err(InvalidParameterError::new_err(format!(
                     "unknown reconnect_policy: {other:?} (expected \"auto\" or \"manual\")"
                 )))
             }
@@ -641,7 +641,7 @@ fn resolve_credentials(
 /// `historical_type` (`"PROD"` / `"STAGE"`, case-insensitive) selects the
 /// historical channel and `streaming_type` (`"PROD"` / `"DEV"`,
 /// case-insensitive) the streaming channel. Either absent keeps that
-/// channel on production. An unrecognized value raises ``ValueError``
+/// channel on production. An unrecognized value raises ``InvalidParameterError``
 /// naming the valid set, never a silent fallback.
 fn resolve_direct_config(
     config: Option<&Config>,
@@ -657,7 +657,7 @@ fn resolve_direct_config(
     let mut direct = config::DirectConfig::production();
     if let Some(raw) = historical_type {
         let environment = config::HistoricalEnvironment::parse(raw).ok_or_else(|| {
-            config_err(format!(
+            InvalidParameterError::new_err(format!(
                 "historical_type must be \"PROD\" or \"STAGE\" (case-insensitive); got {raw:?}"
             ))
         })?;
@@ -665,7 +665,7 @@ fn resolve_direct_config(
     }
     if let Some(raw) = streaming_type {
         let environment = config::StreamingEnvironment::parse(raw).ok_or_else(|| {
-            config_err(format!(
+            InvalidParameterError::new_err(format!(
                 "streaming_type must be \"PROD\" or \"DEV\" (case-insensitive); got {raw:?}"
             ))
         })?;
@@ -1075,9 +1075,9 @@ impl Client {
     }
 
     /// Async context-manager exit: closes the client. The blocking stop + drain
-    /// runs on the tokio blocking pool (via ``spawn_blocking``), never inline on
-    /// the event-loop thread, so a callback that round-trips through the loop
-    /// cannot wedge the teardown into its full drain timeout. Resolves to
+    /// runs on a blocking worker, never inline on the event-loop thread, so a
+    /// callback that round-trips through the loop cannot wedge the teardown
+    /// into its full drain timeout. Resolves to
     /// ``False`` so an exception in the ``async with`` body is not swallowed.
     #[pyo3(signature = (_exc_type=None, _exc_value=None, _traceback=None))]
     fn __aexit__<'py>(
@@ -1722,9 +1722,8 @@ impl AsyncClient {
 
     /// Deterministically close the async client — stops streaming if live,
     /// drains the consumer, and releases the callback. Awaitable: the blocking
-    /// stop + drain runs on the tokio blocking pool (via ``spawn_blocking``),
-    /// never inline on the event-loop thread, so awaiting ``close()`` never
-    /// parks the loop for the drain. Prefer
+    /// stop + drain runs on a blocking worker, never inline on the event-loop
+    /// thread, so awaiting ``close()`` never parks the loop for the drain. Prefer
     /// ``async with await AsyncClient.connect(...) as c:`` so this runs on exit.
     fn close<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let inner = self.inner.clone_ref(py);
@@ -1745,9 +1744,9 @@ impl AsyncClient {
     }
 
     /// Async context-manager exit: closes the client. The blocking stop + drain
-    /// runs on the tokio blocking pool (via ``spawn_blocking``), never inline on
-    /// the event-loop thread. Resolves to ``False`` so an exception raised in the
-    /// ``async with`` body is not swallowed.
+    /// runs on a blocking worker, never inline on the event-loop thread.
+    /// Resolves to ``False`` so an exception raised in the ``async with`` body
+    /// is not swallowed.
     #[pyo3(signature = (_exc_type=None, _exc_value=None, _traceback=None))]
     fn __aexit__<'py>(
         &self,

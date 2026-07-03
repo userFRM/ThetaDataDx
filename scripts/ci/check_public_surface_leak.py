@@ -63,7 +63,7 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 # Globs describing the *shipped* user-facing surface, relative to the
 # repo root. These are the files a user actually receives: the published
 # C/C++ headers (every file under the public include dir ships via the
-# CMake PUBLIC include path), the typed Python package, and the four
+# CMake PUBLIC include path), the typed Python package, and the five
 # distributed TypeScript files named in the npm package `files` field.
 SCAN_GLOBS = (
     "thetadatadx-cpp/include/*.h",
@@ -73,15 +73,18 @@ SCAN_GLOBS = (
     "thetadatadx-py/python/thetadatadx/**/*.pyi",
     "thetadatadx-ts/index.d.ts",
     "thetadatadx-ts/index.js",
+    "thetadatadx-ts/record_batch_forwarder.js",
     "thetadatadx-ts/streaming-session.d.ts",
     "thetadatadx-ts/streaming-session.js",
     # Per-SDK READMEs ship verbatim as the package long-description: the
-    # Python README becomes the PyPI page (`pyproject.toml` `readme =
+    # Rust README becomes the crates.io long description, the Python
+    # README becomes the PyPI page (`pyproject.toml` `readme =
     # "README.md"`), the TypeScript README is packed into the npm tarball
     # (npm always includes `README.md`), and the C++ README ships with the
     # source SDK. They are as user-facing as the headers and stubs, so an
     # internal-name leak in any of them reaches every reader of the
     # package page.
+    "thetadatadx-rs/README.md",
     "thetadatadx-py/README.md",
     "thetadatadx-ts/README.md",
     "thetadatadx-cpp/README.md",
@@ -242,8 +245,8 @@ def _scan(root: pathlib.Path) -> list[tuple[pathlib.Path, int, str, str]]:
     for path in _iter_files(root):
         rel = path.relative_to(root)
         try:
-            text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
             continue
         for lineno, line in enumerate(text.splitlines(), start=1):
             for token in _scan_line(line):
@@ -273,10 +276,12 @@ def _selftest() -> int:
       shipped `thetadatadx-cpp/include/*.h` is the canonical bypass this closes.
       (`worker pool` is intentionally absent — see the FORBIDDEN_PATTERNS
       note; worker-thread vocabulary is adjudicated public surface.)
-    * A shipped README (`thetadatadx-py/README.md`) naming an internal
+    * A shipped README (`thetadatadx-rs/README.md`) naming an internal
       runtime crate — must be flagged, proving the per-package README is in
-      the scan set (the PyPI / npm long-description leak that previously
+      the scan set (the crates.io / PyPI / npm long-description leak that previously
       went unscanned).
+    * The fifth shipped TypeScript file (`record_batch_forwarder.js`) naming an
+      internal runtime crate — must be flagged.
     """
     import tempfile
 
@@ -328,9 +333,13 @@ def _selftest() -> int:
         "/* swapped atomically in a StateCell */\n"
     )
     leaky_readme = (
-        "# thetadatadx (Python)\n"
+        "# thetadatadx (Rust)\n"
         "\n"
         "Ticks are decoded on a tokio runtime and handed to Python.\n"
+    )
+    leaky_ts_helper = (
+        "// Batch bridge\n"
+        "// Batches are decoded on a tokio runtime.\n"
     )
 
     with tempfile.TemporaryDirectory() as td:
@@ -356,9 +365,13 @@ def _selftest() -> int:
         extended.parent.mkdir(parents=True, exist_ok=True)
         extended.write_text(extended_deny_variants, encoding="utf-8")
 
-        readme = root / "thetadatadx-py" / "README.md"
+        readme = root / "thetadatadx-rs" / "README.md"
         readme.parent.mkdir(parents=True, exist_ok=True)
         readme.write_text(leaky_readme, encoding="utf-8")
+
+        ts_helper = root / "thetadatadx-ts" / "record_batch_forwarder.js"
+        ts_helper.parent.mkdir(parents=True, exist_ok=True)
+        ts_helper.write_text(leaky_ts_helper, encoding="utf-8")
 
         # A test file naming internals must be ignored even though it
         # lives under the SDK tree — proves the exclusion works.
@@ -446,6 +459,12 @@ def _selftest() -> int:
             print(
                 "selftest FAILED: the impl-IP leak in the shipped "
                 "per-package README long-description was not flagged"
+            )
+            return 1
+        if not any(rel.name == "record_batch_forwarder.js" for (rel, _, _, _) in hits):
+            print(
+                "selftest FAILED: the impl-IP leak in the shipped "
+                "TypeScript helper was not flagged"
             )
             return 1
 

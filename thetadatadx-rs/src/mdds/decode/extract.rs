@@ -260,18 +260,20 @@ pub fn response_symbol(table: &proto::DataTable) -> ResponseSymbol {
             _ => None,
         }
     }
-    // A missing/non-Text first cell (a fully absent constant value) keeps the
-    // broadcast-absent shape rather than fabricating a per-row column.
-    let Some(first) = cell(&table.data_table[0], col_idx) else {
-        return ResponseSymbol::Absent;
-    };
-    if table.data_table[1..]
+    let first = cell(&table.data_table[0], col_idx);
+    if table
+        .data_table
         .iter()
-        .all(|row| cell(row, col_idx) == Some(first))
+        .all(|row| cell(row, col_idx) == first)
     {
-        // Constant: box the single value once, not per row — a ~1M-row
-        // response would otherwise pay ~1M heap allocations.
-        return ResponseSymbol::Constant(first.into());
+        return match first {
+            Some(first) => {
+                // Constant: box the single value once, not per row — a ~1M-row
+                // response would otherwise pay ~1M heap allocations.
+                ResponseSymbol::Constant(first.into())
+            }
+            None => ResponseSymbol::Absent,
+        };
     }
     // Varying: one value per row so each row is attributable. A non-`Text`
     // cell yields `""` for that row (the per-column projection nulls it too).
@@ -481,6 +483,32 @@ mod tests {
             response_symbol(&table),
             ResponseSymbol::PerRow(vec!["AAPL".into(), "MSFT".into(), "SPY".into()]),
             "a per-row-varying symbol must carry one value per row",
+        );
+    }
+
+    #[test]
+    fn response_symbol_null_first_cell_keeps_later_per_row_values() {
+        let table = proto::DataTable {
+            headers: vec!["symbol".to_string()],
+            data_table: vec![
+                proto::DataValueList {
+                    values: vec![proto::DataValue { data_type: None }],
+                },
+                proto::DataValueList {
+                    values: vec![proto::DataValue {
+                        data_type: Some(proto::data_value::DataType::Text("MSFT".into())),
+                    }],
+                },
+                proto::DataValueList {
+                    values: vec![proto::DataValue {
+                        data_type: Some(proto::data_value::DataType::Text("SPY".into())),
+                    }],
+                },
+            ],
+        };
+        assert_eq!(
+            response_symbol(&table),
+            ResponseSymbol::PerRow(vec!["".into(), "MSFT".into(), "SPY".into()])
         );
     }
 

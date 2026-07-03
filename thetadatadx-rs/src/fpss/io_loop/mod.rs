@@ -899,9 +899,12 @@ where
                         // An unknown-code frame was consumed to stay aligned.
                         // Publish nothing and, deliberately, do NOT advance
                         // `last_frame_at`: an unknown frame is not a data frame,
-                        // so a run of them must not extend the stall/liveness
-                        // window (the read-timeout arm above still fires off the
-                        // last real frame). Fall through to Phase 2 rather than
+                        // so it is not treated as proof of data-plane liveness.
+                        // A fast endless unknown-frame stream can keep each
+                        // short read returning before its per-read timeout; the
+                        // practical value here is that sparse unknowns do not
+                        // refresh the last-real-frame clock. Fall through to
+                        // Phase 2 rather than
                         // `continue`-ing, so queued commands (subscribes, pings)
                         // are still drained during an unknown-frame burst instead
                         // of being starved until the next real frame; the 'inner

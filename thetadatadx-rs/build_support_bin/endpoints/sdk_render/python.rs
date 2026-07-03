@@ -260,7 +260,6 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
     } else {
         builder_params(endpoint)
     };
-    let is_streaming_kind = endpoint.kind == "stream";
     let is_snapshot = is_snapshot_endpoint(endpoint);
     let snapshot_plain_list = snapshot_returns_plain_pylist(endpoint);
     let mut out = String::new();
@@ -403,25 +402,6 @@ fn render_python_endpoint_sync(endpoint: &GeneratedEndpoint) -> String {
         "            request = request.with_deadline(std::time::Duration::from_millis(ms));\n",
     );
     out.push_str("        }\n");
-    if is_streaming_kind {
-        out.push_str(include_str!("templates/python/streaming_dispatch.py.tmpl"));
-        // The streaming collect drains per-chunk slices and keeps no header
-        // list, so the wrapped `Ticks` carries the full-schema column set.
-        writeln!(
-            out,
-            "        let ticks = thetadatadx::Ticks::new(ticks, <tick::{} as thetadatadx::WireColumns>::all_columns());",
-            python_pyclass_row_class(&endpoint.return_type)
-        )
-        .unwrap();
-        writeln!(
-            out,
-            "        {}(py, ticks)",
-            python_pyclass_list_converter(&endpoint.return_type)
-        )
-        .unwrap();
-        out.push_str("    }\n");
-        return out;
-    }
     if is_snapshot {
         // Snapshot wait fast-path: bounded-timeout future on the shared
         // runtime, no signal-check polling ticker. Plain-list snapshots keep
@@ -470,7 +450,6 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
     } else {
         builder_params(endpoint)
     };
-    let is_streaming_kind = endpoint.kind == "stream";
     let snapshot_plain_list = snapshot_returns_plain_pylist(endpoint);
     let mut out = String::new();
 
@@ -624,26 +603,7 @@ fn render_python_endpoint_async(endpoint: &GeneratedEndpoint) -> String {
         "                request = request.with_deadline(std::time::Duration::from_millis(ms));\n",
     );
     out.push_str("            }\n");
-    if is_streaming_kind {
-        // Async streaming endpoints collect the full stream into a Vec<T>
-        // inside the future body; `spawn_awaitable` then runs `convert`
-        // with the GIL held. The inner `?` on `request.stream(...).await`
-        // propagates `thetadatadx::Error` unchanged into the helper. The
-        // collect keeps no header list, so the wrapped `Ticks` carries the
-        // full-schema column set.
-        out.push_str("            let mut collected = Vec::new();\n");
-        out.push_str(
-            "            request.stream(|chunk| collected.extend_from_slice(chunk)).await?;\n",
-        );
-        writeln!(
-            out,
-            "            Ok::<_, thetadatadx::Error>(thetadatadx::Ticks::new(collected, <tick::{} as thetadatadx::WireColumns>::all_columns()))",
-            python_pyclass_row_class(&endpoint.return_type)
-        )
-        .unwrap();
-    } else {
-        out.push_str("            request.await\n");
-    }
+    out.push_str("            request.await\n");
     // Convert back on the Python thread with GIL held. Plain-list snapshots
     // use the low-allocation pylist materialiser; multi-symbol snapshots and
     // parsed list endpoints keep the wrapper so callers can chain
@@ -744,12 +704,7 @@ fn render_python_endpoint_builder(endpoint: &GeneratedEndpoint) -> String {
     } else {
         builder_params(endpoint)
     };
-    let is_streaming_kind = endpoint.kind == "stream";
-    // Snapshot endpoints (≤10 rows) don't benefit from `.stream()`. The
-    // 4 explicit `_stream` endpoints already collect via `for_each_chunk`
-    // for their `.list()` path; layering a chunk callback on top of
-    // that would re-buffer. The flag is read by `render_python_endpoint_builder`
-    // below to skip emitting the streaming terminal on those subsets.
+    // Snapshot endpoints (bounded rows) don't benefit from `.stream()`.
     let is_snapshot = is_snapshot_endpoint(endpoint);
     let mut out = String::new();
 
@@ -909,7 +864,6 @@ fn render_python_endpoint_builder(endpoint: &GeneratedEndpoint) -> String {
         endpoint,
         &method_params,
         &builder_params,
-        is_streaming_kind,
         "        ",
     );
     writeln!(
@@ -933,19 +887,16 @@ fn render_python_endpoint_builder(endpoint: &GeneratedEndpoint) -> String {
         endpoint,
         &method_params,
         &builder_params,
-        is_streaming_kind,
         "        ",
     );
     out.push_str("    }\n\n");
 
-    // Streaming terminal. Skip for snapshot endpoints (≤10
-    // rows, streaming is pointless) and for the explicit `_stream`
-    // builders (they already use `for_each_chunk` for their `.list()`
-    // path; layering another stream on top would re-buffer). Every
+    // Streaming terminal. Skip for snapshot endpoints (bounded rows).
+    // Every
     // other historical parsed endpoint gets `.stream(handler)` and
     // `.stream_async(handler)` — the handler receives one Python list
     // of typed tick instances per gRPC chunk, never the full Vec.
-    if !is_snapshot && !is_streaming_kind {
+    if !is_snapshot {
         write_sync_stream_terminal(&mut out, endpoint, &method_params, &builder_params);
         out.push('\n');
         write_async_stream_terminal(&mut out, endpoint, &method_params, &builder_params);
@@ -1000,23 +951,14 @@ fn write_sync_stream_terminal(
     out.push_str("        let cb_err_for_closure = std::sync::Arc::clone(&callback_error);\n");
     out.push_str("        let stream_result = run_blocking(py, async move {\n");
     write_stream_request_setup(out, endpoint, method_params, builder_params, "            ");
-    out.push_str("            request.stream(|chunk| {\n");
+    out.push_str("            request.stream_ticks(|chunk| {\n");
     out.push_str("                if cb_err_for_closure.lock().unwrap().is_some() {\n");
     out.push_str("                    return;\n");
     out.push_str("                }\n");
     out.push_str("                Python::attach(|py| {\n");
-    out.push_str("                    let owned: Vec<_> = chunk.to_vec();\n");
-    // Per-chunk handler gets a plain pylist of rows; the chunk carries no
-    // header list, so wrap with the full-schema column set.
     writeln!(
         out,
-        "                    let owned = thetadatadx::Ticks::new(owned, <tick::{} as thetadatadx::WireColumns>::all_columns());",
-        python_pyclass_row_class(&endpoint.return_type)
-    )
-    .unwrap();
-    writeln!(
-        out,
-        "                    let py_list = match {}(py, owned) {{",
+        "                    let py_list = match {}(py, chunk) {{",
         pylist_converter
     )
     .unwrap();
@@ -1092,7 +1034,7 @@ fn write_async_stream_terminal(
     out.push_str("        let cb_err_for_convert = std::sync::Arc::clone(&callback_error);\n");
     out.push_str("        spawn_awaitable(py, async move {\n");
     write_stream_request_setup(out, endpoint, method_params, builder_params, "            ");
-    out.push_str("            Ok::<_, thetadatadx::Error>(request.stream_async(|chunk| {\n");
+    out.push_str("            Ok::<_, thetadatadx::Error>(request.stream_ticks_async(|chunk| {\n");
     out.push_str("                // Copy the chunk out synchronously so nothing borrowed\n");
     out.push_str("                // is held across the await, then run the GIL-bound\n");
     out.push_str("                // handler on the blocking pool: a slow handler parks a\n");
@@ -1100,21 +1042,13 @@ fn write_async_stream_terminal(
     out.push_str("                // in-flight historical calls. The handler Py<PyAny> is\n");
     out.push_str("                // Arc'd once (Send + Sync); we clone the Arc per chunk\n");
     out.push_str("                // (no GIL needed), never clone_ref.\n");
-    // Short-circuit the per-chunk copy synchronously once a handler has
-    // errored: handlers run one-at-a-time (awaited in-line), so a post-error
-    // drain must not pay a `to_vec` per chunk the sync path skips. The
-    // per-chunk handler gets a plain pylist of rows; the chunk carries no
-    // header list, so wrap with the full-schema column set.
+    // Short-circuit synchronously once a handler has errored: handlers run
+    // one-at-a-time (awaited in-line), so a post-error drain skips both the
+    // handler and any Python conversion work.
     out.push_str("                let owned = if cb_err_for_closure.lock().unwrap().is_some() {\n");
     out.push_str("                    None\n");
     out.push_str("                } else {\n");
-    out.push_str("                    let owned: Vec<_> = chunk.to_vec();\n");
-    writeln!(
-        out,
-        "                    Some(thetadatadx::Ticks::new(owned, <tick::{} as thetadatadx::WireColumns>::all_columns()))",
-        python_pyclass_row_class(&endpoint.return_type)
-    )
-    .unwrap();
+    out.push_str("                    Some(chunk)\n");
     out.push_str("                };\n");
     out.push_str(
         "                let handler_for_task = std::sync::Arc::clone(&handler_for_closure);\n",
@@ -1478,7 +1412,6 @@ fn write_sync_parsed_dispatch(
     endpoint: &GeneratedEndpoint,
     method_params: &[&GeneratedParam],
     builder_params: &[&GeneratedParam],
-    is_streaming_kind: bool,
     indent: &str,
 ) {
     let has_symbols = method_params
@@ -1508,11 +1441,7 @@ fn write_sync_parsed_dispatch(
         .unwrap();
     }
     writeln!(out, "{indent}let timeout_ms = self.timeout_ms;").unwrap();
-    if is_streaming_kind {
-        writeln!(out, "{indent}let ticks = runtime().block_on(async move {{").unwrap();
-    } else {
-        writeln!(out, "{indent}let ticks = run_blocking(py, async move {{").unwrap();
-    }
+    writeln!(out, "{indent}let ticks = run_blocking(py, async move {{").unwrap();
     if has_symbols {
         writeln!(
             out,
@@ -1555,26 +1484,8 @@ fn write_sync_parsed_dispatch(
     )
     .unwrap();
     writeln!(out, "{indent}    }}").unwrap();
-    if is_streaming_kind {
-        writeln!(out, "{indent}    let mut collected = Vec::new();").unwrap();
-        writeln!(
-            out,
-            "{indent}    request.stream(|chunk| collected.extend_from_slice(chunk)).await.map_err(to_py_err)?;"
-        )
-        .unwrap();
-        // The streaming collect keeps no header list; wrap with the
-        // full-schema column set so the `<Tick>List` terminals still work.
-        writeln!(
-            out,
-            "{indent}    Ok::<_, PyErr>(thetadatadx::Ticks::new(collected, <tick::{} as thetadatadx::WireColumns>::all_columns()))",
-            python_pyclass_row_class(&endpoint.return_type)
-        )
-        .unwrap();
-        writeln!(out, "{indent}}})?;").unwrap();
-    } else {
-        writeln!(out, "{indent}    request.await").unwrap();
-        writeln!(out, "{indent}}})?;").unwrap();
-    }
+    writeln!(out, "{indent}    request.await").unwrap();
+    writeln!(out, "{indent}}})?;").unwrap();
 }
 
 /// Stored-value-to-setter-arg converter for the builder pyclass dispatch.
@@ -1606,7 +1517,6 @@ fn write_async_parsed_dispatch(
     endpoint: &GeneratedEndpoint,
     method_params: &[&GeneratedParam],
     builder_params: &[&GeneratedParam],
-    is_streaming_kind: bool,
     indent: &str,
 ) {
     writeln!(out, "{indent}let client = self.client.clone();").unwrap();
@@ -1682,25 +1592,7 @@ fn write_async_parsed_dispatch(
     )
     .unwrap();
     writeln!(out, "{indent}    }}").unwrap();
-    if is_streaming_kind {
-        // Streaming builders: collect the full stream in the future and let
-        // `spawn_awaitable` wrap the error + convert under the GIL. The
-        // collect keeps no header list; wrap with the full-schema column set.
-        writeln!(out, "{indent}    let mut collected = Vec::new();").unwrap();
-        writeln!(
-            out,
-            "{indent}    request.stream(|chunk| collected.extend_from_slice(chunk)).await?;"
-        )
-        .unwrap();
-        writeln!(
-            out,
-            "{indent}    Ok::<_, thetadatadx::Error>(thetadatadx::Ticks::new(collected, <tick::{} as thetadatadx::WireColumns>::all_columns()))",
-            python_pyclass_row_class(&endpoint.return_type)
-        )
-        .unwrap();
-    } else {
-        writeln!(out, "{indent}    request.await").unwrap();
-    }
+    writeln!(out, "{indent}    request.await").unwrap();
     // Single terminal path — wrap the decoder-owned Ticks<T> in the typed
     // `<TickName>List` and coerce to `Py<PyAny>` for the helper signature.
     // The caller chains `.to_polars()` / etc. off the awaited value.

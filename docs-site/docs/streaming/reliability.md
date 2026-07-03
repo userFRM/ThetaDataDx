@@ -71,6 +71,6 @@ Incoming events are buffered between the connection and your callback. If your c
 | `millis_since_last_event()` | Milliseconds since the last inbound frame of any kind. Steady growth during market hours is the earliest sign of a dead connection. |
 | `last_event_received_at_unix_nanos()` | Timestamp of the most recent inbound frame. |
 | `last_connected_addr()` | The live server `host:port`, following the session across reconnects. |
-| `panic_count()` | Callback exceptions caught and isolated (your callback errors never kill the session — fix them, they cost events). |
+| `panic_count()` | Callback panics or binding-contained exceptions counted by the delivery boundary. In TypeScript, JavaScript exceptions follow Node's normal exception handling; fix callback failures, they cost events. |
 
 Every accessor exists on all four bindings under the language's naming convention (`ringOccupancy()` in TypeScript, `ring_occupancy()` elsewhere). The buffer capacity is configurable via `streaming_ring_size`; keep the callback fast and capacity rarely matters.

@@ -6,9 +6,10 @@ impl StreamView {
     ///
     /// Each typed streaming event is delivered to your
     /// `callback(event)` on the Node main thread, so the
-    /// callback may use any JS API safely. A callback that
-    /// panics or throws is isolated and does not interrupt
-    /// the stream.
+    /// callback may use any JS API safely. Rust-side delivery
+    /// panics are isolated and counted by `panicCount()`; a
+    /// JavaScript exception follows Node's normal exception
+    /// handling.
     ///
     /// Backpressure: a slow callback first fills a bounded
     /// delivery queue and then the event ring behind it, at

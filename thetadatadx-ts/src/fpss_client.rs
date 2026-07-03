@@ -603,10 +603,13 @@ impl StreamingClient {
             (taken, session)
         };
         if let Some(client) = taken_client {
-            prev_drained
+            let drained_flag = client.drained_flag();
+            let mut flags = prev_drained
                 .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .push(client.drained_flag());
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            flags.retain(|f| !f.load(Ordering::Acquire));
+            flags.push(drained_flag);
+            drop(flags);
             client.shutdown();
             drop(client);
             if let DispatcherSession::Running {
@@ -964,8 +967,9 @@ impl StreamingClient {
     ///
     /// Opens the streaming connection and begins delivering events. Each typed
     /// streaming event is delivered to your `callback(event)` on the Node main
-    /// thread, so the callback may use any JS API safely. A callback that
-    /// panics or throws is isolated and does not interrupt the stream.
+    /// thread, so the callback may use any JS API safely. Rust-side delivery
+    /// panics are isolated and counted by `panicCount()`; a JavaScript
+    /// exception follows Node's normal exception handling.
     ///
     /// Backpressure: a slow callback first fills a bounded delivery queue
     /// and then the event ring behind it, at which point the oldest events
@@ -1285,14 +1289,14 @@ impl StreamingClient {
             .clone();
         let drained = runtime()?
             .spawn_blocking(move || {
-                let deadline = Instant::now() + timeout;
+                let deadline = Instant::now().checked_add(timeout);
                 let mut pending = flags;
                 loop {
                     pending.retain(|f| !f.load(Ordering::Acquire));
                     if pending.is_empty() {
                         return true;
                     }
-                    if Instant::now() >= deadline {
+                    if deadline.is_some_and(|d| Instant::now() >= d) {
                         return false;
                     }
                     std::thread::sleep(Duration::from_millis(1));
@@ -1300,14 +1304,13 @@ impl StreamingClient {
             })
             .await
             .map_err(|e| napi::Error::from_reason(format!("await_drain task panicked: {e}")))?;
-        // Prune drained generations the poll observed so a later call does
-        // not re-wait on them.
-        if drained {
-            self.prev_drained
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .retain(|f| !f.load(Ordering::Acquire));
-        }
+        // Prune any completed generations the poll observed, even on timeout,
+        // so a long-lived client that rarely waits to full quiescence does not
+        // retain already-drained flags forever.
+        self.prev_drained
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .retain(|f| !f.load(Ordering::Acquire));
         Ok(drained)
     }
 }

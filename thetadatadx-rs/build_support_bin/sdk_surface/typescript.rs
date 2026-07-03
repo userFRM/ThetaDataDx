@@ -46,9 +46,10 @@ fn ts_streaming_method(method: &MethodSpec) -> String {
                  \n\
                  Each typed streaming event is delivered to your\n\
                  `callback(event)` on the Node main thread, so the\n\
-                 callback may use any JS API safely. A callback that\n\
-                 panics or throws is isolated and does not interrupt\n\
-                 the stream.\n\
+                 callback may use any JS API safely. Rust-side delivery\n\
+                 panics are isolated and counted by `panicCount()`; a\n\
+                 JavaScript exception follows Node's normal exception\n\
+                 handling.\n\
                  \n\
                  Backpressure: a slow callback first fills a bounded\n\
                  delivery queue and then the event ring behind it, at\n\

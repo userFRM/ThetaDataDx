@@ -61,6 +61,11 @@ GATES: dict[str, list[list[str]]] = {
         _ci("check_public_surface_leak", "--selftest")
         + _ci("check_public_surface_leak")
     ),
+    "client_facing_vocab": (
+        _ci("check_client_facing_vocab", "--selftest")
+        + _test("test_check_client_facing_vocab")
+        + _ci("check_client_facing_vocab")
+    ),
     "doc_defaults": (
         _ci("check_doc_defaults", "--selftest") + _ci("check_doc_defaults")
     ),

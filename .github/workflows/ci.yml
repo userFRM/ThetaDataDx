@@ -800,7 +800,7 @@ jobs:
 
           A local HTTP REST (port 25503) and WebSocket (port 25520) server that
           speaks the v3 route surface. It connects to the upstream data servers
-          directly; no JVM terminal is required.
+          directly; no separate terminal process is required.
 
           These binaries are not code-signed yet, so each operating system asks
           for a one-time confirmation the first time you run them.
@@ -917,6 +917,10 @@ jobs:
             local existing=""
 
             version=$(python3 -c 'import pathlib, sys, tomllib; data = tomllib.loads(pathlib.Path(sys.argv[1]).read_text()); print(data["package"]["version"])' "$manifest_path")
+            if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+              echo "::error::tag ${GITHUB_REF_NAME} does not match crate ${package} version ${version} (expected v${version})"
+              return 1
+            fi
 
             for attempt in {1..10}; do
               if cargo publish -p "$package" --locked; then

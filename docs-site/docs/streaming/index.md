@@ -31,8 +31,7 @@ use thetadatadx::streaming::Contract;
 use thetadatadx::streaming::{StreamData, StreamEvent};
 use thetadatadx::{Credentials, DirectConfig, Client};
 
-#[tokio::main]
-async fn main() -> Result<(), thetadatadx::Error> {
+async fn run() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
     let client = Client::connect(&creds, DirectConfig::production()).await?;
 
@@ -170,8 +169,7 @@ use thetadatadx::streaming::Contract;
 use thetadatadx::{Credentials, DirectConfig, Client};
 use futures::StreamExt;
 
-#[tokio::main]
-async fn main() -> Result<(), thetadatadx::Error> {
+async fn run() -> Result<(), thetadatadx::Error> {
     let creds = Credentials::from_file("creds.txt")?;
     let client = Client::connect(&creds, DirectConfig::production()).await?;
 

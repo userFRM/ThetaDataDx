@@ -75,6 +75,9 @@ impl TickChunkSink {
     /// Forward one chunk to the registered C callback. `rows` / `len` come
     /// straight from the decoder-owned slice (`chunk.as_ptr()` /
     /// `chunk.len()`), so there is no copy or re-marshaling on this path.
+    /// Empty chunks are skipped so the public contract remains
+    /// "empty result drains as zero callback invocations" and no caller ever
+    /// receives a non-null dangling pointer with `len == 0`.
     ///
     /// The core wraps this handler in a `Mutex` and may drive it from a
     /// runtime worker thread (see the type doc), not on the
@@ -87,6 +90,9 @@ impl TickChunkSink {
     /// or `longjmp` escaping it is undefined behavior) is documented on
     /// `ThetaDataDxTickChunkCallback`.
     fn emit(&self, rows: *const c_void, len: usize) {
+        if len == 0 {
+            return;
+        }
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             (self.callback)(rows, len, self.ctx);
         }));

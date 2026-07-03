@@ -925,13 +925,43 @@ def _ts_methods_for(class_name: str, ts_methods: dict[str, set[str]]) -> set[str
     return ts_methods.get(class_name, set())
 
 
-def _is_implicitly_tracked(name: str) -> bool:
+def _is_implicitly_tracked(name: str, lang: str) -> bool:
     if name.endswith("Tick") or name.endswith("TickList") or name.endswith("TickListIter"):
         return True
     if name.endswith("Builder"):
         return True
     if name.endswith("List") or name.endswith("ListIter"):
         return True
+    if name.endswith("WithColumns"):
+        return True
+    if lang == "typescript" and name.endswith("Options"):
+        return True
+    if lang == "typescript" and name in {
+        "OptionLeg",
+        "ReconnectDecisionArgs",
+        "RecordBatchStreamHandle",
+        "StreamEvent",
+        "Util",
+    }:
+        return True
+    if lang == "cpp":
+        if name.endswith("Deleter"):
+            return True
+        if name.startswith("Stream") and name != "Stream":
+            return True
+        if name in {
+            "CallbackSlot",
+            "CallbackState",
+            "ColumnPresence",
+            "FfiArrayGuard",
+            "FfiString",
+            "FlatFileRowListDeleter",
+            "FullSubscription",
+            "OptionLeg",
+            "Span",
+            "SubscriptionRef",
+        }:
+            return True
     if name in {
         "Quote",
         "Trade",
@@ -959,6 +989,58 @@ def _is_implicitly_tracked(name: str) -> bool:
     }:
         return True
     return False
+
+
+def _declared_class_names_for_binding(rows: list[dict[str, Any]], lang: str) -> set[str]:
+    """Class names that a binding may expose without being an orphan.
+
+    `parity.toml` rows use canonical class names. Some bindings publish an
+    idiomatic alias for that canonical row (`PyContract`, `ContractRef`,
+    `FlatFiles`), so the reverse-orphan scan must compare each binding against
+    both the canonical row names and the binding-specific names the forward
+    class check resolves.
+    """
+    names = {row["name"] for row in rows if "." not in row["name"]}
+    if lang == "python":
+        return names | {_py_class_for(name) for name in names}
+    if lang == "typescript":
+        return names | {_ts_class_for(name) for name in names}
+    if lang == "cpp":
+        return names | {_cpp_class_for(name) for name in names}
+    raise ValueError(f"unknown binding language: {lang}")
+
+
+def _check_binding_class_orphans(
+    rows: list[dict[str, Any]],
+    py_classes: set[str],
+    ts_declared_classes: set[str],
+    ts_declared_interfaces: set[str],
+    cpp_classes: set[str],
+) -> list[str]:
+    """Reverse-direction class enrollment across all bindings.
+
+    Every first-class binding class must either have a non-dotted `[[class]]`
+    row or match one of the mechanical implicit patterns (generated tick
+    wrappers, builders, event payloads). This closes the Python-anchored blind
+    spot where a TypeScript-only or C++-only class could ship untracked because
+    the catch-all only walked `py_classes`.
+    """
+    errors: list[str] = []
+    binding_sets = (
+        ("python", py_classes),
+        ("typescript", ts_declared_classes | ts_declared_interfaces),
+        ("cpp", cpp_classes),
+    )
+    for lang, classes in binding_sets:
+        declared = _declared_class_names_for_binding(rows, lang)
+        for name in sorted(classes):
+            if name in declared or _is_implicitly_tracked(name, lang):
+                continue
+            errors.append(
+                f"  {lang}.{name}: binding class has no non-dotted "
+                "`[[class]]` parity row and matches no implicit pattern"
+            )
+    return errors
 
 
 # ─── Field-level discovery (per-setter granularity / #595) ──────────
@@ -7740,15 +7822,23 @@ def _sig_check_method_signatures(
                 f"`name`: {row!r}"
             )
             continue
+        if not isinstance(signature, dict):
+            errors.append(
+                f"  {class_name}.{camel}: `[method.signature]` must be a table, "
+                f"got {type(signature).__name__}."
+            )
+            continue
         snake = _camel_to_snake(camel)
         label = f"{class_name}.{camel}"
         override = METHOD_BINDING_OVERRIDES.get((class_name, camel))
+        pinned_any = False
 
         # Resolve each enrolled binding's (class/member) the same way the
         # forward presence check does, then extract + compare its signature.
         if row.get("python"):
             spec = _sig_spec_for(signature, "python")
             if spec is not None:
+                pinned_any = True
                 py_cls, py_member = (
                     override["python"] if override and "python" in override
                     else (_py_class_for(class_name), snake)
@@ -7769,6 +7859,7 @@ def _sig_check_method_signatures(
             # return annotation.
             spec_pyi = _sig_spec_for(signature, "python_pyi")
             if spec_pyi is not None and (class_name, camel) not in PYI_SETTER_PROPERTY_ROWS:
+                pinned_any = True
                 pyi_cls, pyi_member = (
                     override["python"] if override and "python" in override
                     else (class_name, snake)
@@ -7796,11 +7887,13 @@ def _sig_check_method_signatures(
             )
             spec_napi = _sig_spec_for(signature, "ts_napi")
             if spec_napi is not None:
+                pinned_any = True
                 errors += _sig_compare_one(
                     label, spec_napi, _sig_extract_ts_napi(ts_src, ts_cls, ts_member), "ts_napi"
                 )
             spec_dts = _sig_spec_for(signature, "ts_dts")
             if spec_dts is not None:
+                pinned_any = True
                 actual_dts = _sig_extract_ts_dts(ts_dts, ts_cls, ts_member)
                 if actual_dts is not None:
                     errors += _sig_compare_one(label, spec_dts, actual_dts, "ts_dts")
@@ -7837,6 +7930,7 @@ def _sig_check_method_signatures(
         if row.get("cpp"):
             spec = _sig_spec_for(signature, "cpp")
             if spec is not None:
+                pinned_any = True
                 cpp_cls, cpp_member = (
                     override["cpp"] if override and "cpp" in override
                     else (_cpp_class_for(class_name), snake)
@@ -7847,6 +7941,7 @@ def _sig_check_method_signatures(
         if row.get("rust"):
             spec = _sig_spec_for(signature, "rust")
             if spec is not None:
+                pinned_any = True
                 if override and "rust" in override:
                     rust_cls, rust_member = override["rust"]
                 elif class_name in RUST_METHOD_CLASS:
@@ -7861,9 +7956,16 @@ def _sig_check_method_signatures(
         if ffi_symbol:
             spec = _sig_spec_for(signature, "ffi")
             if spec is not None:
+                pinned_any = True
                 errors += _sig_compare_one(
                     label, spec, _sig_extract_ffi(ffi_src, ffi_symbol), "ffi"
                 )
+        if not pinned_any:
+            errors.append(
+                f"  {label}: `[method.signature]` table does not pin any "
+                f"enrolled binding; add `params`/`returns` (or a lang-specific "
+                f"override) or remove the empty table."
+            )
     return errors
 
 
@@ -8274,13 +8376,16 @@ def main(argv: list[str] | None = None) -> int:
         ENDPOINT_REQUEST_OPTIONS_RS,
     )
 
-    # Catch-all: every Python pyclass must be either tracked
-    # explicitly or via the implicit pattern (mechanical parity).
-    untracked: set[str] = {
-        name
-        for name in py_classes
-        if name not in declared_names and not _is_implicitly_tracked(name)
-    }
+    # Catch-all: every binding class must be either tracked explicitly or via
+    # the implicit pattern (mechanical parity). This is intentionally
+    # cross-binding, not Python-anchored.
+    untracked_class_errors = _check_binding_class_orphans(
+        rows,
+        py_classes,
+        ts_declared_classes,
+        ts_declared_interfaces,
+        cpp_classes,
+    )
 
     had_errors = False
     if class_mismatches:
@@ -8561,14 +8666,14 @@ def main(argv: list[str] | None = None) -> int:
             print(e)
         print()
 
-    if untracked:
+    if untracked_class_errors:
         had_errors = True
         print(
-            f"check_binding_parity: {len(untracked)} pyclass(es) lack a "
-            "parity row AND do not match any implicit pattern:"
+            f"check_binding_parity: {len(untracked_class_errors)} binding "
+            "class(es) lack a parity row AND do not match any implicit pattern:"
         )
-        for name in sorted(untracked):
-            print(f"  {name}")
+        for e in untracked_class_errors:
+            print(e)
         print()
 
     if had_errors:
@@ -9729,6 +9834,80 @@ def _run_selftest() -> int:
     _case("ts entry - resolves from package.json + follows re-exports", _case_ts_entry_resolves_from_package_json)
     _case("ts entry - falls back to index.* when keys absent", _case_ts_entry_falls_back_to_index)
     _case("ts entry - wrapper Client augmentation harvested", _case_ts_wrapper_augmentation_method_seen)
+
+    def _case_binding_class_orphan_ts_only_trips() -> None:
+        """A TypeScript-only declared class with no row is an orphan."""
+        rows = [{"name": "Client", "python": True, "typescript": True, "cpp": True}]
+        errors = _check_binding_class_orphans(
+            rows,
+            {"Client"},
+            {"Client", "UndeclaredTs"},
+            set(),
+            {"Client"},
+        )
+        assert any("typescript.UndeclaredTs" in e for e in errors), (
+            f"TS-only class must trip the class-orphan scan; got {errors!r}"
+        )
+
+    def _case_binding_class_orphan_cpp_only_trips() -> None:
+        """A C++-only class with no row is an orphan."""
+        rows = [{"name": "Client", "python": True, "typescript": True, "cpp": True}]
+        errors = _check_binding_class_orphans(
+            rows,
+            {"Client"},
+            {"Client"},
+            set(),
+            {"Client", "UndeclaredCpp"},
+        )
+        assert any("cpp.UndeclaredCpp" in e for e in errors), (
+            f"C++-only class must trip the class-orphan scan; got {errors!r}"
+        )
+
+    def _case_binding_class_orphan_aliases_silent() -> None:
+        """Binding-specific class aliases are satisfied by the canonical row."""
+        rows = [
+            {"name": "Contract", "python": True, "typescript": True, "cpp": True},
+            {"name": "FlatFilesNamespace", "python": True, "typescript": True, "cpp": True},
+        ]
+        errors = _check_binding_class_orphans(
+            rows,
+            {"PyContract", "FlatFilesNamespace"},
+            {"ContractRef", "FlatFilesNamespace"},
+            set(),
+            {"FluentContract", "FlatFiles"},
+        )
+        assert errors == [], f"declared aliases must stay silent; got {errors!r}"
+
+    def _case_binding_class_orphan_mechanical_classes_silent() -> None:
+        """Mechanical generated/helper classes are covered by dedicated gates."""
+        rows = [{"name": "Client", "python": True, "typescript": True, "cpp": True}]
+        errors = _check_binding_class_orphans(
+            rows,
+            {"Client", "TradeTickList", "TradeTickListIter"},
+            {
+                "Client",
+                "StockHistoryTradeOptions",
+                "TradeTickWithColumns",
+                "RecordBatchStreamHandle",
+                "StreamEvent",
+                "Util",
+            },
+            set(),
+            {
+                "Client",
+                "CallbackState",
+                "FfiArrayGuard",
+                "StreamQuote",
+                "StreamingHandleDeleter",
+                "SubscriptionRef",
+            },
+        )
+        assert errors == [], f"mechanical helper classes must stay silent; got {errors!r}"
+
+    _case("class-orphan - TS-only class trips", _case_binding_class_orphan_ts_only_trips)
+    _case("class-orphan - C++-only class trips", _case_binding_class_orphan_cpp_only_trips)
+    _case("class-orphan - binding aliases silent", _case_binding_class_orphan_aliases_silent)
+    _case("class-orphan - mechanical helper classes silent", _case_binding_class_orphan_mechanical_classes_silent)
 
     def _materialize_ts_pkg(
         tmp: str, *, dts_body: str, js_body: str

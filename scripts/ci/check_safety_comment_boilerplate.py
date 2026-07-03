@@ -177,8 +177,8 @@ def _extract_safety_blocks(path: pathlib.Path) -> list[tuple[int, str]]:
     annotations).
     """
     try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
         return []
 
     blocks: list[tuple[int, str]] = []

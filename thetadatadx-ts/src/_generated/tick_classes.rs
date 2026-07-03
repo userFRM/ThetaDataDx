@@ -2532,6 +2532,82 @@ pub fn open_interest_tick_to_arrow_ipc_projected(
     arrow_batch_to_ipc_buffer(&batch)
 }
 
+/// Rebuild a `Vec<tick::OptionContract>` from the JS `OptionContract` objects — the
+/// reverse of the forward factory, shared by the full and projected
+/// Arrow-IPC terminals.
+fn option_contract_reconstruct_rows(rows: Vec<OptionContract>) -> napi::Result<Vec<tick::OptionContract>> {
+    let owned: Vec<tick::OptionContract> = rows
+        .into_iter()
+        .map(|r| -> napi::Result<tick::OptionContract> {
+            Ok(tick::OptionContract {
+                symbol: r.symbol,
+                expiration: r.expiration,
+                strike: r.strike,
+                right: match r.right.as_str() { "C" => 'C', "P" => 'P', "" => '\0', other => return Err(napi::Error::from_reason(format!("[InvalidParameterError] right must be \"C\" or \"P\", got {other:?}"))) },
+            })
+        })
+        .collect::<napi::Result<Vec<tick::OptionContract>>>()?;
+    Ok(owned)
+}
+
+/// Serialise a hand-built `OptionContract` row vector to a full-schema Arrow
+/// IPC stream (the `apache-arrow` wire form) carrying every column the
+/// tick type defines. For rows decoded from a history response, use
+/// `optionContractPresentColumns` + `optionContractToArrowIpcProjected` for a terminal-exact
+/// frame carrying only the wire's columns, mirroring Python's
+/// projected `<TickName>List.to_arrow()`.
+#[napi(js_name = "optionContractToArrowIpc")]
+pub fn option_contract_to_arrow_ipc(rows: Vec<OptionContract>) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = option_contract_reconstruct_rows(rows)?;
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow(owned.as_slice())
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
+/// Resolve a `OptionContract` history response's wire header names to the schema
+/// columns it carried, in schema order. Feed the result to
+/// `optionContractToArrowIpcProjected` for a terminal-exact columnar export. Mirrors the
+/// C ABI `thetadatadx_<tick>_present_columns` producer and Python's
+/// `<TickName>List.columns`.
+#[napi(js_name = "optionContractPresentColumns")]
+pub fn option_contract_present_columns(headers: Vec<String>) -> Vec<String> {
+    let refs: Vec<&str> = headers.iter().map(String::as_str).collect();
+    <tick::OptionContract as thetadatadx::columns::WireColumns>::present_columns(&refs)
+        .present_names()
+        .map(String::from)
+        .collect()
+}
+
+/// Serialise a `OptionContract` history result to a projected Arrow IPC stream
+/// carrying ONLY the columns named in `presentColumns` (build it with
+/// `optionContractPresentColumns` from the response headers), optionally broadcasting
+/// `symbol` as the leading column, or emitting a per-row `symbols` column
+/// for a multi-symbol snapshot (one value per row; takes precedence over
+/// `symbol`). The decode-fed sibling of
+/// `optionContractToArrowIpc`: same wire format, projected to the wire's exact column
+/// set, matching Python's projected `<TickName>List.to_arrow()` and the C
+/// ABI `thetadatadx_<tick>_to_arrow_ipc_projected`.
+#[napi(js_name = "optionContractToArrowIpcProjected")]
+pub fn option_contract_to_arrow_ipc_projected(
+    rows: Vec<OptionContract>,
+    present_columns: Vec<String>,
+    symbol: Option<String>,
+    symbols: Option<Vec<String>>,
+) -> napi::Result<napi::bindgen_prelude::Buffer> {
+    let owned = option_contract_reconstruct_rows(rows)?;
+    let mut columns = thetadatadx::columns::ColumnPresence::from_names(present_columns);
+    if !columns.contains("symbol") {
+        if let Some(syms) = symbols {
+            columns = columns.with_symbols(syms);
+        } else if let Some(sym) = symbol {
+            columns = columns.with_symbol(sym);
+        }
+    }
+    let batch = thetadatadx::frames::TicksArrowExt::to_arrow_projected(owned.as_slice(), &columns)
+        .map_err(|e| napi::Error::from_reason(format!("arrow conversion failed: {e}")))?;
+    arrow_batch_to_ipc_buffer(&batch)
+}
+
 /// Rebuild a `Vec<tick::PriceTick>` from the JS `PriceTick` objects — the
 /// reverse of the forward factory, shared by the full and projected
 /// Arrow-IPC terminals.

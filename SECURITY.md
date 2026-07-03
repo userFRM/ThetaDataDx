@@ -31,17 +31,17 @@ Security fixes land on the current major line only. Older majors are not patched
 
 The ThetaData terminal ships with a hardcoded API key that is identical across all
 installations. **This is not a secret** — it is a protocol constant embedded in every
-copy of the JVM terminal. thetadatadx includes this key for protocol compatibility. It
+official terminal copy. thetadatadx includes this key for protocol compatibility. It
 provides no privileged access.
 
 ### Credential Handling
 
-- User credentials (email/password) are used for both Nexus auth and FPSS authentication
+- User credentials (email/password) are used for both account authentication and streaming authentication
 - The `Debug` trait implementation for `Credentials` **redacts** passwords — they
   never appear in debug output or log lines
-- `AuthRequest` (internal HTTP body struct) does **not** derive `Debug` — prevents
-  accidental password exposure in error traces
-- **Session UUIDs** (bearer tokens for MDDS requests) are logged at `debug!` level only,
+- Authentication request bodies do **not** derive `Debug` — prevents accidental password
+  exposure in error traces
+- **Session UUIDs** (bearer tokens for historical requests) are logged at `debug!` level only,
   redacted to first 8 characters. They never appear at `info!` or higher.
 - Credentials are not persisted to disk by the library (the `creds.txt` file is
   user-managed and excluded from version control via `.gitignore`)
@@ -51,28 +51,28 @@ provides no privileged access.
 All network operations enforce timeouts to prevent indefinite hangs:
 
 - **Nexus auth HTTP**: 10s request timeout, 5s connect timeout
-- **MDDS**: connect timeout + keepalive from `DirectConfig`
-- **FPSS TLS**: connect timeout wraps both TCP and TLS handshake
-- **FPSS read loop**: a 10s read timeout matching the JVM terminal
+- **Historical channel**: connect timeout + keepalive from `DirectConfig`
+- **Streaming TLS**: connect timeout wraps both TCP and TLS handshake
+- **Streaming reads**: a 10s read timeout matching the official terminal behavior
 
 ### TLS
 
 All network connections use a **unified TLS stack** (`rustls` with ring backend):
 
-- **MDDS**: TLS via `rustls`
-- **FPSS (streaming)**: TLS via `tokio-rustls` + `rustls`
-- **Nexus auth (HTTP)**: TLS via `reqwest` + `rustls`
+- **Historical channel**: TLS with certificate validation
+- **Streaming channel**: TLS with certificate validation and pinning
+- **Nexus auth (HTTP)**: TLS with certificate validation
 
 Root certificates come from `webpki-roots` (Mozilla's CA bundle). Certificate
-validation is enforced on MDDS (gRPC) and Nexus (HTTP) connections. FPSS (streaming)
+validation is enforced on historical and Nexus (HTTP) connections. Streaming
 uses a pinned verifier: it accepts only the configured streaming hostnames and the expected
 leaf `SubjectPublicKeyInfo` SHA-256 pin, while still verifying the TLS handshake
 signature.
 
-### Credential Handling (FPSS)
+### Credential Handling (Streaming)
 
-FPSS credential length fields are read as an unsigned 16-bit integer (matching the
-JVM terminal), so passwords longer than 127 bytes authenticate correctly
+Streaming credential length fields are read as an unsigned 16-bit integer (matching the
+official terminal), so passwords longer than 127 bytes authenticate correctly
 (a signed read would sign-extend the length and break the handshake).
 
 ### Concurrent Request Limiting
@@ -89,9 +89,9 @@ limiting.
 instead of silently treating the data as uncompressed. This prevents corrupt data from being
 silently passed to callers.
 
-### FPSS Event Dispatch
+### Streaming Event Dispatch
 
-FPSS streaming uses a dedicated read path with bounded buffering for event
+Streaming uses a dedicated async runtime path with bounded buffering for event
 dispatch. The bounded buffer prevents unbounded memory growth from unconsumed
 events.
 

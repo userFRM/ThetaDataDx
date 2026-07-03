@@ -619,7 +619,7 @@ fn render_control_arm(out: &mut String, event_name: &str, def: &EventDef) {
     if let Some(field) = has_string {
         writeln!(
             out,
-            "                let cstring_owned = std::ffi::CString::new({field}.as_str()).ok();"
+            "                let cstring_owned = Some(cstring_for_ffi({field}.as_str()));"
         )
         .unwrap();
         writeln!(
@@ -647,7 +647,7 @@ fn render_control_arm(out: &mut String, event_name: &str, def: &EventDef) {
     if let Some(field) = has_contract {
         writeln!(
             out,
-            "                let contract_symbol_cstring = if {field}.symbol.is_empty() {{\n                    None\n                }} else {{\n                    std::ffi::CString::new(&{field}.symbol[..]).ok()\n                }};"
+            "                let contract_symbol_cstring = if {field}.symbol.is_empty() {{\n                    None\n                }} else {{\n                    Some(cstring_for_ffi(&{field}.symbol[..]))\n                }};"
         )
         .unwrap();
         writeln!(
@@ -773,6 +773,22 @@ pub(super) fn render_ffi_fpss_event_converter(schema: &Schema) -> String {
     );
     out.push_str("// FPSS event → FFI buffered-event converter. `include!`'d from\n");
     out.push_str("// `thetadatadx-ffi/src/lib.rs` after `FfiBufferedEvent` is in scope.\n\n");
+
+    out.push_str("fn cstring_for_ffi(value: &str) -> std::ffi::CString {\n");
+    out.push_str("    match std::ffi::CString::new(value) {\n");
+    out.push_str("        Ok(s) => s,\n");
+    out.push_str("        Err(_) => {\n");
+    out.push_str("            let bytes: Vec<u8> = value\n");
+    out.push_str("                .as_bytes()\n");
+    out.push_str("                .iter()\n");
+    out.push_str("                .map(|&b| if b == 0 { b'?' } else { b })\n");
+    out.push_str("                .collect();\n");
+    out.push_str(
+        "            std::ffi::CString::new(bytes).expect(\"embedded NULs were replaced\")\n",
+    );
+    out.push_str("        }\n");
+    out.push_str("    }\n");
+    out.push_str("}\n\n");
 
     out.push_str("pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBufferedEvent {\n");
     out.push_str("    use thetadatadx::fpss::{StreamControl, StreamData, StreamEvent};\n\n");

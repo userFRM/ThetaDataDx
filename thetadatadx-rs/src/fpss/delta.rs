@@ -167,19 +167,19 @@ impl DeltaState {
         let mut reader = FitReader::new(payload);
         let n = reader.read_changes(&mut self.alloc_buf[..total_fields]);
 
-        if reader.is_date {
-            // DATE marker row -- skip (no user-visible data).
-            self.last_was_date = true;
-            return None;
-        }
-
         // Reject a truncated row: the FIT reader hit end-of-buffer before the
         // terminating `END` nibble, so it flushed a partial integer and the
         // remaining slots stayed zero-filled. Emitting that as a tick would
-        // surface silent zero/garbage fields, so treat it as a decode failure.
-        // Callers map the `None` to `Unparseable`, which the io-loop already
-        // handles without panicking.
+        // surface silent zero/garbage fields. This guard must run before the
+        // DATE-marker skip as well: a truncated marker is corrupt input, not a
+        // benign out-of-band date row.
         if !reader.row_complete {
+            return None;
+        }
+
+        if reader.is_date {
+            // DATE marker row -- skip (no user-visible data).
+            self.last_was_date = true;
             return None;
         }
 
@@ -201,6 +201,17 @@ impl DeltaState {
         // from `firstData[1..]` accumulate onto `data[0..]`:
         //   for i in 1..len { data[i - 1] = firstData[i] + data[i - 1]; }
         let tick_n = n.saturating_sub(1);
+
+        if tick_n > expected_fields {
+            tracing::warn!(
+                msg_code,
+                contract_id,
+                got = tick_n,
+                expected = expected_fields,
+                "unexpected field count; marking unparseable"
+            );
+            return None;
+        }
 
         let key = (msg_code, contract_id);
         let is_absolute = !self.prev.contains_key(&key);
@@ -279,6 +290,10 @@ mod tests {
 
     const FIELD_SEP: u8 = 0xB;
     const END: u8 = 0xD;
+
+    fn pack(high: u8, low: u8) -> u8 {
+        (high << 4) | (low & 0x0F)
+    }
 
     /// Encode a single complete FIT row of non-negative `i32` values:
     /// digit runs joined by `FIELD_SEP` and terminated by `END`. The first
@@ -402,6 +417,22 @@ mod tests {
     }
 
     #[test]
+    fn truncated_date_marker_is_rejected_not_marked_as_date_skip() {
+        let mut state = DeltaState::new();
+        let payload = vec![0xCE, pack(1, 2)];
+        let mut out: TickFields = [0; MAX_DATA_FIELDS];
+
+        let decoded = state.decode_tick(QUOTE_CODE, &payload, QUOTE_FIELDS, &mut out);
+
+        assert!(decoded.is_none(), "a truncated DATE marker must not decode");
+        assert!(
+            !state.last_was_date,
+            "a truncated DATE marker is corrupt input, not a benign DATE skip"
+        );
+        assert_eq!(state.state_sizes().0, 0, "no prev baseline cached");
+    }
+
+    #[test]
     fn truncated_first_row_does_not_poison_width_for_later_delta() {
         let mut state = DeltaState::new();
         let cid = 7;
@@ -453,5 +484,37 @@ mod tests {
         assert_eq!(contract_id, cid);
         assert_eq!(out[0], 105, "delta accumulated onto prior absolute value");
         assert_eq!(out[1], 101, "unchanged field carried forward from baseline");
+    }
+
+    #[test]
+    fn overwide_delta_row_is_rejected_without_updating_baseline() {
+        let mut state = DeltaState::new();
+        let cid = 7;
+        let mut abs = vec![cid];
+        abs.extend(100..=110);
+        let abs_payload = encode_row(&abs);
+        let mut out: TickFields = [0; MAX_DATA_FIELDS];
+        state
+            .decode_tick(QUOTE_CODE, &abs_payload, QUOTE_FIELDS, &mut out)
+            .expect("absolute row decodes");
+        assert_eq!(state.state_sizes(), (1, 1));
+
+        let mut too_wide = vec![cid];
+        too_wide.extend(1..=12);
+        let too_wide_payload = encode_row(&too_wide);
+        assert!(
+            state
+                .decode_tick(QUOTE_CODE, &too_wide_payload, QUOTE_FIELDS, &mut out)
+                .is_none(),
+            "a row wider than the tick shape must not be clipped"
+        );
+        assert_eq!(state.state_sizes(), (1, 1));
+
+        let delta_payload = encode_row(&[cid, 5]);
+        let decoded = state.decode_tick(QUOTE_CODE, &delta_payload, QUOTE_FIELDS, &mut out);
+        let (contract_id, _n) = decoded.expect("valid delta row decodes");
+        assert_eq!(contract_id, cid);
+        assert_eq!(out[0], 105, "rejected wide row did not poison baseline");
+        assert_eq!(out[1], 101, "unchanged field carried forward from seed");
     }
 }

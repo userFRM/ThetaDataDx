@@ -2,6 +2,20 @@
 // FPSS event → FFI buffered-event converter. `include!`'d from
 // `thetadatadx-ffi/src/lib.rs` after `FfiBufferedEvent` is in scope.
 
+fn cstring_for_ffi(value: &str) -> std::ffi::CString {
+    match std::ffi::CString::new(value) {
+        Ok(s) => s,
+        Err(_) => {
+            let bytes: Vec<u8> = value
+                .as_bytes()
+                .iter()
+                .map(|&b| if b == 0 { b'?' } else { b })
+                .collect();
+            std::ffi::CString::new(bytes).expect("embedded NULs were replaced")
+        }
+    }
+}
+
 pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBufferedEvent {
     use thetadatadx::fpss::{StreamControl, StreamData, StreamEvent};
 
@@ -306,7 +320,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 let contract_symbol_cstring = if contract.symbol.is_empty() {
                     None
                 } else {
-                    std::ffi::CString::new(&contract.symbol[..]).ok()
+                    Some(cstring_for_ffi(&contract.symbol[..]))
                 };
                 let contract_symbol_ptr = contract_symbol_cstring
                     .as_ref()
@@ -353,7 +367,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 }
             }
             StreamControl::LoginSuccess { permissions } => {
-                let cstring_owned = std::ffi::CString::new(permissions.as_str()).ok();
+                let cstring_owned = Some(cstring_for_ffi(permissions.as_str()));
                 let permissions_ptr = cstring_owned.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
                 FfiBufferedEvent {
                     event: ThetaDataDxStreamEvent {
@@ -400,7 +414,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 }
             }
             StreamControl::Error { message } => {
-                let cstring_owned = std::ffi::CString::new(message.as_str()).ok();
+                let cstring_owned = Some(cstring_for_ffi(message.as_str()));
                 let message_ptr = cstring_owned.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
                 FfiBufferedEvent {
                     event: ThetaDataDxStreamEvent {
@@ -530,7 +544,7 @@ pub(crate) fn fpss_event_to_ffi(event: &thetadatadx::fpss::StreamEvent) -> FfiBu
                 }
             }
             StreamControl::ServerError { message } => {
-                let cstring_owned = std::ffi::CString::new(message.as_str()).ok();
+                let cstring_owned = Some(cstring_for_ffi(message.as_str()));
                 let message_ptr = cstring_owned.as_ref().map_or(ptr::null(), |cs| cs.as_ptr());
                 FfiBufferedEvent {
                     event: ThetaDataDxStreamEvent {

@@ -131,14 +131,22 @@ def main() -> int:
 
     # `{crate: {version: [lockfiles_that_have_it]}}`
     crate_map: dict[str, dict[str, list[str]]] = {}
+    missing_lockfiles: list[str] = []
     for lock in lockfiles:
         if not lock.exists():
-            print(f"SKIP: {lock} (missing)")
+            missing_lockfiles.append(lock.relative_to(repo_root).as_posix())
             continue
         rel = lock.relative_to(repo_root).as_posix()
         for crate, versions in lockfile_versions(lock).items():
             for v in versions:
                 crate_map.setdefault(crate, {}).setdefault(v, []).append(rel)
+
+    if missing_lockfiles:
+        print("ERROR: required Cargo.lock file(s) missing:")
+        for rel in missing_lockfiles:
+            print(f"  - {rel}")
+        print("Generate and commit every binding/tool lockfile before running drift checks.")
+        return 2
 
     drift_critical: list[tuple[str, dict[str, list[str]]]] = []
     drift_other: list[tuple[str, dict[str, list[str]]]] = []
