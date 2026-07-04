@@ -319,31 +319,38 @@ def check_static_docs() -> None:
         expect_not_contains(path, "&exp=")
         expect_not_contains(path, "&ivl=")
 
-    # Strikes are dollars on every client-facing surface, with no
-    # exception. The WebSocket subscribe envelope takes the strike in
-    # dollars exactly like the SDKs; the scaled-integer wire form never
-    # surfaces in the docs. The thousandths vocabulary (and the literal
-    # 570000 example it travelled with) must never reappear: a client
-    # who copies a thousandths example subscribes to a $570,000 strike.
-    streaming_option_pages = sorted(
-        (DOCS_SITE / "streaming/options").glob("*.md")
-    )
-    strike_docs = list((DOCS_SITE / "reference/option").rglob("*.md")) + [
+    # Strike is dollars on the REST surface everywhere: the REST reference
+    # pages, the server README, the REST server pages (index / http), and the
+    # OpenAPI spec must never show the scaled-integer strike form. A client
+    # who copies a `500000` / `570000` thousandths example on a REST surface
+    # would subscribe to a $500,000 / $570,000 strike.
+    #
+    # The server's WebSocket, by contrast, defaults to the terminal's
+    # 1/10-cent integer (a `$570` strike is `570000`) and is configurable to
+    # dollars via `--strike-format`. So server/websocket.md and the
+    # streaming/** docs legitimately show the terminal form and are EXEMPT
+    # from the dollars-only strike rule below.
+    rest_strike_docs = list((DOCS_SITE / "reference/option").rglob("*.md")) + [
         ROOT / "tools/server/README.md",
-        *server_pages,
-        *streaming_option_pages,
+        DOCS_SITE / "server/index.md",
+        DOCS_SITE / "server/http.md",
         OPENAPI_YAML,
     ]
-    for path in strike_docs:
+    for path in rest_strike_docs:
         expect_not_contains(path, "scaled integer")
         # Word-bounded: capture-backed sample tables legitimately carry
         # timestamps like `34500000` that embed the digit string.
         if re.search(r"\b500000\b", path.read_text()):
             fail(f"{path.relative_to(ROOT)} contains stale text: '500000'")
-    # The thousandths strike claim is the exact defect a contributor
-    # caught; ban its vocabulary and literal example from every page
-    # that carries a WS subscribe envelope.
-    for path in [*server_pages, *streaming_option_pages, DOCS_SITE / "articles/symbology.md"]:
+    # Ban the thousandths vocabulary and the literal `570000` example from
+    # the dollars-only REST-facing strike pages (the REST server pages and
+    # the symbology article). The WebSocket page and the streaming docs are
+    # exempt — they show the terminal's 1/10-cent form by default.
+    for path in [
+        DOCS_SITE / "server/index.md",
+        DOCS_SITE / "server/http.md",
+        DOCS_SITE / "articles/symbology.md",
+    ]:
         expect_not_contains(path, "thousandths")
         if re.search(r"\b570000\b", path.read_text()):
             fail(f"{path.relative_to(ROOT)} contains stale strike text: '570000'")

@@ -28,10 +28,10 @@ The server bridges [streaming](/streaming/) onto a local WebSocket at `ws://127.
 | `id` | Your request id; echoed in the acknowledgement |
 | `contract` | Omit for `FULL_*` streams |
 
-Option contracts carry the four-tuple, with the strike in **dollars** (a JSON number, e.g. `570` or `570.0`):
+Option contracts carry the four-tuple. By default the `strike` is the terminal's 1/10-cent integer (a JSON integer, e.g. `570000` for a $570 strike); pass the server's `--strike-format dollars` flag to take a dollar value (`570`) instead:
 
 ```json
-{"symbol": "SPY", "expiration": 20250321, "strike": 570, "right": "C"}
+{"symbol": "SPY", "expiration": 20250321, "strike": 570000, "right": "C"}
 ```
 
 `{"msg_type": "STOP", "id": 2}` removes every active stream at once. Each command is acknowledged with a stream-request verification value in the `response` field:
@@ -50,7 +50,7 @@ Events arrive as JSON with a `header.type` of `QUOTE`, `TRADE`, or `OHLC`, plus 
 
 ```bash
 websocat ws://127.0.0.1:25520/v1/events
-{"msg_type": "STREAM", "sec_type": "OPTION", "req_type": "TRADE", "id": 1, "add": true, "contract": {"symbol": "SPY", "expiration": 20250321, "strike": 570, "right": "C"}}
+{"msg_type": "STREAM", "sec_type": "OPTION", "req_type": "TRADE", "id": 1, "add": true, "contract": {"symbol": "SPY", "expiration": 20250321, "strike": 570000, "right": "C"}}
 ```
 
 ## Limits

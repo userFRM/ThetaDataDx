@@ -45,6 +45,19 @@ fn ws_client_capacity_from(raw: Option<&str>) -> usize {
 /// the JSON payload per client.
 pub type WsClients = Arc<RwLock<Vec<mpsc::Sender<Arc<str>>>>>;
 
+/// WebSocket option-`strike` wire encoding.
+///
+/// `Terminal` emits and accepts the JVM terminal's 1/10-cent integer (a
+/// `$570` strike is `570000`) — the exact drop-in wire form. `Dollars`
+/// emits and accepts a dollar value (`570`), the SDK's convenience form.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum StrikeFormat {
+    /// The JVM terminal's 1/10-cent integer (a `$570` strike is `570000`).
+    Terminal,
+    /// A dollar value (a `$570` strike is `570`).
+    Dollars,
+}
+
 /// Shared server state, cloned into every axum handler.
 #[derive(Clone)]
 pub struct AppState {
@@ -77,11 +90,13 @@ struct Inner {
     /// scrape one number to detect WS-side back-pressure independent of the
     /// SDK-side event ring overrun counter.
     fpss_broadcast_dropped: AtomicU64,
+    /// WebSocket option-`strike` wire encoding (see [`StrikeFormat`]).
+    strike_format: StrikeFormat,
 }
 
 impl AppState {
     /// Create new app state wrapping a connected `Client`.
-    pub fn new(client: Client) -> Self {
+    pub fn new(client: Client, strike_format: StrikeFormat) -> Self {
         Self {
             inner: Arc::new(Inner {
                 client,
@@ -91,8 +106,14 @@ impl AppState {
                 shutdown: tokio::sync::Notify::new(),
                 ws_session: std::sync::Mutex::new(None),
                 fpss_broadcast_dropped: AtomicU64::new(0),
+                strike_format,
             }),
         }
+    }
+
+    /// The WebSocket option-`strike` wire encoding this server serves.
+    pub fn strike_format(&self) -> StrikeFormat {
+        self.inner.strike_format
     }
 
     /// Increment the FPSS broadcast-drop counter and return the post-increment

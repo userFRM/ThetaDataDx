@@ -162,7 +162,7 @@ quote  QQQ 20231110 P 360.00  (next NBBO)
 ```
 
 
-The `Ohlcvc` bar and the trailing `Quote` updates carry the same `contract`. On the wire ThetaData encodes the option strike in tenths of a cent (a $360.00 strike as `3600000`); the SDK resolves it to the dollar strike on `event.contract`.
+The `Ohlcvc` bar and the trailing `Quote` updates carry the same `contract`. ThetaData encodes the option strike in tenths of a cent (a $360.00 strike as `360000`); the server's WebSocket emits that integer verbatim by default, while the native SDK resolves it to the dollar strike on `event.contract`.
 
 ## OHLC bars
 
@@ -172,7 +172,7 @@ The `Ohlcvc` bars on this stream come from upstream automatically — one is sen
 
 - This stream requires an Options Pro subscription.
 - Each new stream request must use a higher `id` than the last; reusing an `id` stops the terminal from automatically resubscribing your earlier streams after a reconnect. The SDK manages the `id` for you; the WebSocket envelope sets it explicitly.
-- The WebSocket envelope and the SDK builders take the option strike in dollars; the tenths-of-a-cent wire encoding is internal.
+- The server's WebSocket envelope takes the option strike as the terminal's 1/10-cent integer by default (`--strike-format dollars` switches to a dollar value); the native SDK builders take dollars.
 
 ## `Quote` event fields
 

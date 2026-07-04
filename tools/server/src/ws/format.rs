@@ -7,6 +7,8 @@ use thetadatadx::fpss::{
     StreamControl, StreamData, StreamEvent, UNRESOLVED_CONTRACT_SYMBOL_PREFIX,
 };
 
+use crate::state::StrikeFormat;
+
 /// Total events dropped because their JSON serialization failed.
 ///
 /// Distinct from the WS broadcast-channel drop counter — this counts
@@ -45,9 +47,19 @@ fn try_serialize(msg: &sonic_rs::Value) -> Option<String> {
 /// (see [`super::contract_map::lookup_event_contract`]). Passing it in
 /// keeps the broadcast task contract-aware without re-deriving the
 /// reference from the event on every serialisation.
+///
+/// `status` is the live terminal->FPSS connectivity (`CONNECTED` /
+/// `DISCONNECTED`, from [`crate::state::AppState::fpss_status`]). The
+/// terminal stamps it into the header of every frame, not just STATUS
+/// heartbeats, so it is threaded onto each frame built here.
+///
+/// `strike_format` selects the option-`strike` encoding on the contract
+/// envelope (see [`StrikeFormat`]).
 pub(super) fn fpss_event_to_ws_json(
     event: &StreamEvent,
     peeked_contract: Option<&Contract>,
+    status: &str,
+    strike_format: StrikeFormat,
 ) -> Option<String> {
     match event {
         StreamEvent::Data(data) => {
@@ -180,7 +192,10 @@ pub(super) fn fpss_event_to_ws_json(
             // no way to disambiguate a backlog of pre-ContractAssigned
             // ticks from a serialisation regression.
             let mut msg_obj = sonic_rs::Object::new();
-            msg_obj.insert("header", sonic_rs::json!({ "type": event_type }));
+            msg_obj.insert(
+                "header",
+                sonic_rs::json!({ "type": event_type, "status": status }),
+            );
             match peeked_contract {
                 Some(c) if is_unresolved_contract(c) => {
                     // Pre-ContractAssigned tick. Emit a `pending`
@@ -191,7 +206,7 @@ pub(super) fn fpss_event_to_ws_json(
                     }
                 }
                 Some(c) => {
-                    msg_obj.insert("contract", contract_to_json(c));
+                    msg_obj.insert("contract", contract_to_json(c, strike_format));
                 }
                 None => {
                     msg_obj.insert("contract", sonic_rs::json!({}));
@@ -213,6 +228,7 @@ pub(super) fn fpss_event_to_ws_json(
                 let msg = sonic_rs::json!({
                     "header": {
                         "type": "REQ_RESPONSE",
+                        "status": status,
                         "response": result.as_wire_str(),
                         "req_id": req_id,
                     }
@@ -228,13 +244,13 @@ pub(super) fn fpss_event_to_ws_json(
             // which is a `header.status` value the terminal never emits.
             StreamControl::MarketOpen => {
                 let msg = sonic_rs::json!({
-                    "header": { "type": "STATE", "state": "START" }
+                    "header": { "type": "STATE", "status": status, "state": "START" }
                 });
                 try_serialize(&msg)
             }
             StreamControl::MarketClose => {
                 let msg = sonic_rs::json!({
-                    "header": { "type": "STATE", "state": "STOP" }
+                    "header": { "type": "STATE", "status": status, "state": "STOP" }
                 });
                 try_serialize(&msg)
             }
@@ -298,23 +314,33 @@ fn parse_unresolved_contract_id(symbol: &str) -> Option<i32> {
 /// - `security_type` / `root` are always present (the terminal names the
 ///   keys `security_type` and `root`, not `sec_type` / `symbol`).
 /// - `expiration` / `strike` / `right` are present only for options.
-/// - `strike` is dollars (a `$550.00` strike serializes as `550.0`), the
-///   same unit every other public surface speaks; the wire's fixed-point
-///   integer never leaves the codec layer.
-fn contract_to_json(c: &Contract) -> sonic_rs::Value {
+/// - `strike` follows `strike_format`: `Terminal` emits the terminal's
+///   fixed-point integer in 1/10 of a cent (a `$140.00` strike serializes as
+///   `140000`), matching the streaming wire the JVM terminal emits;
+///   `Dollars` emits the dollar value (`140.0`), the SDK's convenience form.
+fn contract_to_json(c: &Contract, strike_format: StrikeFormat) -> sonic_rs::Value {
     let mut obj = sonic_rs::Object::new();
     obj.insert("security_type", sonic_rs::Value::from(c.sec_type.as_str()));
     obj.insert("root", sonic_rs::Value::from(&*c.symbol));
     if let Some(exp) = c.expiration {
         obj.insert("expiration", sonic_rs::Value::from(exp));
     }
-    // `strike` is dollars on every public surface; the wire's
-    // fixed-point integer never leaves the codec layer.
-    if let Some(strike) = c.strike_dollars() {
-        obj.insert(
-            "strike",
-            sonic_rs::to_value(&strike).expect("f64 should serialize"),
-        );
+    match strike_format {
+        // `Terminal`: the 1/10-cent integer emitted verbatim (`140000`).
+        StrikeFormat::Terminal => {
+            if let Some(strike) = c.strike_thousandths {
+                obj.insert("strike", sonic_rs::Value::from(strike));
+            }
+        }
+        // `Dollars`: the dollar value (`140.0`), the SDK's convenience form.
+        StrikeFormat::Dollars => {
+            if let Some(strike) = c.strike_dollars() {
+                obj.insert(
+                    "strike",
+                    sonic_rs::to_value(&strike).expect("f64 serializes"),
+                );
+            }
+        }
     }
     if let Some(is_call) = c.is_call {
         obj.insert(
@@ -389,8 +415,9 @@ mod tests {
     fn trade_frame_matches_terminal_field_set() {
         let contract = Arc::new(Contract::stock("AAPL"));
         let event = make_trade(Arc::clone(&contract));
-        let json = fpss_event_to_ws_json(&event, Some(&contract))
-            .expect("Trade serialization must succeed");
+        let json =
+            fpss_event_to_ws_json(&event, Some(&contract), "CONNECTED", StrikeFormat::Terminal)
+                .expect("Trade serialization must succeed");
 
         for key in [
             "ms_of_day",
@@ -413,9 +440,11 @@ mod tests {
                 "Trade frame must NOT carry the SDK-only `{key}` column: {json}"
             );
         }
+        // Header carries the frame type and the live FPSS connectivity
+        // status the terminal stamps into every message header.
         assert!(
-            json.contains("\"header\":{\"type\":\"TRADE\"}"),
-            "Trade frame header type: {json}"
+            json.contains("\"type\":\"TRADE\"") && json.contains("\"status\":\"CONNECTED\""),
+            "Trade frame header type + status: {json}"
         );
     }
 
@@ -426,8 +455,9 @@ mod tests {
     fn market_value_frame_serializes_calculated_columns() {
         let contract = Arc::new(Contract::stock("SPX"));
         let event = make_market_value(Arc::clone(&contract));
-        let json = fpss_event_to_ws_json(&event, Some(&contract))
-            .expect("MARKET_VALUE serialization must succeed");
+        let json =
+            fpss_event_to_ws_json(&event, Some(&contract), "CONNECTED", StrikeFormat::Terminal)
+                .expect("MARKET_VALUE serialization must succeed");
 
         for key in [
             "ms_of_day",
@@ -446,8 +476,8 @@ mod tests {
             "MARKET_VALUE frame must NOT carry the our-only `received_at_ns`: {json}"
         );
         assert!(
-            json.contains("\"header\":{\"type\":\"MARKET_VALUE\"}"),
-            "MARKET_VALUE frame header type: {json}"
+            json.contains("\"type\":\"MARKET_VALUE\"") && json.contains("\"status\":\"CONNECTED\""),
+            "MARKET_VALUE frame header type + status: {json}"
         );
         // The terminal names the contract key `root`, not `symbol`.
         assert!(
@@ -467,8 +497,9 @@ mod tests {
         let event = make_quote(Arc::clone(&contract));
         let peeked = lookup_event_contract(&event).expect("event carries its contract");
         assert_eq!(&*peeked.symbol, "AAPL");
-        let json = fpss_event_to_ws_json(&event, Some(&peeked))
-            .expect("serialization must succeed with the event's contract");
+        let json =
+            fpss_event_to_ws_json(&event, Some(&peeked), "CONNECTED", StrikeFormat::Terminal)
+                .expect("serialization must succeed with the event's contract");
         assert!(
             json.contains("\"root\":\"AAPL\""),
             "serialized JSON must include the event's contract under `root`: {json}"
@@ -483,7 +514,7 @@ mod tests {
     fn empty_contract_sentinel_serializes_without_id_leak() {
         let sentinel = Arc::new(Contract::stock(""));
         let event = make_quote(Arc::clone(&sentinel));
-        let json = fpss_event_to_ws_json(&event, None)
+        let json = fpss_event_to_ws_json(&event, None, "CONNECTED", StrikeFormat::Terminal)
             .expect("serialization must succeed with no resolved contract");
         assert!(
             !json.contains("\"id\":"),
@@ -502,8 +533,13 @@ mod tests {
     fn unresolved_sentinel_surfaces_wire_id_to_ws_payload() {
         let unresolved = Arc::new(Contract::pending(42));
         let event = make_quote(Arc::clone(&unresolved));
-        let json = fpss_event_to_ws_json(&event, Some(&unresolved))
-            .expect("serialization must succeed for an unresolved sentinel");
+        let json = fpss_event_to_ws_json(
+            &event,
+            Some(&unresolved),
+            "CONNECTED",
+            StrikeFormat::Terminal,
+        )
+        .expect("serialization must succeed for an unresolved sentinel");
 
         assert!(
             json.contains("\"unresolved_contract_id\":42"),
@@ -549,7 +585,7 @@ mod tests {
                 req_id: 7,
                 result: outcome,
             });
-            let json = fpss_event_to_ws_json(&event, None)
+            let json = fpss_event_to_ws_json(&event, None, "CONNECTED", StrikeFormat::Terminal)
                 .expect("REQ_RESPONSE control frame must serialise");
             assert!(
                 json.contains(&format!("\"response\":\"{token}\"")),
@@ -581,7 +617,7 @@ mod tests {
         ] {
             let event =
                 StreamEvent::Control(thetadatadx::fpss::StreamControl::Disconnected { reason });
-            let json = fpss_event_to_ws_json(&event, None)
+            let json = fpss_event_to_ws_json(&event, None, "CONNECTED", StrikeFormat::Terminal)
                 .expect("DISCONNECTED control frame must serialise");
             // Key order inside the header object is serializer-defined;
             // assert on content, not byte-exact key ordering.
@@ -603,15 +639,17 @@ mod tests {
     }
 
     /// The contract envelope uses the terminal's key names (`security_type`
-    /// / `root`, not `sec_type` / `symbol`) and emits `strike` in dollars
-    /// (a `$550.00` strike serializes as `550.0`) — the same unit every
-    /// other public surface speaks.
+    /// / `root`, not `sec_type` / `symbol`) and emits `strike` as the
+    /// terminal's 1/10-cent integer (a `$550.00` strike serializes as
+    /// `550000`) — the streaming wire's unit, distinct from the REST
+    /// surface's dollars.
     #[test]
-    fn option_contract_envelope_uses_terminal_keys_and_dollar_strike() {
+    fn option_contract_envelope_uses_terminal_keys_and_integer_strike() {
         let contract = Arc::new(Contract::option_raw("SPY", 20_260_417, true, 550_000));
         let event = make_quote(Arc::clone(&contract));
-        let json = fpss_event_to_ws_json(&event, Some(&contract))
-            .expect("Quote serialization must succeed");
+        let json =
+            fpss_event_to_ws_json(&event, Some(&contract), "CONNECTED", StrikeFormat::Terminal)
+                .expect("Quote serialization must succeed");
 
         assert!(
             json.contains("\"security_type\":\"OPTION\""),
@@ -621,20 +659,41 @@ mod tests {
             json.contains("\"root\":\"SPY\""),
             "contract must carry `root`, not `symbol`: {json}"
         );
-        // Dollars float (`550.0`), NOT the raw thousandths integer.
+        // Raw 1/10-cent integer (`550000`), NOT the dollars float.
         assert!(
-            json.contains("\"strike\":550.0"),
-            "strike must serialize as a dollars float: {json}"
+            json.contains("\"strike\":550000"),
+            "strike must serialize as the terminal's 1/10-cent integer: {json}"
         );
         assert!(
-            !json.contains("\"strike\":550000"),
-            "strike must NOT serialize as the raw thousandths integer: {json}"
+            !json.contains("\"strike\":550.0"),
+            "strike must NOT serialize as a dollars float: {json}"
         );
         assert!(json.contains("\"expiration\":20260417"), "{json}");
         assert!(json.contains("\"right\":\"C\""), "{json}");
         // The old key names must be gone entirely.
         assert!(!json.contains("\"sec_type\":"), "{json}");
         assert!(!json.contains("\"symbol\":"), "{json}");
+    }
+
+    /// Under `StrikeFormat::Dollars` the same `550000` wire strike serializes
+    /// as the dollar value `550.0`, not the 1/10-cent integer — the SDK's
+    /// convenience form the `--strike-format dollars` flag selects.
+    #[test]
+    fn option_contract_envelope_emits_dollars_strike_when_selected() {
+        let contract = Arc::new(Contract::option_raw("SPY", 20_260_417, true, 550_000));
+        let event = make_quote(Arc::clone(&contract));
+        let json =
+            fpss_event_to_ws_json(&event, Some(&contract), "CONNECTED", StrikeFormat::Dollars)
+                .expect("Quote serialization must succeed");
+
+        assert!(
+            json.contains("\"strike\":550.0"),
+            "strike must serialize as the dollar value under Dollars: {json}"
+        );
+        assert!(
+            !json.contains("\"strike\":550000"),
+            "strike must NOT serialize as the 1/10-cent integer under Dollars: {json}"
+        );
     }
 
     /// The FPSS START / STOP lifecycle frames (decoded to `MarketOpen` /
@@ -649,8 +708,8 @@ mod tests {
             (thetadatadx::fpss::StreamControl::MarketClose, "STOP"),
         ] {
             let event = StreamEvent::Control(ctrl);
-            let json =
-                fpss_event_to_ws_json(&event, None).expect("STATE control frame must serialise");
+            let json = fpss_event_to_ws_json(&event, None, "CONNECTED", StrikeFormat::Terminal)
+                .expect("STATE control frame must serialise");
             // Key order inside the header object is serializer-defined;
             // assert on content, not byte-exact key ordering.
             assert!(
@@ -676,7 +735,8 @@ mod tests {
             message: "boom".to_string(),
         });
         assert!(
-            fpss_event_to_ws_json(&server_error, None).is_none(),
+            fpss_event_to_ws_json(&server_error, None, "CONNECTED", StrikeFormat::Terminal)
+                .is_none(),
             "ServerError must not emit a header.type=ERROR frame"
         );
 
@@ -686,7 +746,7 @@ mod tests {
             contract: Arc::new(Contract::stock("AAPL")),
         });
         assert!(
-            fpss_event_to_ws_json(&assigned, None).is_none(),
+            fpss_event_to_ws_json(&assigned, None, "CONNECTED", StrikeFormat::Terminal).is_none(),
             "ContractAssigned must not emit a standalone CONTRACT frame"
         );
 
@@ -701,7 +761,9 @@ mod tests {
         assert!(
             fpss_event_to_ws_json(
                 &oi,
-                Some(&Contract::option_raw("SPY", 20_260_417, true, 550_000))
+                Some(&Contract::option_raw("SPY", 20_260_417, true, 550_000)),
+                "CONNECTED",
+                StrikeFormat::Terminal
             )
             .is_none(),
             "OpenInterest must not emit an OPEN_INTEREST frame"
@@ -715,8 +777,9 @@ mod tests {
     fn resolved_contract_path_unchanged_by_med_001_fix() {
         let resolved = Arc::new(Contract::stock("SPY"));
         let event = make_quote(Arc::clone(&resolved));
-        let json = fpss_event_to_ws_json(&event, Some(&resolved))
-            .expect("serialization must succeed for a resolved contract");
+        let json =
+            fpss_event_to_ws_json(&event, Some(&resolved), "CONNECTED", StrikeFormat::Terminal)
+                .expect("serialization must succeed for a resolved contract");
 
         assert!(json.contains("\"root\":\"SPY\""));
         assert!(

@@ -41,7 +41,7 @@ use zeroize::Zeroizing;
 use thetadatadx::config::{HistoricalEnvironment, StreamingEnvironment};
 use thetadatadx::{Client, Credentials, DirectConfig};
 
-use crate::state::AppState;
+use crate::state::{AppState, StrikeFormat};
 
 /// A random 128-bit token as 32 lowercase hex chars. Backs the shutdown
 /// token and the flat-file scratch-path suffix — both want an unguessable,
@@ -131,6 +131,12 @@ struct Args {
     /// Skip the streaming connection at startup.
     #[arg(long)]
     no_streaming: bool,
+
+    /// WebSocket option-strike encoding: `terminal` (the JVM terminal's
+    /// 1/10-cent integer, e.g. 570000 for $570; default, exact drop-in) or
+    /// `dollars` (a dollar value, e.g. 570; the SDK's convenience form).
+    #[arg(long, value_enum, default_value_t = StrikeFormat::Terminal)]
+    strike_format: StrikeFormat,
 }
 
 /// Canonical environment variable names, shared with the SDK, the CLI, and
@@ -373,7 +379,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("MDDS connected");
 
     // Step 4: Build shared state.
-    let state = AppState::new(client);
+    let state = AppState::new(client, args.strike_format);
 
     // Step 5: Start FPSS streaming bridge.
     if !args.no_streaming {

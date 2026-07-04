@@ -76,7 +76,12 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
             // and broadcast. No map lock acquired in the broadcast task.
             // Borrow through the `Arc` (deref) so the serializer sees the
             // same `&Contract` it always did.
-            let json = fpss_event_to_ws_json(&event, peeked.as_deref());
+            let json = fpss_event_to_ws_json(
+                &event,
+                peeked.as_deref(),
+                state_for_task.fpss_status(),
+                state_for_task.strike_format(),
+            );
             if let Some(ws_json) = json {
                 let msg: Arc<str> = Arc::from(ws_json);
                 state_for_task.broadcast_ws(msg).await;

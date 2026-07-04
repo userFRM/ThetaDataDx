@@ -77,6 +77,7 @@ thetadatadx-server --creds creds.txt
 | `--log-file <path>` | — | Also write logs to `<path>.YYYY-MM-DD`, rotated daily. |
 | `--log-format <fmt>` | `text` | `text`, `json` (one object per line), or `legacy` (`[YYYY-MM-DD HH:MM:SS] LEVEL: message`, UTC). |
 | `--no-streaming` | — | Skip streaming startup (HTTP only). |
+| `--strike-format <fmt>` | `terminal` | WebSocket option-strike encoding: `terminal` (the terminal's 1/10-cent integer, the exact drop-in) or `dollars` (a dollar value, the SDK's convenience form). |
 
 ## Environment variables
 
