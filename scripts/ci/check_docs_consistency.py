@@ -124,22 +124,11 @@ def served_v3_routes() -> set[str]:
     return routes
 
 
-# Served routes that are deliberately NOT documented in the public OpenAPI
-# contract: the two terminal management-status paths whose path segment is the
-# vendor's transport codename. The server mounts them only for drop-in parity
-# with the JVM terminal's mgmt surface (router.rs registers them to the SAME
-# handlers as the documented `/v3/terminal/{streaming,historical}/status`
-# routes), so a generated client never needs them — the documented aliases
-# cover the identical behaviour. They are kept out of the spec because those
-# codenames are banned client-facing vocabulary (enforced by
-# `check_client_facing_vocab.py`, which sweeps this YAML): writing them into the
-# public contract would leak an internal transport name into a client-rendered
-# surface. This allowlist is intentionally exactly these two paths; it does not
-# loosen the served-vs-documented equality for anything else.
-OPENAPI_UNDOCUMENTED_PARITY_ALIASES = {
-    "/v3/terminal/fpss/status",
-    "/v3/terminal/mdds/status",
-}
+# The server mirrors the JVM terminal's system surface 1:1, so every served
+# `/v3/terminal/*` route is documented verbatim in the OpenAPI contract — the
+# terminal publishes these exact paths (docs.thetadata.us) and the server is a
+# drop-in for it. Nothing is served-but-undocumented here, so this set is empty.
+OPENAPI_UNDOCUMENTED_PARITY_ALIASES: set[str] = set()
 
 # Routes the server serves beyond the upstream-tracking registry endpoints:
 # the system status / lifecycle routes and the flat-file download routes. These
@@ -158,13 +147,14 @@ SERVER_ONLY_PATHS = (
 # slip in. `/v3/system/shutdown` carries no operationId (it never has), so it
 # contributes none.
 SERVER_ONLY_OPERATION_IDS = {
-    "systemStatus",
-    "systemHistoricalStatus",
-    "systemStreamingStatus",
     "flatfileGet",
     "flatfileRequest",
-    # Terminal-compatible plain-text status routes. Distinct ids from the JSON
-    # `system*Status` siblings because they are separate operations.
+    # Terminal system routes, mirrored 1:1 from the JVM terminal: an
+    # unauthenticated shutdown plus the two plain-text channel-health probes.
+    # The route paths carry the vendor's codenames verbatim; the operationIds
+    # describe the channel (streaming / historical) to keep generated client
+    # method names free of the transport codename.
+    "terminalShutdown",
     "terminalStreamingStatus",
     "terminalHistoricalStatus",
     # Path-segment / renamed `/v3` aliases mounted at the server level for

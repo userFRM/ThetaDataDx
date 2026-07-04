@@ -98,13 +98,14 @@ GET /v3/rate/history/eod?symbol=SOFR&start_date=20240101&end_date=20240301
 
 Endpoint query parameters follow the registry names (`symbol`, `expiration`, `strike`, `right`, `interval`, etc.), not the legacy shorthand aliases (`root`, `exp`, `ivl`). Date parameters (`date`, `start_date`, `end_date`, `expiration`) accept both `YYYYMMDD` and ISO `YYYY-MM-DD`.
 
-### System Routes (4)
+### Terminal system routes (3)
+
+Mirrored 1:1 from the JVM terminal — unauthenticated `GET`, bare `text/plain` bodies.
 
 ```
-GET  /v3/system/status          # {"status":"CONNECTED","version":"<crate version>"}
-GET  /v3/system/historical/status    # envelope: {"header":{...},"response":["CONNECTED"]}
-GET  /v3/system/streaming/status     # {"status":"CONNECTED","version":"<crate version>","broadcast_dropped":0,"json_serialize_failures":0}
-POST /v3/system/shutdown        # requires X-Shutdown-Token header
+GET /v3/terminal/shutdown       # "OK"; kills the server process
+GET /v3/terminal/fpss/status    # streaming channel health: CONNECTED / DISCONNECTED
+GET /v3/terminal/mdds/status    # historical channel health: CONNECTED / DISCONNECTED
 ```
 
 ### Response format
@@ -155,21 +156,16 @@ Send JSON commands to manage subscriptions:
 
 ## Hardening
 
-- **`POST /v3/system/shutdown`** requires a 128-bit random hex `X-Shutdown-Token` header (32 hex chars) printed once to stderr at startup. Token is compared in constant time so response latency does not leak the secret one byte at a time; no env var or CLI flag sets it externally.
 - **256 concurrent in-flight requests** — requests past the cap queue on the layer's semaphore (they are not rejected), then queue again on the SDK's tier-sized request semaphore that matches the upstream concurrency cap. Bursts absorb as latency, not errors; see the Concurrency Model section in `docs-site/docs/server/http.md`. Upstream capacity rejections that survive the SDK's retry budget surface as `503` + `Retry-After`, not 500. **64 KiB body limit**, **4 KiB WebSocket `Message::Text` cap**.
 - **`BoundedQuery<32>` extractor** counts `&`-delimited query-string pairs BEFORE `serde_urlencoded` runs, so a `?a=1&b=2&...` flood is rejected at parse time rather than after HashMap rehashing allocates MB+.
 - **CSV output defuses formula injection** — cells whose first byte is `=` / `+` / `-` / `@` / `\t` are prefixed with a single-quote `'` and CSV-quoted.
 - **Streaming TLS** verifies every peer against a captured SubjectPublicKeyInfo pin (`PinnedVerifier`, constant-time SHA-256 compare); MITM presenting any other cert is rejected even if it chains to a trusted CA. See `docs-site/docs/streaming/index.md`.
 - **Dropped-events observability** — per-client mpsc channels surface a monotonic `AtomicU64` counter through every SDK (`client.dropped_events()` Python, `droppedEvents(): bigint` TS, `thetadatadx_streaming_dropped_events` / `thetadatadx_client_dropped_events` FFI) plus `tracing::debug!` on `thetadatadx::sdk::streaming`.
 
-Example — initiating a graceful shutdown from the same machine:
+Example — shutting the server down, exactly as with the JVM terminal:
 
 ```bash
-# Server prints these lines once at startup on stderr (TOKEN is a
-# 128-bit random hex string, 32 hex chars):
-#   Shutdown token: <TOKEN>
-#     curl -X POST http://127.0.0.1:25503/v3/system/shutdown -H 'X-Shutdown-Token: <TOKEN>'
-curl -X POST -H "X-Shutdown-Token: <TOKEN>" http://127.0.0.1:25503/v3/system/shutdown
+curl http://127.0.0.1:25503/v3/terminal/shutdown
 ```
 
 ## Architecture

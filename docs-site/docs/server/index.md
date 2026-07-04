@@ -96,5 +96,5 @@ thetadatadx-server --creds creds.txt
 ## Security defaults
 
 - Binds all interfaces by default; pass `--bind 127.0.0.1` for loopback-only exposure. The server imposes no per-IP rate limit, matching the terminal it replaces — request limits are enforced upstream by the data service.
-- `POST /v3/system/shutdown` requires the `X-Shutdown-Token` header — a random token printed once to stderr at startup; there is no flag or environment variable to set it.
+- The system routes mirror the terminal 1:1 and are unauthenticated, including `GET /v3/terminal/shutdown` — exactly as the terminal exposes them.
 - Request bodies are capped at 64 KiB and query strings at 32 parameters.

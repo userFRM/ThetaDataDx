@@ -42,9 +42,8 @@ const WARN_EVERY_N: u64 = 1024;
 /// so a stalled broadcast task can never accumulate unbounded heap. When the
 /// channel is full, the callback increments [`AppState::record_fpss_broadcast_drop`]
 /// and returns immediately — the event-dispatch consumer thread is never blocked.
-/// Drops surface to operators through the `fpss_broadcast_dropped()` counter
-/// and a rate-limited `tracing::warn!` (one warning per [`WARN_EVERY_N`]
-/// drops).
+/// Drops surface to operators through a rate-limited `tracing::warn!` (one
+/// warning per [`WARN_EVERY_N`] drops).
 ///
 /// # Contract identity
 ///

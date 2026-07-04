@@ -10,26 +10,6 @@ use std::sync::Arc;
 use thetadatadx::Client;
 use tokio::sync::{mpsc, RwLock};
 
-/// Constant-time byte-slice equality.
-///
-/// Compares every byte regardless of where the first difference sits,
-/// preventing a remote attacker from probing a secret one byte at a time
-/// via response-latency measurements (timing oracle). A length mismatch
-/// returns `false` immediately — this leaks the lengths but not the
-/// contents, which is the same contract `subtle::ConstantTimeEq` provides
-/// for `[u8]`.
-#[inline]
-fn ct_eq(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-    let mut diff: u8 = 0;
-    for (x, y) in a.iter().zip(b) {
-        diff |= x ^ y;
-    }
-    diff == 0
-}
-
 /// Default per-client channel capacity. Matches the old `broadcast::channel(4096)`.
 ///
 /// At ~10k events/sec peak (market open), 4096 gives ~400ms of headroom
@@ -91,8 +71,6 @@ struct Inner {
     /// across `.await`) is sufficient; the critical sections are
     /// pointer swaps.
     ws_session: std::sync::Mutex<Option<Arc<tokio::sync::Notify>>>,
-    /// Random token required by the shutdown endpoint.
-    shutdown_token: String,
     /// Monotonic count of FPSS events dropped on the bounded
     /// callback->broadcast handoff (see `ws::start_fpss_bridge`). Mirrors the
     /// FPSS SDK's per-handle `dropped_events()` counter so operators can
@@ -103,7 +81,7 @@ struct Inner {
 
 impl AppState {
     /// Create new app state wrapping a connected `Client`.
-    pub fn new(client: Client, shutdown_token: String) -> Self {
+    pub fn new(client: Client) -> Self {
         Self {
             inner: Arc::new(Inner {
                 client,
@@ -112,7 +90,6 @@ impl AppState {
                 ws_clients: Arc::new(RwLock::new(Vec::new())),
                 shutdown: tokio::sync::Notify::new(),
                 ws_session: std::sync::Mutex::new(None),
-                shutdown_token,
                 fpss_broadcast_dropped: AtomicU64::new(0),
             }),
         }
@@ -127,13 +104,6 @@ impl AppState {
             .fpss_broadcast_dropped
             .fetch_add(1, Ordering::Relaxed)
             .wrapping_add(1)
-    }
-
-    /// Total FPSS events dropped on the bounded callback->broadcast handoff
-    /// since this `AppState` was created. Used by the WS health endpoint and
-    /// the per-1024-drop rate-limited warning log in `ws::broadcast`.
-    pub fn fpss_broadcast_dropped(&self) -> u64 {
-        self.inner.fpss_broadcast_dropped.load(Ordering::Relaxed)
     }
 
     /// Borrow the unified `Client` client.
@@ -273,15 +243,6 @@ impl AppState {
         }
     }
 
-    /// Validate a shutdown token against the one generated at startup.
-    ///
-    /// Uses constant-time comparison so an attacker cannot probe the token
-    /// byte-by-byte via the response latency of `POST /shutdown`. A length
-    /// mismatch returns `false` without revealing content.
-    pub fn validate_shutdown_token(&self, token: &str) -> bool {
-        ct_eq(self.inner.shutdown_token.as_bytes(), token.as_bytes())
-    }
-
     /// Signal graceful server shutdown. Stops FPSS streaming if active.
     pub fn shutdown(&self) {
         self.inner.client.stream().stop_streaming();
@@ -296,7 +257,7 @@ impl AppState {
 
 #[cfg(test)]
 mod tests {
-    use super::{ct_eq, ws_client_capacity_from, WS_CLIENT_CAPACITY};
+    use super::{ws_client_capacity_from, WS_CLIENT_CAPACITY};
     use std::sync::Arc;
 
     /// Unset env falls back to the compiled-in default capacity.
@@ -399,24 +360,5 @@ mod tests {
             waited.is_err(),
             "a lone session must not receive a close signal"
         );
-    }
-
-    #[test]
-    fn ct_eq_equal_returns_true() {
-        assert!(ct_eq(b"token", b"token"));
-        assert!(ct_eq(&[], &[]));
-    }
-
-    #[test]
-    fn ct_eq_unequal_returns_false() {
-        assert!(!ct_eq(b"abc", b"xyz"));
-        // Differs only at the last byte — full scan must still happen.
-        assert!(!ct_eq(b"token1", b"token2"));
-    }
-
-    #[test]
-    fn ct_eq_length_mismatch_returns_false() {
-        assert!(!ct_eq(b"token", b"token_long"));
-        assert!(!ct_eq(&[], b"x"));
     }
 }

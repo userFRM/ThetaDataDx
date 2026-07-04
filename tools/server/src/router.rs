@@ -22,16 +22,15 @@
 //!
 //! The terminal this server replaces does no per-IP rate limiting, and
 //! neither does this server — real request limits are enforced upstream by
-//! the data service. The mutating `/v3/system/shutdown` route is guarded by
-//! an `X-Shutdown-Token` header (a 128-bit random token), not by a rate
-//! limit. The server binds to `0.0.0.0` by default (all interfaces,
-//! matching the JVM terminal it replaces); pass `--bind 127.0.0.1` for
-//! loopback-only exposure.
+//! the data service. The system routes mirror the terminal 1:1, including its
+//! unauthenticated `GET /v3/terminal/shutdown`. The server binds to `0.0.0.0`
+//! by default (all interfaces, matching the JVM terminal it replaces); pass
+//! `--bind 127.0.0.1` for loopback-only exposure.
 
 use std::sync::Arc;
 
 use axum::extract::DefaultBodyLimit;
-use axum::routing::{get, post};
+use axum::routing::get;
 use axum::Router;
 use tower::limit::ConcurrencyLimitLayer;
 use tower_http::trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer};
@@ -107,41 +106,16 @@ pub fn build(state: AppState) -> Router {
     // call as its query-form sibling.
     app = register_v3_path_routes(app);
 
-    // System routes. The mutating shutdown route is guarded by the
-    // `X-Shutdown-Token` header (checked in `handler::system_shutdown`); the
-    // status routes are read-only.
+    // Terminal system routes, mirrored 1:1 from the JVM terminal this server
+    // replaces. The terminal serves exactly three unauthenticated GET routes
+    // under `/v3/terminal/`: `shutdown` (kills the process, returns the plain
+    // text `OK`), plus one-word channel-health probes for the FPSS (streaming)
+    // and MDDS (historical) transports. The transport codenames are the vendor
+    // terminal's own public wire paths, not client-facing prose. Bodies are the
+    // terminal's bare `text/plain` shape so operator tooling that scrapes the
+    // terminal's mgmt surface works unchanged.
     app = app
-        .route("/v3/system/status", get(handler::system_status))
-        .route(
-            "/v3/system/historical/status",
-            get(handler::system_historical_status),
-        )
-        .route(
-            "/v3/system/streaming/status",
-            get(handler::system_streaming_status),
-        )
-        .route("/v3/system/shutdown", post(handler::system_shutdown));
-
-    // Terminal-compatible management status routes. The JVM terminal this
-    // server replaces serves channel health under `/v3/terminal/<channel>/
-    // status` as a one-word `text/plain` body; replicating the terminal's
-    // literal paths verbatim is what lets operator tooling that scrapes the
-    // terminal's mgmt surface keep working without changes. The transport
-    // codenames in these two paths are the vendor terminal's own wire path,
-    // not client-facing prose. The mutating `/v3/terminal/shutdown` GET the
-    // terminal also exposes is deliberately NOT mirrored: this server gates
-    // shutdown behind a token on a non-cacheable POST (`/v3/system/shutdown`)
-    // — an unauthenticated GET that any prefetch / CSRF could trip would
-    // regress that hardening.
-    app = app
-        .route(
-            "/v3/terminal/streaming/status",
-            get(handler::terminal_streaming_status),
-        )
-        .route(
-            "/v3/terminal/historical/status",
-            get(handler::terminal_historical_status),
-        )
+        .route("/v3/terminal/shutdown", get(handler::terminal_shutdown))
         .route(
             "/v3/terminal/fpss/status",
             get(handler::terminal_streaming_status),

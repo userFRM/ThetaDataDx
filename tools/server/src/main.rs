@@ -228,9 +228,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // log lines are lost on shutdown.
     let _log_guard = logging::init(&args.log_level, args.log_format, args.log_file.as_deref())?;
 
-    // Generate a random shutdown token and print it.
-    let shutdown_token = random_hex_token();
-
     // Startup banner. Named after the binary so operator automation
     // matching the banner string keys on the same identifier as the
     // process list and the docs.
@@ -244,18 +241,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("REST API: http://{}:{}/", args.bind, args.http_port);
     eprintln!("WebSocket: ws://{}:{}/v1/events", args.bind, args.ws_port);
     eprintln!();
-    eprintln!("Shutdown token: {shutdown_token}");
-    eprintln!(
-        "  curl -X POST http://{}:{}/v3/system/shutdown -H 'X-Shutdown-Token: {}'",
-        args.bind, args.http_port, shutdown_token
-    );
 
-    // The shutdown token is deliberately NOT part of the structured log --
-    // structured logs flow to aggregators / SIEMs / persisted buffers and
-    // the token is a bearer credential for the shutdown endpoint. The
-    // eprintln! banner above already prints it once to stderr for the
-    // operator starting the process; keeping it out of `tracing::info!`
-    // means it never reaches a log pipeline.
     tracing::info!(
         version,
         http_port = args.http_port,
@@ -387,7 +373,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("MDDS connected");
 
     // Step 4: Build shared state.
-    let state = AppState::new(client, shutdown_token);
+    let state = AppState::new(client);
 
     // Step 5: Start FPSS streaming bridge.
     if !args.no_streaming {
@@ -407,13 +393,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //
     // Permissive by design, matching the legacy terminal: browser-based
     // dashboards on any local origin must be able to call both the GET
-    // data routes and the POST routes (`/v3/system/shutdown`,
-    // `/v3/flatfile/request`). The previous configuration pinned
+    // data routes and the POST flat-file request route
+    // (`/v3/flatfile/request`). The previous configuration pinned
     // `allow_origin` to the server's own listener address — a client
     // running on the server's origin IS the server, so the restriction
     // blocked every real browser client while protecting nothing — and
-    // `allow_methods=[GET]` failed every POST preflight. Real protection
-    // for the mutating route is the `X-Shutdown-Token` header, not CORS.
+    // `allow_methods=[GET]` failed every POST preflight.
     let cors = CorsLayer::new()
         .allow_origin(tower_http::cors::Any)
         .allow_methods([axum::http::Method::GET, axum::http::Method::POST])

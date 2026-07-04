@@ -37,7 +37,6 @@ use tower::limit::ConcurrencyLimitLayer;
 use crate::state::AppState;
 
 pub use broadcast::start_fpss_bridge;
-pub use format::json_serialize_failure_count;
 
 // The WS router shares the HTTP router's admission caps verbatim so the two
 // surfaces shed pressure identically; import the originals rather than mirror

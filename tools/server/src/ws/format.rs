@@ -17,13 +17,6 @@ use thetadatadx::fpss::{
 /// to a serialization bug.
 static JSON_SERIALIZE_FAILURES: AtomicU64 = AtomicU64::new(0);
 
-/// Snapshot of [`JSON_SERIALIZE_FAILURES`]. Used by metrics exporters
-/// and integration tests to assert the counter increments as expected.
-#[must_use]
-pub fn json_serialize_failure_count() -> u64 {
-    JSON_SERIALIZE_FAILURES.load(Ordering::Relaxed)
-}
-
 /// Wrap a `sonic_rs::to_string` call so a serialization failure logs
 /// (rate-limited at every 1024 failures) and bumps the public counter.
 /// Returns `None` exactly when `to_string` returned `Err`.

@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use axum::extract::{FromRequestParts, State};
 use axum::http::request::Parts;
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use sonic_rs::prelude::*;
 
@@ -759,51 +759,25 @@ pub async fn list_by_request_type(
 }
 
 // ---------------------------------------------------------------------------
-//  System endpoints
+//  Terminal system endpoints
 // ---------------------------------------------------------------------------
 
-/// GET /v3/system/status -- matches JVM terminal system status.
-pub async fn system_status(State(state): State<AppState>) -> Response {
-    let mut body = sonic_rs::json!({
-        "status": state.mdds_status(),
-        "version": env!("CARGO_PKG_VERSION")
-    });
-    json_response(&mut body)
+/// GET /v3/terminal/shutdown -- kills the server process, matching the JVM
+/// terminal. Unauthenticated, returns the plain-text body `OK`, exactly as
+/// the terminal documents it.
+pub async fn terminal_shutdown(State(state): State<AppState>) -> Response {
+    tracing::info!("shutdown requested via /v3/terminal/shutdown");
+    state.shutdown();
+    (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, TEXT_PLAIN_CONTENT_TYPE)],
+        "OK",
+    )
+        .into_response()
 }
 
-/// GET /v3/system/historical/status
-pub async fn system_historical_status(State(state): State<AppState>) -> Response {
-    let mut body = format::ok_envelope(vec![sonic_rs::Value::from(state.mdds_status())]);
-    json_response(&mut body)
-}
-
-/// GET /v3/system/streaming/status
-pub async fn system_streaming_status(State(state): State<AppState>) -> Response {
-    let mut body = sonic_rs::json!({
-        "status": state.fpss_status(),
-        "version": env!("CARGO_PKG_VERSION"),
-        // Expose the bounded callback->broadcast drop counter so operators
-        // can scrape one number to detect WS-side back-pressure without
-        // tailing logs. Mirrors the FPSS SDK's `dropped_events()` surface.
-        "broadcast_dropped": state.fpss_broadcast_dropped(),
-        // M1 fix: surface the JSON-serialization-failure counter so a
-        // sonic_rs::to_string regression on the hot path is visible
-        // alongside the broadcast drop counter rather than swallowed.
-        "json_serialize_failures": crate::ws::json_serialize_failure_count(),
-    });
-    json_response(&mut body)
-}
-
-/// GET /v3/terminal/streaming/status -- terminal-compatible streaming
-/// connection status as a bare `text/plain` body.
-///
-/// The JVM terminal exposes the streaming (FPSS) channel health at
-/// `/v3/terminal/fpss/status` as a one-word `text/plain` response
-/// (`CONNECTED` / `DISCONNECTED`); this is the client-facing alias of that
-/// route (the wire codename stays out of the public path). It mirrors the
-/// JSON `/v3/system/streaming/status` route but in the terminal's plain-text
-/// shape so operator tooling that scrapes the terminal's mgmt surface keeps
-/// working unchanged.
+/// GET /v3/terminal/fpss/status -- FPSS (streaming) channel health as the
+/// terminal's one-word `text/plain` body (`CONNECTED` / `DISCONNECTED`).
 pub async fn terminal_streaming_status(State(state): State<AppState>) -> Response {
     (
         StatusCode::OK,
@@ -813,13 +787,8 @@ pub async fn terminal_streaming_status(State(state): State<AppState>) -> Respons
         .into_response()
 }
 
-/// GET /v3/terminal/historical/status -- terminal-compatible historical
-/// connection status as a bare `text/plain` body.
-///
-/// The terminal-compatible alias of the historical (MDDS) channel health,
-/// which the JVM terminal serves at `/v3/terminal/mdds/status` as a one-word
-/// `text/plain` response (`CONNECTED` / `DISCONNECTED`). Plain-text sibling
-/// of the JSON `/v3/system/historical/status` route.
+/// GET /v3/terminal/mdds/status -- MDDS (historical) channel health as the
+/// terminal's one-word `text/plain` body (`CONNECTED` / `DISCONNECTED`).
 pub async fn terminal_historical_status(State(state): State<AppState>) -> Response {
     (
         StatusCode::OK,
@@ -827,31 +796,6 @@ pub async fn terminal_historical_status(State(state): State<AppState>) -> Respon
         state.mdds_status(),
     )
         .into_response()
-}
-
-/// POST /v3/system/shutdown -- requires `X-Shutdown-Token` header.
-/// Changed from GET in #377 review: shutdown mutates server state, so it
-/// belongs on an idempotent non-cacheable verb. GET would be cached /
-/// prefetched / CSRF-triggered; POST requires an explicit, intentional
-/// client action.
-pub async fn system_shutdown(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    let token = headers
-        .get("X-Shutdown-Token")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-
-    if !state.validate_shutdown_token(token) {
-        return error_response(
-            StatusCode::UNAUTHORIZED,
-            "unauthorized",
-            "invalid or missing X-Shutdown-Token header",
-        );
-    }
-
-    tracing::info!("shutdown requested via REST API with valid token");
-    state.shutdown();
-    let mut body = format::ok_envelope(vec![sonic_rs::Value::from("OK")]);
-    json_response(&mut body)
 }
 
 // ---------------------------------------------------------------------------
