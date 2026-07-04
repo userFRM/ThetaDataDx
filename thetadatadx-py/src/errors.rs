@@ -40,9 +40,13 @@
 //! clauses keep catching the same conditions. New code should reach for
 //! the canonical names.
 
+use std::ffi::CString;
+
 use pyo3::create_exception;
-use pyo3::exceptions::PyException;
+use pyo3::exceptions::{PyException, PyValueError};
 use pyo3::prelude::*;
+use pyo3::sync::PyOnceLock;
+use pyo3::types::{PyTuple, PyType};
 
 // Root — callers can use a single `except thetadatadx.ThetaDataError` to
 // catch any branded error from the SDK. Intentionally inherits from
@@ -72,7 +76,52 @@ create_exception!(thetadatadx, RateLimitError, ThetaDataError);
 // by class from an unrelated environmental configuration fault
 // (config-file I/O, TOML parse, internal invariant), which raises
 // `ConfigError`.
-create_exception!(thetadatadx, InvalidParameterError, ThetaDataError);
+// `InvalidParameterError` needs two bases: the SDK root `ThetaDataError`
+// (so `except ThetaDataError` catches it and it stays in the branded
+// hierarchy) AND the built-in `ValueError` (so existing `except ValueError`
+// callers keep working — a rejected argument is a value error). The
+// single-base `create_exception!` macro cannot express two bases, so the
+// type is built once at module registration with a `(ThetaDataError,
+// ValueError)` bases tuple and cached here.
+static INVALID_PARAMETER_ERROR: PyOnceLock<Py<PyType>> = PyOnceLock::new();
+
+fn build_invalid_parameter_error(py: Python<'_>) -> PyResult<Py<PyType>> {
+    let bases = PyTuple::new(
+        py,
+        [
+            py.get_type::<ThetaDataError>().into_any(),
+            py.get_type::<PyValueError>().into_any(),
+        ],
+    )?;
+    let name = CString::new("thetadatadx.InvalidParameterError")
+        .expect("static name has no interior NUL");
+    // SAFETY: `name` is a valid C string, `bases` is a non-null tuple of
+    // exception types, and the null `dict` is accepted by the C-API. The
+    // returned object is a new reference to a new exception type.
+    let ptr = unsafe {
+        pyo3::ffi::PyErr_NewException(name.as_ptr(), bases.as_ptr(), std::ptr::null_mut())
+    };
+    let obj = unsafe { Bound::from_owned_ptr_or_err(py, ptr)? };
+    Ok(obj.cast_into::<PyType>()?.unbind())
+}
+
+/// The cached `InvalidParameterError` type (dual base: `ThetaDataError` +
+/// `ValueError`), building it on first use.
+pub fn invalid_parameter_type(py: Python<'_>) -> PyResult<&'static Py<PyType>> {
+    INVALID_PARAMETER_ERROR.get_or_try_init(py, || build_invalid_parameter_error(py))
+}
+
+/// Raise `InvalidParameterError` with `msg`. Callers catching either
+/// `ValueError` or `thetadatadx.ThetaDataError` both handle it.
+pub fn invalid_parameter_err(msg: impl Into<String>) -> PyErr {
+    let msg = msg.into();
+    Python::attach(|py| match invalid_parameter_type(py) {
+        Ok(ty) => PyErr::from_type(ty.bind(py).clone(), (msg,)),
+        // Fall back to a plain ValueError if the type could not be built
+        // (only reachable before the module is initialised).
+        Err(_) => PyValueError::new_err(msg),
+    })
+}
 
 // Decoder schema mismatch — surfaces `Error::Decode` + `DecodeError`
 // variants. Triggering cause is usually a proto bump on the server before
@@ -154,7 +203,7 @@ pub fn register_exceptions(py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<
     m.add("RateLimitError", rate_limit_type)?;
     m.add(
         "InvalidParameterError",
-        py.get_type::<InvalidParameterError>(),
+        invalid_parameter_type(py)?.bind(py).clone(),
     )?;
     m.add("SchemaMismatchError", py.get_type::<SchemaMismatchError>())?;
     m.add("NetworkError", py.get_type::<NetworkError>())?;
@@ -246,7 +295,7 @@ pub fn to_py_err(e: thetadatadx::Error) -> PyErr {
         // (`Io` / `TomlParse` / `Internal`) route to `ConfigError`.
         thetadatadx::Error::Config { kind, .. } => {
             if kind.is_invalid_parameter() {
-                InvalidParameterError::new_err(e.to_string())
+                invalid_parameter_err(e.to_string())
             } else {
                 ConfigError::new_err(e.to_string())
             }
@@ -557,7 +606,10 @@ mod tests {
                 ("RateLimitError", py.get_type::<RateLimitError>()),
                 (
                     "InvalidParameterError",
-                    py.get_type::<InvalidParameterError>(),
+                    invalid_parameter_type(py)
+                        .expect("InvalidParameterError type builds")
+                        .bind(py)
+                        .clone(),
                 ),
                 ("SchemaMismatchError", py.get_type::<SchemaMismatchError>()),
                 ("NetworkError", py.get_type::<NetworkError>()),

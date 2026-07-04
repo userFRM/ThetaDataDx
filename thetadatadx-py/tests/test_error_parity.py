@@ -86,3 +86,11 @@ def test_invalid_parameter_is_distinct_from_root(client) -> None:
     # A dedicated subclass under the root, not the root itself.
     assert client.InvalidParameterError is not client.ThetaDataError
     assert issubclass(client.InvalidParameterError, client.ThetaDataError)
+
+
+def test_invalid_parameter_error_is_dual_base(client):
+    """InvalidParameterError roots at both ThetaDataError (branded hierarchy)
+    and the built-in ValueError (so `except ValueError` keeps working)."""
+    cls = client.InvalidParameterError
+    assert issubclass(cls, client.ThetaDataError), "must stay in the SDK hierarchy"
+    assert issubclass(cls, ValueError), "must also be a ValueError for back-compat"

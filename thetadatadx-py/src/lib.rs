@@ -342,7 +342,7 @@ impl Config {
             "manual" => config::ReconnectPolicy::Manual,
             "auto" => config::ReconnectPolicy::Auto(config::ReconnectAttemptLimits::default()),
             other => {
-                return Err(PyValueError::new_err(format!(
+                return Err(errors::invalid_parameter_err(format!(
                     "unknown reconnect_policy: {other:?} (expected \"auto\" or \"manual\")"
                 )))
             }
