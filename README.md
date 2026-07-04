@@ -43,8 +43,8 @@ High-performance market-data SDKs for [ThetaData](https://thetadata.us), in **Py
 >
 > ```bash
 > pip install --pre thetadatadx          # Python (pinned: pip install thetadatadx==13.0.0rc14)
-> npm install thetadatadx@next           # TypeScript / Node.js (pinned: npm install thetadatadx@13.0.0-rc.14)
-> cargo add thetadatadx@13.0.0-rc.14     # Rust
+> npm install thetadatadx@next           # TypeScript / Node.js (pinned: npm install thetadatadx@13.0.0-rc.15)
+> cargo add thetadatadx@13.0.0-rc.15     # Rust
 > ```
 
 Point an AI client (Claude Desktop, Cursor, and others) at the MCP server, no install and no Rust toolchain:
@@ -200,7 +200,7 @@ int main() {
 
 ```toml
 [dependencies]
-thetadatadx = "13.0.0-rc.14"
+thetadatadx = "13.0.0-rc.15"
 ```
 
 ```rust

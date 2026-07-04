@@ -7,11 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [13.0.0-rc.14] - 2026-07-03
+## [13.0.0-rc.15] - 2026-07-04
 
 ### Added
 
 - **The MCP server now advertises only the tools the account's subscription grants.** `tools/list` previously offered every endpoint once a client connected, so an account without an options subscription still saw every option tool and the model wasted calls on tools that only ever return a not-subscribed error. Once authenticated, the server reads the per-asset-class subscription captured at connect and advertises a tool only when its asset class (stock, options, indices, interest-rate) is subscribed; a class the subscription omits contributes no tools. FREE-tier classes stay advertised because FREE grants delayed data, and the account-agnostic tools (`ping`, the trading calendar, the multi-asset flat-file dispatcher) are always offered. Each tool's description names the subscription it needs. Offline mode is unchanged: with no client, only `ping` is advertised. Gating is per asset class; finer per-endpoint minimum-tier gating is a follow-up. Closes #1123.
+
+### Fixed
+
+- **Calendar endpoints keep every column in the projected frame.** `calendar_year(...)`, `calendar_on_date(...)`, and `calendar_open_today(...)` resolved their projected column set against schema field names that the calendar wire never sends, so `to_arrow()` / `to_polars()` collapsed to a date-only frame or an empty one while the decoded response carried the full session data. The calendar column resolver now maps the wire headers to every exposed column, and a fixture-headers test pins the calendar column set.
+- **Streamed historical chunks carry the columns the wire sent, not the full schema.** A handler on `stock_history_trade(...).stream(...)` that converted a chunk to a DataFrame received fabricated columns the response never carried (seed-zeroed flag and contract-identity columns that read as data), while the buffered path for the same endpoint projected the wire's exact columns. The streaming path now derives the present columns and response symbol from each chunk's headers, so a streamed frame matches the buffered one.
+- **The C and C++ projected Arrow export includes the `symbol` column for option and index history.** The FFI column-presence carrier dropped a response's single constant root symbol, so a C or C++ projected export omitted the leading `symbol` column that Rust, Python, and TypeScript all emit for the same response. The carrier now carries the constant symbol alongside the per-row symbols, so every binding's projected frame is terminal-exact.
+- **A rejected argument raises a typed error that is still a `ValueError`.** `InvalidParameterError` now inherits from both the SDK's `ThetaDataError` root and the built-in `ValueError`, and the configuration setters and flat-file guards raise it for a rejected value. Existing `except ValueError` code keeps working unchanged, and the same argument fault is now catchable through the branded hierarchy for parity with the other bindings. An unknown `historical_type` / `streaming_type` environment selector continues to raise `ConfigError`.
+- **The Python standalone streaming client supports the context-manager protocol without blocking the event loop.** `StreamingClient` gains `with` and `async with` support that stops the stream and drains on scope exit, mirroring the TypeScript client. The async exit runs the drain on a worker thread rather than inline, so `async with` teardown no longer parks the asyncio event loop while a slow callback drains.
+- **Streaming reconnect honors a server-sent rate-limit or restart signal.** An in-session `DISCONNECTED` reason from the server (too-many-requests, server-restarting) now reaches the reconnect classifier, so the client waits out the rate-limit cooldown instead of redialing on the fast transient ladder, uses the correct reconnect budget for a server restart, and no longer sits half-open after a transient disconnect the peer did not close.
+- **Memory-safety and lifecycle hardening across the bindings.** The C++ client destructor routes through the drained teardown path so stopping a stream from inside its own callback can no longer read a destroyed callback; the record-batch stream's free contract is corrected to require serialization with a concurrent read; and the Node.js streaming client no longer deadlocks on close when a callback has fallen behind the event rate, nor leaves a silently dead stream after a `reconnect()` whose callback queue could not drain in time.
+
+## [13.0.0-rc.14] - 2026-07-03
+
+### Added
+
 - **TypeScript projected Arrow-IPC is now drivable from a live historical call.** Every columnar historical method gains a `<method>WithColumns` variant returning `{ rows, presentColumns, symbol?, symbols? }`: the same rows as the plain method plus the columns the response's wire actually carried, the broadcast root `symbol` when the response has one constant across every row, and a per-row `symbols` array when a multi-symbol snapshot varies the symbol row to row. Feed `presentColumns` plus `symbol` / `symbols` straight to `<tick>ToArrowIpcProjected` for a terminal-exact columnar frame that omits the columns the wire omitted and attributes each row to its symbol, without hand-supplying a header list. The existing `Array<Tick>` methods are unchanged. This brings TypeScript to parity with Python's presence-carrying tick list and the C and C++ `_with_options` presence out-param.
 
 ### Fixed
