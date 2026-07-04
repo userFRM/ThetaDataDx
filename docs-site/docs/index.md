@@ -98,8 +98,8 @@ The active release line is the **13.0.0 release candidate**. It carries the late
 
 ```bash
 pip install --pre thetadatadx          # Python 3.12+ (pinned: pip install thetadatadx==13.0.0rc14)
-npm install thetadatadx@next           # Node.js 20+ (pinned: npm install thetadatadx@13.0.0-rc.14)
-cargo add thetadatadx@13.0.0-rc.14     # Rust async client
+npm install thetadatadx@next           # Node.js 20+ (pinned: npm install thetadatadx@13.0.0-rc.15)
+cargo add thetadatadx@13.0.0-rc.15     # Rust async client
 ```
 
 :::
