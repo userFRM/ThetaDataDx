@@ -28,8 +28,7 @@ Get implied volatility snapshot for an option contract (from ThetaData server).
 
 Returns implied volatilies calculated using the national best bid, mid, and ask price
 of the option respectively. The underlying price represents whatever the last underlying price was at the
-`underlying_timestamp` field. You can read more about how Theta Data calculates greeks
-here.
+`underlying_timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
 
 <RequestBuilder :cfg="cfg" />
 

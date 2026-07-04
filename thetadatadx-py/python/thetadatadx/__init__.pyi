@@ -2561,8 +2561,7 @@ class HistoricalView:
 
         Returns implied volatilies calculated using the national best bid, mid, and ask price
         of the option respectively. The underlying price represents whatever the last underlying price was at the
-        ``underlying_timestamp`` field. You can read more about how Theta Data calculates greeks 
-        here.
+        ``underlying_timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
 
         Defaults (upstream):
         - `strike`: `"*"`
@@ -2595,8 +2594,7 @@ class HistoricalView:
 
         Returns implied volatilies calculated using the national best bid, mid, and ask price
         of the option respectively. The underlying price represents whatever the last underlying price was at the
-        ``underlying_timestamp`` field. You can read more about how Theta Data calculates greeks 
-        here.
+        ``underlying_timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
 
         Defaults (upstream):
         - `strike`: `"*"`
@@ -3452,7 +3450,7 @@ class HistoricalView:
 
         - Returns the data for all contracts that share the same provided symbol and expiration. 
         - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data.
 
         Defaults (upstream):
@@ -3490,7 +3488,7 @@ class HistoricalView:
 
         - Returns the data for all contracts that share the same provided symbol and expiration. 
         - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data.
 
         Defaults (upstream):
@@ -3540,7 +3538,7 @@ class HistoricalView:
 
         - Returns the data for all contracts that share the same provided symbol and expiration. 
         - Calculates greeks for every trade reported by OPRA.
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 
         Defaults (upstream):
@@ -3577,7 +3575,7 @@ class HistoricalView:
 
         - Returns the data for all contracts that share the same provided symbol and expiration. 
         - Calculates greeks for every trade reported by OPRA.
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 
         Defaults (upstream):
@@ -3626,7 +3624,7 @@ class HistoricalView:
 
         - Returns the data for all contracts that share the same provided symbol and expiration. 
         - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data.
 
         Defaults (upstream):
@@ -3664,7 +3662,7 @@ class HistoricalView:
 
         - Returns the data for all contracts that share the same provided symbol and expiration. 
         - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data.
 
         Defaults (upstream):
@@ -3714,7 +3712,7 @@ class HistoricalView:
 
         - Returns the data for all contracts that share the same provided symbol and expiration.
         - Calculates greeks for every trade reported by OPRA.
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 
         Defaults (upstream):
@@ -3751,7 +3749,7 @@ class HistoricalView:
 
         - Returns the data for all contracts that share the same provided symbol and expiration.
         - Calculates greeks for every trade reported by OPRA.
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 
         Defaults (upstream):
@@ -3800,7 +3798,7 @@ class HistoricalView:
 
         - Returns the data for all contracts that share the same provided symbol and expiration. 
         - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data.
 
         Defaults (upstream):
@@ -3838,7 +3836,7 @@ class HistoricalView:
 
         - Returns the data for all contracts that share the same provided symbol and expiration. 
         - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data.
 
         Defaults (upstream):
@@ -3888,7 +3886,7 @@ class HistoricalView:
 
         - Returns the data for all contracts that share the same provided symbol and expiration.
         - Calculates greeks for every trade reported by OPRA.
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 
         Defaults (upstream):
@@ -3925,7 +3923,7 @@ class HistoricalView:
 
         - Returns the data for all contracts that share the same provided symbol and expiration.
         - Calculates greeks for every trade reported by OPRA.
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 
         Defaults (upstream):
@@ -3974,7 +3972,7 @@ class HistoricalView:
 
         - Returns the data for all contracts that share the same provided symbol and expiration. 
         - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data.
 
         Defaults (upstream):
@@ -4012,7 +4010,7 @@ class HistoricalView:
 
         - Returns the data for all contracts that share the same provided symbol and expiration. 
         - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data.
 
         Defaults (upstream):
@@ -4062,7 +4060,7 @@ class HistoricalView:
 
         - Returns the data for all contracts that share the same provided symbol and expiration.
         - Calculates greeks for every trade reported by OPRA.
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 
         Defaults (upstream):
@@ -4099,7 +4097,7 @@ class HistoricalView:
 
         - Returns the data for all contracts that share the same provided symbol and expiration.
         - Calculates greeks for every trade reported by OPRA.
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 
         Defaults (upstream):
@@ -4147,7 +4145,7 @@ class HistoricalView:
         """Fetch implied volatility history (intraday, sampled by interval).
 
         - Returns implied volatilies calculated using the national best bid, mid, and ask price of the option respectively. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data.
 
         Defaults (upstream):
@@ -4184,7 +4182,7 @@ class HistoricalView:
         """Fetch implied volatility history (intraday, sampled by interval).
 
         - Returns implied volatilies calculated using the national best bid, mid, and ask price of the option respectively. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data.
 
         Defaults (upstream):
@@ -4233,7 +4231,7 @@ class HistoricalView:
         """Fetch implied volatility on each trade for an option contract.
 
         - Returns implied volatilies calculated using the trade reported by OPRA. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 
         Defaults (upstream):
@@ -4269,7 +4267,7 @@ class HistoricalView:
         """Fetch implied volatility on each trade for an option contract.
 
         - Returns implied volatilies calculated using the trade reported by OPRA. 
-        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+        - The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
         - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 
         Defaults (upstream):

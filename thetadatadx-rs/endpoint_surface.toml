@@ -1386,8 +1386,7 @@ description = "Get implied volatility snapshot for an option contract (from Thet
 vendor_docstring = """
 Returns implied volatilies calculated using the national best bid, mid, and ask price
 of the option respectively. The underlying price represents whatever the last underlying price was at the
-``underlying_timestamp`` field. You can read more about how Theta Data calculates greeks 
-here.
+``underlying_timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
 """
 rest_path = "/v3/option/snapshot/greeks/implied_volatility"
 returns = "IvTicks"
@@ -1530,7 +1529,7 @@ description = "Fetch all Greeks history for an option contract (intraday, sample
 vendor_docstring = """
 - Returns the data for all contracts that share the same provided symbol and expiration. 
 - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
 - Multi-day requests are limited to 1 month of data.
 """
 rest_path = "/v3/option/history/greeks/all"
@@ -1543,7 +1542,7 @@ description = "Fetch all Greeks on each trade for an option contract."
 vendor_docstring = """
 - Returns the data for all contracts that share the same provided symbol and expiration. 
 - Calculates greeks for every trade reported by OPRA.
-- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/all"
@@ -1556,7 +1555,7 @@ description = "Fetch first-order Greeks history (intraday, sampled by interval).
 vendor_docstring = """
 - Returns the data for all contracts that share the same provided symbol and expiration. 
 - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
 - Multi-day requests are limited to 1 month of data.
 """
 rest_path = "/v3/option/history/greeks/first_order"
@@ -1569,7 +1568,7 @@ description = "Fetch first-order Greeks on each trade for an option contract."
 vendor_docstring = """
 - Returns the data for all contracts that share the same provided symbol and expiration.
 - Calculates greeks for every trade reported by OPRA.
-- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/first_order"
@@ -1582,7 +1581,7 @@ description = "Fetch second-order Greeks history (intraday, sampled by interval)
 vendor_docstring = """
 - Returns the data for all contracts that share the same provided symbol and expiration. 
 - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
 - Multi-day requests are limited to 1 month of data.
 """
 rest_path = "/v3/option/history/greeks/second_order"
@@ -1595,7 +1594,7 @@ description = "Fetch second-order Greeks on each trade for an option contract."
 vendor_docstring = """
 - Returns the data for all contracts that share the same provided symbol and expiration.
 - Calculates greeks for every trade reported by OPRA.
-- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/second_order"
@@ -1608,7 +1607,7 @@ description = "Fetch third-order Greeks history (intraday, sampled by interval).
 vendor_docstring = """
 - Returns the data for all contracts that share the same provided symbol and expiration. 
 - Calculated using the option and underlying midpoint price. If an interval size is specified (*highly recommended*), the option quote used in the calculation follows the same rules as the quote endpoint. 
-- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
 - Multi-day requests are limited to 1 month of data.
 """
 rest_path = "/v3/option/history/greeks/third_order"
@@ -1621,7 +1620,7 @@ description = "Fetch third-order Greeks on each trade for an option contract."
 vendor_docstring = """
 - Returns the data for all contracts that share the same provided symbol and expiration.
 - Calculates greeks for every trade reported by OPRA.
-- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/third_order"
@@ -1633,7 +1632,7 @@ template = "option_history_greeks"
 description = "Fetch implied volatility history (intraday, sampled by interval)."
 vendor_docstring = """
 - Returns implied volatilies calculated using the national best bid, mid, and ask price of the option respectively. 
-- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
 - Multi-day requests are limited to 1 month of data.
 """
 rest_path = "/v3/option/history/greeks/implied_volatility"
@@ -1645,7 +1644,7 @@ template = "option_history_trade_greeks"
 description = "Fetch implied volatility on each trade for an option contract."
 vendor_docstring = """
 - Returns implied volatilies calculated using the trade reported by OPRA. 
-- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks here.
+- The underlying price represents whatever the last underlying price was at the ``timestamp`` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
 - Multi-day requests are limited to 1 month of data, and must specify an expiration.
 """
 rest_path = "/v3/option/history/trade_greeks/implied_volatility"

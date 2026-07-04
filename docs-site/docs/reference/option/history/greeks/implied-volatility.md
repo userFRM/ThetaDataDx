@@ -29,7 +29,7 @@ const cfg = {
 Fetch implied volatility history (intraday, sampled by interval).
 
 - Returns implied volatilies calculated using the national best bid, mid, and ask price of the option respectively.
-- The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks here.
+- The underlying price represents whatever the last underlying price was at the `timestamp` field. You can read more about how Theta Data calculates greeks [here](/articles/option-greeks).
 - Multi-day requests are limited to 1 month of data.
 
 <RequestBuilder :cfg="cfg" />
