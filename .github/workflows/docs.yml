@@ -2,6 +2,14 @@ name: Deploy Docs
 on:
   push:
     branches: [main]
+    # Only deploy when docs actually change. The generated docs are committed
+    # to `docs-site/` (enforced by the docs-consistency drift gate), so a docs
+    # change always shows here — a code-only merge no longer redeploys Pages,
+    # which is what piled deployments onto the shared `pages` concurrency group.
+    paths:
+      - "docs-site/**"
+      - ".github/workflows/docs.yml"
+      - ".github/workflows/paths.yml"
   pull_request:
     paths:
       - "docs-site/**"
