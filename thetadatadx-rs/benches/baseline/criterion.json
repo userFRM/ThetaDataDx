@@ -19,32 +19,10 @@
     "threshold_pct": 40,
     "comment": "Multi-thread, ~2.2ms cross-thread workload with the same hosted-runner contention variance as its sibling; same 40% tolerance for the same reason."
   },
-  "StreamEvent::clone/Quote": {
-    "p50_ns": 21.9,
-    "criterion_path": "StreamEvent__clone/Quote"
-  },
-  "StreamEvent::clone/Trade": {
-    "p50_ns": 26.5,
-    "criterion_path": "StreamEvent__clone/Trade"
-  },
-  "StreamEvent::clone/Ohlcvc": {
-    "p50_ns": 21.9,
-    "criterion_path": "StreamEvent__clone/Ohlcvc"
-  },
-  "StreamEvent::match/Quote": {
-    "p50_ns": 1.2,
-    "criterion_path": "StreamEvent__match/Quote"
-  },
-  "StreamEvent::match/Trade": {
-    "p50_ns": 1.0,
-    "criterion_path": "StreamEvent__match/Trade"
-  },
-  "StreamEvent::match/Ohlcvc": {
-    "p50_ns": 1.0,
-    "criterion_path": "StreamEvent__match/Ohlcvc"
-  },
   "_deferred": {
     "protobuf_decode/quote_chunk/1024": "Sub-100ns/row at 1024 rows means the criterion sample window collapses to ~10 ns/iter on the hosted runner \u2014 within the timer resolution noise floor. Defer until the noise-aware throughput gate (future noise-aware throughput gate) lands.",
-    "streaming_channels/disruptor_production_ctor/100k_events": "New variant routing the pipeline through the production ring constructor so the sequence-recording producer adapter is measured rather than the bare ring. The baseline p50 is blessed only after a first sample lands on green main \u2014 the loader gates on hosted-runner numbers, so we do not author a value against a developer machine. Promote this key to a gated row (criterion_path streaming_channels_disruptor_production_ctor/100k_events) in a follow-up once that sample is observed."
+    "streaming_channels/disruptor_production_ctor/100k_events": "New variant routing the pipeline through the production ring constructor so the sequence-recording producer adapter is measured rather than the bare ring. The baseline p50 is blessed only after a first sample lands on green main \u2014 the loader gates on hosted-runner numbers, so we do not author a value against a developer machine. Promote this key to a gated row (criterion_path streaming_channels_disruptor_production_ctor/100k_events) in a follow-up once that sample is observed.",
+    "StreamEvent::clone": "~20-27ns clone of a stream-event enum: below the sub-100ns timer-resolution noise floor, so a 25% gate trips on hosted-runner scheduler variance not code (a 5ns swing on a 22ns op is +25%). A real clone regression surfaces in the streaming_channels throughput benches, which stay gated. Ungated for the same reason protobuf_decode is deferred.",
+    "StreamEvent::match": "~1ns enum-tag match: unmeasurable on a hosted runner (0.25ns tolerance at 25%), pure noise floor. Ungated."
   }
 }
