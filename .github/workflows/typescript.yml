@@ -169,9 +169,8 @@ jobs:
       - name: Emit TypeScript shape manifest
         if: matrix.os == 'ubuntu-latest'
         run: node thetadatadx-ts/scripts/emit_validator_manifest.mjs
-      - name: Validator self-test (Python diff engine)
-        if: matrix.os == 'ubuntu-latest'
-        run: python3 scripts/ci/tests/test_check_agreement.py
+      # The agreement validator's self-test runs in the fast-lane `agreement`
+      # job on every PR; no need to re-run it inside the TypeScript build.
       - name: Upload TypeScript shape manifest
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v7
