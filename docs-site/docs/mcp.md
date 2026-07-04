@@ -60,6 +60,8 @@ Keep credentials in environment variables or a secrets manager — not in config
 
 Every generated historical endpoint plus `ping`. Tool names and parameters match the [reference pages](/reference/) one-to-one, so the model's tool list is the same surface you read here.
 
+Once connected, the server advertises only the tools your subscription grants. A tool appears when its asset class — stock, options, indices, or interest-rate — is covered by your subscription; a class your plan omits contributes no tools, so the model never sees a tool it cannot call. FREE-tier classes stay listed because FREE grants delayed data. The account-agnostic tools (`ping`, the trading calendar, the generic flat-file request) are always offered, and each tool's description names the subscription it needs. Gating is per asset class; within a subscribed class, a call to an endpoint above your tier still returns the usual permission error.
+
 When credentials are present the connected surface also carries six flat-file tools. Each pulls a whole-universe daily blob for a single date, writes it to disk as CSV or JSON Lines, and returns the written path:
 
 - `thetadatadx_flatfile_request`: generic flat-file request for a served `(sec_type, req_type)` pair; an unserved pair is rejected with a typed invalid-parameter error.

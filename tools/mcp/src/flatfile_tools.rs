@@ -29,6 +29,10 @@ use sonic_rs::{json, JsonValueTrait, Value};
 use thetadatadx::flatfiles::{flat_file_serves, FlatFileFormat, ReqType, SecType, SERVED_DATASETS};
 use thetadatadx::Client;
 
+/// Tool name of the multi-asset flat-file dispatcher. Shared so the tool
+/// registration and the `tools/list` subscription gate agree on one literal.
+pub(crate) const FLATFILE_DISPATCHER_TOOL: &str = "thetadatadx_flatfile_request";
+
 use crate::ToolError;
 
 /// Both case spellings of a token, in matrix-stable order: the upper-case
@@ -176,7 +180,7 @@ pub(crate) fn push_flatfile_tool_definitions(tools: &mut Vec<Value>) {
     }
 
     tools.push(json!({
-        "name": "thetadatadx_flatfile_request",
+        "name": FLATFILE_DISPATCHER_TOOL,
         "description": "Generic flat-file request. Pull a whole-universe daily blob for a \
                         served (sec_type, req_type) combination. The flat-file service serves \
                         option trade_quote / open_interest / eod and stock trade_quote / eod; \
