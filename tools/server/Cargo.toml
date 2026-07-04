@@ -29,13 +29,10 @@ tokio = { version = "1.52.1", features = ["full"] }
 sonic-rs = "0.5.8"
 serde = { version = "1.0.228", features = ["derive"] }
 # `tower` is already in the tree as a transitive dep of axum 0.8; we depend
-# on it directly for `ConcurrencyLimitLayer`. `tower_governor` (per-IP rate
-# limiting) extends this with keyed quotas -- see `router::build()` for the
-# composition.
+# on it directly for `ConcurrencyLimitLayer`.
 tower = { version = "0.5.3", features = ["limit"] }
 # `trace` powers the per-request access log mounted in `router::build`.
 tower-http = { version = "0.6.8", features = ["cors", "trace"] }
-tower_governor = "0.8.0"
 # Streaming flatfile bytes back to clients via `ReaderStream` (issue #432).
 # Transitive dep of axum already; declared directly so the route module's
 # `tokio_util::io::ReaderStream` import is sourced from a pinned version.

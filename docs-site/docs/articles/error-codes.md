@@ -55,5 +55,4 @@ The [HTTP server](/server/http) reports every failure with one envelope shape an
 |---|---|---|
 | 400 | `bad_request` | Missing or invalid parameter; the message names it. |
 | 404 | `not_found` | Unknown route. |
-| 429 | — | Opt-in per-IP rate limit (off by default; enabled via `THETADATADX_RATE_LIMIT_PER_SECOND` / `THETADATADX_RATE_LIMIT_BURST_SIZE`); carries `Retry-After`. |
 | 503 | `upstream_exhausted` | Upstream capacity exhausted after retries; carries `Retry-After`. |

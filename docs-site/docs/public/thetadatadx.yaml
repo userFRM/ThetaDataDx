@@ -3221,7 +3221,6 @@ paths:
         Initiates a graceful shutdown of the thetadatadx server.
         Requires a valid `X-Shutdown-Token` header (a 128-bit hex token, 32
         lowercase hex characters, printed to stderr on server startup).
-        Rate-limited to ~3 attempts per hour per client IP.
       security:
         - shutdownToken: []
       responses:
@@ -3229,8 +3228,6 @@ paths:
           description: Shutdown initiated
         '401':
           description: Missing or invalid token
-        '429':
-          description: Too many attempts (rate-limited)
 
   # =========================================================================
   # TERMINAL (drop-in management compatibility)
@@ -3514,8 +3511,7 @@ components:
       name: X-Shutdown-Token
       description: |
         A 128-bit hex token (32 lowercase hex characters) printed to stderr on
-        server startup. Required on the `/v3/system/shutdown` POST endpoint.
-        Rate-limited to ~3 attempts per hour per client IP. See
+        server startup. Required on the `/v3/system/shutdown` POST endpoint. See
         `tools/server/README.md`.
 
   schemas:

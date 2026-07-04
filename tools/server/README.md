@@ -67,15 +67,13 @@ Credentials resolve in this order, highest first: the `--api-key` flag, then `TH
 
 ### Environment variables
 
-These variables are read from the environment. The credential variables (`THETADATA_API_KEY`, and the `THETADATA_EMAIL` + `THETADATA_PASSWORD` pair) authenticate the server; the rate-limit knobs have no flag. Per-IP rate limiting is off by default (matching the terminal it replaces); setting either rate-limit variable opts in. Full descriptions live in [`docs-site/docs/server/index.md`](../../docs-site/docs/server/index.md).
+These variables are read from the environment. The credential variables (`THETADATA_API_KEY`, and the `THETADATA_EMAIL` + `THETADATA_PASSWORD` pair) authenticate the server. Full descriptions live in [`docs-site/docs/server/index.md`](../../docs-site/docs/server/index.md).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `THETADATA_API_KEY` | | API key for authentication when `--api-key` is not passed. An explicit `--api-key` flag wins over this; both win over the email/password path. The key is never logged or echoed. |
 | `THETADATA_EMAIL` | | Account email. With `THETADATA_PASSWORD`, authenticates the server when no API key is supplied. Outranked by `--api-key` and `THETADATA_API_KEY`; wins over the `--creds` file. |
 | `THETADATA_PASSWORD` | | Account password, paired with `THETADATA_EMAIL`. Never logged or echoed. |
-| `THETADATADX_RATE_LIMIT_PER_SECOND` | off | Opt into per-IP rate limiting at this many requests per second. Setting either rate-limit variable turns the limiter on. |
-| `THETADATADX_RATE_LIMIT_BURST_SIZE` | off | Burst size for the per-IP rate limiter. If only one of the two rate-limit variables is set, the other falls back to `20` req/s / `40` burst. |
 | `THETADATADX_WS_CLIENT_CAPACITY` | `4096` | Per-client WebSocket send-buffer capacity in events. A larger buffer trades memory for more headroom before a slow consumer drops events; invalid or zero values keep the default. |
 
 ## REST API
@@ -130,7 +128,7 @@ JSON responses carry the v3 body `{ "response": [ ... ] }` (no `header` key), `C
 
 Timestamps are ISO strings (the v2 `ms_of_day` / `date` columns are folded into them) and the option `right` is `CALL` / `PUT`.
 
-Failures on the data routes return the HTTP status with a plain-text (`text/plain`) description. Framework-level rejections (rate-limit `429`, malformed requests, the shutdown token) still return a JSON `{ "header": { "error_type", "error_msg" }, "response": [] }` envelope.
+Failures on the data routes return the HTTP status with a plain-text (`text/plain`) description. Framework-level rejections (malformed requests, the shutdown token) still return a JSON `{ "header": { "error_type", "error_msg" }, "response": [] }` envelope.
 
 ## WebSocket
 
@@ -157,8 +155,7 @@ Send JSON commands to manage subscriptions:
 
 ## Hardening
 
-- **`POST /v3/system/shutdown`** requires a 128-bit random hex `X-Shutdown-Token` header (32 hex chars) printed once to stderr at startup. Token is compared in constant time so response latency does not leak the secret one byte at a time; no env var or CLI flag sets it externally. A route-scoped per-IP limiter caps attempts at roughly 3 per hour.
-- **Opt-in global per-IP rate limit** via `tower_governor::GovernorLayer` keyed on `PeerIpKeyExtractor` (peer TCP socket, **not** `X-Forwarded-For`). The general limiter is **off by default on every bind regardless of address**; operators opt in by setting `THETADATADX_RATE_LIMIT_PER_SECOND` and/or `THETADATADX_RATE_LIMIT_BURST_SIZE` (setting either turns it on; a partially-set pair falls back to 20 rps / burst 40). Once on, excess traffic from a single IP is rejected as `429` with the canonical error envelope and a `Retry-After` header, on both the HTTP routes and the WS upgrade. The shutdown-route limiter stays active on every bind. The server runs without a trusted reverse proxy, so forwarded-header extractors would let an attacker cycle fake IPs.
+- **`POST /v3/system/shutdown`** requires a 128-bit random hex `X-Shutdown-Token` header (32 hex chars) printed once to stderr at startup. Token is compared in constant time so response latency does not leak the secret one byte at a time; no env var or CLI flag sets it externally.
 - **256 concurrent in-flight requests** — requests past the cap queue on the layer's semaphore (they are not rejected), then queue again on the SDK's tier-sized request semaphore that matches the upstream concurrency cap. Bursts absorb as latency, not errors; see the Concurrency Model section in `docs-site/docs/server/http.md`. Upstream capacity rejections that survive the SDK's retry budget surface as `503` + `Retry-After`, not 500. **64 KiB body limit**, **4 KiB WebSocket `Message::Text` cap**.
 - **`BoundedQuery<32>` extractor** counts `&`-delimited query-string pairs BEFORE `serde_urlencoded` runs, so a `?a=1&b=2&...` flood is rejected at parse time rather than after HashMap rehashing allocates MB+.
 - **CSV output defuses formula injection** — cells whose first byte is `=` / `+` / `-` / `@` / `\t` are prefixed with a single-quote `'` and CSV-quoted.

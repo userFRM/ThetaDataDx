@@ -413,38 +413,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // running on the server's origin IS the server, so the restriction
     // blocked every real browser client while protecting nothing — and
     // `allow_methods=[GET]` failed every POST preflight. Real protection
-    // for the mutating route is the `X-Shutdown-Token` header plus the
-    // route-scoped rate limiter, not CORS.
+    // for the mutating route is the `X-Shutdown-Token` header, not CORS.
     let cors = CorsLayer::new()
         .allow_origin(tower_http::cors::Any)
         .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
         .allow_headers(tower_http::cors::Any);
 
-    // The terminal this server replaces does no per-IP rate limiting, so
-    // the default must not either: with neither rate-limit env var set the
-    // general per-IP governor is attached nowhere, regardless of the bind
-    // address. An operator exposing the server as a relay opts in by
-    // setting THETADATADX_RATE_LIMIT_PER_SECOND and/or
-    // THETADATADX_RATE_LIMIT_BURST_SIZE. The same resolved pair drives both
-    // the HTTP general governor and the WS upgrade governor; the tighter
-    // shutdown-route limiter stays active on every bind regardless.
-    let rate_limit = router::resolve_rate_limit();
-    match rate_limit {
-        Some((per_second, burst_size)) => tracing::info!(
-            per_second,
-            burst_size,
-            "general per-IP rate limiter enabled by operator (opt-in)"
-        ),
-        None => tracing::info!(
-            "general per-IP rate limiter disabled (default; shutdown-route limiter stays active)"
-        ),
-    }
-
-    let http_app = router::build(state.clone(), rate_limit).layer(cors);
+    let http_app = router::build(state.clone()).layer(cors);
     let http_addr: SocketAddr = format!("{}:{}", args.bind, args.http_port).parse()?;
 
     // Step 7: Build WebSocket server.
-    let ws_app = ws::router(state.clone(), rate_limit);
+    let ws_app = ws::router(state.clone());
     let ws_addr: SocketAddr = format!("{}:{}", args.bind, args.ws_port).parse()?;
 
     // Step 8: Start both servers concurrently.
@@ -452,21 +431,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!(%ws_addr, "WebSocket server starting");
 
     let shutdown_state = state.clone();
-    // `into_make_service_with_connect_info::<SocketAddr>()` is required for
-    // the per-IP rate limiter (`tower_governor::PeerIpKeyExtractor`) to
-    // read the peer address on each request. Without it, the PeerIp key
-    // extractor falls back to rejecting every request as "no client IP".
-    // The extractor uses PeerIp (not SmartIp) so downstream clients
-    // can't bypass the rate limit by forging `X-Forwarded-For`.
     let http_server = axum::serve(
         tokio::net::TcpListener::bind(http_addr).await?,
-        http_app.into_make_service_with_connect_info::<SocketAddr>(),
+        http_app.into_make_service(),
     )
     .with_graceful_shutdown(shutdown_signal(shutdown_state.clone()));
 
     let ws_server = axum::serve(
         tokio::net::TcpListener::bind(ws_addr).await?,
-        ws_app.into_make_service_with_connect_info::<SocketAddr>(),
+        ws_app.into_make_service(),
     )
     .with_graceful_shutdown(shutdown_signal(shutdown_state));
 
