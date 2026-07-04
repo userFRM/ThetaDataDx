@@ -17,13 +17,13 @@ for critical issues.
 
 ## Supported Versions
 
-Security fixes land on the current major line only. Older majors are not patched; upgrade to the latest `12.x` release.
+Security fixes land on the current major line only. Older majors are not patched; upgrade to the latest `13.x` release.
 
 | Version | Supported          | Notes |
 | ------- | ------------------ | ----- |
-| 12.x    | :white_check_mark: | Current release |
-| 9.x-11.x | :x:               | Upgrade to 12.x |
-| < 9.0   | :x:                | Upgrade to 12.x |
+| 13.x    | :white_check_mark: | Current release |
+| 10.x-12.x | :x:              | Upgrade to 13.x |
+| < 10.0  | :x:                | Upgrade to 13.x |
 
 ## Security Design
 
