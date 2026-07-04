@@ -3765,14 +3765,18 @@ def _collect_python_error_leaves(py_errors_rs: pathlib.Path) -> set[str]:
     if not m:
         return set()
     body = _balanced_body(text, m.end())
-    # The dispatch builds each leaf as `<Class>::new_err(...)`; the
-    # rate-limit arm routes through the `rate_limit_err` helper which
-    # builds `RateLimitError`. Harvest both shapes.
+    # The dispatch builds each leaf as `<Class>::new_err(...)`; two arms
+    # route through helpers instead: `rate_limit_err` builds `RateLimitError`,
+    # and `invalid_parameter_err` builds the dual-base `InvalidParameterError`
+    # (which cannot use `<Class>::new_err` because it is a runtime type, not a
+    # `create_exception!` type). Harvest all three shapes.
     leaves = {
         leaf for leaf in _LEAF_RE.findall(body) if leaf in CANONICAL_ERROR_LEAVES
     }
     if "rate_limit_err" in body:
         leaves.add("RateLimitError")
+    if "invalid_parameter_err" in body:
+        leaves.add("InvalidParameterError")
     return leaves
 
 
