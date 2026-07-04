@@ -125,6 +125,14 @@ EXEMPT_LINE_PATTERNS = (
     re.compile(r"mdds-stage\.thetadata\.us", re.IGNORECASE),
     # Operator metric namespace (renaming breaks dashboards / alerts).
     re.compile(r"thetadatadx\.fpss\.", re.IGNORECASE),
+    # The bundled server is an exact drop-in for the JVM terminal, which
+    # publishes these two system routes verbatim (docs.thetadata.us). The
+    # server mirrors them 1:1, so the literal route paths are permitted on the
+    # public surface — exclusively as the route path. Any other fpss/mdds
+    # occurrence on the line (a bare descriptor) still trips, so descriptions
+    # use "streaming" / "historical", not the codename.
+    re.compile(r"/v3/terminal/fpss/status", re.IGNORECASE),
+    re.compile(r"/v3/terminal/mdds/status", re.IGNORECASE),
 )
 
 

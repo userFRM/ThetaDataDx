@@ -234,7 +234,7 @@ const STREAMS: &[StreamSpec] = &[
         cpp_sub: "thetadatadx::Contract::option(\"SPY\", {.expiration = \"20260618\", .strike = \"570\", .right = \"C\"}).quote()",
         ws_req_type: "QUOTE",
         ws_sec_type: "OPTION",
-        ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570, "right": "C"}"#),
+        ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570000, "right": "C"}"#),
         group: "Options",
         label: "Quote",
         warning: None,
@@ -251,7 +251,7 @@ const STREAMS: &[StreamSpec] = &[
         cpp_sub: "thetadatadx::Contract::option(\"SPY\", {.expiration = \"20260618\", .strike = \"570\", .right = \"C\"}).trade()",
         ws_req_type: "TRADE",
         ws_sec_type: "OPTION",
-        ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570, "right": "C"}"#),
+        ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570000, "right": "C"}"#),
         group: "Options",
         label: "Trade",
         warning: None,
@@ -268,7 +268,7 @@ const STREAMS: &[StreamSpec] = &[
         cpp_sub: "thetadatadx::Contract::option(\"SPY\", {.expiration = \"20260618\", .strike = \"570\", .right = \"C\"}).open_interest()",
         ws_req_type: "OPEN_INTEREST",
         ws_sec_type: "OPTION",
-        ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570, "right": "C"}"#),
+        ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570000, "right": "C"}"#),
         group: "Options",
         label: "Open Interest",
         warning: Some("Streaming open interest is not live on the upstream feed yet, so this subscription does not deliver ticks. For open interest today, use the [flat files](/articles/flat-files) (last 7 days) or the [historical open-interest endpoint](/reference/option/history/open-interest)."),
@@ -319,7 +319,7 @@ const STREAMS: &[StreamSpec] = &[
         cpp_sub: "thetadatadx::Contract::option(\"SPY\", {.expiration = \"20260618\", .strike = \"570\", .right = \"C\"}).market_value()",
         ws_req_type: "MARKET_VALUE",
         ws_sec_type: "OPTION",
-        ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570, "right": "C"}"#),
+        ws_contract: Some(r#"{"symbol": "SPY", "expiration": 20260618, "strike": 570000, "right": "C"}"#),
         group: "Options",
         label: "Market Value",
         warning: None,
@@ -539,7 +539,7 @@ fn http_tab(spec: &StreamSpec) -> String {
     );
     if spec.ws_contract.is_some_and(|c| c.contains("strike")) {
         out.push_str(
-            "\nThe WebSocket envelope takes the strike in dollars (`570` = $570.00), the same as the SDKs.\n",
+            "\nThe WebSocket envelope takes the strike as the terminal's 1/10-cent integer (`570000` = $570.00) by default, matching the terminal wire; pass the server's `--strike-format dollars` flag to use a dollar value instead. The native SDK builders take dollars.\n",
         );
     }
     out
@@ -578,7 +578,7 @@ fn full_trade_delivery(spec: &StreamSpec) -> String {
             "QQQ 20231110 P 360.00",
             // TD encodes the strike in 1/10-cent on the wire; the SDK
             // surfaces it in dollars on the resolved contract.
-            "\n\nThe `Ohlcvc` bar and the trailing `Quote` updates carry the same `contract`. On the wire ThetaData encodes the option strike in tenths of a cent (a $360.00 strike as `3600000`); the SDK resolves it to the dollar strike on `event.contract`.\n",
+            "\n\nThe `Ohlcvc` bar and the trailing `Quote` updates carry the same `contract`. ThetaData encodes the option strike in tenths of a cent (a $360.00 strike as `360000`); the server's WebSocket emits that integer verbatim by default, while the native SDK resolves it to the dollar strike on `event.contract`.\n",
         )
     } else {
         ("QQQ", "\n")
@@ -612,7 +612,7 @@ fn full_trade_delivery(spec: &StreamSpec) -> String {
     );
     if is_option {
         out.push_str(
-            "- The WebSocket envelope and the SDK builders take the option strike in dollars; the tenths-of-a-cent wire encoding is internal.\n",
+            "- The server's WebSocket envelope takes the option strike as the terminal's 1/10-cent integer by default (`--strike-format dollars` switches to a dollar value); the native SDK builders take dollars.\n",
         );
     }
     out.push('\n');

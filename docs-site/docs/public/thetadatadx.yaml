@@ -65,10 +65,9 @@ tags:
   - name: Flat Files
     description: Whole-universe daily flat-file downloads (CSV or JSON Lines)
 
-# No global security requirement: the server authenticates its upstream
-# connection once at startup, and request paths carry no per-request
-# credential. The only route-scoped requirement is the shutdown token on
-# POST /v3/system/shutdown.
+# No security requirement: the server authenticates its upstream connection
+# once at startup, and request paths carry no per-request credential — matching
+# the terminal, whose local routes (including shutdown) are all unauthenticated.
 
 # ---------------------------------------------------------------------------
 # Reusable anchors for common parameter/schema objects
@@ -3118,166 +3117,66 @@ paths:
             auto rates = client.historical().interest_rate_history_eod("SOFR", "20240101", "20240301");
 
   # =========================================================================
-  # SYSTEM
+  # TERMINAL SYSTEM
   # =========================================================================
+  # Mirrored 1:1 from the JVM terminal this server replaces: three
+  # unauthenticated GET routes with bare `text/plain` bodies, so operator
+  # tooling written against the terminal's mgmt surface works unchanged.
 
-  /v3/system/status:
+  /v3/terminal/shutdown:
     get:
-      operationId: systemStatus
-      tags: [System]
-      summary: Server status
+      operationId: terminalShutdown
+      tags: [Terminal]
+      summary: Shut down the server
       description: |
-        Reports overall server health: the upstream data connection state and
-        the running server version.
+        Kills the server process, matching the JVM terminal. Unauthenticated;
+        returns the plain-text body `OK`.
       parameters: []
       responses:
         '200':
-          description: Server status
+          description: Shutdown initiated.
           content:
-            application/json:
+            text/plain:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    enum: [CONNECTED, DISCONNECTED]
-                    description: Upstream data connection state.
-                  version:
-                    type: string
-                    description: Running server version.
+                type: string
+                enum: [OK]
 
-  /v3/system/historical/status:
-    get:
-      operationId: systemHistoricalStatus
-      tags: [System]
-      summary: Historical data connection status
-      description: |
-        Reports the historical data connection state wrapped in the standard
-        response envelope.
-      parameters: []
-      responses:
-        '200':
-          description: Historical data connection status
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  header:
-                    type: object
-                    properties:
-                      format:
-                        type: string
-                        enum: [json]
-                      error_type:
-                        type: string
-                        enum: ['null']
-                  response:
-                    type: array
-                    items:
-                      type: string
-                      enum: [CONNECTED, DISCONNECTED]
-                    description: Single-element array with the connection state.
-
-  /v3/system/streaming/status:
-    get:
-      operationId: systemStreamingStatus
-      tags: [System]
-      summary: Streaming connection status
-      description: |
-        Reports the streaming connection state, the running server version, and
-        two back-pressure counters operators can scrape to detect dropped
-        events without tailing logs.
-      parameters: []
-      responses:
-        '200':
-          description: Streaming connection status
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    enum: [CONNECTED, DISCONNECTED]
-                    description: Streaming connection state.
-                  version:
-                    type: string
-                    description: Running server version.
-                  broadcast_dropped:
-                    type: integer
-                    format: int64
-                    description: Total streaming events dropped on the internal handoff since startup.
-                  json_serialize_failures:
-                    type: integer
-                    format: int64
-                    description: Total streaming-event serialization failures since startup.
-
-  /v3/system/shutdown:
-    post:
-      tags: [System]
-      summary: Graceful server shutdown
-      description: |
-        Initiates a graceful shutdown of the thetadatadx server.
-        Requires a valid `X-Shutdown-Token` header (a 128-bit hex token, 32
-        lowercase hex characters, printed to stderr on server startup).
-        Rate-limited to ~3 attempts per hour per client IP.
-      security:
-        - shutdownToken: []
-      responses:
-        '200':
-          description: Shutdown initiated
-        '401':
-          description: Missing or invalid token
-        '429':
-          description: Too many attempts (rate-limited)
-
-  # =========================================================================
-  # TERMINAL (drop-in management compatibility)
-  # =========================================================================
-  # These routes mirror the management status paths the Theta Terminal serves,
-  # so operator tooling that scrapes the terminal's mgmt surface works against
-  # this server unchanged. Each returns a one-word `text/plain` body
-  # (CONNECTED / DISCONNECTED) — the plain-text sibling of the JSON
-  # /v3/system/{streaming,historical}/status routes above.
-
-  /v3/terminal/streaming/status:
+  /v3/terminal/fpss/status:
     get:
       operationId: terminalStreamingStatus
       tags: [Terminal]
-      summary: Streaming connection status (text/plain)
+      summary: Streaming channel status (text/plain)
       description: |
-        Terminal-compatible streaming connection status as a bare `text/plain`
-        body. Returns `CONNECTED` or `DISCONNECTED` — the plain-text sibling of
-        the JSON `/v3/system/streaming/status` route.
+        Streaming channel health as the terminal's one-word `text/plain`
+        body.
       parameters: []
       responses:
         '200':
-          description: Streaming connection state as a one-word plain-text body.
+          description: Streaming channel state as a one-word plain-text body.
           content:
             text/plain:
               schema:
                 type: string
                 enum: [CONNECTED, DISCONNECTED]
 
-  /v3/terminal/historical/status:
+  /v3/terminal/mdds/status:
     get:
       operationId: terminalHistoricalStatus
       tags: [Terminal]
-      summary: Historical connection status (text/plain)
+      summary: Historical channel status (text/plain)
       description: |
-        Terminal-compatible historical connection status as a bare `text/plain`
-        body. Returns `CONNECTED` or `DISCONNECTED` — the plain-text sibling of
-        the JSON `/v3/system/historical/status` route.
+        Historical channel health as the terminal's one-word `text/plain`
+        body.
       parameters: []
       responses:
         '200':
-          description: Historical connection state as a one-word plain-text body.
+          description: Historical channel state as a one-word plain-text body.
           content:
             text/plain:
               schema:
                 type: string
                 enum: [CONNECTED, DISCONNECTED]
+
 
   # =========================================================================
   # FLAT FILES
@@ -3507,16 +3406,6 @@ paths:
 # COMPONENTS
 # ---------------------------------------------------------------------------
 components:
-  securitySchemes:
-    shutdownToken:
-      type: apiKey
-      in: header
-      name: X-Shutdown-Token
-      description: |
-        A 128-bit hex token (32 lowercase hex characters) printed to stderr on
-        server startup. Required on the `/v3/system/shutdown` POST endpoint.
-        Rate-limited to ~3 attempts per hour per client IP. See
-        `tools/server/README.md`.
 
   schemas:
     OhlcTick: *ohlc-tick

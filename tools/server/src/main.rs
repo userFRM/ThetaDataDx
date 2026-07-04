@@ -41,7 +41,7 @@ use zeroize::Zeroizing;
 use thetadatadx::config::{HistoricalEnvironment, StreamingEnvironment};
 use thetadatadx::{Client, Credentials, DirectConfig};
 
-use crate::state::AppState;
+use crate::state::{AppState, StrikeFormat};
 
 /// A random 128-bit token as 32 lowercase hex chars. Backs the shutdown
 /// token and the flat-file scratch-path suffix — both want an unguessable,
@@ -131,6 +131,12 @@ struct Args {
     /// Skip the streaming connection at startup.
     #[arg(long)]
     no_streaming: bool,
+
+    /// WebSocket option-strike encoding: `terminal` (the JVM terminal's
+    /// 1/10-cent integer, e.g. 570000 for $570; default, exact drop-in) or
+    /// `dollars` (a dollar value, e.g. 570; the SDK's convenience form).
+    #[arg(long, value_enum, default_value_t = StrikeFormat::Terminal)]
+    strike_format: StrikeFormat,
 }
 
 /// Canonical environment variable names, shared with the SDK, the CLI, and
@@ -228,9 +234,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // log lines are lost on shutdown.
     let _log_guard = logging::init(&args.log_level, args.log_format, args.log_file.as_deref())?;
 
-    // Generate a random shutdown token and print it.
-    let shutdown_token = random_hex_token();
-
     // Startup banner. Named after the binary so operator automation
     // matching the banner string keys on the same identifier as the
     // process list and the docs.
@@ -244,18 +247,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     eprintln!("REST API: http://{}:{}/", args.bind, args.http_port);
     eprintln!("WebSocket: ws://{}:{}/v1/events", args.bind, args.ws_port);
     eprintln!();
-    eprintln!("Shutdown token: {shutdown_token}");
-    eprintln!(
-        "  curl -X POST http://{}:{}/v3/system/shutdown -H 'X-Shutdown-Token: {}'",
-        args.bind, args.http_port, shutdown_token
-    );
 
-    // The shutdown token is deliberately NOT part of the structured log --
-    // structured logs flow to aggregators / SIEMs / persisted buffers and
-    // the token is a bearer credential for the shutdown endpoint. The
-    // eprintln! banner above already prints it once to stderr for the
-    // operator starting the process; keeping it out of `tracing::info!`
-    // means it never reaches a log pipeline.
     tracing::info!(
         version,
         http_port = args.http_port,
@@ -387,7 +379,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("MDDS connected");
 
     // Step 4: Build shared state.
-    let state = AppState::new(client, shutdown_token);
+    let state = AppState::new(client, args.strike_format);
 
     // Step 5: Start FPSS streaming bridge.
     if !args.no_streaming {
@@ -407,44 +399,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //
     // Permissive by design, matching the legacy terminal: browser-based
     // dashboards on any local origin must be able to call both the GET
-    // data routes and the POST routes (`/v3/system/shutdown`,
-    // `/v3/flatfile/request`). The previous configuration pinned
+    // data routes and the POST flat-file request route
+    // (`/v3/flatfile/request`). The previous configuration pinned
     // `allow_origin` to the server's own listener address — a client
     // running on the server's origin IS the server, so the restriction
     // blocked every real browser client while protecting nothing — and
-    // `allow_methods=[GET]` failed every POST preflight. Real protection
-    // for the mutating route is the `X-Shutdown-Token` header plus the
-    // route-scoped rate limiter, not CORS.
+    // `allow_methods=[GET]` failed every POST preflight.
     let cors = CorsLayer::new()
         .allow_origin(tower_http::cors::Any)
         .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
         .allow_headers(tower_http::cors::Any);
 
-    // The terminal this server replaces does no per-IP rate limiting, so
-    // the default must not either: with neither rate-limit env var set the
-    // general per-IP governor is attached nowhere, regardless of the bind
-    // address. An operator exposing the server as a relay opts in by
-    // setting THETADATADX_RATE_LIMIT_PER_SECOND and/or
-    // THETADATADX_RATE_LIMIT_BURST_SIZE. The same resolved pair drives both
-    // the HTTP general governor and the WS upgrade governor; the tighter
-    // shutdown-route limiter stays active on every bind regardless.
-    let rate_limit = router::resolve_rate_limit();
-    match rate_limit {
-        Some((per_second, burst_size)) => tracing::info!(
-            per_second,
-            burst_size,
-            "general per-IP rate limiter enabled by operator (opt-in)"
-        ),
-        None => tracing::info!(
-            "general per-IP rate limiter disabled (default; shutdown-route limiter stays active)"
-        ),
-    }
-
-    let http_app = router::build(state.clone(), rate_limit).layer(cors);
+    let http_app = router::build(state.clone()).layer(cors);
     let http_addr: SocketAddr = format!("{}:{}", args.bind, args.http_port).parse()?;
 
     // Step 7: Build WebSocket server.
-    let ws_app = ws::router(state.clone(), rate_limit);
+    let ws_app = ws::router(state.clone());
     let ws_addr: SocketAddr = format!("{}:{}", args.bind, args.ws_port).parse()?;
 
     // Step 8: Start both servers concurrently.
@@ -452,21 +422,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!(%ws_addr, "WebSocket server starting");
 
     let shutdown_state = state.clone();
-    // `into_make_service_with_connect_info::<SocketAddr>()` is required for
-    // the per-IP rate limiter (`tower_governor::PeerIpKeyExtractor`) to
-    // read the peer address on each request. Without it, the PeerIp key
-    // extractor falls back to rejecting every request as "no client IP".
-    // The extractor uses PeerIp (not SmartIp) so downstream clients
-    // can't bypass the rate limit by forging `X-Forwarded-For`.
     let http_server = axum::serve(
         tokio::net::TcpListener::bind(http_addr).await?,
-        http_app.into_make_service_with_connect_info::<SocketAddr>(),
+        http_app.into_make_service(),
     )
     .with_graceful_shutdown(shutdown_signal(shutdown_state.clone()));
 
     let ws_server = axum::serve(
         tokio::net::TcpListener::bind(ws_addr).await?,
-        ws_app.into_make_service_with_connect_info::<SocketAddr>(),
+        ws_app.into_make_service(),
     )
     .with_graceful_shutdown(shutdown_signal(shutdown_state));
 

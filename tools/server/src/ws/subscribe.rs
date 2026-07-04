@@ -7,7 +7,7 @@ use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::time::is_valid_yyyymmdd;
 use thetadatadx::SecType;
 
-use crate::state::AppState;
+use crate::state::{AppState, StrikeFormat};
 use crate::validation;
 
 use super::session::send_response;
@@ -73,15 +73,20 @@ impl ReqResponse {
 /// only the JSON value, so the exact wire shape — including the
 /// `response` token and an optional `error` diagnostic — is testable
 /// without a live socket. `error` is omitted entirely on a success ack.
+///
+/// `status` is the live terminal->FPSS connectivity (`CONNECTED` /
+/// `DISCONNECTED`), which the terminal stamps into every message header.
 pub(super) fn build_req_response(
     response: ReqResponse,
     req_id: i64,
     error: Option<&str>,
+    status: &str,
 ) -> sonic_rs::Value {
     match error {
         Some(msg) => sonic_rs::json!({
             "header": {
                 "type": "REQ_RESPONSE",
+                "status": status,
                 "response": response.as_str(),
                 "req_id": req_id,
                 "error": msg,
@@ -90,6 +95,7 @@ pub(super) fn build_req_response(
         None => sonic_rs::json!({
             "header": {
                 "type": "REQ_RESPONSE",
+                "status": status,
                 "response": response.as_str(),
                 "req_id": req_id,
             }
@@ -115,7 +121,12 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
             "text frame exceeds maximum of {WS_MAX_TEXT_BYTES} bytes (got {})",
             text.len()
         );
-        let resp = build_req_response(ReqResponse::Error, 0, Some(err_msg.as_str()));
+        let resp = build_req_response(
+            ReqResponse::Error,
+            0,
+            Some(err_msg.as_str()),
+            state.fpss_status(),
+        );
         send_response(socket, &resp, "oversize_text_reply").await;
         return;
     }
@@ -124,7 +135,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
         Ok(v) => v,
         Err(_) => {
             tracing::warn!("invalid WebSocket JSON: {}", text);
-            let resp = build_req_response(ReqResponse::Error, 0, None);
+            let resp = build_req_response(ReqResponse::Error, 0, None, state.fpss_status());
             send_response(socket, &resp, "invalid_json_reply").await;
             return;
         }
@@ -190,7 +201,12 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
     // performed in `handler::build_endpoint_args`.
     if let Err(e) = validation::validate_symbol(symbol, "symbol") {
         tracing::warn!(error = %e, "WS subscribe: symbol failed length validation");
-        let resp = build_req_response(ReqResponse::Error, req_id, Some(e.message.as_str()));
+        let resp = build_req_response(
+            ReqResponse::Error,
+            req_id,
+            Some(e.message.as_str()),
+            state.fpss_status(),
+        );
         send_response(socket, &resp, "bad_request_reply").await;
         return;
     }
@@ -220,6 +236,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
                     ReqResponse::Error,
                     req_id,
                     Some("expiration must be an integer"),
+                    state.fpss_status(),
                 );
                 send_response(socket, &resp, "bad_request_reply").await;
                 return;
@@ -233,7 +250,12 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
                     "WS subscribe: option expiration out of i32 range"
                 );
                 let err_msg = format!("expiration {exp_i64} exceeds i32 range");
-                let resp = build_req_response(ReqResponse::Error, req_id, Some(err_msg.as_str()));
+                let resp = build_req_response(
+                    ReqResponse::Error,
+                    req_id,
+                    Some(err_msg.as_str()),
+                    state.fpss_status(),
+                );
                 send_response(socket, &resp, "bad_request_reply").await;
                 return;
             }
@@ -261,7 +283,12 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
                 "'exp' out of range (expected YYYYMMDD {}..={}; got {exp})",
                 MIN_OPTION_EXP, MAX_OPTION_EXP
             );
-            let resp = build_req_response(ReqResponse::Error, req_id, Some(err_msg.as_str()));
+            let resp = build_req_response(
+                ReqResponse::Error,
+                req_id,
+                Some(err_msg.as_str()),
+                state.fpss_status(),
+            );
             send_response(socket, &resp, "bad_request_reply").await;
             return;
         }
@@ -275,20 +302,35 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
                  reject reason: month/day decomposition is not a real \
                  Gregorian day, e.g. Feb 30 or Apr 31)"
             );
-            let resp = build_req_response(ReqResponse::Error, req_id, Some(err_msg.as_str()));
+            let resp = build_req_response(
+                ReqResponse::Error,
+                req_id,
+                Some(err_msg.as_str()),
+                state.fpss_status(),
+            );
             send_response(socket, &resp, "bad_request_reply").await;
             return;
         }
-        // `strike` is the price in dollars — the same unit every other
-        // public surface speaks. The wire's fixed-point conversion is
-        // the SDK's job (`parse_strike_dollars` scales to thousandths
-        // internally before `Contract::option_raw`).
+        // `strike` encoding follows the server's `--strike-format`: the
+        // terminal's 1/10-cent integer (`550000` for `$550.00`, used
+        // verbatim — the default, matching the outbound WS frame) or a
+        // dollar value (`550`, scaled to wire thousandths). Either way it
+        // reaches `Contract::option_raw` in wire units.
         let strike_val = contract_obj.get("strike").unwrap_or(&null_val);
-        let strike = match parse_strike_dollars(strike_val.as_f64()) {
+        let parsed_strike = match state.strike_format() {
+            StrikeFormat::Terminal => parse_strike_thousandths(strike_val.as_f64()),
+            StrikeFormat::Dollars => parse_strike_dollars(strike_val.as_f64()),
+        };
+        let strike = match parsed_strike {
             Ok(v) => v,
             Err(err_msg) => {
                 tracing::warn!(error = %err_msg, "WS subscribe: invalid option 'strike'");
-                let resp = build_req_response(ReqResponse::Error, req_id, Some(err_msg.as_str()));
+                let resp = build_req_response(
+                    ReqResponse::Error,
+                    req_id,
+                    Some(err_msg.as_str()),
+                    state.fpss_status(),
+                );
                 send_response(socket, &resp, "bad_request_reply").await;
                 return;
             }
@@ -298,7 +340,12 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
             Ok(sides) => sides,
             Err(err_msg) => {
                 tracing::warn!(error = %err_msg, "WS subscribe: invalid option 'right'");
-                let resp = build_req_response(ReqResponse::Error, req_id, Some(err_msg.as_str()));
+                let resp = build_req_response(
+                    ReqResponse::Error,
+                    req_id,
+                    Some(err_msg.as_str()),
+                    state.fpss_status(),
+                );
                 send_response(socket, &resp, "bad_request_reply").await;
                 return;
             }
@@ -318,7 +365,12 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
         Ok(subs) => subs,
         Err(err_msg) => {
             tracing::warn!(req_type = %req_type, "WS subscribe: unsupported req_type");
-            let resp = build_req_response(ReqResponse::Error, req_id, Some(err_msg.as_str()));
+            let resp = build_req_response(
+                ReqResponse::Error,
+                req_id,
+                Some(err_msg.as_str()),
+                state.fpss_status(),
+            );
             send_response(socket, &resp, "bad_request_reply").await;
             return;
         }
@@ -335,7 +387,9 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
         let resp = match result {
             // Both add and remove acknowledge with the single documented
             // success token; the protocol defines no removal-specific value.
-            Ok(()) => build_req_response(ReqResponse::Subscribed, req_id, None),
+            Ok(()) => {
+                build_req_response(ReqResponse::Subscribed, req_id, None, state.fpss_status())
+            }
             Err(e) => {
                 tracing::warn!(error = %e, "FPSS subscription failed");
                 let err_msg = e.to_string();
@@ -343,7 +397,12 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
                 // or permission rejection from a generic failure, so every
                 // upstream error maps to the generic token. The enum carries
                 // the more specific values for the day the error type does.
-                build_req_response(ReqResponse::Error, req_id, Some(err_msg.as_str()))
+                build_req_response(
+                    ReqResponse::Error,
+                    req_id,
+                    Some(err_msg.as_str()),
+                    state.fpss_status(),
+                )
             }
         };
         send_response(socket, &resp, "subscription_reply").await;
@@ -356,6 +415,7 @@ pub(super) async fn handle_client_message(state: &AppState, text: &str, socket: 
             ReqResponse::Error,
             req_id,
             Some("streaming is not started; no subscription was installed"),
+            state.fpss_status(),
         );
         send_response(socket, &resp, "streaming_off_reply").await;
     }
@@ -382,6 +442,7 @@ fn build_stop_response(state: &AppState, req_id: i64) -> sonic_rs::Value {
             ReqResponse::Error,
             req_id,
             Some("streaming is not started; no stream was stopped"),
+            state.fpss_status(),
         );
     }
 
@@ -393,7 +454,12 @@ fn build_stop_response(state: &AppState, req_id: i64) -> sonic_rs::Value {
         Err(e) => {
             tracing::warn!(error = %e, "STOP: could not read active subscriptions");
             let msg = e.to_string();
-            return build_req_response(ReqResponse::Error, req_id, Some(msg.as_str()));
+            return build_req_response(
+                ReqResponse::Error,
+                req_id,
+                Some(msg.as_str()),
+                state.fpss_status(),
+            );
         }
     };
     let full = match stream.active_full_subscriptions() {
@@ -401,7 +467,12 @@ fn build_stop_response(state: &AppState, req_id: i64) -> sonic_rs::Value {
         Err(e) => {
             tracing::warn!(error = %e, "STOP: could not read active full subscriptions");
             let msg = e.to_string();
-            return build_req_response(ReqResponse::Error, req_id, Some(msg.as_str()));
+            return build_req_response(
+                ReqResponse::Error,
+                req_id,
+                Some(msg.as_str()),
+                state.fpss_status(),
+            );
         }
     };
 
@@ -423,11 +494,16 @@ fn build_stop_response(state: &AppState, req_id: i64) -> sonic_rs::Value {
         .collect::<Vec<_>>();
 
     match stream.unsubscribe_many(removals) {
-        Ok(()) => build_req_response(ReqResponse::Subscribed, req_id, None),
+        Ok(()) => build_req_response(ReqResponse::Subscribed, req_id, None, state.fpss_status()),
         Err(e) => {
             tracing::warn!(error = %e, "STOP: unsubscribe failed");
             let msg = e.to_string();
-            build_req_response(ReqResponse::Error, req_id, Some(msg.as_str()))
+            build_req_response(
+                ReqResponse::Error,
+                req_id,
+                Some(msg.as_str()),
+                state.fpss_status(),
+            )
         }
     }
 }
@@ -461,6 +537,7 @@ fn apply_bulk_trade(
             ReqResponse::Error,
             req_id,
             Some("streaming is not started; no subscription was installed"),
+            state.fpss_status(),
         );
     }
 
@@ -470,11 +547,16 @@ fn apply_bulk_trade(
         stream.unsubscribe_many(subscriptions)
     };
     match result {
-        Ok(()) => build_req_response(ReqResponse::Subscribed, req_id, None),
+        Ok(()) => build_req_response(ReqResponse::Subscribed, req_id, None, state.fpss_status()),
         Err(e) => {
             tracing::warn!(error = %e, "bulk trade subscription failed");
             let err_msg = e.to_string();
-            build_req_response(ReqResponse::Error, req_id, Some(err_msg.as_str()))
+            build_req_response(
+                ReqResponse::Error,
+                req_id,
+                Some(err_msg.as_str()),
+                state.fpss_status(),
+            )
         }
     }
 }
@@ -496,16 +578,45 @@ const ACCEPTED_REQ_TYPES: &[&str] = &[
     "FULL_OPEN_INTEREST",
 ];
 
-/// Parse the option `strike` field (dollars, JSON number) into the
+/// Parse the option `strike` field — the terminal's streaming-wire
+/// integer in 1/10 of a cent (a `$550.00` strike is `550000`) — into the
 /// FPSS wire's fixed-point thousandths integer.
 ///
-/// Accepts any positive finite number at or above the smallest
-/// representable strike; rejects missing / non-numeric values,
-/// non-positive strikes, positive strikes that round to zero in the
-/// thousandths unit (the smallest valid strike is $0.001), and values
-/// whose thousandths scaling overflows `i32`. Dollars are the only
-/// accepted unit; clients holding the wire integer divide by 1000
-/// before subscribing.
+/// The value arrives already in wire units, so it is used verbatim with
+/// no scaling. Rejects missing / non-numeric values, non-finite or
+/// non-positive values, a fractional (non-integer) value, and any value
+/// above `i32::MAX`.
+fn parse_strike_thousandths(raw: Option<f64>) -> Result<i32, String> {
+    let strike = raw.ok_or_else(|| {
+        "'strike' must be an integer in 1/10 of a cent (e.g. 550000 for $550), got: <missing or non-numeric>"
+            .to_string()
+    })?;
+    if !strike.is_finite() || strike <= 0.0 {
+        return Err(format!(
+            "'strike' must be a positive integer in 1/10 of a cent (got {strike})"
+        ));
+    }
+    if strike.fract() != 0.0 {
+        return Err(format!(
+            "'strike' must be a whole integer in 1/10 of a cent, not fractional (got {strike})"
+        ));
+    }
+    if strike > f64::from(i32::MAX) {
+        return Err(format!("'strike' {strike} exceeds the representable range"));
+    }
+    // Reason: bounds checked above; positivity and integrality checked above.
+    #[allow(clippy::cast_possible_truncation)]
+    Ok(strike as i32)
+}
+
+/// Parse the option `strike` field as a dollar value (a `$550.00` strike is
+/// `550`, `$550.50` is `550.5`) and scale it to the FPSS wire's 1/10-cent
+/// integer (`550000` / `550500`). Selected by `--strike-format dollars` —
+/// the SDK's convenience form.
+///
+/// Rejects missing / non-numeric values, non-finite or non-positive values,
+/// a value below the smallest representable unit ($0.001, which would round
+/// to a $0.00 strike), and any value that overflows `i32` after scaling.
 fn parse_strike_dollars(raw: Option<f64>) -> Result<i32, String> {
     let dollars = raw.ok_or_else(|| {
         "'strike' must be a number in dollars (e.g. 550 or 550.5), got: <missing or non-numeric>"
@@ -517,10 +628,9 @@ fn parse_strike_dollars(raw: Option<f64>) -> Result<i32, String> {
         ));
     }
     let scaled = (dollars * 1000.0).round();
-    // A positive strike below half the smallest representable unit
-    // rounds to zero thousandths. A zero strike is not a real
-    // instrument, so reject it rather than silently collapse the
-    // contract to a $0.00 strike.
+    // A positive strike below half the smallest representable unit rounds to
+    // zero thousandths. A zero strike is not a real instrument, so reject it
+    // rather than silently collapse the contract to a $0.00 strike.
     if scaled < 1.0 {
         return Err(format!(
             "'strike' {dollars} is below the smallest representable strike ($0.001)"
@@ -695,11 +805,50 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    //  strike dollars -> fixed-point thousandths
+    //  strike 1/10-cent integer -> wire thousandths (verbatim)
     // -----------------------------------------------------------------------
 
     #[test]
-    fn strike_accepts_smallest_representable_and_normal_values() {
+    fn strike_accepts_wire_integer_values_verbatim() {
+        // The wire value is already in 1/10-cent units: a `$550` strike is
+        // `550000`, a `$140` strike is `140000`, each used verbatim.
+        assert_eq!(parse_strike_thousandths(Some(550_000.0)).unwrap(), 550_000);
+        assert_eq!(parse_strike_thousandths(Some(140_000.0)).unwrap(), 140_000);
+        // The smallest valid strike is a single 1/10-cent unit.
+        assert_eq!(parse_strike_thousandths(Some(1.0)).unwrap(), 1);
+    }
+
+    #[test]
+    fn strike_rejects_fractional_value() {
+        // A fractional value is no longer scaled — it is now an error, not
+        // `550500`. The wire carries whole 1/10-cent integers only.
+        let err = parse_strike_thousandths(Some(550.5)).unwrap_err();
+        assert!(
+            err.contains("fractional") || err.contains("whole integer"),
+            "diagnostic must explain the integer requirement: {err}"
+        );
+        assert!(parse_strike_thousandths(Some(0.001)).is_err());
+    }
+
+    #[test]
+    fn strike_rejects_non_positive_and_non_numeric() {
+        assert!(parse_strike_thousandths(Some(0.0)).is_err());
+        assert!(parse_strike_thousandths(Some(-1.0)).is_err());
+        assert!(parse_strike_thousandths(Some(f64::NAN)).is_err());
+        assert!(parse_strike_thousandths(None).is_err());
+    }
+
+    #[test]
+    fn strike_rejects_above_i32_max() {
+        assert!(parse_strike_thousandths(Some(f64::from(i32::MAX) + 1.0)).is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    //  strike dollars -> wire thousandths (scaled, --strike-format dollars)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn strike_dollars_scales_to_wire_thousandths() {
         // $0.001 is the smallest representable strike: it maps to the
         // smallest nonzero thousandths value.
         assert_eq!(parse_strike_dollars(Some(0.001)).unwrap(), 1);
@@ -710,7 +859,7 @@ mod tests {
     }
 
     #[test]
-    fn strike_rejects_sub_smallest_unit_positive_value() {
+    fn strike_dollars_rejects_sub_smallest_unit_positive_value() {
         // 0.0004 dollars scales to 0.4 thousandths, which rounds to 0.
         // A 0-strike contract is not a real instrument, so the value
         // must be rejected rather than silently collapsed to zero.
@@ -726,7 +875,7 @@ mod tests {
     }
 
     #[test]
-    fn strike_rejects_non_positive_and_non_numeric() {
+    fn strike_dollars_rejects_non_positive_and_non_numeric() {
         assert!(parse_strike_dollars(Some(0.0)).is_err());
         assert!(parse_strike_dollars(Some(-1.0)).is_err());
         assert!(parse_strike_dollars(Some(f64::NAN)).is_err());
@@ -1015,7 +1164,7 @@ mod tests {
     /// envelope carries no `error` field.
     #[test]
     fn success_subscribe_returns_subscribed() {
-        let resp = build_req_response(ReqResponse::Subscribed, 7, None);
+        let resp = build_req_response(ReqResponse::Subscribed, 7, None, "CONNECTED");
         assert_eq!(response_token(&resp), "SUBSCRIBED");
         assert_eq!(
             resp.get("header")
@@ -1034,7 +1183,7 @@ mod tests {
     /// `error` field naming the cause.
     #[test]
     fn validation_failure_returns_error_with_message() {
-        let resp = build_req_response(ReqResponse::Error, 3, Some("symbol too long"));
+        let resp = build_req_response(ReqResponse::Error, 3, Some("symbol too long"), "CONNECTED");
         assert_eq!(response_token(&resp), "ERROR");
         assert_eq!(
             resp.get("header")
@@ -1053,6 +1202,7 @@ mod tests {
             ReqResponse::Error,
             1,
             Some("streaming is not started; no subscription was installed"),
+            "CONNECTED",
         );
         assert_eq!(response_token(&resp), "ERROR");
         assert_ne!(response_token(&resp), "SUBSCRIBED");
@@ -1077,6 +1227,7 @@ mod tests {
             ReqResponse::Error,
             9,
             Some("streaming is not started; no stream was stopped"),
+            "CONNECTED",
         );
         assert_eq!(response_token(&resp), "ERROR");
         assert_ne!(response_token(&resp), "SUBSCRIBED");
@@ -1092,7 +1243,7 @@ mod tests {
     /// with the single documented success token and carries no error.
     #[test]
     fn stop_that_applied_returns_subscribed() {
-        let resp = build_req_response(ReqResponse::Subscribed, 9, None);
+        let resp = build_req_response(ReqResponse::Subscribed, 9, None, "CONNECTED");
         assert_eq!(response_token(&resp), "SUBSCRIBED");
         assert!(
             resp.get("header").and_then(|h| h.get("error")).is_none(),

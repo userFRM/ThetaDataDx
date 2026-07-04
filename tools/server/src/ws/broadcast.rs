@@ -42,9 +42,8 @@ const WARN_EVERY_N: u64 = 1024;
 /// so a stalled broadcast task can never accumulate unbounded heap. When the
 /// channel is full, the callback increments [`AppState::record_fpss_broadcast_drop`]
 /// and returns immediately — the event-dispatch consumer thread is never blocked.
-/// Drops surface to operators through the `fpss_broadcast_dropped()` counter
-/// and a rate-limited `tracing::warn!` (one warning per [`WARN_EVERY_N`]
-/// drops).
+/// Drops surface to operators through a rate-limited `tracing::warn!` (one
+/// warning per [`WARN_EVERY_N`] drops).
 ///
 /// # Contract identity
 ///
@@ -77,7 +76,12 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
             // and broadcast. No map lock acquired in the broadcast task.
             // Borrow through the `Arc` (deref) so the serializer sees the
             // same `&Contract` it always did.
-            let json = fpss_event_to_ws_json(&event, peeked.as_deref());
+            let json = fpss_event_to_ws_json(
+                &event,
+                peeked.as_deref(),
+                state_for_task.fpss_status(),
+                state_for_task.strike_format(),
+            );
             if let Some(ws_json) = json {
                 let msg: Arc<str> = Arc::from(ws_json);
                 state_for_task.broadcast_ws(msg).await;

@@ -61,14 +61,15 @@ curl -X POST 'http://127.0.0.1:25503/v3/flatfile/request' \
 
 See [Flat Files](/articles/flat-files) for sizing guidance.
 
-## System routes
+## Terminal system routes
+
+Mirrored 1:1 from the JVM terminal — unauthenticated `GET`, bare `text/plain` bodies.
 
 | Method | Route | Description |
 |---|---|---|
-| `GET` | `/v3/system/status` | Combined server status. |
-| `GET` | `/v3/system/historical/status` | Historical-channel connection status. |
-| `GET` | `/v3/system/streaming/status` | Streaming connection status. |
-| `POST` | `/v3/system/shutdown` | Graceful shutdown; requires the `X-Shutdown-Token` header printed at startup. |
+| `GET` | `/v3/terminal/shutdown` | Kills the server process; returns the plain text `OK`. |
+| `GET` | `/v3/terminal/fpss/status` | Streaming-channel health: `CONNECTED` / `DISCONNECTED`. |
+| `GET` | `/v3/terminal/mdds/status` | Historical-channel health: `CONNECTED` / `DISCONNECTED`. |
 
 ## Concurrency behavior
 

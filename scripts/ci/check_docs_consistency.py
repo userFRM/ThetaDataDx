@@ -124,22 +124,11 @@ def served_v3_routes() -> set[str]:
     return routes
 
 
-# Served routes that are deliberately NOT documented in the public OpenAPI
-# contract: the two terminal management-status paths whose path segment is the
-# vendor's transport codename. The server mounts them only for drop-in parity
-# with the JVM terminal's mgmt surface (router.rs registers them to the SAME
-# handlers as the documented `/v3/terminal/{streaming,historical}/status`
-# routes), so a generated client never needs them — the documented aliases
-# cover the identical behaviour. They are kept out of the spec because those
-# codenames are banned client-facing vocabulary (enforced by
-# `check_client_facing_vocab.py`, which sweeps this YAML): writing them into the
-# public contract would leak an internal transport name into a client-rendered
-# surface. This allowlist is intentionally exactly these two paths; it does not
-# loosen the served-vs-documented equality for anything else.
-OPENAPI_UNDOCUMENTED_PARITY_ALIASES = {
-    "/v3/terminal/fpss/status",
-    "/v3/terminal/mdds/status",
-}
+# The server mirrors the JVM terminal's system surface 1:1, so every served
+# `/v3/terminal/*` route is documented verbatim in the OpenAPI contract — the
+# terminal publishes these exact paths (docs.thetadata.us) and the server is a
+# drop-in for it. Nothing is served-but-undocumented here, so this set is empty.
+OPENAPI_UNDOCUMENTED_PARITY_ALIASES: set[str] = set()
 
 # Routes the server serves beyond the upstream-tracking registry endpoints:
 # the system status / lifecycle routes and the flat-file download routes. These
@@ -158,13 +147,14 @@ SERVER_ONLY_PATHS = (
 # slip in. `/v3/system/shutdown` carries no operationId (it never has), so it
 # contributes none.
 SERVER_ONLY_OPERATION_IDS = {
-    "systemStatus",
-    "systemHistoricalStatus",
-    "systemStreamingStatus",
     "flatfileGet",
     "flatfileRequest",
-    # Terminal-compatible plain-text status routes. Distinct ids from the JSON
-    # `system*Status` siblings because they are separate operations.
+    # Terminal system routes, mirrored 1:1 from the JVM terminal: an
+    # unauthenticated shutdown plus the two plain-text channel-health probes.
+    # The route paths carry the vendor's codenames verbatim; the operationIds
+    # describe the channel (streaming / historical) to keep generated client
+    # method names free of the transport codename.
+    "terminalShutdown",
     "terminalStreamingStatus",
     "terminalHistoricalStatus",
     # Path-segment / renamed `/v3` aliases mounted at the server level for
@@ -329,31 +319,38 @@ def check_static_docs() -> None:
         expect_not_contains(path, "&exp=")
         expect_not_contains(path, "&ivl=")
 
-    # Strikes are dollars on every client-facing surface, with no
-    # exception. The WebSocket subscribe envelope takes the strike in
-    # dollars exactly like the SDKs; the scaled-integer wire form never
-    # surfaces in the docs. The thousandths vocabulary (and the literal
-    # 570000 example it travelled with) must never reappear: a client
-    # who copies a thousandths example subscribes to a $570,000 strike.
-    streaming_option_pages = sorted(
-        (DOCS_SITE / "streaming/options").glob("*.md")
-    )
-    strike_docs = list((DOCS_SITE / "reference/option").rglob("*.md")) + [
+    # Strike is dollars on the REST surface everywhere: the REST reference
+    # pages, the server README, the REST server pages (index / http), and the
+    # OpenAPI spec must never show the scaled-integer strike form. A client
+    # who copies a `500000` / `570000` thousandths example on a REST surface
+    # would subscribe to a $500,000 / $570,000 strike.
+    #
+    # The server's WebSocket, by contrast, defaults to the terminal's
+    # 1/10-cent integer (a `$570` strike is `570000`) and is configurable to
+    # dollars via `--strike-format`. So server/websocket.md and the
+    # streaming/** docs legitimately show the terminal form and are EXEMPT
+    # from the dollars-only strike rule below.
+    rest_strike_docs = list((DOCS_SITE / "reference/option").rglob("*.md")) + [
         ROOT / "tools/server/README.md",
-        *server_pages,
-        *streaming_option_pages,
+        DOCS_SITE / "server/index.md",
+        DOCS_SITE / "server/http.md",
         OPENAPI_YAML,
     ]
-    for path in strike_docs:
+    for path in rest_strike_docs:
         expect_not_contains(path, "scaled integer")
         # Word-bounded: capture-backed sample tables legitimately carry
         # timestamps like `34500000` that embed the digit string.
         if re.search(r"\b500000\b", path.read_text()):
             fail(f"{path.relative_to(ROOT)} contains stale text: '500000'")
-    # The thousandths strike claim is the exact defect a contributor
-    # caught; ban its vocabulary and literal example from every page
-    # that carries a WS subscribe envelope.
-    for path in [*server_pages, *streaming_option_pages, DOCS_SITE / "articles/symbology.md"]:
+    # Ban the thousandths vocabulary and the literal `570000` example from
+    # the dollars-only REST-facing strike pages (the REST server pages and
+    # the symbology article). The WebSocket page and the streaming docs are
+    # exempt — they show the terminal's 1/10-cent form by default.
+    for path in [
+        DOCS_SITE / "server/index.md",
+        DOCS_SITE / "server/http.md",
+        DOCS_SITE / "articles/symbology.md",
+    ]:
         expect_not_contains(path, "thousandths")
         if re.search(r"\b570000\b", path.read_text()):
             fail(f"{path.relative_to(ROOT)} contains stale strike text: '570000'")

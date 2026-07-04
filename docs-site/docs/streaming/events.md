@@ -139,7 +139,7 @@ Data events carry a resolved, typed contract — read identity straight off the 
 | `sec_type` | string | `STOCK` / `OPTION` / `INDEX` / `RATE`. |
 | `expiration` | int? | `YYYYMMDD`; options only. |
 | `right` | string? | `C` / `P`; options only. |
-| `strike` | float? | Strike in dollars; options only — the same unit historical rows carry under the same name (Rust exposes `strike_dollars()` over the codec integer; the C ABI field is dollars). |
+| `strike` | int? | Over the server's WebSocket, the terminal's 1/10-cent integer (a $570 strike is `570000`), matching the terminal wire; options only. The native SDK bindings resolve it to dollars on `event.contract` (Rust `strike_dollars()`; the C ABI field is dollars). |
 
 ## Control events
 

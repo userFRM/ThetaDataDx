@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`thetadatadx-server`'s WebSocket wire format now matches the terminal 1:1.** On the WebSocket, an option `strike` defaults to the terminal's 1/10-cent integer (a $570 strike is `570000`) on both the subscribe input and the event output; the new `--strike-format dollars` flag switches it back to a dollar value for the SDK's convenience form. Every message header now carries the streaming-channel connectivity `status` (`CONNECTED` / `DISCONNECTED`), not only the per-second `STATUS` heartbeat. The native SDK bindings still expose `strike` in dollars on `event.contract` — only the server's WebSocket wire changed.
+- **`thetadatadx-server` system routes now mirror the ThetaData terminal 1:1.** The server exposes exactly the terminal's three unauthenticated `GET /v3/terminal/*` routes — `shutdown` (returns the plain text `OK` and kills the process), `fpss/status`, and `mdds/status` (one-word `text/plain` channel health) — so a client written against the documented terminal surface works unchanged. The previously invented `/v3/system/*` status routes, the token-gated `POST /v3/system/shutdown`, the `X-Shutdown-Token` machinery, and the non-terminal `/v3/terminal/{streaming,historical}/status` aliases are removed.
+
+### Removed
+
+- **`thetadatadx-server` no longer applies its own per-IP request rate limit.** The bundled REST and WebSocket server is a drop-in for a terminal that does no per-IP rate limiting, and request limits are enforced upstream by the data service, so the server no longer adds its own. The opt-in general governor (`THETADATADX_RATE_LIMIT_PER_SECOND` / `THETADATADX_RATE_LIMIT_BURST_SIZE`) and the shutdown-route attempt limiter are gone; the request body-size and in-flight concurrency caps are unchanged.
+
 ## [13.0.0-rc.15] - 2026-07-04
 
 ### Added

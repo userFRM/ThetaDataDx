@@ -265,7 +265,8 @@ mod tests {
         );
 
         tracing::subscriber::with_default(subscriber, || {
-            let span = tracing::info_span!("request", method = "GET", uri = "/v3/system/status");
+            let span =
+                tracing::info_span!("request", method = "GET", uri = "/v3/terminal/mdds/status");
             let _e = span.enter();
             tracing::info!(status = 200, "finished processing request");
         });
@@ -274,7 +275,7 @@ mod tests {
         assert!(out.contains("request{"), "span name present: {out}");
         assert!(out.contains("method=\"GET\""), "method present: {out}");
         assert!(
-            out.contains("uri=\"/v3/system/status\""),
+            out.contains("uri=\"/v3/terminal/mdds/status\""),
             "uri present: {out}"
         );
         assert!(out.contains("status=200"), "event fields present: {out}");

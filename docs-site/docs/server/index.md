@@ -77,6 +77,7 @@ thetadatadx-server --creds creds.txt
 | `--log-file <path>` | — | Also write logs to `<path>.YYYY-MM-DD`, rotated daily. |
 | `--log-format <fmt>` | `text` | `text`, `json` (one object per line), or `legacy` (`[YYYY-MM-DD HH:MM:SS] LEVEL: message`, UTC). |
 | `--no-streaming` | — | Skip streaming startup (HTTP only). |
+| `--strike-format <fmt>` | `terminal` | WebSocket option-strike encoding: `terminal` (the terminal's 1/10-cent integer, the exact drop-in) or `dollars` (a dollar value, the SDK's convenience form). |
 
 ## Environment variables
 
@@ -85,8 +86,6 @@ thetadatadx-server --creds creds.txt
 | `THETADATA_API_KEY` | — | API key used for authentication when `--api-key` is not passed. An explicit `--api-key` flag wins over this; both win over the email/password path. The key is never logged or echoed. |
 | `THETADATA_EMAIL` | — | Account email. With `THETADATA_PASSWORD`, authenticates the server when no API key is supplied. Outranked by `--api-key` and `THETADATA_API_KEY`; wins over the `--creds` file. |
 | `THETADATA_PASSWORD` | — | Account password, paired with `THETADATA_EMAIL`. Never logged or echoed. |
-| `THETADATADX_RATE_LIMIT_PER_SECOND` | — (off) | Opt into per-IP rate limiting at this many requests per second. Setting either rate-limit variable turns the limiter on; see [Security defaults](#security-defaults). |
-| `THETADATADX_RATE_LIMIT_BURST_SIZE` | — (off) | Burst size for the per-IP rate limiter. If you set only one of the two rate-limit variables, the other falls back to `20` req/s / `40` burst. |
 | `THETADATADX_WS_CLIENT_CAPACITY` | `4096` | Per-client WebSocket send-buffer capacity in events. A larger buffer trades memory for more headroom before a slow consumer starts dropping events; invalid or zero values keep the default. |
 
 ## Logging
@@ -97,6 +96,6 @@ thetadatadx-server --creds creds.txt
 
 ## Security defaults
 
-- Binds all interfaces by default; pass `--bind 127.0.0.1` for loopback-only exposure. Per-IP rate limiting is **off by default** — the server imposes no per-IP limit, matching the terminal it replaces. Operators exposing the server as a relay opt in by setting `THETADATADX_RATE_LIMIT_PER_SECOND` and/or `THETADATADX_RATE_LIMIT_BURST_SIZE`; once on, excess traffic from a single IP is answered with `429` and `Retry-After`, on both the HTTP routes and the WebSocket upgrade.
-- `POST /v3/system/shutdown` requires the `X-Shutdown-Token` header — a random token printed once to stderr at startup; there is no flag or environment variable to set it.
+- Binds all interfaces by default; pass `--bind 127.0.0.1` for loopback-only exposure. The server imposes no per-IP rate limit, matching the terminal it replaces — request limits are enforced upstream by the data service.
+- The system routes mirror the terminal 1:1 and are unauthenticated, including `GET /v3/terminal/shutdown` — exactly as the terminal exposes them.
 - Request bodies are capped at 64 KiB and query strings at 32 parameters.
