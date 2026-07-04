@@ -644,7 +644,7 @@ impl Config {
     fn set_flush_mode(&self, mode: &str) -> PyResult<()> {
         let mode = mode.to_ascii_lowercase();
         let parsed = config::StreamingFlushMode::parse(&mode).ok_or_else(|| {
-            PyValueError::new_err(format!(
+            crate::errors::invalid_parameter_err(format!(
                 "flush_mode must be \"batched\" or \"immediate\"; got {mode:?}"
             ))
         })?;
@@ -667,7 +667,7 @@ impl Config {
     #[setter]
     fn set_reconnect_jitter(&self, mode: &str) -> PyResult<()> {
         let parsed = config::JitterMode::parse(mode).ok_or_else(|| {
-            PyValueError::new_err(format!(
+            crate::errors::invalid_parameter_err(format!(
                 "unknown reconnect_jitter: {mode:?} (expected \"full\", \"equal\", \"decorrelated\", or \"none\")"
             ))
         })?;
@@ -689,7 +689,7 @@ impl Config {
     #[setter]
     fn set_streaming_host_selection(&self, policy: &str) -> PyResult<()> {
         let parsed = config::HostSelectionPolicy::parse(policy).ok_or_else(|| {
-            PyValueError::new_err(format!(
+            crate::errors::invalid_parameter_err(format!(
                 "unknown streaming_host_selection: {policy:?} (expected \"shuffled\" or \"fixed_order\")"
             ))
         })?;
@@ -715,7 +715,7 @@ impl Config {
     fn set_metrics_port(&self, port: Option<u32>) -> PyResult<()> {
         let resolved = match port {
             Some(v) => Some(u16::try_from(v).map_err(|_| {
-                PyValueError::new_err(format!("metrics_port must be in 0..=65535; got {v}"))
+                crate::errors::invalid_parameter_err(format!("metrics_port must be in 0..=65535; got {v}"))
             })?),
             None => None,
         };
