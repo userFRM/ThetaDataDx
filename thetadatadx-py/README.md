@@ -233,7 +233,7 @@ path = client.flatfile_to_path("OPTION", "TRADE_QUOTE", "20260428",
                             "/tmp/option-trade-quote", format="csv")
 ```
 
-The flat-file distribution serves a fixed set of datasets: option `trade_quote` / `open_interest` / `eod` and stock `trade_quote` / `eod`. Available `flat_files.*` methods: `option_trade_quote`, `option_open_interest`, `option_eod`, `stock_trade_quote`, `stock_eod`, plus `request(sec_type, req_type, date)`. The generic `request(...)` and `flatfile_to_path(...)` paths reject an unserved `(security, request)` pair with a typed invalid-parameter error.
+The flat-file distribution serves a fixed set of datasets: option `trade_quote` / `open_interest` / `eod`, stock `trade_quote` / `eod`, and index `eod`. Available `flat_files.*` methods: `option_trade_quote`, `option_open_interest`, `option_eod`, `stock_trade_quote`, `stock_eod`, `index_eod`, plus `request(sec_type, req_type, date)`. The generic `request(...)` and `flatfile_to_path(...)` paths reject an unserved `(security, request)` pair with a typed invalid-parameter error.
 
 ## Endpoint coverage
 

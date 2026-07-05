@@ -793,7 +793,8 @@ pub async fn terminal_shutdown(State(state): State<AppState>) -> Response {
 }
 
 /// GET /v3/terminal/fpss/status -- FPSS (streaming) channel health as the
-/// terminal's one-word `text/plain` body (`CONNECTED` / `DISCONNECTED`).
+/// terminal's one-word `text/plain` body (`CONNECTED` / `UNVERIFIED` /
+/// `DISCONNECTED` / `ERROR`).
 pub async fn terminal_streaming_status(State(state): State<AppState>) -> Response {
     (
         StatusCode::OK,

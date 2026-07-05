@@ -6,7 +6,7 @@ use thetadatadx::fpss::protocol::Contract;
 use thetadatadx::fpss::{StreamControl, StreamEvent};
 use tokio::sync::mpsc::error::TrySendError;
 
-use crate::state::AppState;
+use crate::state::{AppState, FpssStatus};
 
 use super::contract_map::lookup_event_contract;
 use super::format::fpss_event_to_ws_json;
@@ -93,13 +93,26 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
         .client()
         .stream()
         .start_streaming(move |event: &StreamEvent| {
-            // Update connection status.
+            // Drive the four-state FPSS status from the stream control
+            // events, matching the terminal's CONNECTED / UNVERIFIED /
+            // DISCONNECTED / ERROR reporting. The callback is the single
+            // writer, so the status tracks the connection lifecycle across
+            // reconnects: socket ack -> UNVERIFIED, login -> CONNECTED, a
+            // server/protocol error -> ERROR, a drop -> DISCONNECTED.
             match event {
+                StreamEvent::Control(StreamControl::Connected) => {
+                    state_for_cb.set_fpss_status(FpssStatus::Unverified);
+                }
                 StreamEvent::Control(StreamControl::LoginSuccess { .. }) => {
-                    state_for_cb.set_streaming_connected(true);
+                    state_for_cb.set_fpss_status(FpssStatus::Connected);
+                }
+                StreamEvent::Control(
+                    StreamControl::ServerError { .. } | StreamControl::Error { .. },
+                ) => {
+                    state_for_cb.set_fpss_status(FpssStatus::Error);
                 }
                 StreamEvent::Control(StreamControl::Disconnected { .. }) => {
-                    state_for_cb.set_streaming_connected(false);
+                    state_for_cb.set_fpss_status(FpssStatus::Disconnected);
                 }
                 _ => {}
             }
@@ -141,7 +154,11 @@ pub fn start_fpss_bridge(state: AppState) -> Result<(), thetadatadx::Error> {
             }
         })?;
 
-    state.set_streaming_connected(true);
+    // No forced status here: the FPSS status starts at DISCONNECTED and is
+    // driven entirely by the control events above (Connected -> UNVERIFIED,
+    // LoginSuccess -> CONNECTED). Forcing CONNECTED post-start would both
+    // skip the UNVERIFIED pre-login state and race the dispatcher thread,
+    // which may already have delivered LoginSuccess.
     Ok(())
 }
 

@@ -220,7 +220,7 @@ auto oi = unified.flat_files().request("OPTION", "OPEN_INTEREST", "20260428");
 unified.flat_files().to_path("OPTION", "TRADE_QUOTE", "20260428", "/tmp/option-trade-quote", "csv");
 ```
 
-The flat-file distribution serves a fixed set of datasets: option `trade_quote` / `open_interest` / `eod` and stock `trade_quote` / `eod`. Available `flat_files().*` methods: `option_trade_quote`, `option_open_interest`, `option_eod`, `stock_trade_quote`, `stock_eod`, plus `request(...)` and `to_path(...)`; the generic paths reject an unserved `(security, request)` pair with a typed invalid-parameter error. `thetadatadx::HistoricalClient` remains the historical-only entry point; `thetadatadx::Client` adds streaming and flat files on the same connection.
+The flat-file distribution serves a fixed set of datasets: option `trade_quote` / `open_interest` / `eod`, stock `trade_quote` / `eod`, and index `eod`. Available `flat_files().*` methods: `option_trade_quote`, `option_open_interest`, `option_eod`, `stock_trade_quote`, `stock_eod`, `index_eod`, plus `request(...)` and `to_path(...)`; the generic paths reject an unserved `(security, request)` pair with a typed invalid-parameter error. `thetadatadx::HistoricalClient` remains the historical-only entry point; `thetadatadx::Client` adds streaming and flat files on the same connection.
 
 ## Endpoint coverage
 

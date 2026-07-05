@@ -1185,6 +1185,17 @@ rust = true
 params = ["String"]
 returns = "FlatFileRowList"
 
+[[method]]
+class = "FlatFilesNamespace"
+name = "indexEod"
+python = true
+typescript = true
+cpp = true
+rust = true
+[method.signature]
+params = ["String"]
+returns = "FlatFileRowList"
+
 # The generic string-keyed dispatcher. The managed bindings take three String
 # params (sec-type, req-type, date); the Rust core takes the typed
 # `(SecType, ReqType, &str)` enums, so its param list is a per-lang override

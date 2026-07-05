@@ -226,7 +226,7 @@ const oi = await client.flatFiles.request('OPTION', 'OPEN_INTEREST', '20260428')
 await client.flatFileToPath('OPTION', 'TRADE_QUOTE', '20260428', '/tmp/option-trade-quote', 'csv');
 ```
 
-The flat-file distribution serves a fixed set of datasets: option `trade_quote` / `open_interest` / `eod` and stock `trade_quote` / `eod`. Available `flatFiles.*` methods: `optionTradeQuote`, `optionOpenInterest`, `optionEod`, `stockTradeQuote`, `stockEod`, plus `request(secType, reqType, date)`. The generic `request(...)` and `flatFileToPath(...)` paths reject an unserved `(security, request)` pair with a typed invalid-parameter error.
+The flat-file distribution serves a fixed set of datasets: option `trade_quote` / `open_interest` / `eod`, stock `trade_quote` / `eod`, and index `eod`. Available `flatFiles.*` methods: `optionTradeQuote`, `optionOpenInterest`, `optionEod`, `stockTradeQuote`, `stockEod`, `indexEod`, plus `request(secType, reqType, date)`. The generic `request(...)` and `flatFileToPath(...)` paths reject an unserved `(security, request)` pair with a typed invalid-parameter error.
 
 ## Endpoint coverage
 
