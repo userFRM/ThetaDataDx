@@ -236,13 +236,6 @@ impl FlatFilesNamespace {
         Ok(FlatFileRowList { rows })
     }
 
-    /// Index end-of-day flat file for the given `YYYYMMDD` date.
-    #[napi(js_name = "indexEod")]
-    pub async fn index_eod(&self, date: String) -> napi::Result<FlatFileRowList> {
-        let rows = pull_decoded(&self.client, SecType::Index, ReqType::Eod, &date).await?;
-        Ok(FlatFileRowList { rows })
-    }
-
     /// Generic dispatcher — `secType` and `reqType` accept `"OPTION"` /
     /// `"QUOTE"` style strings.
     #[napi]

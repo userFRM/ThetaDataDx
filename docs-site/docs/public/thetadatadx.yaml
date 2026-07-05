@@ -3194,7 +3194,7 @@ paths:
         is the file bytes, streamed as an attachment. Only these pairs are
         served (any other pairing returns 400):
         `option/trade_quote`, `option/open_interest`, `option/eod`,
-        `stock/trade_quote`, `stock/eod`, `index/eod`. The path form takes the
+        `stock/trade_quote`, `stock/eod`. The path form takes the
         parameters independently, so an unserved pairing (for example
         `stock/open_interest`) is accepted by the route but rejected at request
         time with 400.
@@ -3204,7 +3204,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [option, stock, index]
+            enum: [option, stock]
           description: Security type (case-insensitive).
         - name: req_type
           in: path
@@ -3214,7 +3214,7 @@ paths:
             enum: [trade_quote, open_interest, eod]
           description: |
             Request type (case-insensitive). `open_interest` is served for
-            `option` only; `index` serves `eod` only.
+            `option` only.
         - name: date
           in: query
           required: true

@@ -13,7 +13,7 @@
 //!   `SecType` / `ReqType`. Query params:
 //!   `date=YYYY-MM-DD|YYYYMMDD&format=csv|json|ndjson|jsonl|html`. The pair
 //!   must be a served flat-file dataset — option `trade_quote` /
-//!   `open_interest` / `eod`, stock `trade_quote` / `eod`, index `eod`; any
+//!   `open_interest` / `eod`, stock `trade_quote` / `eod`; any
 //!   other `(sec_type, req_type)` pair returns `400 bad_request`.
 //!
 //! Every format is written row-by-row by its `RowSink`, so even a JSON
@@ -619,9 +619,8 @@ mod tests {
     /// The served-matrix gate accepts every pair the distribution serves and
     /// rejects everything else — including a pair whose security and request
     /// types are each individually served but not as a pair (stock
-    /// open_interest). Index serves only EOD, so `(Index, Eod)` is accepted
-    /// while every non-EOD index pair is rejected. The rejection names the
-    /// dataset.
+    /// open_interest). No index pair is served, so every index dataset is
+    /// rejected. The rejection names the dataset.
     #[test]
     fn unserved_dataset_is_rejected_at_the_boundary() {
         for (sec, req) in [
@@ -630,7 +629,6 @@ mod tests {
             (SecType::Option, ReqType::Eod),
             (SecType::Stock, ReqType::TradeQuote),
             (SecType::Stock, ReqType::Eod),
-            (SecType::Index, ReqType::Eod),
         ] {
             assert!(
                 reject_unserved_dataset(sec, req).is_ok(),
@@ -644,6 +642,7 @@ mod tests {
             (SecType::Option, ReqType::Quote),
             (SecType::Option, ReqType::Trade),
             (SecType::Option, ReqType::Ohlc),
+            (SecType::Index, ReqType::Eod),
             (SecType::Index, ReqType::TradeQuote),
             (SecType::Index, ReqType::OpenInterest),
         ] {

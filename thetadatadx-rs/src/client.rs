@@ -2182,7 +2182,7 @@ impl Client {
 /// This is the Rust counterpart of the `FlatFiles` / `FlatFilesNamespace`
 /// handle on the Python, TypeScript, and C++ bindings: the method set
 /// (`option_trade_quote`, `option_open_interest`, `option_eod`,
-/// `stock_trade_quote`, `stock_eod`, `index_eod`, the generic `request`,
+/// `stock_trade_quote`, `stock_eod`, the generic `request`,
 /// and `to_path`) mirrors them exactly, so flat files are reached the same
 /// way from every binding.
 #[derive(Clone, Copy)]
@@ -2271,21 +2271,6 @@ impl FlatFiles<'_> {
         self.0
             .flatfile_request_decoded(
                 crate::flatfiles::SecType::Stock,
-                crate::flatfiles::ReqType::Eod,
-                date,
-            )
-            .await
-    }
-
-    /// Decoded index end-of-day flat file for `date` (`YYYYMMDD`).
-    ///
-    /// # Errors
-    ///
-    /// Same conditions as [`Self::option_trade_quote`].
-    pub async fn index_eod(&self, date: &str) -> Result<Vec<crate::flatfiles::FlatFileRow>, Error> {
-        self.0
-            .flatfile_request_decoded(
-                crate::flatfiles::SecType::Index,
                 crate::flatfiles::ReqType::Eod,
                 date,
             )
@@ -3004,7 +2989,6 @@ mod tests {
         assert_rows(view.option_eod("20240115"));
         assert_rows(view.stock_trade_quote("20240115"));
         assert_rows(copy.stock_eod("20240115"));
-        assert_rows(view.index_eod("20240115"));
 
         // Generic decoded dispatcher: typed enums in.
         assert_rows(view.request(
