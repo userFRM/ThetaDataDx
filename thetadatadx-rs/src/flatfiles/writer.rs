@@ -4,16 +4,16 @@
 //! interface: write the header once, accept rows one-by-one with the
 //! contract key + decoded data fields, and finalize on completion. The
 //! decoder layer (see `decoded.rs`) drives a single sink regardless of
-//! format — CSV or JSONL.
+//! format — CSV, JSONL, JSON array, or HTML table.
 //!
 //! The contract key passed to each sink call carries the
 //! `(root, exp, strike, right)` columns the vendor prepends to every CSV
 //! row. For stock entries, `exp / strike / right` are `None` and only
 //! `root` is written.
 //!
-//! Both sinks must produce the **same logical rows**; only the on-disk
+//! Every sink produces the **same logical rows**; only the on-disk
 //! encoding differs. This is what makes the byte-match test on `Csv` a
-//! sufficient proxy for verifying `Jsonl`.
+//! sufficient proxy for the row-level correctness of the others.
 
 use std::fs::File;
 use std::io::{BufWriter, Write};
@@ -121,6 +121,91 @@ pub(crate) fn fmt_price_into(buf: &mut String, integer: i32, price_type: i32) ->
     let v = decode_price(integer, price_type)?;
     let _ = write!(buf, "{v}");
     Ok(())
+}
+
+/// Encode one row as a JSON object with the same keys and values the
+/// JSONL / JSON-array sinks emit: the contract prefix
+/// (`symbol[,expiration,strike,right]`) followed by the decoded data
+/// columns. Prices decode via [`decode_price`]; every other column stays
+/// an integer.
+///
+/// # Errors
+///
+/// Propagates [`decode_price`] failures on an out-of-range PRICE_TYPE.
+fn encode_row_object(
+    entry: &IndexEntry,
+    sec: SecType,
+    fmt: &[DataType],
+    data_idx: &[usize],
+    price_type_idx: Option<usize>,
+    data: &[i32],
+) -> Result<serde_json::Map<String, serde_json::Value>, Error> {
+    let mut obj = serde_json::Map::with_capacity(data_idx.len() + 4);
+    match sec {
+        SecType::Option => {
+            obj.insert(
+                "symbol".into(),
+                serde_json::Value::String(entry.symbol.clone()),
+            );
+            obj.insert(
+                "expiration".into(),
+                serde_json::Value::Number(entry.expiration.unwrap_or(0).into()),
+            );
+            // Strikes are dollars on every client-facing surface; emit the
+            // same dollar value as the CSV and Arrow paths via the shared
+            // conversion. `from_f64` is the only fallible step, so fall back
+            // to JSON null defensively (an i32/1000 quotient is always finite).
+            let strike_dollars = entry.strike_dollars().unwrap_or(0.0);
+            obj.insert(
+                "strike".into(),
+                serde_json::Number::from_f64(strike_dollars)
+                    .map(serde_json::Value::Number)
+                    .unwrap_or(serde_json::Value::Null),
+            );
+            obj.insert(
+                "right".into(),
+                serde_json::Value::String(entry.right.unwrap_or('?').to_string()),
+            );
+        }
+        SecType::Stock | SecType::Index => {
+            obj.insert(
+                "symbol".into(),
+                serde_json::Value::String(entry.symbol.clone()),
+            );
+        }
+    }
+    let pt = price_type_for_row(data, price_type_idx);
+    for &i in data_idx {
+        let val = data.get(i).copied().unwrap_or(0);
+        let v = if fmt[i].is_price() {
+            if let Some(t) = pt {
+                let f = decode_price(val, t)?;
+                serde_json::Number::from_f64(f)
+                    .map(serde_json::Value::Number)
+                    .unwrap_or(serde_json::Value::Null)
+            } else {
+                serde_json::Value::Number(val.into())
+            }
+        } else {
+            serde_json::Value::Number(val.into())
+        };
+        obj.insert(fmt[i].name().into_owned(), v);
+    }
+    Ok(obj)
+}
+
+/// Append the HTML-escaped form of `s` to `buf` (`&`→`&amp;`, `<`→`&lt;`,
+/// `>`→`&gt;`, `"`→`&quot;`).
+fn append_html_escaped(buf: &mut String, s: &str) {
+    for c in s.chars() {
+        match c {
+            '&' => buf.push_str("&amp;"),
+            '<' => buf.push_str("&lt;"),
+            '>' => buf.push_str("&gt;"),
+            '"' => buf.push_str("&quot;"),
+            other => buf.push(other),
+        }
+    }
 }
 
 /// Build the contract-prefix segment of a CSV row.
@@ -287,59 +372,14 @@ impl RowSink for JsonlSink {
     }
 
     fn write_row(&mut self, row: RowView<'_>) -> Result<(), Error> {
-        let mut obj = serde_json::Map::with_capacity(self.data_idx.len() + 4);
-        match self.sec {
-            SecType::Option => {
-                obj.insert(
-                    "symbol".into(),
-                    serde_json::Value::String(row.entry.symbol.clone()),
-                );
-                obj.insert(
-                    "expiration".into(),
-                    serde_json::Value::Number(row.entry.expiration.unwrap_or(0).into()),
-                );
-                // Strikes are dollars on every client-facing surface;
-                // emit the same dollar value as the Arrow and typed-row
-                // paths via the shared conversion. A non-finite f64 cannot
-                // arise from an i32/1000 quotient, but `from_f64` is the
-                // only fallible step, so fall back to JSON null defensively.
-                let strike_dollars = row.entry.strike_dollars().unwrap_or(0.0);
-                obj.insert(
-                    "strike".into(),
-                    serde_json::Number::from_f64(strike_dollars)
-                        .map(serde_json::Value::Number)
-                        .unwrap_or(serde_json::Value::Null),
-                );
-                obj.insert(
-                    "right".into(),
-                    serde_json::Value::String(row.entry.right.unwrap_or('?').to_string()),
-                );
-            }
-            SecType::Stock | SecType::Index => {
-                obj.insert(
-                    "symbol".into(),
-                    serde_json::Value::String(row.entry.symbol.clone()),
-                );
-            }
-        }
-        let pt = price_type_for_row(row.data, self.price_type_idx);
-        for &i in &self.data_idx {
-            let val = row.data.get(i).copied().unwrap_or(0);
-            let key = self.fmt[i].name().into_owned();
-            let v = if self.fmt[i].is_price() {
-                if let Some(t) = pt {
-                    let f = decode_price(val, t)?;
-                    serde_json::Number::from_f64(f)
-                        .map(serde_json::Value::Number)
-                        .unwrap_or(serde_json::Value::Null)
-                } else {
-                    serde_json::Value::Number(val.into())
-                }
-            } else {
-                serde_json::Value::Number(val.into())
-            };
-            obj.insert(key, v);
-        }
+        let obj = encode_row_object(
+            row.entry,
+            self.sec,
+            &self.fmt,
+            &self.data_idx,
+            self.price_type_idx,
+            row.data,
+        )?;
         serde_json::to_writer(&mut self.out, &serde_json::Value::Object(obj))
             .map_err(|e| Error::config_internal(format!("flatfiles: jsonl encode failed: {e}")))?;
         self.out.write_all(b"\n")?;
@@ -347,6 +387,199 @@ impl RowSink for JsonlSink {
     }
 
     fn finish(mut self: Box<Self>) -> Result<(), Error> {
+        self.out.flush()?;
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// JSON-array sink — a single streamed JSON array
+// ---------------------------------------------------------------------------
+
+/// [`RowSink`] that streams a single JSON array of the same per-row
+/// objects [`JsonlSink`] emits: `[` on header, one object per row joined
+/// by `,`, `]` on finish. Never buffers the whole document.
+pub(crate) struct JsonArraySink {
+    out: BufWriter<File>,
+    sec: SecType,
+    fmt: Vec<DataType>,
+    data_idx: Vec<usize>,
+    price_type_idx: Option<usize>,
+    /// `false` once the first element has been written, so subsequent
+    /// rows are prefixed with the element separator `,`.
+    first: bool,
+}
+
+impl JsonArraySink {
+    /// Creates a JSON-array sink writing to `path`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Io` when `path` cannot be created.
+    pub(crate) fn new(
+        path: &Path,
+        sec: SecType,
+        fmt: Vec<DataType>,
+        price_type_idx: Option<usize>,
+    ) -> Result<Self, Error> {
+        let data_idx = data_indices(&fmt, price_type_idx);
+        let f = File::create(path)?;
+        Ok(Self {
+            out: BufWriter::with_capacity(1 << 20, f),
+            sec,
+            fmt,
+            data_idx,
+            price_type_idx,
+            first: true,
+        })
+    }
+}
+
+impl RowSink for JsonArraySink {
+    fn write_header(&mut self) -> Result<(), Error> {
+        self.out.write_all(b"[")?;
+        Ok(())
+    }
+
+    fn write_row(&mut self, row: RowView<'_>) -> Result<(), Error> {
+        if self.first {
+            self.first = false;
+        } else {
+            self.out.write_all(b",")?;
+        }
+        let obj = encode_row_object(
+            row.entry,
+            self.sec,
+            &self.fmt,
+            &self.data_idx,
+            self.price_type_idx,
+            row.data,
+        )?;
+        serde_json::to_writer(&mut self.out, &serde_json::Value::Object(obj))
+            .map_err(|e| Error::config_internal(format!("flatfiles: json encode failed: {e}")))?;
+        Ok(())
+    }
+
+    fn finish(mut self: Box<Self>) -> Result<(), Error> {
+        self.out.write_all(b"]")?;
+        self.out.flush()?;
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// HTML sink — a streamed <table>
+// ---------------------------------------------------------------------------
+
+/// [`RowSink`] that streams an HTML `<table>`: `<thead>` header on the
+/// header call, one `<tbody>` `<tr>` per row, closing tags on finish.
+/// Every header and cell is HTML-escaped.
+pub(crate) struct HtmlSink {
+    out: BufWriter<File>,
+    sec: SecType,
+    fmt: Vec<DataType>,
+    data_idx: Vec<usize>,
+    price_type_idx: Option<usize>,
+    /// Reused row buffer to avoid per-row allocation.
+    line: String,
+}
+
+impl HtmlSink {
+    /// Creates an HTML sink writing to `path`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error::Io` when `path` cannot be created.
+    pub(crate) fn new(
+        path: &Path,
+        sec: SecType,
+        fmt: Vec<DataType>,
+        price_type_idx: Option<usize>,
+    ) -> Result<Self, Error> {
+        let data_idx = data_indices(&fmt, price_type_idx);
+        let f = File::create(path)?;
+        Ok(Self {
+            out: BufWriter::with_capacity(1 << 20, f),
+            sec,
+            fmt,
+            data_idx,
+            price_type_idx,
+            line: String::with_capacity(256),
+        })
+    }
+}
+
+impl RowSink for HtmlSink {
+    fn write_header(&mut self) -> Result<(), Error> {
+        let prefix: &[&str] = match self.sec {
+            SecType::Option => &["symbol", "expiration", "strike", "right"],
+            SecType::Stock | SecType::Index => &["symbol"],
+        };
+        self.line.clear();
+        self.line.push_str("<table>\n<thead><tr>");
+        for name in prefix {
+            self.line.push_str("<th>");
+            append_html_escaped(&mut self.line, name);
+            self.line.push_str("</th>");
+        }
+        for &i in &self.data_idx {
+            let name = self.fmt[i].name();
+            self.line.push_str("<th>");
+            append_html_escaped(&mut self.line, &name);
+            self.line.push_str("</th>");
+        }
+        self.line.push_str("</tr></thead>\n<tbody>\n");
+        self.out.write_all(self.line.as_bytes())?;
+        Ok(())
+    }
+
+    fn write_row(&mut self, row: RowView<'_>) -> Result<(), Error> {
+        use std::fmt::Write;
+        self.line.clear();
+        self.line.push_str("<tr>");
+        match self.sec {
+            SecType::Option => {
+                // symbol may carry markup-significant bytes; the rest are
+                // machine values with nothing to escape.
+                self.line.push_str("<td>");
+                append_html_escaped(&mut self.line, &row.entry.symbol);
+                self.line.push_str("</td>");
+                let _ = write!(self.line, "<td>{}</td>", row.entry.expiration.unwrap_or(0));
+                let _ = write!(
+                    self.line,
+                    "<td>{}</td>",
+                    row.entry.strike_dollars().unwrap_or(0.0)
+                );
+                let _ = write!(self.line, "<td>{}</td>", row.entry.right.unwrap_or('?'));
+            }
+            SecType::Stock | SecType::Index => {
+                self.line.push_str("<td>");
+                append_html_escaped(&mut self.line, &row.entry.symbol);
+                self.line.push_str("</td>");
+            }
+        }
+        let pt = price_type_for_row(row.data, self.price_type_idx);
+        for &i in &self.data_idx {
+            let val = row.data.get(i).copied().unwrap_or(0);
+            self.line.push_str("<td>");
+            if self.fmt[i].is_price() {
+                if let Some(t) = pt {
+                    fmt_price_into(&mut self.line, val, t)?;
+                } else {
+                    let _ = write!(self.line, "{val}");
+                }
+            } else {
+                let _ = write!(self.line, "{val}");
+            }
+            self.line.push_str("</td>");
+        }
+        self.line.push_str("</tr>\n");
+        self.out.write_all(self.line.as_bytes())?;
+        Ok(())
+    }
+
+    fn finish(mut self: Box<Self>) -> Result<(), Error> {
+        self.out.write_all(b"</tbody>\n</table>\n")?;
         self.out.flush()?;
         Ok(())
     }
@@ -701,5 +934,83 @@ mod tests {
         Box::new(sink).finish().expect("finish");
         let contents = std::fs::read_to_string(&tmp).expect("read_to_string");
         assert!(contents.contains("150.25"));
+    }
+
+    #[test]
+    fn json_array_sink_streams_valid_array() {
+        let tmp = scratch_path();
+        let fmt = vec![DataType::MsOfDay, DataType::Bid, DataType::PriceType];
+        let mut sink = JsonArraySink::new(&tmp, SecType::Stock, fmt, Some(2)).expect("new");
+        sink.write_header().expect("header");
+        let entry = IndexEntry {
+            symbol: "AAPL".into(),
+            expiration: None,
+            strike: None,
+            right: None,
+            block_start: 0,
+            block_end: 0,
+        };
+        for bid in [15_025_i32, 20_050] {
+            sink.write_row(RowView {
+                entry: &entry,
+                data: &[34_200_000, bid, 8],
+            })
+            .expect("row");
+        }
+        Box::new(sink).finish().expect("finish");
+        let text = std::fs::read_to_string(&tmp).expect("read");
+        let parsed: serde_json::Value = serde_json::from_str(&text).expect("valid JSON array");
+        let arr = parsed.as_array().expect("top level is an array");
+        assert_eq!(arr.len(), 2, "one element per row");
+        assert!((arr[0]["bid"].as_f64().unwrap() - 150.25).abs() < 1e-9);
+        assert_eq!(arr[0]["symbol"].as_str(), Some("AAPL"));
+    }
+
+    #[test]
+    fn json_array_sink_empty_is_bracket_pair() {
+        let tmp = scratch_path();
+        let fmt = vec![DataType::MsOfDay, DataType::Bid, DataType::PriceType];
+        let mut sink = JsonArraySink::new(&tmp, SecType::Stock, fmt, Some(2)).expect("new");
+        sink.write_header().expect("header");
+        Box::new(sink).finish().expect("finish");
+        assert_eq!(std::fs::read_to_string(&tmp).expect("read"), "[]");
+    }
+
+    #[test]
+    fn html_sink_escapes_and_frames_table() {
+        let tmp = scratch_path();
+        let fmt = vec![DataType::MsOfDay, DataType::Bid, DataType::PriceType];
+        let mut sink = HtmlSink::new(&tmp, SecType::Stock, fmt, Some(2)).expect("new");
+        sink.write_header().expect("header");
+        // A markup-significant symbol must be escaped in the cell.
+        let entry = IndexEntry {
+            symbol: "A<B&C".into(),
+            expiration: None,
+            strike: None,
+            right: None,
+            block_start: 0,
+            block_end: 0,
+        };
+        sink.write_row(RowView {
+            entry: &entry,
+            data: &[34_200_000, 15_025, 8],
+        })
+        .expect("row");
+        Box::new(sink).finish().expect("finish");
+        let html = std::fs::read_to_string(&tmp).expect("read");
+        assert!(
+            html.starts_with("<table>\n<thead><tr>"),
+            "table opens: {html}"
+        );
+        assert!(
+            html.ends_with("</tbody>\n</table>\n"),
+            "table closes: {html}"
+        );
+        assert!(html.contains("<th>symbol</th>"), "header cell: {html}");
+        assert!(
+            html.contains("<td>A&lt;B&amp;C</td>"),
+            "cell must be HTML-escaped: {html}"
+        );
+        assert!(html.contains("<td>150.25</td>"), "price decoded: {html}");
     }
 }

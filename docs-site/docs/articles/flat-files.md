@@ -65,7 +65,7 @@ auto ipc = rows.to_arrow_ipc();  // std::vector<uint8_t>
 <template #http>
 
 ```bash
-curl 'http://127.0.0.1:25503/v3/flatfile/option/trade_quote?date=20250303&format=csv' -o trade_quotes.csv
+curl 'http://127.0.0.1:25503/v3/option/flat_file/trade_quote?date=20250303&format=csv' -o trade_quotes.csv
 ```
 
 The server streams the response body in chunks, so downloads of any size run in bounded memory.

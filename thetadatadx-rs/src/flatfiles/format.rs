@@ -1,13 +1,17 @@
 //! Output format selector for the FLATFILES surface.
 //!
 //! The same logical row stream — `(contract_keys, [data_columns])` —
-//! materializes to one of two on-disk formats:
+//! materializes to one of these streaming on-disk formats:
 //!
 //! - `Csv`: vendor byte-format (lowercase headers, comma-separated, no
 //!   quoting, Unix line-endings). Used for legacy interop and as the
 //!   gold-standard for the byte-match integration test.
 //! - `Jsonl`: one JSON object per line, keys identical to the CSV
 //!   column names, integer columns stay numeric (no stringification).
+//! - `Json`: a single JSON array of the same per-row objects `Jsonl`
+//!   emits, streamed element-by-element (no whole-file buffering).
+//! - `Html`: an HTML `<table>`, streamed header then row-by-row, with
+//!   every header and cell HTML-escaped.
 //!
 //! For columnar formats (Parquet, Arrow IPC, polars) callers should use
 //! the in-memory typed entry point (see `flatfile_request_decoded`) and
@@ -24,6 +28,10 @@ pub enum FlatFileFormat {
     Csv,
     /// JSON Lines — one JSON object per line.
     Jsonl,
+    /// A single JSON array of per-row objects.
+    Json,
+    /// An HTML `<table>` with a header row and one row per record.
+    Html,
 }
 
 impl FlatFileFormat {
@@ -33,6 +41,8 @@ impl FlatFileFormat {
         match self {
             Self::Csv => "csv",
             Self::Jsonl => "jsonl",
+            Self::Json => "json",
+            Self::Html => "html",
         }
     }
 
@@ -63,6 +73,8 @@ mod tests {
     fn extension_round_trip() {
         assert_eq!(FlatFileFormat::Csv.extension(), "csv");
         assert_eq!(FlatFileFormat::Jsonl.extension(), "jsonl");
+        assert_eq!(FlatFileFormat::Json.extension(), "json");
+        assert_eq!(FlatFileFormat::Html.extension(), "html");
     }
 
     #[test]

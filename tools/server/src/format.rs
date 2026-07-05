@@ -2194,6 +2194,93 @@ pub fn json_to_csv(ep: &EndpointMeta, response: &[sonic_rs::Value]) -> Option<St
     Some(out)
 }
 
+/// Render a JSON response array as a minimal HTML `<table>` in the v3 column
+/// order for `ep`, for browser-viewable `format=html`.
+///
+/// Mirrors [`json_to_csv`]: object rows become one column per key (the union
+/// across rows, so sparse rows never drop columns) in the same
+/// [`csv_header_order`] the CSV path uses; scalar rows become a single `value`
+/// column. Returns `None` for an empty response or an unsupported row shape.
+/// Every header and cell is HTML-escaped so a symbol / condition string can
+/// never break out of the `<th>` / `<td>` it renders into.
+pub fn json_to_html(ep: &EndpointMeta, response: &[sonic_rs::Value]) -> Option<String> {
+    let first = response.first()?;
+    let mut out = String::with_capacity(response.len() * 256);
+    out.push_str("<table>");
+
+    if first.as_object().is_some() {
+        let keys = csv_header_order(ep, response)?;
+        let null_val = sonic_rs::Value::default();
+
+        out.push_str("<thead><tr>");
+        for key in &keys {
+            out.push_str("<th>");
+            out.push_str(&escape_html(key));
+            out.push_str("</th>");
+        }
+        out.push_str("</tr></thead><tbody>");
+
+        for row in response {
+            let row_obj = row.as_object()?;
+            out.push_str("<tr>");
+            for key in &keys {
+                let value = row_obj.get(key).unwrap_or(&null_val);
+                out.push_str("<td>");
+                out.push_str(&escape_html(&html_cell_text(value)));
+                out.push_str("</td>");
+            }
+            out.push_str("</tr>");
+        }
+
+        out.push_str("</tbody></table>");
+        return Some(out);
+    }
+
+    if response.iter().any(|row| row.is_object() || row.is_array()) {
+        return None;
+    }
+
+    out.push_str("<thead><tr><th>value</th></tr></thead><tbody>");
+    for row in response {
+        out.push_str("<tr><td>");
+        out.push_str(&escape_html(&html_cell_text(row)));
+        out.push_str("</td></tr>");
+    }
+    out.push_str("</tbody></table>");
+    Some(out)
+}
+
+/// The plain-text form of a cell value, before HTML-escaping. Strings render
+/// verbatim, null renders empty, and numbers / booleans serialise (collapsing
+/// any non-finite leaf first, mirroring [`render_csv_value`]).
+fn html_cell_text(value: &sonic_rs::Value) -> String {
+    if let Some(s) = value.as_str() {
+        return s.to_owned();
+    }
+    if value.is_null() {
+        return String::new();
+    }
+    let mut owned = value.clone();
+    thetadatadx::json_canon::canonicalize(&mut owned);
+    sonic_rs::to_string(&owned).unwrap_or_default()
+}
+
+/// HTML-escape `&`, `<`, `>`, `"` so an attacker-controlled cell (a symbol or
+/// condition string) cannot inject markup into the rendered table.
+fn escape_html(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for c in value.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            other => out.push(other),
+        }
+    }
+    out
+}
+
 fn render_csv_value(value: &sonic_rs::Value) -> String {
     if let Some(s) = value.as_str() {
         return escape_csv_field(s);

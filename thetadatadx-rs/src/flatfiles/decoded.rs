@@ -20,7 +20,7 @@ use crate::flatfiles::format::FlatFileFormat;
 use crate::flatfiles::index::{parse_header, IndexIter};
 use crate::flatfiles::request::flatfile_request_raw_with_config;
 use crate::flatfiles::types::{ReqType, SecType};
-use crate::flatfiles::writer::{CsvSink, JsonlSink, RowSink, RowView};
+use crate::flatfiles::writer::{CsvSink, HtmlSink, JsonArraySink, JsonlSink, RowSink, RowView};
 use crate::flatfiles::ScratchGuard;
 use crate::util::random_id::random_id_hex;
 
@@ -212,6 +212,18 @@ pub(crate) fn decode_to_file(
             hdr.price_type_idx,
         )?),
         FlatFileFormat::Jsonl => Box::new(JsonlSink::new(
+            &tmp_path,
+            sec,
+            hdr.fmt.clone(),
+            hdr.price_type_idx,
+        )?),
+        FlatFileFormat::Json => Box::new(JsonArraySink::new(
+            &tmp_path,
+            sec,
+            hdr.fmt.clone(),
+            hdr.price_type_idx,
+        )?),
+        FlatFileFormat::Html => Box::new(HtmlSink::new(
             &tmp_path,
             sec,
             hdr.fmt.clone(),

@@ -1,28 +1,29 @@
 //! Hand-written flat-file route surface for the REST server.
 //!
-//! Flat files are server-pre-built whole-universe daily blobs (CSV /
-//! JSONL). They are a one-shot batch download — NOT a WebSocket
-//! subscription stream — so the route surface is HTTP-only by design.
-//! Streaming the bytes back to the client uses `axum::body::Body` over
-//! a tokio file reader so the server doesn't pin a multi-hundred-MB
-//! response in RAM.
+//! Flat files are server-pre-built whole-universe daily blobs. They are a
+//! one-shot batch download — NOT a WebSocket subscription stream — so the
+//! route surface is HTTP-only by design. Streaming the bytes back to the
+//! client uses `axum::body::Body` over a tokio file reader so the server
+//! doesn't pin a multi-hundred-MB response in RAM.
 //!
-//! Routes:
+//! Route:
 //!
-//! - `GET /v3/flatfile/{sec_type}/{req_type}` — convenience path. Path
-//!   segments parse case-insensitively to the matching `SecType` /
-//!   `ReqType`. Query params: `date=YYYYMMDD&format=csv|jsonl`. The pair
-//!   must be a served flat-file dataset (see below) or the route returns
-//!   `400 bad_request`.
-//! - `POST /v3/flatfile/request` — generic endpoint. JSON body:
-//!   `{ "sec_type": "OPTION", "req_type": "TRADE_QUOTE", "date":
-//!      "20260428", "format": "csv" }`. Both routes serve the same fixed
-//!   matrix — option `trade_quote` / `open_interest` / `eod` and stock
-//!   `trade_quote` / `eod`; any other `(sec_type, req_type)` pair returns
-//!   `400 bad_request`.
+//! - `GET /v3/{sec_type}/flat_file/{req_type}` — the terminal's flat-file
+//!   path form. Path segments parse case-insensitively to the matching
+//!   `SecType` / `ReqType`. Query params:
+//!   `date=YYYY-MM-DD|YYYYMMDD&format=csv|json|ndjson|jsonl|html`. The pair
+//!   must be a served flat-file dataset — option `trade_quote` /
+//!   `open_interest` / `eod`, stock `trade_quote` / `eod`, index `eod`; any
+//!   other `(sec_type, req_type)` pair returns `400 bad_request`.
+//!
+//! Every format is written row-by-row by its `RowSink`, so even a JSON
+//! array or an HTML table streams without buffering the whole blob: `csv`,
+//! `json` (a single JSON array), `ndjson` / `jsonl` (newline-delimited
+//! JSON), and `html` (an HTML table).
 //!
 //! Response:
-//! - `Content-Type: text/csv` (csv) or `application/x-ndjson` (jsonl).
+//! - `Content-Type: text/csv` (csv), `application/json` (json),
+//!   `application/x-ndjson` (ndjson / jsonl), or `text/html` (html).
 //! - Body is the file bytes streamed via `tokio_util::io::ReaderStream`.
 //! - On failure: standard error envelope (`error_type`, `error_msg`).
 //!
@@ -34,12 +35,12 @@
 use std::path::PathBuf;
 
 use axum::body::Body;
-use axum::extract::rejection::{JsonRejection, PathRejection, QueryRejection};
-use axum::extract::{FromRequest, FromRequestParts, Path, Query, Request, State};
+use axum::extract::rejection::{PathRejection, QueryRejection};
+use axum::extract::{FromRequestParts, Path, Query, State};
 use axum::http::request::Parts;
 use axum::http::{header, StatusCode};
 use axum::response::Response;
-use axum::routing::{get, post};
+use axum::routing::get;
 use axum::Router;
 use serde::Deserialize;
 use thetadatadx::flatfiles::{
@@ -50,61 +51,16 @@ use tokio_util::io::ReaderStream;
 use crate::handler::error_response;
 use crate::state::AppState;
 
-/// Query parameters for the convenience flat-file route
-/// (`GET /v3/flatfile/{sec_type}/{req_type}`).
+/// Query parameters for the flat-file route
+/// (`GET /v3/{sec_type}/flat_file/{req_type}`).
 #[derive(Debug, Deserialize)]
 pub(crate) struct FlatfileQuery {
-    /// Trading date in `YYYYMMDD` form.
+    /// Trading date in `YYYY-MM-DD` or `YYYYMMDD` form.
     pub date: String,
-    /// On-disk format: `csv` (default) or `jsonl`.
+    /// On-disk format: `csv` (default), `json`, `ndjson` (or its `jsonl`
+    /// alias), or `html`.
     #[serde(default)]
     pub format: Option<String>,
-}
-
-/// JSON request body for the generic flat-file route
-/// (`POST /v3/flatfile/request`).
-#[derive(Debug, Deserialize)]
-pub(crate) struct FlatfileRequestBody {
-    /// Security type, parsed case-insensitively. Must be a security type with
-    /// a served flat-file dataset (`OPTION` or `STOCK`).
-    pub sec_type: String,
-    /// Request type, parsed case-insensitively. Must be served as a flat file
-    /// for the given security type (`TRADE_QUOTE`, `OPEN_INTEREST`, `EOD`).
-    pub req_type: String,
-    /// Trading date in `YYYYMMDD` form.
-    pub date: String,
-    /// On-disk format: `csv` (default) or `jsonl`.
-    #[serde(default)]
-    pub format: Option<String>,
-}
-
-// ── JSON body extractor with a canonical-envelope rejection ──────────────
-
-/// `axum::Json` wrapper whose extraction failure renders the server's
-/// canonical error envelope instead of axum's default plain-text 400.
-///
-/// A malformed flat-file POST body (bad syntax, wrong type, missing or
-/// wrong `Content-Type`) must fail the same way every other route family
-/// fails: `{"header":{"error_type":...,"error_msg":...},"response":[]}`.
-/// Clients drive retry / backoff off `header.error_type`, so a route that
-/// answers a bad body with a bare text 400 breaks that contract. This
-/// extractor maps the `JsonRejection` onto `error_response` and otherwise
-/// behaves exactly like `axum::Json<T>`.
-pub(crate) struct FlatfileJson<T>(pub(crate) T);
-
-impl<S, T> FromRequest<S> for FlatfileJson<T>
-where
-    axum::Json<T>: FromRequest<S, Rejection = JsonRejection>,
-    S: Send + Sync,
-{
-    type Rejection = Response;
-
-    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
-        match axum::Json::<T>::from_request(req, state).await {
-            Ok(axum::Json(value)) => Ok(Self(value)),
-            Err(rejection) => Err(json_rejection_response(&rejection)),
-        }
-    }
 }
 
 /// Define a `fn $name(&$rej) -> Response` that maps an axum extractor
@@ -125,8 +81,6 @@ macro_rules! rejection_response_fn {
         }
     };
 }
-
-rejection_response_fn!(json_rejection_response, JsonRejection);
 
 // ── Query extractor with a canonical-envelope rejection ──────────────────
 
@@ -199,9 +153,16 @@ fn parse_req_type(s: &str) -> Result<ReqType, String> {
 fn parse_format(value: Option<&str>) -> Result<FlatFileFormat, String> {
     match value.unwrap_or("csv").to_ascii_lowercase().as_str() {
         "csv" => Ok(FlatFileFormat::Csv),
-        "jsonl" | "json" => Ok(FlatFileFormat::Jsonl),
+        // `ndjson` and `jsonl` are the same line-delimited framing under two
+        // names; both stream as `application/x-ndjson`.
+        "ndjson" | "jsonl" => Ok(FlatFileFormat::Jsonl),
+        // `json` streams a single JSON array; `html` an HTML table. Both are
+        // written row-by-row by their `RowSink`, so neither buffers the whole
+        // daily blob.
+        "json" => Ok(FlatFileFormat::Json),
+        "html" => Ok(FlatFileFormat::Html),
         other => Err(format!(
-            "unknown flat-file format: {other:?} (expected csv or jsonl)"
+            "unknown flat-file format: {other:?} (supported: csv, json, ndjson, jsonl, html)"
         )),
     }
 }
@@ -231,6 +192,8 @@ fn content_type_for(format: FlatFileFormat) -> &'static str {
         FlatFileFormat::Csv => "text/csv; charset=utf-8",
         // application/x-ndjson is the standard MIME for JSON Lines blobs.
         FlatFileFormat::Jsonl => "application/x-ndjson; charset=utf-8",
+        FlatFileFormat::Json => "application/json; charset=utf-8",
+        FlatFileFormat::Html => "text/html; charset=utf-8",
     }
 }
 
@@ -241,8 +204,8 @@ async fn handle_get(
     // A non-UTF-8 percent-encoded segment (`%ff`) matches the brace route but
     // fails `Path`'s `decode_utf8()`, so the rejection is reachable. Take the
     // `Result` and route the failure through `error_response` so it answers
-    // the canonical JSON envelope, matching the query/POST siblings — instead
-    // of axum's default plain-text 400.
+    // the canonical JSON envelope, matching the query sibling — instead of
+    // axum's default plain-text 400.
     path: Result<Path<(String, String)>, PathRejection>,
     FlatfileQueryExtractor(params): FlatfileQueryExtractor<FlatfileQuery>,
 ) -> Response {
@@ -271,35 +234,32 @@ async fn handle_get(
     if let Err(e) = reject_unserved_dataset(sec_type, req_type) {
         return error_response(StatusCode::BAD_REQUEST, "bad_request", &e);
     }
-    serve_flatfile(state, sec_type, req_type, &params.date, format).await
+    // The v3 `date` param is documented `format: date` (dashed `YYYY-MM-DD`),
+    // but the driver requires exactly 8 digits — normalise a well-formed
+    // dashed date to `YYYYMMDD` here so both spellings reach it. Any other
+    // shape passes through for the driver to reject.
+    let date = normalize_flatfile_date(&params.date);
+    serve_flatfile(state, sec_type, req_type, &date, format).await
 }
 
-async fn handle_post(
-    state: State<AppState>,
-    FlatfileJson(body): FlatfileJson<FlatfileRequestBody>,
-) -> Response {
-    let sec_type = match parse_sec_type(&body.sec_type) {
-        Ok(v) => v,
-        Err(e) => return error_response(StatusCode::BAD_REQUEST, "bad_request", &e),
-    };
-    let req_type = match parse_req_type(&body.req_type) {
-        Ok(v) => v,
-        Err(e) => return error_response(StatusCode::BAD_REQUEST, "bad_request", &e),
-    };
-    let format = match parse_format(body.format.as_deref()) {
-        Ok(f) => f,
-        Err(e) => return error_response(StatusCode::BAD_REQUEST, "bad_request", &e),
-    };
-    // Validate `date` at the boundary, before it is interpolated into a
-    // temp PathBuf in `flatfile_paths`. Path safety must not depend solely
-    // on the downstream format validator rejecting non-YYYYMMDD first.
-    if let Err(e) = crate::validation::validate_date(&body.date, "date") {
-        return error_response(StatusCode::BAD_REQUEST, "bad_request", &e.message);
+/// Normalise a well-formed `YYYY-MM-DD` date to the `YYYYMMDD` the flat-file
+/// driver requires; any other input passes through unchanged for the driver
+/// to accept or reject.
+fn normalize_flatfile_date(date: &str) -> String {
+    let b = date.as_bytes();
+    let dashed = b.len() == 10
+        && b.iter().enumerate().all(|(i, &c)| {
+            if i == 4 || i == 7 {
+                c == b'-'
+            } else {
+                c.is_ascii_digit()
+            }
+        });
+    if dashed {
+        format!("{}{}{}", &date[0..4], &date[5..7], &date[8..10])
+    } else {
+        date.to_owned()
     }
-    if let Err(e) = reject_unserved_dataset(sec_type, req_type) {
-        return error_response(StatusCode::BAD_REQUEST, "bad_request", &e);
-    }
-    serve_flatfile(state, sec_type, req_type, &body.date, format).await
 }
 
 /// Map an SDK flat-file error onto the HTTP `(status, error_type)` the
@@ -451,26 +411,15 @@ async fn serve_flatfile(
         })
 }
 
-/// Add the FLATFILES routes onto an existing axum router.
+/// Add the flat-file route onto an existing axum router.
 ///
-/// Two GET path shapes serve the same `handle_get` logic:
-///
-/// - `/v3/{sec_type}/flat_file/{req_type}` — the v3 form the JVM terminal
-///   serves (e.g. `/v3/option/flat_file/trade_quote`). The terminal carries
-///   `date` + `format` in the query string and `sec_type` / `req_type` in
-///   the path, which is exactly `handle_get`'s shape, so the same handler
-///   serves both this and the convenience form below. An unserved
-///   `(sec_type, req_type)` pair (stock `open_interest`, any `index`) still
-///   fails the served-matrix gate as a `400 bad_request`.
-/// - `/v3/flatfile/{sec_type}/{req_type}` — the original convenience form,
-///   kept so existing callers do not break.
-///
-/// The generic `POST /v3/flatfile/request` form is retained alongside both.
+/// `/v3/{sec_type}/flat_file/{req_type}` — the v3 form the JVM terminal serves
+/// (e.g. `/v3/option/flat_file/trade_quote`). The terminal carries `date` +
+/// `format` in the query string and `sec_type` / `req_type` in the path. An
+/// unserved `(sec_type, req_type)` pair (stock `open_interest`, any non-EOD
+/// `index`) fails the served-matrix gate as a `400 bad_request`.
 pub(crate) fn add_flatfile_routes(router: Router<AppState>) -> Router<AppState> {
-    router
-        .route("/v3/{sec_type}/flat_file/{req_type}", get(handle_get))
-        .route("/v3/flatfile/{sec_type}/{req_type}", get(handle_get))
-        .route("/v3/flatfile/request", post(handle_post))
+    router.route("/v3/{sec_type}/flat_file/{req_type}", get(handle_get))
 }
 
 /// Compute the `(scratch, final)` path pair for a flatfile request.
@@ -506,6 +455,46 @@ pub(crate) fn flatfile_paths(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every documented flat-file `format` token maps to its variant and
+    /// content type; an unknown token is a `400` whose message lists the
+    /// supported set. `json` and `html` are first-class formats, not
+    /// aliases — the JSON array and HTML table stream row-by-row.
+    #[test]
+    fn parse_format_accepts_every_documented_token() {
+        for (token, want, ctype) in [
+            ("csv", FlatFileFormat::Csv, "text/csv; charset=utf-8"),
+            (
+                "json",
+                FlatFileFormat::Json,
+                "application/json; charset=utf-8",
+            ),
+            (
+                "ndjson",
+                FlatFileFormat::Jsonl,
+                "application/x-ndjson; charset=utf-8",
+            ),
+            (
+                "jsonl",
+                FlatFileFormat::Jsonl,
+                "application/x-ndjson; charset=utf-8",
+            ),
+            ("html", FlatFileFormat::Html, "text/html; charset=utf-8"),
+            ("HTML", FlatFileFormat::Html, "text/html; charset=utf-8"),
+        ] {
+            let got = parse_format(Some(token)).expect("documented token must parse");
+            assert_eq!(got, want, "token {token:?} must map to {want:?}");
+            assert_eq!(content_type_for(got), ctype, "content type for {token:?}");
+        }
+        // Absent `format` defaults to csv.
+        assert_eq!(parse_format(None).unwrap(), FlatFileFormat::Csv);
+        // Unknown token is a 400 that names the supported set.
+        let err = parse_format(Some("parquet")).expect_err("unknown token must reject");
+        assert!(
+            err.contains("csv, json, ndjson, jsonl, html"),
+            "rejection must list the supported formats; got {err:?}"
+        );
+    }
 
     /// An upstream history-entitlement / no-snapshot rejection is a normal
     /// "nothing here for this account/date" outcome, not a gateway failure.
@@ -669,120 +658,26 @@ mod tests {
         }
     }
 
-    /// A malformed flat-file POST body must surface the server's
-    /// canonical error envelope, not axum's default plain-text 400.
-    /// Drive a real `JsonRejection` through the same extractor the route
-    /// uses and assert the response is the `{"header":{...},"response":[]}`
-    /// shape with `error_type=bad_request` and a `400` status.
-    #[tokio::test]
-    async fn malformed_post_body_returns_canonical_envelope() {
-        use axum::body::to_bytes;
-        use axum::extract::FromRequest;
-        use axum::http::Request as HttpRequest;
-        use sonic_rs::{JsonContainerTrait, JsonValueTrait};
-
-        // A truncated JSON object: valid `Content-Type`, unparseable body.
-        let request = HttpRequest::builder()
-            .method("POST")
-            .uri("/v3/flatfile/request")
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from("{ \"sec_type\": "))
-            .unwrap();
-
-        let rejection = FlatfileJson::<FlatfileRequestBody>::from_request(request, &())
-            .await
-            .err()
-            .expect("a malformed body must be rejected");
-
-        assert_eq!(
-            rejection.status(),
-            StatusCode::BAD_REQUEST,
-            "a malformed JSON body is a client fault (400)"
-        );
-        assert_eq!(
-            rejection
-                .headers()
-                .get(header::CONTENT_TYPE)
-                .and_then(|v| v.to_str().ok()),
-            Some(crate::handler::JSON_CONTENT_TYPE),
-            "the rejection must be served as JSON, not plain text"
-        );
-
-        let body = to_bytes(rejection.into_body(), usize::MAX).await.unwrap();
-        let value: sonic_rs::Value =
-            sonic_rs::from_slice(&body).expect("the rejection body must be the JSON envelope");
-
-        let header = value.get("header").expect("envelope must carry a header");
-        assert_eq!(
-            header.get("error_type").as_str(),
-            Some("bad_request"),
-            "clients drive retry off header.error_type"
-        );
-        assert!(
-            header
-                .get("error_msg")
-                .as_str()
-                .is_some_and(|m| !m.is_empty()),
-            "the envelope must carry a non-empty diagnostic error_msg"
-        );
-        assert_eq!(
-            value
-                .get("response")
-                .and_then(|r| r.as_array())
-                .map(sonic_rs::Array::len),
-            Some(0),
-            "the error envelope's response array must be empty"
-        );
-    }
-
-    /// A POST body sent without a JSON `Content-Type` is rejected through
-    /// the same canonical envelope rather than axum's default text 415.
-    #[tokio::test]
-    async fn post_body_missing_content_type_returns_canonical_envelope() {
-        use axum::body::to_bytes;
-        use axum::extract::FromRequest;
-        use axum::http::Request as HttpRequest;
-        use sonic_rs::JsonValueTrait;
-
-        let request = HttpRequest::builder()
-            .method("POST")
-            .uri("/v3/flatfile/request")
-            .body(Body::from("{}"))
-            .unwrap();
-
-        let rejection = FlatfileJson::<FlatfileRequestBody>::from_request(request, &())
-            .await
-            .err()
-            .expect("a body without a JSON content-type must be rejected");
-
-        assert_eq!(
-            rejection
-                .headers()
-                .get(header::CONTENT_TYPE)
-                .and_then(|v| v.to_str().ok()),
-            Some(crate::handler::JSON_CONTENT_TYPE),
-            "the rejection must be served as JSON, not plain text"
-        );
-
-        let body = to_bytes(rejection.into_body(), usize::MAX).await.unwrap();
-        let value: sonic_rs::Value =
-            sonic_rs::from_slice(&body).expect("the rejection body must be the JSON envelope");
-        assert_eq!(
-            value
-                .get("header")
-                .and_then(|h| h.get("error_type"))
-                .as_str(),
-            Some("bad_request"),
-        );
+    /// A well-formed `YYYY-MM-DD` date normalises to the `YYYYMMDD` the
+    /// driver requires; a bare `YYYYMMDD` and any other shape pass through
+    /// unchanged.
+    #[test]
+    fn dashed_date_is_normalised_to_yyyymmdd() {
+        assert_eq!(normalize_flatfile_date("2026-04-28"), "20260428");
+        assert_eq!(normalize_flatfile_date("20260428"), "20260428");
+        // Not a well-formed dashed date: passed through for the driver to reject.
+        assert_eq!(normalize_flatfile_date("2026/04/28"), "2026/04/28");
+        assert_eq!(normalize_flatfile_date("2026-4-28"), "2026-4-28");
+        assert_eq!(normalize_flatfile_date("garbage"), "garbage");
     }
 
     /// A GET whose query string omits the required `date` param must
     /// surface the server's canonical error envelope, not axum's default
     /// plain-text 400. The `Query<FlatfileQuery>` deserialize fails in the
     /// extractor before the handler body runs; the custom extractor routes
-    /// that failure through the same `error_response` helper the POST path
-    /// uses, so the GET path keys the same `header.error_type` contract
-    /// clients drive retry / backoff off.
+    /// that failure through the same `error_response` helper every other
+    /// route family uses, so the GET path keys the same `header.error_type`
+    /// contract clients drive retry / backoff off.
     #[tokio::test]
     async fn get_missing_date_returns_canonical_envelope() {
         use axum::body::to_bytes;
@@ -794,7 +689,7 @@ mod tests {
         // deserialize fails before the handler runs.
         let request = HttpRequest::builder()
             .method("GET")
-            .uri("/v3/flatfile/option/trade_quote?format=csv")
+            .uri("/v3/option/flat_file/trade_quote?format=csv")
             .body(Body::empty())
             .unwrap();
         let (mut parts, _) = request.into_parts();
@@ -860,7 +755,7 @@ mod tests {
         // multi-value sequence, so the query deserialize fails.
         let request = HttpRequest::builder()
             .method("GET")
-            .uri("/v3/flatfile/option/trade_quote?date=20260428&date=20260429")
+            .uri("/v3/option/flat_file/trade_quote?date=20260428&date=20260429")
             .body(Body::empty())
             .unwrap();
         let (mut parts, _) = request.into_parts();
@@ -914,18 +809,18 @@ mod tests {
 
     /// A non-UTF-8 percent-encoded path segment (`%ff`) matches the brace
     /// route and reaches `Path::<(String, String)>`, whose `decode_utf8()`
-    /// fails. Both GET flat-file routes must answer the canonical JSON
+    /// fails. The GET flat-file route must answer the canonical JSON
     /// envelope (`{"header":{"error_type":"bad_request",...},"response":[]}`,
     /// `Content-Type: application/json`, 400) rather than axum's default
-    /// plain-text 400, matching the query/POST siblings.
+    /// plain-text 400, matching the query sibling.
     ///
-    /// Driven through a stateless probe router that mounts the same two
-    /// brace-route patterns over the same `path_rejection_response` mapping
+    /// Driven through a stateless probe router that mounts the same
+    /// brace-route pattern over the same `path_rejection_response` mapping
     /// the live `handle_get` uses, so the reachability chain (route match →
     /// `Path` reject → envelope) is exercised end-to-end without a live
     /// client.
     #[tokio::test]
-    async fn malformed_path_segment_returns_canonical_envelope_on_both_get_routes() {
+    async fn malformed_path_segment_returns_canonical_envelope() {
         use axum::body::to_bytes;
         use axum::routing::get;
         use sonic_rs::{JsonContainerTrait, JsonValueTrait};
@@ -938,61 +833,57 @@ mod tests {
             }
         }
 
-        let app: Router = Router::new()
-            .route("/v3/{sec_type}/flat_file/{req_type}", get(probe))
-            .route("/v3/flatfile/{sec_type}/{req_type}", get(probe));
+        let app: Router = Router::new().route("/v3/{sec_type}/flat_file/{req_type}", get(probe));
 
         // `%ff` decodes to the byte 0xFF, which is not valid UTF-8, so the
         // `Path` deserialize rejects after the route matches.
-        for uri in ["/v3/flatfile/%ff/quote", "/v3/option/flat_file/%ff"] {
-            let request = axum::http::Request::builder()
-                .method("GET")
-                .uri(uri)
-                .body(Body::empty())
-                .unwrap();
-            let response = app.clone().oneshot(request).await.expect("router responds");
+        let uri = "/v3/option/flat_file/%ff";
+        let request = axum::http::Request::builder()
+            .method("GET")
+            .uri(uri)
+            .body(Body::empty())
+            .unwrap();
+        let response = app.clone().oneshot(request).await.expect("router responds");
 
-            assert_eq!(
-                response.status(),
-                StatusCode::BAD_REQUEST,
-                "a non-UTF-8 path segment is a client fault (400): {uri}"
-            );
-            assert_eq!(
-                response
-                    .headers()
-                    .get(header::CONTENT_TYPE)
-                    .and_then(|v| v.to_str().ok()),
-                Some(crate::handler::JSON_CONTENT_TYPE),
-                "the rejection must be served as JSON, not plain text: {uri}"
-            );
+        assert_eq!(
+            response.status(),
+            StatusCode::BAD_REQUEST,
+            "a non-UTF-8 path segment is a client fault (400): {uri}"
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok()),
+            Some(crate::handler::JSON_CONTENT_TYPE),
+            "the rejection must be served as JSON, not plain text: {uri}"
+        );
 
-            let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-            let value: sonic_rs::Value = sonic_rs::from_slice(&body).unwrap_or_else(|e| {
-                panic!("rejection body must be the JSON envelope ({uri}): {e}")
-            });
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let value: sonic_rs::Value = sonic_rs::from_slice(&body)
+            .unwrap_or_else(|e| panic!("rejection body must be the JSON envelope ({uri}): {e}"));
 
-            let envelope_header = value.get("header").expect("envelope must carry a header");
-            assert_eq!(
-                envelope_header.get("error_type").as_str(),
-                Some("bad_request"),
-                "clients drive retry off header.error_type: {uri}"
-            );
-            assert!(
-                envelope_header
-                    .get("error_msg")
-                    .as_str()
-                    .is_some_and(|m| !m.is_empty()),
-                "the envelope must carry a non-empty diagnostic error_msg: {uri}"
-            );
-            assert_eq!(
-                value
-                    .get("response")
-                    .and_then(|r| r.as_array())
-                    .map(sonic_rs::Array::len),
-                Some(0),
-                "the error envelope's response array must be empty: {uri}"
-            );
-        }
+        let envelope_header = value.get("header").expect("envelope must carry a header");
+        assert_eq!(
+            envelope_header.get("error_type").as_str(),
+            Some("bad_request"),
+            "clients drive retry off header.error_type: {uri}"
+        );
+        assert!(
+            envelope_header
+                .get("error_msg")
+                .as_str()
+                .is_some_and(|m| !m.is_empty()),
+            "the envelope must carry a non-empty diagnostic error_msg: {uri}"
+        );
+        assert_eq!(
+            value
+                .get("response")
+                .and_then(|r| r.as_array())
+                .map(sonic_rs::Array::len),
+            Some(0),
+            "the error envelope's response array must be empty: {uri}"
+        );
     }
 
     // Regression: concurrent identical requests must never share a

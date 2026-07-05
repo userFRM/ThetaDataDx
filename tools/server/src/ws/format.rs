@@ -434,12 +434,10 @@ mod tests {
             );
         }
         // SDK-only columns the terminal's trade frame never emits.
-        for key in ["received_at_ns"] {
-            assert!(
-                !json.contains(&format!("\"{key}\":")),
-                "Trade frame must NOT carry the SDK-only `{key}` column: {json}"
-            );
-        }
+        assert!(
+            !json.contains("\"received_at_ns\":"),
+            "Trade frame must NOT carry the SDK-only `received_at_ns` column: {json}"
+        );
         // Header carries the frame type and the live FPSS connectivity
         // status the terminal stamps into every message header.
         assert!(
