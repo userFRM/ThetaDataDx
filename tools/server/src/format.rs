@@ -1563,7 +1563,7 @@ fn representative_output(ep: &EndpointMeta) -> EndpointOutput {
     // v3 carries the contract identity only on option tick endpoints. Stock /
     // index ticks share the return type but render no id columns, so give them
     // the `expiration == 0` no-id sentinel (the serializer then emits none) and
-    // keep the column order faithful for all 61 endpoints.
+    // keep the column order faithful for all 60 endpoints.
     let (id_expiration, id_strike, id_right) = if endpoint_is_option_tick(ep) {
         (20240101, 100.0, 'C')
     } else {
