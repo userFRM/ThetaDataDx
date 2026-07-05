@@ -551,14 +551,13 @@ mod tests {
     }
 
     #[test]
-    fn dataset_gate_accepts_the_six_served_combos() {
+    fn dataset_gate_accepts_the_five_served_combos() {
         for (sec, req) in [
             (SecType::Option, ReqType::TradeQuote),
             (SecType::Option, ReqType::OpenInterest),
             (SecType::Option, ReqType::Eod),
             (SecType::Stock, ReqType::TradeQuote),
             (SecType::Stock, ReqType::Eod),
-            (SecType::Index, ReqType::Eod),
         ] {
             assert!(
                 validate_dataset(sec, req).is_ok(),
@@ -580,6 +579,7 @@ mod tests {
             (SecType::Stock, ReqType::OpenInterest, "stock open_interest"),
             (SecType::Index, ReqType::TradeQuote, "index trade_quote"),
             (SecType::Index, ReqType::Quote, "index quote"),
+            (SecType::Index, ReqType::Eod, "index eod"),
         ] {
             let err = validate_dataset(sec, req).expect_err("unserved pair must be rejected");
             // Typed invalid-parameter leaf, not a network failure.

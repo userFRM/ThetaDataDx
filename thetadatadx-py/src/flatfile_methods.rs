@@ -197,7 +197,7 @@ impl FlatFilesNamespace {
 #[pymethods]
 impl FlatFilesNamespace {
     fn __repr__(&self) -> &'static str {
-        "FlatFilesNamespace(option_*, stock_*, index_eod; .to_arrow/.to_pandas/.to_polars/.to_list)"
+        "FlatFilesNamespace(option_*, stock_*; .to_arrow/.to_pandas/.to_polars/.to_list)"
     }
 
     /// Decoded option-trade-quote flat file for `date` (YYYYMMDD).
@@ -223,11 +223,6 @@ impl FlatFilesNamespace {
     /// Decoded stock-EOD flat file for `date` (YYYYMMDD).
     fn stock_eod(&self, py: Python<'_>, date: &str) -> PyResult<FlatFileRowList> {
         self.pull_decoded(py, SecType::Stock, ReqType::Eod, date)
-    }
-
-    /// Decoded index-EOD flat file for `date` (YYYYMMDD).
-    fn index_eod(&self, py: Python<'_>, date: &str) -> PyResult<FlatFileRowList> {
-        self.pull_decoded(py, SecType::Index, ReqType::Eod, date)
     }
 
     /// Generic dispatcher — `sec_type` and `req_type` accept the same
@@ -295,11 +290,6 @@ impl FlatFilesNamespace {
     /// Awaitable stock-EOD flat file for `date` (YYYYMMDD).
     fn stock_eod_async<'py>(&self, py: Python<'py>, date: &str) -> PyResult<Bound<'py, PyAny>> {
         self.pull_decoded_async(py, SecType::Stock, ReqType::Eod, date)
-    }
-
-    /// Awaitable index-EOD flat file for `date` (YYYYMMDD).
-    fn index_eod_async<'py>(&self, py: Python<'py>, date: &str) -> PyResult<Bound<'py, PyAny>> {
-        self.pull_decoded_async(py, SecType::Index, ReqType::Eod, date)
     }
 
     /// Awaitable generic dispatcher. `sec_type` and `req_type` accept the

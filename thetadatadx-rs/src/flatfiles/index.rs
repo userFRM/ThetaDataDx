@@ -193,8 +193,8 @@ fn parse_one_entry(cur: &mut Cursor<&[u8]>, sec: SecType) -> Result<IndexEntry, 
             // INDEX and STOCK share the contract-key layout: a length-prefixed
             // root followed by the entry-level trading date, with no
             // expiration / strike / right (an index has no option dimensions).
-            // The vendor's `index/flat_file/eod` section confirms this byte
-            // layout — each entry is `root_len ; root ; i32 date`.
+            // Each entry is `root_len ; root ; i32 date`; the INDEX arm shares
+            // the stock EOD byte layout for the decode path.
             let root_len = read_u8(&mut e)? as usize;
             let mut root_bytes = vec![0u8; root_len];
             e.read_exact(&mut root_bytes)?;

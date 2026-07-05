@@ -1376,7 +1376,7 @@ public:
 
     // Convenience accessors cover exactly the datasets the flat-file
     // distribution serves — option trade_quote / open_interest / eod,
-    // stock trade_quote / eod, and index eod. Other request types are
+    // stock trade_quote / eod. Other request types are
     // reachable via the historical surface, not as flat files.
     FlatFileRowList option_trade_quote(const std::string& date) const {
         return request("OPTION", "TRADE_QUOTE", date);
@@ -1392,9 +1392,6 @@ public:
     }
     FlatFileRowList stock_eod(const std::string& date) const {
         return request("STOCK", "EOD", date);
-    }
-    FlatFileRowList index_eod(const std::string& date) const {
-        return request("INDEX", "EOD", date);
     }
 
     /// Pull a flat-file blob and write the requested vendor format

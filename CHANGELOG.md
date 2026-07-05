@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- **Typed `index` end-of-day flat-file accessor across every binding.** The index EOD flat file was already a served dataset but lacked the typed one-liner its option and stock siblings had; `flat_files.index_eod(...)` (and the async twin) is now available in Python, TypeScript, Rust, and C++, so callers no longer fall back to the generic request form.
-
 ### Changed
 
 - **`thetadatadx-server` reports all four terminal connectivity states.** `GET /v3/terminal/fpss/status` and the WebSocket `STATUS` heartbeat now return `CONNECTED`, `UNVERIFIED` (the socket is up but login is not yet confirmed), `DISCONNECTED`, or `ERROR` — matching the terminal — instead of only connected/disconnected. The historical (MDDS) channel stays `CONNECTED` while the server runs, since it is per-request with no persistent connection to lose.
