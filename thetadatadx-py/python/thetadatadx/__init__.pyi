@@ -6146,6 +6146,10 @@ class FlatFilesNamespace:
         """Return the decoded stock-EOD flat file for ``date`` (``YYYYMMDD``)."""
         ...
 
+    def index_eod(self, date: str) -> FlatFileRowList:
+        """Return the decoded index-EOD flat file for ``date`` (``YYYYMMDD``)."""
+        ...
+
     def request(self, sec_type: str, req_type: str, date: str) -> FlatFileRowList:
         """Return a decoded flat file selected by string identifiers.
 
@@ -6181,6 +6185,10 @@ class FlatFilesNamespace:
 
     def stock_eod_async(self, date: str) -> Awaitable[FlatFileRowList]:
         """Awaitable stock-EOD flat file for ``date`` (``YYYYMMDD``)."""
+        ...
+
+    def index_eod_async(self, date: str) -> Awaitable[FlatFileRowList]:
+        """Awaitable index-EOD flat file for ``date`` (``YYYYMMDD``)."""
         ...
 
     def request_async(

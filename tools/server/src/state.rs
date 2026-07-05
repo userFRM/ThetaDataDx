@@ -4,7 +4,7 @@
 //! WebSocket channels, and shutdown plumbing. All fields are `Send + Sync`
 //! behind `Arc` so axum can cheaply clone state into each handler.
 
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::sync::Arc;
 
 use thetadatadx::Client;
@@ -58,6 +58,53 @@ pub enum StrikeFormat {
     Dollars,
 }
 
+/// FPSS (streaming) channel health, mirroring the JVM terminal's four
+/// reported states (`/v3/terminal/fpss/status` and the WS STATUS heartbeat).
+///
+/// Stored as an [`AtomicU8`] on [`Inner`], written from the FPSS event
+/// callback and read on every heartbeat and status request. The discriminants
+/// are the stored byte values; only [`AppState::set_fpss_status`] ever writes
+/// them, so a load always round-trips a known variant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum FpssStatus {
+    /// Socket ack received (code 4), login not yet confirmed — terminal `UNVERIFIED`.
+    Unverified = 0,
+    /// Authenticated and live — terminal `CONNECTED`.
+    Connected = 1,
+    /// Server dropped the connection — terminal `DISCONNECTED`.
+    Disconnected = 2,
+    /// Server or protocol error — terminal `ERROR`.
+    Error = 3,
+}
+
+impl FpssStatus {
+    const fn as_u8(self) -> u8 {
+        self as u8
+    }
+
+    fn from_u8(value: u8) -> Self {
+        match value {
+            0 => Self::Unverified,
+            1 => Self::Connected,
+            3 => Self::Error,
+            // `2` and any unreachable byte (only our setter writes) map to
+            // the pre-connection default.
+            _ => Self::Disconnected,
+        }
+    }
+
+    /// The one-word terminal status token for this state.
+    fn as_terminal_str(self) -> &'static str {
+        match self {
+            Self::Unverified => "UNVERIFIED",
+            Self::Connected => "CONNECTED",
+            Self::Disconnected => "DISCONNECTED",
+            Self::Error => "ERROR",
+        }
+    }
+}
+
 /// Shared server state, cloned into every axum handler.
 #[derive(Clone)]
 pub struct AppState {
@@ -69,8 +116,9 @@ struct Inner {
     client: Client,
     /// Whether MDDS is connected (true after successful init).
     mdds_connected: AtomicBool,
-    /// Whether FPSS is connected (set by the FPSS bridge callback).
-    fpss_connected: AtomicBool,
+    /// FPSS channel health (set by the FPSS bridge callback from stream
+    /// control events). Holds a [`FpssStatus`] discriminant.
+    fpss_status: AtomicU8,
     /// Per-client channels: FPSS events -> WebSocket clients (zero-copy fan-out).
     ws_clients: WsClients,
     /// Shutdown signal.
@@ -101,7 +149,7 @@ impl AppState {
             inner: Arc::new(Inner {
                 client,
                 mdds_connected: AtomicBool::new(true),
-                fpss_connected: AtomicBool::new(false),
+                fpss_status: AtomicU8::new(FpssStatus::Disconnected.as_u8()),
                 ws_clients: Arc::new(RwLock::new(Vec::new())),
                 shutdown: tokio::sync::Notify::new(),
                 ws_session: std::sync::Mutex::new(None),
@@ -133,6 +181,11 @@ impl AppState {
     }
 
     /// MDDS connection status string matching the JVM terminal.
+    ///
+    /// Always `CONNECTED` once init succeeds: MDDS is a per-request gRPC
+    /// channel with no persistent connection to lose, and the server only
+    /// runs if MDDS auth succeeded at startup. There is no live event that
+    /// would flip it, so it stays a bool (unlike the four-state FPSS status).
     pub fn mdds_status(&self) -> &'static str {
         if self.inner.mdds_connected.load(Ordering::Acquire) {
             "CONNECTED"
@@ -141,20 +194,18 @@ impl AppState {
         }
     }
 
-    /// FPSS connection status string matching the JVM terminal.
+    /// FPSS connection status string matching the JVM terminal: one of
+    /// `CONNECTED` / `UNVERIFIED` / `DISCONNECTED` / `ERROR`.
     pub fn fpss_status(&self) -> &'static str {
-        if self.inner.fpss_connected.load(Ordering::Acquire) {
-            "CONNECTED"
-        } else {
-            "DISCONNECTED"
-        }
+        FpssStatus::from_u8(self.inner.fpss_status.load(Ordering::Acquire)).as_terminal_str()
     }
 
-    /// Mark the streaming connection as connected or disconnected.
-    pub fn set_streaming_connected(&self, connected: bool) {
+    /// Set the FPSS channel health, driven by the stream control events in
+    /// the FPSS bridge callback.
+    pub fn set_fpss_status(&self, status: FpssStatus) {
         self.inner
-            .fpss_connected
-            .store(connected, Ordering::Release);
+            .fpss_status
+            .store(status.as_u8(), Ordering::Release);
     }
 
     /// Register a new WS client, returning the receiver half of its channel.
@@ -278,8 +329,24 @@ impl AppState {
 
 #[cfg(test)]
 mod tests {
-    use super::{ws_client_capacity_from, WS_CLIENT_CAPACITY};
+    use super::{ws_client_capacity_from, FpssStatus, WS_CLIENT_CAPACITY};
     use std::sync::Arc;
+
+    /// Every `FpssStatus` maps to its exact terminal token and round-trips
+    /// through its stored `u8` discriminant — the four states the WS
+    /// heartbeat and `/v3/terminal/fpss/status` report.
+    #[test]
+    fn fpss_status_tokens_and_roundtrip() {
+        for (status, token) in [
+            (FpssStatus::Unverified, "UNVERIFIED"),
+            (FpssStatus::Connected, "CONNECTED"),
+            (FpssStatus::Disconnected, "DISCONNECTED"),
+            (FpssStatus::Error, "ERROR"),
+        ] {
+            assert_eq!(status.as_terminal_str(), token);
+            assert_eq!(FpssStatus::from_u8(status.as_u8()), status);
+        }
+    }
 
     /// Unset env falls back to the compiled-in default capacity.
     #[test]

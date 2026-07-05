@@ -783,6 +783,8 @@ export declare class FlatFilesNamespace {
   stockTradeQuote(date: string): Promise<FlatFileRowList>
   /** Stock end-of-day flat file for the given `YYYYMMDD` date. */
   stockEod(date: string): Promise<FlatFileRowList>
+  /** Index end-of-day flat file for the given `YYYYMMDD` date. */
+  indexEod(date: string): Promise<FlatFileRowList>
   /**
    * Generic dispatcher — `secType` and `reqType` accept `"OPTION"` /
    * `"QUOTE"` style strings.

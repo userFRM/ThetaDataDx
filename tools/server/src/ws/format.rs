@@ -49,9 +49,10 @@ fn try_serialize(msg: &sonic_rs::Value) -> Option<String> {
 /// reference from the event on every serialisation.
 ///
 /// `status` is the live terminal->FPSS connectivity (`CONNECTED` /
-/// `DISCONNECTED`, from [`crate::state::AppState::fpss_status`]). The
-/// terminal stamps it into the header of every frame, not just STATUS
-/// heartbeats, so it is threaded onto each frame built here.
+/// `UNVERIFIED` / `DISCONNECTED` / `ERROR`, from
+/// [`crate::state::AppState::fpss_status`]). The terminal stamps it into the
+/// header of every frame, not just STATUS heartbeats, so it is threaded onto
+/// each frame built here.
 ///
 /// `strike_format` selects the option-`strike` encoding on the contract
 /// envelope (see [`StrikeFormat`]).
